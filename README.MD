@@ -21,7 +21,8 @@ The [project requirements index](requirements/README.md) contains the proposed
 compatibility contracts produced by discovery.
 
 The [Visual Basic class requirements](requirements/vb/README.md) identify the
-form hosts, intrinsic controls, and run-time service classes exposed by VB6.
+form hosts, intrinsic controls, run-time service classes, and behavioral
+contracts exposed by VB6.
 
 The [VBA requirements](requirements/vba/README.md) inventory the standard
 library classes, function modules, enumerations, and constants.

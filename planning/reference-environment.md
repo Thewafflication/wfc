@@ -32,6 +32,11 @@ an x86 process; x64 tooling may inspect files but cannot load these in-process.
 | Process Monitor | `C:\ProgramData\chocolatey\bin\Procmon.exe` | Record file-system, Registry, process, thread, and DLL activity during probes |
 | Inspect | `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86\inspect.exe` | Record UI Automation and accessibility information for visible controls |
 
+The core VB6 `VB98.CHM` documentation is not installed in this reference
+environment. The search result and substituted documentation policy are
+recorded in `evidence/reference/vb6-form-control-documentation.md`; executable
+VB6 probes remain authoritative for behavioral acceptance.
+
 ## Collection Procedure
 
 For each target library, runtime feature, or control:

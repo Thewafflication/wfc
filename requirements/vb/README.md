@@ -22,6 +22,9 @@ controls, drawing objects, application services, and their event contracts.
 
 - [VB class API contracts](classes/README.md) document every class, property,
   method, event, DISPID, and VB-visible type found in the library.
+- [Form and intrinsic-control behavioral requirements](behavior/README.md)
+  specify lifecycle, containment, interaction, persistence, and control-family
+  behavior to confirm with executable VB6 probes.
 
 ## Form-Class Boundary
 
@@ -37,6 +40,7 @@ The form-runtime architecture must account for these visual host classes:
 not required to represent or execute forms and will be documented as its own
 profile if IDE compatibility enters scope.
 
-Behavioral requirements will be derived from `VB98.CHM` and confirmed using
-small compiled VB6 form probes, following the same documentation-to-evidence
-process used for MSComctlLib.
+The installed environment does not include the core `VB98.CHM` help. The
+[documentation baseline](../../evidence/reference/vb6-form-control-documentation.md)
+records the substituted Microsoft sources and requires small compiled VB6 form
+probes to be the acceptance authority.

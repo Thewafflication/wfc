@@ -18,7 +18,8 @@ tailored only through controlled project decisions.
   library class, function-module, enumeration, and constant contracts derived
   from `VBA6.DLL`.
 - [Visual Basic 6.0 classes](vb/README.md) contains the run-time form,
-  intrinsic-control, and service-class API contracts derived from `VB6.OLB`.
+  intrinsic-control, and service-class API contracts derived from `VB6.OLB`,
+  plus form and intrinsic-control behavioral requirements.
 - [MSComctlLib controls](controls/README.md) contains the Automation API
   contract requirements derived from the installed Microsoft Windows Common
   Controls 6.0 reference component.
