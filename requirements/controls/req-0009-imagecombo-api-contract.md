@@ -34,19 +34,19 @@ types. Hidden and non-browsable listed members are part of this contract.
 | Property | Access | Type | DISPID | Flags |
 | --- | --- | --- | ---: | --- |
 | `BackColor` | Get/Let | `ULong` | -501 | — |
-| `ComboItems` | Get/Set | `IComboItems*` | 7 | — |
+| `ComboItems` | Get/Set | `IComboItems` | 7 | — |
 | `Enabled` | Get/Let | `Boolean` | -514 | — |
-| `Font` | Get/Let/Set | `Font*` | -512 | — |
+| `Font` | Get/Let/Set | `Font` | -512 | — |
 | `ForeColor` | Get/Let | `ULong` | -513 | — |
 | `hWnd` | Get/Let | `Integer` | -515 | NonBrowsable |
 | `ImageList` | Get/Set/Let | `Object` | 3 | — |
 | `Indentation` | Get/Let | `Integer` | 4 | — |
 | `Locked` | Get/Let | `Boolean` | 9 | — |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 10 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 10 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 11 | — |
 | `OLEDragMode` | Get/Let | `OLEDragConstants` | 1550 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
-| `SelectedItem` | Get/Set/Let | `IComboItem*` | 14 | — |
+| `SelectedItem` | Get/Set/Let | `IComboItem` | 14 | — |
 | `SelLength` | Get/Let | `Long` | 16 | NonBrowsable |
 | `SelStart` | Get/Let | `Long` | 17 | NonBrowsable |
 | `SelText` | Get/Let | `String` | 18 | NonBrowsable |
@@ -57,7 +57,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 | Method | Parameters | Returns | DISPID | Flags |
 | --- | --- | --- | ---: | --- |
 | `AboutBox` | `` | `Void` | -552 | Hidden |
-| `GetFirstVisible` | `` | `IComboItem*` | 30 | — |
+| `GetFirstVisible` | `` | `IComboItem` | 30 | — |
 | `Refresh` | `` | `Void` | -550 | — |
 | `OLEDrag` | `` | `Void` | 1552 | — |
 
@@ -70,13 +70,13 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `Click` | `` | -600 |
 | `KeyDown` | `KeyCode: Integer, Shift: Integer` | -602 |
 | `KeyUp` | `KeyCode: Integer, Shift: Integer` | -604 |
-| `KeyPress` | `KeyAscii: Integer*` | -603 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `KeyPress` | `KeyAscii: Integer` | -603 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

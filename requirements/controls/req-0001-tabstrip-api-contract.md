@@ -38,24 +38,24 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `ClientTop` | Get/Let | `Single` | 9 | NonBrowsable |
 | `ClientWidth` | Get/Let | `Single` | 12 | NonBrowsable |
 | `Enabled` | Get/Let | `Boolean` | -514 | Bindable, RequestEdit |
-| `Font` | Get/Set | `Font*` | -512 | Bindable |
+| `Font` | Get/Set | `Font` | -512 | Bindable |
 | `HotTracking` | Get/Let | `Boolean` | 16 | Bindable, RequestEdit |
 | `hWnd` | Get/Let | `Integer` | -515 | NonBrowsable |
 | `ImageList` | Get/Let/Set | `Object` | 13 | — |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 5 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 5 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 2 | — |
 | `MultiRow` | Get/Let | `Boolean` | 1 | — |
 | `MultiSelect` | Get/Let | `Boolean` | 17 | Bindable, RequestEdit |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `Placement` | Get/Let | `PlacementConstants` | 18 | — |
-| `SelectedItem` | Get/Set/Let | `ITab*` | 15 | NonBrowsable |
+| `SelectedItem` | Get/Set/Let | `ITab` | 15 | NonBrowsable |
 | `Separators` | Get/Let | `Boolean` | 19 | Bindable, RequestEdit |
 | `ShowTips` | Get/Let | `Boolean` | 3 | — |
 | `Style` | Get/Let | `TabStyleConstants` | 6 | — |
 | `TabFixedHeight` | Get/Let | `Integer` | 14 | — |
 | `TabFixedWidth` | Get/Let | `Integer` | 7 | — |
 | `TabMinWidth` | Get/Let | `Single` | 20 | — |
-| `Tabs` | Get/Set | `ITabs*` | 4 | — |
+| `Tabs` | Get/Set | `ITabs` | 4 | — |
 | `TabStyle` | Get/Let | `TabSelStyleConstants` | 21 | — |
 | `TabWidthStyle` | Get/Let | `TabWidthStyleConstants` | 8 | — |
 
@@ -73,19 +73,19 @@ types. Hidden and non-browsable listed members are part of this contract.
 | Event | Parameters | DISPID |
 | --- | --- | ---: |
 | `Click` | `` | -600 |
-| `KeyDown` | `KeyCode: Integer*, Shift: Integer` | -602 |
-| `KeyPress` | `KeyAscii: Integer*` | -603 |
-| `KeyUp` | `KeyCode: Integer*, Shift: Integer` | -604 |
+| `KeyDown` | `KeyCode: Integer, Shift: Integer` | -602 |
+| `KeyPress` | `KeyAscii: Integer` | -603 |
+| `KeyUp` | `KeyCode: Integer, Shift: Integer` | -604 |
 | `MouseDown` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -605 |
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
-| `BeforeClick` | `Cancel: Integer*` | 1 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `BeforeClick` | `Cancel: Integer` | 1 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

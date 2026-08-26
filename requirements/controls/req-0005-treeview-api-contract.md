@@ -36,9 +36,9 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `Appearance` | Get/Let | `AppearanceConstants` | -520 | — |
 | `BorderStyle` | Get/Let | `BorderStyleConstants` | -504 | — |
 | `Checkboxes` | Get/Let | `Boolean` | 17 | — |
-| `DropHighlight` | Get/Set/Let | `INode*` | 1 | NonBrowsable |
+| `DropHighlight` | Get/Set/Let | `INode` | 1 | NonBrowsable |
 | `Enabled` | Get/Let | `Boolean` | -514 | — |
-| `Font` | Get/Let/Set | `Font*` | -512 | — |
+| `Font` | Get/Let/Set | `Font` | -512 | — |
 | `FullRowSelect` | Get/Let | `Boolean` | 18 | — |
 | `HideSelection` | Get/Let | `Boolean` | 2 | — |
 | `HotTracking` | Get/Let | `Boolean` | 19 | — |
@@ -47,14 +47,14 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `Indentation` | Get/Let | `Single` | 4 | — |
 | `LabelEdit` | Get/Let | `LabelEditConstants` | 5 | — |
 | `LineStyle` | Get/Let | `TreeLineStyleConstants` | 6 | — |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 8 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 8 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 7 | — |
-| `Nodes` | Get/Set | `INodes*` | 9 | NonBrowsable |
+| `Nodes` | Get/Set | `INodes` | 9 | NonBrowsable |
 | `OLEDragMode` | Get/Let | `OLEDragConstants` | 1550 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `PathSeparator` | Get/Let | `String` | 10 | — |
 | `Scroll` | Get/Let | `Boolean` | 20 | — |
-| `SelectedItem` | Get/Set/Let | `INode*` | 11 | NonBrowsable |
+| `SelectedItem` | Get/Set/Let | `INode` | 11 | NonBrowsable |
 | `SingleSel` | Get/Let | `Boolean` | 21 | — |
 | `Sorted` | Get/Let | `Boolean` | 12 | — |
 | `Style` | Get/Let | `TreeStyleConstants` | 13 | — |
@@ -63,7 +63,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 
 | Method | Parameters | Returns | DISPID | Flags |
 | --- | --- | --- | ---: | --- |
-| `HitTest` | `x: Single, y: Single` | `INode*` | 14 | NonBrowsable |
+| `HitTest` | `x: Single, y: Single` | `INode` | 14 | NonBrowsable |
 | `GetVisibleCount` | `` | `Long` | 15 | NonBrowsable |
 | `StartLabelEdit` | `` | `Void` | 16 | — |
 | `Refresh` | `` | `Void` | -550 | — |
@@ -74,26 +74,26 @@ types. Hidden and non-browsable listed members are part of this contract.
 
 | Event | Parameters | DISPID |
 | --- | --- | ---: |
-| `BeforeLabelEdit` | `Cancel: Integer*` | 1 |
-| `AfterLabelEdit` | `Cancel: Integer*, NewString: String*` | 2 |
-| `Collapse` | `Node: Node*` | 3 |
-| `Expand` | `Node: Node*` | 4 |
-| `NodeClick` | `Node: Node*` | 5 |
-| `KeyDown` | `KeyCode: Integer*, Shift: Integer` | -602 |
-| `KeyUp` | `KeyCode: Integer*, Shift: Integer` | -604 |
-| `KeyPress` | `KeyAscii: Integer*` | -603 |
+| `BeforeLabelEdit` | `Cancel: Integer` | 1 |
+| `AfterLabelEdit` | `Cancel: Integer, NewString: String` | 2 |
+| `Collapse` | `Node: Node` | 3 |
+| `Expand` | `Node: Node` | 4 |
+| `NodeClick` | `Node: Node` | 5 |
+| `KeyDown` | `KeyCode: Integer, Shift: Integer` | -602 |
+| `KeyUp` | `KeyCode: Integer, Shift: Integer` | -604 |
+| `KeyPress` | `KeyAscii: Integer` | -603 |
 | `MouseDown` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -605 |
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
 | `Click` | `` | -600 |
 | `DblClick` | `` | -601 |
-| `NodeCheck` | `Node: Node*` | 6 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `NodeCheck` | `Node: Node` | 6 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

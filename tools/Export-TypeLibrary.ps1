@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter()]
-    [string] $InputPath = 'C:\Windows\SysWOW64\MSCOMCTL.OCX',
+    [Parameter(Mandatory)]
+    [string] $InputPath,
 
     [Parameter(Mandatory)]
     [string] $OutputPath
@@ -117,15 +117,11 @@ if (-not [string]::IsNullOrEmpty($outputDirectory)) {
 
 $application = New-Object -ComObject TLI.TLIApplication
 $library = $application.TypeLibInfoFromFile($resolvedInput)
-$controls = [System.Collections.ArrayList]::new()
+$classes = [System.Collections.ArrayList]::new()
 
 for ($classIndex = 1; $classIndex -le $library.CoClasses.Count; $classIndex++) {
     $class = $library.CoClasses.Item($classIndex)
-    if (([int] $class.AttributeMask -band 0x20) -eq 0) {
-        continue
-    }
-
-    $progId = $null
+        $progId = $null
     try {
         $progIdKey = 'Registry::HKEY_CLASSES_ROOT\CLSID\' + [string] $class.GUID + '\ProgID'
         $progId = [string] (Get-ItemProperty -LiteralPath $progIdKey).'(default)'
@@ -144,7 +140,7 @@ for ($classIndex = 1; $classIndex -le $library.CoClasses.Count; $classIndex++) {
         $events = $null
     }
 
-    [void] $controls.Add([ordered]@{
+    [void] $classes.Add([ordered]@{
         name = [string] $class.Name
         guid = [string] $class.GUID
         progId = $progId
@@ -174,7 +170,7 @@ $model = [ordered]@{
         sysKind = [int] $library.SysKind
         typeInfoCount = [int] $library.TypeInfoCount
     }
-    controls = $controls
+    classes = $classes
 }
 
 $json = $model | ConvertTo-Json -Depth 20

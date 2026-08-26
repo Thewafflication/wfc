@@ -37,9 +37,9 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `Appearance` | Get/Let | `AppearanceConstants` | -520 | — |
 | `BorderStyle` | Get/Let | `BorderStyleConstants` | -504 | Bindable, RequestEdit |
 | `ButtonHeight` | Get/Let | `Single` | 8 | — |
-| `Buttons` | Get/Set | `IButtons*` | 3 | — |
+| `Buttons` | Get/Set | `IButtons` | 3 | — |
 | `ButtonWidth` | Get/Let | `Single` | 9 | — |
-| `Controls` | Get | `IControls*` | 15 | — |
+| `Controls` | Get | `IControls` | 15 | — |
 | `DisabledImageList` | Get/Let/Set | `Object` | 17 | — |
 | `Enabled` | Get/Let | `Boolean` | -514 | Bindable, RequestEdit |
 | `HelpContextID` | Get/Let | `Long` | 13 | — |
@@ -47,7 +47,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `HotImageList` | Get/Let/Set | `Object` | 18 | — |
 | `hWnd` | Get/Let | `Integer` | -515 | NonBrowsable |
 | `ImageList` | Get/Let/Set | `Object` | 5 | — |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 4 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 4 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 1 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `ShowTips` | Get/Let | `Boolean` | 6 | — |
@@ -70,21 +70,21 @@ types. Hidden and non-browsable listed members are part of this contract.
 
 | Event | Parameters | DISPID |
 | --- | --- | ---: |
-| `ButtonClick` | `Button: Button*` | 1 |
+| `ButtonClick` | `Button: Button` | 1 |
 | `Change` | `` | 2 |
 | `Click` | `` | -600 |
 | `MouseDown` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -605 |
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
 | `DblClick` | `` | -601 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
-| `ButtonMenuClick` | `ButtonMenu: ButtonMenu*` | 3 |
-| `ButtonDropDown` | `Button: Button*` | 4 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
+| `ButtonMenuClick` | `ButtonMenu: ButtonMenu` | 3 |
+| `ButtonDropDown` | `Button: Button` | 4 |
 
 ## Behavioral Characterization Needed
 

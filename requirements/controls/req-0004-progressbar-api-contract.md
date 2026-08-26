@@ -40,7 +40,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `hWnd` | Get | `Integer` | -515 | NonBrowsable |
 | `Max` | Get/Let | `Single` | 1 | — |
 | `Min` | Get/Let | `Single` | 2 | — |
-| `MouseIcon` | Get/Set/Let | `Picture*` | 4 | — |
+| `MouseIcon` | Get/Set/Let | `Picture` | 4 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 3 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `Orientation` | Get/Let | `OrientationConstants` | 6 | — |
@@ -63,12 +63,12 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
 | `Click` | `` | -600 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

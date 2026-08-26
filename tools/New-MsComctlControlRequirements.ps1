@@ -281,5 +281,12 @@ $index.Add('They establish names, DISPIDs, access modes, and Automation signatur
 $index.Add('not establish default values, state transitions, rendering, event order, error')
 $index.Add('semantics, persistence, or accessibility behavior; those require executable VB6')
 $index.Add('reference probes and separately verifiable requirements.')
+$index.Add('')
+$index.Add('## Behavioral Requirements')
+$index.Add('')
+$index.Add('The [behavioral requirement set](behavior/README.md) defines the first 27')
+$index.Add('observable control behaviors derived from the installed Microsoft help. These')
+$index.Add('requirements cover all nine control classes and are allocated to planned')
+$index.Add('matching-number VB6 reference and WFC conformance tests.')
 
 [IO.File]::WriteAllLines((Join-Path $resolvedOutput 'README.md'), $index, [Text.UTF8Encoding]::new($false))

@@ -34,13 +34,13 @@ types. Hidden and non-browsable listed members are part of this contract.
 | Property | Access | Type | DISPID | Flags |
 | --- | --- | --- | ---: | --- |
 | `Enabled` | Get/Let | `Boolean` | -514 | — |
-| `Font` | Get/Set | `Font*` | -512 | — |
+| `Font` | Get/Set | `Font` | -512 | — |
 | `hWnd` | Get/Let | `Integer` | -515 | NonBrowsable |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 5 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 5 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 4 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `PanelProperties` | Get/Let | `String` | 6 | Hidden |
-| `Panels` | Get/Set | `IPanels*` | 3 | — |
+| `Panels` | Get/Set | `IPanels` | 3 | — |
 | `ShowTips` | Get/Let | `Boolean` | 7 | — |
 | `SimpleText` | Get/Let | `String` | 1 | — |
 | `Style` | Get/Let | `SbarStyleConstants` | 2 | — |
@@ -57,19 +57,19 @@ types. Hidden and non-browsable listed members are part of this contract.
 
 | Event | Parameters | DISPID |
 | --- | --- | ---: |
-| `PanelClick` | `Panel: Panel*` | 1 |
-| `PanelDblClick` | `Panel: Panel*` | 2 |
+| `PanelClick` | `Panel: Panel` | 1 |
+| `PanelDblClick` | `Panel: Panel` | 2 |
 | `MouseDown` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -605 |
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
 | `Click` | `` | -600 |
 | `DblClick` | `` | -601 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

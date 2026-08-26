@@ -37,7 +37,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `hImageList` | Get/Let | `Integer` | 5 | NonBrowsable |
 | `ImageHeight` | Get/Let | `Integer` | 1 | — |
 | `ImageWidth` | Get/Let | `Integer` | 2 | — |
-| `ListImages` | Get/Set | `IImages*` | 4 | — |
+| `ListImages` | Get/Set | `IImages` | 4 | — |
 | `MaskColor` | Get/Let | `ULong` | 3 | — |
 | `UseMaskColor` | Get/Let | `Boolean` | 7 | — |
 
@@ -45,7 +45,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 
 | Method | Parameters | Returns | DISPID | Flags |
 | --- | --- | --- | ---: | --- |
-| `Overlay` | `Key1: Variant*, Key2: Variant*` | `Picture*` | 6 | — |
+| `Overlay` | `Key1: Variant, Key2: Variant` | `Picture` | 6 | — |
 | `AboutBox` | `` | `Void` | -552 | Hidden |
 
 ## Event Inventory

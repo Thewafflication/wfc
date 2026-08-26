@@ -41,7 +41,7 @@ types. Hidden and non-browsable listed members are part of this contract.
 | `LargeChange` | Get/Let | `Long` | 1 | — |
 | `Max` | Get/Let | `Long` | 3 | — |
 | `Min` | Get/Let | `Long` | 4 | — |
-| `MouseIcon` | Get/Let/Set | `Picture*` | 12 | — |
+| `MouseIcon` | Get/Let/Set | `Picture` | 12 | — |
 | `MousePointer` | Get/Let | `MousePointerConstants` | 13 | — |
 | `OLEDropMode` | Get/Let | `OLEDropConstants` | 1551 | — |
 | `Orientation` | Get/Let | `OrientationConstants` | 5 | — |
@@ -70,20 +70,20 @@ types. Hidden and non-browsable listed members are part of this contract.
 | Event | Parameters | DISPID |
 | --- | --- | ---: |
 | `Click` | `` | -600 |
-| `KeyDown` | `KeyCode: Integer*, Shift: Integer` | -602 |
-| `KeyPress` | `KeyAscii: Integer*` | -603 |
-| `KeyUp` | `KeyCode: Integer*, Shift: Integer` | -604 |
+| `KeyDown` | `KeyCode: Integer, Shift: Integer` | -602 |
+| `KeyPress` | `KeyAscii: Integer` | -603 |
+| `KeyUp` | `KeyCode: Integer, Shift: Integer` | -604 |
 | `MouseDown` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -605 |
 | `MouseMove` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -606 |
 | `MouseUp` | `Button: Integer, Shift: Integer, x: Long, y: Long` | -607 |
 | `Scroll` | `` | 1 |
 | `Change` | `` | 2 |
-| `OLEStartDrag` | `ByRef Data: DataObject**, ByRef AllowedEffects: Long*` | 1550 |
-| `OLEGiveFeedback` | `ByRef Effect: Long*, ByRef DefaultCursors: Boolean*` | 1551 |
-| `OLESetData` | `ByRef Data: DataObject**, ByRef DataFormat: Integer*` | 1552 |
-| `OLECompleteDrag` | `ByRef Effect: Long*` | 1553 |
-| `OLEDragOver` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*, ByRef State: Integer*` | 1554 |
-| `OLEDragDrop` | `ByRef Data: DataObject**, ByRef Effect: Long*, ByRef Button: Integer*, ByRef Shift: Integer*, ByRef x: Single*, ByRef y: Single*` | 1555 |
+| `OLEStartDrag` | `ByRef Data: DataObject, ByRef AllowedEffects: Long` | 1550 |
+| `OLEGiveFeedback` | `ByRef Effect: Long, ByRef DefaultCursors: Boolean` | 1551 |
+| `OLESetData` | `ByRef Data: DataObject, ByRef DataFormat: Integer` | 1552 |
+| `OLECompleteDrag` | `ByRef Effect: Long` | 1553 |
+| `OLEDragOver` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single, ByRef State: Integer` | 1554 |
+| `OLEDragDrop` | `ByRef Data: DataObject, ByRef Effect: Long, ByRef Button: Integer, ByRef Shift: Integer, ByRef x: Single, ByRef y: Single` | 1555 |
 
 ## Behavioral Characterization Needed
 

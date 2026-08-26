@@ -19,3 +19,6 @@ installed reference components and inspection tools.
 
 The [project requirements index](requirements/README.md) contains the proposed
 compatibility contracts produced by discovery.
+
+The [Visual Basic class requirements](requirements/vb/README.md) identify the
+form hosts, intrinsic controls, and run-time service classes exposed by VB6.

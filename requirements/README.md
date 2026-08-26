@@ -8,6 +8,8 @@ tailored only through controlled project decisions.
 
 ## Requirement Sets
 
+- [Visual Basic 6.0 classes](vb/README.md) contains the run-time form,
+  intrinsic-control, and service-class API contracts derived from `VB6.OLB`.
 - [MSComctlLib controls](controls/README.md) contains the Automation API
   contract requirements derived from the installed Microsoft Windows Common
   Controls 6.0 reference component.
