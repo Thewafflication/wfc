@@ -25,3 +25,6 @@ form hosts, intrinsic controls, and run-time service classes exposed by VB6.
 
 The [VBA requirements](requirements/vba/README.md) inventory the standard
 library classes, function modules, enumerations, and constants.
+
+The [standard OLE requirements](requirements/stdole/README.md) capture the
+font, picture, persistence-function, and constant contracts used by VB6 forms.

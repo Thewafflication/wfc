@@ -17,6 +17,7 @@ requirement and verification evidence.
 | Visual Basic object library | `C:\Program Files (x86)\Microsoft Visual Studio\VB98\VB6.OLB` | Type library 6.0 |
 | Visual Basic for Applications library | `C:\Program Files (x86)\Microsoft Visual Studio\VB98\VBA6.DLL` | 6.0.8169 |
 | Visual Basic runtime | `C:\Windows\SysWOW64\msvbvm60.dll` | 6.00.9848 |
+| Standard OLE type library | `C:\Windows\SysWOW64\stdole2.tlb` | Type library 2.0 |
 | Microsoft Windows Common Controls 6.0 | `C:\Windows\SysWOW64\MSCOMCTL.OCX` | 6.00.8177 |
 
 The reference components are x86. Tests and tools that load them shall run in

@@ -60,6 +60,7 @@ function Get-MemberKind {
     param([int] $InvokeKind)
 
     switch ($InvokeKind) {
+        0 { 'Member' }
         1 { 'Method' }
         2 { 'PropertyGet' }
         4 { 'PropertyLet' }
@@ -153,6 +154,7 @@ if (-not [string]::IsNullOrEmpty($outputDirectory)) {
 $application = New-Object -ComObject TLI.TLIApplication
 $library = $application.TypeLibInfoFromFile($resolvedInput)
 $classes = [System.Collections.ArrayList]::new()
+$interfaces = [System.Collections.ArrayList]::new()
 $declarations = [System.Collections.ArrayList]::new()
 $constants = [System.Collections.ArrayList]::new()
 
@@ -187,6 +189,10 @@ for ($classIndex = 1; $classIndex -le $library.CoClasses.Count; $classIndex++) {
     })
 }
 
+for ($interfaceIndex = 1; $interfaceIndex -le $library.Interfaces.Count; $interfaceIndex++) {
+    [void] $interfaces.Add((Get-InterfaceModel -Interface $library.Interfaces.Item($interfaceIndex)))
+}
+
 for ($declarationIndex = 1; $declarationIndex -le $library.Declarations.Count; $declarationIndex++) {
     [void] $declarations.Add((Get-InterfaceModel -Interface $library.Declarations.Item($declarationIndex)))
 }
@@ -216,6 +222,7 @@ $model = [ordered]@{
         typeInfoCount = [int] $library.TypeInfoCount
     }
     classes = $classes
+    interfaces = $interfaces
     declarations = $declarations
     constants = $constants
 }

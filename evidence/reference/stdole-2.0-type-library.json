@@ -1,0 +1,1486 @@
+{
+    "schemaVersion":  1,
+    "generatedUtc":  "2026-08-26T22:23:08.0968904Z",
+    "source":  {
+                   "path":  "C:\\Windows\\SysWOW64\\stdole2.tlb",
+                   "sha256":  "75309895683298517CADFFE194277E2DB0931B4A262052E26B4E3F9DDE6D9548",
+                   "fileVersion":  "10.0.26100.1 (WinBuild.160101.0800)",
+                   "productVersion":  "10.0.26100.1"
+               },
+    "library":  {
+                    "name":  "stdole",
+                    "guid":  "{00020430-0000-0000-C000-000000000046}",
+                    "majorVersion":  2,
+                    "minorVersion":  0,
+                    "lcid":  0,
+                    "sysKind":  1,
+                    "typeInfoCount":  42
+                },
+    "classes":  [
+                    {
+                        "name":  "StdFont",
+                        "guid":  "{0BE35203-8F91-11CE-9DE3-00AA004BB851}",
+                        "progId":  "StdFont",
+                        "flags":  2,
+                        "defaultInterface":  {
+                                                 "name":  "Font",
+                                                 "guid":  "{BEF6E003-A874-101A-8BBA-00AA00300CAB}",
+                                                 "flags":  1,
+                                                 "members":  [
+                                                                 {
+                                                                     "name":  "Name",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  0,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Size",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Currency",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Bold",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  3,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Italic",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  4,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Underline",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  5,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Strikethrough",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  6,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Weight",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  7,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Charset",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  8,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 }
+                                                             ]
+                                             },
+                        "defaultEventInterface":  {
+                                                      "name":  "FontEvents",
+                                                      "guid":  "{4EF6100A-AF88-11D0-9846-00C04FC29993}",
+                                                      "flags":  3,
+                                                      "members":  [
+                                                                      {
+                                                                          "name":  "FontChanged",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  9,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+                                                                                             {
+                                                                                                 "name":  "PropertyName",
+                                                                                                 "type":  "String",
+                                                                                                 "flags":  1,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             }
+                                                                                         ]
+                                                                      }
+                                                                  ]
+                                                  }
+                    },
+                    {
+                        "name":  "StdPicture",
+                        "guid":  "{0BE35204-8F91-11CE-9DE3-00AA004BB851}",
+                        "progId":  "StdPicture",
+                        "flags":  2,
+                        "defaultInterface":  {
+                                                 "name":  "Picture",
+                                                 "guid":  "{7BF80981-BF32-101A-8BBB-00AA00300CAB}",
+                                                 "flags":  1,
+                                                 "members":  [
+                                                                 {
+                                                                     "name":  "hPal",
+                                                                     "kind":  "Member",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Render",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  6,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "hdc",
+                                                                                            "type":  "Integer",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "x",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "y",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "cx",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "cy",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "xSrc",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "ySrc",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "cxSrc",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "cySrc",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "prcWBounds",
+                                                                                            "type":  "Void",
+                                                                                            "flags":  0,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 }
+                                                             ]
+                                             },
+                        "defaultEventInterface":  null
+                    }
+                ],
+    "interfaces":  [
+                       {
+                           "name":  "IUnknown",
+                           "guid":  "{00000000-0000-0000-C000-000000000046}",
+                           "flags":  16,
+                           "members":  [
+
+                                       ]
+                       },
+                       {
+                           "name":  "IDispatch",
+                           "guid":  "{00020400-0000-0000-C000-000000000046}",
+                           "flags":  512,
+                           "members":  [
+
+                                       ]
+                       },
+                       {
+                           "name":  "IEnumVARIANT",
+                           "guid":  "{00020404-0000-0000-C000-000000000046}",
+                           "flags":  16,
+                           "members":  [
+                                           {
+                                               "name":  "Next",
+                                               "kind":  "Method",
+                                               "memberId":  1610678272,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "celt",
+                                                                      "type":  "ULong",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "rgvar",
+                                                                      "type":  "Variant",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "pceltFetched",
+                                                                      "type":  "ULong",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Skip",
+                                               "kind":  "Method",
+                                               "memberId":  1610678273,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "celt",
+                                                                      "type":  "ULong",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Reset",
+                                               "kind":  "Method",
+                                               "memberId":  1610678274,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Clone",
+                                               "kind":  "Method",
+                                               "memberId":  1610678275,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "ppenum",
+                                                                      "type":  "IEnumVARIANT",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "IFont",
+                           "guid":  "{BEF6E002-A874-101A-8BBA-00AA00300CAB}",
+                           "flags":  16,
+                           "members":  [
+                                           {
+                                               "name":  "Name",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678272,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Name",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678272,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Size",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678274,
+                                               "flags":  0,
+                                               "returnType":  "Currency",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Size",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678274,
+                                               "flags":  0,
+                                               "returnType":  "Currency",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Bold",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678276,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Bold",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678276,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Italic",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678278,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Italic",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678278,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Underline",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678280,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Underline",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678280,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Strikethrough",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678282,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Strikethrough",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678282,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Weight",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678284,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Weight",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678284,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Charset",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678286,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Charset",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678286,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hFont",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678288,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Clone",
+                                               "kind":  "Method",
+                                               "memberId":  1610678289,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "ppfont",
+                                                                      "type":  "IFont",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "IsEqual",
+                                               "kind":  "Method",
+                                               "memberId":  1610678290,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "pfontOther",
+                                                                      "type":  "IFont",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SetRatio",
+                                               "kind":  "Method",
+                                               "memberId":  1610678291,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "cyLogical",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cyHimetric",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "AddRefHfont",
+                                               "kind":  "Method",
+                                               "memberId":  1610678292,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hFont",
+                                                                      "type":  "Integer",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ReleaseHfont",
+                                               "kind":  "Method",
+                                               "memberId":  1610678293,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hFont",
+                                                                      "type":  "Integer",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "Font",
+                           "guid":  "{BEF6E003-A874-101A-8BBA-00AA00300CAB}",
+                           "flags":  4096,
+                           "members":  [
+                                           {
+                                               "name":  "Name",
+                                               "kind":  "Member",
+                                               "memberId":  0,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Size",
+                                               "kind":  "Member",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Currency",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Bold",
+                                               "kind":  "Member",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Italic",
+                                               "kind":  "Member",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Underline",
+                                               "kind":  "Member",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Strikethrough",
+                                               "kind":  "Member",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Weight",
+                                               "kind":  "Member",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Charset",
+                                               "kind":  "Member",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "IFontDisp",
+                           "guid":  "{00000000-0000-0000-0000-000000000000}",
+                           "flags":  0,
+                           "members":  [
+                                           {
+                                               "name":  "Name",
+                                               "kind":  "Member",
+                                               "memberId":  0,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Size",
+                                               "kind":  "Member",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Currency",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Bold",
+                                               "kind":  "Member",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Italic",
+                                               "kind":  "Member",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Underline",
+                                               "kind":  "Member",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Strikethrough",
+                                               "kind":  "Member",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Weight",
+                                               "kind":  "Member",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Charset",
+                                               "kind":  "Member",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "IPicture",
+                           "guid":  "{7BF80980-BF32-101A-8BBB-00AA00300CAB}",
+                           "flags":  16,
+                           "members":  [
+                                           {
+                                               "name":  "Handle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678272,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hPal",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678273,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Type",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678274,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Width",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678275,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Height",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678276,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Render",
+                                               "kind":  "Method",
+                                               "memberId":  1610678277,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hdc",
+                                                                      "type":  "Integer",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "x",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "y",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cx",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cy",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "xSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "ySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cxSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "prcWBounds",
+                                                                      "type":  "Void",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hPal",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678273,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "CurDC",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678279,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SelectPicture",
+                                               "kind":  "Method",
+                                               "memberId":  1610678280,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hdcIn",
+                                                                      "type":  "Integer",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "phdcOut",
+                                                                      "type":  "Integer",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "phbmpOut",
+                                                                      "type":  "Integer",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "KeepOriginalFormat",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678281,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "KeepOriginalFormat",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1610678281,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PictureChanged",
+                                               "kind":  "Method",
+                                               "memberId":  1610678283,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SaveAsFile",
+                                               "kind":  "Method",
+                                               "memberId":  1610678284,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "pstm",
+                                                                      "type":  "Void",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "fSaveMemCopy",
+                                                                      "type":  "Boolean",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "pcbSize",
+                                                                      "type":  "Long",
+                                                                      "flags":  2,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Attributes",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1610678285,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SetHdc",
+                                               "kind":  "Method",
+                                               "memberId":  1610678286,
+                                               "flags":  0,
+                                               "returnType":  "HRESULT",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hdc",
+                                                                      "type":  "Integer",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "Picture",
+                           "guid":  "{7BF80981-BF32-101A-8BBB-00AA00300CAB}",
+                           "flags":  4096,
+                           "members":  [
+                                           {
+                                               "name":  "hPal",
+                                               "kind":  "Member",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Render",
+                                               "kind":  "Method",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hdc",
+                                                                      "type":  "Integer",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "x",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "y",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cx",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cy",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "xSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "ySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cxSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "prcWBounds",
+                                                                      "type":  "Void",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "IPictureDisp",
+                           "guid":  "{00000000-0000-0000-0000-000000000000}",
+                           "flags":  0,
+                           "members":  [
+                                           {
+                                               "name":  "hPal",
+                                               "kind":  "Member",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Render",
+                                               "kind":  "Method",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "hdc",
+                                                                      "type":  "Integer",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "x",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "y",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cx",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cy",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "xSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "ySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cxSrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "cySrc",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "prcWBounds",
+                                                                      "type":  "Void",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "FontEvents",
+                           "guid":  "{4EF6100A-AF88-11D0-9846-00C04FC29993}",
+                           "flags":  4112,
+                           "members":  [
+                                           {
+                                               "name":  "FontChanged",
+                                               "kind":  "Method",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "PropertyName",
+                                                                      "type":  "String",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "IFontEventsDisp",
+                           "guid":  "{00000000-0000-0000-0000-000000000000}",
+                           "flags":  0,
+                           "members":  [
+                                           {
+                                               "name":  "FontChanged",
+                                               "kind":  "Method",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "PropertyName",
+                                                                      "type":  "String",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           }
+                                       ]
+                       }
+                   ],
+    "declarations":  [
+                         {
+                             "name":  "StdFunctions",
+                             "guid":  "{91209AC0-60F6-11CF-9C5D-00AA00C1489E}",
+                             "flags":  0,
+                             "members":  [
+                                             {
+                                                 "name":  "LoadPicture",
+                                                 "kind":  "Method",
+                                                 "memberId":  1610612736,
+                                                 "flags":  0,
+                                                 "returnType":  "Picture",
+                                                 "parameters":  [
+                                                                    {
+                                                                        "name":  "filename",
+                                                                        "type":  "Variant",
+                                                                        "flags":  17,
+                                                                        "optional":  true,
+                                                                        "hasDefault":  false,
+                                                                        "defaultValue":  null
+                                                                    },
+                                                                    {
+                                                                        "name":  "widthDesired",
+                                                                        "type":  "Integer",
+                                                                        "flags":  49,
+                                                                        "optional":  true,
+                                                                        "hasDefault":  true,
+                                                                        "defaultValue":  0
+                                                                    },
+                                                                    {
+                                                                        "name":  "heightDesired",
+                                                                        "type":  "Integer",
+                                                                        "flags":  49,
+                                                                        "optional":  true,
+                                                                        "hasDefault":  true,
+                                                                        "defaultValue":  0
+                                                                    },
+                                                                    {
+                                                                        "name":  "flags",
+                                                                        "type":  "LoadPictureConstants",
+                                                                        "flags":  49,
+                                                                        "optional":  true,
+                                                                        "hasDefault":  true,
+                                                                        "defaultValue":  0
+                                                                    }
+                                                                ]
+                                             },
+                                             {
+                                                 "name":  "SavePicture",
+                                                 "kind":  "Method",
+                                                 "memberId":  1610612737,
+                                                 "flags":  0,
+                                                 "returnType":  "HRESULT",
+                                                 "parameters":  [
+                                                                    {
+                                                                        "name":  "Picture",
+                                                                        "type":  "Picture",
+                                                                        "flags":  1,
+                                                                        "optional":  false,
+                                                                        "hasDefault":  false,
+                                                                        "defaultValue":  null
+                                                                    },
+                                                                    {
+                                                                        "name":  "filename",
+                                                                        "type":  "String",
+                                                                        "flags":  1,
+                                                                        "optional":  false,
+                                                                        "hasDefault":  false,
+                                                                        "defaultValue":  null
+                                                                    }
+                                                                ]
+                                             }
+                                         ]
+                         }
+                     ],
+    "constants":  [
+                      {
+                          "name":  "OLE_TRISTATE",
+                          "guid":  "{6650430A-BE0F-101A-8BBB-00AA00300CAB}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "Unchecked",
+                                              "value":  0,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "Checked",
+                                              "value":  1,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "Gray",
+                                              "value":  2,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "LoadPictureConstants",
+                          "guid":  "{E6C8FA08-BD9F-11D0-985E-00C04FC29993}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "Default",
+                                              "value":  0,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "Monochrome",
+                                              "value":  1,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "VgaColor",
+                                              "value":  2,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "Color",
+                                              "value":  4,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      }
+                  ]
+}

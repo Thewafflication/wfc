@@ -8,6 +8,9 @@ tailored only through controlled project decisions.
 
 ## Requirement Sets
 
+- [Standard OLE 2.0](stdole/README.md) contains the font, picture, persistence
+  function, native COM interface, and constant contracts derived from the
+  installed `stdole2.tlb`.
 - [Visual Basic for Applications 6.0](vba/README.md) contains the standard
   library class, function-module, enumeration, and constant contracts derived
   from `VBA6.DLL`.
