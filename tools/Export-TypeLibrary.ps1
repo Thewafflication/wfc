@@ -81,12 +81,20 @@ function Get-InterfaceModel {
         $parameters = [System.Collections.ArrayList]::new()
         for ($parameterIndex = 1; $parameterIndex -le $member.Parameters.Count; $parameterIndex++) {
             $parameter = $member.Parameters.Item($parameterIndex)
+            $parameterFlags = [int] $parameter.Flags
+            $isOptional = [bool] $parameter.Optional -or (($parameterFlags -band 16) -ne 0)
+            $hasDefault = [bool] $parameter.Default -or (($parameterFlags -band 32) -ne 0)
+            $defaultValue = $null
+            if ($hasDefault) {
+                try { $defaultValue = $parameter.DefaultValue } catch { $defaultValue = $null }
+            }
             [void] $parameters.Add([ordered]@{
                 name = [string] $parameter.Name
                 type = Get-TypeName -Type $parameter.VarTypeInfo
-                flags = [int] $parameter.Flags
-                optional = [bool] $parameter.Optional
-                hasDefault = [bool] $parameter.Default
+                flags = $parameterFlags
+                optional = $isOptional
+                hasDefault = $hasDefault
+                defaultValue = $defaultValue
             })
         }
 
@@ -108,6 +116,33 @@ function Get-InterfaceModel {
     }
 }
 
+function Get-ConstantModel {
+    param([Parameter(Mandatory)] $Constant)
+
+    $members = [System.Collections.ArrayList]::new()
+    for ($memberIndex = 1; $memberIndex -le $Constant.Members.Count; $memberIndex++) {
+        $member = $Constant.Members.Item($memberIndex)
+        if (([int] $member.AttributeMask -band 1) -ne 0) {
+            continue
+        }
+
+        [void] $members.Add([ordered]@{
+            name = [string] $member.Name
+            value = $member.Value
+            memberId = [int] $member.MemberId
+            flags = [int] $member.AttributeMask
+            type = Get-TypeName -Type $member.ReturnType
+        })
+    }
+
+    return [ordered]@{
+        name = [string] $Constant.Name
+        guid = [string] $Constant.GUID
+        flags = [int] $Constant.AttributeMask
+        members = $members
+    }
+}
+
 $resolvedInput = (Resolve-Path -LiteralPath $InputPath).Path
 $resolvedOutput = [IO.Path]::GetFullPath($OutputPath)
 $outputDirectory = [IO.Path]::GetDirectoryName($resolvedOutput)
@@ -118,6 +153,8 @@ if (-not [string]::IsNullOrEmpty($outputDirectory)) {
 $application = New-Object -ComObject TLI.TLIApplication
 $library = $application.TypeLibInfoFromFile($resolvedInput)
 $classes = [System.Collections.ArrayList]::new()
+$declarations = [System.Collections.ArrayList]::new()
+$constants = [System.Collections.ArrayList]::new()
 
 for ($classIndex = 1; $classIndex -le $library.CoClasses.Count; $classIndex++) {
     $class = $library.CoClasses.Item($classIndex)
@@ -150,6 +187,14 @@ for ($classIndex = 1; $classIndex -le $library.CoClasses.Count; $classIndex++) {
     })
 }
 
+for ($declarationIndex = 1; $declarationIndex -le $library.Declarations.Count; $declarationIndex++) {
+    [void] $declarations.Add((Get-InterfaceModel -Interface $library.Declarations.Item($declarationIndex)))
+}
+
+for ($constantIndex = 1; $constantIndex -le $library.Constants.Count; $constantIndex++) {
+    [void] $constants.Add((Get-ConstantModel -Constant $library.Constants.Item($constantIndex)))
+}
+
 $file = Get-Item -LiteralPath $resolvedInput
 $hash = Get-FileHash -LiteralPath $resolvedInput -Algorithm SHA256
 $model = [ordered]@{
@@ -171,6 +216,8 @@ $model = [ordered]@{
         typeInfoCount = [int] $library.TypeInfoCount
     }
     classes = $classes
+    declarations = $declarations
+    constants = $constants
 }
 
 $json = $model | ConvertTo-Json -Depth 20

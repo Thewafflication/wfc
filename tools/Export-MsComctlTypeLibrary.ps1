@@ -81,12 +81,20 @@ function Get-InterfaceModel {
         $parameters = [System.Collections.ArrayList]::new()
         for ($parameterIndex = 1; $parameterIndex -le $member.Parameters.Count; $parameterIndex++) {
             $parameter = $member.Parameters.Item($parameterIndex)
+            $parameterFlags = [int] $parameter.Flags
+            $isOptional = [bool] $parameter.Optional -or (($parameterFlags -band 16) -ne 0)
+            $hasDefault = [bool] $parameter.Default -or (($parameterFlags -band 32) -ne 0)
+            $defaultValue = $null
+            if ($hasDefault) {
+                try { $defaultValue = $parameter.DefaultValue } catch { $defaultValue = $null }
+            }
             [void] $parameters.Add([ordered]@{
                 name = [string] $parameter.Name
                 type = Get-TypeName -Type $parameter.VarTypeInfo
-                flags = [int] $parameter.Flags
-                optional = [bool] $parameter.Optional
-                hasDefault = [bool] $parameter.Default
+                flags = $parameterFlags
+                optional = $isOptional
+                hasDefault = $hasDefault
+                defaultValue = $defaultValue
             })
         }
 

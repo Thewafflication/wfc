@@ -15,6 +15,7 @@ requirement and verification evidence.
 | --- | --- | --- |
 | Visual Basic 6 IDE | `C:\Program Files (x86)\Microsoft Visual Studio\VB98\VB6.EXE` | 6.00.8176 |
 | Visual Basic object library | `C:\Program Files (x86)\Microsoft Visual Studio\VB98\VB6.OLB` | Type library 6.0 |
+| Visual Basic for Applications library | `C:\Program Files (x86)\Microsoft Visual Studio\VB98\VBA6.DLL` | 6.0.8169 |
 | Visual Basic runtime | `C:\Windows\SysWOW64\msvbvm60.dll` | 6.00.9848 |
 | Microsoft Windows Common Controls 6.0 | `C:\Windows\SysWOW64\MSCOMCTL.OCX` | 6.00.8177 |
 

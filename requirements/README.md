@@ -8,6 +8,9 @@ tailored only through controlled project decisions.
 
 ## Requirement Sets
 
+- [Visual Basic for Applications 6.0](vba/README.md) contains the standard
+  library class, function-module, enumeration, and constant contracts derived
+  from `VBA6.DLL`.
 - [Visual Basic 6.0 classes](vb/README.md) contains the run-time form,
   intrinsic-control, and service-class API contracts derived from `VB6.OLB`.
 - [MSComctlLib controls](controls/README.md) contains the Automation API
