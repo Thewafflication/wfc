@@ -8,6 +8,9 @@ tailored only through controlled project decisions.
 
 ## Requirement Sets
 
+- [Visual Basic 6.0 runtime](vbrun/README.md) contains the binary loader,
+  execution-engine, compiler-helper, language-service, member-access, numeric,
+  and export-layout contracts derived from the installed `MSVBVM60.DLL`.
 - [Standard OLE 2.0](stdole/README.md) contains the font, picture, persistence
   function, native COM interface, and constant contracts derived from the
   installed `stdole2.tlb`.

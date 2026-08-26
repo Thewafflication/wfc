@@ -28,3 +28,6 @@ library classes, function modules, enumerations, and constants.
 
 The [standard OLE requirements](requirements/stdole/README.md) capture the
 font, picture, persistence-function, and constant contracts used by VB6 forms.
+
+The [VB6 runtime requirements](requirements/vbrun/README.md) capture the native
+runtime binary, export layout, compiler helpers, and language services.
