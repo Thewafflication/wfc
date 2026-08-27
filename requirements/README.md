@@ -6,6 +6,11 @@ Project requirements use stable `REQ-NNNN` identifiers and follow the WSP
 requirement format. Proposed requirements remain subject to review and may be
 tailored only through controlled project decisions.
 
+The [WFC 1.0 compatibility profile](../planning/compatibility-profile-1.0.md)
+defines which requirements gate 1.0.0. A discovered feature may be removed or
+deferred only through an explicit disposition; absence of an implementation is
+not an implicit scope decision.
+
 ## Requirement Sets
 
 - [Visual Basic 6.0 runtime](vbrun/README.md) contains the binary loader,

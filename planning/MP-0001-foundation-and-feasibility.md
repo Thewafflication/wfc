@@ -2,6 +2,7 @@
 
 **Content type:** Milestone work plan  
 **Status:** Proposed  
+**Target baseline:** 0.1.0
 **Planned period:** 2026-08-26 through initial baseline approval  
 **Inherited baseline:** Repository initial state; WSP submodule commit recorded in Git  
 **Owner:** Project maintainer  
@@ -151,9 +152,9 @@ evidence; supersede it with a corrected record where needed.
 
 | Objective | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| Full language compatibility | No broad compatibility claim in this milestone | Project maintainer | Future language milestones | Explicit supported-subset documentation | Pending |
-| COM/OLE and common-control compatibility | No interop or control compatibility claim | Project maintainer | Future interop/UI milestones | Isolated interfaces and deferred tests | Pending |
-| Multi-architecture continuous builds | Initial evidence may cover host target only | Project maintainer | Build-matrix milestone | Architecture-aware design and target matrix | Pending |
+| Full language compatibility | No broad compatibility claim in this milestone | Project maintainer | MP-0002 through MP-0009 | Explicit supported-subset documentation | Pending |
+| COM/OLE and common-control compatibility | No interop or control compatibility claim | Project maintainer | MP-0003 through MP-0006 | Isolated interfaces and deferred tests | Pending |
+| Multi-architecture continuous builds | Initial evidence may cover host target only | Project maintainer | MP-0008 | Architecture-aware design and target matrix | Pending |
 
 ## Change Control
 
@@ -165,6 +166,8 @@ ADRs.
 
 ## References
 
+- [WFC 1.0 compatibility profile](compatibility-profile-1.0.md)
+- [Roadmap to 1.0.0](roadmap-1.0.md)
 - `wsp/processes/milestone-plan-template.md`
 - `wsp/processes/software-lifecycle.md`
 - `wsp/requirements/adoption-record-template.md`

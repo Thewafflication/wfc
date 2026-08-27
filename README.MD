@@ -13,6 +13,11 @@ runtime and engineering-process foundations.
 
 ## Planning
 
+The [1.0 compatibility profile](planning/compatibility-profile-1.0.md) defines
+the mostly complete replacement claim and its explicit exclusions. The
+[roadmap to 1.0.0](planning/roadmap-1.0.md) divides delivery into evidence-gated
+milestones from `0.1.0` through release.
+
 The initial work plan is [MP-0001 — Foundation and Feasibility](planning/MP-0001-foundation-and-feasibility.md).
 The [VB6 discovery baseline](planning/reference-environment.md) records the
 installed reference components and inspection tools.
