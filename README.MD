@@ -40,3 +40,32 @@ font, picture, persistence-function, and constant contracts used by VB6 forms.
 
 The [VB6 runtime requirements](requirements/vbrun/README.md) capture the native
 runtime binary, export layout, compiler helpers, and language services.
+
+## Build the 0.1.0 Slice
+
+Prerequisites are Visual Studio 2022 with the Desktop development with C++
+workload and CMake 3.28 or newer. Initialize the controlled dependencies after
+cloning:
+
+```powershell
+git submodule update --init --recursive
+```
+
+Configure, build, and test the native x64 debug slice:
+
+```powershell
+cmake --preset windows-x64-debug
+cmake --build --preset windows-x64-debug
+ctest --preset windows-x64-debug
+```
+
+Equivalent `windows-x86-debug` and `windows-arm64-debug` presets are provided.
+ARM64 execution evidence must be collected on a native or approved emulated
+ARM64 runner; a successful cross-build alone is not an execution result.
+
+The current feasibility command accepts only a single string-literal `Print`
+statement and does not claim general VB6 compatibility:
+
+```powershell
+out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print "Hello, WFC!"'
+```

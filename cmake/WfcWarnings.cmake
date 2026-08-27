@@ -1,0 +1,22 @@
+function(wfc_enable_strict_warnings target)
+    if(MSVC)
+        target_compile_options(
+            "${target}"
+            PRIVATE
+                /W4
+                /WX
+                /permissive-
+                /Zc:__cplusplus
+                /Zc:preprocessor
+        )
+    else()
+        target_compile_options(
+            "${target}"
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+                -Werror
+        )
+    endif()
+endfunction()
