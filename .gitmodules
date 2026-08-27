@@ -1,3 +1,6 @@
 [submodule "wsp"]
 	path = wsp
 	url = https://github.com/Thewafflication/wsp
+[submodule "wcrt"]
+	path = wcrt
+	url = https://github.com/Thewafflication/wcrt.git

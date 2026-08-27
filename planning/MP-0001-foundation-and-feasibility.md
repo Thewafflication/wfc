@@ -1,7 +1,7 @@
 # MP-0001 — Foundation and Feasibility
 
 **Content type:** Milestone work plan  
-**Status:** Proposed  
+**Status:** In progress
 **Target baseline:** 0.1.0
 **Planned period:** 2026-08-26 through initial baseline approval  
 **Inherited baseline:** Repository initial state; WSP submodule commit recorded in Git  
@@ -85,8 +85,8 @@ It does not attempt broad VB6 compatibility or a usable compiler release.
 | Thin vertical slice | Front-end and runtime components | Automated end-to-end test | Yes |
 | Initial architecture target matrix | Architecture overview | Inspection | Yes |
 
-Project requirement and test identifiers will replace these objective-level
-allocations as the scope is specified.
+The [0.1.0 foundation requirement set](../requirements/foundation/README.md)
+replaces these objective-level allocations with `REQ-0132` through `REQ-0139`.
 
 The first allocation is the [MSComctlLib control requirement set](../requirements/controls/README.md),
 which captures the statically observable Automation contracts. Behavioral
@@ -140,12 +140,12 @@ evidence; supersede it with a corrected record where needed.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| WSP adoption is recorded | Adoption record and matching gitlink | Required | Planned |
-| WCRT use is explicit and justified | Reviewed ADR | Required | Planned |
-| Initial compatibility boundary is defined | Reviewed requirement set | Required | Planned |
-| Architecture boundaries and target matrix are documented | Architecture overview and ADRs | Required | Planned |
-| Initial build is repeatable | Successful configure/build record | Required | Planned |
-| Vertical feasibility slice executes under automated test | Passing retained test result | Required | Planned |
+| WSP adoption is recorded | Adoption record and matching gitlink | Required | Implemented; review pending |
+| WCRT use is explicit and justified | Reviewed ADR | Required | Documented; linked proof pending |
+| Initial compatibility boundary is defined | Reviewed requirement set | Required | Documented; review pending |
+| Architecture boundaries and target matrix are documented | Architecture overview and ADRs | Required | Documented; open decisions remain |
+| Initial build is repeatable | Successful configure/build record | Required | Local x86/x64/ARM64 build passed; retained evidence pending |
+| Vertical feasibility slice executes under automated test | Passing retained test result | Required | Local x86/x64 tests passed; retained evidence pending |
 | Next milestone is proposed with any deferrals | Closeout and successor plan | Required | Planned |
 
 ## Deferred Objectives

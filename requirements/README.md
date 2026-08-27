@@ -13,6 +13,9 @@ not an implicit scope decision.
 
 ## Requirement Sets
 
+- [0.1.0 foundation](foundation/README.md) contains the controlled dependency,
+  build, architecture, vertical-slice, test-evidence, and reference-probe
+  requirements that gate MP-0001.
 - [Visual Basic 6.0 runtime](vbrun/README.md) contains the binary loader,
   execution-engine, compiler-helper, language-service, member-access, numeric,
   and export-layout contracts derived from the installed `MSVBVM60.DLL`.
