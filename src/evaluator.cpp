@@ -34,13 +34,15 @@ using Value = std::variant<Integer, std::string, bool>;
 
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
-           identifier == "dim" || identifier == "eqv" || identifier == "false" ||
+           identifier == "dim" || identifier == "do" || identifier == "eqv" ||
+           identifier == "false" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "let" || identifier == "long" ||
-           identifier == "mod" || identifier == "not" || identifier == "or" ||
+           identifier == "loop" || identifier == "mod" || identifier == "not" ||
+           identifier == "or" ||
            identifier == "print" || identifier == "string" || identifier == "then" ||
-           identifier == "true" || identifier == "wend" || identifier == "while" ||
-           identifier == "xor";
+           identifier == "true" || identifier == "until" || identifier == "wend" ||
+           identifier == "while" || identifier == "xor";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -205,6 +207,13 @@ private:
         }
         if (consume_keyword("while")) {
             return parse_while_statement();
+        }
+        if (consume_keyword("do")) {
+            return parse_do_statement();
+        }
+        if (consume_keyword("loop")) {
+            set_error("WFC0038", "unexpected Loop", statement_offset);
+            return false;
         }
         if (consume_keyword("wend")) {
             set_error("WFC0033", "unexpected Wend", statement_offset);
@@ -461,6 +470,104 @@ private:
                 set_error(
                     "WFC0034",
                     "declarations are not supported in While blocks",
+                    statement_offset);
+                return false;
+            }
+            const bool parsed_statement = parse_statement();
+            if (!parsed_statement || !consume_statement_end()) {
+                return false;
+            }
+        }
+    }
+
+    [[nodiscard]] bool parse_do_statement() {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        bool until{};
+        if (consume_keyword("while")) {
+            until = false;
+        } else if (consume_keyword("until")) {
+            until = true;
+        } else {
+            set_error("WFC0036", "expected While or Until after Do", offset_);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        const auto condition_offset = offset_;
+        auto condition = parse_expression();
+        if (!condition.has_value()) {
+            return false;
+        }
+        const auto* boolean = std::get_if<bool>(&*condition);
+        if (boolean == nullptr) {
+            set_error("WFC0035", "Do condition must be Boolean", condition_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        const auto body_offset = offset_;
+        std::size_t continuation_offset{};
+        bool continue_loop = until ? !*boolean : *boolean;
+        if (!enclosing_execution || !continue_loop) {
+            execute_ = false;
+            const bool parsed_body = parse_do_body(continuation_offset);
+            execute_ = enclosing_execution;
+            return parsed_body;
+        }
+
+        while (continue_loop) {
+            offset_ = body_offset;
+            execute_ = enclosing_execution;
+            if (!parse_do_body(continuation_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+
+            offset_ = condition_offset;
+            execute_ = enclosing_execution;
+            auto next_condition = parse_expression();
+            if (!next_condition.has_value()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            const auto* next_boolean = std::get_if<bool>(&*next_condition);
+            if (next_boolean == nullptr) {
+                execute_ = enclosing_execution;
+                set_error("WFC0035", "Do condition must be Boolean", condition_offset);
+                return false;
+            }
+            if (!consume_block_line_end()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            continue_loop = until ? !*next_boolean : *next_boolean;
+        }
+
+        offset_ = continuation_offset;
+        execute_ = enclosing_execution;
+        return true;
+    }
+
+    [[nodiscard]] bool parse_do_body(std::size_t& continuation_offset) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                set_error("WFC0037", "expected Loop", offset_);
+                return false;
+            }
+            if (consume_keyword("loop")) {
+                continuation_offset = offset_;
+                return true;
+            }
+
+            const auto statement_offset = offset_;
+            if (consume_keyword("dim")) {
+                set_error(
+                    "WFC0039",
+                    "declarations are not supported in Do blocks",
                     statement_offset);
                 return false;
             }

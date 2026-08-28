@@ -31,3 +31,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0146 — While...Wend loop subset](req-0146-while-wend-loops.md)
   defines pre-test repetition, nested loop execution, and loop diagnostics for
   the seventh MP-0002 increment.
+- [REQ-0147 — Pre-test Do loop subset](req-0147-pretest-do-loops.md)
+  defines `Do While` and `Do Until` execution and diagnostics for the eighth
+  MP-0002 increment.
