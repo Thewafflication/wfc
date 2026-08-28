@@ -63,6 +63,9 @@ int main() {
     expect_success("Print Len(\"four\")", "4");
     expect_success("Print LCase$(\"WFC 123!\")", "wfc 123!");
     expect_success("Print UCASE(\"Wfc 123!\")", "WFC 123!");
+    expect_success("Print \"[\" & LTrim$(\"  left \") & \"]\"", "[left ]");
+    expect_success("Print \"[\" & RTrim(\" right  \") & \"]\"", "[ right]");
+    expect_success("Print \"[\" & Trim$(\"  both  \") & \"]\"", "[both]");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -149,6 +152,11 @@ int main() {
         "Print UCase$(text)\n"
         "Print LCase(UCase(\"MiXeD\"))",
         "wfc\nWFC\nmixed");
+    expect_program_success(
+        "Print Trim(\"     \")\n"
+        "Print UCase(Trim(\"  ready  \"))\n"
+        "Print \"[\" & Trim(\"\tkept\t\") & \"]\"",
+        "\nREADY\n[\tkept\t]");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"

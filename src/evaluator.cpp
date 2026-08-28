@@ -1693,7 +1693,11 @@ private:
         const bool is_len = identifier == "len";
         const bool is_lower = identifier == "lcase" || identifier == "lcase$";
         const bool is_upper = identifier == "ucase" || identifier == "ucase$";
-        if (!is_len && !is_lower && !is_upper) {
+        const bool is_left_trim = identifier == "ltrim" || identifier == "ltrim$";
+        const bool is_right_trim = identifier == "rtrim" || identifier == "rtrim$";
+        const bool is_trim = identifier == "trim" || identifier == "trim$";
+        if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
+            !is_trim) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1736,6 +1740,22 @@ private:
                 return std::nullopt;
             }
             return Value{static_cast<Integer>(string->size())};
+        }
+
+        if (is_left_trim || is_right_trim || is_trim) {
+            std::size_t first{};
+            std::size_t last = string->size();
+            if (is_left_trim || is_trim) {
+                while (first < last && (*string)[first] == ' ') {
+                    ++first;
+                }
+            }
+            if (is_right_trim || is_trim) {
+                while (last > first && (*string)[last - 1U] == ' ') {
+                    --last;
+                }
+            }
+            return Value{string->substr(first, last - first)};
         }
 
         std::string result = *string;

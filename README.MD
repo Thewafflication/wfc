@@ -103,4 +103,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Explicit`nDim value As 
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Compare Text`nPrint `"Alpha`" = `"alpha`""
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Len(`"Hello, WFC!`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LCase$(`"Hello, WFC!`")`nPrint UCase(`"Hello, WFC!`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Trim$(`"  Hello, WFC!  `") & `"]`""
 ```

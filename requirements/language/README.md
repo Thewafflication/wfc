@@ -68,3 +68,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0161 — String case function subset](req-0161-string-case-functions.md)
   defines ASCII `LCase` and `UCase` calls for the twenty-second MP-0002
   increment.
+- [REQ-0162 — String trim function subset](req-0162-string-trim-functions.md)
+  defines `Trim`, `LTrim`, and `RTrim` calls for the twenty-third MP-0002
+  increment.

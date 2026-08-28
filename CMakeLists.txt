@@ -370,4 +370,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "hello, wfc!.*HELLO, WFC!"
     )
+
+    add_test(
+        NAME TC-MP0002-string-trim-cli
+        COMMAND wfc --eval [=[Print "[" & Trim$("  Hello, WFC!  ") & "]"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-trim-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "\[Hello, WFC!\]"
+    )
 endif()
