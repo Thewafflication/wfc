@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace {
 
@@ -1696,8 +1697,10 @@ private:
         const bool is_left_trim = identifier == "ltrim" || identifier == "ltrim$";
         const bool is_right_trim = identifier == "rtrim" || identifier == "rtrim$";
         const bool is_trim = identifier == "trim" || identifier == "trim$";
+        const bool is_left = identifier == "left" || identifier == "left$";
+        const bool is_right = identifier == "right" || identifier == "right$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
-            !is_trim) {
+            !is_trim && !is_left && !is_right) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1711,35 +1714,80 @@ private:
 
         advance();
         skip_horizontal_whitespace();
-        if (consume(')')) {
-            set_error("WFC0072", "function requires one argument", identifier_offset);
-            return std::nullopt;
-        }
-        auto argument = parse_expression();
-        if (!argument.has_value()) {
-            return std::nullopt;
-        }
-        skip_horizontal_whitespace();
-        if (consume(',')) {
-            set_error("WFC0072", "function requires one argument", identifier_offset);
-            return std::nullopt;
-        }
+        std::vector<Value> arguments;
         if (!consume(')')) {
-            set_error("WFC0005", "expected closing parenthesis", offset_);
+            while (true) {
+                if (!at_end() && current() == ',') {
+                    set_error("WFC0072", "function received an empty argument", offset_);
+                    return std::nullopt;
+                }
+                auto argument = parse_expression();
+                if (!argument.has_value()) {
+                    return std::nullopt;
+                }
+                arguments.push_back(std::move(*argument));
+                skip_horizontal_whitespace();
+                if (consume(')')) {
+                    break;
+                }
+                if (!consume(',')) {
+                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    return std::nullopt;
+                }
+                skip_horizontal_whitespace();
+                if (consume(')')) {
+                    set_error("WFC0072", "function received an empty argument", offset_ - 1U);
+                    return std::nullopt;
+                }
+            }
+        }
+
+        const std::size_t expected_arity = (is_left || is_right) ? 2U : 1U;
+        if (arguments.size() != expected_arity) {
+            set_error(
+                "WFC0072",
+                "function received the wrong number of arguments",
+                identifier_offset);
             return std::nullopt;
         }
 
-        const auto* string = std::get_if<std::string>(&*argument);
+        const auto* string = std::get_if<std::string>(&arguments[0]);
         if (string == nullptr) {
             set_error("WFC0073", "function requires a String argument", identifier_offset);
             return std::nullopt;
         }
         if (is_len) {
+            if (!execute_) {
+                return Value{Integer{}};
+            }
             if (string->size() > static_cast<std::size_t>(std::numeric_limits<Integer>::max())) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
             return Value{static_cast<Integer>(string->size())};
+        }
+
+        if (is_left || is_right) {
+            const auto* length = std::get_if<Integer>(&arguments[1]);
+            if (length == nullptr) {
+                set_error("WFC0073", "function length requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*length < 0) {
+                set_error("WFC0075", "function length cannot be negative", identifier_offset);
+                return std::nullopt;
+            }
+            const auto requested = static_cast<std::size_t>(*length);
+            const auto count = std::min(requested, string->size());
+            return Value{
+                is_left ? string->substr(0U, count) : string->substr(string->size() - count)};
+        }
+
+        if (!execute_) {
+            return Value{std::string{}};
         }
 
         if (is_left_trim || is_right_trim || is_trim) {

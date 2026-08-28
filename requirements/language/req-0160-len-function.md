@@ -15,18 +15,18 @@ Calls may be nested inside other expressions and may consume string variables
 or composed string expressions. Function calls are excluded from the current
 constant-expression subset.
 
-This increment establishes only parenthesized, single-argument call-expression
-syntax. Variant coercion, user-defined functions, qualified calls, named
-arguments, `LenB`, Unicode character counting, and other VBA functions remain
-outside this requirement.
+This increment establishes parenthesized call-expression syntax; REQ-0163
+extends that syntax to comma-separated arguments. Variant coercion, user-defined
+functions, qualified calls, named arguments, `LenB`, Unicode character counting,
+and other VBA functions remain outside this requirement.
 
 ## Diagnostics
 
 | Code | Condition |
 | --- | --- |
 | `WFC0071` | A call names an unsupported function. |
-| `WFC0072` | A supported single-argument function does not receive exactly one argument. |
-| `WFC0073` | A supported string function receives a non-`String` argument. |
+| `WFC0072` | A supported function receives an empty or incorrect number of arguments. |
+| `WFC0073` | A supported string function receives an argument of the wrong type. |
 | `WFC0074` | A constant initializer contains a function call. |
 
 Missing closing parentheses continue to use `WFC0005`.

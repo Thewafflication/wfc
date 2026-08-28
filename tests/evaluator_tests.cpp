@@ -66,6 +66,9 @@ int main() {
     expect_success("Print \"[\" & LTrim$(\"  left \") & \"]\"", "[left ]");
     expect_success("Print \"[\" & RTrim(\" right  \") & \"]\"", "[ right]");
     expect_success("Print \"[\" & Trim$(\"  both  \") & \"]\"", "[both]");
+    expect_success("Print Left$(\"abcdef\", 3)", "abc");
+    expect_success("Print Right(\"abcdef\", 2 + 1)", "def");
+    expect_success("Print Left(\"abc\", 0) & Right$(\"abc\", 99)", "abc");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -157,6 +160,7 @@ int main() {
         "Print UCase(Trim(\"  ready  \"))\n"
         "Print \"[\" & Trim(\"\tkept\t\") & \"]\"",
         "\nREADY\n[\tkept\t]");
+    expect_program_success("If False Then Print Left(\"value\", -1)", "");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -525,9 +529,15 @@ int main() {
     expect_program_failure("Print Missing(\"value\")", "WFC0071");
     expect_program_failure("Print Len()", "WFC0072");
     expect_program_failure("Print Len(\"one\", \"two\")", "WFC0072");
+    expect_program_failure("Print Left(\"value\")", "WFC0072");
+    expect_program_failure("Print Right(\"value\", 1, 2)", "WFC0072");
+    expect_program_failure("Print Left(\"value\",)", "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
     expect_program_failure("Print LCase(True)", "WFC0073");
+    expect_program_failure("Print Left(42, 1)", "WFC0073");
+    expect_program_failure("Print Right(\"value\", \"1\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
+    expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

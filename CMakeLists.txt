@@ -381,4 +381,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "\[Hello, WFC!\]"
     )
+
+    add_test(
+        NAME TC-MP0002-string-slice-cli
+        COMMAND wfc --eval [=[Print Left$("Hello", 2) & Right$("WFC!", 2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-slice-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "HeC!"
+    )
 endif()
