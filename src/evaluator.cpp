@@ -35,7 +35,7 @@ using Value = std::variant<Integer, std::string, bool>;
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
            identifier == "dim" || identifier == "do" || identifier == "eqv" ||
-           identifier == "false" ||
+           identifier == "exit" || identifier == "false" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "let" || identifier == "long" ||
            identifier == "loop" || identifier == "mod" || identifier == "not" ||
@@ -212,6 +212,9 @@ private:
         if (consume_keyword("do")) {
             return parse_do_statement();
         }
+        if (consume_keyword("exit")) {
+            return parse_exit_statement(statement_offset);
+        }
         if (consume_keyword("loop")) {
             set_error("WFC0038", "unexpected Loop", statement_offset);
             return false;
@@ -259,6 +262,22 @@ private:
             }
             output_ += render(*value);
             has_output_line_ = true;
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool parse_exit_statement(const std::size_t statement_offset) {
+        skip_horizontal_whitespace();
+        if (!consume_keyword("do")) {
+            set_error("WFC0041", "expected Do after Exit", offset_);
+            return false;
+        }
+        if (do_depth_ == 0U) {
+            set_error("WFC0042", "Exit Do is not inside a Do loop", statement_offset);
+            return false;
+        }
+        if (execute_) {
+            exit_do_requested_ = true;
         }
         return true;
     }
@@ -383,7 +402,7 @@ private:
                     set_error("WFC0025", "expected If after End", offset_);
                     return false;
                 }
-                execute_ = enclosing_execution;
+                execute_ = exit_do_requested_ ? false : enclosing_execution;
                 return true;
             }
             const bool enclosing_declaration_permission = allow_declarations_;
@@ -394,6 +413,9 @@ private:
             if (!parsed_statement || !consumed_statement_end) {
                 execute_ = enclosing_execution;
                 return false;
+            }
+            if (exit_do_requested_) {
+                execute_ = false;
             }
         }
     }
@@ -431,6 +453,11 @@ private:
             if (!parse_while_body(continuation_offset)) {
                 execute_ = enclosing_execution;
                 return false;
+            }
+            if (exit_do_requested_) {
+                offset_ = continuation_offset;
+                execute_ = false;
+                return true;
             }
 
             offset_ = condition_offset;
@@ -482,6 +509,9 @@ private:
             if (!parsed_statement || !consume_statement_end()) {
                 return false;
             }
+            if (exit_do_requested_) {
+                execute_ = false;
+            }
         }
     }
 
@@ -521,7 +551,9 @@ private:
         bool continue_loop = until ? !*boolean : *boolean;
         if (!enclosing_execution || !continue_loop) {
             execute_ = false;
+            ++do_depth_;
             const bool parsed_body = parse_do_body(continuation_offset);
+            --do_depth_;
             execute_ = enclosing_execution;
             return parsed_body;
         }
@@ -529,9 +561,18 @@ private:
         while (continue_loop) {
             offset_ = body_offset;
             execute_ = enclosing_execution;
-            if (!parse_do_body(continuation_offset)) {
+            ++do_depth_;
+            const bool parsed_body = parse_do_body(continuation_offset);
+            --do_depth_;
+            if (!parsed_body) {
                 execute_ = enclosing_execution;
                 return false;
+            }
+            if (exit_do_requested_) {
+                exit_do_requested_ = false;
+                offset_ = continuation_offset;
+                execute_ = enclosing_execution;
+                return true;
             }
 
             offset_ = condition_offset;
@@ -570,10 +611,14 @@ private:
         do {
             offset_ = body_offset;
             execute_ = enclosing_execution;
-            if (!parse_do_body(continuation_offset)) {
+            ++do_depth_;
+            const bool parsed_body = parse_do_body(continuation_offset);
+            --do_depth_;
+            if (!parsed_body) {
                 execute_ = enclosing_execution;
                 return false;
             }
+            const bool exit_requested = exit_do_requested_;
 
             skip_horizontal_whitespace();
             bool until{};
@@ -601,7 +646,12 @@ private:
                 return false;
             }
             continuation_offset = offset_;
-            continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+            if (exit_requested) {
+                exit_do_requested_ = false;
+                continue_loop = false;
+            } else {
+                continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+            }
         } while (continue_loop);
 
         offset_ = continuation_offset;
@@ -632,6 +682,9 @@ private:
             const bool parsed_statement = parse_statement();
             if (!parsed_statement || !consume_statement_end()) {
                 return false;
+            }
+            if (exit_do_requested_) {
+                execute_ = false;
             }
         }
     }
@@ -1327,6 +1380,8 @@ private:
     bool has_output_line_{};
     bool execute_{true};
     bool allow_declarations_{true};
+    std::size_t do_depth_{};
+    bool exit_do_requested_{};
     wfc::Evaluation error_;
 };
 

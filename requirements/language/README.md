@@ -40,3 +40,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0149 — Rem comment subset](req-0149-rem-comments.md) defines
   case-insensitive, statement-level `Rem` comments for the tenth MP-0002
   increment.
+- [REQ-0150 — Exit Do subset](req-0150-exit-do.md) defines structured,
+  innermost-loop termination for the eleventh MP-0002 increment.

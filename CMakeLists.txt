@@ -193,4 +193,22 @@ Print 42]=]
             LABELS "integration;mp-0002;statements;comments"
             PASS_REGULAR_EXPRESSION "42"
     )
+
+    add_test(
+        NAME TC-MP0002-exit-do-cli
+        COMMAND wfc --eval [=[Dim index As Long
+Do While True
+index = index + 1
+If index = 3 Then
+Exit Do
+End If
+Loop
+Print index]=]
+    )
+    set_tests_properties(
+        TC-MP0002-exit-do-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops"
+            PASS_REGULAR_EXPRESSION "3"
+    )
 endif()
