@@ -35,8 +35,8 @@ using Value = std::variant<Integer, std::string, bool>;
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
            identifier == "dim" || identifier == "eqv" || identifier == "false" ||
-           identifier == "else" || identifier == "if" || identifier == "imp" ||
-           identifier == "let" || identifier == "long" ||
+           identifier == "else" || identifier == "elseif" || identifier == "if" ||
+           identifier == "imp" || identifier == "let" || identifier == "long" ||
            identifier == "mod" || identifier == "not" || identifier == "or" ||
            identifier == "print" || identifier == "string" || identifier == "then" ||
            identifier == "true" || identifier == "xor";
@@ -279,6 +279,7 @@ private:
         }
 
         bool has_else{};
+        bool branch_selected = condition;
         execute_ = enclosing_execution && condition;
         while (true) {
             skip_program_leading_trivia();
@@ -286,6 +287,46 @@ private:
                 execute_ = enclosing_execution;
                 set_error("WFC0024", "expected End If", offset_);
                 return false;
+            }
+            if (consume_keyword("elseif")) {
+                const auto elseif_offset = offset_ - 6U;
+                if (has_else) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0030", "ElseIf is not permitted after Else", elseif_offset);
+                    return false;
+                }
+
+                const bool evaluate_condition = enclosing_execution && !branch_selected;
+                execute_ = evaluate_condition;
+                skip_horizontal_whitespace();
+                const auto condition_offset = offset_;
+                auto elseif_condition = parse_expression();
+                if (!elseif_condition.has_value()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                const auto* elseif_boolean = std::get_if<bool>(&*elseif_condition);
+                if (elseif_boolean == nullptr) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0028", "ElseIf condition must be Boolean", condition_offset);
+                    return false;
+                }
+
+                skip_horizontal_whitespace();
+                if (!consume_keyword("then")) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0029", "expected Then after ElseIf", offset_);
+                    return false;
+                }
+                if (!consume_statement_end()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+
+                const bool select_branch = !branch_selected && *elseif_boolean;
+                branch_selected = branch_selected || *elseif_boolean;
+                execute_ = enclosing_execution && select_branch;
+                continue;
             }
             if (consume_keyword("else")) {
                 if (has_else) {
@@ -298,7 +339,7 @@ private:
                     execute_ = enclosing_execution;
                     return false;
                 }
-                execute_ = enclosing_execution && !condition;
+                execute_ = enclosing_execution && !branch_selected;
                 continue;
             }
             if (consume_keyword("end")) {

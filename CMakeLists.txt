@@ -117,4 +117,21 @@ Print total]=]
             LABELS "integration;mp-0002;statements;conditionals"
             PASS_REGULAR_EXPRESSION "42"
     )
+
+    add_test(
+        NAME TC-MP0002-elseif-cli
+        COMMAND wfc --eval [=[If False Then
+Print "wrong"
+ElseIf 2 + 2 = 4 Then
+Print "selected"
+Else
+Print "wrong"
+End If]=]
+    )
+    set_tests_properties(
+        TC-MP0002-elseif-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;conditionals"
+            PASS_REGULAR_EXPRESSION "selected"
+    )
 endif()

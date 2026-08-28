@@ -25,3 +25,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0144 — Block conditional statement subset](req-0144-block-conditional-statements.md)
   defines multiline `If ... Then` / `Else` / `End If` execution and structural
   diagnostics for the fifth MP-0002 increment.
+- [REQ-0145 — Block ElseIf branch subset](req-0145-block-elseif-branches.md)
+  defines ordered `ElseIf` selection, first-match execution, and branch
+  diagnostics for the sixth MP-0002 increment.

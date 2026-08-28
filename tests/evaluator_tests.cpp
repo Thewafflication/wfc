@@ -150,6 +150,37 @@ int main() {
         "  Print \"fallback\"\n"
         "End If",
         "fallback");
+    expect_program_success(
+        "Dim result As String\n"
+        "If False Then\n"
+        "  result = \"first\"\n"
+        "ElseIf 2 + 2 = 5 Then\n"
+        "  result = \"second\"\n"
+        "ElseIf True Then\n"
+        "  result = \"third\"\n"
+        "Else\n"
+        "  result = \"fallback\"\n"
+        "End If\n"
+        "Print result",
+        "third");
+    expect_program_success(
+        "If True Then\n"
+        "  Print \"selected\"\n"
+        "ElseIf 1 \\ 0 = 0 Then\n"
+        "  Print \"wrong\"\n"
+        "Else\n"
+        "  Print \"wrong\"\n"
+        "End If",
+        "selected");
+    expect_program_success(
+        "If False Then\n"
+        "  Print \"wrong\"\n"
+        "ElseIf False Then\n"
+        "  Print \"wrong\"\n"
+        "Else\n"
+        "  Print \"fallback\"\n"
+        "End If",
+        "fallback");
     expect_program_failure("Dim 1 As Long", "WFC0011");
     expect_program_failure("Dim value As Integer", "WFC0012");
     expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
@@ -170,6 +201,11 @@ int main() {
     expect_program_failure("If True Then\nEnd Nope", "WFC0025");
     expect_program_failure("If True Then\nElse\nElse\nEnd If", "WFC0026");
     expect_program_failure("If True Then\nDim local As Long\nEnd If", "WFC0027");
+    expect_program_failure("If False Then\nElseIf 1 Then\nEnd If", "WFC0028");
+    expect_program_failure("If False Then\nElseIf True\nEnd If", "WFC0029");
+    expect_program_failure(
+        "If False Then\nElse\nElseIf True Then\nEnd If",
+        "WFC0030");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";
