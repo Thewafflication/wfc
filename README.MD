@@ -63,12 +63,14 @@ Equivalent `windows-x86-debug` and `windows-arm64-debug` presets are provided.
 ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
-The current command accepts one `Print` statement containing string or
-32-bit integer literals, parentheses, unary signs, integer `+`, `-`, `*`, `\\`,
-`Mod`, and `&` concatenation. It remains an early MP-0002 subset and does not
-claim general VB6 compatibility:
+The current command accepts sequential `Dim`, assignment, and `Print`
+statements separated by line endings or `:`. Variables may be `Long` or
+`String`; expressions support literals, variables, parentheses, unary signs,
+integer `+`, `-`, `*`, `\\`, `Mod`, and `&` concatenation. It remains an early
+MP-0002 subset and does not claim general VB6 compatibility:
 
 ```powershell
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print "Hello, WFC!"'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print (2 + 3) * 4 & " items"'
+out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: total = 6 * 7: Print total'
 ```

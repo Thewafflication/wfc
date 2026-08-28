@@ -26,6 +26,24 @@ void expect_failure(const std::string_view source, const std::string_view code) 
     }
 }
 
+void expect_program_success(const std::string_view source, const std::string_view expected) {
+    const auto result = wfc::evaluate_program(source);
+    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
+        std::cerr << "expected program success for [" << source << "] but got ["
+                  << result.diagnostic << "]\n";
+        ++failures;
+    }
+}
+
+void expect_program_failure(const std::string_view source, const std::string_view code) {
+    const auto result = wfc::evaluate_program(source);
+    if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
+        std::cerr << "expected " << code << " for program [" << source << "] but got ["
+                  << result.diagnostic << "]\n";
+        ++failures;
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -55,6 +73,33 @@ int main() {
     expect_failure("Print \"one\" + \"two\"", "WFC0007");
     expect_failure("Print 1 \\ 0", "WFC0008");
     expect_failure("Print 2147483647 + 1", "WFC0009");
+
+    expect_program_success(
+        "Dim count As Long\r\n"
+        "count = 6\r\n"
+        "Let count = count * 7\r\n"
+        "Print count",
+        "42");
+    expect_program_success(
+        "dim Greeting as string: GREETING = \"Hello\": Print greeting & \"!\"",
+        "Hello!");
+    expect_program_success(
+        "' defaults and comments\n"
+        "Dim number As Long ' initialized to zero\n"
+        "Dim text As String\n"
+        "Print text & number\n"
+        "Print number + 1",
+        "0\n1");
+    expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
+
+    expect_program_failure("Dim 1 As Long", "WFC0011");
+    expect_program_failure("Dim value As Integer", "WFC0012");
+    expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
+    expect_program_failure("Dim value As Long: value 1", "WFC0014");
+    expect_program_failure("missing = 1", "WFC0015");
+    expect_program_failure("Print missing", "WFC0015");
+    expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
+    expect_program_failure("Dim Print As Long", "WFC0017");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

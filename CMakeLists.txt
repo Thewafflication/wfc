@@ -47,7 +47,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
     set_tests_properties(
         TC-MP0001-evaluator
-        PROPERTIES LABELS "unit;mp-0001;mp-0002;vertical-slice;expressions"
+        PROPERTIES
+            LABELS "unit;mp-0001;mp-0002;vertical-slice;expressions;statements;variables"
     )
 
     add_test(NAME TC-MP0001-cli COMMAND wfc --eval "Print \"Hello, WFC!\"")
@@ -67,5 +68,16 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         PROPERTIES
             LABELS "integration;mp-0002;expressions"
             PASS_REGULAR_EXPRESSION "20 items"
+    )
+
+    add_test(
+        NAME TC-MP0002-program-cli
+        COMMAND wfc --eval "Dim total As Long: total = (6 + 4) * 3: Print total"
+    )
+    set_tests_properties(
+        TC-MP0002-program-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;variables"
+            PASS_REGULAR_EXPRESSION "30"
     )
 endif()

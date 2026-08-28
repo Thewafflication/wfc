@@ -13,6 +13,8 @@ struct Evaluation final {
     std::size_t error_offset{};
 };
 
+[[nodiscard]] Evaluation evaluate_program(std::string_view source);
+
 [[nodiscard]] Evaluation evaluate_print_statement(std::string_view source);
 
 }  // namespace wfc

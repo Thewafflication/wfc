@@ -24,7 +24,7 @@ int main(const int argument_count, const char* const arguments[]) {
         return 2;
     }
 
-    const auto evaluation = wfc::evaluate_print_statement(arguments[2]);
+    const auto evaluation = wfc::evaluate_program(arguments[2]);
     if (!evaluation.success) {
         std::cerr << evaluation.diagnostic << '\n';
         return 1;
