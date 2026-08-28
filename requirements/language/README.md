@@ -37,3 +37,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0148 — Post-test Do loop subset](req-0148-posttest-do-loops.md)
   defines `Loop While` and `Loop Until` execution and diagnostics for the ninth
   MP-0002 increment.
+- [REQ-0149 — Rem comment subset](req-0149-rem-comments.md) defines
+  case-insensitive, statement-level `Rem` comments for the tenth MP-0002
+  increment.

@@ -86,4 +86,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "If False Then`n Print `"first`
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nWhile index < 3`n Print index`n index = index + 1`nWend"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo Until index = 3`n Print index`n index = index + 1`nLoop"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo`n Print index`n index = index + 1`nLoop While index < 3"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Rem a VB comment`nPrint 42"
 ```

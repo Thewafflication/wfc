@@ -40,7 +40,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "imp" || identifier == "let" || identifier == "long" ||
            identifier == "loop" || identifier == "mod" || identifier == "not" ||
            identifier == "or" ||
-           identifier == "print" || identifier == "string" || identifier == "then" ||
+           identifier == "print" || identifier == "rem" || identifier == "string" ||
+           identifier == "then" ||
            identifier == "true" || identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor";
 }
@@ -221,6 +222,10 @@ private:
         }
         if (consume_keyword("print")) {
             return parse_print_statement();
+        }
+        if (consume_keyword("rem")) {
+            skip_comment();
+            return true;
         }
         if (consume_keyword("dim")) {
             if (!allow_declarations_) {

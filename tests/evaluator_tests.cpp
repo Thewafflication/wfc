@@ -90,6 +90,13 @@ int main() {
         "Print text & number\n"
         "Print number + 1",
         "0\n1");
+    expect_program_success(
+        "Rem module comment\n"
+        "Dim value As Long: Rem statement comment\n"
+        "value = 42\n"
+        "rEm mixed-case comment\n"
+        "Print value",
+        "42");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -257,6 +264,7 @@ int main() {
     expect_program_failure("Print missing", "WFC0015");
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
     expect_program_failure("Dim Print As Long", "WFC0017");
+    expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

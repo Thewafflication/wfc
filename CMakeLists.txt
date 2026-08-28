@@ -181,4 +181,16 @@ Loop While index < 3]=]
             LABELS "integration;mp-0002;statements;loops"
             PASS_REGULAR_EXPRESSION "2"
     )
+
+    add_test(
+        NAME TC-MP0002-rem-cli
+        COMMAND wfc --eval [=[Rem ignored
+Print 42]=]
+    )
+    set_tests_properties(
+        TC-MP0002-rem-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;comments"
+            PASS_REGULAR_EXPRESSION "42"
+    )
 endif()
