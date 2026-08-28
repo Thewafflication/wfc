@@ -13,7 +13,7 @@
 namespace {
 
 using Integer = std::int32_t;
-using Value = std::variant<Integer, std::string>;
+using Value = std::variant<Integer, std::string, bool>;
 
 [[nodiscard]] char ascii_lower(const char character) noexcept {
     if (character >= 'A' && character <= 'Z') {
@@ -33,9 +33,12 @@ using Value = std::variant<Integer, std::string>;
 }
 
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
-    return identifier == "as" || identifier == "dim" || identifier == "let" ||
-           identifier == "long" || identifier == "mod" || identifier == "print" ||
-           identifier == "string";
+    return identifier == "and" || identifier == "as" || identifier == "boolean" ||
+           identifier == "dim" || identifier == "eqv" || identifier == "false" ||
+           identifier == "imp" || identifier == "let" || identifier == "long" ||
+           identifier == "mod" || identifier == "not" || identifier == "or" ||
+           identifier == "print" || identifier == "string" || identifier == "true" ||
+           identifier == "xor";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -204,7 +207,7 @@ private:
 
     [[nodiscard]] bool parse_print_statement() {
         skip_horizontal_whitespace();
-        auto value = parse_concatenation();
+        auto value = parse_expression();
         if (!value.has_value()) {
             return false;
         }
@@ -231,7 +234,7 @@ private:
 
         skip_horizontal_whitespace();
         if (!consume_keyword("as")) {
-            set_error("WFC0012", "expected As Long or As String", offset_);
+            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
             return false;
         }
         skip_horizontal_whitespace();
@@ -241,8 +244,10 @@ private:
             initial_value = Integer{};
         } else if (consume_keyword("string")) {
             initial_value = std::string{};
+        } else if (consume_keyword("boolean")) {
+            initial_value = false;
         } else {
-            set_error("WFC0012", "expected As Long or As String", offset_);
+            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
             return false;
         }
 
@@ -269,7 +274,7 @@ private:
             return false;
         }
         skip_horizontal_whitespace();
-        auto value = parse_concatenation();
+        auto value = parse_expression();
         if (!value.has_value()) {
             return false;
         }
@@ -281,6 +286,176 @@ private:
         return true;
     }
 
+    [[nodiscard]] std::optional<Value> parse_expression() {
+        return parse_implication();
+    }
+
+    [[nodiscard]] std::optional<Value> parse_implication() {
+        auto left = parse_equivalence();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("imp")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_equivalence();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = logical_binary(*left, *right, 'I', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_equivalence() {
+        auto left = parse_exclusive_or();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("eqv")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_exclusive_or();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = logical_binary(*left, *right, 'E', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_exclusive_or() {
+        auto left = parse_or();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("xor")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_or();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = logical_binary(*left, *right, 'X', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_or() {
+        auto left = parse_and();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("or")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_and();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = logical_binary(*left, *right, 'O', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_and() {
+        auto left = parse_not();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("and")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_not();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = logical_binary(*left, *right, 'A', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_not() {
+        skip_horizontal_whitespace();
+        const auto operator_offset = offset_;
+        if (!consume_keyword("not")) {
+            return parse_comparison();
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_not();
+        if (!value.has_value()) {
+            return std::nullopt;
+        }
+        const auto* boolean = require_boolean(*value, operator_offset);
+        if (boolean == nullptr) {
+            return std::nullopt;
+        }
+        return Value{!*boolean};
+    }
+
+    [[nodiscard]] std::optional<Value> parse_comparison() {
+        auto left = parse_concatenation();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+
+        skip_horizontal_whitespace();
+        const auto operator_offset = offset_;
+        std::string_view operation;
+        if (consume('=')) {
+            operation = "=";
+        } else if (consume('<')) {
+            if (consume('=')) {
+                operation = "<=";
+            } else if (consume('>')) {
+                operation = "<>";
+            } else {
+                operation = "<";
+            }
+        } else if (consume('>')) {
+            operation = consume('=') ? ">=" : ">";
+        } else {
+            return left;
+        }
+
+        skip_horizontal_whitespace();
+        auto right = parse_concatenation();
+        if (!right.has_value()) {
+            return std::nullopt;
+        }
+        return compare(*left, *right, operation, operator_offset);
+    }
+
     [[nodiscard]] std::optional<Value> parse_concatenation() {
         auto left = parse_additive();
         if (!left.has_value()) {
@@ -289,12 +464,19 @@ private:
 
         while (true) {
             skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
             if (!consume('&')) {
                 return left;
             }
             skip_horizontal_whitespace();
             auto right = parse_additive();
             if (!right.has_value()) {
+                return std::nullopt;
+            }
+            if (std::holds_alternative<bool>(*left) ||
+                std::holds_alternative<bool>(*right)) {
+                set_error(
+                    "WFC0020", "concatenation requires String or Long operands", operator_offset);
                 return std::nullopt;
             }
             left = Value{render(*left) + render(*right)};
@@ -410,8 +592,14 @@ private:
         if (std::isdigit(static_cast<unsigned char>(current())) != 0) {
             return parse_integer();
         }
+        if (consume_keyword("true")) {
+            return Value{true};
+        }
+        if (consume_keyword("false")) {
+            return Value{false};
+        }
         if (consume('(')) {
-            auto value = parse_concatenation();
+            auto value = parse_expression();
             if (!value.has_value()) {
                 return std::nullopt;
             }
@@ -512,6 +700,104 @@ private:
         return integer;
     }
 
+    [[nodiscard]] const bool* require_boolean(
+        const Value& value,
+        const std::size_t operator_offset) {
+        const auto* boolean = std::get_if<bool>(&value);
+        if (boolean == nullptr) {
+            set_error("WFC0019", "logical operator requires Boolean operands", operator_offset);
+        }
+        return boolean;
+    }
+
+    [[nodiscard]] std::optional<Value> logical_binary(
+        const Value& left,
+        const Value& right,
+        const char operation,
+        const std::size_t operator_offset) {
+        const auto* left_boolean = require_boolean(left, operator_offset);
+        if (left_boolean == nullptr) {
+            return std::nullopt;
+        }
+        const auto* right_boolean = require_boolean(right, operator_offset);
+        if (right_boolean == nullptr) {
+            return std::nullopt;
+        }
+
+        bool result{};
+        switch (operation) {
+        case 'A':
+            result = *left_boolean && *right_boolean;
+            break;
+        case 'O':
+            result = *left_boolean || *right_boolean;
+            break;
+        case 'X':
+            result = *left_boolean != *right_boolean;
+            break;
+        case 'E':
+            result = *left_boolean == *right_boolean;
+            break;
+        case 'I':
+            result = !*left_boolean || *right_boolean;
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
+        }
+        return Value{result};
+    }
+
+    [[nodiscard]] std::optional<Value> compare(
+        const Value& left,
+        const Value& right,
+        const std::string_view operation,
+        const std::size_t operator_offset) {
+        if (left.index() != right.index()) {
+            set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
+            return std::nullopt;
+        }
+
+        if (operation == "=") {
+            return Value{left == right};
+        }
+        if (operation == "<>") {
+            return Value{left != right};
+        }
+        if (std::holds_alternative<bool>(left)) {
+            set_error("WFC0018", "Boolean ordering is not supported", operator_offset);
+            return std::nullopt;
+        }
+
+        bool less{};
+        bool greater{};
+        if (const auto* left_integer = std::get_if<Integer>(&left)) {
+            const auto right_integer = std::get<Integer>(right);
+            less = *left_integer < right_integer;
+            greater = *left_integer > right_integer;
+        } else {
+            const auto& left_string = std::get<std::string>(left);
+            const auto& right_string = std::get<std::string>(right);
+            less = left_string < right_string;
+            greater = left_string > right_string;
+        }
+
+        if (operation == "<") {
+            return Value{less};
+        }
+        if (operation == "<=") {
+            return Value{!greater};
+        }
+        if (operation == ">") {
+            return Value{greater};
+        }
+        if (operation == ">=") {
+            return Value{!less};
+        }
+        set_error("WFC0004", "unsupported operator", operator_offset);
+        return std::nullopt;
+    }
+
     [[nodiscard]] std::optional<Value> integer_binary(
         const Value& left,
         const Value& right,
@@ -570,7 +856,10 @@ private:
         if (const auto* integer = std::get_if<Integer>(&value)) {
             return std::to_string(*integer);
         }
-        return std::get<std::string>(value);
+        if (const auto* string = std::get_if<std::string>(&value)) {
+            return *string;
+        }
+        return std::get<bool>(value) ? "True" : "False";
     }
 
     void set_error(

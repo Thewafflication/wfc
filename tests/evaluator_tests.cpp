@@ -91,6 +91,30 @@ int main() {
         "Print number + 1",
         "0\n1");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
+    expect_program_success(
+        "Print True\n"
+        "Print False\n"
+        "Print 2 + 3 * 4 = 14\n"
+        "Print \"a\" & \"b\" = \"ab\"\n"
+        "Print 2 < 10\n"
+        "Print \"alpha\" < \"beta\"\n"
+        "Print 3 <> 4\n"
+        "Print 3 <= 3\n"
+        "Print 4 > 3\n"
+        "Print 4 >= 5\n"
+        "Print True <> False",
+        "True\nFalse\nTrue\nTrue\nTrue\nTrue\nTrue\nTrue\nTrue\nFalse\nTrue");
+    expect_program_success(
+        "Print Not False And False Or True\n"
+        "Print True Xor True\n"
+        "Print True Eqv True\n"
+        "Print True Imp False",
+        "True\nFalse\nTrue\nFalse");
+    expect_program_success(
+        "Dim ready As Boolean\n"
+        "ready = 10 >= 5\n"
+        "Print ready",
+        "True");
 
     expect_program_failure("Dim 1 As Long", "WFC0011");
     expect_program_failure("Dim value As Integer", "WFC0012");
@@ -100,6 +124,10 @@ int main() {
     expect_program_failure("Print missing", "WFC0015");
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
     expect_program_failure("Dim Print As Long", "WFC0017");
+    expect_program_failure("Print 1 = \"1\"", "WFC0018");
+    expect_program_failure("Print True < False", "WFC0018");
+    expect_program_failure("Print 1 And 2", "WFC0019");
+    expect_program_failure("Print True & \" value\"", "WFC0020");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

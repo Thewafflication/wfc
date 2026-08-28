@@ -48,7 +48,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     set_tests_properties(
         TC-MP0001-evaluator
         PROPERTIES
-            LABELS "unit;mp-0001;mp-0002;vertical-slice;expressions;statements;variables"
+            LABELS "unit;mp-0001;mp-0002;vertical-slice;expressions;statements;variables;boolean"
     )
 
     add_test(NAME TC-MP0001-cli COMMAND wfc --eval "Print \"Hello, WFC!\"")
@@ -79,5 +79,16 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         PROPERTIES
             LABELS "integration;mp-0002;statements;variables"
             PASS_REGULAR_EXPRESSION "30"
+    )
+
+    add_test(
+        NAME TC-MP0002-boolean-cli
+        COMMAND wfc --eval "Dim ready As Boolean: ready = 2 + 3 = 5: Print ready And Not False"
+    )
+    set_tests_properties(
+        TC-MP0002-boolean-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;boolean"
+            PASS_REGULAR_EXPRESSION "True"
     )
 endif()

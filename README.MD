@@ -64,13 +64,15 @@ ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
 The current command accepts sequential `Dim`, assignment, and `Print`
-statements separated by line endings or `:`. Variables may be `Long` or
-`String`; expressions support literals, variables, parentheses, unary signs,
-integer `+`, `-`, `*`, `\\`, `Mod`, and `&` concatenation. It remains an early
-MP-0002 subset and does not claim general VB6 compatibility:
+statements separated by line endings or `:`. Variables may be `Long`, `String`,
+or `Boolean`; expressions support literals, variables, parentheses, arithmetic,
+concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
+`Xor`, `Eqv`, and `Imp`. It remains an early MP-0002 subset and does not claim
+general VB6 compatibility:
 
 ```powershell
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print "Hello, WFC!"'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print (2 + 3) * 4 & " items"'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: total = 6 * 7: Print total'
+out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim ready As Boolean: ready = 6 * 7 = 42: Print ready And Not False'
 ```

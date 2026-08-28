@@ -16,3 +16,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0141 — Module statement and variable subset](req-0141-module-statements-and-variables.md)
   defines sequential execution, typed module variables, assignments, comments,
   and multi-line output for the second MP-0002 increment.
+- [REQ-0142 — Boolean and comparison expression subset](req-0142-boolean-and-comparison-expressions.md)
+  defines Boolean values, comparisons, logical operators, precedence, and
+  strict type failures for the third MP-0002 increment.
