@@ -21,10 +21,10 @@ jobs:
         include:
           - arch: x86
             preset: windows-x86-debug
-            runner: windows-2025
+            runner: windows-2022
           - arch: x64
             preset: windows-x64-debug
-            runner: windows-2025
+            runner: windows-2022
           - arch: arm64
             preset: windows-arm64-debug
             runner: windows-11-arm
