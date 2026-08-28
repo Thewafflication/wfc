@@ -42,4 +42,6 @@ without the controlled evidence defined by the test strategy.
 CTest dispatch, stable names, labels, and failure output exist. GitHub Actions
 retains JUnit results, runner and dependency context, CTest failure output, and
 SHA-256 identities for Debug binaries and symbols per architecture. Evidence
-schema validation and milestone closeout retention remain.
+schema validation and milestone closeout retention remain. GitHub Actions
+[run 33142252890](https://github.com/Thewafflication/wfc/actions/runs/33142252890)
+verified the complete retained-evidence path for x86, x64, and native ARM64.
