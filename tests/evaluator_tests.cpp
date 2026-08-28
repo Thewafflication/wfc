@@ -33,6 +33,15 @@ int main() {
     expect_success("  pRiNt  \"case insensitive\"  \r\n", "case insensitive");
     expect_success("Print \"VB says \"\"hello\"\".\"", "VB says \"hello\".");
     expect_success("Print \"\"", "");
+    expect_success("Print 42", "42");
+    expect_success("Print 2 + 3 * 4", "14");
+    expect_success("Print (2 + 3) * 4", "20");
+    expect_success("Print -10 + +3", "-7");
+    expect_success("Print -2147483648", "-2147483648");
+    expect_success("Print 17 \\ 5", "3");
+    expect_success("Print 17 Mod 5", "2");
+    expect_success("Print 2 + 3 & \" items\"", "5 items");
+    expect_success("Print \"page \" & 2 & \" of \" & (1 + 2)", "page 2 of 3");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -40,6 +49,12 @@ int main() {
     expect_failure("Print value", "WFC0002");
     expect_failure("Print \"unterminated", "WFC0003");
     expect_failure("Print \"ok\" trailing", "WFC0004");
+    expect_failure("Print (1 + 2", "WFC0005");
+    expect_failure("Print 2147483648", "WFC0006");
+    expect_failure("Print -2147483649", "WFC0006");
+    expect_failure("Print \"one\" + \"two\"", "WFC0007");
+    expect_failure("Print 1 \\ 0", "WFC0008");
+    expect_failure("Print 2147483647 + 1", "WFC0009");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

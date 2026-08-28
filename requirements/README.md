@@ -13,6 +13,9 @@ not an implicit scope decision.
 
 ## Requirement Sets
 
+- [Core VB language](language/README.md) contains the incrementally supported
+  lexical, expression, statement, diagnostic, and execution contracts delivered
+  through MP-0002.
 - [0.1.0 foundation](foundation/README.md) contains the controlled dependency,
   build, architecture, vertical-slice, test-evidence, and reference-probe
   requirements that gate MP-0001.
