@@ -35,10 +35,11 @@ using Value = std::variant<Integer, std::string, bool>;
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
            identifier == "dim" || identifier == "eqv" || identifier == "false" ||
-           identifier == "imp" || identifier == "let" || identifier == "long" ||
+           identifier == "else" || identifier == "if" || identifier == "imp" ||
+           identifier == "let" || identifier == "long" ||
            identifier == "mod" || identifier == "not" || identifier == "or" ||
-           identifier == "print" || identifier == "string" || identifier == "true" ||
-           identifier == "xor";
+           identifier == "print" || identifier == "string" || identifier == "then" ||
+           identifier == "true" || identifier == "xor";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -186,6 +187,9 @@ private:
     [[nodiscard]] bool parse_statement() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
+        if (consume_keyword("if")) {
+            return parse_if_statement();
+        }
         if (consume_keyword("print")) {
             return parse_print_statement();
         }
@@ -211,12 +215,77 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (has_output_line_) {
-            output_.push_back('\n');
+        if (execute_) {
+            if (has_output_line_) {
+                output_.push_back('\n');
+            }
+            output_ += render(*value);
+            has_output_line_ = true;
         }
-        output_ += render(*value);
-        has_output_line_ = true;
         return true;
+    }
+
+    [[nodiscard]] bool parse_if_statement() {
+        skip_horizontal_whitespace();
+        const auto condition_offset = offset_;
+        auto condition = parse_expression();
+        if (!condition.has_value()) {
+            return false;
+        }
+        const auto* boolean = std::get_if<bool>(&*condition);
+        if (boolean == nullptr) {
+            set_error("WFC0021", "If condition must be Boolean", condition_offset);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume_keyword("then")) {
+            set_error("WFC0022", "expected Then", offset_);
+            return false;
+        }
+
+        const bool enclosing_execution = execute_;
+        execute_ = enclosing_execution && *boolean;
+        if (!parse_inline_statement()) {
+            execute_ = enclosing_execution;
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (consume_keyword("else")) {
+            execute_ = enclosing_execution && !*boolean;
+            if (!parse_inline_statement()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+        }
+        execute_ = enclosing_execution;
+        return true;
+    }
+
+    [[nodiscard]] bool parse_inline_statement() {
+        skip_horizontal_whitespace();
+        const auto statement_offset = offset_;
+        if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+            consume_keyword("else")) {
+            offset_ = statement_offset;
+            set_error("WFC0023", "expected Print or assignment branch", statement_offset);
+            return false;
+        }
+        if (consume_keyword("print")) {
+            return parse_print_statement();
+        }
+
+        const bool has_let = consume_keyword("let");
+        if (has_let) {
+            skip_horizontal_whitespace();
+        }
+        auto identifier = parse_identifier();
+        if (!identifier.has_value() || is_reserved_identifier(*identifier)) {
+            set_error("WFC0023", "expected Print or assignment branch", statement_offset);
+            return false;
+        }
+        return parse_assignment(std::move(*identifier));
     }
 
     [[nodiscard]] bool parse_declaration() {
@@ -282,7 +351,9 @@ private:
             set_error("WFC0016", "assignment type mismatch", identifier_offset);
             return false;
         }
-        variable->second = std::move(*value);
+        if (execute_) {
+            variable->second = std::move(*value);
+        }
         return true;
     }
 
@@ -569,6 +640,9 @@ private:
             if (integer == nullptr) {
                 return std::nullopt;
             }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
             if (*integer == std::numeric_limits<Integer>::min()) {
                 set_error("WFC0009", "integer overflow", operator_offset);
                 return std::nullopt;
@@ -811,6 +885,9 @@ private:
         if (right_integer == nullptr) {
             return std::nullopt;
         }
+        if (!execute_) {
+            return Value{Integer{}};
+        }
 
         if ((operation == '\\' || operation == '%') && *right_integer == 0) {
             set_error("WFC0008", "division by zero", operator_offset);
@@ -875,6 +952,7 @@ private:
     std::unordered_map<std::string, Value> variables_;
     std::string output_;
     bool has_output_line_{};
+    bool execute_{true};
     wfc::Evaluation error_;
 };
 

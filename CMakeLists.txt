@@ -91,4 +91,15 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
             LABELS "integration;mp-0002;expressions;boolean"
             PASS_REGULAR_EXPRESSION "True"
     )
+
+    add_test(
+        NAME TC-MP0002-conditional-cli
+        COMMAND wfc --eval "Dim total As Long: If True Then total = 6 * 7 Else total = 0: If total = 42 Then Print \"selected\" Else Print \"wrong\""
+    )
+    set_tests_properties(
+        TC-MP0002-conditional-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;conditionals"
+            PASS_REGULAR_EXPRESSION "selected"
+    )
 endif()
