@@ -358,4 +358,16 @@ Print "Alpha" = "alpha"]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "11"
     )
+
+    add_test(
+        NAME TC-MP0002-string-case-cli
+        COMMAND wfc --eval [=[Print LCase$("Hello, WFC!")
+Print UCase("Hello, WFC!")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-case-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "hello, wfc!.*HELLO, WFC!"
+    )
 endif()

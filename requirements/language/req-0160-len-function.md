@@ -25,8 +25,8 @@ outside this requirement.
 | Code | Condition |
 | --- | --- |
 | `WFC0071` | A call names an unsupported function. |
-| `WFC0072` | `Len` does not receive exactly one argument. |
-| `WFC0073` | The `Len` argument is not a `String`. |
+| `WFC0072` | A supported single-argument function does not receive exactly one argument. |
+| `WFC0073` | A supported string function receives a non-`String` argument. |
 | `WFC0074` | A constant initializer contains a function call. |
 
 Missing closing parentheses continue to use `WFC0005`.

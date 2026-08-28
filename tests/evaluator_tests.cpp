@@ -61,6 +61,8 @@ int main() {
     expect_success("Print 2 + 3 & \" items\"", "5 items");
     expect_success("Print \"page \" & 2 & \" of \" & (1 + 2)", "page 2 of 3");
     expect_success("Print Len(\"four\")", "4");
+    expect_success("Print LCase$(\"WFC 123!\")", "wfc 123!");
+    expect_success("Print UCASE(\"Wfc 123!\")", "WFC 123!");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -140,6 +142,13 @@ int main() {
         "Print Len(text & \"!\")\n"
         "If Len(text) = 3 Then Print \"length\"",
         "5\n4\nlength");
+    expect_program_success(
+        "Dim text As String\n"
+        "text = \"WfC\"\n"
+        "Print LCase(text)\n"
+        "Print UCase$(text)\n"
+        "Print LCase(UCase(\"MiXeD\"))",
+        "wfc\nWFC\nmixed");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -509,6 +518,7 @@ int main() {
     expect_program_failure("Print Len()", "WFC0072");
     expect_program_failure("Print Len(\"one\", \"two\")", "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
+    expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");

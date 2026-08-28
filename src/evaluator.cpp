@@ -24,6 +24,13 @@ using Value = std::variant<Integer, std::string, bool>;
     return character;
 }
 
+[[nodiscard]] char ascii_upper(const char character) noexcept {
+    if (character >= 'a' && character <= 'z') {
+        return static_cast<char>(character - ('a' - 'A'));
+    }
+    return character;
+}
+
 [[nodiscard]] bool is_identifier_start(const char character) noexcept {
     return (character >= 'A' && character <= 'Z') ||
            (character >= 'a' && character <= 'z');
@@ -1649,6 +1656,10 @@ private:
         if (is_identifier_start(current())) {
             const auto identifier_offset = offset_;
             auto identifier = parse_identifier();
+            if (!at_end() && current() == '$') {
+                identifier->push_back('$');
+                advance();
+            }
             skip_horizontal_whitespace();
             if (!at_end() && current() == '(') {
                 return parse_function_call(*identifier, identifier_offset);
@@ -1679,7 +1690,10 @@ private:
     [[nodiscard]] std::optional<Value> parse_function_call(
         const std::string_view identifier,
         const std::size_t identifier_offset) {
-        if (identifier != "len") {
+        const bool is_len = identifier == "len";
+        const bool is_lower = identifier == "lcase" || identifier == "lcase$";
+        const bool is_upper = identifier == "ucase" || identifier == "ucase$";
+        if (!is_len && !is_lower && !is_upper) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1694,7 +1708,7 @@ private:
         advance();
         skip_horizontal_whitespace();
         if (consume(')')) {
-            set_error("WFC0072", "Len requires one argument", identifier_offset);
+            set_error("WFC0072", "function requires one argument", identifier_offset);
             return std::nullopt;
         }
         auto argument = parse_expression();
@@ -1703,7 +1717,7 @@ private:
         }
         skip_horizontal_whitespace();
         if (consume(',')) {
-            set_error("WFC0072", "Len requires one argument", identifier_offset);
+            set_error("WFC0072", "function requires one argument", identifier_offset);
             return std::nullopt;
         }
         if (!consume(')')) {
@@ -1713,14 +1727,22 @@ private:
 
         const auto* string = std::get_if<std::string>(&*argument);
         if (string == nullptr) {
-            set_error("WFC0073", "Len requires a String argument", identifier_offset);
+            set_error("WFC0073", "function requires a String argument", identifier_offset);
             return std::nullopt;
         }
-        if (string->size() > static_cast<std::size_t>(std::numeric_limits<Integer>::max())) {
-            set_error("WFC0009", "integer overflow", identifier_offset);
-            return std::nullopt;
+        if (is_len) {
+            if (string->size() > static_cast<std::size_t>(std::numeric_limits<Integer>::max())) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{static_cast<Integer>(string->size())};
         }
-        return Value{static_cast<Integer>(string->size())};
+
+        std::string result = *string;
+        for (char& character : result) {
+            character = is_lower ? ascii_lower(character) : ascii_upper(character);
+        }
+        return Value{std::move(result)};
     }
 
     [[nodiscard]] std::optional<Value> parse_string() {

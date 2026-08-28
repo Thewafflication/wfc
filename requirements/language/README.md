@@ -65,3 +65,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   increment.
 - [REQ-0160 — Len function subset](req-0160-len-function.md) defines the first
   callable VBA string function for the twenty-first MP-0002 increment.
+- [REQ-0161 — String case function subset](req-0161-string-case-functions.md)
+  defines ASCII `LCase` and `UCase` calls for the twenty-second MP-0002
+  increment.
