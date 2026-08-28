@@ -353,6 +353,20 @@ int main() {
         "End Select",
         "selected");
     expect_program_success(
+        "Select Case 2\n"
+        "Case 0, 1, 2, 1 \\ 0\n"
+        "  Print \"selected\"\n"
+        "Case Else\n"
+        "  Print \"wrong\"\n"
+        "End Select",
+        "selected");
+    expect_program_success(
+        "Select Case \"beta\"\n"
+        "Case \"alpha\", \"beta\", \"gamma\"\n"
+        "  Print \"selected\"\n"
+        "End Select",
+        "selected");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -447,6 +461,8 @@ int main() {
         "WFC0057");
     expect_program_failure("Case 1", "WFC0058");
     expect_program_failure("Select Case 1\nCase \"1\"\nEnd Select", "WFC0053");
+    expect_program_failure("Select Case 1\nCase 1,\nEnd Select", "WFC0059");
+    expect_program_failure("Select Case 1\nCase , 1\nEnd Select", "WFC0059");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

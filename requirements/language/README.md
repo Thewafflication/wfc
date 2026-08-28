@@ -48,3 +48,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   innermost counter-loop termination for the thirteenth MP-0002 increment.
 - [REQ-0153 — Select Case equality subset](req-0153-select-case.md) defines
   ordered, same-type equality branches for the fourteenth MP-0002 increment.
+- [REQ-0154 — Select Case value-list subset](req-0154-select-case-value-lists.md)
+  defines comma-separated equality alternatives for the fifteenth MP-0002
+  increment.

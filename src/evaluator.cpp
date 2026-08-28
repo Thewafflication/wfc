@@ -950,25 +950,41 @@ private:
                     return false;
                 }
 
-                const bool evaluate_case = enclosing_execution && !branch_selected;
-                execute_ = evaluate_case;
-                const auto value_offset = offset_;
-                auto case_value = parse_expression();
-                if (!case_value.has_value()) {
-                    execute_ = enclosing_execution;
-                    return false;
-                }
-                if (case_value->index() != selector->index()) {
-                    execute_ = enclosing_execution;
-                    set_error("WFC0053", "Case value must match selector type", value_offset);
-                    return false;
+                bool case_matches{};
+                while (true) {
+                    const bool evaluate_case =
+                        enclosing_execution && !branch_selected && !case_matches;
+                    execute_ = evaluate_case;
+                    const auto value_offset = offset_;
+                    if (at_end() || current() == ',' || current() == '\r' ||
+                        current() == '\n') {
+                        execute_ = enclosing_execution;
+                        set_error("WFC0059", "expected Case value", value_offset);
+                        return false;
+                    }
+                    auto case_value = parse_expression();
+                    if (!case_value.has_value()) {
+                        execute_ = enclosing_execution;
+                        return false;
+                    }
+                    if (case_value->index() != selector->index()) {
+                        execute_ = enclosing_execution;
+                        set_error("WFC0053", "Case value must match selector type", value_offset);
+                        return false;
+                    }
+                    case_matches = case_matches || *case_value == *selector;
+                    skip_horizontal_whitespace();
+                    if (!consume(',')) {
+                        break;
+                    }
+                    skip_horizontal_whitespace();
                 }
                 if (!consume_block_line_end()) {
                     execute_ = enclosing_execution;
                     return false;
                 }
-                const bool select_branch = !branch_selected && *case_value == *selector;
-                branch_selected = branch_selected || *case_value == *selector;
+                const bool select_branch = !branch_selected && case_matches;
+                branch_selected = branch_selected || case_matches;
                 has_case = true;
                 execute_ = enclosing_execution && select_branch;
                 continue;
