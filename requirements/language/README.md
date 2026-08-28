@@ -80,3 +80,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0165 — Character code function subset](req-0165-character-code-functions.md)
   defines ASCII `Asc` and `Chr` conversion for the twenty-sixth MP-0002
   increment.
+- [REQ-0166 — StrReverse function subset](req-0166-strreverse-function.md)
+  defines deterministic byte reversal for the twenty-seventh MP-0002
+  increment.

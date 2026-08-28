@@ -414,4 +414,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "WFC"
     )
+
+    add_test(
+        NAME TC-MP0002-string-reverse-cli
+        COMMAND wfc --eval [=[Print StrReverse("!CFW ,olleH")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-reverse-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "Hello, WFC!"
+    )
 endif()

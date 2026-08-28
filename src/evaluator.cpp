@@ -1702,8 +1702,10 @@ private:
         const bool is_mid = identifier == "mid" || identifier == "mid$";
         const bool is_asc = identifier == "asc";
         const bool is_chr = identifier == "chr" || identifier == "chr$";
+        const bool is_reverse = identifier == "strreverse";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
-            !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr) {
+            !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
+            !is_reverse) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1869,6 +1871,12 @@ private:
                 }
             }
             return Value{string->substr(first, last - first)};
+        }
+
+        if (is_reverse) {
+            std::string result = *string;
+            std::reverse(result.begin(), result.end());
+            return Value{std::move(result)};
         }
 
         std::string result = *string;

@@ -76,6 +76,9 @@ int main() {
     expect_success("Print Asc(\"WFC\")", "87");
     expect_success("Print Chr$(87) & Chr(70) & Chr$(67)", "WFC");
     expect_success("Print Chr$(Asc(\"A\"))", "A");
+    expect_success("Print StrReverse(\"WFC 123!\")", "!321 CFW");
+    expect_success("Print \"[\" & StrReverse(\"\") & \"]\"", "[]");
+    expect_success("Print StrReverse(LCase(\"AbC\"))", "cba");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -549,6 +552,7 @@ int main() {
     expect_program_failure("Print Mid(\"value\", 1, \"2\")", "WFC0073");
     expect_program_failure("Print Asc(42)", "WFC0073");
     expect_program_failure("Print Chr(\"65\")", "WFC0073");
+    expect_program_failure("Print StrReverse(False)", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
