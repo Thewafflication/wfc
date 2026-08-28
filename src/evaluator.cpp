@@ -39,7 +39,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "imp" || identifier == "let" || identifier == "long" ||
            identifier == "mod" || identifier == "not" || identifier == "or" ||
            identifier == "print" || identifier == "string" || identifier == "then" ||
-           identifier == "true" || identifier == "xor";
+           identifier == "true" || identifier == "wend" || identifier == "while" ||
+           identifier == "xor";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -146,6 +147,18 @@ private:
         return false;
     }
 
+    [[nodiscard]] bool consume_block_line_end() {
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '\'') {
+            skip_comment();
+        }
+        if (consume_line_break()) {
+            return true;
+        }
+        set_error("WFC0004", "expected line break", offset_);
+        return false;
+    }
+
     [[nodiscard]] bool consume(const char character) noexcept {
         if (at_end() || current() != character) {
             return false;
@@ -189,6 +202,13 @@ private:
         const auto statement_offset = offset_;
         if (consume_keyword("if")) {
             return parse_if_statement();
+        }
+        if (consume_keyword("while")) {
+            return parse_while_statement();
+        }
+        if (consume_keyword("wend")) {
+            set_error("WFC0033", "unexpected Wend", statement_offset);
+            return false;
         }
         if (consume_keyword("print")) {
             return parse_print_statement();
@@ -274,7 +294,7 @@ private:
     [[nodiscard]] bool parse_block_if_statement(
         const bool enclosing_execution,
         const bool condition) {
-        if (!consume_statement_end()) {
+        if (!consume_block_line_end()) {
             return false;
         }
 
@@ -318,7 +338,7 @@ private:
                     set_error("WFC0029", "expected Then after ElseIf", offset_);
                     return false;
                 }
-                if (!consume_statement_end()) {
+                if (!consume_block_line_end()) {
                     execute_ = enclosing_execution;
                     return false;
                 }
@@ -335,7 +355,7 @@ private:
                     return false;
                 }
                 has_else = true;
-                if (!consume_statement_end()) {
+                if (!consume_block_line_end()) {
                     execute_ = enclosing_execution;
                     return false;
                 }
@@ -359,6 +379,93 @@ private:
             allow_declarations_ = enclosing_declaration_permission;
             if (!parsed_statement || !consumed_statement_end) {
                 execute_ = enclosing_execution;
+                return false;
+            }
+        }
+    }
+
+    [[nodiscard]] bool parse_while_statement() {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        const auto condition_offset = offset_;
+        auto condition = parse_expression();
+        if (!condition.has_value()) {
+            return false;
+        }
+        const auto* boolean = std::get_if<bool>(&*condition);
+        if (boolean == nullptr) {
+            set_error("WFC0031", "While condition must be Boolean", condition_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        const auto body_offset = offset_;
+        std::size_t continuation_offset{};
+        if (!enclosing_execution || !*boolean) {
+            execute_ = false;
+            const bool parsed_body = parse_while_body(continuation_offset);
+            execute_ = enclosing_execution;
+            return parsed_body;
+        }
+
+        bool continue_loop = true;
+        while (continue_loop) {
+            offset_ = body_offset;
+            execute_ = enclosing_execution;
+            if (!parse_while_body(continuation_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+
+            offset_ = condition_offset;
+            execute_ = enclosing_execution;
+            auto next_condition = parse_expression();
+            if (!next_condition.has_value()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            const auto* next_boolean = std::get_if<bool>(&*next_condition);
+            if (next_boolean == nullptr) {
+                execute_ = enclosing_execution;
+                set_error("WFC0031", "While condition must be Boolean", condition_offset);
+                return false;
+            }
+            if (!consume_block_line_end()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            continue_loop = *next_boolean;
+        }
+
+        offset_ = continuation_offset;
+        execute_ = enclosing_execution;
+        return true;
+    }
+
+    [[nodiscard]] bool parse_while_body(std::size_t& continuation_offset) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                set_error("WFC0032", "expected Wend", offset_);
+                return false;
+            }
+            if (consume_keyword("wend")) {
+                continuation_offset = offset_;
+                return true;
+            }
+
+            const auto statement_offset = offset_;
+            if (consume_keyword("dim")) {
+                set_error(
+                    "WFC0034",
+                    "declarations are not supported in While blocks",
+                    statement_offset);
+                return false;
+            }
+            const bool parsed_statement = parse_statement();
+            if (!parsed_statement || !consume_statement_end()) {
                 return false;
             }
         }

@@ -151,6 +151,34 @@ int main() {
         "End If",
         "fallback");
     expect_program_success(
+        "Dim index As Long\n"
+        "Dim total As Long\n"
+        "index = 1\n"
+        "While index <= 4\n"
+        "  total = total + index\n"
+        "  index = index + 1\n"
+        "Wend\n"
+        "Print total",
+        "10");
+    expect_program_success(
+        "While False\n"
+        "  Print 1 \\ 0\n"
+        "Wend\n"
+        "Print \"done\"",
+        "done");
+    expect_program_success(
+        "Dim outer As Long\n"
+        "Dim inner As Long\n"
+        "While outer < 2\n"
+        "  inner = 0\n"
+        "  While inner < 2\n"
+        "    Print outer * 2 + inner\n"
+        "    inner = inner + 1\n"
+        "  Wend\n"
+        "  outer = outer + 1\n"
+        "Wend",
+        "0\n1\n2\n3");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -206,6 +234,11 @@ int main() {
     expect_program_failure(
         "If False Then\nElse\nElseIf True Then\nEnd If",
         "WFC0030");
+    expect_program_failure("While 1\nWend", "WFC0031");
+    expect_program_failure("While True\nPrint \"no\"", "WFC0032");
+    expect_program_failure("Wend", "WFC0033");
+    expect_program_failure("While False\nDim local As Long\nWend", "WFC0034");
+    expect_program_failure("While False: Print \"no\": Wend", "WFC0004");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

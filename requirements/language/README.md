@@ -28,3 +28,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0145 — Block ElseIf branch subset](req-0145-block-elseif-branches.md)
   defines ordered `ElseIf` selection, first-match execution, and branch
   diagnostics for the sixth MP-0002 increment.
+- [REQ-0146 — While...Wend loop subset](req-0146-while-wend-loops.md)
+  defines pre-test repetition, nested loop execution, and loop diagnostics for
+  the seventh MP-0002 increment.

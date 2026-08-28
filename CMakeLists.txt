@@ -134,4 +134,21 @@ End If]=]
             LABELS "integration;mp-0002;statements;conditionals"
             PASS_REGULAR_EXPRESSION "selected"
     )
+
+    add_test(
+        NAME TC-MP0002-while-cli
+        COMMAND wfc --eval [=[Dim index As Long
+Dim total As Long
+While index < 4
+total = total + index
+index = index + 1
+Wend
+Print total]=]
+    )
+    set_tests_properties(
+        TC-MP0002-while-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops"
+            PASS_REGULAR_EXPRESSION "6"
+    )
 endif()
