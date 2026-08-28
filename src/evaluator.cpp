@@ -44,10 +44,11 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "mod" ||
            identifier == "next" ||
            identifier == "not" ||
-           identifier == "or" ||
+           identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
-           identifier == "step" || identifier == "to" || identifier == "true" ||
+           identifier == "explicit" || identifier == "step" || identifier == "to" ||
+           identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor";
 }
@@ -209,6 +210,16 @@ private:
     [[nodiscard]] bool parse_statement() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
+        if (consume_keyword("option")) {
+            return parse_option_statement(statement_offset);
+        }
+        if (consume_keyword("rem")) {
+            skip_comment();
+            return true;
+        }
+        if (allow_declarations_) {
+            module_body_started_ = true;
+        }
         if (consume_keyword("if")) {
             return parse_if_statement();
         }
@@ -245,10 +256,6 @@ private:
         }
         if (consume_keyword("print")) {
             return parse_print_statement();
-        }
-        if (consume_keyword("rem")) {
-            skip_comment();
-            return true;
         }
         if (consume_keyword("dim")) {
             if (!allow_declarations_) {
@@ -293,6 +300,28 @@ private:
             output_ += render(*value);
             has_output_line_ = true;
         }
+        return true;
+    }
+
+    [[nodiscard]] bool parse_option_statement(const std::size_t statement_offset) {
+        if (!allow_declarations_) {
+            set_error("WFC0068", "Option Explicit is only valid at module level", statement_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume_keyword("explicit")) {
+            set_error("WFC0065", "expected Explicit after Option", offset_);
+            return false;
+        }
+        if (module_body_started_) {
+            set_error("WFC0066", "Option Explicit must precede module statements", statement_offset);
+            return false;
+        }
+        if (option_explicit_) {
+            set_error("WFC0067", "duplicate Option Explicit", statement_offset);
+            return false;
+        }
+        option_explicit_ = true;
         return true;
     }
 
@@ -1875,6 +1904,8 @@ private:
     bool execute_{true};
     bool allow_declarations_{true};
     bool constant_expression_{};
+    bool module_body_started_{};
+    bool option_explicit_{};
     std::size_t do_depth_{};
     bool exit_do_requested_{};
     std::size_t for_depth_{};

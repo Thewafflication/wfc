@@ -321,4 +321,18 @@ Print answer]=]
             LABELS "integration;mp-0002;statements;constants"
             PASS_REGULAR_EXPRESSION "42"
     )
+
+    add_test(
+        NAME TC-MP0002-option-explicit-cli
+        COMMAND wfc --eval [=[Option Explicit
+Dim value As Long
+value = 42
+Print value]=]
+    )
+    set_tests_properties(
+        TC-MP0002-option-explicit-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;modules"
+            PASS_REGULAR_EXPRESSION "42"
+    )
 endif()

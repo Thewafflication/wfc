@@ -106,6 +106,14 @@ int main() {
         "Print greeting\n"
         "Print ready",
         "42\nHello!\nTrue");
+    expect_program_success(
+        "' leading comment\n"
+        "Rem another leading comment\n"
+        "Option Explicit\n"
+        "Dim value As Long\n"
+        "value = 42\n"
+        "Print value",
+        "42");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -463,6 +471,12 @@ int main() {
         "Dim value As Long: value = 1: Const snapshot As Long = value",
         "WFC0064");
     expect_program_failure("Const wrong As Long = \"text\"", "WFC0016");
+    expect_program_failure("Option Nope", "WFC0065");
+    expect_program_failure("Dim value As Long\nOption Explicit", "WFC0066");
+    expect_program_failure("Option Explicit\nOption Explicit", "WFC0067");
+    expect_program_failure(
+        "If True Then\nOption Explicit\nEnd If",
+        "WFC0068");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

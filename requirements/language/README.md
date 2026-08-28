@@ -58,3 +58,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0157 — Typed constant subset](req-0157-typed-constants.md) defines
   immutable `Long`, `String`, and `Boolean` values for the eighteenth MP-0002
   increment.
+- [REQ-0158 — Option Explicit subset](req-0158-option-explicit.md) defines
+  strict module directive placement for the nineteenth MP-0002 increment.
