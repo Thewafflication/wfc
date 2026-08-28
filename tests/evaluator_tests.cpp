@@ -114,6 +114,24 @@ int main() {
         "value = 42\n"
         "Print value",
         "42");
+    expect_program_success(
+        "Option Compare Text\n"
+        "Option Explicit\n"
+        "Print \"Alpha\" = \"alpha\"\n"
+        "Print \"alpha\" < \"Beta\"\n"
+        "Select Case \"BETA\"\n"
+        "Case \"alpha\" To \"gamma\"\n"
+        "  Print \"selected\"\n"
+        "End Select\n"
+        "Select Case \"BETA\"\n"
+        "Case Is = \"beta\"\n"
+        "  Print \"equal\"\n"
+        "End Select",
+        "True\nTrue\nselected\nequal");
+    expect_program_success(
+        "Option Compare Binary\n"
+        "Print \"Alpha\" = \"alpha\"",
+        "False");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -477,6 +495,8 @@ int main() {
     expect_program_failure(
         "If True Then\nOption Explicit\nEnd If",
         "WFC0068");
+    expect_program_failure("Option Compare Text\nOption Compare Binary", "WFC0069");
+    expect_program_failure("Option Compare Database", "WFC0070");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

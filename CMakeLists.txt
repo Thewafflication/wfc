@@ -335,4 +335,16 @@ Print value]=]
             LABELS "integration;mp-0002;statements;modules"
             PASS_REGULAR_EXPRESSION "42"
     )
+
+    add_test(
+        NAME TC-MP0002-option-compare-cli
+        COMMAND wfc --eval [=[Option Compare Text
+Print "Alpha" = "alpha"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-option-compare-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;modules;strings"
+            PASS_REGULAR_EXPRESSION "True"
+    )
 endif()

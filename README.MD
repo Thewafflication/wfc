@@ -100,4 +100,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1, 2, 3`n 
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 7`nCase Is >= 5`n Print `"selected`"`nEnd Select"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Const answer As Long = 6 * 7`nPrint answer"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Explicit`nDim value As Long`nvalue = 42`nPrint value"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Compare Text`nPrint `"Alpha`" = `"alpha`""
 ```

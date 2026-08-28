@@ -1,5 +1,6 @@
 #include "wfc/evaluator.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cctype>
 #include <cstdint>
@@ -39,9 +40,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "exit" || identifier == "false" || identifier == "for" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "is" || identifier == "let" ||
-           identifier == "long" ||
-           identifier == "case" || identifier == "const" || identifier == "loop" ||
-           identifier == "mod" ||
+           identifier == "long" || identifier == "case" || identifier == "const" ||
+           identifier == "loop" || identifier == "mod" ||
            identifier == "next" ||
            identifier == "not" ||
            identifier == "option" || identifier == "or" ||
@@ -305,24 +305,41 @@ private:
 
     [[nodiscard]] bool parse_option_statement(const std::size_t statement_offset) {
         if (!allow_declarations_) {
-            set_error("WFC0068", "Option Explicit is only valid at module level", statement_offset);
+            set_error("WFC0068", "Option directives are only valid at module level", statement_offset);
             return false;
         }
         skip_horizontal_whitespace();
-        if (!consume_keyword("explicit")) {
-            set_error("WFC0065", "expected Explicit after Option", offset_);
-            return false;
-        }
         if (module_body_started_) {
-            set_error("WFC0066", "Option Explicit must precede module statements", statement_offset);
+            set_error("WFC0066", "Option directives must precede module statements", statement_offset);
             return false;
         }
-        if (option_explicit_) {
-            set_error("WFC0067", "duplicate Option Explicit", statement_offset);
-            return false;
+        if (consume_keyword("explicit")) {
+            if (option_explicit_) {
+                set_error("WFC0067", "duplicate Option Explicit", statement_offset);
+                return false;
+            }
+            option_explicit_ = true;
+            return true;
         }
-        option_explicit_ = true;
-        return true;
+        if (consume_keyword("compare")) {
+            if (option_compare_set_) {
+                set_error("WFC0069", "duplicate Option Compare", statement_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("binary")) {
+                option_compare_text_ = false;
+            } else if (consume_keyword("text")) {
+                option_compare_text_ = true;
+            } else {
+                set_error("WFC0070", "expected Binary or Text after Option Compare", offset_);
+                return false;
+            }
+            option_compare_set_ = true;
+            return true;
+        }
+        set_error("WFC0065", "expected Explicit or Compare after Option", offset_);
+        return false;
     }
 
     [[nodiscard]] bool parse_exit_statement(const std::size_t statement_offset) {
@@ -1088,12 +1105,16 @@ private:
                         } else {
                             const auto& selected_string = std::get<std::string>(*selector);
                             item_matches =
-                                std::get<std::string>(*case_value) <= selected_string &&
-                                selected_string <= std::get<std::string>(*upper_value);
+                                compare_strings(
+                                    std::get<std::string>(*case_value),
+                                    selected_string) <= 0 &&
+                                compare_strings(
+                                    selected_string,
+                                    std::get<std::string>(*upper_value)) <= 0;
                         }
                         skip_horizontal_whitespace();
                     } else {
-                        item_matches = *case_value == *selector;
+                        item_matches = values_equal(*case_value, *selector);
                     }
                     case_matches = case_matches || item_matches;
                     if (!consume(',')) {
@@ -1770,6 +1791,38 @@ private:
         return Value{result};
     }
 
+    [[nodiscard]] int compare_strings(
+        const std::string_view left,
+        const std::string_view right) const noexcept {
+        const auto common_size = std::min(left.size(), right.size());
+        for (std::size_t index = 0; index < common_size; ++index) {
+            const auto left_character = static_cast<unsigned char>(
+                option_compare_text_ ? ascii_lower(left[index]) : left[index]);
+            const auto right_character = static_cast<unsigned char>(
+                option_compare_text_ ? ascii_lower(right[index]) : right[index]);
+            if (left_character < right_character) {
+                return -1;
+            }
+            if (left_character > right_character) {
+                return 1;
+            }
+        }
+        if (left.size() < right.size()) {
+            return -1;
+        }
+        if (left.size() > right.size()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    [[nodiscard]] bool values_equal(const Value& left, const Value& right) const {
+        if (const auto* left_string = std::get_if<std::string>(&left)) {
+            return compare_strings(*left_string, std::get<std::string>(right)) == 0;
+        }
+        return left == right;
+    }
+
     [[nodiscard]] std::optional<Value> compare(
         const Value& left,
         const Value& right,
@@ -1781,10 +1834,10 @@ private:
         }
 
         if (operation == "=") {
-            return Value{left == right};
+            return Value{values_equal(left, right)};
         }
         if (operation == "<>") {
-            return Value{left != right};
+            return Value{!values_equal(left, right)};
         }
         if (std::holds_alternative<bool>(left)) {
             set_error("WFC0018", "Boolean ordering is not supported", operator_offset);
@@ -1800,8 +1853,9 @@ private:
         } else {
             const auto& left_string = std::get<std::string>(left);
             const auto& right_string = std::get<std::string>(right);
-            less = left_string < right_string;
-            greater = left_string > right_string;
+            const auto ordering = compare_strings(left_string, right_string);
+            less = ordering < 0;
+            greater = ordering > 0;
         }
 
         if (operation == "<") {
@@ -1906,6 +1960,8 @@ private:
     bool constant_expression_{};
     bool module_body_started_{};
     bool option_explicit_{};
+    bool option_compare_set_{};
+    bool option_compare_text_{};
     std::size_t do_depth_{};
     bool exit_do_requested_{};
     std::size_t for_depth_{};

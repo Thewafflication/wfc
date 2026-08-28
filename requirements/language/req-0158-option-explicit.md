@@ -24,10 +24,10 @@ Other `Option` directives remain outside this increment.
 
 | Code | Condition |
 | --- | --- |
-| `WFC0065` | `Option` is not followed by `Explicit`. |
-| `WFC0066` | `Option Explicit` follows a declaration or executable statement. |
+| `WFC0065` | `Option` is not followed by a supported directive. |
+| `WFC0066` | An `Option` directive follows a declaration or executable statement. |
 | `WFC0067` | A module contains more than one `Option Explicit`. |
-| `WFC0068` | `Option Explicit` appears inside a control-flow block. |
+| `WFC0068` | An `Option` directive appears inside a control-flow block. |
 
 ## Verification
 

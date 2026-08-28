@@ -60,3 +60,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   increment.
 - [REQ-0158 — Option Explicit subset](req-0158-option-explicit.md) defines
   strict module directive placement for the nineteenth MP-0002 increment.
+- [REQ-0159 — Option Compare subset](req-0159-option-compare.md) defines binary
+  and ASCII case-insensitive string comparison for the twentieth MP-0002
+  increment.
