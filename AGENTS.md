@@ -7,6 +7,10 @@
 - After each coherent work set is implemented and locally verified, commit it
   and push it to `origin/master` automatically. Do not leave completed work
   uncommitted or unpushed.
+- Run only the x64 configure, build, and test suite locally. Do not run local
+  x86 builds/tests or ARM64 cross-builds; GitHub Actions validates those targets
+  after commit and push. The owner monitors routine Actions runs, so do not wait
+  unless a known failure needs investigation and repair.
 - The preferred Codex launch posture for this repository is workspace write
   access with on-request approvals:
 
