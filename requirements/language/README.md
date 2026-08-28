@@ -77,3 +77,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0164 — Mid function subset](req-0164-mid-function.md) defines one-based
   substring extraction and optional call arguments for the twenty-fifth
   MP-0002 increment.
+- [REQ-0165 — Character code function subset](req-0165-character-code-functions.md)
+  defines ASCII `Asc` and `Chr` conversion for the twenty-sixth MP-0002
+  increment.

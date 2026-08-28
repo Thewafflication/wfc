@@ -26,7 +26,7 @@ and other VBA functions remain outside this requirement.
 | --- | --- |
 | `WFC0071` | A call names an unsupported function. |
 | `WFC0072` | A supported function receives an empty or incorrect number of arguments. |
-| `WFC0073` | A supported string function receives an argument of the wrong type. |
+| `WFC0073` | A supported function receives an argument of the wrong type. |
 | `WFC0074` | A constant initializer contains a function call. |
 
 Missing closing parentheses continue to use `WFC0005`.

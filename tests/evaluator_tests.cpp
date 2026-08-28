@@ -73,6 +73,9 @@ int main() {
     expect_success("Print Mid$(\"abcdef\", 2, 3)", "bcd");
     expect_success("Print \"[\" & Mid(\"abc\", 9, 2) & \"]\"", "[]");
     expect_success("Print Mid(\"abc\", 1, 99)", "abc");
+    expect_success("Print Asc(\"WFC\")", "87");
+    expect_success("Print Chr$(87) & Chr(70) & Chr$(67)", "WFC");
+    expect_success("Print Chr$(Asc(\"A\"))", "A");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -544,10 +547,15 @@ int main() {
     expect_program_failure("Print Right(\"value\", \"1\")", "WFC0073");
     expect_program_failure("Print Mid(\"value\", \"1\")", "WFC0073");
     expect_program_failure("Print Mid(\"value\", 1, \"2\")", "WFC0073");
+    expect_program_failure("Print Asc(42)", "WFC0073");
+    expect_program_failure("Print Chr(\"65\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 0)", "WFC0076");
+    expect_program_failure("Print Asc(\"\")", "WFC0077");
+    expect_program_failure("Print Chr(-1)", "WFC0078");
+    expect_program_failure("Print Chr(128)", "WFC0078");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

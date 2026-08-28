@@ -403,4 +403,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "WFC"
     )
+
+    add_test(
+        NAME TC-MP0002-character-code-cli
+        COMMAND wfc --eval [=[Print Chr$(Asc("W")) & Chr$(70) & Chr$(67)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-character-code-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "WFC"
+    )
 endif()

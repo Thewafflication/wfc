@@ -1700,8 +1700,10 @@ private:
         const bool is_left = identifier == "left" || identifier == "left$";
         const bool is_right = identifier == "right" || identifier == "right$";
         const bool is_mid = identifier == "mid" || identifier == "mid$";
+        const bool is_asc = identifier == "asc";
+        const bool is_chr = identifier == "chr" || identifier == "chr$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
-            !is_trim && !is_left && !is_right && !is_mid) {
+            !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1753,6 +1755,22 @@ private:
             return std::nullopt;
         }
 
+        if (is_chr) {
+            const auto* character_code = std::get_if<Integer>(&arguments[0]);
+            if (character_code == nullptr) {
+                set_error("WFC0073", "Chr requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*character_code < 0 || *character_code > 127) {
+                set_error("WFC0078", "Chr code must be in the ASCII range", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{std::string(1U, static_cast<char>(*character_code))};
+        }
+
         const auto* string = std::get_if<std::string>(&arguments[0]);
         if (string == nullptr) {
             set_error("WFC0073", "function requires a String argument", identifier_offset);
@@ -1767,6 +1785,17 @@ private:
                 return std::nullopt;
             }
             return Value{static_cast<Integer>(string->size())};
+        }
+
+        if (is_asc) {
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            if (string->empty()) {
+                set_error("WFC0077", "Asc requires a non-empty String", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{static_cast<Integer>(static_cast<unsigned char>(string->front()))};
         }
 
         if (is_left || is_right) {
