@@ -42,3 +42,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   increment.
 - [REQ-0150 — Exit Do subset](req-0150-exit-do.md) defines structured,
   innermost-loop termination for the eleventh MP-0002 increment.
+- [REQ-0151 — For...Next loop subset](req-0151-for-next-loops.md) defines
+  declared-`Long` counter iteration for the twelfth MP-0002 increment.

@@ -259,6 +259,40 @@ int main() {
         "Loop",
         "1\n1");
     expect_program_success(
+        "Dim index As Long\n"
+        "Dim total As Long\n"
+        "For index = 1 To 4\n"
+        "  total = total + index\n"
+        "Next index\n"
+        "Print total\n"
+        "Print index",
+        "10\n5");
+    expect_program_success(
+        "Dim index As Long\n"
+        "For index = 3 To 1 Step -1\n"
+        "  Print index\n"
+        "Next",
+        "3\n2\n1");
+    expect_program_success(
+        "Dim index As Long\n"
+        "index = 99\n"
+        "For index = 3 To 1\n"
+        "  Print 1 \\ 0\n"
+        "Next index\n"
+        "Print index",
+        "3");
+    expect_program_success(
+        "Dim outer As Long\n"
+        "Dim inner As Long\n"
+        "Dim total As Long\n"
+        "For outer = 1 To 2\n"
+        "  For inner = 1 To 2\n"
+        "    total = total + outer + inner\n"
+        "  Next inner\n"
+        "Next outer\n"
+        "Print total",
+        "12");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -331,6 +365,16 @@ int main() {
     expect_program_failure("Exit Nope", "WFC0041");
     expect_program_failure("Exit Do", "WFC0042");
     expect_program_failure("Dim Exit As Long", "WFC0017");
+    expect_program_failure("For = 1 To 2\nNext", "WFC0043");
+    expect_program_failure("Dim i As Long\nFor i = 1 2\nNext", "WFC0044");
+    expect_program_failure("Dim i As Long\nFor i = \"a\" To \"b\"\nNext", "WFC0045");
+    expect_program_failure("Dim i As Long\nFor i = 1 To 2\nPrint i", "WFC0046");
+    expect_program_failure("Dim i As Long\nFor i = 1 To 2 Step 0\nNext", "WFC0047");
+    expect_program_failure("Next", "WFC0048");
+    expect_program_failure(
+        "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j",
+        "WFC0049");
+    expect_program_failure("Dim i As Long\nFor i = 1 To 2\nDim j As Long\nNext", "WFC0050");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

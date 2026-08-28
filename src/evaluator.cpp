@@ -35,14 +35,16 @@ using Value = std::variant<Integer, std::string, bool>;
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
            identifier == "dim" || identifier == "do" || identifier == "eqv" ||
-           identifier == "exit" || identifier == "false" ||
+           identifier == "exit" || identifier == "false" || identifier == "for" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "let" || identifier == "long" ||
-           identifier == "loop" || identifier == "mod" || identifier == "not" ||
+           identifier == "loop" || identifier == "mod" || identifier == "next" ||
+           identifier == "not" ||
            identifier == "or" ||
            identifier == "print" || identifier == "rem" || identifier == "string" ||
            identifier == "then" ||
-           identifier == "true" || identifier == "until" || identifier == "wend" ||
+           identifier == "step" || identifier == "to" || identifier == "true" ||
+           identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor";
 }
 
@@ -211,6 +213,13 @@ private:
         }
         if (consume_keyword("do")) {
             return parse_do_statement();
+        }
+        if (consume_keyword("for")) {
+            return parse_for_statement();
+        }
+        if (consume_keyword("next")) {
+            set_error("WFC0048", "unexpected Next", statement_offset);
+            return false;
         }
         if (consume_keyword("exit")) {
             return parse_exit_statement(statement_offset);
@@ -685,6 +694,156 @@ private:
             }
             if (exit_do_requested_) {
                 execute_ = false;
+            }
+        }
+    }
+
+    [[nodiscard]] bool parse_for_statement() {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        const auto variable_offset = offset_;
+        auto identifier = parse_identifier();
+        if (!identifier.has_value()) {
+            set_error("WFC0043", "expected For control variable", variable_offset);
+            return false;
+        }
+        const auto variable = variables_.find(*identifier);
+        if (variable == variables_.end()) {
+            set_error("WFC0015", "undeclared variable", variable_offset);
+            return false;
+        }
+        if (!std::holds_alternative<Integer>(variable->second)) {
+            set_error("WFC0045", "For control variable must be Long", variable_offset);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto start_value = parse_expression();
+        if (!start_value.has_value()) {
+            return false;
+        }
+        const auto* start = std::get_if<Integer>(&*start_value);
+        if (start == nullptr) {
+            set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume_keyword("to")) {
+            set_error("WFC0044", "expected To", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto end_value = parse_expression();
+        if (!end_value.has_value()) {
+            return false;
+        }
+        const auto* end = std::get_if<Integer>(&*end_value);
+        if (end == nullptr) {
+            set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
+            return false;
+        }
+
+        Integer step = 1;
+        skip_horizontal_whitespace();
+        if (consume_keyword("step")) {
+            skip_horizontal_whitespace();
+            auto step_value = parse_expression();
+            if (!step_value.has_value()) {
+                return false;
+            }
+            const auto* parsed_step = std::get_if<Integer>(&*step_value);
+            if (parsed_step == nullptr) {
+                set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
+                return false;
+            }
+            step = *parsed_step;
+        }
+        if (step == 0) {
+            set_error("WFC0047", "For Step cannot be zero", variable_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        const auto body_offset = offset_;
+        std::size_t continuation_offset{};
+        Integer current_value = *start;
+        const auto should_continue = [end = *end, step](const Integer current) {
+            return step > 0 ? current <= end : current >= end;
+        };
+        if (enclosing_execution) {
+            variable->second = current_value;
+        }
+        bool continue_loop = enclosing_execution && should_continue(current_value);
+        if (!continue_loop) {
+            execute_ = false;
+            const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+            execute_ = enclosing_execution;
+            return parsed_body;
+        }
+
+        while (continue_loop) {
+            variable->second = current_value;
+            offset_ = body_offset;
+            execute_ = enclosing_execution;
+            if (!parse_for_body(*identifier, continuation_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+
+            const auto next = static_cast<std::int64_t>(current_value) + step;
+            if (next < std::numeric_limits<Integer>::min() ||
+                next > std::numeric_limits<Integer>::max()) {
+                set_error("WFC0047", "For control variable overflow", variable_offset);
+                execute_ = enclosing_execution;
+                return false;
+            }
+            current_value = static_cast<Integer>(next);
+            continue_loop = should_continue(current_value);
+        }
+
+        variable->second = current_value;
+        offset_ = continuation_offset;
+        execute_ = enclosing_execution;
+        return true;
+    }
+
+    [[nodiscard]] bool parse_for_body(
+        const std::string_view identifier,
+        std::size_t& continuation_offset) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                set_error("WFC0046", "expected Next", offset_);
+                return false;
+            }
+            if (consume_keyword("next")) {
+                skip_horizontal_whitespace();
+                const auto next_identifier_offset = offset_;
+                auto next_identifier = parse_identifier();
+                if (next_identifier.has_value() && *next_identifier != identifier) {
+                    set_error("WFC0049", "Next variable does not match For", next_identifier_offset);
+                    return false;
+                }
+                continuation_offset = offset_;
+                return true;
+            }
+
+            const auto statement_offset = offset_;
+            if (consume_keyword("dim")) {
+                set_error("WFC0050", "declarations are not supported in For blocks", statement_offset);
+                return false;
+            }
+            const bool parsed_statement = parse_statement();
+            if (!parsed_statement || !consume_statement_end()) {
+                return false;
             }
         }
     }

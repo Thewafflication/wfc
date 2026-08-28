@@ -211,4 +211,20 @@ Print index]=]
             LABELS "integration;mp-0002;statements;loops"
             PASS_REGULAR_EXPRESSION "3"
     )
+
+    add_test(
+        NAME TC-MP0002-for-cli
+        COMMAND wfc --eval [=[Dim index As Long
+Dim total As Long
+For index = 1 To 4
+total = total + index
+Next index
+Print total]=]
+    )
+    set_tests_properties(
+        TC-MP0002-for-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops"
+            PASS_REGULAR_EXPRESSION "10"
+    )
 endif()

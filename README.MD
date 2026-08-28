@@ -68,7 +68,8 @@ single-line `If <Boolean expression> Then <branch> [Else <branch>]` and block
 `If <Boolean expression> Then` / ordered `ElseIf` / optional `Else` / `End If`
 statements, plus `While <Boolean expression>` / `Wend` loops. Pre-test and
 post-test `Do While` / `Do Until` loops terminate with `Loop`; `Exit Do`
-terminates the innermost active `Do` loop. A single-line
+terminates the innermost active `Do` loop. Declared-`Long` `For...Next` loops
+support inclusive bounds and an optional `Step`. A single-line
 conditional branch is either `Print
 <expression>` or an assignment. Variables may be `Long`, `String`, or
 `Boolean`; expressions support literals, variables, parentheses, arithmetic,
@@ -89,4 +90,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo Until in
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo`n Print index`n index = index + 1`nLoop While index < 3"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Rem a VB comment`nPrint 42"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Do While True`n Print `"once`"`n Exit Do`nLoop"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 3`n Print i`nNext i"
 ```
