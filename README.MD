@@ -75,7 +75,7 @@ equality branches, comma-separated values, inclusive ranges, `Case Is`
 relations, and `Case Else`.
 A single-line conditional branch is either `Print <expression>` or an
 assignment. Variables may be `Long`, `String`, or `Boolean`; expressions
-support literals, variables, parentheses, arithmetic,
+support literals, variables, typed constants, parentheses, arithmetic,
 concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
 `Xor`, `Eqv`, and `Imp`. It remains an early MP-0002 subset and does not claim
 general VB6 compatibility:
@@ -98,4 +98,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 10
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1`n Print `"one`"`nCase 2`n Print `"two`"`nEnd Select"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1, 2, 3`n Print `"selected`"`nEnd Select"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 7`nCase Is >= 5`n Print `"selected`"`nEnd Select"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Const answer As Long = 6 * 7`nPrint answer"
 ```

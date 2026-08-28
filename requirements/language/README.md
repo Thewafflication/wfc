@@ -55,3 +55,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   inclusive numeric and string ranges for the sixteenth MP-0002 increment.
 - [REQ-0156 — Select Case Is subset](req-0156-select-case-is.md) defines
   relational branch clauses for the seventeenth MP-0002 increment.
+- [REQ-0157 — Typed constant subset](req-0157-typed-constants.md) defines
+  immutable `Long`, `String`, and `Boolean` values for the eighteenth MP-0002
+  increment.

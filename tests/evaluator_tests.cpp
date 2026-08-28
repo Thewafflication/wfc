@@ -97,6 +97,15 @@ int main() {
         "rEm mixed-case comment\n"
         "Print value",
         "42");
+    expect_program_success(
+        "Const base As Long = 6\n"
+        "Const answer As Long = base * 7\n"
+        "Const greeting As String = \"Hello\" & \"!\"\n"
+        "Const ready As Boolean = answer = 42\n"
+        "Print answer\n"
+        "Print greeting\n"
+        "Print ready",
+        "42\nHello!\nTrue");
     expect_program_success("Print \"\"\nPrint \"second\"", "\nsecond");
     expect_program_success(
         "Print True\n"
@@ -446,6 +455,14 @@ int main() {
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
+    expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
+    expect_program_failure(
+        "If True Then\nConst local As Long = 1\nEnd If",
+        "WFC0063");
+    expect_program_failure(
+        "Dim value As Long: value = 1: Const snapshot As Long = value",
+        "WFC0064");
+    expect_program_failure("Const wrong As Long = \"text\"", "WFC0016");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

@@ -308,4 +308,17 @@ End Select]=]
             LABELS "integration;mp-0002;statements;conditionals"
             PASS_REGULAR_EXPRESSION "selected"
     )
+
+    add_test(
+        NAME TC-MP0002-const-cli
+        COMMAND wfc --eval [=[Const base As Long = 6
+Const answer As Long = base * 7
+Print answer]=]
+    )
+    set_tests_properties(
+        TC-MP0002-const-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;constants"
+            PASS_REGULAR_EXPRESSION "42"
+    )
 endif()

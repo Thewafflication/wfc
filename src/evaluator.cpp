@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -39,7 +40,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "is" || identifier == "let" ||
            identifier == "long" ||
-           identifier == "case" || identifier == "loop" || identifier == "mod" ||
+           identifier == "case" || identifier == "const" || identifier == "loop" ||
+           identifier == "mod" ||
            identifier == "next" ||
            identifier == "not" ||
            identifier == "or" ||
@@ -254,6 +256,16 @@ private:
                 return false;
             }
             return parse_declaration();
+        }
+        if (consume_keyword("const")) {
+            if (!allow_declarations_) {
+                set_error(
+                    "WFC0063",
+                    "constants are not supported in control-flow blocks",
+                    statement_offset);
+                return false;
+            }
+            return parse_constant_declaration();
         }
 
         const bool has_let = consume_keyword("let");
@@ -537,8 +549,12 @@ private:
                     statement_offset);
                 return false;
             }
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
-            if (!parsed_statement || !consume_statement_end()) {
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
             if (control_exit_requested()) {
@@ -719,8 +735,12 @@ private:
                     statement_offset);
                 return false;
             }
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
-            if (!parsed_statement || !consume_statement_end()) {
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
             if (control_exit_requested()) {
@@ -888,8 +908,12 @@ private:
                 set_error("WFC0050", "declarations are not supported in For blocks", statement_offset);
                 return false;
             }
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
-            if (!parsed_statement || !consume_statement_end()) {
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
             if (control_exit_requested()) {
@@ -1155,11 +1179,73 @@ private:
         return true;
     }
 
+    [[nodiscard]] bool parse_constant_declaration() {
+        skip_horizontal_whitespace();
+        const auto identifier_offset = offset_;
+        auto identifier = parse_identifier();
+        if (!identifier.has_value()) {
+            set_error("WFC0011", "expected constant name", identifier_offset);
+            return false;
+        }
+        if (is_reserved_identifier(*identifier)) {
+            set_error("WFC0017", "reserved keyword cannot be a constant name", identifier_offset);
+            return false;
+        }
+        if (variables_.contains(*identifier)) {
+            set_error("WFC0013", "duplicate variable or constant declaration", identifier_offset);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume_keyword("as")) {
+            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+
+        std::size_t expected_type{};
+        if (consume_keyword("long")) {
+            expected_type = Value{Integer{}}.index();
+        } else if (consume_keyword("string")) {
+            expected_type = Value{std::string{}}.index();
+        } else if (consume_keyword("boolean")) {
+            expected_type = Value{false}.index();
+        } else {
+            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected constant initializer", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        constant_expression_ = true;
+        auto value = parse_expression();
+        constant_expression_ = false;
+        if (!value.has_value()) {
+            return false;
+        }
+        if (value->index() != expected_type) {
+            set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
+            return false;
+        }
+
+        variables_.emplace(*identifier, std::move(*value));
+        constants_.insert(std::move(*identifier));
+        return true;
+    }
+
     [[nodiscard]] bool parse_assignment(std::string identifier) {
         const auto identifier_offset = offset_ - identifier.size();
         const auto variable = variables_.find(identifier);
         if (variable == variables_.end()) {
             set_error("WFC0015", "undeclared variable", identifier_offset);
+            return false;
+        }
+        if (constants_.contains(identifier)) {
+            set_error("WFC0062", "cannot assign to constant", identifier_offset);
             return false;
         }
 
@@ -1522,6 +1608,13 @@ private:
                 set_error("WFC0015", "undeclared variable", identifier_offset);
                 return std::nullopt;
             }
+            if (constant_expression_ && !constants_.contains(*identifier)) {
+                set_error(
+                    "WFC0064",
+                    "constant initializer cannot reference a variable",
+                    identifier_offset);
+                return std::nullopt;
+            }
             return variable->second;
         }
 
@@ -1776,10 +1869,12 @@ private:
     bool allow_identifiers_;
     std::size_t offset_{};
     std::unordered_map<std::string, Value> variables_;
+    std::unordered_set<std::string> constants_;
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};
     bool allow_declarations_{true};
+    bool constant_expression_{};
     std::size_t do_depth_{};
     bool exit_do_requested_{};
     std::size_t for_depth_{};
