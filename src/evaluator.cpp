@@ -1648,11 +1648,15 @@ private:
         }
         if (is_identifier_start(current())) {
             const auto identifier_offset = offset_;
+            auto identifier = parse_identifier();
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '(') {
+                return parse_function_call(*identifier, identifier_offset);
+            }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
             }
-            auto identifier = parse_identifier();
             const auto variable = variables_.find(*identifier);
             if (variable == variables_.end()) {
                 set_error("WFC0015", "undeclared variable", identifier_offset);
@@ -1670,6 +1674,53 @@ private:
 
         set_error("WFC0002", "expected expression", offset_);
         return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<Value> parse_function_call(
+        const std::string_view identifier,
+        const std::size_t identifier_offset) {
+        if (identifier != "len") {
+            set_error("WFC0071", "unsupported function", identifier_offset);
+            return std::nullopt;
+        }
+        if (constant_expression_) {
+            set_error(
+                "WFC0074",
+                "constant initializer cannot call a function",
+                identifier_offset);
+            return std::nullopt;
+        }
+
+        advance();
+        skip_horizontal_whitespace();
+        if (consume(')')) {
+            set_error("WFC0072", "Len requires one argument", identifier_offset);
+            return std::nullopt;
+        }
+        auto argument = parse_expression();
+        if (!argument.has_value()) {
+            return std::nullopt;
+        }
+        skip_horizontal_whitespace();
+        if (consume(',')) {
+            set_error("WFC0072", "Len requires one argument", identifier_offset);
+            return std::nullopt;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return std::nullopt;
+        }
+
+        const auto* string = std::get_if<std::string>(&*argument);
+        if (string == nullptr) {
+            set_error("WFC0073", "Len requires a String argument", identifier_offset);
+            return std::nullopt;
+        }
+        if (string->size() > static_cast<std::size_t>(std::numeric_limits<Integer>::max())) {
+            set_error("WFC0009", "integer overflow", identifier_offset);
+            return std::nullopt;
+        }
+        return Value{static_cast<Integer>(string->size())};
     }
 
     [[nodiscard]] std::optional<Value> parse_string() {

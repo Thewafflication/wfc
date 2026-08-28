@@ -347,4 +347,15 @@ Print "Alpha" = "alpha"]=]
             LABELS "integration;mp-0002;expressions;modules;strings"
             PASS_REGULAR_EXPRESSION "True"
     )
+
+    add_test(
+        NAME TC-MP0002-len-cli
+        COMMAND wfc --eval [=[Print Len("Hello, WFC!")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-len-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "11"
+    )
 endif()

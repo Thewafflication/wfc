@@ -63,3 +63,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0159 — Option Compare subset](req-0159-option-compare.md) defines binary
   and ASCII case-insensitive string comparison for the twentieth MP-0002
   increment.
+- [REQ-0160 — Len function subset](req-0160-len-function.md) defines the first
+  callable VBA string function for the twenty-first MP-0002 increment.
