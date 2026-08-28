@@ -22,12 +22,18 @@
 | Conformance | Same scenario against WFC and approved reference expectation | Requirement-linked CTest cases and comparison output |
 | Release | Complete matrix, artifacts, evidence, docs, integrity, install/rollback | Release-readiness record and CI artifacts |
 
-## Initial Dispatcher
+## Automated Dispatcher
 
-CMake configures owned C++ tests and `ctest --preset windows-x64-debug` executes
-the initial suite. Each test has a stable name and labels. Failed commands
-return nonzero and print the scenario and difference; tests do not convert
-execution errors into passes.
+CMake configures owned C++ tests and the matching CTest preset executes each
+architecture suite. GitHub Actions runs x86 and x64 on Windows x64 and ARM64 on
+a native Windows ARM64 runner. Each test has a stable name and labels. Failed
+commands return nonzero and print the scenario and difference; tests do not
+convert execution errors into passes.
+
+Every CI matrix job retains JUnit results, runner and dependency context,
+SHA-256 identities for tested Debug binaries and symbols, and CTest failure
+output where available. Artifact names identify the source revision, target
+architecture, and Debug configuration.
 
 ## Evidence Boundary
 
@@ -40,9 +46,9 @@ settings when pixels are part of the claim.
 ## MP-0001 Acceptance
 
 The vertical slice requires unit tests for accepted and rejected syntax plus an
-end-to-end CLI demonstration from source text to observable output. A later
-MP-0001 increment adds CI, traceability validation, structured evidence, and a
-WCRT-linked target smoke test before the milestone closes.
+end-to-end CLI demonstration from source text to observable output. CI and its
+initial structured Debug evidence are implemented. Traceability validation and
+a WCRT-linked target smoke test remain before the milestone closes.
 
 ## References
 

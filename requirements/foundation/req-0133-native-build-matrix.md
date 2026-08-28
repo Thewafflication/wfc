@@ -40,5 +40,8 @@ alone shall not be reported as target execution or compatibility evidence.
 ## Implementation Record
 
 CMake and debug presets compile successfully for x86, x64, and ARM64 on the
-initial development host. Clean-checkout instructions and retained structured
-evidence remain to be completed.
+development host. GitHub Actions configures and builds every preset from a
+checkout with controlled submodules; x86 and x64 use Windows x64 runners and
+ARM64 uses a native Windows ARM64 runner. Each job retains structured context
+and artifact identities. A successful workflow run remains required as hosted
+evidence.

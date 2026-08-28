@@ -39,5 +39,7 @@ without the controlled evidence defined by the test strategy.
 
 ## Implementation Record
 
-CTest dispatch, stable names, labels, and failure output exist for the vertical
-slice. Structured evidence generation, validation, and CI retention remain.
+CTest dispatch, stable names, labels, and failure output exist. GitHub Actions
+retains JUnit results, runner and dependency context, CTest failure output, and
+SHA-256 identities for Debug binaries and symbols per architecture. Evidence
+schema validation and milestone closeout retention remain.

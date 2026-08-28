@@ -1,0 +1,151 @@
+name: Build and test WFC
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Debug ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            preset: windows-x86-debug
+            runner: windows-2025
+          - arch: x64
+            preset: windows-x64-debug
+            runner: windows-2025
+          - arch: arm64
+            preset: windows-arm64-debug
+            runner: windows-11-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset '${{ matrix.preset }}'
+
+      - name: Record runner context
+        shell: pwsh
+        run: |
+          $directory = 'out/test-results/${{ matrix.arch }}'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $cachePath = 'out/build/${{ matrix.preset }}/CMakeCache.txt'
+          $cache = Get-Content -LiteralPath $cachePath
+          function Get-CacheValue([string]$Name) {
+            $entry = $cache | Where-Object { $_ -match "^${Name}:[^=]*=" } |
+              Select-Object -First 1
+            if ($entry) { return ($entry -split '=', 2)[1] }
+            return $null
+          }
+          $compilerFile = Get-ChildItem 'out/build/${{ matrix.preset }}/CMakeFiles' `
+              -Filter CMakeCXXCompiler.cmake -File -Recurse |
+            Select-Object -First 1
+          function Get-CMakeSetValue([string]$Name) {
+            $pattern = '^set\(' + [regex]::Escape($Name) + ' "([^"]*)"\)'
+            $match = Select-String -LiteralPath $compilerFile.FullName `
+              -Pattern $pattern | Select-Object -First 1
+            if ($match) { return $match.Matches[0].Groups[1].Value }
+            return $null
+          }
+          [xml]$project = Get-Content `
+            'out/build/${{ matrix.preset }}/wfc.vcxproj' -Raw
+          $sdk = $project.SelectSingleNode(
+            "//*[local-name()='WindowsTargetPlatformVersion']").InnerText
+          [PSCustomObject]@{
+            schemaVersion = 1
+            sourceRevision = '${{ github.sha }}'
+            targetArchitecture = '${{ matrix.arch }}'
+            configuration = 'Debug'
+            configurePreset = '${{ matrix.preset }}'
+            runner = '${{ matrix.runner }}'
+            runnerArchitecture = $env:RUNNER_ARCH
+            runnerOs = $env:RUNNER_OS
+            imageOs = $env:ImageOS
+            imageVersion = $env:ImageVersion
+            cmakeVersion = (& cmake --version)[0]
+            ctestVersion = (& ctest --version)[0]
+            cmakeGenerator = Get-CacheValue 'CMAKE_GENERATOR'
+            generatorInstance = Get-CacheValue 'CMAKE_GENERATOR_INSTANCE'
+            generatorPlatform = Get-CacheValue 'CMAKE_GENERATOR_PLATFORM'
+            cxxCompiler = Get-CMakeSetValue 'CMAKE_CXX_COMPILER'
+            cxxCompilerId = Get-CMakeSetValue 'CMAKE_CXX_COMPILER_ID'
+            cxxCompilerVersion = Get-CMakeSetValue 'CMAKE_CXX_COMPILER_VERSION'
+            windowsSdkVersion = $sdk
+            wspRevision = (git -C wsp rev-parse HEAD)
+            wcrtRevision = (git -C wcrt rev-parse HEAD)
+          } | ConvertTo-Json -Depth 3 |
+            Set-Content "$directory/context.json" -Encoding utf8NoBOM
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build --preset '${{ matrix.preset }}'
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $result = Join-Path $PWD 'out/test-results/${{ matrix.arch }}/ctest.xml'
+          ctest --preset '${{ matrix.preset }}' --output-junit $result
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Record tested artifact identities
+        if: always()
+        shell: pwsh
+        run: |
+          $directory = 'out/test-results/${{ matrix.arch }}'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $binaryDirectory = 'out/build/${{ matrix.preset }}/Debug'
+          $artifacts = @(
+            Get-ChildItem -LiteralPath $binaryDirectory -File -ErrorAction SilentlyContinue |
+              Where-Object Extension -In '.exe', '.lib', '.pdb' |
+              Sort-Object Name |
+              ForEach-Object {
+                [PSCustomObject]@{
+                  name = $_.Name
+                  size = $_.Length
+                  sha256 = (Get-FileHash -LiteralPath $_.FullName `
+                      -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+              }
+          )
+          [PSCustomObject]@{
+            schemaVersion = 1
+            sourceRevision = '${{ github.sha }}'
+            targetArchitecture = '${{ matrix.arch }}'
+            configuration = 'Debug'
+            jobStatusAtCollection = '${{ job.status }}'
+            artifacts = $artifacts
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content "$directory/artifacts.json" -Encoding utf8NoBOM
+
+      - name: Upload Debug evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfc-${{ matrix.arch }}-debug-${{ github.sha }}
+          path: |
+            out/build/${{ matrix.preset }}/Debug/*.exe
+            out/build/${{ matrix.preset }}/Debug/*.lib
+            out/build/${{ matrix.preset }}/Debug/*.pdb
+            out/build/${{ matrix.preset }}/CMakeCache.txt
+            out/build/${{ matrix.preset }}/CMakeFiles/*/CMakeCXXCompiler.cmake
+            out/build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
+            out/test-results/${{ matrix.arch }}/*.json
+            out/test-results/${{ matrix.arch }}/*.xml
+          if-no-files-found: warn
+          retention-days: 14
