@@ -38,11 +38,12 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "exit" || identifier == "false" || identifier == "for" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
            identifier == "imp" || identifier == "let" || identifier == "long" ||
-           identifier == "loop" || identifier == "mod" || identifier == "next" ||
+           identifier == "case" || identifier == "loop" || identifier == "mod" ||
+           identifier == "next" ||
            identifier == "not" ||
            identifier == "or" ||
-           identifier == "print" || identifier == "rem" || identifier == "string" ||
-           identifier == "then" ||
+           identifier == "print" || identifier == "rem" || identifier == "select" ||
+           identifier == "string" || identifier == "then" ||
            identifier == "step" || identifier == "to" || identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor";
@@ -216,6 +217,13 @@ private:
         }
         if (consume_keyword("for")) {
             return parse_for_statement();
+        }
+        if (consume_keyword("select")) {
+            return parse_select_statement();
+        }
+        if (consume_keyword("case")) {
+            set_error("WFC0058", "unexpected Case", statement_offset);
+            return false;
         }
         if (consume_keyword("next")) {
             set_error("WFC0048", "unexpected Next", statement_offset);
@@ -881,6 +889,113 @@ private:
             }
             const bool parsed_statement = parse_statement();
             if (!parsed_statement || !consume_statement_end()) {
+                return false;
+            }
+            if (control_exit_requested()) {
+                execute_ = false;
+            }
+        }
+    }
+
+    [[nodiscard]] bool parse_select_statement() {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        if (!consume_keyword("case")) {
+            set_error("WFC0054", "expected Case after Select", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto selector_offset = offset_;
+        auto selector = parse_expression();
+        if (!selector.has_value()) {
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        bool has_case{};
+        bool has_else{};
+        bool branch_selected{};
+        execute_ = false;
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                execute_ = enclosing_execution;
+                set_error("WFC0054", "expected End Select", offset_);
+                return false;
+            }
+            if (consume_keyword("case")) {
+                const auto case_offset = offset_ - 4U;
+                skip_horizontal_whitespace();
+                if (consume_keyword("else")) {
+                    if (has_else) {
+                        execute_ = enclosing_execution;
+                        set_error("WFC0056", "duplicate Case Else", case_offset);
+                        return false;
+                    }
+                    has_else = true;
+                    has_case = true;
+                    if (!consume_block_line_end()) {
+                        execute_ = enclosing_execution;
+                        return false;
+                    }
+                    execute_ = enclosing_execution && !branch_selected;
+                    branch_selected = true;
+                    continue;
+                }
+                if (has_else) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0057", "Case is not permitted after Case Else", case_offset);
+                    return false;
+                }
+
+                const bool evaluate_case = enclosing_execution && !branch_selected;
+                execute_ = evaluate_case;
+                const auto value_offset = offset_;
+                auto case_value = parse_expression();
+                if (!case_value.has_value()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                if (case_value->index() != selector->index()) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0053", "Case value must match selector type", value_offset);
+                    return false;
+                }
+                if (!consume_block_line_end()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                const bool select_branch = !branch_selected && *case_value == *selector;
+                branch_selected = branch_selected || *case_value == *selector;
+                has_case = true;
+                execute_ = enclosing_execution && select_branch;
+                continue;
+            }
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("select")) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0055", "expected Select after End", offset_);
+                    return false;
+                }
+                execute_ = control_exit_requested() ? false : enclosing_execution;
+                return true;
+            }
+            if (!has_case) {
+                execute_ = enclosing_execution;
+                set_error("WFC0054", "expected Case or End Select", selector_offset);
+                return false;
+            }
+
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
+            const bool parsed_statement = parse_statement();
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
+                execute_ = enclosing_execution;
                 return false;
             }
             if (control_exit_requested()) {

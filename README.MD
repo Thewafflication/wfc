@@ -70,8 +70,9 @@ statements, plus `While <Boolean expression>` / `Wend` loops. Pre-test and
 post-test `Do While` / `Do Until` loops terminate with `Loop`; `Exit Do`
 terminates the innermost active `Do` loop. Declared-`Long` `For...Next` loops
 support inclusive bounds and an optional `Step`; `Exit For` terminates the
-innermost active counter loop. A single-line conditional branch is either `Print
-<expression>` or an assignment. Variables may be `Long`, `String`, or
+innermost active counter loop. `Select Case` supports ordered, same-type
+equality branches and `Case Else`. A single-line conditional branch is either
+`Print <expression>` or an assignment. Variables may be `Long`, `String`, or
 `Boolean`; expressions support literals, variables, parentheses, arithmetic,
 concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
 `Xor`, `Eqv`, and `Imp`. It remains an early MP-0002 subset and does not claim
@@ -92,4 +93,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Rem a VB comment`nPrint 42"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Do While True`n Print `"once`"`n Exit Do`nLoop"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 3`n Print i`nNext i"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 10`n If i = 3 Then`n  Exit For`n End If`nNext i`nPrint i"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1`n Print `"one`"`nCase 2`n Print `"two`"`nEnd Select"
 ```

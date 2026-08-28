@@ -46,3 +46,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   declared-`Long` counter iteration for the twelfth MP-0002 increment.
 - [REQ-0152 — Exit For subset](req-0152-exit-for.md) defines structured,
   innermost counter-loop termination for the thirteenth MP-0002 increment.
+- [REQ-0153 — Select Case equality subset](req-0153-select-case.md) defines
+  ordered, same-type equality branches for the fourteenth MP-0002 increment.

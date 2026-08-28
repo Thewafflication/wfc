@@ -325,6 +325,34 @@ int main() {
         "Print index",
         "1");
     expect_program_success(
+        "Dim value As Long\n"
+        "value = 2\n"
+        "Select Case value\n"
+        "Case 1\n"
+        "  Print \"one\"\n"
+        "Case 2\n"
+        "  Print \"two\"\n"
+        "Case Else\n"
+        "  Print \"other\"\n"
+        "End Select",
+        "two");
+    expect_program_success(
+        "Select Case \"beta\"\n"
+        "Case \"alpha\"\n"
+        "  Print 1 \\ 0\n"
+        "Case Else\n"
+        "  Print \"fallback\"\n"
+        "End Select",
+        "fallback");
+    expect_program_success(
+        "Select Case True\n"
+        "Case True\n"
+        "  Print \"selected\"\n"
+        "Case False\n"
+        "  Print 1 \\ 0\n"
+        "End Select",
+        "selected");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -408,6 +436,17 @@ int main() {
         "WFC0049");
     expect_program_failure("Dim i As Long\nFor i = 1 To 2\nDim j As Long\nNext", "WFC0050");
     expect_program_failure("Exit For", "WFC0052");
+    expect_program_failure("Select Nope 1\nEnd Select", "WFC0054");
+    expect_program_failure("Select Case 1\nPrint 1\nEnd Select", "WFC0054");
+    expect_program_failure("Select Case 1\nCase 1\nEnd Nope", "WFC0055");
+    expect_program_failure(
+        "Select Case 1\nCase Else\nCase Else\nEnd Select",
+        "WFC0056");
+    expect_program_failure(
+        "Select Case 1\nCase Else\nCase 1\nEnd Select",
+        "WFC0057");
+    expect_program_failure("Case 1", "WFC0058");
+    expect_program_failure("Select Case 1\nCase \"1\"\nEnd Select", "WFC0053");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";
