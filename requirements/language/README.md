@@ -22,3 +22,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0143 — Single-line conditional statement subset](req-0143-single-line-conditional-statements.md)
   defines Boolean-gated `If ... Then ... Else` execution and branch diagnostics
   for the fourth MP-0002 increment.
+- [REQ-0144 — Block conditional statement subset](req-0144-block-conditional-statements.md)
+  defines multiline `If ... Then` / `Else` / `End If` execution and structural
+  diagnostics for the fifth MP-0002 increment.

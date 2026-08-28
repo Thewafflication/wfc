@@ -131,6 +131,25 @@ int main() {
         "If False Then value = 2 Else Let value = value + 1\n"
         "Print value",
         "10");
+    expect_program_success(
+        "Dim total As Long\n"
+        "If True Then\n"
+        "  total = 6 * 7\n"
+        "  If total = 42 Then\n"
+        "    Print \"nested\"\n"
+        "  End If\n"
+        "Else\n"
+        "  total = 1 \\ 0\n"
+        "End If\n"
+        "Print total",
+        "nested\n42");
+    expect_program_success(
+        "If False Then\n"
+        "  Print \"wrong\"\n"
+        "Else\n"
+        "  Print \"fallback\"\n"
+        "End If",
+        "fallback");
     expect_program_failure("Dim 1 As Long", "WFC0011");
     expect_program_failure("Dim value As Integer", "WFC0012");
     expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
@@ -147,6 +166,10 @@ int main() {
     expect_program_failure("If True Print \"no\"", "WFC0022");
     expect_program_failure("If True Then", "WFC0023");
     expect_program_failure("If False Then Print \"no\" Else", "WFC0023");
+    expect_program_failure("If True Then\nPrint \"no\"", "WFC0024");
+    expect_program_failure("If True Then\nEnd Nope", "WFC0025");
+    expect_program_failure("If True Then\nElse\nElse\nEnd If", "WFC0026");
+    expect_program_failure("If True Then\nDim local As Long\nEnd If", "WFC0027");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

@@ -194,6 +194,10 @@ private:
             return parse_print_statement();
         }
         if (consume_keyword("dim")) {
+            if (!allow_declarations_) {
+                set_error("WFC0027", "declarations are not supported in conditional blocks", statement_offset);
+                return false;
+            }
             return parse_declaration();
         }
 
@@ -245,6 +249,10 @@ private:
         }
 
         const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        if (!at_end() && (current() == '\r' || current() == '\n' || current() == '\'')) {
+            return parse_block_if_statement(enclosing_execution, *boolean);
+        }
         execute_ = enclosing_execution && *boolean;
         if (!parse_inline_statement()) {
             execute_ = enclosing_execution;
@@ -261,6 +269,58 @@ private:
         }
         execute_ = enclosing_execution;
         return true;
+    }
+
+    [[nodiscard]] bool parse_block_if_statement(
+        const bool enclosing_execution,
+        const bool condition) {
+        if (!consume_statement_end()) {
+            return false;
+        }
+
+        bool has_else{};
+        execute_ = enclosing_execution && condition;
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                execute_ = enclosing_execution;
+                set_error("WFC0024", "expected End If", offset_);
+                return false;
+            }
+            if (consume_keyword("else")) {
+                if (has_else) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0026", "duplicate Else", offset_ - 4U);
+                    return false;
+                }
+                has_else = true;
+                if (!consume_statement_end()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                execute_ = enclosing_execution && !condition;
+                continue;
+            }
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("if")) {
+                    execute_ = enclosing_execution;
+                    set_error("WFC0025", "expected If after End", offset_);
+                    return false;
+                }
+                execute_ = enclosing_execution;
+                return true;
+            }
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
+            const bool parsed_statement = parse_statement();
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+        }
     }
 
     [[nodiscard]] bool parse_inline_statement() {
@@ -953,6 +1013,7 @@ private:
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};
+    bool allow_declarations_{true};
     wfc::Evaluation error_;
 };
 

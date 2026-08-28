@@ -102,4 +102,19 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
             LABELS "integration;mp-0002;statements;conditionals"
             PASS_REGULAR_EXPRESSION "selected"
     )
+
+    add_test(
+        NAME TC-MP0002-block-conditional-cli
+        COMMAND wfc --eval [=[Dim total As Long
+If True Then
+total = 42
+End If
+Print total]=]
+    )
+    set_tests_properties(
+        TC-MP0002-block-conditional-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;conditionals"
+            PASS_REGULAR_EXPRESSION "42"
+    )
 endif()

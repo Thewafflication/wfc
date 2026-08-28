@@ -64,8 +64,9 @@ ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
 The current command accepts sequential `Dim`, assignment, `Print`, and
-single-line `If <Boolean expression> Then <branch> [Else <branch>]` statements
-separated by line endings or `:`. A conditional branch is either `Print
+single-line `If <Boolean expression> Then <branch> [Else <branch>]` and block
+`If <Boolean expression> Then` / optional `Else` / `End If` statements. A
+single-line conditional branch is either `Print
 <expression>` or an assignment. Variables may be `Long`, `String`, or
 `Boolean`; expressions support literals, variables, parentheses, arithmetic,
 concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
@@ -78,4 +79,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print (2 + 3) * 4 & " items"'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: total = 6 * 7: Print total'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim ready As Boolean: ready = 6 * 7 = 42: Print ready And Not False'
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: If True Then total = 42 Else total = 0: If total = 42 Then Print "selected"'
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim total As Long`nIf True Then`n total = 42`nEnd If`nPrint total"
 ```
