@@ -972,8 +972,40 @@ private:
                         set_error("WFC0053", "Case value must match selector type", value_offset);
                         return false;
                     }
-                    case_matches = case_matches || *case_value == *selector;
                     skip_horizontal_whitespace();
+                    bool item_matches{};
+                    if (consume_keyword("to")) {
+                        skip_horizontal_whitespace();
+                        const auto upper_offset = offset_;
+                        auto upper_value = parse_expression();
+                        if (!upper_value.has_value()) {
+                            execute_ = enclosing_execution;
+                            return false;
+                        }
+                        if (upper_value->index() != selector->index() ||
+                            std::holds_alternative<bool>(*selector)) {
+                            execute_ = enclosing_execution;
+                            set_error(
+                                "WFC0060",
+                                "Case range requires same-type Long or String values",
+                                upper_offset);
+                            return false;
+                        }
+                        if (const auto* selected_integer = std::get_if<Integer>(&*selector)) {
+                            item_matches =
+                                std::get<Integer>(*case_value) <= *selected_integer &&
+                                *selected_integer <= std::get<Integer>(*upper_value);
+                        } else {
+                            const auto& selected_string = std::get<std::string>(*selector);
+                            item_matches =
+                                std::get<std::string>(*case_value) <= selected_string &&
+                                selected_string <= std::get<std::string>(*upper_value);
+                        }
+                        skip_horizontal_whitespace();
+                    } else {
+                        item_matches = *case_value == *selector;
+                    }
+                    case_matches = case_matches || item_matches;
                     if (!consume(',')) {
                         break;
                     }

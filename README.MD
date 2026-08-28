@@ -71,10 +71,10 @@ post-test `Do While` / `Do Until` loops terminate with `Loop`; `Exit Do`
 terminates the innermost active `Do` loop. Declared-`Long` `For...Next` loops
 support inclusive bounds and an optional `Step`; `Exit For` terminates the
 innermost active counter loop. `Select Case` supports ordered, same-type
-equality branches, comma-separated values, and `Case Else`. A single-line
-conditional branch is either `Print <expression>` or an assignment. Variables
-may be `Long`, `String`, or
-`Boolean`; expressions support literals, variables, parentheses, arithmetic,
+equality branches, comma-separated values or inclusive ranges, and `Case Else`.
+A single-line conditional branch is either `Print <expression>` or an
+assignment. Variables may be `Long`, `String`, or `Boolean`; expressions
+support literals, variables, parentheses, arithmetic,
 concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
 `Xor`, `Eqv`, and `Imp`. It remains an early MP-0002 subset and does not claim
 general VB6 compatibility:

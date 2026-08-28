@@ -276,4 +276,20 @@ End Select]=]
             LABELS "integration;mp-0002;statements;conditionals"
             PASS_REGULAR_EXPRESSION "selected"
     )
+
+    add_test(
+        NAME TC-MP0002-select-range-cli
+        COMMAND wfc --eval [=[Select Case 7
+Case 1 To 3, 7 To 9
+Print "selected"
+Case Else
+Print "wrong"
+End Select]=]
+    )
+    set_tests_properties(
+        TC-MP0002-select-range-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;conditionals"
+            PASS_REGULAR_EXPRESSION "selected"
+    )
 endif()

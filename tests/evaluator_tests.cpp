@@ -353,6 +353,22 @@ int main() {
         "End Select",
         "selected");
     expect_program_success(
+        "Select Case 7\n"
+        "Case 1 To 3, 7 To 9, 20\n"
+        "  Print \"selected\"\n"
+        "Case Else\n"
+        "  Print \"wrong\"\n"
+        "End Select",
+        "selected");
+    expect_program_success(
+        "Select Case \"m\"\n"
+        "Case \"a\" To \"f\"\n"
+        "  Print \"wrong\"\n"
+        "Case \"g\" To \"z\"\n"
+        "  Print \"selected\"\n"
+        "End Select",
+        "selected");
+    expect_program_success(
         "Select Case 2\n"
         "Case 0, 1, 2, 1 \\ 0\n"
         "  Print \"selected\"\n"
@@ -463,6 +479,8 @@ int main() {
     expect_program_failure("Select Case 1\nCase \"1\"\nEnd Select", "WFC0053");
     expect_program_failure("Select Case 1\nCase 1,\nEnd Select", "WFC0059");
     expect_program_failure("Select Case 1\nCase , 1\nEnd Select", "WFC0059");
+    expect_program_failure("Select Case True\nCase False To True\nEnd Select", "WFC0060");
+    expect_program_failure("Select Case 1\nCase 0 To \"2\"\nEnd Select", "WFC0060");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";
