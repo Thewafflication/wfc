@@ -293,6 +293,38 @@ int main() {
         "Print total",
         "12");
     expect_program_success(
+        "Dim index As Long\n"
+        "For index = 1 To 10\n"
+        "  If index = 3 Then\n"
+        "    Exit For\n"
+        "    Print \"wrong\"\n"
+        "  End If\n"
+        "  Print index\n"
+        "Next index\n"
+        "Print index",
+        "1\n2\n3");
+    expect_program_success(
+        "Dim outer As Long\n"
+        "Dim inner As Long\n"
+        "For outer = 1 To 2\n"
+        "  For inner = 1 To 3\n"
+        "    Print outer * 10 + inner\n"
+        "    Exit For\n"
+        "  Next inner\n"
+        "Next outer",
+        "11\n21");
+    expect_program_success(
+        "Dim index As Long\n"
+        "For index = 1 To 3\n"
+        "  While True\n"
+        "    Exit For\n"
+        "    Print \"wrong\"\n"
+        "  Wend\n"
+        "  Print \"wrong\"\n"
+        "Next index\n"
+        "Print index",
+        "1");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -375,6 +407,7 @@ int main() {
         "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j",
         "WFC0049");
     expect_program_failure("Dim i As Long\nFor i = 1 To 2\nDim j As Long\nNext", "WFC0050");
+    expect_program_failure("Exit For", "WFC0052");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

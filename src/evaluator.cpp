@@ -277,18 +277,32 @@ private:
 
     [[nodiscard]] bool parse_exit_statement(const std::size_t statement_offset) {
         skip_horizontal_whitespace();
-        if (!consume_keyword("do")) {
-            set_error("WFC0041", "expected Do after Exit", offset_);
-            return false;
+        if (consume_keyword("do")) {
+            if (do_depth_ == 0U) {
+                set_error("WFC0042", "Exit Do is not inside a Do loop", statement_offset);
+                return false;
+            }
+            if (execute_) {
+                exit_do_requested_ = true;
+            }
+            return true;
         }
-        if (do_depth_ == 0U) {
-            set_error("WFC0042", "Exit Do is not inside a Do loop", statement_offset);
-            return false;
+        if (consume_keyword("for")) {
+            if (for_depth_ == 0U) {
+                set_error("WFC0052", "Exit For is not inside a For loop", statement_offset);
+                return false;
+            }
+            if (execute_) {
+                exit_for_requested_ = true;
+            }
+            return true;
         }
-        if (execute_) {
-            exit_do_requested_ = true;
-        }
-        return true;
+        set_error("WFC0041", "expected Do or For after Exit", offset_);
+        return false;
+    }
+
+    [[nodiscard]] bool control_exit_requested() const noexcept {
+        return exit_do_requested_ || exit_for_requested_;
     }
 
     [[nodiscard]] bool parse_if_statement() {
@@ -411,7 +425,7 @@ private:
                     set_error("WFC0025", "expected If after End", offset_);
                     return false;
                 }
-                execute_ = exit_do_requested_ ? false : enclosing_execution;
+                execute_ = control_exit_requested() ? false : enclosing_execution;
                 return true;
             }
             const bool enclosing_declaration_permission = allow_declarations_;
@@ -423,7 +437,7 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            if (exit_do_requested_) {
+            if (control_exit_requested()) {
                 execute_ = false;
             }
         }
@@ -463,7 +477,7 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            if (exit_do_requested_) {
+            if (control_exit_requested()) {
                 offset_ = continuation_offset;
                 execute_ = false;
                 return true;
@@ -518,7 +532,7 @@ private:
             if (!parsed_statement || !consume_statement_end()) {
                 return false;
             }
-            if (exit_do_requested_) {
+            if (control_exit_requested()) {
                 execute_ = false;
             }
         }
@@ -583,6 +597,11 @@ private:
                 execute_ = enclosing_execution;
                 return true;
             }
+            if (exit_for_requested_) {
+                offset_ = continuation_offset;
+                execute_ = false;
+                return true;
+            }
 
             offset_ = condition_offset;
             execute_ = enclosing_execution;
@@ -627,7 +646,8 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            const bool exit_requested = exit_do_requested_;
+            const bool exit_do_requested = exit_do_requested_;
+            const bool exit_for_requested = exit_for_requested_;
 
             skip_horizontal_whitespace();
             bool until{};
@@ -655,8 +675,10 @@ private:
                 return false;
             }
             continuation_offset = offset_;
-            if (exit_requested) {
+            if (exit_do_requested) {
                 exit_do_requested_ = false;
+                continue_loop = false;
+            } else if (exit_for_requested) {
                 continue_loop = false;
             } else {
                 continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
@@ -692,7 +714,7 @@ private:
             if (!parsed_statement || !consume_statement_end()) {
                 return false;
             }
-            if (exit_do_requested_) {
+            if (control_exit_requested()) {
                 execute_ = false;
             }
         }
@@ -784,7 +806,9 @@ private:
         bool continue_loop = enclosing_execution && should_continue(current_value);
         if (!continue_loop) {
             execute_ = false;
+            ++for_depth_;
             const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+            --for_depth_;
             execute_ = enclosing_execution;
             return parsed_body;
         }
@@ -793,9 +817,23 @@ private:
             variable->second = current_value;
             offset_ = body_offset;
             execute_ = enclosing_execution;
-            if (!parse_for_body(*identifier, continuation_offset)) {
+            ++for_depth_;
+            const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+            --for_depth_;
+            if (!parsed_body) {
                 execute_ = enclosing_execution;
                 return false;
+            }
+            if (exit_for_requested_) {
+                exit_for_requested_ = false;
+                offset_ = continuation_offset;
+                execute_ = enclosing_execution;
+                return true;
+            }
+            if (exit_do_requested_) {
+                offset_ = continuation_offset;
+                execute_ = false;
+                return true;
             }
 
             const auto next = static_cast<std::int64_t>(current_value) + step;
@@ -844,6 +882,9 @@ private:
             const bool parsed_statement = parse_statement();
             if (!parsed_statement || !consume_statement_end()) {
                 return false;
+            }
+            if (control_exit_requested()) {
+                execute_ = false;
             }
         }
     }
@@ -1541,6 +1582,8 @@ private:
     bool allow_declarations_{true};
     std::size_t do_depth_{};
     bool exit_do_requested_{};
+    std::size_t for_depth_{};
+    bool exit_for_requested_{};
     wfc::Evaluation error_;
 };
 
