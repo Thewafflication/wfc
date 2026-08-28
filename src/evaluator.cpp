@@ -483,6 +483,9 @@ private:
     [[nodiscard]] bool parse_do_statement() {
         const bool enclosing_execution = execute_;
         skip_horizontal_whitespace();
+        if (!at_end() && (current() == '\r' || current() == '\n' || current() == '\'')) {
+            return parse_posttest_do_statement(enclosing_execution);
+        }
         bool until{};
         if (consume_keyword("while")) {
             until = false;
@@ -545,6 +548,56 @@ private:
             }
             continue_loop = until ? !*next_boolean : *next_boolean;
         }
+
+        offset_ = continuation_offset;
+        execute_ = enclosing_execution;
+        return true;
+    }
+
+    [[nodiscard]] bool parse_posttest_do_statement(const bool enclosing_execution) {
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        const auto body_offset = offset_;
+        std::size_t continuation_offset{};
+        bool continue_loop{};
+        do {
+            offset_ = body_offset;
+            execute_ = enclosing_execution;
+            if (!parse_do_body(continuation_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+
+            skip_horizontal_whitespace();
+            bool until{};
+            if (consume_keyword("while")) {
+                until = false;
+            } else if (consume_keyword("until")) {
+                until = true;
+            } else {
+                execute_ = enclosing_execution;
+                set_error("WFC0040", "expected While or Until after Loop", offset_);
+                return false;
+            }
+
+            skip_horizontal_whitespace();
+            const auto condition_offset = offset_;
+            auto condition = parse_expression();
+            if (!condition.has_value()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            const auto* boolean = std::get_if<bool>(&*condition);
+            if (boolean == nullptr) {
+                execute_ = enclosing_execution;
+                set_error("WFC0035", "Do condition must be Boolean", condition_offset);
+                return false;
+            }
+            continuation_offset = offset_;
+            continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+        } while (continue_loop);
 
         offset_ = continuation_offset;
         execute_ = enclosing_execution;

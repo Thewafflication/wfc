@@ -166,4 +166,19 @@ Loop]=]
             LABELS "integration;mp-0002;statements;loops"
             PASS_REGULAR_EXPRESSION "2"
     )
+
+    add_test(
+        NAME TC-MP0002-posttest-do-cli
+        COMMAND wfc --eval [=[Dim index As Long
+Do
+Print index
+index = index + 1
+Loop While index < 3]=]
+    )
+    set_tests_properties(
+        TC-MP0002-posttest-do-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops"
+            PASS_REGULAR_EXPRESSION "2"
+    )
 endif()

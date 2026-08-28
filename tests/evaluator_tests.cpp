@@ -200,6 +200,25 @@ int main() {
         "Print \"done\"",
         "done");
     expect_program_success(
+        "Dim index As Long\n"
+        "Do\n"
+        "  Print index\n"
+        "  index = index + 1\n"
+        "Loop While index < 3",
+        "0\n1\n2");
+    expect_program_success(
+        "Dim index As Long\n"
+        "Do\n"
+        "  index = index + 1\n"
+        "Loop Until index = 2\n"
+        "Print index",
+        "2");
+    expect_program_success(
+        "Do\n"
+        "  Print \"once\"\n"
+        "Loop While False",
+        "once");
+    expect_program_success(
         "Dim result As String\n"
         "If False Then\n"
         "  result = \"first\"\n"
@@ -261,11 +280,13 @@ int main() {
     expect_program_failure("While False\nDim local As Long\nWend", "WFC0034");
     expect_program_failure("While False: Print \"no\": Wend", "WFC0004");
     expect_program_failure("Do While 1\nLoop", "WFC0035");
-    expect_program_failure("Do\nLoop", "WFC0036");
+    expect_program_failure("Do Nope\nLoop", "WFC0036");
     expect_program_failure("Do While True\nPrint \"no\"", "WFC0037");
     expect_program_failure("Loop", "WFC0038");
     expect_program_failure("Do Until True\nDim local As Long\nLoop", "WFC0039");
     expect_program_failure("Do While False: Print \"no\": Loop", "WFC0004");
+    expect_program_failure("Do\nPrint \"no\"\nLoop", "WFC0040");
+    expect_program_failure("Do\nPrint \"no\"\nLoop While 1", "WFC0035");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

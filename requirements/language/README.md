@@ -34,3 +34,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0147 — Pre-test Do loop subset](req-0147-pretest-do-loops.md)
   defines `Do While` and `Do Until` execution and diagnostics for the eighth
   MP-0002 increment.
+- [REQ-0148 — Post-test Do loop subset](req-0148-posttest-do-loops.md)
+  defines `Loop While` and `Loop Until` execution and diagnostics for the ninth
+  MP-0002 increment.
