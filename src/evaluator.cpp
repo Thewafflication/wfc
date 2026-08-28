@@ -37,7 +37,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "dim" || identifier == "do" || identifier == "eqv" ||
            identifier == "exit" || identifier == "false" || identifier == "for" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
-           identifier == "imp" || identifier == "let" || identifier == "long" ||
+           identifier == "imp" || identifier == "is" || identifier == "let" ||
+           identifier == "long" ||
            identifier == "case" || identifier == "loop" || identifier == "mod" ||
            identifier == "next" ||
            identifier == "not" ||
@@ -956,6 +957,31 @@ private:
                         enclosing_execution && !branch_selected && !case_matches;
                     execute_ = evaluate_case;
                     const auto value_offset = offset_;
+                    std::string relational_operator;
+                    if (consume_keyword("is")) {
+                        skip_horizontal_whitespace();
+                        const auto operator_offset = offset_;
+                        if (consume('<')) {
+                            relational_operator = "<";
+                            if (consume('=')) {
+                                relational_operator = "<=";
+                            } else if (consume('>')) {
+                                relational_operator = "<>";
+                            }
+                        } else if (consume('>')) {
+                            relational_operator = consume('=') ? ">=" : ">";
+                        } else if (consume('=')) {
+                            relational_operator = "=";
+                        } else {
+                            execute_ = enclosing_execution;
+                            set_error(
+                                "WFC0061",
+                                "expected relational operator after Case Is",
+                                operator_offset);
+                            return false;
+                        }
+                        skip_horizontal_whitespace();
+                    }
                     if (at_end() || current() == ',' || current() == '\r' ||
                         current() == '\n') {
                         execute_ = enclosing_execution;
@@ -974,7 +1000,18 @@ private:
                     }
                     skip_horizontal_whitespace();
                     bool item_matches{};
-                    if (consume_keyword("to")) {
+                    if (!relational_operator.empty()) {
+                        auto comparison = compare(
+                            *selector,
+                            *case_value,
+                            relational_operator,
+                            value_offset);
+                        if (!comparison.has_value()) {
+                            execute_ = enclosing_execution;
+                            return false;
+                        }
+                        item_matches = std::get<bool>(*comparison);
+                    } else if (consume_keyword("to")) {
                         skip_horizontal_whitespace();
                         const auto upper_offset = offset_;
                         auto upper_value = parse_expression();

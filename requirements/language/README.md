@@ -53,3 +53,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   increment.
 - [REQ-0155 — Select Case range subset](req-0155-select-case-ranges.md) defines
   inclusive numeric and string ranges for the sixteenth MP-0002 increment.
+- [REQ-0156 — Select Case Is subset](req-0156-select-case-is.md) defines
+  relational branch clauses for the seventeenth MP-0002 increment.
