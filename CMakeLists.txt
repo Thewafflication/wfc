@@ -392,4 +392,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "HeC!"
     )
+
+    add_test(
+        NAME TC-MP0002-mid-cli
+        COMMAND wfc --eval [=[Print Mid$("Hello, WFC!", 8, 3)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-mid-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "WFC"
+    )
 endif()

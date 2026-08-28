@@ -1699,8 +1699,9 @@ private:
         const bool is_trim = identifier == "trim" || identifier == "trim$";
         const bool is_left = identifier == "left" || identifier == "left$";
         const bool is_right = identifier == "right" || identifier == "right$";
+        const bool is_mid = identifier == "mid" || identifier == "mid$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
-            !is_trim && !is_left && !is_right) {
+            !is_trim && !is_left && !is_right && !is_mid) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1742,8 +1743,9 @@ private:
             }
         }
 
-        const std::size_t expected_arity = (is_left || is_right) ? 2U : 1U;
-        if (arguments.size() != expected_arity) {
+        const bool valid_arity = is_mid ? arguments.size() == 2U || arguments.size() == 3U
+                                        : arguments.size() == ((is_left || is_right) ? 2U : 1U);
+        if (!valid_arity) {
             set_error(
                 "WFC0072",
                 "function received the wrong number of arguments",
@@ -1784,6 +1786,40 @@ private:
             const auto count = std::min(requested, string->size());
             return Value{
                 is_left ? string->substr(0U, count) : string->substr(string->size() - count)};
+        }
+
+        if (is_mid) {
+            const auto* start = std::get_if<Integer>(&arguments[1]);
+            const auto* length =
+                arguments.size() == 3U ? std::get_if<Integer>(&arguments[2]) : nullptr;
+            if (start == nullptr || (arguments.size() == 3U && length == nullptr)) {
+                set_error(
+                    "WFC0073",
+                    "Mid start and length require Long arguments",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*start < 1) {
+                set_error("WFC0076", "Mid start must be positive", identifier_offset);
+                return std::nullopt;
+            }
+            if (length != nullptr && *length < 0) {
+                set_error("WFC0075", "function length cannot be negative", identifier_offset);
+                return std::nullopt;
+            }
+
+            const auto first = static_cast<std::size_t>(*start - 1);
+            if (first >= string->size()) {
+                return Value{std::string{}};
+            }
+            const auto available = string->size() - first;
+            const auto count = length == nullptr
+                                   ? available
+                                   : std::min(static_cast<std::size_t>(*length), available);
+            return Value{string->substr(first, count)};
         }
 
         if (!execute_) {

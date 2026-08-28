@@ -105,4 +105,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Len(`"Hello, WFC!`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LCase$(`"Hello, WFC!`")`nPrint UCase(`"Hello, WFC!`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Trim$(`"  Hello, WFC!  `") & `"]`""
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Left$(`"Hello`", 2) & Right$(`"WFC!`", 2)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Mid$(`"Hello, WFC!`", 8, 3)"
 ```

@@ -74,3 +74,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0163 — String slice function subset](req-0163-string-slice-functions.md)
   defines `Left` and `Right` calls and multi-argument call parsing for the
   twenty-fourth MP-0002 increment.
+- [REQ-0164 — Mid function subset](req-0164-mid-function.md) defines one-based
+  substring extraction and optional call arguments for the twenty-fifth
+  MP-0002 increment.
