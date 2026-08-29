@@ -27,3 +27,9 @@
   explicit authorization.
 - The owner monitors routine remote GitHub Actions runs. Do not wait for them
   after a push unless a known failure needs investigation and repair.
+
+## Work Logs
+
+- When maintaining a WSP work log, include goal-level token usage and elapsed
+  time from the Codex goal-completion report. Label unavailable telemetry as
+  `Not reported`; do not estimate it.

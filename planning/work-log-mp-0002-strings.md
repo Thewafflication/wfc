@@ -90,6 +90,17 @@ retained CTest evidence.
 | Resumed-session CTest cases added | 9 | One integration CLI case per coherent increment |
 | Resumed-session functional commits pushed | 9 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3`, `850fd6d` |
 
+## Resource Usage
+
+Record token and elapsed-time telemetry when the active Codex goal completes.
+The figures are goal-level totals reported by the execution environment, not
+per-commit estimates. Use `Not reported` when telemetry is unavailable rather
+than estimating it.
+
+| Goal or work period | Tokens used | Elapsed time | Source |
+| --- | ---: | ---: | --- |
+| MP-0002 autonomous continuation ending at `1a7a4ec` | 291,197 | 26m 56s | Codex goal-completion report |
+
 ## Preservation and Handoff
 
 Retained evidence is the CTest output and the Git commit history on
