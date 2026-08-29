@@ -58,7 +58,9 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "explicit" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
-           identifier == "while" || identifier == "xor";
+           identifier == "while" || identifier == "xor" ||
+           identifier == "vbbinarycompare" || identifier == "vbtextcompare" ||
+           identifier == "vbdatabasecompare";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -1665,6 +1667,15 @@ private:
             if (!at_end() && current() == '(') {
                 return parse_function_call(*identifier, identifier_offset);
             }
+            if (*identifier == "vbbinarycompare") {
+                return Value{Integer{0}};
+            }
+            if (*identifier == "vbtextcompare") {
+                return Value{Integer{1}};
+            }
+            if (*identifier == "vbdatabasecompare") {
+                return Value{Integer{2}};
+            }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
@@ -1757,11 +1768,15 @@ private:
         }
 
         bool valid_arity{};
-        if (is_mid || is_instr) {
+        if (is_mid) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
+        } else if (is_instr) {
+            valid_arity = arguments.size() >= 2U && arguments.size() <= 4U;
         } else if (is_replace) {
             valid_arity = arguments.size() == 3U;
-        } else if (is_left || is_right || is_string || is_strcomp) {
+        } else if (is_strcomp) {
+            valid_arity = arguments.size() == 2U || arguments.size() == 3U;
+        } else if (is_left || is_right || is_string) {
             valid_arity = arguments.size() == 2U;
         } else {
             valid_arity = arguments.size() == 1U;
@@ -1850,7 +1865,8 @@ private:
         }
 
         if (is_instr) {
-            const bool has_start = arguments.size() == 3U;
+            const bool has_start = arguments.size() >= 3U;
+            const bool has_compare = arguments.size() == 4U;
             Integer start = 1;
             if (has_start) {
                 const auto* start_argument = std::get_if<Integer>(&arguments[0]);
@@ -1867,8 +1883,22 @@ private:
                 set_error("WFC0073", "InStr requires String arguments", identifier_offset);
                 return std::nullopt;
             }
+            const auto* compare_method =
+                has_compare ? std::get_if<Integer>(&arguments[3]) : nullptr;
+            if (has_compare && compare_method == nullptr) {
+                set_error("WFC0073", "InStr compare requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
             if (!execute_) {
                 return Value{Integer{}};
+            }
+            bool text_compare = option_compare_text_;
+            if (compare_method != nullptr) {
+                if (*compare_method < 0 || *compare_method > 1) {
+                    set_error("WFC0081", "unsupported comparison method", identifier_offset);
+                    return std::nullopt;
+                }
+                text_compare = *compare_method == 1;
             }
             if (start < 1) {
                 set_error("WFC0076", "InStr start must be positive", identifier_offset);
@@ -1882,7 +1912,7 @@ private:
                 return Value{begin < haystack->size() ? static_cast<Integer>(start) : Integer{0}};
             }
             std::size_t found{};
-            if (option_compare_text_) {
+            if (text_compare) {
                 std::string lowered_haystack = *haystack;
                 std::string lowered_needle = *needle;
                 for (char& character : lowered_haystack) {
@@ -1908,11 +1938,26 @@ private:
                 set_error("WFC0073", "StrComp requires String arguments", identifier_offset);
                 return std::nullopt;
             }
+            const bool has_compare = arguments.size() == 3U;
+            const auto* compare_method =
+                has_compare ? std::get_if<Integer>(&arguments[2]) : nullptr;
+            if (has_compare && compare_method == nullptr) {
+                set_error("WFC0073", "StrComp compare requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
             if (!execute_) {
                 return Value{Integer{}};
             }
+            bool text_compare = option_compare_text_;
+            if (compare_method != nullptr) {
+                if (*compare_method < 0 || *compare_method > 1) {
+                    set_error("WFC0081", "unsupported comparison method", identifier_offset);
+                    return std::nullopt;
+                }
+                text_compare = *compare_method == 1;
+            }
             int comparison{};
-            if (option_compare_text_) {
+            if (text_compare) {
                 std::string lowered_left = *left;
                 std::string lowered_right = *right;
                 for (char& character : lowered_left) {

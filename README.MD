@@ -116,4 +116,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrComp(`"abc`", `"abd`"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(`"abcabc`", `"b`", `"X`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"&H`" & Hex(255) & `" `" & Oct(8)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Str(42) & `"]`""
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(1, `"aXbXc`", `"x`", vbTextCompare)"
 ```

@@ -491,4 +491,17 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "\\[ 42\\]"
     )
+
+    add_test(
+        NAME TC-MP0002-compare-method-cli
+        COMMAND wfc --eval [=[Option Compare Binary
+Print InStr(1, "aXbXc", "x", vbTextCompare)
+Print StrComp("abc", "ABC", vbTextCompare)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-compare-method-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings;constants"
+            PASS_REGULAR_EXPRESSION "2.*0"
+    )
 endif()

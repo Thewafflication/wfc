@@ -50,4 +50,6 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-Not implemented.
+The source evaluator exposes all three names and values through the MP-0002
+subset defined by `REQ-0167`. Runtime type-information publication and member-ID
+verification remain pending.
