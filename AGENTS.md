@@ -11,6 +11,10 @@
   x86 builds/tests or ARM64 cross-builds; GitHub Actions validates those targets
   after commit and push. The owner monitors routine Actions runs, so do not wait
   unless a known failure needs investigation and repair.
+- Running the local build and test tooling is pre-authorized and does not
+  require asking the owner. This includes `cmake` (configure and build), `ctest`,
+  and running the produced `wfc` binaries for the x64 debug preset. Do not pause
+  to request approval before invoking these; just run them and report results.
 - The preferred Codex launch posture for this repository is workspace write
   access with on-request approvals:
 

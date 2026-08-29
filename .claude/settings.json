@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(ctest *)",
+      "Bash(out/build/windows-x64-debug/Debug/wfc.exe *)",
+      "Bash(out/build/windows-x64-debug/Debug/wfc_frontend_tests.exe *)",
+      "PowerShell(cmake *)",
+      "PowerShell(ctest *)"
+    ]
+  }
+}
