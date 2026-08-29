@@ -548,4 +548,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;math"
             PASS_REGULAR_EXPRESSION "42 -1"
     )
+
+    add_test(
+        NAME TC-MP0002-cstr-cli
+        COMMAND wfc --eval [=[Print CStr(42) & " " & CStr(True)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cstr-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "42 True"
+    )
 endif()

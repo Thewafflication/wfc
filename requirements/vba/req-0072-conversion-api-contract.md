@@ -72,4 +72,7 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-Not implemented.
+The source evaluator implements `Hex`, `Oct`, `Str`, the `Long`-bounded `Val`
+subset, and `CStr` for current value types through REQ-0170 and REQ-0172.
+Complete Variant/numeric behavior, runtime type information, and the remaining
+members are pending.

@@ -1726,11 +1726,12 @@ private:
         const bool is_val = identifier == "val";
         const bool is_abs = identifier == "abs";
         const bool is_sgn = identifier == "sgn";
+        const bool is_cstr = identifier == "cstr";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
-            !is_abs && !is_sgn) {
+            !is_abs && !is_sgn && !is_cstr) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1830,6 +1831,10 @@ private:
                 return std::nullopt;
             }
             return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+        }
+
+        if (is_cstr) {
+            return Value{execute_ ? render(arguments[0]) : std::string{}};
         }
 
         if (is_space) {

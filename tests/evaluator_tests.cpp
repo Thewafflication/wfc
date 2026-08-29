@@ -165,6 +165,10 @@ int main() {
     expect_success("Print Abs(0) + Abs(7)", "7");
     expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)", "-1 0 1");
     expect_success("Print Abs(Sgn(-100))", "1");
+    expect_success("Print \"[\" & CStr(42) & \"]\"", "[42]");
+    expect_success("Print CStr(True) & \" \" & CStr(False)", "True False");
+    expect_success("Print CStr(\"already text\")", "already text");
+    expect_success("Print Len(CStr(-100))", "4");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
