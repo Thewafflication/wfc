@@ -73,7 +73,7 @@ change that identifies the resulting source or run-time limitation.
 ## Implementation Record
 
 The source evaluator implements `Hex`, `Oct`, `Str`, the `Long`-bounded `Val`
-subset, `CStr`, and the current-value `CLng` subset through REQ-0170,
-REQ-0172, and REQ-0173.
+subset, `CStr`, and the current-value `CLng`/`CBool` subsets through REQ-0170
+and REQ-0172 through REQ-0174.
 Complete Variant/numeric behavior, runtime type information, and the remaining
 members are pending.

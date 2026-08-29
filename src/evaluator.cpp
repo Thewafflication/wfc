@@ -1728,11 +1728,12 @@ private:
         const bool is_sgn = identifier == "sgn";
         const bool is_cstr = identifier == "cstr";
         const bool is_clng = identifier == "clng";
+        const bool is_cbool = identifier == "cbool";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
-            !is_abs && !is_sgn && !is_cstr && !is_clng) {
+            !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1887,6 +1888,65 @@ private:
                 return std::nullopt;
             }
             return Value{result};
+        }
+
+        if (is_cbool) {
+            if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                return Value{execute_ && *boolean};
+            }
+            if (const auto* number = std::get_if<Integer>(&arguments[0])) {
+                return Value{execute_ && *number != 0};
+            }
+            if (!execute_) {
+                return Value{false};
+            }
+
+            const auto& text = std::get<std::string>(arguments[0]);
+            std::size_t first{};
+            std::size_t last = text.size();
+            while (first < last &&
+                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
+                    text[first] == '\n')) {
+                ++first;
+            }
+            while (last > first &&
+                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
+                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
+                --last;
+            }
+            std::string normalized;
+            normalized.reserve(last - first);
+            for (std::size_t index = first; index < last; ++index) {
+                normalized.push_back(ascii_lower(text[index]));
+            }
+            if (normalized == "true") {
+                return Value{true};
+            }
+            if (normalized == "false") {
+                return Value{false};
+            }
+
+            const bool has_plus = !normalized.empty() && normalized[0] == '+';
+            const auto conversion_first = has_plus ? 1U : 0U;
+            if (conversion_first == normalized.size()) {
+                set_error("WFC0087", "CBool requires a Boolean or whole decimal value", identifier_offset);
+                return std::nullopt;
+            }
+            Integer number{};
+            const auto conversion = std::from_chars(
+                normalized.data() + conversion_first,
+                normalized.data() + normalized.size(),
+                number);
+            if (conversion.ec == std::errc::result_out_of_range) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            if (conversion.ec != std::errc{} ||
+                conversion.ptr != normalized.data() + normalized.size()) {
+                set_error("WFC0087", "CBool requires a Boolean or whole decimal value", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{number != 0};
         }
 
         if (is_space) {

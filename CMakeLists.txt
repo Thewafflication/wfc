@@ -570,4 +570,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "42 -1"
     )
+
+    add_test(
+        NAME TC-MP0002-cbool-cli
+        COMMAND wfc --eval [=[Print CStr(CBool(1)) & " " & CStr(CBool("False"))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cbool-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion;boolean"
+            PASS_REGULAR_EXPRESSION "True False"
+    )
 endif()

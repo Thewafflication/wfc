@@ -123,4 +123,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Val(`" 2 45 7th Street`"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Abs(-42) & `" `" & Sgn(-42)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(42) & `" `" & CStr(True)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CLng(`" 42 `") & `" `" & CLng(True)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(CBool(1)) & `" `" & CStr(CBool(`"False`"))"
 ```

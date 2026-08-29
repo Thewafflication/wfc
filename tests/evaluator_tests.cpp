@@ -174,6 +174,10 @@ int main() {
     expect_success("Print CLng(\"  -42  \")", "-42");
     expect_success("Print CLng(\"+17\")", "17");
     expect_success("Print CLng(CStr(123)) + 1", "124");
+    expect_program_success("Print CBool(True): Print CBool(False)", "True\nFalse");
+    expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)", "True\nFalse\nTrue");
+    expect_program_success("Print CBool(\" true \"): Print CBool(\"FALSE\")", "True\nFalse");
+    expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")", "True\nFalse");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -714,6 +718,10 @@ int main() {
     expect_program_failure("Print CLng(\"\")", "WFC0086");
     expect_program_failure("Print CLng(\"12 trailing\")", "WFC0086");
     expect_program_failure("Print CLng(\"12.5\")", "WFC0086");
+    expect_program_failure("Print CBool(\"\")", "WFC0087");
+    expect_program_failure("Print CBool(\"yes\")", "WFC0087");
+    expect_program_failure("Print CBool(\"1.0\")", "WFC0087");
+    expect_program_failure("Print CBool(\"2147483648\")", "WFC0009");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

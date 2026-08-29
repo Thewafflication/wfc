@@ -104,3 +104,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0173 — CLng function subset](req-0173-clng-function.md) defines Long,
   Boolean, and strict decimal String conversion for the thirty-fourth MP-0002
   increment.
+- [REQ-0174 — CBool function subset](req-0174-cbool-function.md) defines Boolean,
+  Long, and strict Boolean/decimal String conversion for the thirty-fifth
+  MP-0002 increment.
