@@ -29,6 +29,13 @@ retained CTest evidence.
 | 2026-08-29 #5 | Construction | Add `Replace` (3-arg form, honors `Option Compare Text`); unit + CLI tests, README | Commit `3b8ed18` |
 | 2026-08-29 #6 | Construction | Add `Hex`/`Hex$` and `Oct`/`Oct$` radix conversions (`REQ-0072`); unit + CLI tests, README | Commit `4ed283c` |
 | 2026-08-29 #7 | Construction | Add `Str`/`Str$` number-to-string with VB6 leading-space rule (`REQ-0072`); unit + CLI tests, README | Commit `1449c35` |
+| 2026-08-29 #8 | Construction | Expose `VbCompareMethod` constants and explicit `InStr`/`StrComp` compare arguments | Commit `451e0f6` |
+| 2026-08-29 #9 | Construction | Complete `Replace` start, count, and compare arguments | Commit `fd8fb27` |
+| 2026-08-29 #10 | Construction | Add `InStrRev` with bounded reverse search and comparison selection | Commit `beebb9e` |
+| 2026-08-29 #11 | Construction | Add explicit `Long`-bounded `Val` conversion subset | Commit `b10e5d2` |
+| 2026-08-29 #12 | Construction | Add `Abs` and `Sgn` for the current `Long` model | Commit `d77a89f` |
+| 2026-08-29 #13 | Construction | Add `CStr` for every current evaluator value type | Commit `cd59a9d` |
+| 2026-08-29 #14 | Construction | Add `CLng` identity, Boolean, and strict decimal String conversion | Commit `205f227` |
 
 ## Verification Log
 
@@ -40,18 +47,28 @@ retained CTest evidence.
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `3b8ed18` Replace) | Pass (33/33) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `4ed283c` Hex/Oct) | Pass (34/34) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `1449c35` Str) | Pass (35/35) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `451e0f6` compare methods) | Pass (36/36) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `fd8fb27` Replace options) | Pass (37/37) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `beebb9e` InStrRev) | Pass (38/38) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `b10e5d2` Val) | Pass (39/39) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `d77a89f` Abs/Sgn) | Pass (40/40) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `cd59a9d` CStr) | Pass (41/41) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `205f227` CLng) | Pass (42/42) | Local CTest run |
 
 ## Decisions and Scope Changes
 
 | Decision or change | Authority | Impact | Reference |
 | --- | --- | --- | --- |
 | Continue the `Strings` (`REQ-0071`) function series as the next MP-0002 increments | Owner request ("continue working on wfc") | Adds intrinsic functions within the existing MP-0002 subset; no scope expansion | This log |
+| Expose all three `VbCompareMethod` names but reject database comparison at execution | Installed VBA type-library contract plus current host boundary | Preserves source-visible values without claiming an unavailable database collation | `REQ-0167` |
+| Keep `Val` in the current `Long` model and reject fractional/radix forms explicitly | Current evaluator value architecture | Prevents silent truncation or a false claim of VBA's `Double` result semantics | `REQ-0170` |
 
 ## Problems, Defects, and Recovery
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
 | `InStr` `Option Compare Text` case first used `expect_success` (single-statement helper) for a two-line program | One unit assertion failed (`WFC0001` — parser saw a program where a statement was expected) | Switched the multi-line case to `expect_program_success`; rebuilt and reran to green | Closed |
+| Reserved `vbTextCompare` declaration test initially expected duplicate-name diagnostic `WFC0013` | One evaluator assertion failed; implementation correctly emitted the established reserved-keyword diagnostic `WFC0017` | Corrected the test expectation and reran all 36 cases successfully | Closed |
 
 ## Measurements
 
@@ -62,6 +79,10 @@ retained CTest evidence.
 | CTest cases added | 5 | One integration CLI case per increment |
 | New intrinsic functions | 7 | `InStr`, `StrComp`, `Replace`, `Hex`/`Hex$`, `Oct`/`Oct$`, `Str`/`Str$` |
 | Functional commits pushed | 5 | `b3cfdc7`, `bbdfdf2`, `3b8ed18`, `4ed283c`, `1449c35` |
+| Tests at resumed-session start | 35 | CTest at `955ed6d` |
+| Tests at current checkpoint | 42 | CTest at `205f227` |
+| Resumed-session CTest cases added | 7 | One integration CLI case per coherent increment |
+| Resumed-session functional commits pushed | 7 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227` |
 
 ## Preservation and Handoff
 
@@ -72,18 +93,19 @@ Actions validates the x86 and ARM64 targets.
 
 **Deliberate scope boundaries for the next session:**
 
-- The optional `[start[, compare]]` trailing arguments of `InStr`, `StrComp`,
-  and `Replace` are not implemented. The positional `compare` argument depends
-  on the `VbCompareMethod` constants (`vbBinaryCompare` / `vbTextCompare`,
-  `REQ-0089`), which are not yet available as named constants; the default
-  compare mode honors module-level `Option Compare`.
+- `InStr`, `StrComp`, `Replace`, and `InStrRev` now accept their controlled
+  positional comparison forms. `vbDatabaseCompare` is source-visible but remains
+  an explicit unsupported execution mode outside a database host.
 - `Hex`/`Oct`/`Str` operate on the `Long` value type only, consistent with the
   current MP-0002 numeric subset.
+- `Val` returns `Long` in the current evaluator. Its fractional, exponent, and
+  radix forms remain explicitly deferred until the necessary numeric semantics
+  can be represented without truncation.
 
-**Suggested next increments** (all `REQ-0071`/`REQ-0072`, low risk, same
-pattern): `InStrRev` (note the reversed argument order and `-1` default start),
-`Val` (string-to-number parse), and the `VbCompareMethod` constants that would
-let the optional `compare` argument be added to `InStr`/`StrComp`/`Replace`.
+**Suggested next increments:** `CBool` for current values, bounded `CByte`, and
+the remaining integer-compatible information/conversion functions. Adding
+floating-point math or completing `Val` should follow a deliberate numeric-value
+architecture increment rather than extending the current `Long` variant ad hoc.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the `Strings`/`Conversion` build-out under MP-0002.
