@@ -161,6 +161,10 @@ int main() {
     expect_success("Print Val(\"words 42\")", "0");
     expect_success("Print Val(\"12,345\")", "12");
     expect_success("Print Val(\"   \")", "0");
+    expect_success("Print Abs(-42)", "42");
+    expect_success("Print Abs(0) + Abs(7)", "7");
+    expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)", "-1 0 1");
+    expect_success("Print Abs(Sgn(-100))", "1");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -669,6 +673,8 @@ int main() {
     expect_program_failure("Print Oct(True)", "WFC0073");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_failure("Print Val(42)", "WFC0073");
+    expect_program_failure("Print Abs(\"42\")", "WFC0073");
+    expect_program_failure("Print Sgn(False)", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
@@ -694,6 +700,7 @@ int main() {
     expect_program_failure("Print Val(\"1E2\")", "WFC0084");
     expect_program_failure("Print Val(\"&H10\")", "WFC0085");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
+    expect_program_failure("Print Abs(-2147483648)", "WFC0009");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

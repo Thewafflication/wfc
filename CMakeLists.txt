@@ -537,4 +537,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "2457"
     )
+
+    add_test(
+        NAME TC-MP0002-integer-math-cli
+        COMMAND wfc --eval [=[Print Abs(-42) & " " & Sgn(-42)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-integer-math-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;math"
+            PASS_REGULAR_EXPRESSION "42 -1"
+    )
 endif()

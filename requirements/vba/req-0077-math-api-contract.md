@@ -59,4 +59,6 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-Not implemented.
+The source evaluator implements `Abs` and `Sgn` for the current `Long` value
+subset through `REQ-0171`. Variant overloads, floating-point members, runtime
+type information, and the remainder of this module remain pending.

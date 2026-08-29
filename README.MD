@@ -120,4 +120,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(1, `"aXbXc`", `"x`
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(`"prefix aXbXc`", `"x`", `"-`", 8, 1, vbTextCompare)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStrRev(`"one two one`", `"one`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Val(`" 2 45 7th Street`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Abs(-42) & `" `" & Sgn(-42)"
 ```
