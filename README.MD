@@ -113,4 +113,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print String$(3, `"*`") & Stri
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(`"Hello, WFC!`", `"WFC`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(3, `"abcabc`", `"bc`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrComp(`"abc`", `"abd`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(`"abcabc`", `"b`", `"X`")"
 ```

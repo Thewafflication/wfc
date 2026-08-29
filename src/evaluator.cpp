@@ -1707,9 +1707,11 @@ private:
         const bool is_string = identifier == "string" || identifier == "string$";
         const bool is_instr = identifier == "instr";
         const bool is_strcomp = identifier == "strcomp";
+        const bool is_replace = identifier == "replace";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
-            !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp) {
+            !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
+            !is_replace) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1751,10 +1753,16 @@ private:
             }
         }
 
-        const bool valid_arity =
-            (is_mid || is_instr) ? arguments.size() == 2U || arguments.size() == 3U
-                                 : arguments.size() ==
-                                       ((is_left || is_right || is_string || is_strcomp) ? 2U : 1U);
+        bool valid_arity{};
+        if (is_mid || is_instr) {
+            valid_arity = arguments.size() == 2U || arguments.size() == 3U;
+        } else if (is_replace) {
+            valid_arity = arguments.size() == 3U;
+        } else if (is_left || is_right || is_string || is_strcomp) {
+            valid_arity = arguments.size() == 2U;
+        } else {
+            valid_arity = arguments.size() == 1U;
+        }
         if (!valid_arity) {
             set_error(
                 "WFC0072",
@@ -1915,6 +1923,45 @@ private:
                 comparison = left->compare(*right);
             }
             return Value{static_cast<Integer>((comparison > 0) - (comparison < 0))};
+        }
+
+        if (is_replace) {
+            const auto* expression = std::get_if<std::string>(&arguments[0]);
+            const auto* find = std::get_if<std::string>(&arguments[1]);
+            const auto* replacement = std::get_if<std::string>(&arguments[2]);
+            if (expression == nullptr || find == nullptr || replacement == nullptr) {
+                set_error("WFC0073", "Replace requires String arguments", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (find->empty() || expression->empty()) {
+                return Value{*expression};
+            }
+            std::string haystack = *expression;
+            std::string needle = *find;
+            if (option_compare_text_) {
+                for (char& character : haystack) {
+                    character = ascii_lower(character);
+                }
+                for (char& character : needle) {
+                    character = ascii_lower(character);
+                }
+            }
+            std::string result;
+            std::size_t position{};
+            while (true) {
+                const std::size_t found = haystack.find(needle, position);
+                if (found == std::string::npos) {
+                    result.append(*expression, position, std::string::npos);
+                    break;
+                }
+                result.append(*expression, position, found - position);
+                result.append(*replacement);
+                position = found + needle.size();
+            }
+            return Value{std::move(result)};
         }
 
         const auto* string = std::get_if<std::string>(&arguments[0]);

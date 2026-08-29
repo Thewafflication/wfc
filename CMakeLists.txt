@@ -458,4 +458,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "-1"
     )
+
+    add_test(
+        NAME TC-MP0002-replace-cli
+        COMMAND wfc --eval [=[Print Replace("abcabc", "b", "X")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-replace-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "aXcaXc"
+    )
 endif()

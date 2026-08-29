@@ -100,6 +100,13 @@ int main() {
     expect_success("Print StrComp(\"abc\", \"ABC\")", "1");
     expect_success("Print StrComp(\"abc\", \"ab\")", "1");
     expect_program_success("Option Compare Text\nPrint StrComp(\"abc\", \"ABC\")", "0");
+    expect_success("Print Replace(\"abcabc\", \"b\", \"X\")", "aXcaXc");
+    expect_success("Print Replace(\"aaa\", \"a\", \"bb\")", "bbbbbb");
+    expect_success("Print Replace(\"abc\", \"z\", \"Y\")", "abc");
+    expect_success("Print \"[\" & Replace(\"abc\", \"\", \"Y\") & \"]\"", "[abc]");
+    expect_success("Print \"[\" & Replace(\"abab\", \"ab\", \"\") & \"]\"", "[]");
+    expect_success("Print Replace(\"aXbXc\", \"x\", \"-\")", "aXbXc");
+    expect_program_success("Option Compare Text\nPrint Replace(\"aXbXc\", \"x\", \"-\")", "a-b-c");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -573,6 +580,8 @@ int main() {
     expect_program_failure("Print InStr(1, \"a\", \"b\", 0)", "WFC0072");
     expect_program_failure("Print StrComp(\"a\")", "WFC0072");
     expect_program_failure("Print StrComp(\"a\", \"b\", 0)", "WFC0072");
+    expect_program_failure("Print Replace(\"a\", \"b\")", "WFC0072");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1)", "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
@@ -589,6 +598,8 @@ int main() {
     expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
     expect_program_failure("Print StrComp(\"a\", 1)", "WFC0073");
     expect_program_failure("Print StrComp(42, \"a\")", "WFC0073");
+    expect_program_failure("Print Replace(\"a\", \"b\", 3)", "WFC0073");
+    expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
