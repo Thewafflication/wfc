@@ -480,4 +480,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "FF 10"
     )
+
+    add_test(
+        NAME TC-MP0002-str-cli
+        COMMAND wfc --eval [=[Print "[" & Str(42) & "]"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-str-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "\\[ 42\\]"
+    )
 endif()

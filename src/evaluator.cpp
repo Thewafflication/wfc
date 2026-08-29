@@ -1710,10 +1710,11 @@ private:
         const bool is_replace = identifier == "replace";
         const bool is_hex = identifier == "hex" || identifier == "hex$";
         const bool is_oct = identifier == "oct" || identifier == "oct$";
+        const bool is_str = identifier == "str" || identifier == "str$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
-            !is_replace && !is_hex && !is_oct) {
+            !is_replace && !is_hex && !is_oct && !is_str) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1964,6 +1965,22 @@ private:
                 position = found + needle.size();
             }
             return Value{std::move(result)};
+        }
+
+        if (is_str) {
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error("WFC0073", "Str requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            std::string digits = std::to_string(*number);
+            if (*number >= 0) {
+                digits.insert(digits.begin(), ' ');
+            }
+            return Value{std::move(digits)};
         }
 
         if (is_hex || is_oct) {

@@ -115,6 +115,10 @@ int main() {
     expect_success("Print Oct$(0)", "0");
     expect_success("Print Oct(-1)", "37777777777");
     expect_success("Print \"&H\" & Hex(Asc(\"A\"))", "&H41");
+    expect_success("Print \"[\" & Str(42) & \"]\"", "[ 42]");
+    expect_success("Print \"[\" & Str$(-42) & \"]\"", "[-42]");
+    expect_success("Print \"[\" & Str(0) & \"]\"", "[ 0]");
+    expect_success("Print Len(Str(100))", "4");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -610,6 +614,7 @@ int main() {
     expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
     expect_program_failure("Print Hex(\"a\")", "WFC0073");
     expect_program_failure("Print Oct(True)", "WFC0073");
+    expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
