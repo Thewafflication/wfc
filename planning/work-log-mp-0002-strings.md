@@ -37,6 +37,7 @@ retained CTest evidence.
 | 2026-08-29 #13 | Construction | Add `CStr` for every current evaluator value type | Commit `cd59a9d` |
 | 2026-08-29 #14 | Construction | Add `CLng` identity, Boolean, and strict decimal String conversion | Commit `205f227` |
 | 2026-08-29 #15 | Construction | Add `CBool` identity, `Long`, and strict String conversion | Commit `11bd3f3` |
+| 2026-08-29 #16 | Construction | Add bounded `Long`-to-`CByte` conversion | Commit `850fd6d` |
 
 ## Verification Log
 
@@ -56,6 +57,7 @@ retained CTest evidence.
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `cd59a9d` CStr) | Pass (41/41) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `205f227` CLng) | Pass (42/42) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `11bd3f3` CBool) | Pass (43/43) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `850fd6d` CByte) | Pass (44/44) | Local CTest run |
 
 ## Decisions and Scope Changes
 
@@ -84,9 +86,9 @@ retained CTest evidence.
 | New intrinsic functions | 7 | `InStr`, `StrComp`, `Replace`, `Hex`/`Hex$`, `Oct`/`Oct$`, `Str`/`Str$` |
 | Functional commits pushed | 5 | `b3cfdc7`, `bbdfdf2`, `3b8ed18`, `4ed283c`, `1449c35` |
 | Tests at resumed-session start | 35 | CTest at `955ed6d` |
-| Tests at current checkpoint | 43 | CTest at `11bd3f3` |
-| Resumed-session CTest cases added | 8 | One integration CLI case per coherent increment |
-| Resumed-session functional commits pushed | 8 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3` |
+| Tests at current checkpoint | 44 | CTest at `850fd6d` |
+| Resumed-session CTest cases added | 9 | One integration CLI case per coherent increment |
+| Resumed-session functional commits pushed | 9 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3`, `850fd6d` |
 
 ## Preservation and Handoff
 
@@ -106,8 +108,8 @@ GitHub Actions validates the x86 and ARM64 targets.
   radix forms remain explicitly deferred until the necessary numeric semantics
   can be represented without truncation.
 
-**Suggested next increments:** bounded `CByte` and the remaining
-integer-compatible information/conversion functions. Adding
+**Suggested next increments:** the remaining integer-compatible
+information/conversion functions. Adding
 floating-point math or completing `Val` should follow a deliberate numeric-value
 architecture increment rather than extending the current `Long` variant ad hoc.
 
