@@ -36,6 +36,7 @@ retained CTest evidence.
 | 2026-08-29 #12 | Construction | Add `Abs` and `Sgn` for the current `Long` model | Commit `d77a89f` |
 | 2026-08-29 #13 | Construction | Add `CStr` for every current evaluator value type | Commit `cd59a9d` |
 | 2026-08-29 #14 | Construction | Add `CLng` identity, Boolean, and strict decimal String conversion | Commit `205f227` |
+| 2026-08-29 #15 | Construction | Add `CBool` identity, `Long`, and strict String conversion | Commit `11bd3f3` |
 
 ## Verification Log
 
@@ -54,6 +55,7 @@ retained CTest evidence.
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `d77a89f` Abs/Sgn) | Pass (40/40) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `cd59a9d` CStr) | Pass (41/41) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `205f227` CLng) | Pass (42/42) | Local CTest run |
+| 2026-08-29 | `ctest --preset windows-x64-debug` (post `11bd3f3` CBool) | Pass (43/43) | Local CTest run |
 
 ## Decisions and Scope Changes
 
@@ -69,6 +71,8 @@ retained CTest evidence.
 | --- | --- | --- | --- |
 | `InStr` `Option Compare Text` case first used `expect_success` (single-statement helper) for a two-line program | One unit assertion failed (`WFC0001` — parser saw a program where a statement was expected) | Switched the multi-line case to `expect_program_success`; rebuilt and reran to green | Closed |
 | Reserved `vbTextCompare` declaration test initially expected duplicate-name diagnostic `WFC0013` | One evaluator assertion failed; implementation correctly emitted the established reserved-keyword diagnostic `WFC0017` | Corrected the test expectation and reran all 36 cases successfully | Closed |
+| Initial `CBool` tests concatenated Boolean results directly | Unit and CLI cases correctly emitted `WFC0020` because the current `&` contract accepts only String or Long operands | Changed unit cases to independent `Print` statements and the CLI case to explicit `CStr` conversions; reran all 43 cases successfully | Closed |
+| CTest's regular-expression engine did not match the multi-line `CBool` CLI output | The CLI command produced the correct `True`/`False` lines, but its pass expression failed | Kept the CLI assertion single-line through `CStr(CBool(...))` and restored an exact output expression | Closed |
 
 ## Measurements
 
@@ -80,16 +84,16 @@ retained CTest evidence.
 | New intrinsic functions | 7 | `InStr`, `StrComp`, `Replace`, `Hex`/`Hex$`, `Oct`/`Oct$`, `Str`/`Str$` |
 | Functional commits pushed | 5 | `b3cfdc7`, `bbdfdf2`, `3b8ed18`, `4ed283c`, `1449c35` |
 | Tests at resumed-session start | 35 | CTest at `955ed6d` |
-| Tests at current checkpoint | 42 | CTest at `205f227` |
-| Resumed-session CTest cases added | 7 | One integration CLI case per coherent increment |
-| Resumed-session functional commits pushed | 7 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227` |
+| Tests at current checkpoint | 43 | CTest at `11bd3f3` |
+| Resumed-session CTest cases added | 8 | One integration CLI case per coherent increment |
+| Resumed-session functional commits pushed | 8 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3` |
 
 ## Preservation and Handoff
 
 Retained evidence is the CTest output and the Git commit history on
-`origin/master`. No unrelated working-tree changes were present at session
-start, and none were introduced. All work is committed and pushed; GitHub
-Actions validates the x86 and ARM64 targets.
+`origin/master`. A pre-existing `.gitignore` edit remains uncommitted and was
+deliberately excluded from every work set. All WFC work is committed and pushed;
+GitHub Actions validates the x86 and ARM64 targets.
 
 **Deliberate scope boundaries for the next session:**
 
@@ -102,8 +106,8 @@ Actions validates the x86 and ARM64 targets.
   radix forms remain explicitly deferred until the necessary numeric semantics
   can be represented without truncation.
 
-**Suggested next increments:** `CBool` for current values, bounded `CByte`, and
-the remaining integer-compatible information/conversion functions. Adding
+**Suggested next increments:** bounded `CByte` and the remaining
+integer-compatible information/conversion functions. Adding
 floating-point math or completing `Val` should follow a deliberate numeric-value
 architecture increment rather than extending the current `Long` variant ad hoc.
 
