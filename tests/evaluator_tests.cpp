@@ -169,6 +169,11 @@ int main() {
     expect_success("Print CStr(True) & \" \" & CStr(False)", "True False");
     expect_success("Print CStr(\"already text\")", "already text");
     expect_success("Print Len(CStr(-100))", "4");
+    expect_success("Print CLng(42)", "42");
+    expect_success("Print CLng(True) & \" \" & CLng(False)", "-1 0");
+    expect_success("Print CLng(\"  -42  \")", "-42");
+    expect_success("Print CLng(\"+17\")", "17");
+    expect_success("Print CLng(CStr(123)) + 1", "124");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -705,6 +710,10 @@ int main() {
     expect_program_failure("Print Val(\"&H10\")", "WFC0085");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
     expect_program_failure("Print Abs(-2147483648)", "WFC0009");
+    expect_program_failure("Print CLng(\"2147483648\")", "WFC0009");
+    expect_program_failure("Print CLng(\"\")", "WFC0086");
+    expect_program_failure("Print CLng(\"12 trailing\")", "WFC0086");
+    expect_program_failure("Print CLng(\"12.5\")", "WFC0086");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

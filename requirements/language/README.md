@@ -101,3 +101,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0172 — CStr function subset](req-0172-cstr-function.md) defines String
   conversion for every current value type in the thirty-third MP-0002
   increment.
+- [REQ-0173 — CLng function subset](req-0173-clng-function.md) defines Long,
+  Boolean, and strict decimal String conversion for the thirty-fourth MP-0002
+  increment.

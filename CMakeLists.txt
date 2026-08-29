@@ -559,4 +559,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "42 True"
     )
+
+    add_test(
+        NAME TC-MP0002-clng-cli
+        COMMAND wfc --eval [=[Print CLng(" 42 ") & " " & CLng(True)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-clng-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "42 -1"
+    )
 endif()
