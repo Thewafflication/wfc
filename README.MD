@@ -110,4 +110,6 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Chr$(Asc(`"W`")) & Chr$(
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrReverse(`"!CFW ,olleH`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Space$(3) & `"]`""
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print String$(3, `"*`") & String(2, 61)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(`"Hello, WFC!`", `"WFC`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(3, `"abcabc`", `"bc`")"
 ```

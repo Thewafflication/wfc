@@ -85,6 +85,15 @@ int main() {
     expect_success("Print String(3, 61)", "===");
     expect_success("Print String$(2, \"ab\")", "aa");
     expect_success("Print Len(Space(5)) + Len(String(2, 88))", "7");
+    expect_success("Print InStr(\"Hello, WFC!\", \"WFC\")", "8");
+    expect_success("Print InStr(\"abcabc\", \"bc\")", "2");
+    expect_success("Print InStr(3, \"abcabc\", \"bc\")", "5");
+    expect_success("Print InStr(\"abc\", \"z\")", "0");
+    expect_success("Print InStr(\"abc\", \"\")", "1");
+    expect_success("Print InStr(\"\", \"\")", "0");
+    expect_success("Print InStr(4, \"abc\", \"a\")", "0");
+    expect_success("Print InStr(\"aXbXc\", \"x\")", "0");
+    expect_program_success("Option Compare Text\nPrint InStr(\"aXbXc\", \"x\")", "2");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -554,6 +563,8 @@ int main() {
     expect_program_failure("Print Space(1, 2)", "WFC0072");
     expect_program_failure("Print String(3)", "WFC0072");
     expect_program_failure("Print String(3, \"*\", 1)", "WFC0072");
+    expect_program_failure("Print InStr(\"a\")", "WFC0072");
+    expect_program_failure("Print InStr(1, \"a\", \"b\", 0)", "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
@@ -566,12 +577,15 @@ int main() {
     expect_program_failure("Print Space(\"3\")", "WFC0073");
     expect_program_failure("Print String(\"3\", \"*\")", "WFC0073");
     expect_program_failure("Print String(3, True)", "WFC0073");
+    expect_program_failure("Print InStr(\"a\", 1)", "WFC0073");
+    expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
     expect_program_failure("Print Space(-1)", "WFC0075");
     expect_program_failure("Print String(-1, \"*\")", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 0)", "WFC0076");
+    expect_program_failure("Print InStr(0, \"value\", \"a\")", "WFC0076");
     expect_program_failure("Print Asc(\"\")", "WFC0077");
     expect_program_failure("Print Chr(-1)", "WFC0078");
     expect_program_failure("Print Chr(128)", "WFC0078");
