@@ -94,6 +94,12 @@ int main() {
     expect_success("Print InStr(4, \"abc\", \"a\")", "0");
     expect_success("Print InStr(\"aXbXc\", \"x\")", "0");
     expect_program_success("Option Compare Text\nPrint InStr(\"aXbXc\", \"x\")", "2");
+    expect_success("Print StrComp(\"abc\", \"abc\")", "0");
+    expect_success("Print StrComp(\"abc\", \"abd\")", "-1");
+    expect_success("Print StrComp(\"abd\", \"abc\")", "1");
+    expect_success("Print StrComp(\"abc\", \"ABC\")", "1");
+    expect_success("Print StrComp(\"abc\", \"ab\")", "1");
+    expect_program_success("Option Compare Text\nPrint StrComp(\"abc\", \"ABC\")", "0");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -565,6 +571,8 @@ int main() {
     expect_program_failure("Print String(3, \"*\", 1)", "WFC0072");
     expect_program_failure("Print InStr(\"a\")", "WFC0072");
     expect_program_failure("Print InStr(1, \"a\", \"b\", 0)", "WFC0072");
+    expect_program_failure("Print StrComp(\"a\")", "WFC0072");
+    expect_program_failure("Print StrComp(\"a\", \"b\", 0)", "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
@@ -579,6 +587,8 @@ int main() {
     expect_program_failure("Print String(3, True)", "WFC0073");
     expect_program_failure("Print InStr(\"a\", 1)", "WFC0073");
     expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
+    expect_program_failure("Print StrComp(\"a\", 1)", "WFC0073");
+    expect_program_failure("Print StrComp(42, \"a\")", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");

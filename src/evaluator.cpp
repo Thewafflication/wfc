@@ -1706,9 +1706,10 @@ private:
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
         const bool is_instr = identifier == "instr";
+        const bool is_strcomp = identifier == "strcomp";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
-            !is_reverse && !is_space && !is_string && !is_instr) {
+            !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1752,7 +1753,8 @@ private:
 
         const bool valid_arity =
             (is_mid || is_instr) ? arguments.size() == 2U || arguments.size() == 3U
-                                 : arguments.size() == ((is_left || is_right || is_string) ? 2U : 1U);
+                                 : arguments.size() ==
+                                       ((is_left || is_right || is_string || is_strcomp) ? 2U : 1U);
         if (!valid_arity) {
             set_error(
                 "WFC0072",
@@ -1886,6 +1888,33 @@ private:
                 return Value{Integer{0}};
             }
             return Value{static_cast<Integer>(found + 1U)};
+        }
+
+        if (is_strcomp) {
+            const auto* left = std::get_if<std::string>(&arguments[0]);
+            const auto* right = std::get_if<std::string>(&arguments[1]);
+            if (left == nullptr || right == nullptr) {
+                set_error("WFC0073", "StrComp requires String arguments", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            int comparison{};
+            if (option_compare_text_) {
+                std::string lowered_left = *left;
+                std::string lowered_right = *right;
+                for (char& character : lowered_left) {
+                    character = ascii_lower(character);
+                }
+                for (char& character : lowered_right) {
+                    character = ascii_lower(character);
+                }
+                comparison = lowered_left.compare(lowered_right);
+            } else {
+                comparison = left->compare(*right);
+            }
+            return Value{static_cast<Integer>((comparison > 0) - (comparison < 0))};
         }
 
         const auto* string = std::get_if<std::string>(&arguments[0]);

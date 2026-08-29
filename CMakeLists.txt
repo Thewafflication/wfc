@@ -447,4 +447,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "8"
     )
+
+    add_test(
+        NAME TC-MP0002-strcomp-cli
+        COMMAND wfc --eval [=[Print StrComp("abc", "abd")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-strcomp-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "-1"
+    )
 endif()
