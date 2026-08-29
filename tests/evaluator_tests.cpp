@@ -178,6 +178,8 @@ int main() {
     expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)", "True\nFalse\nTrue");
     expect_program_success("Print CBool(\" true \"): Print CBool(\"FALSE\")", "True\nFalse");
     expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")", "True\nFalse");
+    expect_success("Print CByte(0) & \" \" & CByte(255)", "0 255");
+    expect_success("Print CByte(42) + 1", "43");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -722,6 +724,9 @@ int main() {
     expect_program_failure("Print CBool(\"yes\")", "WFC0087");
     expect_program_failure("Print CBool(\"1.0\")", "WFC0087");
     expect_program_failure("Print CBool(\"2147483648\")", "WFC0009");
+    expect_program_failure("Print CByte(-1)", "WFC0009");
+    expect_program_failure("Print CByte(256)", "WFC0009");
+    expect_program_failure("Print CByte(\"1\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

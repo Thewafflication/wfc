@@ -1729,11 +1729,12 @@ private:
         const bool is_cstr = identifier == "cstr";
         const bool is_clng = identifier == "clng";
         const bool is_cbool = identifier == "cbool";
+        const bool is_cbyte = identifier == "cbyte";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
-            !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool) {
+            !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1837,6 +1838,22 @@ private:
 
         if (is_cstr) {
             return Value{execute_ ? render(arguments[0]) : std::string{}};
+        }
+
+        if (is_cbyte) {
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error("WFC0073", "CByte requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            if (*number < 0 || *number > 255) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{*number};
         }
 
         if (is_clng) {

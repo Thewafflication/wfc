@@ -124,4 +124,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Abs(-42) & `" `" & Sgn(-
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(42) & `" `" & CStr(True)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CLng(`" 42 `") & `" `" & CLng(True)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(CBool(1)) & `" `" & CStr(CBool(`"False`"))"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CByte(0) & `" `" & CByte(255)"
 ```

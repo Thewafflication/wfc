@@ -107,3 +107,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0174 — CBool function subset](req-0174-cbool-function.md) defines Boolean,
   Long, and strict Boolean/decimal String conversion for the thirty-fifth
   MP-0002 increment.
+- [REQ-0175 — CByte function subset](req-0175-cbyte-function.md) defines bounded
+  Long-to-Byte conversion for the thirty-sixth MP-0002 increment.
