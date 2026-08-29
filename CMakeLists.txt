@@ -425,4 +425,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "Hello, WFC!"
     )
+
+    add_test(
+        NAME TC-MP0002-string-fill-cli
+        COMMAND wfc --eval [=[Print "[" & Space$(3) & "]" & String$(3, "*")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-fill-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "\\[   \\]\\*\\*\\*"
+    )
 endif()

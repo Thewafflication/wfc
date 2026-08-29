@@ -1703,9 +1703,11 @@ private:
         const bool is_asc = identifier == "asc";
         const bool is_chr = identifier == "chr" || identifier == "chr$";
         const bool is_reverse = identifier == "strreverse";
+        const bool is_space = identifier == "space" || identifier == "space$";
+        const bool is_string = identifier == "string" || identifier == "string$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
-            !is_reverse) {
+            !is_reverse && !is_space && !is_string) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1747,8 +1749,9 @@ private:
             }
         }
 
-        const bool valid_arity = is_mid ? arguments.size() == 2U || arguments.size() == 3U
-                                        : arguments.size() == ((is_left || is_right) ? 2U : 1U);
+        const bool valid_arity =
+            is_mid ? arguments.size() == 2U || arguments.size() == 3U
+                   : arguments.size() == ((is_left || is_right || is_string) ? 2U : 1U);
         if (!valid_arity) {
             set_error(
                 "WFC0072",
@@ -1771,6 +1774,65 @@ private:
                 return std::nullopt;
             }
             return Value{std::string(1U, static_cast<char>(*character_code))};
+        }
+
+        if (is_space) {
+            const auto* count = std::get_if<Integer>(&arguments[0]);
+            if (count == nullptr) {
+                set_error("WFC0073", "Space requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*count < 0) {
+                set_error("WFC0075", "function length cannot be negative", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{std::string(static_cast<std::size_t>(*count), ' ')};
+        }
+
+        if (is_string) {
+            const auto* count = std::get_if<Integer>(&arguments[0]);
+            const bool fill_is_code = std::holds_alternative<Integer>(arguments[1]);
+            const bool fill_is_text = std::holds_alternative<std::string>(arguments[1]);
+            if (count == nullptr || (!fill_is_code && !fill_is_text)) {
+                set_error(
+                    "WFC0073",
+                    "String requires a Long count and a Long or String fill",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*count < 0) {
+                set_error("WFC0075", "function length cannot be negative", identifier_offset);
+                return std::nullopt;
+            }
+            char fill{};
+            if (fill_is_code) {
+                const auto code = std::get<Integer>(arguments[1]);
+                if (code < 0 || code > 127) {
+                    set_error(
+                        "WFC0079",
+                        "String fill code must be in the ASCII range",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                fill = static_cast<char>(code);
+            } else {
+                const auto& text = std::get<std::string>(arguments[1]);
+                if (text.empty()) {
+                    set_error(
+                        "WFC0080",
+                        "String requires a non-empty fill String",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                fill = text.front();
+            }
+            return Value{std::string(static_cast<std::size_t>(*count), fill)};
         }
 
         const auto* string = std::get_if<std::string>(&arguments[0]);
