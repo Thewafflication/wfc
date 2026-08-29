@@ -1723,10 +1723,11 @@ private:
         const bool is_hex = identifier == "hex" || identifier == "hex$";
         const bool is_oct = identifier == "oct" || identifier == "oct$";
         const bool is_str = identifier == "str" || identifier == "str$";
+        const bool is_val = identifier == "val";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
-            !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str) {
+            !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2197,6 +2198,57 @@ private:
                 return std::nullopt;
             }
             return Value{static_cast<Integer>(static_cast<unsigned char>(string->front()))};
+        }
+
+        if (is_val) {
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            std::string compact;
+            compact.reserve(string->size());
+            for (const char character : *string) {
+                if (character != ' ' && character != '\t' && character != '\r' &&
+                    character != '\n') {
+                    compact.push_back(character);
+                }
+            }
+            if (compact.empty()) {
+                return Value{Integer{0}};
+            }
+
+            std::size_t digit_start{};
+            if (compact[0] == '+' || compact[0] == '-') {
+                digit_start = 1U;
+            }
+            if (digit_start < compact.size() && compact[digit_start] == '&') {
+                set_error("WFC0085", "Val radix prefixes are not supported", identifier_offset);
+                return std::nullopt;
+            }
+            std::size_t end = digit_start;
+            while (end < compact.size() &&
+                   std::isdigit(static_cast<unsigned char>(compact[end])) != 0) {
+                ++end;
+            }
+            if (end == digit_start) {
+                return Value{Integer{0}};
+            }
+            if (end < compact.size() &&
+                (compact[end] == '.' || compact[end] == 'e' || compact[end] == 'E')) {
+                set_error("WFC0084", "Val non-integral values are not supported", identifier_offset);
+                return std::nullopt;
+            }
+
+            const std::size_t conversion_start = compact[0] == '+' ? 1U : 0U;
+            Integer result{};
+            const auto conversion = std::from_chars(
+                compact.data() + conversion_start,
+                compact.data() + end,
+                result);
+            if (conversion.ec == std::errc::result_out_of_range) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{result};
         }
 
         if (is_left || is_right) {

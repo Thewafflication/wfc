@@ -92,3 +92,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0169 — InStrRev function subset](req-0169-instrrev-function.md) defines
   reverse string search and its optional start/comparison arguments for the
   thirtieth MP-0002 increment.
+- [REQ-0170 — Val Long subset](req-0170-val-long.md) defines decimal-prefix
+  parsing into the current `Long` value model for the thirty-first MP-0002
+  increment.

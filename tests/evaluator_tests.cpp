@@ -154,6 +154,13 @@ int main() {
     expect_success("Print \"[\" & Str$(-42) & \"]\"", "[-42]");
     expect_success("Print \"[\" & Str(0) & \"]\"", "[ 0]");
     expect_success("Print Len(Str(100))", "4");
+    expect_success("Print Val(\"2457\")", "2457");
+    expect_success("Print Val(\" 2 45 7th Street\")", "2457");
+    expect_success("Print Val(\"- 42 trailing\")", "-42");
+    expect_success("Print Val(\"+17\")", "17");
+    expect_success("Print Val(\"words 42\")", "0");
+    expect_success("Print Val(\"12,345\")", "12");
+    expect_success("Print Val(\"   \")", "0");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -661,6 +668,7 @@ int main() {
     expect_program_failure("Print Hex(\"a\")", "WFC0073");
     expect_program_failure("Print Oct(True)", "WFC0073");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
+    expect_program_failure("Print Val(42)", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");
@@ -682,6 +690,10 @@ int main() {
     expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)", "WFC0082");
     expect_program_failure("Print InStrRev(\"a\", \"a\", 0)", "WFC0083");
     expect_program_failure("Print InStrRev(\"a\", \"a\", -2)", "WFC0083");
+    expect_program_failure("Print Val(\"12.5\")", "WFC0084");
+    expect_program_failure("Print Val(\"1E2\")", "WFC0084");
+    expect_program_failure("Print Val(\"&H10\")", "WFC0085");
+    expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");
