@@ -107,6 +107,14 @@ int main() {
     expect_success("Print \"[\" & Replace(\"abab\", \"ab\", \"\") & \"]\"", "[]");
     expect_success("Print Replace(\"aXbXc\", \"x\", \"-\")", "aXbXc");
     expect_program_success("Option Compare Text\nPrint Replace(\"aXbXc\", \"x\", \"-\")", "a-b-c");
+    expect_success("Print Hex(255)", "FF");
+    expect_success("Print Hex$(0)", "0");
+    expect_success("Print Hex(-1)", "FFFFFFFF");
+    expect_success("Print Hex(4096)", "1000");
+    expect_success("Print Oct(8)", "10");
+    expect_success("Print Oct$(0)", "0");
+    expect_success("Print Oct(-1)", "37777777777");
+    expect_success("Print \"&H\" & Hex(Asc(\"A\"))", "&H41");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -600,6 +608,8 @@ int main() {
     expect_program_failure("Print StrComp(42, \"a\")", "WFC0073");
     expect_program_failure("Print Replace(\"a\", \"b\", 3)", "WFC0073");
     expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
+    expect_program_failure("Print Hex(\"a\")", "WFC0073");
+    expect_program_failure("Print Oct(True)", "WFC0073");
     expect_program_failure("Const size As Long = Len(\"value\")", "WFC0074");
     expect_program_failure("Print Left(\"value\", -1)", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 1, -1)", "WFC0075");

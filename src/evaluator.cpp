@@ -1708,10 +1708,12 @@ private:
         const bool is_instr = identifier == "instr";
         const bool is_strcomp = identifier == "strcomp";
         const bool is_replace = identifier == "replace";
+        const bool is_hex = identifier == "hex" || identifier == "hex$";
+        const bool is_oct = identifier == "oct" || identifier == "oct$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
-            !is_replace) {
+            !is_replace && !is_hex && !is_oct) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1962,6 +1964,35 @@ private:
                 position = found + needle.size();
             }
             return Value{std::move(result)};
+        }
+
+        if (is_hex || is_oct) {
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error(
+                    "WFC0073",
+                    is_hex ? "Hex requires a Long argument" : "Oct requires a Long argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            auto magnitude = static_cast<std::uint32_t>(*number);
+            if (magnitude == 0U) {
+                return Value{std::string{"0"}};
+            }
+            const std::uint32_t radix = is_hex ? 16U : 8U;
+            std::string digits;
+            while (magnitude != 0U) {
+                const auto value = static_cast<int>(magnitude % radix);
+                digits.push_back(
+                    value < 10 ? static_cast<char>('0' + value)
+                               : static_cast<char>('A' + (value - 10)));
+                magnitude /= radix;
+            }
+            std::reverse(digits.begin(), digits.end());
+            return Value{std::move(digits)};
         }
 
         const auto* string = std::get_if<std::string>(&arguments[0]);

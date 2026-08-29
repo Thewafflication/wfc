@@ -469,4 +469,15 @@ Print UCase("Hello, WFC!")]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "aXcaXc"
     )
+
+    add_test(
+        NAME TC-MP0002-radix-cli
+        COMMAND wfc --eval [=[Print Hex(255) & " " & Oct(8)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-radix-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "FF 10"
+    )
 endif()
