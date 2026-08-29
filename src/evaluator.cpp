@@ -1773,7 +1773,7 @@ private:
         } else if (is_instr) {
             valid_arity = arguments.size() >= 2U && arguments.size() <= 4U;
         } else if (is_replace) {
-            valid_arity = arguments.size() == 3U;
+            valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
         } else if (is_left || is_right || is_string) {
@@ -1981,15 +1981,57 @@ private:
                 set_error("WFC0073", "Replace requires String arguments", identifier_offset);
                 return std::nullopt;
             }
+            const bool has_start = arguments.size() >= 4U;
+            const bool has_count = arguments.size() >= 5U;
+            const bool has_compare = arguments.size() == 6U;
+            const auto* start_argument =
+                has_start ? std::get_if<Integer>(&arguments[3]) : nullptr;
+            const auto* count_argument =
+                has_count ? std::get_if<Integer>(&arguments[4]) : nullptr;
+            const auto* compare_method =
+                has_compare ? std::get_if<Integer>(&arguments[5]) : nullptr;
+            if ((has_start && start_argument == nullptr) ||
+                (has_count && count_argument == nullptr) ||
+                (has_compare && compare_method == nullptr)) {
+                set_error(
+                    "WFC0073",
+                    "Replace start, count, and compare require Long arguments",
+                    identifier_offset);
+                return std::nullopt;
+            }
             if (!execute_) {
                 return Value{std::string{}};
             }
-            if (find->empty() || expression->empty()) {
-                return Value{*expression};
+            const Integer start = start_argument == nullptr ? 1 : *start_argument;
+            const Integer count = count_argument == nullptr ? -1 : *count_argument;
+            if (start < 1) {
+                set_error("WFC0076", "Replace start must be positive", identifier_offset);
+                return std::nullopt;
             }
-            std::string haystack = *expression;
+            if (count < -1) {
+                set_error("WFC0082", "Replace count must be -1 or non-negative", identifier_offset);
+                return std::nullopt;
+            }
+            bool text_compare = option_compare_text_;
+            if (compare_method != nullptr) {
+                if (*compare_method < 0 || *compare_method > 1) {
+                    set_error("WFC0081", "unsupported comparison method", identifier_offset);
+                    return std::nullopt;
+                }
+                text_compare = *compare_method == 1;
+            }
+
+            const auto begin = static_cast<std::size_t>(start - 1);
+            if (begin >= expression->size()) {
+                return Value{std::string{}};
+            }
+            const std::string source = expression->substr(begin);
+            if (find->empty() || count == 0) {
+                return Value{source};
+            }
+            std::string haystack = source;
             std::string needle = *find;
-            if (option_compare_text_) {
+            if (text_compare) {
                 for (char& character : haystack) {
                     character = ascii_lower(character);
                 }
@@ -1999,15 +2041,17 @@ private:
             }
             std::string result;
             std::size_t position{};
+            Integer replacements{};
             while (true) {
                 const std::size_t found = haystack.find(needle, position);
-                if (found == std::string::npos) {
-                    result.append(*expression, position, std::string::npos);
+                if (found == std::string::npos || (count >= 0 && replacements >= count)) {
+                    result.append(source, position, std::string::npos);
                     break;
                 }
-                result.append(*expression, position, found - position);
+                result.append(source, position, found - position);
                 result.append(*replacement);
                 position = found + needle.size();
+                ++replacements;
             }
             return Value{std::move(result)};
         }

@@ -23,8 +23,8 @@ method shall override module-level `Option Compare` for that call.
 without a database host and shall produce a stable unsupported-method failure
 when passed to these functions. Other comparison values shall fail likewise.
 
-The extended `Replace` arguments and runtime type-information publication remain
-outside this increment.
+The extended `Replace` arguments are defined by REQ-0168. Runtime
+type-information publication remains outside this increment.
 
 ## Diagnostics
 

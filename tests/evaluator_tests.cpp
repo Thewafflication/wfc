@@ -120,6 +120,17 @@ int main() {
     expect_success("Print \"[\" & Replace(\"abab\", \"ab\", \"\") & \"]\"", "[]");
     expect_success("Print Replace(\"aXbXc\", \"x\", \"-\")", "aXbXc");
     expect_program_success("Option Compare Text\nPrint Replace(\"aXbXc\", \"x\", \"-\")", "a-b-c");
+    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8)", "X X");
+    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8, 1)", "X abc");
+    expect_success("Print Replace(\"prefix abc\", \"abc\", \"X\", 8, 0)", "abc");
+    expect_success("Print \"[\" & Replace(\"abc\", \"a\", \"X\", 9) & \"]\"", "[]");
+    expect_success(
+        "Print Replace(\"aXbXc\", \"x\", \"-\", 1, -1, vbTextCompare)",
+        "a-b-c");
+    expect_program_success(
+        "Option Compare Text\n"
+        "Print Replace(\"aXbXc\", \"x\", \"-\", 1, -1, vbBinaryCompare)",
+        "aXbXc");
     expect_success("Print Hex(255)", "FF");
     expect_success("Print Hex$(0)", "0");
     expect_success("Print Hex(-1)", "FFFFFFFF");
@@ -607,7 +618,9 @@ int main() {
     expect_program_failure("Print StrComp(\"a\")", "WFC0072");
     expect_program_failure("Print StrComp(\"a\", \"b\", 0, 1)", "WFC0072");
     expect_program_failure("Print Replace(\"a\", \"b\")", "WFC0072");
-    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1)", "WFC0072");
+    expect_program_failure(
+        "Print Replace(\"a\", \"b\", \"c\", 1, -1, 0, 1)",
+        "WFC0072");
     expect_program_failure("Print Len(42)", "WFC0073");
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
@@ -628,6 +641,8 @@ int main() {
     expect_program_failure("Print StrComp(\"a\", \"b\", \"1\")", "WFC0073");
     expect_program_failure("Print Replace(\"a\", \"b\", 3)", "WFC0073");
     expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", \"1\")", "WFC0073");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, \"1\")", "WFC0073");
     expect_program_failure("Print Hex(\"a\")", "WFC0073");
     expect_program_failure("Print Oct(True)", "WFC0073");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
@@ -638,6 +653,7 @@ int main() {
     expect_program_failure("Print String(-1, \"*\")", "WFC0075");
     expect_program_failure("Print Mid(\"value\", 0)", "WFC0076");
     expect_program_failure("Print InStr(0, \"value\", \"a\")", "WFC0076");
+    expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 0)", "WFC0076");
     expect_program_failure("Print Asc(\"\")", "WFC0077");
     expect_program_failure("Print Chr(-1)", "WFC0078");
     expect_program_failure("Print Chr(128)", "WFC0078");
@@ -645,6 +661,10 @@ int main() {
         "Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
         "WFC0081");
     expect_program_failure("Print StrComp(\"a\", \"A\", 99)", "WFC0081");
+    expect_program_failure(
+        "Print Replace(\"a\", \"a\", \"b\", 1, -1, vbDatabaseCompare)",
+        "WFC0081");
+    expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)", "WFC0082");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

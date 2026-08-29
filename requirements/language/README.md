@@ -86,3 +86,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0167 — VbCompareMethod expression subset](req-0167-vb-compare-method.md)
   defines the three named comparison constants and explicit `InStr`/`StrComp`
   comparison selection for the twenty-eighth MP-0002 increment.
+- [REQ-0168 — Replace options subset](req-0168-replace-options.md) defines
+  one-based start, bounded replacement counts, and explicit comparison for the
+  twenty-ninth MP-0002 increment.
