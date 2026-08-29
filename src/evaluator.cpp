@@ -1717,6 +1717,7 @@ private:
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
         const bool is_instr = identifier == "instr";
+        const bool is_instr_rev = identifier == "instrrev";
         const bool is_strcomp = identifier == "strcomp";
         const bool is_replace = identifier == "replace";
         const bool is_hex = identifier == "hex" || identifier == "hex$";
@@ -1725,7 +1726,7 @@ private:
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
-            !is_replace && !is_hex && !is_oct && !is_str) {
+            !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1770,7 +1771,7 @@ private:
         bool valid_arity{};
         if (is_mid) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
-        } else if (is_instr) {
+        } else if (is_instr || is_instr_rev) {
             valid_arity = arguments.size() >= 2U && arguments.size() <= 4U;
         } else if (is_replace) {
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
@@ -1929,6 +1930,76 @@ private:
                 return Value{Integer{0}};
             }
             return Value{static_cast<Integer>(found + 1U)};
+        }
+
+        if (is_instr_rev) {
+            const auto* haystack = std::get_if<std::string>(&arguments[0]);
+            const auto* needle = std::get_if<std::string>(&arguments[1]);
+            const bool has_start = arguments.size() >= 3U;
+            const bool has_compare = arguments.size() == 4U;
+            const auto* start_argument =
+                has_start ? std::get_if<Integer>(&arguments[2]) : nullptr;
+            const auto* compare_method =
+                has_compare ? std::get_if<Integer>(&arguments[3]) : nullptr;
+            if (haystack == nullptr || needle == nullptr) {
+                set_error("WFC0073", "InStrRev requires String arguments", identifier_offset);
+                return std::nullopt;
+            }
+            if ((has_start && start_argument == nullptr) ||
+                (has_compare && compare_method == nullptr)) {
+                set_error(
+                    "WFC0073",
+                    "InStrRev start and compare require Long arguments",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+
+            const Integer start = start_argument == nullptr ? -1 : *start_argument;
+            if (start < -1 || start == 0) {
+                set_error("WFC0083", "InStrRev start must be -1 or positive", identifier_offset);
+                return std::nullopt;
+            }
+            bool text_compare = option_compare_text_;
+            if (compare_method != nullptr) {
+                if (*compare_method < 0 || *compare_method > 1) {
+                    set_error("WFC0081", "unsupported comparison method", identifier_offset);
+                    return std::nullopt;
+                }
+                text_compare = *compare_method == 1;
+            }
+            if (haystack->empty()) {
+                return Value{Integer{0}};
+            }
+
+            const auto effective_start =
+                start == -1 ? haystack->size() : static_cast<std::size_t>(start);
+            if (effective_start > haystack->size()) {
+                return Value{Integer{0}};
+            }
+            if (needle->empty()) {
+                return Value{static_cast<Integer>(effective_start)};
+            }
+            if (needle->size() > effective_start) {
+                return Value{Integer{0}};
+            }
+
+            std::string searchable = *haystack;
+            std::string sought = *needle;
+            if (text_compare) {
+                for (char& character : searchable) {
+                    character = ascii_lower(character);
+                }
+                for (char& character : sought) {
+                    character = ascii_lower(character);
+                }
+            }
+            const auto latest_start = effective_start - sought.size();
+            const auto found = searchable.rfind(sought, latest_start);
+            return Value{
+                found == std::string::npos ? Integer{0} : static_cast<Integer>(found + 1U)};
         }
 
         if (is_strcomp) {

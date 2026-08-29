@@ -89,3 +89,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0168 — Replace options subset](req-0168-replace-options.md) defines
   one-based start, bounded replacement counts, and explicit comparison for the
   twenty-ninth MP-0002 increment.
+- [REQ-0169 — InStrRev function subset](req-0169-instrrev-function.md) defines
+  reverse string search and its optional start/comparison arguments for the
+  thirtieth MP-0002 increment.
