@@ -39,6 +39,10 @@ retained CTest evidence.
 | 2026-08-29 #15 | Construction | Add `CBool` identity, `Long`, and strict String conversion | Commit `11bd3f3` |
 | 2026-08-29 #16 | Construction | Add bounded `Long`-to-`CByte` conversion | Commit `850fd6d` |
 | 2026-08-30 #17 | Construction | Add `CInt` identity, Boolean, and strict String conversion bounded to the Int16 range | Commit `3315931` |
+| 2026-08-30 #18 | Process | Pre-authorize `git`/`gh` and general shell use in project settings | Commit `4212993` |
+| 2026-08-30 #19 | Construction | Add `IsNumeric` information predicate over the current value model | Commit `ee65241` |
+| 2026-08-30 #20 | Construction | Add `TypeName` returning the VB6 type-name string | Commit `ea591de` |
+| 2026-08-30 #21 | Construction | Add `VarType` type codes and expose `vbLong`/`vbBoolean`/`vbString` constants | Commit `de6bc93` |
 
 ## Verification Log
 
@@ -60,6 +64,9 @@ retained CTest evidence.
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `11bd3f3` CBool) | Pass (43/43) | Local CTest run |
 | 2026-08-29 | `ctest --preset windows-x64-debug` (post `850fd6d` CByte) | Pass (44/44) | Local CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (post CInt) | Pass (45/45) | Local CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (post `ee65241` IsNumeric) | Pass (46/46) | Local CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (post `ea591de` TypeName) | Pass (47/47) | Local CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (post `de6bc93` VarType) | Pass (48/48) | Local CTest run |
 
 ## Decisions and Scope Changes
 
@@ -94,21 +101,34 @@ retained CTest evidence.
 
 ## Resource Usage
 
-Record token and elapsed-time telemetry when the active Codex goal completes.
-The figures are goal-level totals reported by the execution environment, not
+Record token and elapsed-time telemetry when the active goal completes. The
+figures are goal-level totals reported by the execution environment, not
 per-commit estimates. Use `Not reported` when telemetry is unavailable rather
 than estimating it.
+
+At the owner's request, the 2026-08-30 Claude Code continuation records a
+running per-increment token figure. The Claude Code environment does not expose
+a live token counter to the assistant, so these per-increment figures are
+assistant-side estimates (marked `est.`) rather than measured telemetry; the
+authoritative goal-level total will be substituted from the environment report
+when the session completes.
 
 | Goal or work period | Tokens used | Elapsed time | Source |
 | --- | ---: | ---: | --- |
 | MP-0002 autonomous continuation ending at `1a7a4ec` | 291,197 | 26m 56s | Codex goal-completion report |
+| CInt increment (`3315931`) | ~18,000 est. | Not reported | Claude Code, assistant estimate |
+| IsNumeric increment (`ee65241`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
+| TypeName increment (`ea591de`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
+| VarType increment (`de6bc93`) | ~15,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
 Retained evidence is the CTest output and the Git commit history on
-`origin/master`. A pre-existing `.gitignore` edit remains uncommitted and was
-deliberately excluded from every work set. All WFC work is committed and pushed;
-GitHub Actions validates the x86 and ARM64 targets.
+`origin/master`. The previously pending `.gitignore` edit (ignore Aider working
+files) was committed on 2026-08-30 at the owner's request (`91c1b0c`), and the
+project settings now pre-authorize `git`/`gh` and general shell use. All WFC
+work is committed and pushed; GitHub Actions validates the x86 and ARM64
+targets.
 
 **Deliberate scope boundaries for the next session:**
 
