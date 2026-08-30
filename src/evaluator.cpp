@@ -1745,12 +1745,13 @@ private:
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
+        const bool is_iif = identifier == "iif";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
-            !is_cint && !is_isnumeric && !is_typename && !is_vartype) {
+            !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1801,6 +1802,8 @@ private:
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
+        } else if (is_iif) {
+            valid_arity = arguments.size() == 3U;
         } else if (is_left || is_right || is_string) {
             valid_arity = arguments.size() == 2U;
         } else {
@@ -1880,6 +1883,18 @@ private:
                 return Value{Integer{11}};
             }
             return Value{Integer{8}};
+        }
+
+        if (is_iif) {
+            const auto* condition = std::get_if<bool>(&arguments[0]);
+            if (condition == nullptr) {
+                set_error("WFC0021", "IIf condition must be Boolean", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return arguments[1];
+            }
+            return *condition ? arguments[1] : arguments[2];
         }
 
         if (is_isnumeric) {

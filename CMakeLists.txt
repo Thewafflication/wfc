@@ -636,4 +636,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "3 11 8"
     )
+
+    add_test(
+        NAME TC-MP0002-iif-cli
+        COMMAND wfc --eval [=[Print IIf(1 < 2, "low", "high")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-iif-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "low"
+    )
 endif()

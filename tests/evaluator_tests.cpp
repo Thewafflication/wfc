@@ -199,6 +199,9 @@ int main() {
         "3 11 8");
     expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString", "3 11 8");
     expect_success("Print VarType(\"y\") = vbString", "True");
+    expect_success("Print IIf(1 < 2, \"yes\", \"no\")", "yes");
+    expect_success("Print IIf(1 > 2, \"yes\", \"no\")", "no");
+    expect_success("Print IIf(True, 10, 20) + 1", "11");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -751,6 +754,7 @@ int main() {
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");
     expect_program_failure("Print CInt(\"\")", "WFC0088");
     expect_program_failure("Print CInt(\"12.5\")", "WFC0088");
+    expect_program_failure("Print IIf(42, \"a\", \"b\")", "WFC0021");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");
