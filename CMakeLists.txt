@@ -603,4 +603,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "-32768 32767"
     )
+
+    add_test(
+        NAME TC-MP0002-isnumeric-cli
+        COMMAND wfc --eval [=[Print CStr(IsNumeric(" -42 ")) & " " & CStr(IsNumeric("abc"))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-isnumeric-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "True False"
+    )
 endif()

@@ -184,6 +184,12 @@ int main() {
     expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
     expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
     expect_success("Print CInt(CStr(1000)) + 1", "1001");
+    expect_program_success(
+        "Print IsNumeric(42): Print IsNumeric(True): Print IsNumeric(\"  -17 \")",
+        "True\nTrue\nTrue");
+    expect_program_success(
+        "Print IsNumeric(\"\"): Print IsNumeric(\"12x\"): Print IsNumeric(\"abc\")",
+        "False\nFalse\nFalse");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
