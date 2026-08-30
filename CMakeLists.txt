@@ -680,4 +680,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;math"
             PASS_REGULAR_EXPRESSION "-7 42"
     )
+
+    add_test(
+        NAME TC-MP0002-ascw-chrw-cli
+        COMMAND wfc --eval [=[Print AscW("A") & " " & ChrW(66)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-ascw-chrw-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "65 B"
+    )
 endif()

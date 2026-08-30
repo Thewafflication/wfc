@@ -208,6 +208,8 @@ int main() {
     expect_success("Print Switch(False, 1, True, 42) + 1", "43");
     expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)", "-7 -7 42");
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
+    expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
+    expect_success("Print ChrW(AscW(\"z\"))", "z");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");

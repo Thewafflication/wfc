@@ -1722,8 +1722,9 @@ private:
         const bool is_left = identifier == "left" || identifier == "left$";
         const bool is_right = identifier == "right" || identifier == "right$";
         const bool is_mid = identifier == "mid" || identifier == "mid$";
-        const bool is_asc = identifier == "asc";
-        const bool is_chr = identifier == "chr" || identifier == "chr$";
+        const bool is_asc = identifier == "asc" || identifier == "ascw";
+        const bool is_chr = identifier == "chr" || identifier == "chr$" ||
+                            identifier == "chrw";
         const bool is_reverse = identifier == "strreverse";
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
