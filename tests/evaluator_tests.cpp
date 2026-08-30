@@ -210,6 +210,12 @@ int main() {
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
+    expect_program_success(
+        "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
+        "False\nFalse\nFalse");
+    expect_program_success(
+        "Print IsEmpty(1): Print IsError(True): Print IsMissing(7)",
+        "False\nFalse\nFalse");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");

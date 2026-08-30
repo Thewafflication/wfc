@@ -134,4 +134,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Choose(2, `"red`", `"gre
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Switch(1 > 2, `"a`", 2 > 1, `"b`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Int(-7) & `" `" & Fix(42)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print AscW(`"A`") & `" `" & ChrW(66)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsArray(1)) & `" `" & CStr(IsObject(1)) & `" `" & CStr(IsNull(1))"
 ```

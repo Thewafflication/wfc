@@ -691,4 +691,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "65 B"
     )
+
+    add_test(
+        NAME TC-MP0002-info-predicates-cli
+        COMMAND wfc --eval [=[Print CStr(IsArray(1)) & " " & CStr(IsObject(1)) & " " & CStr(IsNull(1))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-info-predicates-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "False False False"
+    )
 endif()

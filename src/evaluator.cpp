@@ -1751,13 +1751,23 @@ private:
         const bool is_switch = identifier == "switch";
         const bool is_int = identifier == "int";
         const bool is_fix = identifier == "fix";
+        const bool is_isarray = identifier == "isarray";
+        const bool is_isobject = identifier == "isobject";
+        const bool is_isnull = identifier == "isnull";
+        const bool is_isempty = identifier == "isempty";
+        const bool is_iserror = identifier == "iserror";
+        const bool is_ismissing = identifier == "ismissing";
+        const bool is_constant_false_predicate = is_isarray || is_isobject ||
+                                                 is_isnull || is_isempty ||
+                                                 is_iserror || is_ismissing;
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
-            !is_choose && !is_switch && !is_int && !is_fix) {
+            !is_choose && !is_switch && !is_int && !is_fix &&
+            !is_constant_false_predicate) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1863,6 +1873,15 @@ private:
                 return std::nullopt;
             }
             return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+        }
+
+        if (is_constant_false_predicate) {
+            // The current value model contains only initialized Long, Boolean, and
+            // String scalars: no arrays, object references, Null, Empty, error, or
+            // missing-argument states exist, so each of these predicates is
+            // constant False. True results are deferred with the array, object, and
+            // Variant models that would introduce those states.
+            return Value{false};
         }
 
         if (is_int || is_fix) {
