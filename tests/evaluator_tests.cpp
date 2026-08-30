@@ -190,6 +190,10 @@ int main() {
     expect_program_success(
         "Print IsNumeric(\"\"): Print IsNumeric(\"12x\"): Print IsNumeric(\"abc\")",
         "False\nFalse\nFalse");
+    expect_success(
+        "Print TypeName(42) & \" \" & TypeName(True) & \" \" & TypeName(\"x\")",
+        "Long Boolean String");
+    expect_success("Print TypeName(1 = 1) & \" \" & TypeName(Len(\"ab\"))", "Boolean Long");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");

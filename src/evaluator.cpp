@@ -1732,12 +1732,13 @@ private:
         const bool is_cbyte = identifier == "cbyte";
         const bool is_cint = identifier == "cint";
         const bool is_isnumeric = identifier == "isnumeric";
+        const bool is_typename = identifier == "typename";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
-            !is_cint && !is_isnumeric) {
+            !is_cint && !is_isnumeric && !is_typename) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1841,6 +1842,19 @@ private:
 
         if (is_cstr) {
             return Value{execute_ ? render(arguments[0]) : std::string{}};
+        }
+
+        if (is_typename) {
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (std::holds_alternative<Integer>(arguments[0])) {
+                return Value{std::string{"Long"}};
+            }
+            if (std::holds_alternative<bool>(arguments[0])) {
+                return Value{std::string{"Boolean"}};
+            }
+            return Value{std::string{"String"}};
         }
 
         if (is_isnumeric) {

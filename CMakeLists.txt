@@ -614,4 +614,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "True False"
     )
+
+    add_test(
+        NAME TC-MP0002-typename-cli
+        COMMAND wfc --eval [=[Print TypeName(42) & " " & TypeName(True) & " " & TypeName("x")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-typename-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "Long Boolean String"
+    )
 endif()
