@@ -180,6 +180,10 @@ int main() {
     expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")", "True\nFalse");
     expect_success("Print CByte(0) & \" \" & CByte(255)", "0 255");
     expect_success("Print CByte(42) + 1", "43");
+    expect_success("Print CInt(-32768) & \" \" & CInt(32767)", "-32768 32767");
+    expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
+    expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
+    expect_success("Print CInt(CStr(1000)) + 1", "1001");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -727,6 +731,11 @@ int main() {
     expect_program_failure("Print CByte(-1)", "WFC0009");
     expect_program_failure("Print CByte(256)", "WFC0009");
     expect_program_failure("Print CByte(\"1\")", "WFC0073");
+    expect_program_failure("Print CInt(32768)", "WFC0009");
+    expect_program_failure("Print CInt(-32769)", "WFC0009");
+    expect_program_failure("Print CInt(\"40000\")", "WFC0009");
+    expect_program_failure("Print CInt(\"\")", "WFC0088");
+    expect_program_failure("Print CInt(\"12.5\")", "WFC0088");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

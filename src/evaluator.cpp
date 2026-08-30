@@ -1730,11 +1730,13 @@ private:
         const bool is_clng = identifier == "clng";
         const bool is_cbool = identifier == "cbool";
         const bool is_cbyte = identifier == "cbyte";
+        const bool is_cint = identifier == "cint";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
-            !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte) {
+            !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
+            !is_cint) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1854,6 +1856,70 @@ private:
                 return std::nullopt;
             }
             return Value{*number};
+        }
+
+        if (is_cint) {
+            constexpr Integer int_min{-32768};
+            constexpr Integer int_max{32767};
+            if (const auto* number = std::get_if<Integer>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                if (*number < int_min || *number > int_max) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{*number};
+            }
+            if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                return Value{execute_ && *boolean ? Integer{-1} : Integer{0}};
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+
+            const auto& text = std::get<std::string>(arguments[0]);
+            std::size_t first{};
+            std::size_t last = text.size();
+            while (first < last &&
+                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
+                    text[first] == '\n')) {
+                ++first;
+            }
+            while (last > first &&
+                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
+                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
+                --last;
+            }
+            if (first == last) {
+                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
+                return std::nullopt;
+            }
+
+            const bool has_plus = text[first] == '+';
+            const auto conversion_first = first + (has_plus ? 1U : 0U);
+            if (conversion_first == last) {
+                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
+                return std::nullopt;
+            }
+            Integer result{};
+            const auto conversion = std::from_chars(
+                text.data() + conversion_first,
+                text.data() + last,
+                result);
+            if (conversion.ec == std::errc::result_out_of_range) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last) {
+                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
+                return std::nullopt;
+            }
+            if (result < int_min || result > int_max) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{result};
         }
 
         if (is_clng) {

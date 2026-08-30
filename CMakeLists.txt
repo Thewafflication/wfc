@@ -592,4 +592,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "0 255"
     )
+
+    add_test(
+        NAME TC-MP0002-cint-cli
+        COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cint-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "-32768 32767"
+    )
 endif()
