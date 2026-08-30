@@ -1747,13 +1747,14 @@ private:
         const bool is_vartype = identifier == "vartype";
         const bool is_iif = identifier == "iif";
         const bool is_choose = identifier == "choose";
+        const bool is_switch = identifier == "switch";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
-            !is_choose) {
+            !is_choose && !is_switch) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1808,6 +1809,8 @@ private:
             valid_arity = arguments.size() == 3U;
         } else if (is_choose) {
             valid_arity = arguments.size() >= 2U;
+        } else if (is_switch) {
+            valid_arity = arguments.size() >= 2U && arguments.size() % 2U == 0U;
         } else if (is_left || is_right || is_string) {
             valid_arity = arguments.size() == 2U;
         } else {
@@ -1916,6 +1919,27 @@ private:
                 return std::nullopt;
             }
             return arguments[static_cast<std::size_t>(*index)];
+        }
+
+        if (is_switch) {
+            for (std::size_t pair = 0U; pair < arguments.size(); pair += 2U) {
+                const auto* condition = std::get_if<bool>(&arguments[pair]);
+                if (condition == nullptr) {
+                    set_error(
+                        "WFC0021",
+                        "Switch expressions must be Boolean",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                if (execute_ && *condition) {
+                    return arguments[pair + 1U];
+                }
+            }
+            if (!execute_) {
+                return arguments[1];
+            }
+            set_error("WFC0090", "Switch found no matching expression", identifier_offset);
+            return std::nullopt;
         }
 
         if (is_isnumeric) {

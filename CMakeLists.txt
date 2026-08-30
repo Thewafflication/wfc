@@ -658,4 +658,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "green"
     )
+
+    add_test(
+        NAME TC-MP0002-switch-cli
+        COMMAND wfc --eval [=[Print Switch(1 > 2, "a", 2 > 1, "b")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-switch-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "b"
+    )
 endif()
