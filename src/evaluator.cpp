@@ -1746,12 +1746,14 @@ private:
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
         const bool is_iif = identifier == "iif";
+        const bool is_choose = identifier == "choose";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
-            !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif) {
+            !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
+            !is_choose) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1804,6 +1806,8 @@ private:
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
         } else if (is_iif) {
             valid_arity = arguments.size() == 3U;
+        } else if (is_choose) {
+            valid_arity = arguments.size() >= 2U;
         } else if (is_left || is_right || is_string) {
             valid_arity = arguments.size() == 2U;
         } else {
@@ -1895,6 +1899,23 @@ private:
                 return arguments[1];
             }
             return *condition ? arguments[1] : arguments[2];
+        }
+
+        if (is_choose) {
+            const auto* index = std::get_if<Integer>(&arguments[0]);
+            if (index == nullptr) {
+                set_error("WFC0073", "Choose requires a Long index", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return arguments[1];
+            }
+            const auto choice_count = static_cast<Integer>(arguments.size() - 1U);
+            if (*index < 1 || *index > choice_count) {
+                set_error("WFC0089", "Choose index is out of range", identifier_offset);
+                return std::nullopt;
+            }
+            return arguments[static_cast<std::size_t>(*index)];
         }
 
         if (is_isnumeric) {

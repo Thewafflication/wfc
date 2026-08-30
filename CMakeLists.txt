@@ -647,4 +647,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "low"
     )
+
+    add_test(
+        NAME TC-MP0002-choose-cli
+        COMMAND wfc --eval [=[Print Choose(2, "red", "green", "blue")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-choose-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information"
+            PASS_REGULAR_EXPRESSION "green"
+    )
 endif()

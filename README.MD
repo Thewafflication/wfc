@@ -130,4 +130,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsNumeric(`" -42 `"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(42) & `" `" & TypeName(True) & `" `" & TypeName(`"x`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print VarType(42) & `" `" & VarType(True) & `" `" & VarType(`"x`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print IIf(1 < 2, `"low`", `"high`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Choose(2, `"red`", `"green`", `"blue`")"
 ```
