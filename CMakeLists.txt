@@ -669,4 +669,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "b"
     )
+
+    add_test(
+        NAME TC-MP0002-int-fix-cli
+        COMMAND wfc --eval [=[Print Int(-7) & " " & Fix(42)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-int-fix-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;math"
+            PASS_REGULAR_EXPRESSION "-7 42"
+    )
 endif()

@@ -1748,13 +1748,15 @@ private:
         const bool is_iif = identifier == "iif";
         const bool is_choose = identifier == "choose";
         const bool is_switch = identifier == "switch";
+        const bool is_int = identifier == "int";
+        const bool is_fix = identifier == "fix";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
-            !is_choose && !is_switch) {
+            !is_choose && !is_switch && !is_int && !is_fix) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1860,6 +1862,20 @@ private:
                 return std::nullopt;
             }
             return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+        }
+
+        if (is_int || is_fix) {
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error(
+                    "WFC0073",
+                    is_int ? "Int requires a Long argument" : "Fix requires a Long argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            // Int and Fix differ only on fractional magnitudes; every value in the
+            // current Long domain is already whole, so both truncate to identity.
+            return Value{execute_ ? *number : Integer{}};
         }
 
         if (is_cstr) {

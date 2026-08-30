@@ -206,6 +206,8 @@ int main() {
     expect_success("Print Choose(1, 10, 20) + Choose(3, 1, 2, 3)", "13");
     expect_success("Print Switch(1 > 2, \"a\", 2 > 1, \"b\", True, \"c\")", "b");
     expect_success("Print Switch(False, 1, True, 42) + 1", "43");
+    expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)", "-7 -7 42");
+    expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -763,6 +765,7 @@ int main() {
     expect_program_failure("Print Choose(3, \"a\", \"b\")", "WFC0089");
     expect_program_failure("Print Switch(False, 1, False, 2)", "WFC0090");
     expect_program_failure("Print Switch(42, \"a\")", "WFC0021");
+    expect_program_failure("Print Int(\"x\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");
