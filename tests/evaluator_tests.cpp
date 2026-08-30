@@ -194,6 +194,11 @@ int main() {
         "Print TypeName(42) & \" \" & TypeName(True) & \" \" & TypeName(\"x\")",
         "Long Boolean String");
     expect_success("Print TypeName(1 = 1) & \" \" & TypeName(Len(\"ab\"))", "Boolean Long");
+    expect_success(
+        "Print VarType(42) & \" \" & VarType(True) & \" \" & VarType(\"x\")",
+        "3 11 8");
+    expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString", "3 11 8");
+    expect_success("Print VarType(\"y\") = vbString", "True");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");

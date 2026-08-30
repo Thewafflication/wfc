@@ -60,7 +60,9 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor" ||
            identifier == "vbbinarycompare" || identifier == "vbtextcompare" ||
-           identifier == "vbdatabasecompare";
+           identifier == "vbdatabasecompare" ||
+           identifier == "vblong" || identifier == "vbboolean" ||
+           identifier == "vbstring";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -1676,6 +1678,15 @@ private:
             if (*identifier == "vbdatabasecompare") {
                 return Value{Integer{2}};
             }
+            if (*identifier == "vblong") {
+                return Value{Integer{3}};
+            }
+            if (*identifier == "vbstring") {
+                return Value{Integer{8}};
+            }
+            if (*identifier == "vbboolean") {
+                return Value{Integer{11}};
+            }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
@@ -1733,12 +1744,13 @@ private:
         const bool is_cint = identifier == "cint";
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
+        const bool is_vartype = identifier == "vartype";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
             !is_instr_rev && !is_replace && !is_hex && !is_oct && !is_str && !is_val &&
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
-            !is_cint && !is_isnumeric && !is_typename) {
+            !is_cint && !is_isnumeric && !is_typename && !is_vartype) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1855,6 +1867,19 @@ private:
                 return Value{std::string{"Boolean"}};
             }
             return Value{std::string{"String"}};
+        }
+
+        if (is_vartype) {
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            if (std::holds_alternative<Integer>(arguments[0])) {
+                return Value{Integer{3}};
+            }
+            if (std::holds_alternative<bool>(arguments[0])) {
+                return Value{Integer{11}};
+            }
+            return Value{Integer{8}};
         }
 
         if (is_isnumeric) {

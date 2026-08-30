@@ -128,4 +128,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CByte(0) & `" `" & CByte
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CInt(-32768) & `" `" & CInt(`"32767`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsNumeric(`" -42 `")) & `" `" & CStr(IsNumeric(`"abc`"))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(42) & `" `" & TypeName(True) & `" `" & TypeName(`"x`")"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print VarType(42) & `" `" & VarType(True) & `" `" & VarType(`"x`")"
 ```
