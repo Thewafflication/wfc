@@ -63,6 +63,7 @@ retained CTest evidence.
 | 2026-08-31 #39 | Construction | Expose the `VbIMEStatus` enumeration, completing the source-visible constant contracts under `REQ-0179`/`REQ-0087` | Commit `65303ee` |
 | 2026-08-31 #40 | Construction | Add `Round` over the `Long` domain (identity, non-negative digit count), completing the integer-compatible Math functions under `REQ-0180` | Commit `062e4c9` |
 | 2026-08-31 #41 | Architecture | Add the `Double` numeric value type: fractional/exponent literals, widening arithmetic, `/` division, cross-type comparison, banker's-rounding conversions, and shortest-form rendering under `REQ-0181` | Commit `fdc1cd2` |
+| 2026-08-31 #42 | Construction | Add `CDbl`/`CSng` conversions from Long/Double/Boolean/String, with single-precision narrowing for `CSng`, under `REQ-0182` | Commit `6a33604` |
 
 ## Verification Log
 
@@ -105,6 +106,7 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `65303ee` VbIMEStatus) | Pass (61/61; expanded unit coverage) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `062e4c9` Round) | Pass (62/62) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `fdc1cd2` Double type) | Pass (63/63) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `6a33604` CDbl/CSng) | Pass (64/64) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -177,6 +179,7 @@ when the session completes.
 | VbIMEStatus enumeration (`65303ee`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
 | Round function (`062e4c9`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
 | Double numeric type foundation (`fdc1cd2`) | ~48,000 est. | Not reported | Claude Code, assistant estimate |
+| CDbl/CSng conversions (`6a33604`) | ~18,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
