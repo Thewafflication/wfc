@@ -790,4 +790,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;math"
             PASS_REGULAR_EXPRESSION "42 -7 100"
     )
+
+    add_test(
+        NAME TC-MP0002-double-cli
+        COMMAND wfc --eval [=[Print 5 / 2 & " " & (1.5 + 2.5) & " " & CLng(2.5)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-double-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;numeric;double"
+            PASS_REGULAR_EXPRESSION "2.5 4 2"
+    )
 endif()

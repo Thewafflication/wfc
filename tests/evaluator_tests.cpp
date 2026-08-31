@@ -210,6 +210,23 @@ int main() {
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
     expect_success("Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
                    "42 -7 100");
+    // Double literals, arithmetic, comparison, and conversion.
+    expect_success("Print 3.14", "3.14");
+    expect_success("Print .5 + .25", "0.75");
+    expect_success("Print 1.5 + 2.5", "4");
+    expect_success("Print 5 / 2", "2.5");
+    expect_success("Print 6 / 3", "2");
+    expect_success("Print 2 * 1.5", "3");
+    expect_success("Print -3.5", "-3.5");
+    expect_success("Print 1e3", "1000");
+    expect_success("Print 1.5 & \"!\"", "1.5!");
+    expect_program_success(
+        "Print 1.5 < 2: Print 3.0 = 3: Print 2.5 > 2.5",
+        "True\nTrue\nFalse");
+    expect_success("Print CLng(2.5) & \" \" & CLng(3.5) & \" \" & CLng(3.7)", "2 4 4");
+    expect_success("Print CInt(-2.5) & \" \" & CInt(2.6)", "-2 3");
+    expect_success("Print CStr(3.5) & \" \" & CStr(2.0)", "3.5 2");
+    expect_program_success("Print IsNumeric(3.14): Print CBool(1.5)", "True\nTrue");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
@@ -849,6 +866,9 @@ int main() {
     expect_program_failure("Print Round(\"x\")", "WFC0073");
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
+    expect_program_failure("Print 5 / 0", "WFC0008");
+    expect_program_failure("Print 5.0 \\ 2", "WFC0007");
+    expect_program_failure("Print 5.5 Mod 2", "WFC0007");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

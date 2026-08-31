@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -16,7 +17,21 @@
 namespace {
 
 using Integer = std::int32_t;
-using Value = std::variant<Integer, std::string, bool>;
+using Value = std::variant<Integer, std::string, bool, double>;
+
+// A value participates in numeric operators when it is a Long or a Double.
+[[nodiscard]] inline bool is_number(const Value& value) noexcept {
+    return std::holds_alternative<Integer>(value) ||
+           std::holds_alternative<double>(value);
+}
+
+// Widen a Long or Double value to double for mixed-type numeric evaluation.
+[[nodiscard]] inline double as_double(const Value& value) noexcept {
+    if (const auto* integer = std::get_if<Integer>(&value)) {
+        return static_cast<double>(*integer);
+    }
+    return std::get<double>(value);
+}
 
 [[nodiscard]] char ascii_lower(const char character) noexcept {
     if (character >= 'A' && character <= 'Z') {
@@ -193,6 +208,10 @@ public:
 private:
     [[nodiscard]] bool at_end() const noexcept { return offset_ == source_.size(); }
     [[nodiscard]] char current() const noexcept { return source_[offset_]; }
+    [[nodiscard]] char peek(const std::size_t ahead) const noexcept {
+        const auto index = offset_ + ahead;
+        return index < source_.size() ? source_[index] : '\0';
+    }
     void advance() noexcept { ++offset_; }
 
     void skip_horizontal_whitespace() noexcept {
@@ -1198,10 +1217,11 @@ private:
                                 upper_offset);
                             return false;
                         }
-                        if (const auto* selected_integer = std::get_if<Integer>(&*selector)) {
+                        if (is_number(*selector)) {
+                            const double selected_number = as_double(*selector);
                             item_matches =
-                                std::get<Integer>(*case_value) <= *selected_integer &&
-                                *selected_integer <= std::get<Integer>(*upper_value);
+                                as_double(*case_value) <= selected_number &&
+                                selected_number <= as_double(*upper_value);
                         } else {
                             const auto& selected_string = std::get<std::string>(*selector);
                             item_matches =
@@ -1639,7 +1659,7 @@ private:
             if (!right.has_value()) {
                 return std::nullopt;
             }
-            left = integer_binary(*left, *right, operation, operator_offset);
+            left = numeric_binary(*left, *right, operation, operator_offset);
             if (!left.has_value()) {
                 return std::nullopt;
             }
@@ -1656,12 +1676,17 @@ private:
             skip_horizontal_whitespace();
             const auto operator_offset = offset_;
             char operation = '\0';
+            bool integer_only = false;
             if (consume('*')) {
                 operation = '*';
+            } else if (consume('/')) {
+                operation = '/';
             } else if (consume('\\')) {
                 operation = '\\';
+                integer_only = true;
             } else if (consume_keyword("mod")) {
                 operation = '%';
+                integer_only = true;
             } else {
                 return left;
             }
@@ -1671,7 +1696,9 @@ private:
             if (!right.has_value()) {
                 return std::nullopt;
             }
-            left = integer_binary(*left, *right, operation, operator_offset);
+            left = integer_only
+                ? integer_binary(*left, *right, operation, operator_offset)
+                : numeric_binary(*left, *right, operation, operator_offset);
             if (!left.has_value()) {
                 return std::nullopt;
             }
@@ -1683,20 +1710,30 @@ private:
         const auto operator_offset = offset_;
         if (consume('+')) {
             auto value = parse_unary();
-            if (!value.has_value() || require_integer(*value, operator_offset) == nullptr) {
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            if (!std::holds_alternative<double>(*value) &&
+                require_integer(*value, operator_offset) == nullptr) {
                 return std::nullopt;
             }
             return value;
         }
         if (consume('-')) {
             skip_horizontal_whitespace();
-            if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
-                return parse_negative_integer();
+            if (!at_end() &&
+                (std::isdigit(static_cast<unsigned char>(current())) != 0 ||
+                 (current() == '.' &&
+                  std::isdigit(static_cast<unsigned char>(peek(1))) != 0))) {
+                return parse_negative_number();
             }
 
             auto value = parse_unary();
             if (!value.has_value()) {
                 return std::nullopt;
+            }
+            if (const auto* number = std::get_if<double>(&*value)) {
+                return execute_ ? Value{-*number} : Value{0.0};
             }
             const auto* integer = require_integer(*value, operator_offset);
             if (integer == nullptr) {
@@ -1725,8 +1762,10 @@ private:
         if (current() == '"') {
             return parse_string();
         }
-        if (std::isdigit(static_cast<unsigned char>(current())) != 0) {
-            return parse_integer();
+        if (std::isdigit(static_cast<unsigned char>(current())) != 0 ||
+            (current() == '.' &&
+             std::isdigit(static_cast<unsigned char>(peek(1))) != 0)) {
+            return parse_number();
         }
         if (consume_keyword("true")) {
             return Value{true};
@@ -2157,7 +2196,8 @@ private:
                 return Value{false};
             }
             if (std::holds_alternative<Integer>(arguments[0]) ||
-                std::holds_alternative<bool>(arguments[0])) {
+                std::holds_alternative<bool>(arguments[0]) ||
+                std::holds_alternative<double>(arguments[0])) {
                 return Value{true};
             }
 
@@ -2224,6 +2264,12 @@ private:
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{execute_ && *boolean ? Integer{-1} : Integer{0}};
             }
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(*number, int_min, int_max, identifier_offset);
+            }
             if (!execute_) {
                 return Value{Integer{}};
             }
@@ -2279,6 +2325,16 @@ private:
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{execute_ && *boolean ? Integer{-1} : Integer{0}};
             }
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(
+                    *number,
+                    std::numeric_limits<Integer>::min(),
+                    std::numeric_limits<Integer>::max(),
+                    identifier_offset);
+            }
             if (!execute_) {
                 return Value{Integer{}};
             }
@@ -2329,6 +2385,9 @@ private:
             }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ && *number != 0};
+            }
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                return Value{execute_ && *number != 0.0};
             }
             if (!execute_) {
                 return Value{false};
@@ -2985,12 +3044,57 @@ private:
         return std::nullopt;
     }
 
-    [[nodiscard]] std::optional<Value> parse_integer() {
-        const auto start = offset_;
-        while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+    // Consume `digits[.digits][(e|E)[+|-]digits]` from the current position,
+    // returning true when a fractional or exponent part made it a Double form.
+    [[nodiscard]] bool lex_number_span() noexcept {
+        const auto is_digit = [](const char character) {
+            return std::isdigit(static_cast<unsigned char>(character)) != 0;
+        };
+        while (!at_end() && is_digit(current())) {
             advance();
         }
+        bool is_float = false;
+        if (!at_end() && current() == '.' && is_digit(peek(1))) {
+            is_float = true;
+            advance();
+            while (!at_end() && is_digit(current())) {
+                advance();
+            }
+        }
+        if (!at_end() && (current() == 'e' || current() == 'E')) {
+            const char sign = peek(1);
+            const std::size_t digit_ahead = (sign == '+' || sign == '-') ? 2U : 1U;
+            if (is_digit(peek(digit_ahead))) {
+                is_float = true;
+                advance();
+                if (!at_end() && (current() == '+' || current() == '-')) {
+                    advance();
+                }
+                while (!at_end() && is_digit(current())) {
+                    advance();
+                }
+            }
+        }
+        return is_float;
+    }
 
+    [[nodiscard]] std::optional<Value> parse_double(const std::size_t start) {
+        double value{};
+        const auto conversion =
+            std::from_chars(source_.data() + start, source_.data() + offset_, value);
+        if (conversion.ec != std::errc{} ||
+            conversion.ptr != source_.data() + offset_) {
+            set_error("WFC0006", "numeric literal is malformed", start);
+            return std::nullopt;
+        }
+        return Value{value};
+    }
+
+    [[nodiscard]] std::optional<Value> parse_number() {
+        const auto start = offset_;
+        if (lex_number_span()) {
+            return parse_double(start);
+        }
         Integer value{};
         const auto conversion =
             std::from_chars(source_.data() + start, source_.data() + offset_, value);
@@ -3001,10 +3105,14 @@ private:
         return Value{value};
     }
 
-    [[nodiscard]] std::optional<Value> parse_negative_integer() {
+    [[nodiscard]] std::optional<Value> parse_negative_number() {
         const auto start = offset_;
-        while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
-            advance();
+        if (lex_number_span()) {
+            auto value = parse_double(start);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            return Value{-std::get<double>(*value)};
         }
 
         std::uint64_t magnitude{};
@@ -3021,6 +3129,22 @@ private:
             return Value{std::numeric_limits<Integer>::min()};
         }
         return Value{static_cast<Integer>(-static_cast<Integer>(magnitude))};
+    }
+
+    // Round a Double to the nearest Long using banker's rounding (the default
+    // IEEE round-to-nearest-even, matching VB6), rejecting out-of-range values.
+    [[nodiscard]] std::optional<Value> round_double_to_long(
+        const double number,
+        const Integer minimum,
+        const Integer maximum,
+        const std::size_t offset) {
+        const double rounded = std::nearbyint(number);
+        if (!(rounded >= static_cast<double>(minimum) &&
+              rounded <= static_cast<double>(maximum))) {
+            set_error("WFC0009", "integer overflow", offset);
+            return std::nullopt;
+        }
+        return Value{static_cast<Integer>(rounded)};
     }
 
     [[nodiscard]] const Integer* require_integer(
@@ -3118,6 +3242,33 @@ private:
         const Value& right,
         const std::string_view operation,
         const std::size_t operator_offset) {
+        // Long and Double operands compare numerically, in either combination;
+        // int32 widens to double exactly, so the ordering is precise.
+        if (is_number(left) && is_number(right)) {
+            const double left_value = as_double(left);
+            const double right_value = as_double(right);
+            if (operation == "=") {
+                return Value{left_value == right_value};
+            }
+            if (operation == "<>") {
+                return Value{left_value != right_value};
+            }
+            if (operation == "<") {
+                return Value{left_value < right_value};
+            }
+            if (operation == "<=") {
+                return Value{left_value <= right_value};
+            }
+            if (operation == ">") {
+                return Value{left_value > right_value};
+            }
+            if (operation == ">=") {
+                return Value{left_value >= right_value};
+            }
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
+        }
+
         if (left.index() != right.index()) {
             set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
             return std::nullopt;
@@ -3136,11 +3287,7 @@ private:
 
         bool less{};
         bool greater{};
-        if (const auto* left_integer = std::get_if<Integer>(&left)) {
-            const auto right_integer = std::get<Integer>(right);
-            less = *left_integer < right_integer;
-            greater = *left_integer > right_integer;
-        } else {
+        {
             const auto& left_string = std::get<std::string>(left);
             const auto& right_string = std::get<std::string>(right);
             const auto ordering = compare_strings(left_string, right_string);
@@ -3162,6 +3309,51 @@ private:
         }
         set_error("WFC0004", "unsupported operator", operator_offset);
         return std::nullopt;
+    }
+
+    // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
+    // the exact integer path (including overflow); `/` and any Double operand
+    // promote to Double, matching VB6 numeric widening.
+    [[nodiscard]] std::optional<Value> numeric_binary(
+        const Value& left,
+        const Value& right,
+        const char operation,
+        const std::size_t operator_offset) {
+        if (operation != '/' &&
+            std::holds_alternative<Integer>(left) &&
+            std::holds_alternative<Integer>(right)) {
+            return integer_binary(left, right, operation, operator_offset);
+        }
+        if (!is_number(left) || !is_number(right)) {
+            if (require_integer(left, operator_offset) == nullptr) {
+                return std::nullopt;
+            }
+            static_cast<void>(require_integer(right, operator_offset));
+            return std::nullopt;
+        }
+        if (!execute_) {
+            return Value{0.0};
+        }
+
+        const double left_value = as_double(left);
+        const double right_value = as_double(right);
+        switch (operation) {
+        case '+':
+            return Value{left_value + right_value};
+        case '-':
+            return Value{left_value - right_value};
+        case '*':
+            return Value{left_value * right_value};
+        case '/':
+            if (right_value == 0.0) {
+                set_error("WFC0008", "division by zero", operator_offset);
+                return std::nullopt;
+            }
+            return Value{left_value / right_value};
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
+        }
     }
 
     [[nodiscard]] std::optional<Value> integer_binary(
@@ -3224,6 +3416,12 @@ private:
     [[nodiscard]] static std::string render(const Value& value) {
         if (const auto* integer = std::get_if<Integer>(&value)) {
             return std::to_string(*integer);
+        }
+        if (const auto* number = std::get_if<double>(&value)) {
+            char buffer[32];
+            const auto result =
+                std::to_chars(buffer, buffer + sizeof(buffer), *number);
+            return std::string(buffer, result.ptr);
         }
         if (const auto* string = std::get_if<std::string>(&value)) {
             return *string;
