@@ -62,6 +62,7 @@ retained CTest evidence.
 | 2026-08-31 #38 | Construction | Complete the `VbVarType` source-visible enumeration (`vbEmpty`..`vbArray`) under `REQ-0179`/`REQ-0080` | Commit `4352819` |
 | 2026-08-31 #39 | Construction | Expose the `VbIMEStatus` enumeration, completing the source-visible constant contracts under `REQ-0179`/`REQ-0087` | Commit `65303ee` |
 | 2026-08-31 #40 | Construction | Add `Round` over the `Long` domain (identity, non-negative digit count), completing the integer-compatible Math functions under `REQ-0180` | Commit `062e4c9` |
+| 2026-08-31 #41 | Architecture | Add the `Double` numeric value type: fractional/exponent literals, widening arithmetic, `/` division, cross-type comparison, banker's-rounding conversions, and shortest-form rendering under `REQ-0181` | Commit `fdc1cd2` |
 
 ## Verification Log
 
@@ -103,6 +104,7 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `4352819` full VbVarType) | Pass (61/61; expanded unit coverage) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `65303ee` VbIMEStatus) | Pass (61/61; expanded unit coverage) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `062e4c9` Round) | Pass (62/62) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `fdc1cd2` Double type) | Pass (63/63) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -174,6 +176,7 @@ when the session completes.
 | Full VbVarType enumeration (`4352819`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
 | VbIMEStatus enumeration (`65303ee`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
 | Round function (`062e4c9`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
+| Double numeric type foundation (`fdc1cd2`) | ~48,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
@@ -195,18 +198,21 @@ targets.
   radix forms remain explicitly deferred until the necessary numeric semantics
   can be represented without truncation.
 
-**Suggested next increments:** the integer-compatible Strings, Information,
-Conversion, and Math functions are now implemented (through `Round`,
-`REQ-0180`), and the source-visible `Vb*` constant enumerations are complete
-(`REQ-0179`, covering `REQ-0080`–`REQ-0094`). The remaining VBA surface —
-floating-point math (`Sqr`, `Sin`, `Cos`, ...), `CDbl`/`CSng`/`CCur`/`CDec`,
-fractional `Val`/`Round`/`CInt` rounding, `Format`, `Date`/`Time` services,
-and `Filter`/`Join`/`Split` — depends on value types the evaluator does not yet
-model. The recommended next major step is a deliberate numeric-value
-architecture increment adding a fractional (`Double`) type to the `Value`
-variant, the lexer's numeric literals, arithmetic/comparison, rendering, and
-the conversion functions, rather than extending the current `Long` variant ad
-hoc. Array and `Variant` support are the subsequent architecture increments.
+**Suggested next increments:** the `Double` numeric type is now in the value
+model (`REQ-0181`): fractional/exponent literals, widening `+`/`-`/`*`, `/`
+division, cross-type comparison, banker's-rounding `CLng`/`CInt`/`CByte`, and
+shortest-form rendering. The natural follow-ups that this foundation unlocks:
+
+- `CDbl`/`CSng` conversions and fractional `Val` (string → `Double`);
+- the floating-point Math functions `Sqr`, `Sin`, `Cos`, `Tan`, `Atn`, `Exp`,
+  `Log` (`REQ-0077`), returning `Double`;
+- `\`/`Mod` accepting `Double` operands via banker's-rounding to `Long`;
+- numeric type suffixes (`#`, `!`, `&`, `%`) and `Format`/`Str` VB6 rendering.
+
+`Single`, `Currency`, and `Decimal` distinct types, `Date`/`Time` services, and
+`Filter`/`Join`/`Split` (arrays/`Variant`) remain later architecture
+increments. `Double` rendering is deliberately the shortest round-tripping form
+rather than VB6 locale-specific formatting, documented in `REQ-0181`.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the `Strings`/`Conversion` build-out under MP-0002.
