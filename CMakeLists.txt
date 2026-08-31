@@ -540,13 +540,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-integer-math-cli
-        COMMAND wfc --eval [=[Print Abs(-42) & " " & Sgn(-42)]=]
+        COMMAND wfc --eval [=[Print Abs(-2.5) & " " & Sgn(-0.25)]=]
     )
     set_tests_properties(
         TC-MP0002-integer-math-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "42 -1"
+            PASS_REGULAR_EXPRESSION "2.5 -1"
     )
 
     add_test(
@@ -672,13 +672,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-int-fix-cli
-        COMMAND wfc --eval [=[Print Int(-7) & " " & Fix(42)]=]
+        COMMAND wfc --eval [=[Print Int(-2.5) & " " & Fix(-2.5)]=]
     )
     set_tests_properties(
         TC-MP0002-int-fix-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "-7 42"
+            PASS_REGULAR_EXPRESSION "-3 -2"
     )
 
     add_test(

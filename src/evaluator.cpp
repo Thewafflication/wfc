@@ -2116,25 +2116,28 @@ private:
         }
 
         if (is_abs || is_sgn) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
+            if (!is_number(arguments[0])) {
                 set_error(
                     "WFC0073",
-                    is_abs ? "Abs requires a Long argument" : "Sgn requires a Long argument",
+                    is_abs ? "Abs requires a numeric argument" : "Sgn requires a numeric argument",
                     identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
-                return Value{Integer{}};
+                return is_abs ? arguments[0] : Value{Integer{}};
             }
             if (is_sgn) {
-                return Value{static_cast<Integer>((*number > 0) - (*number < 0))};
+                const double number = as_double(arguments[0]);
+                return Value{static_cast<Integer>((number > 0.0) - (number < 0.0))};
             }
-            if (*number == std::numeric_limits<Integer>::min()) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                if (*integer == std::numeric_limits<Integer>::min()) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{*integer < 0 ? static_cast<Integer>(-*integer) : *integer};
             }
-            return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+            return Value{std::abs(std::get<double>(arguments[0]))};
         }
 
         if (is_qbcolor) {
@@ -2200,17 +2203,21 @@ private:
         }
 
         if (is_int || is_fix) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
+            if (!is_number(arguments[0])) {
                 set_error(
                     "WFC0073",
-                    is_int ? "Int requires a Long argument" : "Fix requires a Long argument",
+                    is_int ? "Int requires a numeric argument" : "Fix requires a numeric argument",
                     identifier_offset);
                 return std::nullopt;
             }
-            // Int and Fix differ only on fractional magnitudes; every value in the
-            // current Long domain is already whole, so both truncate to identity.
-            return Value{execute_ ? *number : Integer{}};
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                return Value{execute_ ? *integer : Integer{}};
+            }
+            if (!execute_) {
+                return Value{0.0};
+            }
+            const double number = std::get<double>(arguments[0]);
+            return Value{is_int ? std::floor(number) : std::trunc(number)};
         }
 
         if (is_float_math) {

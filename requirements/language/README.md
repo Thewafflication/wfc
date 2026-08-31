@@ -120,3 +120,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `#` (`Double`) and `&` (`Long`) numeric literal forms.
 - [REQ-0186 — Representable identifier type-declaration characters](req-0186-identifier-type-characters.md)
   defines `#`, `&`, and `$` declarations and type assertions.
+- [REQ-0187 — Int and Fix over Long and Double](req-0187-int-fix-double.md)
+  defines floor/truncation semantics for the current numeric model.

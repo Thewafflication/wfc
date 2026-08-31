@@ -165,6 +165,8 @@ int main() {
     expect_success("Print Abs(0) + Abs(7)", "7");
     expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)", "-1 0 1");
     expect_success("Print Abs(Sgn(-100))", "1");
+    expect_success("Print Abs(-2.5) & \" \" & Sgn(-0.25) & \" \" & Sgn(0.0)", "2.5 -1 0");
+    expect_success("Print TypeName(Abs(-2.5)) & \" \" & TypeName(Sgn(-2.5))", "Double Long");
     expect_success("Print \"[\" & CStr(42) & \"]\"", "[42]");
     expect_success("Print CStr(True) & \" \" & CStr(False)", "True False");
     expect_success("Print CStr(\"already text\")", "already text");
@@ -209,6 +211,9 @@ int main() {
     expect_success("Print Switch(False, 1, True, 42) + 1", "43");
     expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)", "-7 -7 42");
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
+    expect_success("Print Int(2.5) & \" \" & Fix(2.5) & \" \" & Int(-2.5) & \" \" & Fix(-2.5)",
+                   "2 2 -3 -2");
+    expect_success("Print TypeName(Int(2.5)) & \" \" & TypeName(Fix(-2.5))", "Double Double");
     expect_success("Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
                    "42 -7 100");
     expect_success("Print Round(2.5) & \" \" & Round(3.5) & \" \" & Round(-2.5)", "2 4 -2");
