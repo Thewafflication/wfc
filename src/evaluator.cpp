@@ -3013,16 +3013,18 @@ private:
         }
 
         if (is_str) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
-                set_error("WFC0073", "Str requires a Long argument", identifier_offset);
+            if (!is_number(arguments[0])) {
+                set_error("WFC0073", "Str requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
                 return Value{std::string{}};
             }
-            std::string digits = std::to_string(*number);
-            if (*number >= 0) {
+            std::string digits = render(arguments[0]);
+            if (as_double(arguments[0]) == 0.0) {
+                digits = "0";
+            }
+            if (as_double(arguments[0]) >= 0.0) {
                 digits.insert(digits.begin(), ' ');
             }
             return Value{std::move(digits)};

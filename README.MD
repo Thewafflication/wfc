@@ -144,6 +144,7 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print vbTrue & `" `" & vbYes &
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print AscB(vbTab) & `" `" & AscB(vbCr) & `" `" & Len(vbCrLf)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Round(2.5) & `" `" & Round(1.25, 1)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Int(-2.5) & `" `" & Fix(-2.5) & `" `" & Abs(-2.5)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Str(2.5) & `"] [`" & Str(-2.5) & `"]`""
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print 5 / 2 & `" `" & (1.5 + 2.5) & `" `" & CLng(2.5)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CDbl(`"2.5`") + CDbl(3) & `" `" & CSng(2.25)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Sqr(9) & `" `" & Exp(0) & `" `" & CLng(Atn(1) * 4 * 1000000)"

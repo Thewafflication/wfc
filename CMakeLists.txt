@@ -483,13 +483,13 @@ Print UCase("Hello, WFC!")]=]
 
     add_test(
         NAME TC-MP0002-str-cli
-        COMMAND wfc --eval [=[Print "[" & Str(42) & "]"]=]
+        COMMAND wfc --eval [=[Print "[" & Str(2.5) & "] [" & Str$(-2.5) & "]"]=]
     )
     set_tests_properties(
         TC-MP0002-str-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "\\[ 42\\]"
+            PASS_REGULAR_EXPRESSION "\\[ 2.5\\] \\[-2.5\\]"
     )
 
     add_test(

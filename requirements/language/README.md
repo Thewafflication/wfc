@@ -122,3 +122,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `#`, `&`, and `$` declarations and type assertions.
 - [REQ-0187 — Int and Fix over Long and Double](req-0187-int-fix-double.md)
   defines floor/truncation semantics for the current numeric model.
+- [REQ-0188 — Str over Long and Double](req-0188-str-double.md) defines
+  sign-space conversion for both current numeric value types.

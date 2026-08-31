@@ -154,6 +154,8 @@ int main() {
     expect_success("Print \"[\" & Str$(-42) & \"]\"", "[-42]");
     expect_success("Print \"[\" & Str(0) & \"]\"", "[ 0]");
     expect_success("Print Len(Str(100))", "4");
+    expect_success("Print \"[\" & Str(2.5) & \"] [\" & Str$(-2.5) & \"]\"", "[ 2.5] [-2.5]");
+    expect_success("Print \"[\" & Str(-0.0) & \"] [\" & Str(1e3) & \"]\"", "[ 0] [ 1000]");
     expect_success("Print Val(\"2457\")", "2457");
     expect_success("Print Val(\" 2 45 7th Street\")", "2457");
     expect_success("Print Val(\"- 42 trailing\")", "-42");
