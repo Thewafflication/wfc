@@ -782,13 +782,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-round-cli
-        COMMAND wfc --eval [=[Print Round(42) & " " & Round(-7, 0) & " " & Round(100, 3)]=]
+        COMMAND wfc --eval [=[Print Round(2.5) & " " & Round(3.5) & " " & Round(1.25, 1)]=]
     )
     set_tests_properties(
         TC-MP0002-round-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "42 -7 100"
+            PASS_REGULAR_EXPRESSION "2 4 1.2"
     )
 
     add_test(

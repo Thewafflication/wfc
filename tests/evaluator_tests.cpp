@@ -211,6 +211,11 @@ int main() {
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
     expect_success("Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
                    "42 -7 100");
+    expect_success("Print Round(2.5) & \" \" & Round(3.5) & \" \" & Round(-2.5)", "2 4 -2");
+    expect_success("Print Round(1.25, 1) & \" \" & Round(1.35, 1) & \" \" & Round(-1.25, 1)",
+                   "1.2 1.4 -1.2");
+    expect_success("Print TypeName(Round(2.0)) & \" \" & Round(1.234567890123456, 20)",
+                   "Double 1.234567890123456");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");

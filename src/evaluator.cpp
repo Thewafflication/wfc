@@ -2255,21 +2255,22 @@ private:
         }
 
         if (is_round) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
-                set_error("WFC0073", "Round requires a Long argument", identifier_offset);
+            if (!is_number(arguments[0])) {
+                set_error("WFC0073", "Round requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
+            Integer digits = 0;
             if (arguments.size() == 2U) {
-                const auto* digits = std::get_if<Integer>(&arguments[1]);
-                if (digits == nullptr) {
+                const auto* requested_digits = std::get_if<Integer>(&arguments[1]);
+                if (requested_digits == nullptr) {
                     set_error(
                         "WFC0073",
                         "Round requires a Long digit count",
                         identifier_offset);
                     return std::nullopt;
                 }
-                if (execute_ && *digits < 0) {
+                digits = *requested_digits;
+                if (execute_ && digits < 0) {
                     set_error(
                         "WFC0094",
                         "Round digit count must be non-negative",
@@ -2277,9 +2278,21 @@ private:
                     return std::nullopt;
                 }
             }
-            // A Long value is already whole, so rounding to zero or more decimal
-            // places is identity in the current numeric model.
-            return Value{execute_ ? *number : Integer{}};
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                return Value{execute_ ? *integer : Integer{}};
+            }
+            if (!execute_) {
+                return Value{0.0};
+            }
+            const double number = std::get<double>(arguments[0]);
+            if (digits >= std::numeric_limits<double>::max_digits10) {
+                return Value{number};
+            }
+            const double scale = std::pow(10.0, static_cast<double>(digits));
+            if (std::abs(number) > std::numeric_limits<double>::max() / scale) {
+                return Value{number};
+            }
+            return Value{std::nearbyint(number * scale) / scale};
         }
 
         if (is_cstr) {
