@@ -32,7 +32,11 @@ redeclare it (`WFC0017`):
   `vbFirstFourDays`, `vbFirstFullWeek`;
 - `VbCalendar` (`REQ-0090`): `vbCalGreg`, `vbCalHijri`;
 - `VbDateTimeFormat` (`REQ-0091`): `vbGeneralDate`, `vbLongDate`, `vbShortDate`,
-  `vbLongTime`, `vbShortTime`.
+  `vbLongTime`, `vbShortTime`;
+- General constants (`REQ-0094`): the integer `vbObjectError`, and the string
+  constants `vbNullString`, `vbNullChar`, `vbCrLf`, `vbNewLine`, `vbCr`, `vbLf`,
+  `vbBack`, `vbFormFeed`, `vbTab`, and `vbVerticalTab`, each resolving to its
+  exact stored bytes.
 
 ## Scope
 
@@ -53,4 +57,5 @@ reserved-name diagnostic for a redeclaration attempt.
 
 This requirement implements the source-visible constant portions of `REQ-0080`,
 `REQ-0081`, `REQ-0082`, `REQ-0083`, `REQ-0084`, `REQ-0085`, `REQ-0086`,
-`REQ-0088`, `REQ-0089`, `REQ-0090`, `REQ-0091`, `REQ-0092`, and `REQ-0093`.
+`REQ-0088`, `REQ-0089`, `REQ-0090`, `REQ-0091`, `REQ-0092`, `REQ-0093`, and
+`REQ-0094`.

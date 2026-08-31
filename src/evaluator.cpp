@@ -91,6 +91,26 @@ using Value = std::variant<Integer, std::string, bool>;
         // VbDateTimeFormat (REQ-0091)
         {"vbgeneraldate", 0}, {"vblongdate", 1}, {"vbshortdate", 2},
         {"vblongtime", 3}, {"vbshorttime", 4},
+        // General constants (REQ-0094), integer member
+        {"vbobjecterror", -2147221504},
+    };
+    const auto entry = table.find(identifier);
+    if (entry == table.end()) {
+        return std::nullopt;
+    }
+    return entry->second;
+}
+
+// Source-visible VBA string constants (REQ-0094). Each resolves to its exact
+// stored bytes and is reserved so source cannot shadow it.
+[[nodiscard]] std::optional<std::string> vba_string_constant(
+    const std::string_view identifier) {
+    static const std::unordered_map<std::string_view, std::string> table = {
+        {"vbnullstring", std::string{}},
+        {"vbnullchar", std::string(1, '\0')},
+        {"vbcrlf", "\r\n"}, {"vbnewline", "\r\n"},
+        {"vbcr", "\r"}, {"vblf", "\n"}, {"vbback", "\b"},
+        {"vbformfeed", "\f"}, {"vbtab", "\t"}, {"vbverticaltab", "\v"},
     };
     const auto entry = table.find(identifier);
     if (entry == table.end()) {
@@ -116,7 +136,8 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor" ||
-           vba_constant_value(identifier).has_value();
+           vba_constant_value(identifier).has_value() ||
+           vba_string_constant(identifier).has_value();
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -1725,6 +1746,9 @@ private:
             }
             if (const auto constant = vba_constant_value(*identifier)) {
                 return Value{*constant};
+            }
+            if (auto text = vba_string_constant(*identifier)) {
+                return Value{std::move(*text)};
             }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);

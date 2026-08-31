@@ -245,6 +245,14 @@ int main() {
     expect_success(
         "Print vbFirstFourDays & \" \" & vbCalHijri & \" \" & vbShortTime",
         "2 1 4");
+    expect_success(
+        "Print AscB(vbTab) & \" \" & AscB(vbCr) & \" \" & AscB(vbLf) & \" \" & "
+        "AscB(vbNullChar)",
+        "9 13 10 0");
+    expect_success(
+        "Print Len(vbCrLf) & \" \" & Len(vbNewLine) & \" \" & Len(vbNullString)",
+        "2 2 0");
+    expect_success("Print vbObjectError", "-2147221504");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");

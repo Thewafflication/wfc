@@ -768,4 +768,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;constants"
             PASS_REGULAR_EXPRESSION "-1 6 1 7"
     )
+
+    add_test(
+        NAME TC-MP0002-vba-string-constants-cli
+        COMMAND wfc --eval [=[Print AscB(vbTab) & " " & AscB(vbCr) & " " & AscB(vbLf) & " " & Len(vbCrLf) & " " & vbObjectError]=]
+    )
+    set_tests_properties(
+        TC-MP0002-vba-string-constants-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;constants"
+            PASS_REGULAR_EXPRESSION "9 13 10 2 -2147221504"
+    )
 endif()
