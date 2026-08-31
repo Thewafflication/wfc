@@ -69,6 +69,7 @@ retained CTest evidence.
 | 2026-08-31 #45 | Construction | Round `Double` operands of `\`/`Mod` to the nearest even `Long` (banker's rounding) before dividing; update `REQ-0181` | Commit `3478dd3` |
 | 2026-08-31 #46 | Construction | Add `As Double` variables/constants with exact `Long` widening and correct `TypeName`/`VarType` introspection under `REQ-0184` | Commit `bf2ab25` |
 | 2026-08-31 #47 | Construction | Add representable `#` Double and `&` Long numeric literal suffixes under `REQ-0185` | Commit `f8bb1cf` |
+| 2026-08-31 #48 | Construction | Add representable `#` Double, `&` Long, and `$` String identifier declaration characters under `REQ-0186` | Commit `12403bd` |
 
 ## Verification Log
 
@@ -120,6 +121,8 @@ retained CTest evidence.
 
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `f8bb1cf` numeric literal suffixes) | Pass (67/67) | Local x64 CTest run |
 
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `12403bd` identifier type characters) | Pass (68/68) | Local x64 CTest run |
+
 ## Decisions and Scope Changes
 
 | Decision or change | Authority | Impact | Reference |
@@ -154,6 +157,7 @@ retained CTest evidence.
 | Resumed-session functional commits pushed | 9 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3`, `850fd6d` |
 | Tests at current checkpoint | 66 | Local x64 CTest after `bf2ab25` |
 | Tests at current checkpoint | 67 | Local x64 CTest after `f8bb1cf` |
+| Tests at current checkpoint | 68 | Local x64 CTest after `12403bd` |
 
 ## Resource Usage
 
@@ -199,6 +203,7 @@ when the session completes.
 | Double integer-division rounding (`3478dd3`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
 | Double declarations and introspection (`bf2ab25`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Numeric literal suffixes (`f8bb1cf`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Identifier type-declaration characters (`12403bd`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -230,8 +235,8 @@ fractional `Val` (`REQ-0170`), and banker's-rounding of `Double` operands for
 
 **Remaining next increments:**
 
-- identifier type-declaration suffixes, plus literal/identifier `!` Single,
-  `%` Integer, and `@` Currency forms after those distinct types exist;
+- literal/identifier `!` Single, `%` Integer, and `@` Currency forms after
+  those distinct types exist;
 - `Format`/`Format$` and VB6-accurate `Str`/`Print` sign-space and locale
   rendering (current `Double` rendering is the shortest round-tripping form, per
   `REQ-0181`);
