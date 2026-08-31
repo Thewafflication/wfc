@@ -67,6 +67,7 @@ retained CTest evidence.
 | 2026-08-31 #43 | Construction | Add floating-point math `Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` returning `Double`, with `Sqr`/`Log` domain checks, under `REQ-0183` | Commit `1ad9baa` |
 | 2026-08-31 #44 | Construction | Extend `Val` to parse fractional/exponent prefixes returning `Double` (whole prefix stays `Long`); update `REQ-0170` | Commit `b8c3bd9` |
 | 2026-08-31 #45 | Construction | Round `Double` operands of `\`/`Mod` to the nearest even `Long` (banker's rounding) before dividing; update `REQ-0181` | Commit `3478dd3` |
+| 2026-08-31 #46 | Construction | Add `As Double` variables/constants with exact `Long` widening and correct `TypeName`/`VarType` introspection under `REQ-0184` | Commit `bf2ab25` |
 
 ## Verification Log
 
@@ -114,6 +115,8 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `b8c3bd9` fractional Val) | Pass (65/65) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `3478dd3` Double \\/Mod) | Pass (65/65) | Local x64 CTest run |
 
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `bf2ab25` Double declarations) | Pass (66/66) | Local x64 CTest run |
+
 ## Decisions and Scope Changes
 
 | Decision or change | Authority | Impact | Reference |
@@ -122,7 +125,7 @@ retained CTest evidence.
 | Expose all three `VbCompareMethod` names but reject database comparison at execution | Installed VBA type-library contract plus current host boundary | Preserves source-visible values without claiming an unavailable database collation | `REQ-0167` |
 | Keep `Val` in the current `Long` model and reject fractional/radix forms explicitly | Current evaluator value architecture | Prevents silent truncation or a false claim of VBA's `Double` result semantics | `REQ-0170` |
 | Where VB6 `Choose`/`Switch` return `Null` (out-of-range index, no matching expression), emit an explicit diagnostic (`WFC0089`/`WFC0090`) | Current evaluator value model has no `Null`/`Variant` | Prevents a false claim of `Null` semantics; behavior tightens to an error until a `Variant` model exists | This log |
-| Restrict `IsNumeric`/`VarType`/`TypeName` to the current `Long`/`Boolean`/`String` value set | Current evaluator value architecture | Reports only representable type codes/names; floating and `Null`/`Empty` classifications deferred with the numeric/Variant model | This log |
+| Restrict `IsNumeric`/`VarType`/`TypeName` to the current representable scalar value set | Current evaluator value architecture | Reports `Long`/`Double`/`Boolean`/`String`; `Null`/`Empty` classifications remain deferred with the Variant model | `REQ-0176`, `REQ-0184` |
 | Return `False` for unavailable Information categories and reject negative `RGB` components | Current evaluator value architecture and VBA `RGB` contract | Avoids inventing unrepresentable Variant states while providing deterministic color packing and clamping | `REQ-0176` |
 | Define `LenB`/`AscB`/`ChrB` against WFC's stored byte sequence | Current evaluator String architecture | Adds deterministic byte operations without claiming DBCS or BSTR-layout equivalence | `REQ-0177` |
 
@@ -146,6 +149,7 @@ retained CTest evidence.
 | Tests at current checkpoint | 44 | CTest at `850fd6d` |
 | Resumed-session CTest cases added | 9 | One integration CLI case per coherent increment |
 | Resumed-session functional commits pushed | 9 | `451e0f6`, `fd8fb27`, `beebb9e`, `b10e5d2`, `d77a89f`, `cd59a9d`, `205f227`, `11bd3f3`, `850fd6d` |
+| Tests at current checkpoint | 66 | Local x64 CTest after `bf2ab25` |
 
 ## Resource Usage
 
@@ -189,6 +193,7 @@ when the session completes.
 | Floating-point math functions (`1ad9baa`) | ~20,000 est. | Not reported | Claude Code, assistant estimate |
 | Fractional Val (`b8c3bd9`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
 | Double integer-division rounding (`3478dd3`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
+| Double declarations and introspection (`bf2ab25`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
