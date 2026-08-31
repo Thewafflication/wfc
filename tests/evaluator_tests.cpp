@@ -232,6 +232,12 @@ int main() {
     expect_success("Print CDbl(\"  -1.5  \") + 0.5 & \" \" & CDbl(True)", "-1 -1");
     expect_success("Print CSng(2.25) + CSng(0.5)", "2.75");
     expect_success("Print CLng(CDbl(\"3.5\"))", "4");
+    // Floating-point math functions.
+    expect_success("Print Sqr(9) & \" \" & Sqr(0.25)", "3 0.5");
+    expect_success("Print Exp(0) & \" \" & Log(1)", "1 0");
+    expect_program_success("Print Sin(0): Print Cos(0): Print Tan(0)", "0\n1\n0");
+    expect_success("Print CLng(Atn(1) * 4 * 1000000)", "3141593");
+    expect_success("Print CLng(Log(Exp(3)))", "3");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
@@ -877,6 +883,9 @@ int main() {
     expect_program_failure("Print CDbl(\"x\")", "WFC0095");
     expect_program_failure("Print CDbl(\"\")", "WFC0095");
     expect_program_failure("Print CSng(\"1.2.3\")", "WFC0095");
+    expect_program_failure("Print Sqr(-1)", "WFC0096");
+    expect_program_failure("Print Log(0)", "WFC0096");
+    expect_program_failure("Print Sqr(\"x\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

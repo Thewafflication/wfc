@@ -1874,6 +1874,15 @@ private:
         const bool is_int = identifier == "int";
         const bool is_fix = identifier == "fix";
         const bool is_round = identifier == "round";
+        const bool is_sqr = identifier == "sqr";
+        const bool is_sin = identifier == "sin";
+        const bool is_cos = identifier == "cos";
+        const bool is_tan = identifier == "tan";
+        const bool is_atn = identifier == "atn";
+        const bool is_exp = identifier == "exp";
+        const bool is_log = identifier == "log";
+        const bool is_float_math =
+            is_sqr || is_sin || is_cos || is_tan || is_atn || is_exp || is_log;
         const bool is_isarray = identifier == "isarray";
         const bool is_isobject = identifier == "isobject";
         const bool is_isnull = identifier == "isnull";
@@ -1894,7 +1903,7 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round && !is_cdbl && !is_csng) {
+            !is_round && !is_cdbl && !is_csng && !is_float_math) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2083,6 +2092,47 @@ private:
             // Int and Fix differ only on fractional magnitudes; every value in the
             // current Long domain is already whole, so both truncate to identity.
             return Value{execute_ ? *number : Integer{}};
+        }
+
+        if (is_float_math) {
+            if (!is_number(arguments[0])) {
+                set_error(
+                    "WFC0073",
+                    "math function requires a numeric argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{0.0};
+            }
+            const double argument = as_double(arguments[0]);
+            if (is_sqr) {
+                if (argument < 0.0) {
+                    set_error("WFC0096", "Sqr argument must be non-negative", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{std::sqrt(argument)};
+            }
+            if (is_log) {
+                if (argument <= 0.0) {
+                    set_error("WFC0096", "Log argument must be positive", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{std::log(argument)};
+            }
+            if (is_sin) {
+                return Value{std::sin(argument)};
+            }
+            if (is_cos) {
+                return Value{std::cos(argument)};
+            }
+            if (is_tan) {
+                return Value{std::tan(argument)};
+            }
+            if (is_atn) {
+                return Value{std::atan(argument)};
+            }
+            return Value{std::exp(argument)};  // is_exp
         }
 
         if (is_round) {

@@ -145,4 +145,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print AscB(vbTab) & `" `" & As
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Round(42) & `" `" & Round(100, 3)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print 5 / 2 & `" `" & (1.5 + 2.5) & `" `" & CLng(2.5)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CDbl(`"2.5`") + CDbl(3) & `" `" & CSng(2.25)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Sqr(9) & `" `" & Exp(0) & `" `" & CLng(Atn(1) * 4 * 1000000)"
 ```

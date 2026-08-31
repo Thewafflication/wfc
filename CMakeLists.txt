@@ -812,4 +812,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;numeric;conversion"
             PASS_REGULAR_EXPRESSION "5.5 2.25"
     )
+
+    add_test(
+        NAME TC-MP0002-float-math-cli
+        COMMAND wfc --eval [=[Print Sqr(9) & " " & Exp(0) & " " & CLng(Atn(1) * 4 * 1000000)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-float-math-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;math;double"
+            PASS_REGULAR_EXPRESSION "3 1 3141593"
+    )
 endif()
