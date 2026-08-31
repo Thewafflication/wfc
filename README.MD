@@ -148,4 +148,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CDbl(`"2.5`") + CDbl(3) 
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Sqr(9) & `" `" & Exp(0) & `" `" & CLng(Atn(1) * 4 * 1000000)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value As Double: value = 5: Print TypeName(value) & `" `" & VarType(value)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(1#) & `" `" & TypeName(42&)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value#: value = 2.5: Print TypeName(value#)"
 ```

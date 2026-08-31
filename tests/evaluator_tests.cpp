@@ -369,6 +369,21 @@ int main() {
         "Print VarType(scale)",
         "Double 0\n10\n5");
     expect_program_success(
+        "Dim amount#\n"
+        "amount = 2\n"
+        "amount# = amount# + 0.5\n"
+        "Dim count&\n"
+        "count& = 4\n"
+        "Dim label$\n"
+        "label$ = \"typed\"\n"
+        "Const scale# = 2\n"
+        "Const suffix$ = \"!\"\n"
+        "Print label & \" \" & amount * scale & suffix & \" \" & count",
+        "typed 5! 4");
+    expect_program_success(
+        "Dim value As Double\nvalue# = 3\nPrint value# & \" \" & value",
+        "3 3");
+    expect_program_success(
         "' leading comment\n"
         "Rem another leading comment\n"
         "Option Explicit\n"
@@ -763,6 +778,10 @@ int main() {
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
     expect_program_failure("Dim value As Double: value = \"wrong\"", "WFC0016");
     expect_program_failure("Const value As Double = \"wrong\"", "WFC0016");
+    expect_program_failure("Dim value As Long: value# = 1", "WFC0016");
+    expect_program_failure("Dim value#: Dim value As Double", "WFC0013");
+    expect_program_failure("Dim value# As Double", "WFC0012");
+    expect_program_failure("Dim value!", "WFC0097");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");

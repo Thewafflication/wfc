@@ -118,3 +118,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   extends typed variables, constants, `TypeName`, and `VarType` to `Double`.
 - [REQ-0185 — Representable numeric literal suffixes](req-0185-numeric-literal-suffixes.md)
   defines `#` (`Double`) and `&` (`Long`) numeric literal forms.
+- [REQ-0186 — Representable identifier type-declaration characters](req-0186-identifier-type-characters.md)
+  defines `#`, `&`, and `$` declarations and type assertions.

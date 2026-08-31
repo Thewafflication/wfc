@@ -313,7 +313,8 @@ private:
         return true;
     }
 
-    [[nodiscard]] std::optional<std::string> parse_identifier() {
+    [[nodiscard]] std::optional<std::string> parse_identifier(
+        char* const type_character = nullptr) {
         if (at_end() || !is_identifier_start(current())) {
             return std::nullopt;
         }
@@ -323,7 +324,55 @@ private:
             identifier.push_back(ascii_lower(current()));
             advance();
         } while (!at_end() && is_identifier_part(current()));
+        if (type_character != nullptr) {
+            *type_character = '\0';
+            if (!at_end() && strchr("$%&!#@", current()) != nullptr) {
+                *type_character = current();
+                advance();
+            }
+        }
         return identifier;
+    }
+
+    [[nodiscard]] bool validate_type_character(
+        const char type_character,
+        const std::size_t identifier_offset) {
+        if (type_character == '\0' || type_character == '$' ||
+            type_character == '&' || type_character == '#') {
+            return true;
+        }
+        set_error(
+            "WFC0097",
+            "type-declaration character requires an unsupported value type",
+            identifier_offset);
+        return false;
+    }
+
+    [[nodiscard]] std::size_t type_character_index(const char type_character) const {
+        if (type_character == '$') {
+            return Value{std::string{}}.index();
+        }
+        if (type_character == '#') {
+            return Value{0.0}.index();
+        }
+        return Value{Integer{}}.index();
+    }
+
+    [[nodiscard]] bool type_character_matches(
+        const Value& value,
+        const char type_character,
+        const std::size_t identifier_offset) {
+        if (type_character == '\0') {
+            return true;
+        }
+        if (!validate_type_character(type_character, identifier_offset)) {
+            return false;
+        }
+        if (value.index() == type_character_index(type_character)) {
+            return true;
+        }
+        set_error("WFC0016", "identifier type-declaration character mismatch", identifier_offset);
+        return false;
     }
 
     [[nodiscard]] bool parse_statement() {
@@ -398,12 +447,13 @@ private:
         if (has_let) {
             skip_horizontal_whitespace();
         }
-        auto identifier = parse_identifier();
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value()) {
             set_error("WFC0010", "expected statement", statement_offset);
             return false;
         }
-        return parse_assignment(std::move(*identifier));
+        return parse_assignment(std::move(*identifier), type_character);
     }
 
     [[nodiscard]] bool parse_print_statement() {
@@ -918,7 +968,8 @@ private:
         const bool enclosing_execution = execute_;
         skip_horizontal_whitespace();
         const auto variable_offset = offset_;
-        auto identifier = parse_identifier();
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value()) {
             set_error("WFC0043", "expected For control variable", variable_offset);
             return false;
@@ -926,6 +977,9 @@ private:
         const auto variable = variables_.find(*identifier);
         if (variable == variables_.end()) {
             set_error("WFC0015", "undeclared variable", variable_offset);
+            return false;
+        }
+        if (!type_character_matches(variable->second, type_character, variable_offset)) {
             return false;
         }
         if (!std::holds_alternative<Integer>(variable->second)) {
@@ -1059,10 +1113,19 @@ private:
             if (consume_keyword("next")) {
                 skip_horizontal_whitespace();
                 const auto next_identifier_offset = offset_;
-                auto next_identifier = parse_identifier();
+                char next_type_character{};
+                auto next_identifier = parse_identifier(&next_type_character);
                 if (next_identifier.has_value() && *next_identifier != identifier) {
                     set_error("WFC0049", "Next variable does not match For", next_identifier_offset);
                     return false;
+                }
+                if (next_identifier.has_value()) {
+                    const auto variable = variables_.find(*next_identifier);
+                    if (variable == variables_.end() ||
+                        !type_character_matches(
+                            variable->second, next_type_character, next_identifier_offset)) {
+                        return false;
+                    }
                 }
                 continuation_offset = offset_;
                 return true;
@@ -1300,18 +1363,20 @@ private:
         if (has_let) {
             skip_horizontal_whitespace();
         }
-        auto identifier = parse_identifier();
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value() || is_reserved_identifier(*identifier)) {
             set_error("WFC0023", "expected Print or assignment branch", statement_offset);
             return false;
         }
-        return parse_assignment(std::move(*identifier));
+        return parse_assignment(std::move(*identifier), type_character);
     }
 
     [[nodiscard]] bool parse_declaration() {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
-        auto identifier = parse_identifier();
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value()) {
             set_error("WFC0011", "expected variable name", identifier_offset);
             return false;
@@ -1320,26 +1385,42 @@ private:
             set_error("WFC0017", "reserved keyword cannot be a variable name", identifier_offset);
             return false;
         }
-
-        skip_horizontal_whitespace();
-        if (!consume_keyword("as")) {
-            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+        if (!validate_type_character(type_character, identifier_offset)) {
             return false;
         }
-        skip_horizontal_whitespace();
 
+        skip_horizontal_whitespace();
         Value initial_value;
-        if (consume_keyword("long")) {
-            initial_value = Integer{};
-        } else if (consume_keyword("double")) {
-            initial_value = 0.0;
-        } else if (consume_keyword("string")) {
-            initial_value = std::string{};
-        } else if (consume_keyword("boolean")) {
-            initial_value = false;
+        if (type_character != '\0') {
+            if (consume_keyword("as")) {
+                set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
+                return false;
+            }
+            if (type_character == '$') {
+                initial_value = std::string{};
+            } else if (type_character == '#') {
+                initial_value = 0.0;
+            } else {
+                initial_value = Integer{};
+            }
         } else {
-            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
-            return false;
+            if (!consume_keyword("as")) {
+                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("long")) {
+                initial_value = Integer{};
+            } else if (consume_keyword("double")) {
+                initial_value = 0.0;
+            } else if (consume_keyword("string")) {
+                initial_value = std::string{};
+            } else if (consume_keyword("boolean")) {
+                initial_value = false;
+            } else {
+                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                return false;
+            }
         }
 
         const auto [entry, inserted] = variables_.emplace(*identifier, std::move(initial_value));
@@ -1354,7 +1435,8 @@ private:
     [[nodiscard]] bool parse_constant_declaration() {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
-        auto identifier = parse_identifier();
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value()) {
             set_error("WFC0011", "expected constant name", identifier_offset);
             return false;
@@ -1363,30 +1445,40 @@ private:
             set_error("WFC0017", "reserved keyword cannot be a constant name", identifier_offset);
             return false;
         }
+        if (!validate_type_character(type_character, identifier_offset)) {
+            return false;
+        }
         if (variables_.contains(*identifier)) {
             set_error("WFC0013", "duplicate variable or constant declaration", identifier_offset);
             return false;
         }
 
-        skip_horizontal_whitespace();
-        if (!consume_keyword("as")) {
-            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
-            return false;
-        }
-        skip_horizontal_whitespace();
-
         std::size_t expected_type{};
-        if (consume_keyword("long")) {
-            expected_type = Value{Integer{}}.index();
-        } else if (consume_keyword("double")) {
-            expected_type = Value{0.0}.index();
-        } else if (consume_keyword("string")) {
-            expected_type = Value{std::string{}}.index();
-        } else if (consume_keyword("boolean")) {
-            expected_type = Value{false}.index();
+        skip_horizontal_whitespace();
+        if (type_character != '\0') {
+            if (consume_keyword("as")) {
+                set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
+                return false;
+            }
+            expected_type = type_character_index(type_character);
         } else {
-            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
-            return false;
+            if (!consume_keyword("as")) {
+                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("long")) {
+                expected_type = Value{Integer{}}.index();
+            } else if (consume_keyword("double")) {
+                expected_type = Value{0.0}.index();
+            } else if (consume_keyword("string")) {
+                expected_type = Value{std::string{}}.index();
+            } else if (consume_keyword("boolean")) {
+                expected_type = Value{false}.index();
+            } else {
+                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                return false;
+            }
         }
 
         skip_horizontal_whitespace();
@@ -1414,11 +1506,17 @@ private:
         return true;
     }
 
-    [[nodiscard]] bool parse_assignment(std::string identifier) {
-        const auto identifier_offset = offset_ - identifier.size();
+    [[nodiscard]] bool parse_assignment(
+        std::string identifier,
+        const char type_character = '\0') {
+        const auto identifier_offset = offset_ - identifier.size() -
+            (type_character == '\0' ? 0U : 1U);
         const auto variable = variables_.find(identifier);
         if (variable == variables_.end()) {
             set_error("WFC0015", "undeclared variable", identifier_offset);
+            return false;
+        }
+        if (!type_character_matches(variable->second, type_character, identifier_offset)) {
             return false;
         }
         if (constants_.contains(identifier)) {
@@ -1797,20 +1895,28 @@ private:
         }
         if (is_identifier_start(current())) {
             const auto identifier_offset = offset_;
-            auto identifier = parse_identifier();
-            if (!at_end() && current() == '$') {
-                identifier->push_back('$');
-                advance();
-            }
+            char type_character{};
+            auto identifier = parse_identifier(&type_character);
             skip_horizontal_whitespace();
             if (!at_end() && current() == '(') {
+                if (type_character != '\0') {
+                    identifier->push_back(type_character);
+                }
                 return parse_function_call(*identifier, identifier_offset);
             }
             if (const auto constant = vba_constant_value(*identifier)) {
-                return Value{*constant};
+                Value value{*constant};
+                if (!type_character_matches(value, type_character, identifier_offset)) {
+                    return std::nullopt;
+                }
+                return value;
             }
             if (auto text = vba_string_constant(*identifier)) {
-                return Value{std::move(*text)};
+                Value value{std::move(*text)};
+                if (!type_character_matches(value, type_character, identifier_offset)) {
+                    return std::nullopt;
+                }
+                return value;
             }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
@@ -1819,6 +1925,9 @@ private:
             const auto variable = variables_.find(*identifier);
             if (variable == variables_.end()) {
                 set_error("WFC0015", "undeclared variable", identifier_offset);
+                return std::nullopt;
+            }
+            if (!type_character_matches(variable->second, type_character, identifier_offset)) {
                 return std::nullopt;
             }
             if (constant_expression_ && !constants_.contains(*identifier)) {

@@ -848,4 +848,18 @@ Print TypeName(value) & " " & VarType(value) & " " & (value / divisor)]=]
             LABELS "integration;mp-0002;expressions;numeric;literals"
             PASS_REGULAR_EXPRESSION "Double 5 Long"
     )
+
+    add_test(
+        NAME TC-MP0002-identifier-type-characters-cli
+        COMMAND wfc --eval [=[Dim value#
+value = 2.5
+Const label$ = "value="
+Print label & value# & " " & TypeName(value)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-identifier-type-characters-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;numeric;variables;constants"
+            PASS_REGULAR_EXPRESSION "value=2.5 Double"
+    )
 endif()
