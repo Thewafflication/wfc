@@ -235,6 +235,16 @@ int main() {
     expect_success(
         "Print vbSunday & \" \" & vbSaturday & \" \" & vbUseSystemDayOfWeek",
         "1 7 0");
+    expect_success(
+        "Print vbYesNo & \" \" & vbCritical & \" \" & vbExclamation & \" \" & "
+        "vbDefaultButton2 & \" \" & vbSystemModal",
+        "4 16 48 256 4096");
+    expect_success(
+        "Print vbHide & \" \" & vbNormalFocus & \" \" & vbMinimizedNoFocus",
+        "0 1 6");
+    expect_success(
+        "Print vbFirstFourDays & \" \" & vbCalHijri & \" \" & vbShortTime",
+        "2 1 4");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");

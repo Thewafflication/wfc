@@ -71,6 +71,26 @@ using Value = std::variant<Integer, std::string, bool>;
         {"vbusesystemdayofweek", 0}, {"vbsunday", 1}, {"vbmonday", 2},
         {"vbtuesday", 3}, {"vbwednesday", 4}, {"vbthursday", 5},
         {"vbfriday", 6}, {"vbsaturday", 7},
+        // VbMsgBoxStyle (REQ-0081)
+        {"vbokonly", 0}, {"vbokcancel", 1}, {"vbabortretryignore", 2},
+        {"vbyesnocancel", 3}, {"vbyesno", 4}, {"vbretrycancel", 5},
+        {"vbcritical", 16}, {"vbquestion", 32}, {"vbexclamation", 48},
+        {"vbinformation", 64}, {"vbdefaultbutton1", 0}, {"vbdefaultbutton2", 256},
+        {"vbdefaultbutton3", 512}, {"vbdefaultbutton4", 768},
+        {"vbapplicationmodal", 0}, {"vbsystemmodal", 4096},
+        {"vbmsgboxhelpbutton", 16384}, {"vbmsgboxright", 524288},
+        {"vbmsgboxrtlreading", 1048576}, {"vbmsgboxsetforeground", 65536},
+        // VbAppWinStyle (REQ-0088)
+        {"vbhide", 0}, {"vbnormalfocus", 1}, {"vbminimizedfocus", 2},
+        {"vbmaximizedfocus", 3}, {"vbnormalnofocus", 4}, {"vbminimizednofocus", 6},
+        // VbFirstWeekOfYear (REQ-0086)
+        {"vbusesystem", 0}, {"vbfirstjan1", 1}, {"vbfirstfourdays", 2},
+        {"vbfirstfullweek", 3},
+        // VbCalendar (REQ-0090)
+        {"vbcalgreg", 0}, {"vbcalhijri", 1},
+        // VbDateTimeFormat (REQ-0091)
+        {"vbgeneraldate", 0}, {"vblongdate", 1}, {"vbshortdate", 2},
+        {"vblongtime", 3}, {"vbshorttime", 4},
     };
     const auto entry = table.find(identifier);
     if (entry == table.end()) {
