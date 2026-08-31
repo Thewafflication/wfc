@@ -60,6 +60,7 @@ retained CTest evidence.
 | 2026-08-31 #36 | Construction | Expose `VbMsgBoxStyle`/`VbAppWinStyle`/`VbFirstWeekOfYear`/`VbCalendar`/`VbDateTimeFormat` constants under `REQ-0179` | Commit `1af5656` |
 | 2026-08-31 #37 | Construction | Add the general string constants (`vbCrLf`, `vbTab`, ...) and integer `vbObjectError` under `REQ-0179`/`REQ-0094` | Commit `cc53b1c` |
 | 2026-08-31 #38 | Construction | Complete the `VbVarType` source-visible enumeration (`vbEmpty`..`vbArray`) under `REQ-0179`/`REQ-0080` | Commit `4352819` |
+| 2026-08-31 #39 | Construction | Expose the `VbIMEStatus` enumeration, completing the source-visible constant contracts under `REQ-0179`/`REQ-0087` | Commit `65303ee` |
 
 ## Verification Log
 
@@ -99,6 +100,7 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `1af5656` MsgBox/window/date constants) | Pass (60/60; expanded unit coverage) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `cc53b1c` string constants) | Pass (61/61) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `4352819` full VbVarType) | Pass (61/61; expanded unit coverage) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `65303ee` VbIMEStatus) | Pass (61/61; expanded unit coverage) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -168,6 +170,7 @@ when the session completes.
 | MsgBox/window/date constants (`1af5656`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
 | General string constants (`cc53b1c`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
 | Full VbVarType enumeration (`4352819`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
+| VbIMEStatus enumeration (`65303ee`) | ~12,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
