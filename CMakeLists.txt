@@ -724,4 +724,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information;color"
             PASS_REGULAR_EXPRESSION "8388608 255 16777215"
     )
+
+    add_test(
+        NAME TC-MP0002-byte-string-cli
+        COMMAND wfc --eval [=[Print LenB("WFC") & " " & AscB("A") & " " & ChrB(66)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-byte-string-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings;bytes"
+            PASS_REGULAR_EXPRESSION "3 65 B"
+    )
 endif()

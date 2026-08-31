@@ -112,3 +112,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0176 — Scalar Information function subset](req-0176-scalar-information-functions.md)
   defines the Information-module behavior representable by the current scalar
   value model, including `RGB` color packing.
+- [REQ-0177 — Byte-string function subset](req-0177-byte-string-functions.md)
+  defines `LenB`, `AscB`, and `ChrB` over MP-0002's current byte-string model.

@@ -1713,7 +1713,7 @@ private:
     [[nodiscard]] std::optional<Value> parse_function_call(
         const std::string_view identifier,
         const std::size_t identifier_offset) {
-        const bool is_len = identifier == "len";
+        const bool is_len = identifier == "len" || identifier == "lenb";
         const bool is_lower = identifier == "lcase" || identifier == "lcase$";
         const bool is_upper = identifier == "ucase" || identifier == "ucase$";
         const bool is_left_trim = identifier == "ltrim" || identifier == "ltrim$";
@@ -1722,9 +1722,11 @@ private:
         const bool is_left = identifier == "left" || identifier == "left$";
         const bool is_right = identifier == "right" || identifier == "right$";
         const bool is_mid = identifier == "mid" || identifier == "mid$";
-        const bool is_asc = identifier == "asc" || identifier == "ascw";
+        const bool is_asc = identifier == "asc" || identifier == "ascb" ||
+                            identifier == "ascw";
+        const bool is_chr_b = identifier == "chrb" || identifier == "chrb$";
         const bool is_chr = identifier == "chr" || identifier == "chr$" ||
-                            identifier == "chrw";
+                            identifier == "chrw" || is_chr_b;
         const bool is_reverse = identifier == "strreverse";
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
@@ -1848,8 +1850,13 @@ private:
             if (!execute_) {
                 return Value{std::string{}};
             }
-            if (*character_code < 0 || *character_code > 127) {
-                set_error("WFC0078", "Chr code must be in the ASCII range", identifier_offset);
+            const Integer maximum = is_chr_b ? 255 : 127;
+            if (*character_code < 0 || *character_code > maximum) {
+                set_error(
+                    "WFC0078",
+                    is_chr_b ? "ChrB code must be in the byte range"
+                             : "Chr code must be in the ASCII range",
+                    identifier_offset);
                 return std::nullopt;
             }
             return Value{std::string(1U, static_cast<char>(*character_code))};

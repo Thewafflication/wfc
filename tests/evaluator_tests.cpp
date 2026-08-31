@@ -210,6 +210,9 @@ int main() {
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
+    expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
+                   "3 65 B");
+    expect_success("Print AscB(ChrB(255)) & \" \" & LenB(ChrB$(0))", "255 1");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
@@ -742,6 +745,7 @@ int main() {
     expect_program_failure("Print Asc(\"\")", "WFC0077");
     expect_program_failure("Print Chr(-1)", "WFC0078");
     expect_program_failure("Print Chr(128)", "WFC0078");
+    expect_program_failure("Print ChrB(256)", "WFC0078");
     expect_program_failure(
         "Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
         "WFC0081");

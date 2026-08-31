@@ -53,6 +53,7 @@ retained CTest evidence.
 | 2026-08-30 #29 | Construction | Add the remaining Information predicates that are always `False` in the current scalar value model | Commit `e17d5b7` |
 | 2026-08-30 #30 | Construction | Add `RGB` component validation, clamping, and VB color packing; consolidate scalar Information traceability in `REQ-0176` | Working increment after `e17d5b7` |
 | 2026-08-30 #31 | Construction | Add the complete sixteen-entry `QBColor` palette with bounded-index diagnostics | Working increment after `9af4ef8` |
+| 2026-08-30 #32 | Construction | Add `LenB`, `AscB`, and `ChrB`/`ChrB$` over the current byte-string representation | Working increment after `4cd8498` |
 
 ## Verification Log
 
@@ -85,6 +86,7 @@ retained CTest evidence.
 | 2026-08-30 | `ctest --preset windows-x64-debug` (post `e17d5b7` Information predicates) | Pass (54/54) | Local CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (RGB increment) | Pass (55/55) | Local x64 CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (QBColor increment) | Pass (56/56) | Local x64 CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (byte-string increment) | Pass (57/57) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -96,6 +98,7 @@ retained CTest evidence.
 | Where VB6 `Choose`/`Switch` return `Null` (out-of-range index, no matching expression), emit an explicit diagnostic (`WFC0089`/`WFC0090`) | Current evaluator value model has no `Null`/`Variant` | Prevents a false claim of `Null` semantics; behavior tightens to an error until a `Variant` model exists | This log |
 | Restrict `IsNumeric`/`VarType`/`TypeName` to the current `Long`/`Boolean`/`String` value set | Current evaluator value architecture | Reports only representable type codes/names; floating and `Null`/`Empty` classifications deferred with the numeric/Variant model | This log |
 | Return `False` for unavailable Information categories and reject negative `RGB` components | Current evaluator value architecture and VBA `RGB` contract | Avoids inventing unrepresentable Variant states while providing deterministic color packing and clamping | `REQ-0176` |
+| Define `LenB`/`AscB`/`ChrB` against WFC's stored byte sequence | Current evaluator String architecture | Adds deterministic byte operations without claiming DBCS or BSTR-layout equivalence | `REQ-0177` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -146,6 +149,7 @@ when the session completes.
 | AscW/ChrW increment (`0a60bae`) | ~11,000 est. | Not reported | Claude Code, assistant estimate |
 | Information predicates and RGB continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | QBColor continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Byte-string continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
