@@ -1760,6 +1760,7 @@ private:
         const bool is_constant_false_predicate = is_isarray || is_isobject ||
                                                  is_isnull || is_isempty ||
                                                  is_iserror || is_ismissing;
+        const bool is_rgb = identifier == "rgb";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -1767,7 +1768,7 @@ private:
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
-            !is_constant_false_predicate) {
+            !is_constant_false_predicate && !is_rgb) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1818,7 +1819,7 @@ private:
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
-        } else if (is_iif) {
+        } else if (is_iif || is_rgb) {
             valid_arity = arguments.size() == 3U;
         } else if (is_choose) {
             valid_arity = arguments.size() >= 2U;
@@ -1873,6 +1874,38 @@ private:
                 return std::nullopt;
             }
             return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+        }
+
+        if (is_rgb) {
+            Integer component[3]{};
+            for (std::size_t index = 0U; index < 3U; ++index) {
+                const auto* value = std::get_if<Integer>(&arguments[index]);
+                if (value == nullptr) {
+                    set_error(
+                        "WFC0073",
+                        "RGB requires Long red, green, and blue components",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                component[index] = *value;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            for (Integer& value : component) {
+                if (value < 0) {
+                    set_error(
+                        "WFC0091",
+                        "RGB component must be non-negative",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                if (value > 255) {
+                    value = 255;  // VB6 assumes any component above 255 is 255.
+                }
+            }
+            return Value{static_cast<Integer>(
+                component[0] + component[1] * 256 + component[2] * 65536)};
         }
 
         if (is_constant_false_predicate) {

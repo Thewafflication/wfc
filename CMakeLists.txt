@@ -702,4 +702,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information"
             PASS_REGULAR_EXPRESSION "False False False"
     )
+
+    add_test(
+        NAME TC-MP0002-rgb-cli
+        COMMAND wfc --eval [=[Print RGB(255, 0, 0) & " " & RGB(0, 0, 255)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-rgb-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information;color"
+            PASS_REGULAR_EXPRESSION "255 16711680"
+    )
 endif()

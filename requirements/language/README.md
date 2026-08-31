@@ -109,3 +109,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   MP-0002 increment.
 - [REQ-0175 — CByte function subset](req-0175-cbyte-function.md) defines bounded
   Long-to-Byte conversion for the thirty-sixth MP-0002 increment.
+- [REQ-0176 — Scalar Information function subset](req-0176-scalar-information-functions.md)
+  defines the Information-module behavior representable by the current scalar
+  value model, including `RGB` color packing.

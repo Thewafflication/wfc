@@ -216,6 +216,8 @@ int main() {
     expect_program_success(
         "Print IsEmpty(1): Print IsError(True): Print IsMissing(7)",
         "False\nFalse\nFalse");
+    expect_success("Print RGB(255, 0, 0) & \" \" & RGB(0, 0, 255)", "255 16711680");
+    expect_success("Print RGB(300, 128, 0)", "33023");
 
     expect_failure("", "WFC0001");
     expect_failure("Printer \"no\"", "WFC0001");
@@ -774,6 +776,9 @@ int main() {
     expect_program_failure("Print Switch(False, 1, False, 2)", "WFC0090");
     expect_program_failure("Print Switch(42, \"a\")", "WFC0021");
     expect_program_failure("Print Int(\"x\")", "WFC0073");
+    expect_program_failure("Print RGB(1, 2)", "WFC0072");
+    expect_program_failure("Print RGB(\"1\", 2, 3)", "WFC0073");
+    expect_program_failure("Print RGB(-1, 0, 0)", "WFC0091");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");
