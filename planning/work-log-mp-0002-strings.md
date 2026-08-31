@@ -66,6 +66,7 @@ retained CTest evidence.
 | 2026-08-31 #42 | Construction | Add `CDbl`/`CSng` conversions from Long/Double/Boolean/String, with single-precision narrowing for `CSng`, under `REQ-0182` | Commit `6a33604` |
 | 2026-08-31 #43 | Construction | Add floating-point math `Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` returning `Double`, with `Sqr`/`Log` domain checks, under `REQ-0183` | Commit `1ad9baa` |
 | 2026-08-31 #44 | Construction | Extend `Val` to parse fractional/exponent prefixes returning `Double` (whole prefix stays `Long`); update `REQ-0170` | Commit `b8c3bd9` |
+| 2026-08-31 #45 | Construction | Round `Double` operands of `\`/`Mod` to the nearest even `Long` (banker's rounding) before dividing; update `REQ-0181` | Commit `3478dd3` |
 
 ## Verification Log
 
@@ -111,6 +112,7 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `6a33604` CDbl/CSng) | Pass (64/64) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `1ad9baa` float math) | Pass (65/65) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `b8c3bd9` fractional Val) | Pass (65/65) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `3478dd3` Double \\/Mod) | Pass (65/65) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -186,6 +188,7 @@ when the session completes.
 | CDbl/CSng conversions (`6a33604`) | ~18,000 est. | Not reported | Claude Code, assistant estimate |
 | Floating-point math functions (`1ad9baa`) | ~20,000 est. | Not reported | Claude Code, assistant estimate |
 | Fractional Val (`b8c3bd9`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
+| Double integer-division rounding (`3478dd3`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
@@ -210,18 +213,23 @@ targets.
 **Suggested next increments:** the `Double` numeric type is now in the value
 model (`REQ-0181`): fractional/exponent literals, widening `+`/`-`/`*`, `/`
 division, cross-type comparison, banker's-rounding `CLng`/`CInt`/`CByte`, and
-shortest-form rendering. The natural follow-ups that this foundation unlocks:
+shortest-form rendering. The follow-ups the `Double` foundation unlocked are now implemented:
+`CDbl`/`CSng` (`REQ-0182`), the floating-point Math functions (`REQ-0183`),
+fractional `Val` (`REQ-0170`), and banker's-rounding of `Double` operands for
+`\`/`Mod` (`REQ-0181`).
 
-- `CDbl`/`CSng` conversions and fractional `Val` (string → `Double`);
-- the floating-point Math functions `Sqr`, `Sin`, `Cos`, `Tan`, `Atn`, `Exp`,
-  `Log` (`REQ-0077`), returning `Double`;
-- `\`/`Mod` accepting `Double` operands via banker's-rounding to `Long`;
-- numeric type suffixes (`#`, `!`, `&`, `%`) and `Format`/`Str` VB6 rendering.
+**Remaining next increments:**
 
-`Single`, `Currency`, and `Decimal` distinct types, `Date`/`Time` services, and
-`Filter`/`Join`/`Split` (arrays/`Variant`) remain later architecture
-increments. `Double` rendering is deliberately the shortest round-tripping form
-rather than VB6 locale-specific formatting, documented in `REQ-0181`.
+- numeric type-declaration suffixes (`#` Double, `!` Single, `&` Long,
+  `%` Integer, `@` Currency) on literals and identifiers;
+- `Format`/`Format$` and VB6-accurate `Str`/`Print` sign-space and locale
+  rendering (current `Double` rendering is the shortest round-tripping form, per
+  `REQ-0181`);
+- `Rnd`/`Randomize` once a `Single` value and generator state exist.
+
+`Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`
+services, and `Filter`/`Join`/`Split` (arrays/`Variant`) remain later
+architecture increments.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the `Strings`/`Conversion` build-out under MP-0002.
