@@ -57,6 +57,8 @@ retained CTest evidence.
 | 2026-08-30 #33 | Construction | Add `LeftB`/`RightB`/`MidB`/`InStrB` byte-measured slice and search variants under `REQ-0177` | Commit `2630483` |
 | 2026-08-30 #34 | Construction | Add `StrConv` case mappings (`vbUpperCase`/`vbLowerCase`/`vbProperCase`) and source-visible `VbStrConv` constants under `REQ-0178`; reject width/kana/Unicode conversions | Commit `03e97e1` |
 | 2026-08-31 #35 | Construction | Refactor constant resolution/reservation to a shared table; expose `VbTriState`/`VbCallType`/`VbFileAttribute`/`VbMsgBoxResult`/`VbDayOfWeek` under `REQ-0179` | Commit `516d51d` |
+| 2026-08-31 #36 | Construction | Expose `VbMsgBoxStyle`/`VbAppWinStyle`/`VbFirstWeekOfYear`/`VbCalendar`/`VbDateTimeFormat` constants under `REQ-0179` | Commit `1af5656` |
+| 2026-08-31 #37 | Construction | Add the general string constants (`vbCrLf`, `vbTab`, ...) and integer `vbObjectError` under `REQ-0179`/`REQ-0094` | Commit `cc53b1c` |
 
 ## Verification Log
 
@@ -93,6 +95,8 @@ retained CTest evidence.
 | 2026-08-30 | `ctest --preset windows-x64-debug` (post `2630483` byte-slice) | Pass (58/58) | Local x64 CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (post `03e97e1` StrConv) | Pass (59/59) | Local x64 CTest run |
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `516d51d` VBA constants) | Pass (60/60) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `1af5656` MsgBox/window/date constants) | Pass (60/60; expanded unit coverage) | Local x64 CTest run |
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `cc53b1c` string constants) | Pass (61/61) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -159,6 +163,8 @@ when the session completes.
 | Byte-slice increment (`2630483`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
 | StrConv increment (`03e97e1`) | ~20,000 est. | Not reported | Claude Code, assistant estimate |
 | VBA constant enumerations (`516d51d`) | ~26,000 est. | Not reported | Claude Code, assistant estimate |
+| MsgBox/window/date constants (`1af5656`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
+| General string constants (`cc53b1c`) | ~16,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
