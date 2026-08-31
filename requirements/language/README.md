@@ -124,3 +124,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines floor/truncation semantics for the current numeric model.
 - [REQ-0188 — Str over Long and Double](req-0188-str-double.md) defines
   sign-space conversion for both current numeric value types.
+- [REQ-0189 — Hex and Oct over Long and Double](req-0189-radix-double.md)
+  defines banker's-rounded radix conversion for both numeric value types.

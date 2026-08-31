@@ -149,6 +149,8 @@ int main() {
     expect_success("Print Oct(8)", "10");
     expect_success("Print Oct$(0)", "0");
     expect_success("Print Oct(-1)", "37777777777");
+    expect_success("Print Hex(15.5) & \" \" & Hex(17.5) & \" \" & Oct(7.5)", "10 12 10");
+    expect_success("Print Hex(-1.5) & \" \" & Oct(8.5)", "FFFFFFFE 10");
     expect_success("Print \"&H\" & Hex(Asc(\"A\"))", "&H41");
     expect_success("Print \"[\" & Str(42) & \"]\"", "[ 42]");
     expect_success("Print \"[\" & Str$(-42) & \"]\"", "[-42]");
@@ -863,6 +865,7 @@ int main() {
     expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, \"1\")", "WFC0073");
     expect_program_failure("Print Hex(\"a\")", "WFC0073");
     expect_program_failure("Print Oct(True)", "WFC0073");
+    expect_program_failure("Print Hex(2147483648#)", "WFC0009");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_failure("Print Val(42)", "WFC0073");
     expect_program_failure("Print Abs(\"42\")", "WFC0073");

@@ -3031,16 +3031,19 @@ private:
         }
 
         if (is_hex || is_oct) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
+            if (!is_number(arguments[0])) {
                 set_error(
                     "WFC0073",
-                    is_hex ? "Hex requires a Long argument" : "Oct requires a Long argument",
+                    is_hex ? "Hex requires a numeric argument" : "Oct requires a numeric argument",
                     identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
                 return Value{std::string{}};
+            }
+            const auto number = coerce_long(arguments[0], identifier_offset);
+            if (!number.has_value()) {
+                return std::nullopt;
             }
             auto magnitude = static_cast<std::uint32_t>(*number);
             if (magnitude == 0U) {
