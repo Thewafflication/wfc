@@ -95,6 +95,15 @@ using Value = std::variant<Integer, std::string, bool>;
         // VbDateTimeFormat (REQ-0091)
         {"vbgeneraldate", 0}, {"vblongdate", 1}, {"vbshortdate", 2},
         {"vblongtime", 3}, {"vbshorttime", 4},
+        // VbIMEStatus (REQ-0087)
+        {"vbimenoop", 0}, {"vbimemodenocontrol", 0}, {"vbimeon", 1},
+        {"vbimemodeon", 1}, {"vbimeoff", 2}, {"vbimemodeoff", 2},
+        {"vbimedisable", 3}, {"vbimemodedisable", 3}, {"vbimehiragana", 4},
+        {"vbimemodehiragana", 4}, {"vbimekatakanadbl", 5},
+        {"vbimemodekatakana", 5}, {"vbimekatakanasng", 6},
+        {"vbimemodekatakanahalf", 6}, {"vbimealphadbl", 7},
+        {"vbimemodealphafull", 7}, {"vbimealphasng", 8}, {"vbimemodealpha", 8},
+        {"vbimemodehangulfull", 9}, {"vbimemodehangul", 10},
         // General constants (REQ-0094), integer member
         {"vbobjecterror", -2147221504},
     };

@@ -259,6 +259,9 @@ int main() {
         "0 2 5 17 8192");
     expect_success("Print VarType(42) = vbLong", "True");
     expect_success("Print VarType(\"x\") = vbString", "True");
+    expect_success(
+        "Print vbIMEModeHangul & \" \" & vbIMEModeHangulFull & \" \" & vbIMEOn",
+        "10 9 1");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
