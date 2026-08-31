@@ -51,9 +51,10 @@ retained CTest evidence.
 | 2026-08-30 #27 | Construction | Add `Int`/`Fix` truncation over the current `Long` domain | Commit `48ef2b7` |
 | 2026-08-30 #28 | Construction | Expose `AscW`/`ChrW` as ASCII-range equivalents of `Asc`/`Chr` | Commit `0a60bae` |
 | 2026-08-30 #29 | Construction | Add the remaining Information predicates that are always `False` in the current scalar value model | Commit `e17d5b7` |
-| 2026-08-30 #30 | Construction | Add `RGB` component validation, clamping, and VB color packing; consolidate scalar Information traceability in `REQ-0176` | Working increment after `e17d5b7` |
-| 2026-08-30 #31 | Construction | Add the complete sixteen-entry `QBColor` palette with bounded-index diagnostics | Working increment after `9af4ef8` |
-| 2026-08-30 #32 | Construction | Add `LenB`, `AscB`, and `ChrB`/`ChrB$` over the current byte-string representation | Working increment after `4cd8498` |
+| 2026-08-30 #30 | Construction | Add `RGB` component validation, clamping, and VB color packing; consolidate scalar Information traceability in `REQ-0176` | Commit `9af4ef8` |
+| 2026-08-30 #31 | Construction | Add the complete sixteen-entry `QBColor` palette with bounded-index diagnostics | Commit `4cd8498` |
+| 2026-08-30 #32 | Construction | Add `LenB`, `AscB`, and `ChrB`/`ChrB$` over the current byte-string representation | Commit `88e5281` |
+| 2026-08-30 #33 | Construction | Add `LeftB`/`RightB`/`MidB`/`InStrB` byte-measured slice and search variants under `REQ-0177` | Commit `2630483` |
 
 ## Verification Log
 
@@ -86,7 +87,8 @@ retained CTest evidence.
 | 2026-08-30 | `ctest --preset windows-x64-debug` (post `e17d5b7` Information predicates) | Pass (54/54) | Local CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (RGB increment) | Pass (55/55) | Local x64 CTest run |
 | 2026-08-30 | `ctest --preset windows-x64-debug` (QBColor increment) | Pass (56/56) | Local x64 CTest run |
-| 2026-08-30 | `ctest --preset windows-x64-debug` (byte-string increment) | Pass (57/57) | Local x64 CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (post `88e5281` byte-string) | Pass (57/57) | Local x64 CTest run |
+| 2026-08-30 | `ctest --preset windows-x64-debug` (post `2630483` byte-slice) | Pass (58/58) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -150,6 +152,7 @@ when the session completes.
 | Information predicates and RGB continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | QBColor continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Byte-string continuation | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Byte-slice increment (`2630483`) | ~14,000 est. | Not reported | Claude Code, assistant estimate |
 
 ## Preservation and Handoff
 
