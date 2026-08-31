@@ -1719,9 +1719,12 @@ private:
         const bool is_left_trim = identifier == "ltrim" || identifier == "ltrim$";
         const bool is_right_trim = identifier == "rtrim" || identifier == "rtrim$";
         const bool is_trim = identifier == "trim" || identifier == "trim$";
-        const bool is_left = identifier == "left" || identifier == "left$";
-        const bool is_right = identifier == "right" || identifier == "right$";
-        const bool is_mid = identifier == "mid" || identifier == "mid$";
+        const bool is_left = identifier == "left" || identifier == "left$" ||
+                             identifier == "leftb" || identifier == "leftb$";
+        const bool is_right = identifier == "right" || identifier == "right$" ||
+                              identifier == "rightb" || identifier == "rightb$";
+        const bool is_mid = identifier == "mid" || identifier == "mid$" ||
+                            identifier == "midb" || identifier == "midb$";
         const bool is_asc = identifier == "asc" || identifier == "ascb" ||
                             identifier == "ascw";
         const bool is_chr_b = identifier == "chrb" || identifier == "chrb$";
@@ -1730,7 +1733,7 @@ private:
         const bool is_reverse = identifier == "strreverse";
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
-        const bool is_instr = identifier == "instr";
+        const bool is_instr = identifier == "instr" || identifier == "instrb";
         const bool is_instr_rev = identifier == "instrrev";
         const bool is_strcomp = identifier == "strcomp";
         const bool is_replace = identifier == "replace";

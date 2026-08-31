@@ -213,6 +213,11 @@ int main() {
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
                    "3 65 B");
     expect_success("Print AscB(ChrB(255)) & \" \" & LenB(ChrB$(0))", "255 1");
+    expect_success(
+        "Print LeftB(\"WFC\", 2) & \" \" & RightB$(\"WFC\", 2) & \" \" & "
+        "MidB(\"WFC\", 2, 1) & \" \" & InStrB(\"WFC\", \"FC\")",
+        "WF FC F 2");
+    expect_success("Print AscB(LeftB(ChrB(255) & \"x\", 1))", "255");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");

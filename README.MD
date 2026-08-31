@@ -138,4 +138,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsArray(1)) & `" `"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print RGB(255, 0, 0) & `" `" & RGB(0, 0, 255)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print QBColor(1) & `" `" & QBColor(12) & `" `" & QBColor(15)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LenB(`"WFC`") & `" `" & AscB(`"A`") & `" `" & ChrB(66)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LeftB(`"WFC`", 2) & `" `" & RightB(`"WFC`", 2) & `" `" & MidB(`"WFC`", 2, 1)"
 ```

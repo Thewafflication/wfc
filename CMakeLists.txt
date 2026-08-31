@@ -735,4 +735,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;strings;bytes"
             PASS_REGULAR_EXPRESSION "3 65 B"
     )
+
+    add_test(
+        NAME TC-MP0002-byte-slice-cli
+        COMMAND wfc --eval [=[Print LeftB("WFC", 2) & " " & RightB("WFC", 2) & " " & MidB("WFC", 2, 1) & " " & InStrB("WFC", "FC")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-byte-slice-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings;bytes"
+            PASS_REGULAR_EXPRESSION "WF FC F 2"
+    )
 endif()
