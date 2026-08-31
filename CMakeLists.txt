@@ -757,4 +757,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;strings"
             PASS_REGULAR_EXPRESSION "The Quick Fox"
     )
+
+    add_test(
+        NAME TC-MP0002-vba-constants-cli
+        COMMAND wfc --eval [=[Print vbTrue & " " & vbYes & " " & vbReadOnly & " " & vbSaturday]=]
+    )
+    set_tests_properties(
+        TC-MP0002-vba-constants-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;constants"
+            PASS_REGULAR_EXPRESSION "-1 6 1 7"
+    )
 endif()

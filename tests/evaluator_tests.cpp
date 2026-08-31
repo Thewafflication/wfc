@@ -224,6 +224,17 @@ int main() {
     expect_success(
         "Print StrConv(\"the quICK fox\", vbProperCase)", "The Quick Fox");
     expect_success("Print StrConv(\"ab1cd\", 3)", "Ab1Cd");
+    expect_success("Print vbTrue & \" \" & vbFalse & \" \" & vbUseDefault", "-1 0 -2");
+    expect_success(
+        "Print vbMethod & \" \" & vbGet & \" \" & vbLet & \" \" & vbSet",
+        "1 2 4 8");
+    expect_success(
+        "Print vbReadOnly & \" \" & vbHidden & \" \" & vbDirectory & \" \" & vbArchive",
+        "1 2 16 32");
+    expect_success("Print vbYes & \" \" & vbNo & \" \" & vbCancel", "6 7 2");
+    expect_success(
+        "Print vbSunday & \" \" & vbSaturday & \" \" & vbUseSystemDayOfWeek",
+        "1 7 0");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
@@ -693,6 +704,8 @@ int main() {
     expect_program_failure("Option Compare Text\nOption Compare Binary", "WFC0069");
     expect_program_failure("Option Compare Database", "WFC0070");
     expect_program_failure("Dim vbTextCompare As Long", "WFC0017");
+    expect_program_failure("Dim vbTrue As Long", "WFC0017");
+    expect_program_failure("Dim vbReadOnly As Long", "WFC0017");
     expect_program_failure("Print Missing(\"value\")", "WFC0071");
     expect_program_failure("Print Len()", "WFC0072");
     expect_program_failure("Print Len(\"one\", \"two\")", "WFC0072");

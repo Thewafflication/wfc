@@ -140,4 +140,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print QBColor(1) & `" `" & QBC
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LenB(`"WFC`") & `" `" & AscB(`"A`") & `" `" & ChrB(66)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LeftB(`"WFC`", 2) & `" `" & RightB(`"WFC`", 2) & `" `" & MidB(`"WFC`", 2, 1)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrConv(`"the quICK fox`", vbProperCase)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print vbTrue & `" `" & vbYes & `" `" & vbReadOnly & `" `" & vbSaturday"
 ```

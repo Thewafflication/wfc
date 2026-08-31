@@ -42,6 +42,43 @@ using Value = std::variant<Integer, std::string, bool>;
            character == '_';
 }
 
+// Source-visible VBA constant enumerations. Each name resolves to the value in
+// its `REQ-008x`/`REQ-0089` type-library contract and is a reserved identifier
+// so source cannot shadow it. Members are exposed for source compatibility;
+// they carry no runtime behavior beyond their integer value.
+[[nodiscard]] std::optional<Integer> vba_constant_value(
+    const std::string_view identifier) {
+    static const std::unordered_map<std::string_view, Integer> table = {
+        // VbCompareMethod (REQ-0089)
+        {"vbbinarycompare", 0}, {"vbtextcompare", 1}, {"vbdatabasecompare", 2},
+        // VbVarType subset (REQ-0080)
+        {"vblong", 3}, {"vbstring", 8}, {"vbboolean", 11},
+        // VbStrConv (REQ-0084)
+        {"vbuppercase", 1}, {"vblowercase", 2}, {"vbpropercase", 3},
+        {"vbwide", 4}, {"vbnarrow", 8}, {"vbkatakana", 16}, {"vbhiragana", 32},
+        {"vbunicode", 64}, {"vbfromunicode", 128},
+        // VbTriState (REQ-0092)
+        {"vbusedefault", -2}, {"vbtrue", -1}, {"vbfalse", 0},
+        // VbCallType (REQ-0093)
+        {"vbmethod", 1}, {"vbget", 2}, {"vblet", 4}, {"vbset", 8},
+        // VbFileAttribute (REQ-0083)
+        {"vbnormal", 0}, {"vbreadonly", 1}, {"vbhidden", 2}, {"vbsystem", 4},
+        {"vbvolume", 8}, {"vbdirectory", 16}, {"vbarchive", 32}, {"vbalias", 64},
+        // VbMsgBoxResult (REQ-0082)
+        {"vbok", 1}, {"vbcancel", 2}, {"vbabort", 3}, {"vbretry", 4},
+        {"vbignore", 5}, {"vbyes", 6}, {"vbno", 7},
+        // VbDayOfWeek (REQ-0085)
+        {"vbusesystemdayofweek", 0}, {"vbsunday", 1}, {"vbmonday", 2},
+        {"vbtuesday", 3}, {"vbwednesday", 4}, {"vbthursday", 5},
+        {"vbfriday", 6}, {"vbsaturday", 7},
+    };
+    const auto entry = table.find(identifier);
+    if (entry == table.end()) {
+        return std::nullopt;
+    }
+    return entry->second;
+}
+
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
            identifier == "dim" || identifier == "do" || identifier == "eqv" ||
@@ -59,15 +96,7 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "xor" ||
-           identifier == "vbbinarycompare" || identifier == "vbtextcompare" ||
-           identifier == "vbdatabasecompare" ||
-           identifier == "vblong" || identifier == "vbboolean" ||
-           identifier == "vbstring" ||
-           identifier == "vbuppercase" || identifier == "vblowercase" ||
-           identifier == "vbpropercase" || identifier == "vbwide" ||
-           identifier == "vbnarrow" || identifier == "vbkatakana" ||
-           identifier == "vbhiragana" || identifier == "vbunicode" ||
-           identifier == "vbfromunicode";
+           vba_constant_value(identifier).has_value();
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -1674,50 +1703,8 @@ private:
             if (!at_end() && current() == '(') {
                 return parse_function_call(*identifier, identifier_offset);
             }
-            if (*identifier == "vbbinarycompare") {
-                return Value{Integer{0}};
-            }
-            if (*identifier == "vbtextcompare") {
-                return Value{Integer{1}};
-            }
-            if (*identifier == "vbdatabasecompare") {
-                return Value{Integer{2}};
-            }
-            if (*identifier == "vblong") {
-                return Value{Integer{3}};
-            }
-            if (*identifier == "vbstring") {
-                return Value{Integer{8}};
-            }
-            if (*identifier == "vbboolean") {
-                return Value{Integer{11}};
-            }
-            if (*identifier == "vbuppercase") {
-                return Value{Integer{1}};
-            }
-            if (*identifier == "vblowercase") {
-                return Value{Integer{2}};
-            }
-            if (*identifier == "vbpropercase") {
-                return Value{Integer{3}};
-            }
-            if (*identifier == "vbwide") {
-                return Value{Integer{4}};
-            }
-            if (*identifier == "vbnarrow") {
-                return Value{Integer{8}};
-            }
-            if (*identifier == "vbkatakana") {
-                return Value{Integer{16}};
-            }
-            if (*identifier == "vbhiragana") {
-                return Value{Integer{32}};
-            }
-            if (*identifier == "vbunicode") {
-                return Value{Integer{64}};
-            }
-            if (*identifier == "vbfromunicode") {
-                return Value{Integer{128}};
+            if (const auto constant = vba_constant_value(*identifier)) {
+                return Value{*constant};
             }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
