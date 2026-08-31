@@ -73,6 +73,7 @@ retained CTest evidence.
 | 2026-08-31 #49 | Construction | Extend `Round` to `Double` with banker's rounding and bounded decimal scaling under `REQ-0180` | Commit `18716a4` |
 | 2026-08-31 #50 | Construction | Extend `Abs`/`Sgn`/`Int`/`Fix` across `Long` and `Double` under `REQ-0171`/`REQ-0187` | Commit `8c02b44` |
 | 2026-08-31 #51 | Construction | Extend `Str`/`Str$` sign-space conversion to `Double` under `REQ-0188` | Commit `88f3cbe` |
+| 2026-08-31 #52 | Construction | Extend `Hex`/`Oct` radix conversion to banker's-rounded `Double` inputs under `REQ-0189` | Commit `c72ff59` |
 
 ## Verification Log
 
@@ -131,6 +132,8 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `8c02b44` Double scalar math) | Pass (68/68; expanded unit/CLI coverage) | Local x64 CTest run |
 
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `88f3cbe` Double Str) | Pass (68/68; expanded unit/CLI coverage) | Local x64 CTest run |
+
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `c72ff59` Double radix conversion) | Pass (68/68; expanded unit/CLI coverage) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -216,6 +219,7 @@ when the session completes.
 | Fractional Round (`18716a4`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Double scalar math (`8c02b44`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Double Str (`88f3cbe`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Double radix conversion (`c72ff59`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
