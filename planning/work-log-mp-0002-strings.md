@@ -70,6 +70,7 @@ retained CTest evidence.
 | 2026-08-31 #46 | Construction | Add `As Double` variables/constants with exact `Long` widening and correct `TypeName`/`VarType` introspection under `REQ-0184` | Commit `bf2ab25` |
 | 2026-08-31 #47 | Construction | Add representable `#` Double and `&` Long numeric literal suffixes under `REQ-0185` | Commit `f8bb1cf` |
 | 2026-08-31 #48 | Construction | Add representable `#` Double, `&` Long, and `$` String identifier declaration characters under `REQ-0186` | Commit `12403bd` |
+| 2026-08-31 #49 | Construction | Extend `Round` to `Double` with banker's rounding and bounded decimal scaling under `REQ-0180` | Commit `18716a4` |
 
 ## Verification Log
 
@@ -122,6 +123,8 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `f8bb1cf` numeric literal suffixes) | Pass (67/67) | Local x64 CTest run |
 
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `12403bd` identifier type characters) | Pass (68/68) | Local x64 CTest run |
+
+| 2026-08-31 | `ctest --preset windows-x64-debug` (post `18716a4` fractional Round) | Pass (68/68; expanded unit/CLI coverage) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -204,6 +207,7 @@ when the session completes.
 | Double declarations and introspection (`bf2ab25`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Numeric literal suffixes (`f8bb1cf`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Identifier type-declaration characters (`12403bd`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Fractional Round (`18716a4`) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
