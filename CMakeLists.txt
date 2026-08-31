@@ -801,4 +801,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;numeric;double"
             PASS_REGULAR_EXPRESSION "2.5 4 2"
     )
+
+    add_test(
+        NAME TC-MP0002-cdbl-cli
+        COMMAND wfc --eval [=[Print CDbl("2.5") + CDbl(3) & " " & CSng(2.25)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cdbl-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;numeric;conversion"
+            PASS_REGULAR_EXPRESSION "5.5 2.25"
+    )
 endif()

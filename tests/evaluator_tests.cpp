@@ -227,6 +227,11 @@ int main() {
     expect_success("Print CInt(-2.5) & \" \" & CInt(2.6)", "-2 3");
     expect_success("Print CStr(3.5) & \" \" & CStr(2.0)", "3.5 2");
     expect_program_success("Print IsNumeric(3.14): Print CBool(1.5)", "True\nTrue");
+    expect_success("Print CDbl(3) & \" \" & CDbl(\"2.5\") & \" \" & CDbl(\"+1.5\")",
+                   "3 2.5 1.5");
+    expect_success("Print CDbl(\"  -1.5  \") + 0.5 & \" \" & CDbl(True)", "-1 -1");
+    expect_success("Print CSng(2.25) + CSng(0.5)", "2.75");
+    expect_success("Print CLng(CDbl(\"3.5\"))", "4");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
@@ -869,6 +874,9 @@ int main() {
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 5.0 \\ 2", "WFC0007");
     expect_program_failure("Print 5.5 Mod 2", "WFC0007");
+    expect_program_failure("Print CDbl(\"x\")", "WFC0095");
+    expect_program_failure("Print CDbl(\"\")", "WFC0095");
+    expect_program_failure("Print CSng(\"1.2.3\")", "WFC0095");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

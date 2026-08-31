@@ -1863,6 +1863,8 @@ private:
         const bool is_cbool = identifier == "cbool";
         const bool is_cbyte = identifier == "cbyte";
         const bool is_cint = identifier == "cint";
+        const bool is_cdbl = identifier == "cdbl";
+        const bool is_csng = identifier == "csng";
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
@@ -1892,7 +1894,7 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round) {
+            !is_round && !is_cdbl && !is_csng) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2246,6 +2248,59 @@ private:
                 return std::nullopt;
             }
             return Value{*number};
+        }
+
+        if (is_cdbl || is_csng) {
+            double value{};
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                value = static_cast<double>(*integer);
+            } else if (const auto* number = std::get_if<double>(&arguments[0])) {
+                value = *number;
+            } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                value = *boolean ? -1.0 : 0.0;
+            } else {
+                if (!execute_) {
+                    return Value{0.0};
+                }
+                const auto& text = std::get<std::string>(arguments[0]);
+                std::size_t first{};
+                std::size_t last = text.size();
+                while (first < last &&
+                       (text[first] == ' ' || text[first] == '\t' ||
+                        text[first] == '\r' || text[first] == '\n')) {
+                    ++first;
+                }
+                while (last > first &&
+                       (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
+                        text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
+                    --last;
+                }
+                if (first < last && text[first] == '+') {
+                    ++first;
+                }
+                double parsed{};
+                const auto conversion = std::from_chars(
+                    text.data() + first, text.data() + last, parsed);
+                if (first == last || conversion.ec != std::errc{} ||
+                    conversion.ptr != text.data() + last) {
+                    set_error(
+                        "WFC0095",
+                        is_cdbl ? "CDbl requires a numeric value"
+                                : "CSng requires a numeric value",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                value = parsed;
+            }
+            if (!execute_) {
+                return Value{0.0};
+            }
+            // The evaluator has no distinct Single type; CSng narrows to float
+            // precision and stores the result in the Double slot.
+            if (is_csng) {
+                value = static_cast<double>(static_cast<float>(value));
+            }
+            return Value{value};
         }
 
         if (is_cint) {
