@@ -62,7 +62,12 @@ using Value = std::variant<Integer, std::string, bool>;
            identifier == "vbbinarycompare" || identifier == "vbtextcompare" ||
            identifier == "vbdatabasecompare" ||
            identifier == "vblong" || identifier == "vbboolean" ||
-           identifier == "vbstring";
+           identifier == "vbstring" ||
+           identifier == "vbuppercase" || identifier == "vblowercase" ||
+           identifier == "vbpropercase" || identifier == "vbwide" ||
+           identifier == "vbnarrow" || identifier == "vbkatakana" ||
+           identifier == "vbhiragana" || identifier == "vbunicode" ||
+           identifier == "vbfromunicode";
 }
 
 [[nodiscard]] wfc::Evaluation failure(
@@ -1687,6 +1692,33 @@ private:
             if (*identifier == "vbboolean") {
                 return Value{Integer{11}};
             }
+            if (*identifier == "vbuppercase") {
+                return Value{Integer{1}};
+            }
+            if (*identifier == "vblowercase") {
+                return Value{Integer{2}};
+            }
+            if (*identifier == "vbpropercase") {
+                return Value{Integer{3}};
+            }
+            if (*identifier == "vbwide") {
+                return Value{Integer{4}};
+            }
+            if (*identifier == "vbnarrow") {
+                return Value{Integer{8}};
+            }
+            if (*identifier == "vbkatakana") {
+                return Value{Integer{16}};
+            }
+            if (*identifier == "vbhiragana") {
+                return Value{Integer{32}};
+            }
+            if (*identifier == "vbunicode") {
+                return Value{Integer{64}};
+            }
+            if (*identifier == "vbfromunicode") {
+                return Value{Integer{128}};
+            }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
@@ -1767,6 +1799,7 @@ private:
                                                  is_iserror || is_ismissing;
         const bool is_qbcolor = identifier == "qbcolor";
         const bool is_rgb = identifier == "rgb";
+        const bool is_strconv = identifier == "strconv";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -1774,7 +1807,7 @@ private:
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
-            !is_constant_false_predicate && !is_qbcolor && !is_rgb) {
+            !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1831,7 +1864,7 @@ private:
             valid_arity = arguments.size() >= 2U;
         } else if (is_switch) {
             valid_arity = arguments.size() >= 2U && arguments.size() % 2U == 0U;
-        } else if (is_left || is_right || is_string) {
+        } else if (is_left || is_right || is_string || is_strconv) {
             valid_arity = arguments.size() == 2U;
         } else {
             valid_arity = arguments.size() == 1U;
@@ -2664,6 +2697,56 @@ private:
                 return std::nullopt;
             }
             return Value{static_cast<Integer>(static_cast<unsigned char>(string->front()))};
+        }
+
+        if (is_strconv) {
+            const auto* conversion = std::get_if<Integer>(&arguments[1]);
+            if (conversion == nullptr) {
+                set_error(
+                    "WFC0073",
+                    "StrConv requires a Long conversion argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*conversion == 1) {  // vbUpperCase
+                std::string result = *string;
+                for (char& character : result) {
+                    character = ascii_upper(character);
+                }
+                return Value{std::move(result)};
+            }
+            if (*conversion == 2) {  // vbLowerCase
+                std::string result = *string;
+                for (char& character : result) {
+                    character = ascii_lower(character);
+                }
+                return Value{std::move(result)};
+            }
+            if (*conversion == 3) {  // vbProperCase
+                std::string result = *string;
+                bool word_start = true;
+                for (char& character : result) {
+                    const bool is_letter =
+                        (character >= 'A' && character <= 'Z') ||
+                        (character >= 'a' && character <= 'z');
+                    if (is_letter) {
+                        character = word_start ? ascii_upper(character)
+                                               : ascii_lower(character);
+                        word_start = false;
+                    } else {
+                        word_start = true;
+                    }
+                }
+                return Value{std::move(result)};
+            }
+            set_error(
+                "WFC0093",
+                "StrConv conversion is not supported in the current model",
+                identifier_offset);
+            return std::nullopt;
         }
 
         if (is_val) {

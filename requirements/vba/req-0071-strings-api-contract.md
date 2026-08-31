@@ -103,7 +103,8 @@ change that identifies the resulting source or run-time limitation.
 ## Implementation Record
 
 The source evaluator implements the current scalar String subset through
-`REQ-0160`--`REQ-0169` and `REQ-0177`, including the byte-string family over
-its stored byte representation. DBCS code-page semantics, Variant/array
-members, formatting functions, runtime type information, and remaining module
-members are pending.
+`REQ-0160`--`REQ-0169`, `REQ-0177`, and `REQ-0178`, including the byte-string
+family over its stored byte representation and the `StrConv` case-mapping
+conversions. DBCS code-page semantics, width/kana/Unicode `StrConv`
+conversions, Variant/array members, formatting functions, runtime type
+information, and remaining module members are pending.

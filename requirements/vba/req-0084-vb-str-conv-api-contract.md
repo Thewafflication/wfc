@@ -37,7 +37,10 @@ to compile and execute compatible VB and VBA code.
 
 **Method:** Inspection
 
-**References:** `evidence/reference/vba-6.0-type-library.json`; test case TBD
+**References:** `evidence/reference/vba-6.0-type-library.json`;
+`TC-MP0002-strconv-cli` and the `StrConv` unit tests exercise the supported
+`vbUpperCase`/`vbLowerCase`/`vbProperCase` values and reject the deferred
+width/kana/Unicode values (`REQ-0178`).
 
 Inspect the WFC VBA type information and compare every listed name, value,
 member identifier, access mode, and signature. Function behavior requires

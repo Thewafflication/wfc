@@ -218,6 +218,12 @@ int main() {
         "MidB(\"WFC\", 2, 1) & \" \" & InStrB(\"WFC\", \"FC\")",
         "WF FC F 2");
     expect_success("Print AscB(LeftB(ChrB(255) & \"x\", 1))", "255");
+    expect_success(
+        "Print StrConv(\"aBc\", vbUpperCase) & \" \" & StrConv(\"aBc\", vbLowerCase)",
+        "ABC abc");
+    expect_success(
+        "Print StrConv(\"the quICK fox\", vbProperCase)", "The Quick Fox");
+    expect_success("Print StrConv(\"ab1cd\", 3)", "Ab1Cd");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
@@ -794,6 +800,10 @@ int main() {
     expect_program_failure("Print QBColor()", "WFC0072");
     expect_program_failure("Print QBColor(\"1\")", "WFC0073");
     expect_program_failure("Print QBColor(16)", "WFC0092");
+    expect_program_failure("Print StrConv(\"a\")", "WFC0072");
+    expect_program_failure("Print StrConv(\"a\", \"1\")", "WFC0073");
+    expect_program_failure("Print StrConv(\"a\", vbUnicode)", "WFC0093");
+    expect_program_failure("Print StrConv(\"a\", 99)", "WFC0093");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

@@ -746,4 +746,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;strings;bytes"
             PASS_REGULAR_EXPRESSION "WF FC F 2"
     )
+
+    add_test(
+        NAME TC-MP0002-strconv-cli
+        COMMAND wfc --eval [=[Print StrConv("the quICK fox", vbProperCase)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-strconv-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;strings"
+            PASS_REGULAR_EXPRESSION "The Quick Fox"
+    )
 endif()
