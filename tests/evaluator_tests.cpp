@@ -837,8 +837,11 @@ int main() {
     expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)", "WFC0082");
     expect_program_failure("Print InStrRev(\"a\", \"a\", 0)", "WFC0083");
     expect_program_failure("Print InStrRev(\"a\", \"a\", -2)", "WFC0083");
-    expect_program_failure("Print Val(\"12.5\")", "WFC0084");
-    expect_program_failure("Print Val(\"1E2\")", "WFC0084");
+    expect_success("Print Val(\"12.5\")", "12.5");
+    expect_success("Print Val(\"1E2\")", "100");
+    expect_success("Print Val(\"3.14 pie\")", "3.14");
+    expect_success("Print Val(\".5\")", "0.5");
+    expect_success("Print Val(\"-2.5e1\")", "-25");
     expect_program_failure("Print Val(\"&H10\")", "WFC0085");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
     expect_program_failure("Print Abs(-2147483648)", "WFC0009");

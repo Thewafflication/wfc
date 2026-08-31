@@ -3013,25 +3013,62 @@ private:
                 set_error("WFC0085", "Val radix prefixes are not supported", identifier_offset);
                 return std::nullopt;
             }
-            std::size_t end = digit_start;
-            while (end < compact.size() &&
-                   std::isdigit(static_cast<unsigned char>(compact[end])) != 0) {
-                ++end;
+            const auto is_digit = [](const char character) {
+                return std::isdigit(static_cast<unsigned char>(character)) != 0;
+            };
+            std::size_t pos = digit_start;
+            bool had_int_digits = false;
+            while (pos < compact.size() && is_digit(compact[pos])) {
+                ++pos;
+                had_int_digits = true;
             }
-            if (end == digit_start) {
+            const std::size_t int_end = pos;
+            bool is_float = false;
+            bool had_frac_digits = false;
+            if (pos < compact.size() && compact[pos] == '.') {
+                is_float = true;
+                ++pos;
+                while (pos < compact.size() && is_digit(compact[pos])) {
+                    ++pos;
+                    had_frac_digits = true;
+                }
+            }
+            if ((had_int_digits || had_frac_digits) && pos < compact.size() &&
+                (compact[pos] == 'e' || compact[pos] == 'E')) {
+                std::size_t exponent = pos + 1U;
+                if (exponent < compact.size() &&
+                    (compact[exponent] == '+' || compact[exponent] == '-')) {
+                    ++exponent;
+                }
+                if (exponent < compact.size() && is_digit(compact[exponent])) {
+                    is_float = true;
+                    pos = exponent;
+                    while (pos < compact.size() && is_digit(compact[pos])) {
+                        ++pos;
+                    }
+                }
+            }
+            if (!had_int_digits && !had_frac_digits) {
                 return Value{Integer{0}};
-            }
-            if (end < compact.size() &&
-                (compact[end] == '.' || compact[end] == 'e' || compact[end] == 'E')) {
-                set_error("WFC0084", "Val non-integral values are not supported", identifier_offset);
-                return std::nullopt;
             }
 
             const std::size_t conversion_start = compact[0] == '+' ? 1U : 0U;
+            if (is_float) {
+                double value{};
+                const auto conversion = std::from_chars(
+                    compact.data() + conversion_start,
+                    compact.data() + pos,
+                    value);
+                if (conversion.ec == std::errc::result_out_of_range) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{value};
+            }
             Integer result{};
             const auto conversion = std::from_chars(
                 compact.data() + conversion_start,
-                compact.data() + end,
+                compact.data() + int_end,
                 result);
             if (conversion.ec == std::errc::result_out_of_range) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
