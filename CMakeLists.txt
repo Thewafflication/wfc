@@ -823,4 +823,18 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;math;double"
             PASS_REGULAR_EXPRESSION "3 1 3141593"
     )
+
+    add_test(
+        NAME TC-MP0002-double-declarations-cli
+        COMMAND wfc --eval [=[Dim value As Double
+value = 5
+Const divisor As Double = 2
+Print TypeName(value) & " " & VarType(value) & " " & (value / divisor)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-double-declarations-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;numeric;double"
+            PASS_REGULAR_EXPRESSION "Double 5 2.5"
+    )
 endif()

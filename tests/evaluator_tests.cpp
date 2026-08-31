@@ -199,6 +199,7 @@ int main() {
         "3 11 8");
     expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString", "3 11 8");
     expect_success("Print VarType(\"y\") = vbString", "True");
+    expect_success("Print TypeName(3.14) & \" \" & VarType(3.14)", "Double 5");
     expect_success("Print IIf(1 < 2, \"yes\", \"no\")", "yes");
     expect_success("Print IIf(1 > 2, \"yes\", \"no\")", "no");
     expect_success("Print IIf(True, 10, 20) + 1", "11");
@@ -352,6 +353,15 @@ int main() {
         "Print greeting\n"
         "Print ready",
         "42\nHello!\nTrue");
+    expect_program_success(
+        "Dim value As Double\n"
+        "Print TypeName(value) & \" \" & value\n"
+        "value = 2\n"
+        "value = value + 0.5\n"
+        "Const scale As Double = 4\n"
+        "Print value * scale\n"
+        "Print VarType(scale)",
+        "Double 0\n10\n5");
     expect_program_success(
         "' leading comment\n"
         "Rem another leading comment\n"
@@ -745,6 +755,8 @@ int main() {
     expect_program_failure("missing = 1", "WFC0015");
     expect_program_failure("Print missing", "WFC0015");
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
+    expect_program_failure("Dim value As Double: value = \"wrong\"", "WFC0016");
+    expect_program_failure("Const value As Double = \"wrong\"", "WFC0016");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");

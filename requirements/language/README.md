@@ -114,3 +114,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   value model, including `RGB` color packing.
 - [REQ-0177 — Byte-string function subset](req-0177-byte-string-functions.md)
   defines `LenB`, `AscB`, and `ChrB` over MP-0002's current byte-string model.
+- [REQ-0184 — Double declarations and introspection](req-0184-double-declarations.md)
+  extends typed variables, constants, `TypeName`, and `VarType` to `Double`.

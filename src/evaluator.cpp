@@ -1323,7 +1323,7 @@ private:
 
         skip_horizontal_whitespace();
         if (!consume_keyword("as")) {
-            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
             return false;
         }
         skip_horizontal_whitespace();
@@ -1331,12 +1331,14 @@ private:
         Value initial_value;
         if (consume_keyword("long")) {
             initial_value = Integer{};
+        } else if (consume_keyword("double")) {
+            initial_value = 0.0;
         } else if (consume_keyword("string")) {
             initial_value = std::string{};
         } else if (consume_keyword("boolean")) {
             initial_value = false;
         } else {
-            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
             return false;
         }
 
@@ -1368,7 +1370,7 @@ private:
 
         skip_horizontal_whitespace();
         if (!consume_keyword("as")) {
-            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
             return false;
         }
         skip_horizontal_whitespace();
@@ -1376,12 +1378,14 @@ private:
         std::size_t expected_type{};
         if (consume_keyword("long")) {
             expected_type = Value{Integer{}}.index();
+        } else if (consume_keyword("double")) {
+            expected_type = Value{0.0}.index();
         } else if (consume_keyword("string")) {
             expected_type = Value{std::string{}}.index();
         } else if (consume_keyword("boolean")) {
             expected_type = Value{false}.index();
         } else {
-            set_error("WFC0012", "expected As Long, As String, or As Boolean", offset_);
+            set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
             return false;
         }
 
@@ -1397,7 +1401,10 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (value->index() != expected_type) {
+        if (expected_type == Value{0.0}.index() &&
+            std::holds_alternative<Integer>(*value)) {
+            *value = static_cast<double>(std::get<Integer>(*value));
+        } else if (value->index() != expected_type) {
             set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
             return false;
         }
@@ -1429,7 +1436,10 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (variable->second.index() != value->index()) {
+        if (std::holds_alternative<double>(variable->second) &&
+            std::holds_alternative<Integer>(*value)) {
+            *value = static_cast<double>(std::get<Integer>(*value));
+        } else if (variable->second.index() != value->index()) {
             set_error("WFC0016", "assignment type mismatch", identifier_offset);
             return false;
         }
@@ -2174,6 +2184,9 @@ private:
             if (std::holds_alternative<Integer>(arguments[0])) {
                 return Value{std::string{"Long"}};
             }
+            if (std::holds_alternative<double>(arguments[0])) {
+                return Value{std::string{"Double"}};
+            }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{std::string{"Boolean"}};
             }
@@ -2186,6 +2199,9 @@ private:
             }
             if (std::holds_alternative<Integer>(arguments[0])) {
                 return Value{Integer{3}};
+            }
+            if (std::holds_alternative<double>(arguments[0])) {
+                return Value{Integer{5}};
             }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{Integer{11}};
