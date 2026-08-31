@@ -51,8 +51,12 @@ using Value = std::variant<Integer, std::string, bool>;
     static const std::unordered_map<std::string_view, Integer> table = {
         // VbCompareMethod (REQ-0089)
         {"vbbinarycompare", 0}, {"vbtextcompare", 1}, {"vbdatabasecompare", 2},
-        // VbVarType subset (REQ-0080)
-        {"vblong", 3}, {"vbstring", 8}, {"vbboolean", 11},
+        // VbVarType (REQ-0080)
+        {"vbempty", 0}, {"vbnull", 1}, {"vbinteger", 2}, {"vblong", 3},
+        {"vbsingle", 4}, {"vbdouble", 5}, {"vbcurrency", 6}, {"vbdate", 7},
+        {"vbstring", 8}, {"vbobject", 9}, {"vberror", 10}, {"vbboolean", 11},
+        {"vbvariant", 12}, {"vbdataobject", 13}, {"vbdecimal", 14},
+        {"vbbyte", 17}, {"vbuserdefinedtype", 36}, {"vbarray", 8192},
         // VbStrConv (REQ-0084)
         {"vbuppercase", 1}, {"vblowercase", 2}, {"vbpropercase", 3},
         {"vbwide", 4}, {"vbnarrow", 8}, {"vbkatakana", 16}, {"vbhiragana", 32},

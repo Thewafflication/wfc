@@ -9,7 +9,10 @@ redeclare it (`WFC0017`):
 
 - `VbCompareMethod` (`REQ-0089`): `vbBinaryCompare`, `vbTextCompare`,
   `vbDatabaseCompare`;
-- `VbVarType` subset (`REQ-0080`): `vbLong`, `vbString`, `vbBoolean`;
+- `VbVarType` (`REQ-0080`): `vbEmpty`, `vbNull`, `vbInteger`, `vbLong`,
+  `vbSingle`, `vbDouble`, `vbCurrency`, `vbDate`, `vbString`, `vbObject`,
+  `vbError`, `vbBoolean`, `vbVariant`, `vbDataObject`, `vbDecimal`, `vbByte`,
+  `vbUserDefinedType`, `vbArray`;
 - `VbStrConv` (`REQ-0084`): `vbUpperCase`, `vbLowerCase`, `vbProperCase`,
   `vbWide`, `vbNarrow`, `vbKatakana`, `vbHiragana`, `vbUnicode`,
   `vbFromUnicode`;

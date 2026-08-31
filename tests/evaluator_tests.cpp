@@ -253,6 +253,12 @@ int main() {
         "Print Len(vbCrLf) & \" \" & Len(vbNewLine) & \" \" & Len(vbNullString)",
         "2 2 0");
     expect_success("Print vbObjectError", "-2147221504");
+    expect_success(
+        "Print vbEmpty & \" \" & vbInteger & \" \" & vbDouble & \" \" & vbByte & "
+        "\" \" & vbArray",
+        "0 2 5 17 8192");
+    expect_success("Print VarType(42) = vbLong", "True");
+    expect_success("Print VarType(\"x\") = vbString", "True");
     expect_program_success(
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");

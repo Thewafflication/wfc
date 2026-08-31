@@ -46,7 +46,7 @@ to compile and execute compatible VB and VBA code.
 
 **Method:** Inspection
 
-**References:** `evidence/reference/vba-6.0-type-library.json`; test case TBD
+**References:** `evidence/reference/vba-6.0-type-library.json`; `VarType` tests and the constant unit tests verify the exposed members (`REQ-0179`, `REQ-0176`).
 
 Inspect the WFC VBA type information and compare every listed name, value,
 member identifier, access mode, and signature. Function behavior requires
