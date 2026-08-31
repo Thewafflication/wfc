@@ -1760,6 +1760,7 @@ private:
         const bool is_constant_false_predicate = is_isarray || is_isobject ||
                                                  is_isnull || is_isempty ||
                                                  is_iserror || is_ismissing;
+        const bool is_qbcolor = identifier == "qbcolor";
         const bool is_rgb = identifier == "rgb";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
@@ -1768,7 +1769,7 @@ private:
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
-            !is_constant_false_predicate && !is_rgb) {
+            !is_constant_false_predicate && !is_qbcolor && !is_rgb) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1874,6 +1875,27 @@ private:
                 return std::nullopt;
             }
             return Value{*number < 0 ? static_cast<Integer>(-*number) : *number};
+        }
+
+        if (is_qbcolor) {
+            const auto* color = std::get_if<Integer>(&arguments[0]);
+            if (color == nullptr) {
+                set_error("WFC0073", "QBColor requires a Long color index", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            if (*color < 0 || *color > 15) {
+                set_error("WFC0092", "QBColor index must be from 0 through 15", identifier_offset);
+                return std::nullopt;
+            }
+            constexpr Integer colors[] = {
+                0x000000, 0x800000, 0x008000, 0x808000,
+                0x000080, 0x800080, 0x008080, 0xC0C0C0,
+                0x808080, 0xFF0000, 0x00FF00, 0xFFFF00,
+                0x0000FF, 0xFF00FF, 0x00FFFF, 0xFFFFFF};
+            return Value{colors[*color]};
         }
 
         if (is_rgb) {

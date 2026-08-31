@@ -63,7 +63,7 @@ change that identifies the resulting source or run-time limitation.
 ## Implementation Record
 
 The source evaluator implements the current scalar subset through `REQ-0176`:
-`IsNumeric`, `TypeName`, `VarType`, `RGB`, and the scalar-false results for
+`IsNumeric`, `TypeName`, `VarType`, `QBColor`, `RGB`, and the scalar-false results for
 `IsArray`, `IsObject`, `IsNull`, `IsEmpty`, `IsError`, and `IsMissing`.
-`IsDate`, `QBColor`, non-scalar true results, runtime type information, and the
+`IsDate`, non-scalar true results, runtime type information, and the
 remaining object/host members are pending.

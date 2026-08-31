@@ -713,4 +713,15 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
             LABELS "integration;mp-0002;expressions;vba;information;color"
             PASS_REGULAR_EXPRESSION "255 16711680"
     )
+
+    add_test(
+        NAME TC-MP0002-qbcolor-cli
+        COMMAND wfc --eval [=[Print QBColor(1) & " " & QBColor(12) & " " & QBColor(15)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-qbcolor-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;information;color"
+            PASS_REGULAR_EXPRESSION "8388608 255 16777215"
+    )
 endif()
