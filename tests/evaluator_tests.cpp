@@ -208,6 +208,8 @@ int main() {
     expect_success("Print Switch(False, 1, True, 42) + 1", "43");
     expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)", "-7 -7 42");
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
+    expect_success("Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
+                   "42 -7 100");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
@@ -844,6 +846,9 @@ int main() {
     expect_program_failure("Print StrConv(\"a\", \"1\")", "WFC0073");
     expect_program_failure("Print StrConv(\"a\", vbUnicode)", "WFC0093");
     expect_program_failure("Print StrConv(\"a\", 99)", "WFC0093");
+    expect_program_failure("Print Round(\"x\")", "WFC0073");
+    expect_program_failure("Print Round(5, -1)", "WFC0094");
+    expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print 1 And 2", "WFC0019");

@@ -1832,6 +1832,7 @@ private:
         const bool is_switch = identifier == "switch";
         const bool is_int = identifier == "int";
         const bool is_fix = identifier == "fix";
+        const bool is_round = identifier == "round";
         const bool is_isarray = identifier == "isarray";
         const bool is_isobject = identifier == "isobject";
         const bool is_isnull = identifier == "isnull";
@@ -1851,7 +1852,8 @@ private:
             !is_abs && !is_sgn && !is_cstr && !is_clng && !is_cbool && !is_cbyte &&
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
-            !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv) {
+            !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
+            !is_round) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -1902,6 +1904,8 @@ private:
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
+        } else if (is_round) {
+            valid_arity = arguments.size() == 1U || arguments.size() == 2U;
         } else if (is_iif || is_rgb) {
             valid_arity = arguments.size() == 3U;
         } else if (is_choose) {
@@ -2037,6 +2041,34 @@ private:
             }
             // Int and Fix differ only on fractional magnitudes; every value in the
             // current Long domain is already whole, so both truncate to identity.
+            return Value{execute_ ? *number : Integer{}};
+        }
+
+        if (is_round) {
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error("WFC0073", "Round requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (arguments.size() == 2U) {
+                const auto* digits = std::get_if<Integer>(&arguments[1]);
+                if (digits == nullptr) {
+                    set_error(
+                        "WFC0073",
+                        "Round requires a Long digit count",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                if (execute_ && *digits < 0) {
+                    set_error(
+                        "WFC0094",
+                        "Round digit count must be non-negative",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+            }
+            // A Long value is already whole, so rounding to zero or more decimal
+            // places is identity in the current numeric model.
             return Value{execute_ ? *number : Integer{}};
         }
 
