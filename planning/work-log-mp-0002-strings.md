@@ -235,27 +235,28 @@ targets.
 - `InStr`, `StrComp`, `Replace`, and `InStrRev` now accept their controlled
   positional comparison forms. `vbDatabaseCompare` is source-visible but remains
   an explicit unsupported execution mode outside a database host.
-- `Hex`/`Oct`/`Str` operate on the `Long` value type only, consistent with the
-  current MP-0002 numeric subset.
-- `Val` returns `Long` in the current evaluator. Its fractional, exponent, and
-  radix forms remain explicitly deferred until the necessary numeric semantics
-  can be represented without truncation.
+- `Val` returns `Long` for whole decimal prefixes and `Double` for fractional
+  or exponent prefixes. Hexadecimal/octal prefixes remain explicitly deferred.
+- `Hex`/`Oct` banker's-round `Double` inputs to the 32-bit `Long` domain before
+  conversion. `Str` accepts both numeric types but deliberately uses invariant
+  shortest-form `Double` digits rather than locale-sensitive VB formatting.
+- Numeric literals support `#` (`Double`) and `&` (`Long`); identifier
+  declarations/references support `#`, `&`, and `$`. `!`, `%`, and `@` remain
+  deferred rather than being mapped to an introspectively incorrect type.
 
-**Suggested next increments:** the `Double` numeric type is now in the value
-model (`REQ-0181`): fractional/exponent literals, widening `+`/`-`/`*`, `/`
-division, cross-type comparison, banker's-rounding `CLng`/`CInt`/`CByte`, and
-shortest-form rendering. The follow-ups the `Double` foundation unlocked are now implemented:
-`CDbl`/`CSng` (`REQ-0182`), the floating-point Math functions (`REQ-0183`),
-fractional `Val` (`REQ-0170`), and banker's-rounding of `Double` operands for
-`\`/`Mod` (`REQ-0181`).
+**Completed Double follow-ups:** declarations and introspection (`REQ-0184`),
+representable literal and identifier type characters (`REQ-0185`/`REQ-0186`),
+fractional `Round` (`REQ-0180`), `Abs`/`Sgn`/`Int`/`Fix`
+(`REQ-0171`/`REQ-0187`), `Str` (`REQ-0188`), and `Hex`/`Oct` (`REQ-0189`) now
+cover the current `Long`/`Double` model in addition to the earlier conversions,
+floating-point functions, `Val`, arithmetic, and comparison work.
 
 **Remaining next increments:**
 
 - literal/identifier `!` Single, `%` Integer, and `@` Currency forms after
   those distinct types exist;
-- `Format`/`Format$` and VB6-accurate `Str`/`Print` sign-space and locale
-  rendering (current `Double` rendering is the shortest round-tripping form, per
-  `REQ-0181`);
+- `Format`/`Format$` and locale-aware numeric rendering (current `Double`
+  rendering is invariant shortest round-tripping form, per `REQ-0181`);
 - `Rnd`/`Randomize` once a `Single` value and generator state exist.
 
 `Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`
