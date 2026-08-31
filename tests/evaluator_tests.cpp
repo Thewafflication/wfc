@@ -238,6 +238,9 @@ int main() {
     expect_program_success("Print Sin(0): Print Cos(0): Print Tan(0)", "0\n1\n0");
     expect_success("Print CLng(Atn(1) * 4 * 1000000)", "3141593");
     expect_success("Print CLng(Log(Exp(3)))", "3");
+    // Integer-division operators round Double operands (banker's rounding).
+    expect_success("Print 5.0 \\ 2 & \" \" & 7.5 \\ 2 & \" \" & 5.5 Mod 2", "2 4 0");
+    expect_program_failure("Print \"x\" \\ 2", "WFC0007");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
@@ -881,8 +884,6 @@ int main() {
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
     expect_program_failure("Print 5 / 0", "WFC0008");
-    expect_program_failure("Print 5.0 \\ 2", "WFC0007");
-    expect_program_failure("Print 5.5 Mod 2", "WFC0007");
     expect_program_failure("Print CDbl(\"x\")", "WFC0095");
     expect_program_failure("Print CDbl(\"\")", "WFC0095");
     expect_program_failure("Print CSng(\"1.2.3\")", "WFC0095");

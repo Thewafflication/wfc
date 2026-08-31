@@ -16,8 +16,9 @@ The evaluator shall represent a fractional numeric value as an IEEE-754 double
   operands are `Long`, and shall widen to `Double` when either operand is a
   `Double`. The `/` operator shall always produce a `Double`, reporting
   `WFC0008` on a zero divisor.
-- The integer-division operators `\` and `Mod` shall continue to require `Long`
-  operands (`WFC0007`); fractional operands for them remain deferred.
+- The integer-division operators `\` and `Mod` shall round each `Double`
+  operand to the nearest even `Long` (banker's rounding) before dividing, and
+  shall reject a non-numeric operand with `WFC0007`.
 - Comparisons between any combination of `Long` and `Double` shall evaluate
   numerically; `Long` widens to `Double` exactly.
 - `CLng`, `CInt`, and `CByte` of a `Double` shall round to the nearest integer
@@ -40,7 +41,8 @@ shortest round-tripping form rather than the VB6 locale-specific rendering.
 
 - `tests/evaluator_tests.cpp` covers literal forms, mixed arithmetic, true
   division, comparison across `Long`/`Double`, banker's-rounding conversions,
-  rendering, division by zero, and rejection of `Double` operands for `\`/`Mod`.
+  rendering, division by zero, and banker's-rounding of `Double` operands for
+  `\`/`Mod`.
 - `TC-MP0002-double-cli` verifies division, widening, and conversion through
   `wfc --eval`.
 

@@ -3498,29 +3498,53 @@ private:
         }
     }
 
+    // Coerce a numeric operand to Long for the integer operators, rounding a
+    // Double to the nearest even integer (VB6 banker's rounding). Non-numeric
+    // operands and out-of-range magnitudes are rejected.
+    [[nodiscard]] std::optional<Integer> coerce_long(
+        const Value& value,
+        const std::size_t operator_offset) {
+        if (const auto* integer = std::get_if<Integer>(&value)) {
+            return *integer;
+        }
+        if (const auto* number = std::get_if<double>(&value)) {
+            const double rounded = std::nearbyint(*number);
+            if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
+                  rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+                set_error("WFC0009", "integer overflow", operator_offset);
+                return std::nullopt;
+            }
+            return static_cast<Integer>(rounded);
+        }
+        set_error("WFC0007", "operator requires integer operands", operator_offset);
+        return std::nullopt;
+    }
+
     [[nodiscard]] std::optional<Value> integer_binary(
         const Value& left,
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
-        const auto* left_integer = require_integer(left, operator_offset);
-        if (left_integer == nullptr) {
+        const auto left_coerced = coerce_long(left, operator_offset);
+        if (!left_coerced.has_value()) {
             return std::nullopt;
         }
-        const auto* right_integer = require_integer(right, operator_offset);
-        if (right_integer == nullptr) {
+        const auto right_coerced = coerce_long(right, operator_offset);
+        if (!right_coerced.has_value()) {
             return std::nullopt;
         }
+        const Integer left_integer = *left_coerced;
+        const Integer right_integer = *right_coerced;
         if (!execute_) {
             return Value{Integer{}};
         }
 
-        if ((operation == '\\' || operation == '%') && *right_integer == 0) {
+        if ((operation == '\\' || operation == '%') && right_integer == 0) {
             set_error("WFC0008", "division by zero", operator_offset);
             return std::nullopt;
         }
         if ((operation == '\\' || operation == '%') &&
-            *left_integer == std::numeric_limits<Integer>::min() && *right_integer == -1) {
+            left_integer == std::numeric_limits<Integer>::min() && right_integer == -1) {
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
@@ -3528,19 +3552,19 @@ private:
         std::int64_t result{};
         switch (operation) {
         case '+':
-            result = static_cast<std::int64_t>(*left_integer) + *right_integer;
+            result = static_cast<std::int64_t>(left_integer) + right_integer;
             break;
         case '-':
-            result = static_cast<std::int64_t>(*left_integer) - *right_integer;
+            result = static_cast<std::int64_t>(left_integer) - right_integer;
             break;
         case '*':
-            result = static_cast<std::int64_t>(*left_integer) * *right_integer;
+            result = static_cast<std::int64_t>(left_integer) * right_integer;
             break;
         case '\\':
-            result = *left_integer / *right_integer;
+            result = left_integer / right_integer;
             break;
         case '%':
-            result = *left_integer % *right_integer;
+            result = left_integer % right_integer;
             break;
         default:
             set_error("WFC0004", "unsupported operator", operator_offset);
