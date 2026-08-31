@@ -116,3 +116,5 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `LenB`, `AscB`, and `ChrB` over MP-0002's current byte-string model.
 - [REQ-0184 — Double declarations and introspection](req-0184-double-declarations.md)
   extends typed variables, constants, `TypeName`, and `VarType` to `Double`.
+- [REQ-0185 — Representable numeric literal suffixes](req-0185-numeric-literal-suffixes.md)
+  defines `#` (`Double`) and `&` (`Long`) numeric literal forms.

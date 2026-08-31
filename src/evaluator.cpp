@@ -3236,12 +3236,14 @@ private:
         return is_float;
     }
 
-    [[nodiscard]] std::optional<Value> parse_double(const std::size_t start) {
+    [[nodiscard]] std::optional<Value> parse_double(
+        const std::size_t start,
+        const std::size_t end) {
         double value{};
         const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + offset_, value);
+            std::from_chars(source_.data() + start, source_.data() + end, value);
         if (conversion.ec != std::errc{} ||
-            conversion.ptr != source_.data() + offset_) {
+            conversion.ptr != source_.data() + end) {
             set_error("WFC0006", "numeric literal is malformed", start);
             return std::nullopt;
         }
@@ -3250,12 +3252,23 @@ private:
 
     [[nodiscard]] std::optional<Value> parse_number() {
         const auto start = offset_;
-        if (lex_number_span()) {
-            return parse_double(start);
+        const bool floating_form = lex_number_span();
+        const auto end = offset_;
+        char suffix = '\0';
+        if (!at_end() && (current() == '#' || current() == '&')) {
+            suffix = current();
+            advance();
+        }
+        if (floating_form || suffix == '#') {
+            if (suffix == '&') {
+                set_error("WFC0006", "Long literal suffix requires an integer", start);
+                return std::nullopt;
+            }
+            return parse_double(start, end);
         }
         Integer value{};
         const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + offset_, value);
+            std::from_chars(source_.data() + start, source_.data() + end, value);
         if (conversion.ec == std::errc::result_out_of_range) {
             set_error("WFC0006", "integer literal out of range", start);
             return std::nullopt;
@@ -3265,8 +3278,19 @@ private:
 
     [[nodiscard]] std::optional<Value> parse_negative_number() {
         const auto start = offset_;
-        if (lex_number_span()) {
-            auto value = parse_double(start);
+        const bool floating_form = lex_number_span();
+        const auto end = offset_;
+        char suffix = '\0';
+        if (!at_end() && (current() == '#' || current() == '&')) {
+            suffix = current();
+            advance();
+        }
+        if (floating_form || suffix == '#') {
+            if (suffix == '&') {
+                set_error("WFC0006", "Long literal suffix requires an integer", start);
+                return std::nullopt;
+            }
+            auto value = parse_double(start, end);
             if (!value.has_value()) {
                 return std::nullopt;
             }
@@ -3275,7 +3299,7 @@ private:
 
         std::uint64_t magnitude{};
         const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + offset_, magnitude);
+            std::from_chars(source_.data() + start, source_.data() + end, magnitude);
         constexpr auto maximum_magnitude =
             static_cast<std::uint64_t>(std::numeric_limits<Integer>::max()) + 1U;
         if (conversion.ec == std::errc::result_out_of_range ||

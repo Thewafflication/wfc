@@ -220,6 +220,10 @@ int main() {
     expect_success("Print 2 * 1.5", "3");
     expect_success("Print -3.5", "-3.5");
     expect_success("Print 1e3", "1000");
+    expect_success("Print TypeName(1#) & \" \" & VarType(1#) & \" \" & 1.25#", "Double 5 1.25");
+    expect_success("Print TypeName(42&) & \" \" & VarType(42&) & \" \" & -42&", "Long 3 -42");
+    expect_success("Print 2147483648#", "2147483648");
+    expect_success("Print 1 & 2", "12");
     expect_success("Print 1.5 & \"!\"", "1.5!");
     expect_program_success(
         "Print 1.5 < 2: Print 3.0 = 3: Print 2.5 > 2.5",
@@ -317,6 +321,8 @@ int main() {
     expect_failure("Print (1 + 2", "WFC0005");
     expect_failure("Print 2147483648", "WFC0006");
     expect_failure("Print -2147483649", "WFC0006");
+    expect_failure("Print 1.5&", "WFC0006");
+    expect_failure("Print 1e3&", "WFC0006");
     expect_failure("Print \"one\" + \"two\"", "WFC0007");
     expect_failure("Print 1 \\ 0", "WFC0008");
     expect_failure("Print 2147483647 + 1", "WFC0009");

@@ -837,4 +837,15 @@ Print TypeName(value) & " " & VarType(value) & " " & (value / divisor)]=]
             LABELS "integration;mp-0002;statements;numeric;double"
             PASS_REGULAR_EXPRESSION "Double 5 2.5"
     )
+
+    add_test(
+        NAME TC-MP0002-numeric-literal-suffixes-cli
+        COMMAND wfc --eval [=[Print TypeName(1#) & " " & VarType(1#) & " " & TypeName(42&)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-numeric-literal-suffixes-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;numeric;literals"
+            PASS_REGULAR_EXPRESSION "Double 5 Long"
+    )
 endif()
