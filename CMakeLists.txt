@@ -573,7 +573,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-cbool-cli
-        COMMAND wfc --eval [=[Print CStr(CBool(1)) & " " & CStr(CBool("False"))]=]
+        COMMAND wfc --eval [=[Print CStr(CBool("1.5e2")) & " " & CStr(CBool("0.0"))]=]
     )
     set_tests_properties(
         TC-MP0002-cbool-cli

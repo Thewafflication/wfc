@@ -12,19 +12,19 @@
 | --- | --- |
 | `Boolean` | The input unchanged |
 | `Long` | Zero becomes `False`; every nonzero value becomes `True` |
-| `String` | Case-insensitive `True`/`False`, or a complete whole decimal value |
+| `Double` | Zero becomes `False`; every nonzero value becomes `True` |
+| `String` | Case-insensitive `True`/`False`, or a complete finite decimal/exponent value |
 
-String inputs allow surrounding whitespace. Numeric strings use the same signed
-32-bit boundary as the current `Long` model and convert according to whether the
-parsed value is zero.
+String inputs allow surrounding whitespace and convert according to whether the
+parsed finite numeric value is zero.
 
-Locale-aware numeric strings, fractional values, Empty, Null, Date, Currency,
-floating-point, and general Variant coercion remain outside this requirement.
+Locale-aware numeric strings, Empty, Null, Date, Currency, and general Variant
+coercion remain outside this requirement.
 
 ## Diagnostics
 
-`WFC0087` reports a String that is neither a Boolean name nor a complete whole
-decimal value. Out-of-range numeric strings use the existing overflow diagnostic.
+`WFC0087` reports a String that is neither a Boolean name nor a complete finite
+decimal or exponent value.
 
 ## Verification
 

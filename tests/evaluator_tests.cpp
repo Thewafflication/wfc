@@ -182,6 +182,7 @@ int main() {
     expect_success("Print CLng(CStr(123)) + 1", "124");
     expect_program_success("Print CBool(True): Print CBool(False)", "True\nFalse");
     expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)", "True\nFalse\nTrue");
+    expect_program_success("Print CBool(\"1.5\"): Print CBool(\"-2e-3\"): Print CBool(\"0.0\")", "True\nTrue\nFalse");
     expect_program_success("Print CBool(\" true \"): Print CBool(\"FALSE\")", "True\nFalse");
     expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")", "True\nFalse");
     expect_success("Print CByte(0) & \" \" & CByte(255)", "0 255");
@@ -913,8 +914,8 @@ int main() {
     expect_program_failure("Print CLng(\"12.5\")", "WFC0086");
     expect_program_failure("Print CBool(\"\")", "WFC0087");
     expect_program_failure("Print CBool(\"yes\")", "WFC0087");
-    expect_program_failure("Print CBool(\"1.0\")", "WFC0087");
-    expect_program_failure("Print CBool(\"2147483648\")", "WFC0009");
+    expect_program_failure("Print CBool(\"1e\")", "WFC0087");
+    expect_program_failure("Print CBool(\"NaN\")", "WFC0087");
     expect_program_failure("Print CByte(-1)", "WFC0009");
     expect_program_failure("Print CByte(256)", "WFC0009");
     expect_program_failure("Print CByte(255.5)", "WFC0009");

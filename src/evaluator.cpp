@@ -2678,21 +2678,18 @@ private:
                 set_error("WFC0087", "CBool requires a Boolean or whole decimal value", identifier_offset);
                 return std::nullopt;
             }
-            Integer number{};
+            double number{};
             const auto conversion = std::from_chars(
                 normalized.data() + conversion_first,
                 normalized.data() + normalized.size(),
                 number);
-            if (conversion.ec == std::errc::result_out_of_range) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
-            }
             if (conversion.ec != std::errc{} ||
-                conversion.ptr != normalized.data() + normalized.size()) {
-                set_error("WFC0087", "CBool requires a Boolean or whole decimal value", identifier_offset);
+                conversion.ptr != normalized.data() + normalized.size() ||
+                !std::isfinite(number)) {
+                set_error("WFC0087", "CBool requires a Boolean or numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return Value{number != 0};
+            return Value{number != 0.0};
         }
 
         if (is_space) {
