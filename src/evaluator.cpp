@@ -2456,7 +2456,8 @@ private:
 
         if (is_cbyte) {
             if (!is_number(arguments[0]) &&
-                !std::holds_alternative<std::string>(arguments[0])) {
+                !std::holds_alternative<std::string>(arguments[0]) &&
+                !std::holds_alternative<bool>(arguments[0])) {
                 set_error("WFC0073", "CByte requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
@@ -2473,6 +2474,9 @@ private:
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 return round_double_to_long(*number, 0, 255, identifier_offset);
+            }
+            if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                return Value{*boolean ? Integer{255} : Integer{0}};
             }
 
             const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
