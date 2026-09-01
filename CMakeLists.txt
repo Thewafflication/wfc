@@ -606,7 +606,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-isnumeric-cli
-        COMMAND wfc --eval [=[Print CStr(IsNumeric(" -42 ")) & " " & CStr(IsNumeric("abc"))]=]
+        COMMAND wfc --eval [=[Print CStr(IsNumeric(" -3.14e2 ")) & " " & CStr(IsNumeric("1e"))]=]
     )
     set_tests_properties(
         TC-MP0002-isnumeric-cli

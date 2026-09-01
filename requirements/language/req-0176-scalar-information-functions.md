@@ -3,10 +3,12 @@
 ## Requirement
 
 The MP-0002 evaluator shall implement the VBA Information functions whose
-behavior can be represented by its current `Long`, `Boolean`, and `String`
+behavior can be represented by its current `Long`, `Double`, `Boolean`, and `String`
 value model:
 
-- `IsNumeric`, `TypeName`, and `VarType` shall classify current scalar values;
+- `IsNumeric`, `TypeName`, and `VarType` shall classify current scalar values.
+  `IsNumeric` shall recognize complete, finite decimal and exponent strings
+  after trimming ASCII whitespace;
 - `IsArray`, `IsObject`, `IsNull`, `IsEmpty`, `IsError`, and `IsMissing` shall
   return `False`, because none of those value categories can currently exist;
 - `QBColor(index)` shall map indices 0 through 15 to the corresponding VBA

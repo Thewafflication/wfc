@@ -197,6 +197,12 @@ int main() {
     expect_program_success(
         "Print IsNumeric(\"\"): Print IsNumeric(\"12x\"): Print IsNumeric(\"abc\")",
         "False\nFalse\nFalse");
+    expect_program_success(
+        "Print IsNumeric(\" -3.14 \"): Print IsNumeric(\"+2e3\"): Print IsNumeric(\".5\")",
+        "True\nTrue\nTrue");
+    expect_program_success(
+        "Print IsNumeric(\"1e\"): Print IsNumeric(\"NaN\"): Print IsNumeric(\"+\")",
+        "False\nFalse\nFalse");
     expect_success(
         "Print TypeName(42) & \" \" & TypeName(True) & \" \" & TypeName(\"x\")",
         "Long Boolean String");

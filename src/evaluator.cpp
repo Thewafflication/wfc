@@ -2414,18 +2414,19 @@ private:
             if (first == last) {
                 return Value{false};
             }
-            const bool has_sign = text[first] == '+' || text[first] == '-';
-            const auto conversion_first = first + (has_sign ? 1U : 0U);
+            const bool has_plus = text[first] == '+';
+            const auto conversion_first = first + (has_plus ? 1U : 0U);
             if (conversion_first == last) {
                 return Value{false};
             }
-            Integer result{};
+            double result{};
             const auto conversion = std::from_chars(
                 text.data() + conversion_first,
                 text.data() + last,
                 result);
             const bool parsed = conversion.ec == std::errc{} &&
-                                conversion.ptr == text.data() + last;
+                                conversion.ptr == text.data() + last &&
+                                std::isfinite(result);
             return Value{parsed};
         }
 
