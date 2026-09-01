@@ -59,6 +59,9 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-The source evaluator implements `Abs` and `Sgn` for the current `Long` value
-subset through `REQ-0171`. Variant overloads, floating-point members, runtime
-type information, and the remainder of this module remain pending.
+The source evaluator implements `Abs` and `Sgn` for `Long`/`Double`,
+`Atn`/`Cos`/`Exp`/`Log`/`Sin`/`Sqr`/`Tan` returning `Double`, `Int`/`Fix` for
+the current numeric model, and nearest-even `Round` through `REQ-0171`,
+`REQ-0180`, `REQ-0183`, and `REQ-0187`. `Randomize`/`Rnd`, distinct
+Single/Currency/Decimal preservation, complete Variant overloads, and runtime
+type information remain pending.

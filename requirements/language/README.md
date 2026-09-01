@@ -114,6 +114,21 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   value model, including `RGB` color packing.
 - [REQ-0177 — Byte-string function subset](req-0177-byte-string-functions.md)
   defines `LenB`, `AscB`, and `ChrB` over MP-0002's current byte-string model.
+- [REQ-0178 — StrConv case-conversion subset](req-0178-strconv-function.md)
+  defines the representable ASCII case-mapping modes and their `VbStrConv`
+  constants.
+- [REQ-0179 — Source-visible VBA constant enumerations](req-0179-source-visible-vba-constants.md)
+  defines the complete source-visible `Vb*` and general constant table.
+- [REQ-0180 — Round function](req-0180-round-function.md) defines nearest-even
+  rounding for the current numeric model and bounded decimal-place selection.
+- [REQ-0181 — Double numeric value type](req-0181-double-numeric-type.md)
+  introduces fractional literals, promoted arithmetic, comparison, rendering,
+  and conversion behavior.
+- [REQ-0182 — CDbl and CSng conversions](req-0182-double-conversions.md)
+  defines current-scalar conversion to `Double` and Single-precision narrowing.
+- [REQ-0183 — Floating-point math functions](req-0183-floating-point-math-functions.md)
+  defines `Sqr`, `Sin`, `Cos`, `Tan`, `Atn`, `Exp`, and `Log` over the current
+  numeric model.
 - [REQ-0184 — Double declarations and introspection](req-0184-double-declarations.md)
   extends typed variables, constants, `TypeName`, and `VarType` to `Double`.
 - [REQ-0185 — Representable numeric literal suffixes](req-0185-numeric-literal-suffixes.md)
