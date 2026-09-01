@@ -88,7 +88,7 @@ retained CTest evidence.
 | 2026-08-31 #64 | Refactor | Centralize strict locale-independent numeric-String parsing across `IsNumeric`, `CByte`, `CDbl`/`CSng`, `CInt`, `CLng`, `CBool`, and `Hex`/`Oct` without changing their diagnostics | Commit `8fdcb53` |
 | 2026-08-31 #65 | Construction | Diagnose out-of-range `CDbl` Strings and `CSng` narrowing as numeric overflow instead of malformed input or infinity under `REQ-0182` | Commit `3ff1cbc` |
 | 2026-08-31 #66 | Construction | Reject non-finite transcendental results such as `Exp(1000)` with numeric overflow under `REQ-0183` | Commit `3a8c848` |
-| 2026-08-31 #67 | Construction | Reject non-finite widened `Double` arithmetic results for `+`, `-`, `*`, and `/` with numeric overflow under `REQ-0181` | Commit pending |
+| 2026-08-31 #67 | Construction | Reject non-finite widened `Double` arithmetic results for `+`, `-`, `*`, and `/` with numeric overflow under `REQ-0181` | Commit `4008f86` |
 
 ## Verification Log
 
