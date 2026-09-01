@@ -26,6 +26,8 @@ The evaluator shall represent a fractional numeric value as an IEEE-754 double
   `WFC0009` when the rounded value is out of range. `CBool` of a `Double` shall
   be `False` only for zero. `CStr` shall render a `Double` in its shortest
   round-tripping decimal form. `IsNumeric` of a `Double` shall be `True`.
+  Equivalent complete finite decimal/exponent strings supplied to `CInt` or
+  `CLng` shall use the same nearest-even rounding and range checks.
 
 ## Scope
 

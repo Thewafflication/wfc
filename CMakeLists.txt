@@ -562,13 +562,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-clng-cli
-        COMMAND wfc --eval [=[Print CLng(" 42 ") & " " & CLng(True)]=]
+        COMMAND wfc --eval [=[Print CLng("2.5") & " " & CLng("3.5")]=]
     )
     set_tests_properties(
         TC-MP0002-clng-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "42 -1"
+            PASS_REGULAR_EXPRESSION "2 4"
     )
 
     add_test(

@@ -2552,7 +2552,7 @@ private:
                 set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
                 return std::nullopt;
             }
-            Integer result{};
+            double result{};
             const auto conversion = std::from_chars(
                 text.data() + conversion_first,
                 text.data() + last,
@@ -2561,15 +2561,12 @@ private:
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last) {
-                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
+            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
+                !std::isfinite(result)) {
+                set_error("WFC0088", "CInt requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            if (result < int_min || result > int_max) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
-            }
-            return Value{result};
+            return round_double_to_long(result, int_min, int_max, identifier_offset);
         }
 
         if (is_clng) {
@@ -2617,7 +2614,7 @@ private:
                 set_error("WFC0086", "CLng requires a whole decimal value", identifier_offset);
                 return std::nullopt;
             }
-            Integer result{};
+            double result{};
             const auto conversion = std::from_chars(
                 text.data() + conversion_first,
                 text.data() + last,
@@ -2626,11 +2623,13 @@ private:
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last) {
-                set_error("WFC0086", "CLng requires a whole decimal value", identifier_offset);
+            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
+                !std::isfinite(result)) {
+                set_error("WFC0086", "CLng requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return Value{result};
+            return round_double_to_long(result, std::numeric_limits<Integer>::min(),
+                std::numeric_limits<Integer>::max(), identifier_offset);
         }
 
         if (is_cbool) {

@@ -11,17 +11,16 @@
 | Input | Result |
 | --- | --- |
 | `Long` | The input unchanged |
+| `Double` | Rounded to the nearest even integer |
 | `Boolean` | `True` becomes -1; `False` becomes 0 |
-| `String` | A complete signed decimal integer, allowing surrounding whitespace |
+| `String` | A complete finite decimal/exponent value, allowing surrounding whitespace, rounded to nearest even |
 
-String conversion shall consume the entire trimmed input and fail on empty,
-fractional, exponent, or trailing text. Values outside the signed 32-bit range
-shall use the existing overflow diagnostic.
+String conversion shall consume the entire trimmed input and fail on empty or
+trailing text. Values outside the signed 32-bit range after rounding shall use
+the existing overflow diagnostic.
 
-VBA rounds fractional numeric inputs to the nearest even integer, but WFC does
-not yet have fractional numeric values. Locale-aware numeric strings, Empty,
-Null, Date, Currency, floating-point, and general Variant coercion remain
-outside this requirement.
+Locale-aware numeric strings, Empty, Null, Date, Currency, and general Variant
+coercion remain outside this requirement.
 
 ## Diagnostics
 

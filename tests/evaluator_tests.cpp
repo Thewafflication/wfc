@@ -179,6 +179,7 @@ int main() {
     expect_success("Print CLng(True) & \" \" & CLng(False)", "-1 0");
     expect_success("Print CLng(\"  -42  \")", "-42");
     expect_success("Print CLng(\"+17\")", "17");
+    expect_success("Print CLng(\"2.5\") & \" \" & CLng(\"3.5\") & \" \" & CLng(\"-2.6e1\")", "2 4 -26");
     expect_success("Print CLng(CStr(123)) + 1", "124");
     expect_program_success("Print CBool(True): Print CBool(False)", "True\nFalse");
     expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)", "True\nFalse\nTrue");
@@ -192,6 +193,7 @@ int main() {
     expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
     expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
     expect_success("Print CInt(CStr(1000)) + 1", "1001");
+    expect_success("Print CInt(\"-2.5\") & \" \" & CInt(\"2.6\") & \" \" & CInt(\"3e2\")", "-2 3 300");
     expect_program_success(
         "Print IsNumeric(42): Print IsNumeric(True): Print IsNumeric(\"  -17 \")",
         "True\nTrue\nTrue");
@@ -911,7 +913,7 @@ int main() {
     expect_program_failure("Print CLng(\"2147483648\")", "WFC0009");
     expect_program_failure("Print CLng(\"\")", "WFC0086");
     expect_program_failure("Print CLng(\"12 trailing\")", "WFC0086");
-    expect_program_failure("Print CLng(\"12.5\")", "WFC0086");
+    expect_program_failure("Print CLng(\"12e\")", "WFC0086");
     expect_program_failure("Print CBool(\"\")", "WFC0087");
     expect_program_failure("Print CBool(\"yes\")", "WFC0087");
     expect_program_failure("Print CBool(\"1e\")", "WFC0087");
@@ -924,7 +926,7 @@ int main() {
     expect_program_failure("Print CInt(-32769)", "WFC0009");
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");
     expect_program_failure("Print CInt(\"\")", "WFC0088");
-    expect_program_failure("Print CInt(\"12.5\")", "WFC0088");
+    expect_program_failure("Print CInt(\"12e\")", "WFC0088");
     expect_program_failure("Print IIf(42, \"a\", \"b\")", "WFC0021");
     expect_program_failure("Print Choose(0, \"a\", \"b\")", "WFC0089");
     expect_program_failure("Print Choose(3, \"a\", \"b\")", "WFC0089");
