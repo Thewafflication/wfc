@@ -204,6 +204,9 @@ int main() {
     expect_success("Print CVar(42) + 1 & \" \" & CVar(\"value\")", "43 value");
     expect_success("Print Hex(MacID(\"TEXT\")) & \" \" & Hex(MacID(\"XLS8\"))", "54455854 584C5338");
     expect_success("Print MacID(\"ABCD\")", "1094861636");
+    expect_success("Print Error(5) & \" | \" & Error$(11)", "Invalid procedure call or argument | Division by zero");
+    expect_success("Print \"[\" & Error() & \"] [\" & Error(0) & \"]\"", "[] []");
+    expect_success("Print Error(1000)", "Application-defined or object-defined error");
     expect_success("Print CInt(-32768) & \" \" & CInt(32767)", "-32768 32767");
     expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
     expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
@@ -946,6 +949,9 @@ int main() {
     expect_program_failure("Print CVar(1, 2)", "WFC0072");
     expect_program_failure("Print MacID(\"ABC\")", "WFC0100");
     expect_program_failure("Print MacID(42)", "WFC0073");
+    expect_program_failure("Print Error(1.5)", "WFC0073");
+    expect_program_failure("Print Error(-1)", "WFC0101");
+    expect_program_failure("Print Error(1, 2)", "WFC0072");
     expect_program_failure("Print CInt(32768)", "WFC0009");
     expect_program_failure("Print CInt(-32769)", "WFC0009");
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");

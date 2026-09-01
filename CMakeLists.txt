@@ -616,6 +616,17 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
     )
 
     add_test(
+        NAME TC-MP0002-error-function-cli
+        COMMAND wfc --eval [=[Print Error(5) & " | " & Error$(11) & " | " & Error(1000)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-error-function-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion;errors"
+            PASS_REGULAR_EXPRESSION "Invalid procedure call or argument.*Division by zero.*Application-defined or object-defined error"
+    )
+
+    add_test(
         NAME TC-MP0002-cint-cli
         COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
     )

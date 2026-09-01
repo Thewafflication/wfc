@@ -73,7 +73,8 @@ change that identifies the resulting source or run-time limitation.
 ## Implementation Record
 
 The source evaluator implements `Hex`, `Oct`, `Str`, decimal/radix `Val`,
-`MacID`, `CStr`, `CByte`, `CBool`, `CInt`, `CLng`, `CSng`, `CDbl`, and current-scalar
-`CVar` behavior through REQ-0170, REQ-0172 through REQ-0175, REQ-0181,
-REQ-0182, REQ-0188 through REQ-0191. Complete Variant/numeric behavior,
-runtime type information, and the remaining members are pending.
+`MacID`, `CStr`, `CByte`, `CBool`, `CInt`, `CLng`, `CSng`, `CDbl`, current-scalar
+`CVar`, and a bounded `Error`/`Error$` catalog through REQ-0170, REQ-0172
+through REQ-0175, REQ-0181, REQ-0182, and REQ-0188 through REQ-0192.
+Complete Variant/numeric behavior, runtime type information, and the remaining
+members are pending.

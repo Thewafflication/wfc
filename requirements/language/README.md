@@ -147,3 +147,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0191 — MacID four-byte conversion](req-0191-macid-function.md) defines
   source-visible Macintosh four-character-code packing in the current byte
   string and `Long` model.
+- [REQ-0192 — Error message function subset](req-0192-error-function.md)
+  defines selected stable VBA run-time error descriptions and the documented
+  fallback for undefined valid numbers.

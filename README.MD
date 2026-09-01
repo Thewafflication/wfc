@@ -127,6 +127,7 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(CBool(1)) & `" `" &
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CByte(0) & `" `" & CByte(255)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(CVar(42)) & `" `" & TypeName(CVar(2.5))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Hex(MacID(`"TEXT`"))"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Error(5) & `" | `" & Error$(11)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CInt(-32768) & `" `" & CInt(`"32767`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsNumeric(`" -42 `")) & `" `" & CStr(IsNumeric(`"abc`"))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(42) & `" `" & TypeName(True) & `" `" & TypeName(`"x`")"

@@ -1986,6 +1986,7 @@ private:
         const bool is_csng = identifier == "csng";
         const bool is_cvar = identifier == "cvar";
         const bool is_macid = identifier == "macid";
+        const bool is_error_message = identifier == "error" || identifier == "error$";
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
@@ -2024,7 +2025,8 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid && !is_float_math) {
+            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid &&
+            !is_error_message && !is_float_math) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2067,7 +2069,9 @@ private:
         }
 
         bool valid_arity{};
-        if (is_mid) {
+        if (is_error_message) {
+            valid_arity = arguments.size() <= 1U;
+        } else if (is_mid) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
         } else if (is_instr || is_instr_rev) {
             valid_arity = arguments.size() >= 2U && arguments.size() <= 4U;
@@ -2492,6 +2496,41 @@ private:
                 return std::nullopt;
             }
             return round_double_to_long(result, 0, 255, identifier_offset);
+        }
+
+        if (is_error_message) {
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (arguments.empty()) {
+                return Value{std::string{}};
+            }
+            const auto* number = std::get_if<Integer>(&arguments[0]);
+            if (number == nullptr) {
+                set_error("WFC0073", "Error requires a Long argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (*number < 0 || *number > 65535) {
+                set_error("WFC0101", "Error number is outside the valid range", identifier_offset);
+                return std::nullopt;
+            }
+            switch (*number) {
+            case 0: return Value{std::string{}};
+            case 5: return Value{std::string{"Invalid procedure call or argument"}};
+            case 6: return Value{std::string{"Overflow"}};
+            case 7: return Value{std::string{"Out of memory"}};
+            case 9: return Value{std::string{"Subscript out of range"}};
+            case 11: return Value{std::string{"Division by zero"}};
+            case 13: return Value{std::string{"Type mismatch"}};
+            case 28: return Value{std::string{"Out of stack space"}};
+            case 53: return Value{std::string{"File not found"}};
+            case 70: return Value{std::string{"Permission denied"}};
+            case 76: return Value{std::string{"Path not found"}};
+            case 91:
+                return Value{std::string{"Object variable or With block variable not set"}};
+            default:
+                return Value{std::string{"Application-defined or object-defined error"}};
+            }
         }
 
         if (is_cvar) {
