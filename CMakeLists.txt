@@ -584,13 +584,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-cbyte-cli
-        COMMAND wfc --eval [=[Print CByte(0) & " " & CByte(255)]=]
+        COMMAND wfc --eval [=[Print CByte(2.5) & " " & CByte(3.5) & " " & CByte(254.6)]=]
     )
     set_tests_properties(
         TC-MP0002-cbyte-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "0 255"
+            PASS_REGULAR_EXPRESSION "2 4 255"
     )
 
     add_test(

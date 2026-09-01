@@ -2430,13 +2430,16 @@ private:
         }
 
         if (is_cbyte) {
-            const auto* number = std::get_if<Integer>(&arguments[0]);
-            if (number == nullptr) {
-                set_error("WFC0073", "CByte requires a Long argument", identifier_offset);
+            if (!is_number(arguments[0])) {
+                set_error("WFC0073", "CByte requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
                 return Value{Integer{}};
+            }
+            const auto number = coerce_long(arguments[0], identifier_offset);
+            if (!number.has_value()) {
+                return std::nullopt;
             }
             if (*number < 0 || *number > 255) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
