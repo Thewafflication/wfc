@@ -79,6 +79,7 @@ retained CTest evidence.
 | 2026-08-31 #55 | Construction | Extend `CBool` string conversion to complete finite fractional and exponent forms under `REQ-0174` | Commit `ef60e0c` |
 | 2026-08-31 #56 | Construction | Extend `CInt`/`CLng` string conversion to finite fractional/exponent forms with banker's rounding under `REQ-0173`/`REQ-0181` | Commit `b0190d4` |
 | 2026-08-31 #57 | Construction | Extend `CByte` string conversion to finite fractional/exponent forms with banker's rounding and range enforcement under `REQ-0175` | Commit `285ba0b` |
+| 2026-08-31 #58 | Construction | Implement `Val` hexadecimal/octal prefixes with VBA-compatible signed 16-/32-bit interpretation under `REQ-0170` | Commit pending |
 
 ## Verification Log
 
@@ -230,6 +231,7 @@ when the session completes.
 | Fractional CBool strings (increment #55) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fractional CInt/CLng strings (increment #56) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fractional CByte strings (increment #57) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Val radix prefixes (increment #58) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -245,8 +247,8 @@ targets.
 - `InStr`, `StrComp`, `Replace`, and `InStrRev` now accept their controlled
   positional comparison forms. `vbDatabaseCompare` is source-visible but remains
   an explicit unsupported execution mode outside a database host.
-- `Val` returns `Long` for whole decimal prefixes and `Double` for fractional
-  or exponent prefixes. Hexadecimal/octal prefixes remain explicitly deferred.
+- `Val` returns `Long` for whole decimal and hexadecimal/octal prefixes and
+  `Double` for fractional or exponent prefixes.
 - `Hex`/`Oct` banker's-round `Double` inputs to the 32-bit `Long` domain before
   conversion. `Str` accepts both numeric types but deliberately uses invariant
   shortest-form `Double` digits rather than locale-sensitive VB formatting.

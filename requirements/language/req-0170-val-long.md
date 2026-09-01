@@ -17,9 +17,12 @@ sign). When it does, `Val` returns a `Double` (`REQ-0181`); a bare integer
 prefix returns a `Long`, so `Val` of a whole number remains usable where a
 `Long` is required. Leading-dot forms (`.5`) are accepted.
 
-Commas and currency symbols are not numeric characters. A value outside the
-representable range fails with the existing overflow diagnostic. Hexadecimal and
-octal (`&H`/`&O`) prefixes fail with `WFC0085`; radix parsing remains deferred.
+Commas and currency symbols are not numeric characters. Hexadecimal (`&H`) and
+octal (`&O`) prefixes are recognized and return a `Long`, including VBA's
+signed 16-bit interpretation for values from `&H8000` through `&HFFFF` (and
+their octal equivalents) and signed 32-bit interpretation when the high Long
+bit is set. A value outside the representable 32-bit range fails with the
+existing overflow diagnostic.
 
 Variant coercion and legacy type-declaration suffix validation remain outside
 this requirement.
@@ -28,9 +31,10 @@ this requirement.
 
 - `tests/evaluator_tests.cpp` covers signs, embedded blanks, prefix termination,
   empty/non-numeric input, commas, type mismatch, overflow, fractional and
-  exponent prefixes returning `Double`, a leading-dot form, and the deferred
-  radix prefixes.
-- `TC-MP0002-val-cli` verifies embedded-blank parsing through `wfc --eval`.
+  exponent prefixes returning `Double`, a leading-dot form, hexadecimal/octal
+  prefixes, signed-width behavior, radix prefix termination, and overflow.
+- `TC-MP0002-val-cli` verifies embedded-blank and radix parsing through
+  `wfc --eval`.
 
 ## Reference
 

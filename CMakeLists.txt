@@ -529,13 +529,13 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-val-cli
-        COMMAND wfc --eval [=[Print Val(" 2 45 7th Street")]=]
+        COMMAND wfc --eval [=[Print Val(" 2 45 7th Street") & " " & Val("&HFFFF") & " " & Val("&O10")]=]
     )
     set_tests_properties(
         TC-MP0002-val-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "2457"
+            PASS_REGULAR_EXPRESSION "2457 -1 8"
     )
 
     add_test(

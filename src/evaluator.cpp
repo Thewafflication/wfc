@@ -3202,9 +3202,57 @@ private:
             if (compact[0] == '+' || compact[0] == '-') {
                 digit_start = 1U;
             }
-            if (digit_start < compact.size() && compact[digit_start] == '&') {
-                set_error("WFC0085", "Val radix prefixes are not supported", identifier_offset);
-                return std::nullopt;
+            if (digit_start + 1U < compact.size() && compact[digit_start] == '&' &&
+                (compact[digit_start + 1U] == 'h' || compact[digit_start + 1U] == 'H' ||
+                 compact[digit_start + 1U] == 'o' || compact[digit_start + 1U] == 'O')) {
+                const int base = compact[digit_start + 1U] == 'h' ||
+                                         compact[digit_start + 1U] == 'H'
+                                     ? 16
+                                     : 8;
+                const std::size_t radix_start = digit_start + 2U;
+                std::size_t radix_end = radix_start;
+                const auto is_radix_digit = [base](const char character) {
+                    if (character >= '0' && character <= '7') {
+                        return true;
+                    }
+                    return base == 16 &&
+                           ((character >= '8' && character <= '9') ||
+                            (character >= 'a' && character <= 'f') ||
+                            (character >= 'A' && character <= 'F'));
+                };
+                while (radix_end < compact.size() && is_radix_digit(compact[radix_end])) {
+                    ++radix_end;
+                }
+                if (radix_end == radix_start) {
+                    return Value{Integer{0}};
+                }
+
+                std::uint32_t magnitude{};
+                const auto conversion = std::from_chars(
+                    compact.data() + radix_start,
+                    compact.data() + radix_end,
+                    magnitude,
+                    base);
+                if (conversion.ec == std::errc::result_out_of_range) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+
+                std::int64_t value = magnitude;
+                if (magnitude >= 0x8000U && magnitude <= 0xFFFFU) {
+                    value -= 0x10000LL;
+                } else if (magnitude >= 0x80000000U) {
+                    value -= 0x100000000LL;
+                }
+                if (digit_start == 1U && compact[0] == '-') {
+                    value = -value;
+                }
+                if (value < std::numeric_limits<Integer>::min() ||
+                    value > std::numeric_limits<Integer>::max()) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{static_cast<Integer>(value)};
             }
             const auto is_digit = [](const char character) {
                 return std::isdigit(static_cast<unsigned char>(character)) != 0;

@@ -165,6 +165,8 @@ int main() {
     expect_success("Print Val(\"words 42\")", "0");
     expect_success("Print Val(\"12,345\")", "12");
     expect_success("Print Val(\"   \")", "0");
+    expect_success("Print Val(\"&HFF\") & \" \" & Val(\"&HFFFF\") & \" \" & Val(\"&H10000\")", "255 -1 65536");
+    expect_success("Print Val(\"&O10\") & \" \" & Val(\"&O177777\")", "8 -1");
     expect_success("Print Abs(-42)", "42");
     expect_success("Print Abs(0) + Abs(7)", "7");
     expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)", "-1 0 1");
@@ -910,7 +912,8 @@ int main() {
     expect_success("Print Val(\"3.14 pie\")", "3.14");
     expect_success("Print Val(\".5\")", "0.5");
     expect_success("Print Val(\"-2.5e1\")", "-25");
-    expect_program_failure("Print Val(\"&H10\")", "WFC0085");
+    expect_success("Print Val(\"-&H10\") & \" \" & Val(\"&H2Atrail\")", "-16 42");
+    expect_program_failure("Print Val(\"&H100000000\")", "WFC0009");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
     expect_program_failure("Print Abs(-2147483648)", "WFC0009");
     expect_program_failure("Print CLng(\"2147483648\")", "WFC0009");
