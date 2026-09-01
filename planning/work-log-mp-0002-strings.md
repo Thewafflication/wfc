@@ -92,7 +92,7 @@ retained CTest evidence.
 | 2026-08-31 #68 | Construction | Add VBA-compatible `CByte(True) = 255` and `CByte(False) = 0` Boolean conversion under `REQ-0175` | Commit `2d34d09` |
 | 2026-08-31 #69 | Verification | Close `REQ-0192` evidence gaps with coverage for every selected Error catalog entry and both range boundaries | Commit `bd7563e` |
 | 2026-08-31 #70 | Verification | Complete `REQ-0181` non-finite arithmetic coverage with the missing widened subtraction overflow case | Commit `b9f086e` |
-| 2026-09-01 #71 | Verification | Close `REQ-0175` arity evidence with zero- and two-argument `CByte` failures | Commit pending |
+| 2026-09-01 #71 | Verification | Close `REQ-0175` arity evidence with zero- and two-argument `CByte` failures | Commit `692f78f` |
 
 ## Verification Log
 
