@@ -3742,23 +3742,33 @@ private:
 
         const double left_value = as_double(left);
         const double right_value = as_double(right);
+        double result{};
         switch (operation) {
         case '+':
-            return Value{left_value + right_value};
+            result = left_value + right_value;
+            break;
         case '-':
-            return Value{left_value - right_value};
+            result = left_value - right_value;
+            break;
         case '*':
-            return Value{left_value * right_value};
+            result = left_value * right_value;
+            break;
         case '/':
             if (right_value == 0.0) {
                 set_error("WFC0008", "division by zero", operator_offset);
                 return std::nullopt;
             }
-            return Value{left_value / right_value};
+            result = left_value / right_value;
+            break;
         default:
             set_error("WFC0004", "unsupported operator", operator_offset);
             return std::nullopt;
         }
+        if (!std::isfinite(result)) {
+            set_error("WFC0009", "numeric overflow", operator_offset);
+            return std::nullopt;
+        }
+        return Value{result};
     }
 
     // Coerce a numeric operand to Long for the integer operators, rounding a

@@ -977,6 +977,9 @@ int main() {
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
     expect_program_failure("Print 5 / 0", "WFC0008");
+    expect_program_failure("Print 1e308 + 1e308", "WFC0009");
+    expect_program_failure("Print 1e308 * 10", "WFC0009");
+    expect_program_failure("Print 1e308 / 1e-308", "WFC0009");
     expect_program_failure("Print CDbl(\"x\")", "WFC0095");
     expect_program_failure("Print CDbl(\"\")", "WFC0095");
     expect_program_failure("Print CDbl(\"1e9999\")", "WFC0009");
