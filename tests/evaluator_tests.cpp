@@ -985,6 +985,7 @@ int main() {
     expect_program_failure("Print CSng(\"-1e100\")", "WFC0009");
     expect_program_failure("Print Sqr(-1)", "WFC0096");
     expect_program_failure("Print Log(0)", "WFC0096");
+    expect_program_failure("Print Exp(1000)", "WFC0009");
     expect_program_failure("Print Sqr(\"x\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");

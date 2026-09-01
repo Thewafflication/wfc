@@ -87,6 +87,7 @@ retained CTest evidence.
 | 2026-08-31 #63 | Construction | Implement bounded `Error`/`Error$` messages, empty current-error behavior, and undefined-number fallback under `REQ-0192` | Commit `e15df3a` |
 | 2026-08-31 #64 | Refactor | Centralize strict locale-independent numeric-String parsing across `IsNumeric`, `CByte`, `CDbl`/`CSng`, `CInt`, `CLng`, `CBool`, and `Hex`/`Oct` without changing their diagnostics | Commit `8fdcb53` |
 | 2026-08-31 #65 | Construction | Diagnose out-of-range `CDbl` Strings and `CSng` narrowing as numeric overflow instead of malformed input or infinity under `REQ-0182` | Commit `3ff1cbc` |
+| 2026-08-31 #66 | Construction | Reject non-finite transcendental results such as `Exp(1000)` with numeric overflow under `REQ-0183` | Commit pending |
 
 ## Verification Log
 
@@ -246,6 +247,7 @@ when the session completes.
 | Error message function subset (increment #63) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Shared numeric-String parser refactor (increment #64) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | CDbl/CSng overflow closure (increment #65) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Floating-math overflow closure (increment #66) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 

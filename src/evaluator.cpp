@@ -2282,33 +2282,35 @@ private:
                 return Value{0.0};
             }
             const double argument = as_double(arguments[0]);
+            double result{};
             if (is_sqr) {
                 if (argument < 0.0) {
                     set_error("WFC0096", "Sqr argument must be non-negative", identifier_offset);
                     return std::nullopt;
                 }
-                return Value{std::sqrt(argument)};
-            }
-            if (is_log) {
+                result = std::sqrt(argument);
+            } else if (is_log) {
                 if (argument <= 0.0) {
                     set_error("WFC0096", "Log argument must be positive", identifier_offset);
                     return std::nullopt;
                 }
-                return Value{std::log(argument)};
+                result = std::log(argument);
+            } else if (is_sin) {
+                result = std::sin(argument);
+            } else if (is_cos) {
+                result = std::cos(argument);
+            } else if (is_tan) {
+                result = std::tan(argument);
+            } else if (is_atn) {
+                result = std::atan(argument);
+            } else {
+                result = std::exp(argument);  // is_exp
             }
-            if (is_sin) {
-                return Value{std::sin(argument)};
+            if (!std::isfinite(result)) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return std::nullopt;
             }
-            if (is_cos) {
-                return Value{std::cos(argument)};
-            }
-            if (is_tan) {
-                return Value{std::tan(argument)};
-            }
-            if (is_atn) {
-                return Value{std::atan(argument)};
-            }
-            return Value{std::exp(argument)};  // is_exp
+            return Value{result};
         }
 
         if (is_round) {
