@@ -25,9 +25,10 @@ recent description instead of always returning the no-error empty String.
 
 ## Verification
 
-Unit tests cover catalog messages, both empty forms, undefined-number fallback,
-type/range errors, and arity. `TC-MP0002-error-function-cli` verifies both names
-and the fallback through `wfc --eval`.
+Unit tests cover every selected catalog message, both empty forms,
+undefined-number fallback, both valid-range boundaries, type/range errors, and
+arity. `TC-MP0002-error-function-cli` verifies both names and the fallback
+through `wfc --eval`.
 
 ## Traceability
 
