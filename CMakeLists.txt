@@ -584,7 +584,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
 
     add_test(
         NAME TC-MP0002-cbyte-cli
-        COMMAND wfc --eval [=[Print CByte(2.5) & " " & CByte(3.5) & " " & CByte(254.6)]=]
+        COMMAND wfc --eval [=[Print CByte("2.5") & " " & CByte("+3.5") & " " & CByte("2.546e2")]=]
     )
     set_tests_properties(
         TC-MP0002-cbyte-cli

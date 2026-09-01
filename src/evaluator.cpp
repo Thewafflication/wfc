@@ -2431,22 +2431,65 @@ private:
         }
 
         if (is_cbyte) {
-            if (!is_number(arguments[0])) {
+            if (!is_number(arguments[0]) &&
+                !std::holds_alternative<std::string>(arguments[0])) {
                 set_error("WFC0073", "CByte requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
                 return Value{Integer{}};
             }
-            const auto number = coerce_long(arguments[0], identifier_offset);
-            if (!number.has_value()) {
+
+            if (const auto* number = std::get_if<Integer>(&arguments[0])) {
+                if (*number < 0 || *number > 255) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{*number};
+            }
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                return round_double_to_long(*number, 0, 255, identifier_offset);
+            }
+
+            const auto& text = std::get<std::string>(arguments[0]);
+            std::size_t first{};
+            std::size_t last = text.size();
+            while (first < last &&
+                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
+                    text[first] == '\n')) {
+                ++first;
+            }
+            while (last > first &&
+                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
+                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
+                --last;
+            }
+            if (first == last) {
+                set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            if (*number < 0 || *number > 255) {
+
+            const bool has_plus = text[first] == '+';
+            const auto conversion_first = first + (has_plus ? 1U : 0U);
+            if (conversion_first == last) {
+                set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
+                return std::nullopt;
+            }
+            double result{};
+            const auto conversion = std::from_chars(
+                text.data() + conversion_first,
+                text.data() + last,
+                result);
+            if (conversion.ec == std::errc::result_out_of_range) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            return Value{*number};
+            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
+                !std::isfinite(result)) {
+                set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
+                return std::nullopt;
+            }
+            return round_double_to_long(result, 0, 255, identifier_offset);
         }
 
         if (is_cdbl || is_csng) {

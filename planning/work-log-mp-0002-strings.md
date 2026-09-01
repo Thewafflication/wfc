@@ -78,6 +78,7 @@ retained CTest evidence.
 | 2026-08-31 #54 | Construction | Extend `IsNumeric` string classification to complete finite fractional and exponent forms under `REQ-0176` | Commit `964bc5f` |
 | 2026-08-31 #55 | Construction | Extend `CBool` string conversion to complete finite fractional and exponent forms under `REQ-0174` | Commit `ef60e0c` |
 | 2026-08-31 #56 | Construction | Extend `CInt`/`CLng` string conversion to finite fractional/exponent forms with banker's rounding under `REQ-0173`/`REQ-0181` | Commit `b0190d4` |
+| 2026-08-31 #57 | Construction | Extend `CByte` string conversion to finite fractional/exponent forms with banker's rounding and range enforcement under `REQ-0175` | Commit pending |
 
 ## Verification Log
 
@@ -228,6 +229,7 @@ when the session completes.
 | Fractional IsNumeric strings (increment #54) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fractional CBool strings (increment #55) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fractional CInt/CLng strings (increment #56) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Fractional CByte strings (increment #57) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 

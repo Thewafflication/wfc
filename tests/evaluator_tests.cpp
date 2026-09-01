@@ -189,6 +189,9 @@ int main() {
     expect_success("Print CByte(0) & \" \" & CByte(255)", "0 255");
     expect_success("Print CByte(42) + 1", "43");
     expect_success("Print CByte(2.5) & \" \" & CByte(3.5) & \" \" & CByte(254.6)", "2 4 255");
+    expect_success(
+        "Print CByte(\" 2.5 \" ) & \" \" & CByte(\"+3.5\") & \" \" & CByte(\"2.546e2\")",
+        "2 4 255");
     expect_success("Print CInt(-32768) & \" \" & CInt(32767)", "-32768 32767");
     expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
     expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
@@ -921,7 +924,9 @@ int main() {
     expect_program_failure("Print CByte(-1)", "WFC0009");
     expect_program_failure("Print CByte(256)", "WFC0009");
     expect_program_failure("Print CByte(255.5)", "WFC0009");
-    expect_program_failure("Print CByte(\"1\")", "WFC0073");
+    expect_program_failure("Print CByte(\"255.5\")", "WFC0009");
+    expect_program_failure("Print CByte(\"1e\")", "WFC0098");
+    expect_program_failure("Print CByte(\"NaN\")", "WFC0098");
     expect_program_failure("Print CInt(32768)", "WFC0009");
     expect_program_failure("Print CInt(-32769)", "WFC0009");
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");
