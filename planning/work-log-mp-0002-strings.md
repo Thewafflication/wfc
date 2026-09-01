@@ -74,7 +74,7 @@ retained CTest evidence.
 | 2026-08-31 #50 | Construction | Extend `Abs`/`Sgn`/`Int`/`Fix` across `Long` and `Double` under `REQ-0171`/`REQ-0187` | Commit `8c02b44` |
 | 2026-08-31 #51 | Construction | Extend `Str`/`Str$` sign-space conversion to `Double` under `REQ-0188` | Commit `88f3cbe` |
 | 2026-08-31 #52 | Construction | Extend `Hex`/`Oct` radix conversion to banker's-rounded `Double` inputs under `REQ-0189` | Commit `c72ff59` |
-| 2026-08-31 #53 | Construction | Extend `CByte` to banker's-rounded `Double` inputs while retaining the 0-through-255 result range under `REQ-0175` | Commit pending |
+| 2026-08-31 #53 | Construction | Extend `CByte` to banker's-rounded `Double` inputs while retaining the 0-through-255 result range under `REQ-0175` | Commit `ace46fe` |
 
 ## Verification Log
 
