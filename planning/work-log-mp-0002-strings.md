@@ -86,7 +86,7 @@ retained CTest evidence.
 | 2026-08-31 #62 | Documentation | Restore omitted `REQ-0178` through `REQ-0183` language-index entries and reconcile the stale `REQ-0077` Math implementation record | Commit `671e4db` |
 | 2026-08-31 #63 | Construction | Implement bounded `Error`/`Error$` messages, empty current-error behavior, and undefined-number fallback under `REQ-0192` | Commit `e15df3a` |
 | 2026-08-31 #64 | Refactor | Centralize strict locale-independent numeric-String parsing across `IsNumeric`, `CByte`, `CDbl`/`CSng`, `CInt`, `CLng`, `CBool`, and `Hex`/`Oct` without changing their diagnostics | Commit `8fdcb53` |
-| 2026-08-31 #65 | Construction | Diagnose out-of-range `CDbl` Strings and `CSng` narrowing as numeric overflow instead of malformed input or infinity under `REQ-0182` | Commit pending |
+| 2026-08-31 #65 | Construction | Diagnose out-of-range `CDbl` Strings and `CSng` narrowing as numeric overflow instead of malformed input or infinity under `REQ-0182` | Commit `3ff1cbc` |
 
 ## Verification Log
 
