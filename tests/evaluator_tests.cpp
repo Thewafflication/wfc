@@ -953,6 +953,8 @@ int main() {
     expect_program_failure("Print CByte(\"255.5\")", "WFC0009");
     expect_program_failure("Print CByte(\"1e\")", "WFC0098");
     expect_program_failure("Print CByte(\"NaN\")", "WFC0098");
+    expect_program_failure("Print CByte()", "WFC0072");
+    expect_program_failure("Print CByte(1, 2)", "WFC0072");
     expect_program_failure("Print CVar()", "WFC0072");
     expect_program_failure("Print CVar(1, 2)", "WFC0072");
     expect_program_failure("Print MacID(\"ABC\")", "WFC0100");

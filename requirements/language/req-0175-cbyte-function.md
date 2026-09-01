@@ -25,7 +25,7 @@ semantics that MP-0002 does not yet represent.
 Unit and CLI tests cover both endpoints, an interior value, nearest-even
 `Double` and numeric-`String` rounding, Boolean conversion, surrounding
 whitespace, exponent notation, post-rounding range overflow, and
-malformed-String rejection.
+malformed-String rejection. Unit tests also cover both wrong-arity forms.
 
 ## Traceability
 
