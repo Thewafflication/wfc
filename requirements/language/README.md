@@ -129,3 +129,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0190 — CVar scalar identity conversion](req-0190-cvar-scalar.md)
   defines Variant identity conversion for every currently representable scalar
   value type.
+- [REQ-0191 — MacID four-byte conversion](req-0191-macid-function.md) defines
+  source-visible Macintosh four-character-code packing in the current byte
+  string and `Long` model.

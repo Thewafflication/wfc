@@ -605,6 +605,17 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
     )
 
     add_test(
+        NAME TC-MP0002-macid-cli
+        COMMAND wfc --eval [=[Print Hex(MacID("TEXT")) & " " & Hex(MacID("XLS8"))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-macid-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion;macintosh"
+            PASS_REGULAR_EXPRESSION "54455854 584C5338"
+    )
+
+    add_test(
         NAME TC-MP0002-cint-cli
         COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
     )

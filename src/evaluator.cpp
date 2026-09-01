@@ -1985,6 +1985,7 @@ private:
         const bool is_cdbl = identifier == "cdbl";
         const bool is_csng = identifier == "csng";
         const bool is_cvar = identifier == "cvar";
+        const bool is_macid = identifier == "macid";
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
@@ -2023,7 +2024,7 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_float_math) {
+            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid && !is_float_math) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -3159,6 +3160,23 @@ private:
         if (string == nullptr) {
             set_error("WFC0073", "function requires a String argument", identifier_offset);
             return std::nullopt;
+        }
+        if (is_macid) {
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            if (string->size() != 4U) {
+                set_error("WFC0100", "MacID requires exactly four bytes", identifier_offset);
+                return std::nullopt;
+            }
+            std::uint32_t packed{};
+            for (const unsigned char byte : *string) {
+                packed = (packed << 8U) | byte;
+            }
+            const std::int64_t signed_value = packed >= 0x80000000U
+                                                  ? static_cast<std::int64_t>(packed) - 0x100000000LL
+                                                  : static_cast<std::int64_t>(packed);
+            return Value{static_cast<Integer>(signed_value)};
         }
         if (is_len) {
             if (!execute_) {
