@@ -8,6 +8,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -18,6 +19,49 @@ namespace {
 
 using Integer = std::int32_t;
 using Value = std::variant<Integer, std::string, bool, double>;
+
+enum class NumericStringStatus { valid, malformed, out_of_range };
+
+struct NumericStringResult {
+    NumericStringStatus status{NumericStringStatus::malformed};
+    double value{};
+};
+
+// Parse the strict, locale-independent numeric String form shared by the VBA
+// conversion intrinsics. Surrounding ASCII whitespace and a leading plus are
+// accepted; the entire remaining decimal/exponent spelling must be consumed.
+[[nodiscard]] NumericStringResult parse_numeric_string(const std::string_view text) {
+    std::size_t first{};
+    std::size_t last = text.size();
+    const auto is_ascii_whitespace = [](const char character) {
+        return character == ' ' || character == '\t' || character == '\r' ||
+               character == '\n';
+    };
+    while (first < last && is_ascii_whitespace(text[first])) {
+        ++first;
+    }
+    while (last > first && is_ascii_whitespace(text[last - 1U])) {
+        --last;
+    }
+    if (first < last && text[first] == '+') {
+        ++first;
+    }
+    if (first == last) {
+        return {};
+    }
+
+    double value{};
+    const auto conversion =
+        std::from_chars(text.data() + first, text.data() + last, value);
+    if (conversion.ec == std::errc::result_out_of_range) {
+        return {NumericStringStatus::out_of_range, value};
+    }
+    if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
+        !std::isfinite(value)) {
+        return {};
+    }
+    return {NumericStringStatus::valid, value};
+}
 
 // A value participates in numeric operators when it is a Long or a Double.
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
@@ -2404,36 +2448,8 @@ private:
                 return Value{true};
             }
 
-            const auto& text = std::get<std::string>(arguments[0]);
-            std::size_t first{};
-            std::size_t last = text.size();
-            while (first < last &&
-                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
-                    text[first] == '\n')) {
-                ++first;
-            }
-            while (last > first &&
-                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
-                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
-                --last;
-            }
-            if (first == last) {
-                return Value{false};
-            }
-            const bool has_plus = text[first] == '+';
-            const auto conversion_first = first + (has_plus ? 1U : 0U);
-            if (conversion_first == last) {
-                return Value{false};
-            }
-            double result{};
-            const auto conversion = std::from_chars(
-                text.data() + conversion_first,
-                text.data() + last,
-                result);
-            const bool parsed = conversion.ec == std::errc{} &&
-                                conversion.ptr == text.data() + last &&
-                                std::isfinite(result);
-            return Value{parsed};
+            const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
+            return Value{parsed.status == NumericStringStatus::valid};
         }
 
         if (is_cbyte) {
@@ -2457,45 +2473,16 @@ private:
                 return round_double_to_long(*number, 0, 255, identifier_offset);
             }
 
-            const auto& text = std::get<std::string>(arguments[0]);
-            std::size_t first{};
-            std::size_t last = text.size();
-            while (first < last &&
-                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
-                    text[first] == '\n')) {
-                ++first;
-            }
-            while (last > first &&
-                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
-                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
-                --last;
-            }
-            if (first == last) {
-                set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
-                return std::nullopt;
-            }
-
-            const bool has_plus = text[first] == '+';
-            const auto conversion_first = first + (has_plus ? 1U : 0U);
-            if (conversion_first == last) {
-                set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
-                return std::nullopt;
-            }
-            double result{};
-            const auto conversion = std::from_chars(
-                text.data() + conversion_first,
-                text.data() + last,
-                result);
-            if (conversion.ec == std::errc::result_out_of_range) {
+            const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
+            if (parsed.status == NumericStringStatus::out_of_range) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
-                !std::isfinite(result)) {
+            if (parsed.status != NumericStringStatus::valid) {
                 set_error("WFC0098", "CByte requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return round_double_to_long(result, 0, 255, identifier_offset);
+            return round_double_to_long(parsed.value, 0, 255, identifier_offset);
         }
 
         if (is_error_message) {
@@ -2549,27 +2536,9 @@ private:
                 if (!execute_) {
                     return Value{0.0};
                 }
-                const auto& text = std::get<std::string>(arguments[0]);
-                std::size_t first{};
-                std::size_t last = text.size();
-                while (first < last &&
-                       (text[first] == ' ' || text[first] == '\t' ||
-                        text[first] == '\r' || text[first] == '\n')) {
-                    ++first;
-                }
-                while (last > first &&
-                       (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
-                        text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
-                    --last;
-                }
-                if (first < last && text[first] == '+') {
-                    ++first;
-                }
-                double parsed{};
-                const auto conversion = std::from_chars(
-                    text.data() + first, text.data() + last, parsed);
-                if (first == last || conversion.ec != std::errc{} ||
-                    conversion.ptr != text.data() + last) {
+                const auto parsed =
+                    parse_numeric_string(std::get<std::string>(arguments[0]));
+                if (parsed.status != NumericStringStatus::valid) {
                     set_error(
                         "WFC0095",
                         is_cdbl ? "CDbl requires a numeric value"
@@ -2577,7 +2546,7 @@ private:
                         identifier_offset);
                     return std::nullopt;
                 }
-                value = parsed;
+                value = parsed.value;
             }
             if (!execute_) {
                 return Value{0.0};
@@ -2616,45 +2585,16 @@ private:
                 return Value{Integer{}};
             }
 
-            const auto& text = std::get<std::string>(arguments[0]);
-            std::size_t first{};
-            std::size_t last = text.size();
-            while (first < last &&
-                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
-                    text[first] == '\n')) {
-                ++first;
-            }
-            while (last > first &&
-                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
-                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
-                --last;
-            }
-            if (first == last) {
-                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
-                return std::nullopt;
-            }
-
-            const bool has_plus = text[first] == '+';
-            const auto conversion_first = first + (has_plus ? 1U : 0U);
-            if (conversion_first == last) {
-                set_error("WFC0088", "CInt requires a whole decimal value", identifier_offset);
-                return std::nullopt;
-            }
-            double result{};
-            const auto conversion = std::from_chars(
-                text.data() + conversion_first,
-                text.data() + last,
-                result);
-            if (conversion.ec == std::errc::result_out_of_range) {
+            const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
+            if (parsed.status == NumericStringStatus::out_of_range) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
-                !std::isfinite(result)) {
+            if (parsed.status != NumericStringStatus::valid) {
                 set_error("WFC0088", "CInt requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return round_double_to_long(result, int_min, int_max, identifier_offset);
+            return round_double_to_long(parsed.value, int_min, int_max, identifier_offset);
         }
 
         if (is_clng) {
@@ -2678,45 +2618,16 @@ private:
                 return Value{Integer{}};
             }
 
-            const auto& text = std::get<std::string>(arguments[0]);
-            std::size_t first{};
-            std::size_t last = text.size();
-            while (first < last &&
-                   (text[first] == ' ' || text[first] == '\t' || text[first] == '\r' ||
-                    text[first] == '\n')) {
-                ++first;
-            }
-            while (last > first &&
-                   (text[last - 1U] == ' ' || text[last - 1U] == '\t' ||
-                    text[last - 1U] == '\r' || text[last - 1U] == '\n')) {
-                --last;
-            }
-            if (first == last) {
-                set_error("WFC0086", "CLng requires a whole decimal value", identifier_offset);
-                return std::nullopt;
-            }
-
-            const bool has_plus = text[first] == '+';
-            const auto conversion_first = first + (has_plus ? 1U : 0U);
-            if (conversion_first == last) {
-                set_error("WFC0086", "CLng requires a whole decimal value", identifier_offset);
-                return std::nullopt;
-            }
-            double result{};
-            const auto conversion = std::from_chars(
-                text.data() + conversion_first,
-                text.data() + last,
-                result);
-            if (conversion.ec == std::errc::result_out_of_range) {
+            const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
+            if (parsed.status == NumericStringStatus::out_of_range) {
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
-                !std::isfinite(result)) {
+            if (parsed.status != NumericStringStatus::valid) {
                 set_error("WFC0086", "CLng requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return round_double_to_long(result, std::numeric_limits<Integer>::min(),
+            return round_double_to_long(parsed.value, std::numeric_limits<Integer>::min(),
                 std::numeric_limits<Integer>::max(), identifier_offset);
         }
 
@@ -2759,24 +2670,12 @@ private:
                 return Value{false};
             }
 
-            const bool has_plus = !normalized.empty() && normalized[0] == '+';
-            const auto conversion_first = has_plus ? 1U : 0U;
-            if (conversion_first == normalized.size()) {
-                set_error("WFC0087", "CBool requires a Boolean or whole decimal value", identifier_offset);
-                return std::nullopt;
-            }
-            double number{};
-            const auto conversion = std::from_chars(
-                normalized.data() + conversion_first,
-                normalized.data() + normalized.size(),
-                number);
-            if (conversion.ec != std::errc{} ||
-                conversion.ptr != normalized.data() + normalized.size() ||
-                !std::isfinite(number)) {
+            const auto parsed = parse_numeric_string(normalized);
+            if (parsed.status != NumericStringStatus::valid) {
                 set_error("WFC0087", "CBool requires a Boolean or numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return Value{number != 0.0};
+            return Value{parsed.value != 0.0};
         }
 
         if (is_space) {
@@ -3132,31 +3031,12 @@ private:
             }
             std::optional<Integer> number;
             if (const auto* string = std::get_if<std::string>(&arguments[0])) {
-                std::size_t first{};
-                std::size_t last = string->size();
-                while (first < last &&
-                       ((*string)[first] == ' ' || (*string)[first] == '\t' ||
-                        (*string)[first] == '\r' || (*string)[first] == '\n')) {
-                    ++first;
-                }
-                while (last > first &&
-                       ((*string)[last - 1U] == ' ' || (*string)[last - 1U] == '\t' ||
-                        (*string)[last - 1U] == '\r' || (*string)[last - 1U] == '\n')) {
-                    --last;
-                }
-                const bool has_plus = first < last && (*string)[first] == '+';
-                const auto conversion_first = first + (has_plus ? 1U : 0U);
-                double parsed{};
-                const auto conversion = std::from_chars(
-                    string->data() + conversion_first,
-                    string->data() + last,
-                    parsed);
-                if (conversion.ec == std::errc::result_out_of_range) {
+                const auto parsed = parse_numeric_string(*string);
+                if (parsed.status == NumericStringStatus::out_of_range) {
                     set_error("WFC0009", "integer overflow", identifier_offset);
                     return std::nullopt;
                 }
-                if (conversion_first == last || conversion.ec != std::errc{} ||
-                    conversion.ptr != string->data() + last || !std::isfinite(parsed)) {
+                if (parsed.status != NumericStringStatus::valid) {
                     set_error(
                         "WFC0099",
                         is_hex ? "Hex requires a numeric value" : "Oct requires a numeric value",
@@ -3164,7 +3044,7 @@ private:
                     return std::nullopt;
                 }
                 const auto rounded = round_double_to_long(
-                    parsed,
+                    parsed.value,
                     std::numeric_limits<Integer>::min(),
                     std::numeric_limits<Integer>::max(),
                     identifier_offset);
