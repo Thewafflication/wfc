@@ -3079,7 +3079,8 @@ private:
         }
 
         if (is_hex || is_oct) {
-            if (!is_number(arguments[0])) {
+            if (!is_number(arguments[0]) &&
+                !std::holds_alternative<std::string>(arguments[0])) {
                 set_error(
                     "WFC0073",
                     is_hex ? "Hex requires a numeric argument" : "Oct requires a numeric argument",
@@ -3089,7 +3090,51 @@ private:
             if (!execute_) {
                 return Value{std::string{}};
             }
-            const auto number = coerce_long(arguments[0], identifier_offset);
+            std::optional<Integer> number;
+            if (const auto* string = std::get_if<std::string>(&arguments[0])) {
+                std::size_t first{};
+                std::size_t last = string->size();
+                while (first < last &&
+                       ((*string)[first] == ' ' || (*string)[first] == '\t' ||
+                        (*string)[first] == '\r' || (*string)[first] == '\n')) {
+                    ++first;
+                }
+                while (last > first &&
+                       ((*string)[last - 1U] == ' ' || (*string)[last - 1U] == '\t' ||
+                        (*string)[last - 1U] == '\r' || (*string)[last - 1U] == '\n')) {
+                    --last;
+                }
+                const bool has_plus = first < last && (*string)[first] == '+';
+                const auto conversion_first = first + (has_plus ? 1U : 0U);
+                double parsed{};
+                const auto conversion = std::from_chars(
+                    string->data() + conversion_first,
+                    string->data() + last,
+                    parsed);
+                if (conversion.ec == std::errc::result_out_of_range) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                if (conversion_first == last || conversion.ec != std::errc{} ||
+                    conversion.ptr != string->data() + last || !std::isfinite(parsed)) {
+                    set_error(
+                        "WFC0099",
+                        is_hex ? "Hex requires a numeric value" : "Oct requires a numeric value",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                const auto rounded = round_double_to_long(
+                    parsed,
+                    std::numeric_limits<Integer>::min(),
+                    std::numeric_limits<Integer>::max(),
+                    identifier_offset);
+                if (!rounded.has_value()) {
+                    return std::nullopt;
+                }
+                number = std::get<Integer>(*rounded);
+            } else {
+                number = coerce_long(arguments[0], identifier_offset);
+            }
             if (!number.has_value()) {
                 return std::nullopt;
             }
