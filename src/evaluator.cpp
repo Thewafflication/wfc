@@ -2538,6 +2538,10 @@ private:
                 }
                 const auto parsed =
                     parse_numeric_string(std::get<std::string>(arguments[0]));
+                if (parsed.status == NumericStringStatus::out_of_range) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
                 if (parsed.status != NumericStringStatus::valid) {
                     set_error(
                         "WFC0095",
@@ -2554,7 +2558,12 @@ private:
             // The evaluator has no distinct Single type; CSng narrows to float
             // precision and stores the result in the Double slot.
             if (is_csng) {
-                value = static_cast<double>(static_cast<float>(value));
+                const auto narrowed = static_cast<float>(value);
+                if (!std::isfinite(narrowed)) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                value = static_cast<double>(narrowed);
             }
             return Value{value};
         }

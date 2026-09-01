@@ -15,6 +15,10 @@
   `+` or `-`, and is parsed as a decimal/exponent number; an empty or
   non-numeric String fails with `WFC0095`.
 
+A numeric String outside the `Double` range fails with `WFC0009`. `CSng`
+likewise fails with `WFC0009` when the converted value is outside the finite
+IEEE single-precision range instead of returning an infinity.
+
 `CSng` narrows the result to IEEE single precision before returning it. The
 evaluator has no distinct `Single` type, so the single-precision value is stored
 in the `Double` slot; conversions of values not exactly representable in single
@@ -32,7 +36,8 @@ until the `Currency` and `Decimal` types exist.
 
 - `tests/evaluator_tests.cpp` covers `Long`, `Double`, `Boolean`, and `String`
   inputs, a signed and whitespace-padded String, single-precision narrowing,
-  round-trips through `CLng`, and empty/malformed rejection.
+  round-trips through `CLng`, empty/malformed rejection, `Double` String
+  overflow, and positive/negative Single-range overflow.
 - `TC-MP0002-cdbl-cli` verifies `CDbl` and `CSng` through `wfc --eval`.
 
 ## Traceability
