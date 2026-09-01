@@ -81,7 +81,7 @@ retained CTest evidence.
 | 2026-08-31 #57 | Construction | Extend `CByte` string conversion to finite fractional/exponent forms with banker's rounding and range enforcement under `REQ-0175` | Commit `285ba0b` |
 | 2026-08-31 #58 | Construction | Implement `Val` hexadecimal/octal prefixes with VBA-compatible signed 16-/32-bit interpretation under `REQ-0170` | Commit `39cc0b6` |
 | 2026-08-31 #59 | Construction | Implement `CVar` as identity conversion across the current scalar `Value` model under `REQ-0190`; reconcile the `REQ-0072` implementation record | Commit `53fc1c9` |
-| 2026-08-31 #60 | Construction | Extend `Hex`/`Oct` to strict finite numeric Strings with banker's rounding under `REQ-0189` | Commit pending |
+| 2026-08-31 #60 | Construction | Extend `Hex`/`Oct` to strict finite numeric Strings with banker's rounding under `REQ-0189` | Commit `eda9641` |
 
 ## Verification Log
 
