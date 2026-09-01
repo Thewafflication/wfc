@@ -72,8 +72,8 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-The source evaluator implements `Hex`, `Oct`, `Str`, the `Long`-bounded `Val`
-subset, `CStr`, the current-value `CLng`/`CBool` subsets, and bounded `CByte`
-through REQ-0170 and REQ-0172 through REQ-0175.
-Complete Variant/numeric behavior, runtime type information, and the remaining
-members are pending.
+The source evaluator implements `Hex`, `Oct`, `Str`, decimal/radix `Val`,
+`CStr`, `CByte`, `CBool`, `CInt`, `CLng`, `CSng`, `CDbl`, and current-scalar
+`CVar` behavior through REQ-0170, REQ-0172 through REQ-0175, REQ-0181,
+REQ-0182, REQ-0188 through REQ-0190. Complete Variant/numeric behavior,
+runtime type information, and the remaining members are pending.

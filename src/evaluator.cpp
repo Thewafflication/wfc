@@ -1984,6 +1984,7 @@ private:
         const bool is_cint = identifier == "cint";
         const bool is_cdbl = identifier == "cdbl";
         const bool is_csng = identifier == "csng";
+        const bool is_cvar = identifier == "cvar";
         const bool is_isnumeric = identifier == "isnumeric";
         const bool is_typename = identifier == "typename";
         const bool is_vartype = identifier == "vartype";
@@ -2022,7 +2023,7 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round && !is_cdbl && !is_csng && !is_float_math) {
+            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_float_math) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2490,6 +2491,10 @@ private:
                 return std::nullopt;
             }
             return round_double_to_long(result, 0, 255, identifier_offset);
+        }
+
+        if (is_cvar) {
+            return arguments[0];
         }
 
         if (is_cdbl || is_csng) {

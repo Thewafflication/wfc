@@ -594,6 +594,17 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
     )
 
     add_test(
+        NAME TC-MP0002-cvar-cli
+        COMMAND wfc --eval [=[Print TypeName(CVar(42)) & " " & TypeName(CVar(2.5)) & " " & CVar("value")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cvar-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion;variant"
+            PASS_REGULAR_EXPRESSION "Long Double value"
+    )
+
+    add_test(
         NAME TC-MP0002-cint-cli
         COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
     )

@@ -126,3 +126,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   sign-space conversion for both current numeric value types.
 - [REQ-0189 — Hex and Oct over Long and Double](req-0189-radix-double.md)
   defines banker's-rounded radix conversion for both numeric value types.
+- [REQ-0190 — CVar scalar identity conversion](req-0190-cvar-scalar.md)
+  defines Variant identity conversion for every currently representable scalar
+  value type.
