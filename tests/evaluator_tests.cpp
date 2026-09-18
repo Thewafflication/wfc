@@ -488,6 +488,92 @@ int main() {
     expect_program_failure("Print 5 Is Nothing", "WFC0107");
     expect_program_failure("Print Nothing = Nothing", "WFC0107");
     expect_program_failure("Print CStr(Nothing)", "WFC0106");
+    // User-defined Sub/Function procedures: declarations, forward
+    // reference, recursion, ByVal/ByRef parameters, local scope, Exit
+    // Sub/Function, and the Call statement.
+    expect_program_success(
+        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd Function\n"
+        "Print Add(2, 3)",
+        "5");
+    expect_program_success(
+        "Print Square(5)\n\nFunction Square(x As Long) As Long\nSquare = x * x\n"
+        "End Function",
+        "25");
+    expect_program_success(
+        "Function Factorial(n As Long) As Long\nIf n <= 1 Then\nFactorial = 1\n"
+        "Else\nFactorial = n * Factorial(n - 1)\nEnd If\nEnd Function\n"
+        "Print Factorial(10)",
+        "3628800");
+    expect_program_success(
+        "Function IsEven(n As Long) As Boolean\nIf n = 0 Then\nIsEven = True\n"
+        "Else\nIsEven = IsOdd(n - 1)\nEnd If\nEnd Function\n\n"
+        "Function IsOdd(n As Long) As Boolean\nIf n = 0 Then\nIsOdd = False\n"
+        "Else\nIsOdd = IsEven(n - 1)\nEnd If\nEnd Function\n\n"
+        "Print CStr(IsEven(10)) & \" \" & CStr(IsOdd(10))",
+        "True False");
+    expect_program_success(
+        "Sub Greet(name As String)\nPrint \"Hello, \" & name\nEnd Sub\n"
+        "Call Greet(\"World\")",
+        "Hello, World");
+    expect_program_success(
+        "Sub Increment(ByRef x As Long)\nx = x + 1\nEnd Sub\n"
+        "Dim n As Long\nn = 5\nCall Increment(n)\nPrint n",
+        "6");
+    expect_program_success(
+        "Sub NoOp(ByVal x As Long)\nx = x + 100\nEnd Sub\n"
+        "Dim n As Long\nn = 5\nCall NoOp(n)\nPrint n",
+        "5");
+    expect_program_success(
+        // ByRef is VB6's default when neither ByVal nor ByRef is written.
+        "Sub Increment(x As Long)\nx = x + 1\nEnd Sub\n"
+        "Dim n As Long\nn = 5\nCall Increment(n)\nPrint n",
+        "6");
+    expect_program_success(
+        "Dim n As Long\nn = 10\n\nSub Modify()\nDim n As Long\nn = 99\n"
+        "Print \"local: \" & n\nEnd Sub\n\n"
+        "Call Modify()\nPrint \"module: \" & n",
+        "local: 99\nmodule: 10");
+    expect_program_success(
+        "Function Greet(name As Variant) As String\nGreet = \"Hi \" & name\nEnd Function\n"
+        "Print Greet(\"Bob\")\nPrint Greet(5)",
+        "Hi Bob\nHi 5");
+    expect_program_success(
+        "Function NoReturn() As Long\nDim x As Long\nx = 5\nEnd Function\n"
+        "Print NoReturn()",
+        "0");
+    expect_program_success(
+        "Sub EarlyExit()\nPrint \"before\"\nExit Sub\nPrint \"after\"\nEnd Sub\n"
+        "Call EarlyExit()",
+        "before");
+    expect_program_success(
+        "Function EarlyExit() As Long\nEarlyExit = 1\nExit Function\nEarlyExit = 2\n"
+        "End Function\nPrint EarlyExit()",
+        "1");
+    expect_program_success(
+        "Function Test() As Long\nTest = 5\nEnd Function\n"
+        "Dim x As Long\nx = Test() + Test()\nPrint x",
+        "10");
+    expect_program_success(
+        "Function Foo() As Long\nFoo = 5\nEnd Function\n"
+        "If False Then\nPrint Foo()\nEnd If\nPrint \"done\"",
+        "done");
+    expect_program_success(
+        "Sub Foo()\nDim arr(3) As Long\narr(1) = 42\nPrint arr(1)\nEnd Sub\nCall Foo()",
+        "42");
+    expect_program_failure(
+        "Print Foo()\n\nSub Foo()\nPrint \"hi\"\nEnd Sub", "WFC0122");
+    expect_program_failure(
+        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd Function\n"
+        "Print Add(1)",
+        "WFC0072");
+    expect_program_failure(
+        "Sub Foo()\nEnd Sub\nSub Foo()\nEnd Sub", "WFC0119");
+    expect_program_failure("Call Bar()", "WFC0015");
+    expect_program_failure("Exit Sub", "WFC0124");
+    expect_program_failure(
+        "Function Foo() As Long\nFoo = 1\nEnd Function\nExit Function", "WFC0125");
+    expect_program_failure(
+        "Sub Foo(n As Long)\nExit Function\nEnd Sub\nCall Foo(1)", "WFC0125");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");

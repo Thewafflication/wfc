@@ -1018,4 +1018,31 @@ Print CStr(x Is Nothing)]=]
             LABELS "integration;mp-0002;expressions;variables;object"
             PASS_REGULAR_EXPRESSION "Nothing True.*True"
     )
+
+    add_test(
+        NAME TC-MP0002-procedure-cli
+        COMMAND wfc --eval [=[Function Factorial(n As Long) As Long
+If n <= 1 Then
+Factorial = 1
+Else
+Factorial = n * Factorial(n - 1)
+End If
+End Function
+
+Sub Increment(ByRef x As Long)
+x = x + 1
+End Sub
+
+Print Factorial(5)
+Dim n As Long
+n = 10
+Call Increment(n)
+Print n]=]
+    )
+    set_tests_properties(
+        TC-MP0002-procedure-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures"
+            PASS_REGULAR_EXPRESSION "120.*11"
+    )
 endif()

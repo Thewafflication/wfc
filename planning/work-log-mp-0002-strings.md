@@ -106,6 +106,7 @@ retained CTest evidence.
 | 2026-09-18 #82 | Architecture | Add the scalar `Variant` foundation under new `REQ-0197` (`Empty`/`Null` literals and states, `IsNull`/`IsEmpty`, `Dim x As Variant`/bare `Dim x` retyping assignment, three-valued-logic `Null` propagation through every operator and `If`/`While`/`Do` condition, new `WFC0104`) and the distinct `Decimal` numeric value type under new `REQ-0198` (96-bit-mantissa/scale-0-28 exact arithmetic via a hand-rolled 256-bit `BigUInt`, `CDec`, new `WFC0105`, extending `Abs`/`Int`/`Fix`/`Round`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`IsNumeric`/`Hex`/`Oct` to accept `Decimal`); a live VB6 6.00.8176 probe verified the `Null`/`Empty` semantics recorded below; unit + CLI tests, README | Commit `5d17249` |
 | 2026-09-18 #83 | Architecture | Add the distinct 16-bit `Integer` numeric value type under new `REQ-0199` (VB6's `Integer`, distinct from this codebase's own `Integer` C++ alias for `Long`): `%` literal suffix/identifier character, `Dim`/`Const As Integer`, checked narrowing from `Long`/`Single`/`Currency`/`Double`, six-way `Integer < Long < Currency < Single < Decimal < Double` arithmetic promotion (exact checked 16-bit arithmetic for `Integer`+`Integer`, exact widened `Long` arithmetic for mixed `Integer`/`Long`), `CInt` now returning a genuine `Integer` instead of a `Long`-typed narrowed value, and extending `CLng`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`CDec`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct`/`TypeName`/`VarType` to accept `Integer`; unit + CLI tests, README | Commit `10710e5` |
 | 2026-09-18 #84 | Architecture | Add fixed-size one-dimensional arrays under new `REQ-0201` (`Dim arr(n)`/`Dim arr(lo To hi) As Type`, indexed read/write with `WFC0111` bounds checking, `LBound`/`UBound`, `IsArray`, `TypeName`/`VarType`; new `ArrayValue{vector<Value>, lower_bound}` alternative, a forward-declared recursive `Value` variant) and a minimal object-reference stub under new `REQ-0200` (`Nothing` as a distinct state, `Dim x As Object`, the `Set` statement as the only legal object assignment, the `Is` operator for object identity, `IsObject`/`TypeName`/`VarType`); scoped via two `AskUserQuestion` calls ("Fixed-size 1-D arrays only" / "Minimal object stub"); unit + CLI tests, README | Commit `5ca5db4` |
+| 2026-09-18 #85 | Architecture | Add user-defined `Sub`/`Function` procedures under new `REQ-0202` (module-level declarations found by a pre-scan pass so calls resolve regardless of textual order, forward reference, recursion bounded by a new `WFC0123` depth guard, `ByVal`/`ByRef` parameters with copy-back for bare-identifier `ByRef` arguments, per-call local variable scope via a new `Scope`/two-level scope-chain refactor replacing the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members, `Function` return via self-name assignment, `Exit Sub`/`Exit Function`, and the `Call` statement); the prerequisite the owner's "finish objects" request surfaced as missing, scoped to procedures-only (no class modules) via `AskUserQuestion`; fixed a `std::vector`-reallocation pointer-invalidation bug (switched `scopes_` to `std::deque`) that silently broke `ByRef` write-back and crashed on recursion during this increment's own testing; unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -286,6 +287,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post scalar `Variant`/`Decimal`) | Pass (77/77) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Integer` numeric type) | Pass (78/78) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post fixed-size arrays and minimal object stub) | Pass (80/80) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post user-defined Sub/Function procedures) | Pass (81/81) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -317,6 +319,10 @@ from this record and the local reference environment identified in
 | Represent an array as a new `ArrayValue{std::vector<Value>, Integer lower_bound}` `Value` alternative, making `Value` a genuinely recursive type (an array can be a `Value`, and a `Value` can be an array) | The alternative -- indirection via `unique_ptr`/`shared_ptr` with an explicit out-of-line destructor -- adds Rule-of-5 boilerplate for no behavioral benefit, since C++17 `std::vector<T>` already supports an incomplete `T` at class-member-declaration time, becoming valid once `T` (here, `Value`) is complete before the vector's own methods are actually used | Verified by building immediately after the structural change, before writing any array behavior on top of it: forward-declare `ArrayValue`, declare the `Value` alias naming it, then define `ArrayValue`'s body referencing `std::vector<Value>` -- compiles cleanly on MSVC's STL | `REQ-0201` |
 | Give `Object`-typed variables their own `object_variables_` tracking set (mirroring `variant_variables_`), rather than inferring "is this an Object" from "does it currently hold `Nothing`" | A `Variant`-declared variable can also currently hold `Nothing` (via `Set`), and the two cases need different assignment rules: plain `=` is rejected only for a fixed `Object` target, not for a `Variant` one currently holding `Nothing` | Correctly distinguishes "this variable's fixed declared type is Object" from "this variable happens to hold Nothing right now" without adding a new `Value` state | `REQ-0200` |
 | Reject `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As Object`) rather than attempting per-element retyping or per-element `Nothing` tracking | `Variant`'s existing retyping design is tracked per *variable name* (`variant_variables_`), not per array *element*; extending that to element granularity is a meaningfully larger feature, and array-of-`Object` has nothing productive to hold without class modules anyway | Kept explicitly in each REQ's Scope rather than silently producing a wrong result for these combinations (`Dim arr() As Variant` reports the same `WFC0012` "unrecognized As-clause type" diagnostic a genuinely unsupported type reports elsewhere) | `REQ-0201` |
+| Build user-defined procedures first, as their own increment, before any class-module work | Owner request ("finish objects"), redirected via `AskUserQuestion` after discovering "finish objects" actually depends on procedure scope, which did not exist at all (flagged in `REQ-0141`'s Tailoring section since MP-0002's second increment) | Delivers a real, working `Sub`/`Function`/recursion/scope foundation now, rather than starting class modules on top of nothing; a class-module layer remains a distinct, separately-scoped future increment | `REQ-0202` |
+| Refactor the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members into a `Scope` struct plus a `scopes_` scope-chain, with lookups checking only the current frame and the module frame (never an intermediate caller's frame) | Procedure calls need real local variable scope (parameters and local `Dim`s invisible outside the call, distinct from module-level variables) and recursion needs each call to get its own independent local storage; VB6 itself has no scope deeper than module/procedure, so a full nested lexical-scope stack was not needed, only two visible levels | A ~28-call-site mechanical refactor (every existing `variables_.find`/`.contains`/`.emplace`/`.insert` call site), done before writing any new procedure-call logic on top of it, verified against the full existing test suite before proceeding | `REQ-0202` |
+| Switch `scopes_` from `std::vector<Scope>` to `std::deque<Scope>` | Discovered via live testing during this same increment: a `ByRef` argument's write-back pointer (captured before a call pushes its new frame) silently stopped working, and deep recursion segfaulted -- both traced to `std::vector::push_back` reallocating on growth, which can copy (rather than move) existing elements and orphan pointers previously taken into them; `std::deque` guarantees push/pop at the ends never invalidates references or pointers to existing elements | Fixed both symptoms; verified with the same `ByRef` and recursive-Factorial cases that first exposed the bug, plus the full test suite | `REQ-0202` |
+| Bound procedure-call recursion at a fixed depth (`WFC0123` beyond 64 levels) rather than leaving it unguarded | Since each VB6-level call recurses through this evaluator's own C++ call chain (`run_procedure_body` → `parse_statement` → ... → `parse_procedure_call` → `call_procedure` → `run_procedure_body` again), unbounded VB6 recursion can overflow the native call stack -- a process crash, observed directly in this session between roughly 100 and 128 levels in a local debug build | 64 was chosen empirically for a comfortable margin below the observed crash range (a release build, with smaller per-frame stack usage, has more headroom); verified a runaway self-recursive function fails cleanly with `WFC0123` instead of crashing, while ordinary recursion (`Factorial(10)`) still succeeds | `REQ-0202` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -324,6 +330,8 @@ from this record and the local reference environment identified in
 | Reserved `vbTextCompare` declaration test initially expected duplicate-name diagnostic `WFC0013` | One evaluator assertion failed; implementation correctly emitted the established reserved-keyword diagnostic `WFC0017` | Corrected the test expectation and reran all 36 cases successfully | Closed |
 | Initial `CBool` tests concatenated Boolean results directly | Unit and CLI cases correctly emitted `WFC0020` because the current `&` contract accepts only String or Long operands | Changed unit cases to independent `Print` statements and the CLI case to explicit `CStr` conversions; reran all 43 cases successfully | Closed |
 | CTest's regular-expression engine did not match the multi-line `CBool` CLI output | The CLI command produced the correct `True`/`False` lines, but its pass expression failed | Kept the CLI assertion single-line through `CStr(CBool(...))` and restored an exact output expression | Closed |
+| `parse_procedure_declaration_skip` jumped `offset_` past a declaration's trailing line break (not just past "End Sub"/"End Function" itself) | The very next top-level statement after a skipped declaration failed with `WFC0004` "unexpected trailing input", since `evaluate()`'s main loop still tried to consume a statement separator that was already gone | Changed `skip_to_matching_end` to leave the cursor right after "End Sub"/"End Function", not past its line break, matching every other statement handler's convention of leaving separator-consumption to the caller | Closed |
+| `ByRef` argument write-back silently did nothing, and self-recursive calls segfaulted | Both traced to the same root cause: `std::vector<Scope>::push_back` reallocating on growth can copy (not move) existing `Scope` elements, orphaning the `Value*` pointer a `ByRef` argument captured before the call pushed its new frame | Switched `scopes_` from `std::vector<Scope>` to `std::deque<Scope>`, which guarantees push/pop at the ends never invalidates references or pointers to existing elements; verified with the same `ByRef` and recursive-`Factorial` cases | Closed |
 
 ## Measurements
 
@@ -422,6 +430,7 @@ when the session completes.
 | Scalar Variant and Decimal numeric value type (increment #82) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Integer numeric value type (increment #83) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fixed-size arrays and minimal object stub (increment #84) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| User-defined Sub/Function procedures (increment #85) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -598,16 +607,70 @@ new `Value` alternatives across `render`, concatenation, every `CXxx`
 conversion, `IsNumeric`, and the `Select Case ... To` range form (the same
 audit pattern applied to every prior new `Value` alternative this session).
 
+**User-defined Sub/Function procedures (increment #85, `REQ-0202`):** the
+owner's next instruction, "finish objects," turned out to depend on
+something that did not exist at all: user-defined procedures (`REQ-0141`
+had explicitly deferred "procedure scope" to "later requirements" since
+MP-0002's second increment, and nothing since had added it). Rather than
+assume scope, this was surfaced back to the owner via `AskUserQuestion`,
+which chose to build procedures first, as their own increment, with no
+class-module layer yet. Adds module-level `Sub Name(params) ... End Sub`/
+`Function Name(params) As Type ... End Function` declarations: a new
+lightweight pre-scan pass (`scan_procedures`, run once before the module's
+top-to-bottom execution begins) finds every declaration and its body range
+so calls resolve regardless of textual order (forward reference, direct and
+mutual recursion), while the main execution pass skips over each
+declaration where it is written. `ByVal`/`ByRef` parameters (`ByRef` is
+VB6's unwritten default); a `ByRef` argument whose source text is a single
+bare variable name gets its parameter's final value copied back after the
+call, while any other argument form behaves as `ByVal` (no caller-visible
+variable to write back into). A `Function` returns via assignment to its
+own name, like an implicit local variable. `Exit Sub`/`Exit Function`
+(new `WFC0124`/`WFC0125`), a nesting-depth guard (new `WFC0123`, see below),
+and the `Call` statement (the only supported way to invoke a `Sub`
+statement-style, matching real VB6; this evaluator still does not support
+VB6's parenthesis-free `Name arg1, arg2` call form).
+
+Implementing real per-call local variable scope required refactoring the
+four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_`
+members (used throughout the evaluator since the Variant/Object increments)
+into a `Scope` struct plus a `scopes_` scope-chain, with lookups checking
+only the current call's own frame and the module frame -- never an
+intermediate caller's frame, matching VB6's own module/procedure two-level
+scoping. This was a ~28-call-site mechanical refactor, done and verified
+against the full existing test suite *before* writing any new call logic on
+top of it.
+
+Live testing during this same increment surfaced two real bugs, both
+traced to one root cause: `ByRef` argument write-back silently did nothing,
+and self-recursive calls segfaulted. `std::vector<Scope>::push_back`
+reallocating on growth can *copy* (not move) existing `Scope` elements when
+the move constructor isn't usable without an exception guarantee,
+orphaning a `Value*` pointer a `ByRef` argument had captured before the
+call pushed its new frame onto the vector. Switched `scopes_` from
+`std::vector<Scope>` to `std::deque<Scope>`, which guarantees push/pop at
+the container's ends never invalidates references or pointers to existing
+elements -- fixing both symptoms. A related, unguarded-recursion stack
+overflow was independently observed (crashing a local debug build somewhere
+between 100 and 128 nested calls), addressed with a `WFC0123` depth guard
+at 64 levels (chosen empirically for a comfortable safety margin below the
+observed crash range).
+
 **Remaining next increments:**
 
-- class modules, `New`, `CreateObject`, method/property access, and
-  `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
-  array-typed parameters (deliberately excluded from this increment's
-  "fixed-size 1-D arrays only"/"minimal object stub" scope; see `REQ-0200`'s
-  and `REQ-0201`'s Scope sections);
+- class modules, `Property Let`/`Get`/`Set` members, `New`, `CreateObject`,
+  and method/property access on an object reference -- the layer this
+  increment's procedure foundation was built to eventually support, still a
+  distinct, separately-scoped future increment;
+- `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
+  array-typed parameters (deliberately excluded from `REQ-0201`'s
+  "fixed-size 1-D arrays only" scope);
 - `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As
   Object`), which need per-element retyping/Nothing-tracking beyond this
   increment's per-variable tracking;
+- `Optional` parameters, `ParamArray`, default parameter values, `Static`
+  procedures, and `Public`/`Private` visibility modifiers on a `Sub`/
+  `Function` declaration (deliberately excluded from `REQ-0202`'s scope);
 - late binding and `CVErr`/error-value Variants (`IsError`/`IsMissing` stay
   hardcoded `False`);
 - verifying the `Decimal`-vs-`Single` promotion order against the reference

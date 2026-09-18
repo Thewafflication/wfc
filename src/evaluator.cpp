@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <optional>
 #include <string>
@@ -1083,6 +1084,8 @@ enum class NumericCategory {
            identifier == "not" ||
            identifier == "null" || identifier == "empty" ||
            identifier == "nothing" || identifier == "object" || identifier == "set" ||
+           identifier == "sub" || identifier == "function" || identifier == "call" ||
+           identifier == "byval" || identifier == "byref" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
            identifier == "rem" || identifier == "select" ||
@@ -1106,12 +1109,107 @@ enum class NumericCategory {
     return result;
 }
 
+// One variable-declaration scope: either the single module-level scope, or
+// one procedure call's local scope (its parameters and locally Dim'd
+// variables). A procedure call's variable lookups see only its own scope
+// and the module scope -- never an enclosing caller's locals -- matching
+// VB6's own two-level (module/procedure) scoping, which has no nested
+// block scope.
+struct Scope {
+    std::unordered_map<std::string, Value> variables;
+    std::unordered_set<std::string> constants;
+    std::unordered_set<std::string> variant_variables;
+    std::unordered_set<std::string> object_variables;
+    // Only meaningful for a procedure-call scope (never the module scope):
+    // distinguishes a Function call's frame (Exit Function is valid, and
+    // the procedure's own name holds its return value) from a Sub's.
+    bool is_function_frame{};
+};
+
+// The result of looking a variable name up across the (at most two) scopes
+// a point of execution can see: the value slot itself, and which Scope
+// owns it (so a caller can check that same scope's constants/
+// variant_variables/object_variables membership). `value` is null when the
+// name isn't declared in either visible scope.
+struct VariableLookup {
+    Value* value{};
+    Scope* scope{};
+};
+
+// A parameter of a user-defined Sub/Function: `[ByVal|ByRef] name [As
+// Type]`. `type_index` mirrors a `Dim`-declared variable's fixed-type slot
+// (see `Interpreter::element_default_for_type`-style dispatch); `is_variant`
+// marks a `ByVal`/`ByRef` Variant parameter, which -- like any
+// Variant-declared variable -- accepts and retypes to any value.
+struct ProcedureParameter {
+    std::string name;
+    std::size_t type_index{};
+    bool is_variant{};
+    bool by_val{};
+};
+
+// A `Sub`/`Function` declaration found by the module-level pre-scan
+// (`Interpreter::scan_procedures`). `body_start`/`body_end` bound the
+// statements between the header line and the matching `End Sub`/`End
+// Function`; `declaration_end` is where the main top-to-bottom execution
+// pass resumes after skipping the whole declaration (parameters aren't
+// executed where they're written -- only when called).
+struct ProcedureDef {
+    std::vector<ProcedureParameter> parameters;
+    bool is_function{};
+    std::size_t return_type_index{};
+    bool return_is_variant{};
+    std::size_t body_start{};
+    std::size_t body_end{};
+    std::size_t declaration_end{};
+};
+
+// One evaluated call argument. `byref_target` is non-null only when the
+// argument's source text was a single bare variable name (nothing else),
+// pointing at that variable's slot in whichever scope it was found; a
+// ByRef parameter's final value is copied back through this pointer after
+// the call returns, matching VB6's default ByRef parameter-passing. Any
+// other argument form (a literal, an expression, an array-element access)
+// behaves as ByVal even for a ByRef parameter, since there is no
+// caller-visible variable for the mutation to reach -- the same outcome a
+// real VB6 compiler produces via a discarded temporary.
+struct CallArgument {
+    Value value;
+    Value* byref_target{};
+};
+
 class Interpreter final {
 public:
     explicit Interpreter(const std::string_view source, const bool allow_identifiers = true)
         : source_(source), allow_identifiers_(allow_identifiers) {}
 
+    [[nodiscard]] Scope& current_scope() noexcept { return scopes_.back(); }
+    [[nodiscard]] Scope& module_scope() noexcept { return scopes_.front(); }
+    [[nodiscard]] bool in_procedure() const noexcept { return scopes_.size() > 1U; }
+
+    // Looks `name` up in the current procedure's local scope (if any),
+    // falling back to the module scope. Never sees an enclosing caller's
+    // locals, matching VB6's module/procedure two-level scoping.
+    [[nodiscard]] VariableLookup find_variable(const std::string& name) {
+        if (in_procedure()) {
+            auto& local = current_scope();
+            const auto entry = local.variables.find(name);
+            if (entry != local.variables.end()) {
+                return {&entry->second, &local};
+            }
+        }
+        auto& module = module_scope();
+        const auto entry = module.variables.find(name);
+        if (entry != module.variables.end()) {
+            return {&entry->second, &module};
+        }
+        return {};
+    }
+
     [[nodiscard]] wfc::Evaluation evaluate() {
+        if (!scan_procedures()) {
+            return std::move(error_);
+        }
         skip_program_leading_trivia();
         if (at_end()) {
             return failure("WFC0001", "expected statement", offset_);
@@ -1182,6 +1280,226 @@ private:
                 return;
             }
         }
+    }
+
+    // Advances past the rest of the current logical line (its content is
+    // not this call's concern) and the line break that ends it.
+    void skip_rest_of_line() noexcept {
+        skip_comment();  // skip_comment already just means "to end of line"
+        static_cast<void>(consume_line_break());
+    }
+
+    // Scans forward from the current position (immediately after a
+    // procedure's parameter list/return type and its terminating line
+    // break) for a line consisting of `End <keyword>` (`keyword` is "sub"
+    // or "function"), which is guaranteed to be this procedure's own
+    // terminator: VB6 does not allow a Sub/Function to nest another one, so
+    // no block-depth tracking is needed, only recognizing "End sub"/"End
+    // function" pairs distinct from unrelated "End If"/"End Select"/etc.
+    // On success, `body_end` is set to the offset where "End" begins (after
+    // any leading blank lines/comments) and the cursor is left right after
+    // consuming the terminator's own line break.
+    [[nodiscard]] bool skip_to_matching_end(
+        const std::string_view keyword, std::size_t& body_end) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                return false;
+            }
+            const auto line_offset = offset_;
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (consume_keyword(keyword)) {
+                    body_end = line_offset;
+                    // Leave the cursor right after "End <keyword>", not
+                    // past its line break: the caller (parse_statement,
+                    // when skipping a declaration during the main pass;
+                    // scan_procedures' own loop, when continuing to scan)
+                    // is responsible for consuming that statement
+                    // separator itself, matching every other statement
+                    // handler in this evaluator.
+                    return true;
+                }
+                offset_ = line_offset;
+            }
+            skip_rest_of_line();
+        }
+    }
+
+    // Parses `(` [`ByVal`|`ByRef`] name [`As` Type] {`,` ...} `)` into
+    // `definition.parameters`, used by `scan_procedures` for both `Sub` and
+    // `Function` declarations.
+    [[nodiscard]] bool scan_procedure_parameters(ProcedureDef& definition) {
+        skip_horizontal_whitespace();
+        if (!consume('(')) {
+            set_error(
+                "WFC0005", "expected opening parenthesis after procedure name", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (consume(')')) {
+            return true;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            ProcedureParameter parameter;
+            if (consume_keyword("byval")) {
+                parameter.by_val = true;
+                skip_horizontal_whitespace();
+            } else if (consume_keyword("byref")) {
+                skip_horizontal_whitespace();
+            }
+            const auto parameter_name_offset = offset_;
+            char type_character{};
+            auto name = parse_identifier(&type_character);
+            if (!name.has_value()) {
+                set_error("WFC0011", "expected parameter name", parameter_name_offset);
+                return false;
+            }
+            if (is_reserved_identifier(*name)) {
+                set_error(
+                    "WFC0017",
+                    "reserved keyword cannot be a parameter name",
+                    parameter_name_offset);
+                return false;
+            }
+            parameter.name = std::move(*name);
+            skip_horizontal_whitespace();
+            if (type_character != '\0') {
+                if (!validate_type_character(type_character, parameter_name_offset)) {
+                    return false;
+                }
+                parameter.type_index = type_character_index(type_character);
+            } else if (consume_keyword("as")) {
+                skip_horizontal_whitespace();
+                const auto type_offset = offset_;
+                const auto type_result = parse_type_keyword();
+                if (!type_result.has_value()) {
+                    set_error(
+                        "WFC0012",
+                        "expected As Integer, As Long, As Double, As Single, As Currency, "
+                        "As String, As Boolean, or As Variant",
+                        type_offset);
+                    return false;
+                }
+                parameter.type_index = type_result->default_value.index();
+                parameter.is_variant = type_result->is_variant;
+            } else {
+                // A bare parameter with no As clause and no type character
+                // is implicitly Variant, matching real VB6.
+                parameter.type_index = Value{Empty{}}.index();
+                parameter.is_variant = true;
+            }
+            definition.parameters.push_back(std::move(parameter));
+            skip_horizontal_whitespace();
+            if (consume(')')) {
+                break;
+            }
+            if (!consume(',')) {
+                set_error("WFC0005", "expected closing parenthesis", offset_);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // A lightweight pre-pass, run once before the main top-to-bottom
+    // execution begins, that finds every module-level `Sub`/`Function`
+    // declaration and registers its signature and body range in
+    // `procedures_`. This is required because VB6 procedures are callable
+    // from anywhere in the module -- including textually before their own
+    // declaration -- unlike ordinary statements, which only take effect
+    // when execution reaches them. The scan does not parse procedure
+    // bodies at all (only searches for the matching "End Sub"/"End
+    // Function" line), so a syntax error inside a procedure that is never
+    // called is only discovered if/when that procedure is eventually
+    // called (a disclosed scope simplification; see REQ-0202's Scope).
+    [[nodiscard]] bool scan_procedures() {
+        const auto saved_offset = offset_;
+        offset_ = 0;
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                break;
+            }
+            const auto line_offset = offset_;
+            bool is_function = false;
+            if (consume_keyword("sub")) {
+                is_function = false;
+            } else if (consume_keyword("function")) {
+                is_function = true;
+            } else {
+                skip_rest_of_line();
+                continue;
+            }
+
+            skip_horizontal_whitespace();
+            const auto name_offset = offset_;
+            char type_character{};
+            auto name = parse_identifier(&type_character);
+            if (!name.has_value() || type_character != '\0') {
+                offset_ = saved_offset;
+                set_error("WFC0118", "expected procedure name", name_offset);
+                return false;
+            }
+            if (is_reserved_identifier(*name) || procedures_.contains(*name)) {
+                offset_ = saved_offset;
+                set_error(
+                    "WFC0119", "duplicate or reserved procedure name", name_offset);
+                return false;
+            }
+
+            ProcedureDef definition;
+            definition.is_function = is_function;
+            if (!scan_procedure_parameters(definition)) {
+                offset_ = saved_offset;
+                return false;
+            }
+            if (is_function) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("as")) {
+                    const auto as_offset = offset_;
+                    offset_ = saved_offset;
+                    set_error(
+                        "WFC0012",
+                        "expected As after Function parameter list",
+                        as_offset);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const auto type_offset = offset_;
+                const auto type_result = parse_type_keyword();
+                if (!type_result.has_value()) {
+                    offset_ = saved_offset;
+                    set_error(
+                        "WFC0012",
+                        "expected As Integer, As Long, As Double, As Single, As Currency, "
+                        "As String, As Boolean, or As Variant",
+                        type_offset);
+                    return false;
+                }
+                definition.return_type_index = type_result->default_value.index();
+                definition.return_is_variant = type_result->is_variant;
+            }
+            if (!consume_block_line_end()) {
+                offset_ = saved_offset;
+                return false;
+            }
+            definition.body_start = offset_;
+
+            if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
+                offset_ = saved_offset;
+                set_error(
+                    is_function ? "WFC0120" : "WFC0121",
+                    is_function ? "expected End Function" : "expected End Sub",
+                    line_offset);
+                return false;
+            }
+            definition.declaration_end = offset_;
+            procedures_.emplace(std::move(*name), std::move(definition));
+        }
+        offset_ = saved_offset;
+        return true;
     }
 
     [[nodiscard]] bool consume_statement_end() {
@@ -1294,6 +1612,43 @@ private:
             return Value{Int16{}}.index();
         }
         return Value{Integer{}}.index();
+    }
+
+    // Recognizes one `As Type` keyword (Integer/Long/Double/Single/
+    // Currency/String/Boolean/Variant) for a procedure parameter or
+    // function return type, mirroring the type keywords `Dim` already
+    // accepts. `Object` and array element types are deliberately not
+    // included here (see REQ-0202's Scope).
+    struct TypeKeywordResult {
+        Value default_value;
+        bool is_variant{};
+    };
+    [[nodiscard]] std::optional<TypeKeywordResult> parse_type_keyword() {
+        if (consume_keyword("long")) {
+            return TypeKeywordResult{Value{Integer{}}, false};
+        }
+        if (consume_keyword("integer")) {
+            return TypeKeywordResult{Value{Int16{}}, false};
+        }
+        if (consume_keyword("double")) {
+            return TypeKeywordResult{Value{0.0}, false};
+        }
+        if (consume_keyword("single")) {
+            return TypeKeywordResult{Value{0.0f}, false};
+        }
+        if (consume_keyword("currency")) {
+            return TypeKeywordResult{Value{Currency{}}, false};
+        }
+        if (consume_keyword("string")) {
+            return TypeKeywordResult{Value{std::string{}}, false};
+        }
+        if (consume_keyword("boolean")) {
+            return TypeKeywordResult{Value{false}, false};
+        }
+        if (consume_keyword("variant")) {
+            return TypeKeywordResult{Value{Empty{}}, true};
+        }
+        return std::nullopt;
     }
 
     [[nodiscard]] bool type_character_matches(
@@ -1494,6 +1849,12 @@ private:
             set_error("WFC0033", "unexpected Wend", statement_offset);
             return false;
         }
+        if (consume_keyword("sub") || consume_keyword("function")) {
+            return parse_procedure_declaration_skip(statement_offset);
+        }
+        if (consume_keyword("call")) {
+            return parse_call_statement();
+        }
         if (consume_keyword("print")) {
             return parse_print_statement();
         }
@@ -1637,12 +1998,33 @@ private:
             }
             return true;
         }
-        set_error("WFC0041", "expected Do or For after Exit", offset_);
+        if (consume_keyword("sub")) {
+            if (!in_procedure() || current_scope().is_function_frame) {
+                set_error("WFC0124", "Exit Sub is not inside a Sub", statement_offset);
+                return false;
+            }
+            if (execute_) {
+                exit_sub_requested_ = true;
+            }
+            return true;
+        }
+        if (consume_keyword("function")) {
+            if (!in_procedure() || !current_scope().is_function_frame) {
+                set_error("WFC0125", "Exit Function is not inside a Function", statement_offset);
+                return false;
+            }
+            if (execute_) {
+                exit_function_requested_ = true;
+            }
+            return true;
+        }
+        set_error("WFC0041", "expected Do, For, Sub, or Function after Exit", offset_);
         return false;
     }
 
     [[nodiscard]] bool control_exit_requested() const noexcept {
-        return exit_do_requested_ || exit_for_requested_;
+        return exit_do_requested_ || exit_for_requested_ || exit_sub_requested_ ||
+               exit_function_requested_;
     }
 
     [[nodiscard]] bool parse_if_statement() {
@@ -2078,15 +2460,15 @@ private:
             set_error("WFC0043", "expected For control variable", variable_offset);
             return false;
         }
-        const auto variable = variables_.find(*identifier);
-        if (variable == variables_.end()) {
+        const auto variable = find_variable(*identifier);
+        if (variable.value == nullptr) {
             set_error("WFC0015", "undeclared variable", variable_offset);
             return false;
         }
-        if (!type_character_matches(variable->second, type_character, variable_offset)) {
+        if (!type_character_matches(*variable.value, type_character, variable_offset)) {
             return false;
         }
-        if (!std::holds_alternative<Integer>(variable->second)) {
+        if (!std::holds_alternative<Integer>(*variable.value)) {
             set_error("WFC0045", "For control variable must be Long", variable_offset);
             return false;
         }
@@ -2153,7 +2535,7 @@ private:
             return step > 0 ? current <= end : current >= end;
         };
         if (enclosing_execution) {
-            variable->second = current_value;
+            *variable.value = current_value;
         }
         bool continue_loop = enclosing_execution && should_continue(current_value);
         if (!continue_loop) {
@@ -2166,7 +2548,7 @@ private:
         }
 
         while (continue_loop) {
-            variable->second = current_value;
+            *variable.value = current_value;
             offset_ = body_offset;
             execute_ = enclosing_execution;
             ++for_depth_;
@@ -2199,7 +2581,7 @@ private:
             continue_loop = should_continue(current_value);
         }
 
-        variable->second = current_value;
+        *variable.value = current_value;
         offset_ = continuation_offset;
         execute_ = enclosing_execution;
         return true;
@@ -2224,10 +2606,10 @@ private:
                     return false;
                 }
                 if (next_identifier.has_value()) {
-                    const auto variable = variables_.find(*next_identifier);
-                    if (variable == variables_.end() ||
+                    const auto variable = find_variable(*next_identifier);
+                    if (variable.value == nullptr ||
                         !type_character_matches(
-                            variable->second, next_type_character, next_identifier_offset)) {
+                            *variable.value, next_type_character, next_identifier_offset)) {
                         return false;
                     }
                 }
@@ -2472,6 +2854,9 @@ private:
         if (consume_keyword("set")) {
             return parse_set_statement();
         }
+        if (consume_keyword("call")) {
+            return parse_call_statement();
+        }
 
         const bool has_let = consume_keyword("let");
         if (has_let) {
@@ -2643,17 +3028,18 @@ private:
             initial_value = std::move(element_default);
         }
 
-        const auto [entry, inserted] = variables_.emplace(*identifier, std::move(initial_value));
+        const auto [entry, inserted] =
+            current_scope().variables.emplace(*identifier, std::move(initial_value));
         (void)entry;
         if (!inserted) {
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
         }
         if (is_variant) {
-            variant_variables_.insert(*identifier);
+            current_scope().variant_variables.insert(*identifier);
         }
         if (is_object) {
-            object_variables_.insert(*identifier);
+            current_scope().object_variables.insert(*identifier);
         }
         return true;
     }
@@ -2674,7 +3060,7 @@ private:
         if (!validate_type_character(type_character, identifier_offset)) {
             return false;
         }
-        if (variables_.contains(*identifier)) {
+        if (current_scope().variables.contains(*identifier)) {
             set_error("WFC0013", "duplicate variable or constant declaration", identifier_offset);
             return false;
         }
@@ -2741,8 +3127,8 @@ private:
             return false;
         }
 
-        variables_.emplace(*identifier, std::move(*value));
-        constants_.insert(std::move(*identifier));
+        current_scope().variables.emplace(*identifier, std::move(*value));
+        current_scope().constants.insert(std::move(*identifier));
         return true;
     }
 
@@ -2751,19 +3137,19 @@ private:
         const char type_character = '\0') {
         const auto identifier_offset = offset_ - identifier.size() -
             (type_character == '\0' ? 0U : 1U);
-        const auto variable = variables_.find(identifier);
-        if (variable == variables_.end()) {
+        const auto variable = find_variable(identifier);
+        if (variable.value == nullptr) {
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
-        if (!type_character_matches(variable->second, type_character, identifier_offset)) {
+        if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
             return false;
         }
-        if (constants_.contains(identifier)) {
+        if (variable.scope->constants.contains(identifier)) {
             set_error("WFC0062", "cannot assign to constant", identifier_offset);
             return false;
         }
-        if (object_variables_.contains(identifier)) {
+        if (variable.scope->object_variables.contains(identifier)) {
             set_error("WFC0108", "object assignment requires Set", identifier_offset);
             return false;
         }
@@ -2778,24 +3164,24 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (variant_variables_.contains(identifier)) {
+        if (variable.scope->variant_variables.contains(identifier)) {
             // A Variant-declared variable freely accepts any value type,
             // retyping itself on each assignment (the agreed scalar-Variant
             // scope: no fixed-type enforcement for these variables).
             if (execute_) {
-                variable->second = std::move(*value);
+                *variable.value = std::move(*value);
             }
             return true;
         }
-        if (!coerce_numeric_value(*value, variable->second.index(), identifier_offset)) {
+        if (!coerce_numeric_value(*value, variable.value->index(), identifier_offset)) {
             return false;
         }
-        if (variable->second.index() != value->index()) {
+        if (variable.value->index() != value->index()) {
             set_error("WFC0016", "assignment type mismatch", identifier_offset);
             return false;
         }
         if (execute_) {
-            variable->second = std::move(*value);
+            *variable.value = std::move(*value);
         }
         return true;
     }
@@ -2817,20 +3203,20 @@ private:
             set_error("WFC0011", "expected variable name after Set", identifier_offset);
             return false;
         }
-        const auto variable = variables_.find(*identifier);
-        if (variable == variables_.end()) {
+        const auto variable = find_variable(*identifier);
+        if (variable.value == nullptr) {
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
-        if (!type_character_matches(variable->second, type_character, identifier_offset)) {
+        if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
             return false;
         }
-        if (constants_.contains(*identifier)) {
+        if (variable.scope->constants.contains(*identifier)) {
             set_error("WFC0062", "cannot assign to constant", identifier_offset);
             return false;
         }
-        if (!object_variables_.contains(*identifier) &&
-            !variant_variables_.contains(*identifier)) {
+        if (!variable.scope->object_variables.contains(*identifier) &&
+            !variable.scope->variant_variables.contains(*identifier)) {
             set_error(
                 "WFC0109", "Set requires an Object or Variant target", identifier_offset);
             return false;
@@ -2851,7 +3237,7 @@ private:
             return false;
         }
         if (execute_) {
-            variable->second = std::move(*value);
+            *variable.value = std::move(*value);
         }
         return true;
     }
@@ -2864,9 +3250,9 @@ private:
         std::string identifier,
         const char type_character = '\0') {
         if (type_character == '\0') {
-            const auto variable = variables_.find(identifier);
-            if (variable != variables_.end() &&
-                std::holds_alternative<ArrayValue>(variable->second)) {
+            const auto variable = find_variable(identifier);
+            if (variable.value != nullptr &&
+                std::holds_alternative<ArrayValue>(*variable.value)) {
                 const auto saved_offset = offset_;
                 skip_horizontal_whitespace();
                 if (!at_end() && current() == '(') {
@@ -2882,7 +3268,7 @@ private:
     [[nodiscard]] bool parse_array_element_assignment(
         const std::string& identifier,
         const std::size_t identifier_offset) {
-        const auto variable = variables_.find(identifier);
+        const auto variable = find_variable(identifier);
         advance();  // consume '('
         skip_horizontal_whitespace();
         const auto index_offset = offset_;
@@ -2915,7 +3301,7 @@ private:
             return false;
         }
 
-        auto& array = std::get<ArrayValue>(variable->second);
+        auto& array = std::get<ArrayValue>(*variable.value);
         const auto element_type_index = array.elements.front().index();
         if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
             return false;
@@ -3390,9 +3776,9 @@ private:
             auto identifier = parse_identifier(&type_character);
             skip_horizontal_whitespace();
             if (!at_end() && current() == '(') {
-                const auto array_variable = variables_.find(*identifier);
-                if (array_variable != variables_.end() &&
-                    std::holds_alternative<ArrayValue>(array_variable->second)) {
+                const auto array_variable = find_variable(*identifier);
+                if (array_variable.value != nullptr &&
+                    std::holds_alternative<ArrayValue>(*array_variable.value)) {
                     if (type_character != '\0') {
                         set_error(
                             "WFC0016",
@@ -3400,7 +3786,10 @@ private:
                             identifier_offset);
                         return std::nullopt;
                     }
-                    return parse_array_index(array_variable->second);
+                    return parse_array_index(*array_variable.value);
+                }
+                if (type_character == '\0' && procedures_.contains(*identifier)) {
+                    return parse_procedure_call(*identifier, identifier_offset);
                 }
                 if (type_character != '\0') {
                     identifier->push_back(type_character);
@@ -3425,22 +3814,22 @@ private:
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
             }
-            const auto variable = variables_.find(*identifier);
-            if (variable == variables_.end()) {
+            const auto variable = find_variable(*identifier);
+            if (variable.value == nullptr) {
                 set_error("WFC0015", "undeclared variable", identifier_offset);
                 return std::nullopt;
             }
-            if (!type_character_matches(variable->second, type_character, identifier_offset)) {
+            if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
                 return std::nullopt;
             }
-            if (constant_expression_ && !constants_.contains(*identifier)) {
+            if (constant_expression_ && !variable.scope->constants.contains(*identifier)) {
                 set_error(
                     "WFC0064",
                     "constant initializer cannot reference a variable",
                     identifier_offset);
                 return std::nullopt;
             }
-            return variable->second;
+            return *variable.value;
         }
 
         set_error("WFC0002", "expected expression", offset_);
@@ -3450,6 +3839,275 @@ private:
     // Reads `array_variable(index)`. `array_variable` is the array's
     // current Value (a reference into `variables_`, stable across this call
     // since expression parsing never inserts into that map).
+    // The zero/default value for one of the fixed scalar type indices a
+    // procedure parameter or Function return type can name (mirrors
+    // `parse_type_keyword`'s non-Variant results).
+    [[nodiscard]] static Value zero_value_for_index(const std::size_t type_index) {
+        if (type_index == Value{Integer{}}.index()) {
+            return Value{Integer{}};
+        }
+        if (type_index == Value{Int16{}}.index()) {
+            return Value{Int16{}};
+        }
+        if (type_index == Value{0.0}.index()) {
+            return Value{0.0};
+        }
+        if (type_index == Value{0.0f}.index()) {
+            return Value{0.0f};
+        }
+        if (type_index == Value{Currency{}}.index()) {
+            return Value{Currency{}};
+        }
+        if (type_index == Value{std::string{}}.index()) {
+            return Value{std::string{}};
+        }
+        return Value{false};
+    }
+
+    // Parses one call argument. A bare identifier naming a declared
+    // variable, with nothing else in its own argument slot, is captured as
+    // a possible ByRef target; anything else (a literal, an operator
+    // expression, `Not x`, `arr(i)`, an intrinsic/procedure call, ...)
+    // parses as an ordinary expression with no write-back target.
+    [[nodiscard]] std::optional<CallArgument> parse_call_argument() {
+        skip_horizontal_whitespace();
+        if (!at_end() && is_identifier_start(current())) {
+            const auto saved_offset = offset_;
+            char type_character{};
+            auto identifier = parse_identifier(&type_character);
+            skip_horizontal_whitespace();
+            const bool bare_candidate = type_character == '\0' &&
+                (at_end() || current() == ',' || current() == ')');
+            if (bare_candidate) {
+                const auto variable = find_variable(*identifier);
+                if (variable.value != nullptr) {
+                    return CallArgument{*variable.value, variable.value};
+                }
+            }
+            offset_ = saved_offset;
+        }
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return std::nullopt;
+        }
+        return CallArgument{std::move(*value), nullptr};
+    }
+
+    // Runs statements from the current offset_ until reaching `body_end`
+    // (a procedure's own "End Sub"/"End Function" position, as recorded by
+    // `scan_procedures`) or an Exit Sub/Exit Function. Mirrors `evaluate`'s
+    // own top-level statement loop.
+    [[nodiscard]] bool run_procedure_body(const std::size_t body_end) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (offset_ >= body_end || at_end()) {
+                return true;
+            }
+            if (!parse_statement()) {
+                return false;
+            }
+            if (!consume_statement_end()) {
+                return false;
+            }
+            if (exit_sub_requested_ || exit_function_requested_) {
+                exit_sub_requested_ = false;
+                exit_function_requested_ = false;
+                return true;
+            }
+        }
+    }
+
+    // Parses `(args)` for a call to the already-looked-up procedure
+    // `name`/`definition`, binds parameters into a new local scope
+    // (widening/narrowing each ByVal-or-typed argument the same way a
+    // `Dim`-typed assignment would, and passing a Variant parameter
+    // through unchanged), runs the body, copies ByRef results back to
+    // their callers' variables, and returns the call's result (the
+    // procedure's own name slot for a Function, `Empty` for a Sub).
+    [[nodiscard]] std::optional<Value> call_procedure(
+        const std::string& name,
+        const std::size_t identifier_offset,
+        const bool require_function) {
+        const auto definition_iterator = procedures_.find(name);
+        const auto& definition = definition_iterator->second;
+        if (require_function && !definition.is_function) {
+            set_error("WFC0122", "a Sub cannot be used in an expression", identifier_offset);
+            return std::nullopt;
+        }
+        if (constant_expression_) {
+            set_error(
+                "WFC0074", "constant initializer cannot call a procedure", identifier_offset);
+            return std::nullopt;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume('(')) {
+            set_error(
+                "WFC0005", "expected opening parenthesis after procedure name", offset_);
+            return std::nullopt;
+        }
+        skip_horizontal_whitespace();
+        std::vector<CallArgument> arguments;
+        if (!consume(')')) {
+            while (true) {
+                auto argument = parse_call_argument();
+                if (!argument.has_value()) {
+                    return std::nullopt;
+                }
+                arguments.push_back(std::move(*argument));
+                skip_horizontal_whitespace();
+                if (consume(')')) {
+                    break;
+                }
+                if (!consume(',')) {
+                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    return std::nullopt;
+                }
+                skip_horizontal_whitespace();
+            }
+        }
+        if (arguments.size() != definition.parameters.size()) {
+            set_error(
+                "WFC0072",
+                "procedure received the wrong number of arguments",
+                identifier_offset);
+            return std::nullopt;
+        }
+
+        if (!execute_) {
+            if (!definition.is_function) {
+                return Value{Empty{}};
+            }
+            return definition.return_is_variant ? Value{Empty{}}
+                                                  : zero_value_for_index(definition.return_type_index);
+        }
+        // Each nested call recurses through this same C++ function (via
+        // parse_statement/parse_expression's own deep call chain), so an
+        // unbounded VB6 recursion would otherwise overflow the native call
+        // stack -- a process crash -- instead of failing cleanly. 64 was
+        // chosen empirically: unguarded recursion was observed to crash a
+        // local debug build somewhere between 100 and 128 levels, so 64
+        // leaves a comfortable margin (a release build, with smaller
+        // per-frame stack usage, has more headroom still).
+        if (procedure_depth_ >= 64U) {
+            set_error("WFC0123", "procedure call nesting is too deep", identifier_offset);
+            return std::nullopt;
+        }
+
+        Scope frame;
+        for (std::size_t index = 0U; index < arguments.size(); ++index) {
+            const auto& parameter = definition.parameters[index];
+            auto& argument = arguments[index];
+            if (parameter.is_variant) {
+                frame.variables.emplace(parameter.name, std::move(argument.value));
+                frame.variant_variables.insert(parameter.name);
+                continue;
+            }
+            if (!coerce_numeric_value(argument.value, parameter.type_index, identifier_offset)) {
+                return std::nullopt;
+            }
+            if (argument.value.index() != parameter.type_index) {
+                set_error("WFC0016", "argument type mismatch", identifier_offset);
+                return std::nullopt;
+            }
+            frame.variables.emplace(parameter.name, std::move(argument.value));
+        }
+        if (definition.is_function) {
+            frame.is_function_frame = true;
+            frame.variables.emplace(
+                name,
+                definition.return_is_variant
+                    ? Value{Empty{}}
+                    : zero_value_for_index(definition.return_type_index));
+            if (definition.return_is_variant) {
+                frame.variant_variables.insert(name);
+            }
+        }
+
+        scopes_.push_back(std::move(frame));
+        const auto saved_offset = offset_;
+        const auto enclosing_execution = execute_;
+        ++procedure_depth_;
+        offset_ = definition.body_start;
+        execute_ = true;
+        const bool ran_ok = run_procedure_body(definition.body_end);
+        --procedure_depth_;
+        execute_ = enclosing_execution;
+        offset_ = saved_offset;
+
+        if (!ran_ok) {
+            scopes_.pop_back();
+            return std::nullopt;
+        }
+
+        std::optional<Value> result =
+            definition.is_function ? scopes_.back().variables.at(name) : Value{Empty{}};
+        for (std::size_t index = 0U; index < arguments.size(); ++index) {
+            const auto& parameter = definition.parameters[index];
+            if (!parameter.by_val && arguments[index].byref_target != nullptr) {
+                *arguments[index].byref_target = scopes_.back().variables.at(parameter.name);
+            }
+        }
+        scopes_.pop_back();
+        return result;
+    }
+
+    [[nodiscard]] std::optional<Value> parse_procedure_call(
+        const std::string& name, const std::size_t identifier_offset) {
+        return call_procedure(name, identifier_offset, /*require_function=*/true);
+    }
+
+    // `Call name(args)` -- the only supported way to invoke a Sub as a
+    // statement, or a Function while discarding its result, matching real
+    // VB6's `Call` statement (this evaluator does not support VB6's other,
+    // parenthesis-free `name arg1, arg2` statement-call form; see
+    // REQ-0202's Scope).
+    [[nodiscard]] bool parse_call_statement() {
+        skip_horizontal_whitespace();
+        const auto identifier_offset = offset_;
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
+        if (!identifier.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected procedure name after Call", identifier_offset);
+            return false;
+        }
+        if (!procedures_.contains(*identifier)) {
+            set_error("WFC0015", "undeclared procedure", identifier_offset);
+            return false;
+        }
+        const auto result = call_procedure(*identifier, identifier_offset, false);
+        return result.has_value();
+    }
+
+    // Skips over a module-level `Sub`/`Function` declaration during the
+    // main top-to-bottom pass: its body only runs when called, not where
+    // it's textually written. `scan_procedures` already registered it
+    // (including its `declaration_end`) before this pass began.
+    [[nodiscard]] bool parse_procedure_declaration_skip(const std::size_t statement_offset) {
+        if (!allow_declarations_) {
+            set_error(
+                "WFC0027",
+                "declarations are not supported in conditional blocks",
+                statement_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value()) {
+            set_error("WFC0118", "expected procedure name", name_offset);
+            return false;
+        }
+        const auto definition = procedures_.find(*name);
+        if (definition == procedures_.end()) {
+            set_error("WFC0118", "expected procedure name", name_offset);
+            return false;
+        }
+        offset_ = definition->second.declaration_end;
+        return true;
+    }
+
     [[nodiscard]] std::optional<Value> parse_array_index(const Value& array_variable) {
         const auto& array = std::get<ArrayValue>(array_variable);
         advance();  // consume '('
@@ -6621,10 +7279,19 @@ private:
     std::string_view source_;
     bool allow_identifiers_;
     std::size_t offset_{};
-    std::unordered_map<std::string, Value> variables_;
-    std::unordered_set<std::string> constants_;
-    std::unordered_set<std::string> variant_variables_;
-    std::unordered_set<std::string> object_variables_;
+    // scopes_[0] is the single module-level scope; every entry after it is
+    // one active procedure call's local scope (its parameters and locally
+    // Dim'd variables), pushed on call and popped on return. Variable
+    // lookups only ever consult scopes_.back() and scopes_.front() -- never
+    // any frame in between -- matching VB6's module/procedure two-level
+    // scoping.
+    // A std::deque, not std::vector: pushing/popping a call frame must
+    // never invalidate a Value* captured earlier (e.g. a ByRef argument's
+    // write-back target from an enclosing call) -- std::deque guarantees
+    // references and pointers to existing elements survive push_back/
+    // pop_back, where std::vector's reallocation would not.
+    std::deque<Scope> scopes_{Scope{}};
+    std::unordered_map<std::string, ProcedureDef> procedures_;
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};
@@ -6638,6 +7305,9 @@ private:
     bool exit_do_requested_{};
     std::size_t for_depth_{};
     bool exit_for_requested_{};
+    std::size_t procedure_depth_{};
+    bool exit_sub_requested_{};
+    bool exit_function_requested_{};
     // Rnd/Randomize generator state. 327680 is the verified default seed of
     // the reference VB6 6.00.8176 runtime's Rnd generator (confirmed against
     // a local probe: the first Rnd() call from this seed is 0.7055475,

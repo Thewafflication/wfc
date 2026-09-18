@@ -194,3 +194,9 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `Integer`/`Long`/`Double`/`Single`/`Currency`/`String`/`Boolean` element
   types, indexed read/write, `LBound`/`UBound`, and `IsArray`/`TypeName`/
   `VarType` returning real results for arrays.
+- [REQ-0202 — User-defined Sub/Function procedures](req-0202-user-defined-procedures.md)
+  defines module-level `Sub`/`Function` declarations callable from anywhere
+  in the module (a pre-scan pass, forward reference, recursion), `ByVal`/
+  `ByRef` parameters, per-call local variable scope, `Function` return via
+  self-name assignment, `Exit Sub`/`Exit Function`, and the `Call`
+  statement.

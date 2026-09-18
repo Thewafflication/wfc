@@ -72,3 +72,6 @@ later requirements and reference evidence.
 
 Implemented by `evaluate_program` and its sequential interpreter in
 `src/evaluator.cpp`, with unit and CLI coverage in the named CTest cases.
+Procedure scope, deferred by this requirement's Tailoring section, is now
+implemented by `REQ-0202` (module-level `Sub`/`Function` declarations, a
+call stack, `ByVal`/`ByRef` parameters, and local variable scope).
