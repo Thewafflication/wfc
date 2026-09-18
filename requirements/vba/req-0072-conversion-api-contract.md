@@ -75,6 +75,8 @@ change that identifies the resulting source or run-time limitation.
 The source evaluator implements `Hex`, `Oct`, `Str`, decimal/radix `Val`,
 `MacID`, `CStr`, `CByte`, `CBool`, `CInt`, `CLng`, `CSng`, `CDbl`, current-scalar
 `CVar`, and a bounded `Error`/`Error$` catalog through REQ-0170, REQ-0172
-through REQ-0175, REQ-0181, REQ-0182, and REQ-0188 through REQ-0192.
-Complete Variant/numeric behavior, runtime type information, and the remaining
-members are pending.
+through REQ-0175, REQ-0181, REQ-0182, REQ-0188 through REQ-0192, and REQ-0195.
+`CSng` returns a genuine `Single` value (`REQ-0195`), not a `Double`-narrowed-
+to-float-precision value. Complete `Currency`/`Decimal` conversions
+(`CCur`/`CDec`), complete Variant behavior, runtime type information, and the
+remaining members are pending.

@@ -156,3 +156,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0194 — Rnd and Randomize](req-0194-rnd-randomize.md) defines the
   reference-verified default `Rnd` sequence and a WFC-owned deterministic
   reseed contract for `Randomize`/`Rnd(negative)`.
+- [REQ-0195 — Single numeric value type](req-0195-single-numeric-type.md)
+  defines the distinct `Single` type: the `!` literal suffix and identifier
+  character, `Dim`/`Const As Single`, `Long`/`Single`/`Double` arithmetic
+  promotion, and extending every existing `Long`/`Double` intrinsic to accept
+  `Single`.

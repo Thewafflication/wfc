@@ -59,11 +59,13 @@ change that identifies the resulting source or run-time limitation.
 
 ## Implementation Record
 
-The source evaluator implements `Abs` and `Sgn` for `Long`/`Double`,
-`Atn`/`Cos`/`Exp`/`Log`/`Sin`/`Sqr`/`Tan` returning `Double`, `Int`/`Fix` for
-the current numeric model, nearest-even `Round`, and `Rnd`/`Randomize`
-through `REQ-0171`, `REQ-0180`, `REQ-0183`, `REQ-0187`, and `REQ-0194`.
-`Rnd`/`Randomize` cover the verified default-sequence and deterministic-reseed
-forms only; see `REQ-0194`'s Scope for the bare-call and exact-reference-
-sequence limitations. Distinct Single/Currency/Decimal preservation, complete
-Variant overloads, and runtime type information remain pending.
+The source evaluator implements `Abs` and `Sgn` for `Long`/`Single`/`Double`,
+`Atn`/`Cos`/`Exp`/`Log`/`Sin`/`Sqr`/`Tan` returning `Double` (widening a
+`Single` argument), `Int`/`Fix`/`Round` preserving `Long`/`Single`/`Double`,
+and `Rnd`/`Randomize` through `REQ-0171`, `REQ-0180`, `REQ-0183`, `REQ-0187`,
+`REQ-0194`, and `REQ-0195`. `Rnd`/`Randomize` cover the verified
+default-sequence and deterministic-reseed forms only, and `Rnd` still returns
+`Double` rather than `Single`; see `REQ-0194`'s Scope for the bare-call and
+exact-reference-sequence limitations and `REQ-0195`'s Scope for the deferred
+`Rnd` return type. Distinct Currency/Decimal preservation, complete Variant
+overloads, and runtime type information remain pending.

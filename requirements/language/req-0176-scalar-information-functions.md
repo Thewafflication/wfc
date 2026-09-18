@@ -3,8 +3,8 @@
 ## Requirement
 
 The MP-0002 evaluator shall implement the VBA Information functions whose
-behavior can be represented by its current `Long`, `Double`, `Boolean`, and `String`
-value model:
+behavior can be represented by its current `Long`, `Single`, `Double`,
+`Boolean`, and `String` value model:
 
 - `IsNumeric`, `TypeName`, and `VarType` shall classify current scalar values.
   `IsNumeric` shall recognize complete, finite decimal and exponent strings
@@ -31,10 +31,11 @@ until their supporting value models exist.
 
 ## Verification
 
-Unit tests cover scalar classification, all constant-False predicates, RGB
-component ordering, clamping, arity, type rejection, negative components, the
-complete sixteen-entry `QBColor` palette contract, and both wrong-arity forms
-of `IsNumeric`, `TypeName`, `VarType`, and each constant-False predicate.
+Unit tests cover scalar classification (including `Single`, added by
+`REQ-0195`), all constant-False predicates, RGB component ordering, clamping,
+arity, type rejection, negative components, the complete sixteen-entry
+`QBColor` palette contract, and both wrong-arity forms of `IsNumeric`,
+`TypeName`, `VarType`, and each constant-False predicate.
 `TC-MP0002-isnumeric-cli`, `TC-MP0002-typename-cli`,
 `TC-MP0002-vartype-cli`, `TC-MP0002-info-predicates-cli`, and
 `TC-MP0002-rgb-cli`, and `TC-MP0002-qbcolor-cli` cover the implemented

@@ -6,26 +6,27 @@
 
 ## Requirement
 
-`Str(<number>)` and `Str$(<number>)` shall accept a `Long` or `Double` and
-return its deterministic decimal representation. A nonnegative value shall
-have one leading space reserved for its sign; a negative value shall begin
-with `-`. Positive and negative numeric zero shall render as ` 0`.
+`Str(<number>)` and `Str$(<number>)` shall accept a `Long`, `Single`, or
+`Double` and return its deterministic decimal representation. A nonnegative
+value shall have one leading space reserved for its sign; a negative value
+shall begin with `-`. Positive and negative numeric zero shall render as ` 0`.
 
 A non-numeric argument shall report `WFC0073`; wrong arity shall report
 `WFC0072`.
 
 ## Scope
 
-`Double` digits use the evaluator's shortest round-tripping invariant decimal
-form. Locale-specific decimal separators and the complete VB6 display-format
-heuristics remain deferred to `Format` and the locale layer. `Single`,
-`Currency`, and `Decimal` inputs remain deferred with those value types.
+`Single`/`Double` digits use the evaluator's shortest round-tripping invariant
+decimal form for each type. Locale-specific decimal separators and the
+complete VB6 display-format heuristics remain deferred to `Format` and the
+locale layer. `Single` inputs followed in `REQ-0195`; `Currency` and `Decimal`
+inputs remain deferred with those value types.
 
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers positive, negative, zero, negative zero,
-  exponent input, both function spellings, non-numeric rejection, and both
-  wrong-arity forms.
+  exponent input, a `Single` input, both function spellings, non-numeric
+  rejection, and both wrong-arity forms.
 - `TC-MP0002-str-cli` verifies positive and negative fractional values through
   `wfc --eval`.
 

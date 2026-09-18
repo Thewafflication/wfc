@@ -12,17 +12,18 @@ return a `String`:
 | Input | Result |
 | --- | --- |
 | `Long` | Base-10 digits with a minus sign only when negative |
+| `Single`/`Double` | The shortest round-tripping decimal form for the argument's type (`REQ-0181`/`REQ-0195`) |
 | `Boolean` | `True` or `False` |
 | `String` | The input unchanged |
 
 Calls may be nested inside other expressions and intrinsic calls.
 
-Date, Empty, Null, Error, floating-point, Currency, locale-dependent formatting,
-and general Variant coercion remain outside this requirement.
+Date, Empty, Null, Error, Currency, locale-dependent formatting, and general
+Variant coercion remain outside this requirement.
 
 ## Verification
 
-- `tests/evaluator_tests.cpp` covers all three current input types, negative
+- `tests/evaluator_tests.cpp` covers every current input type, negative
   values, concatenation, nested use, and both wrong-arity forms.
 - `TC-MP0002-cstr-cli` verifies numeric and Boolean conversion through
   `wfc --eval`.

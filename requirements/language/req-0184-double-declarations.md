@@ -18,8 +18,8 @@ return the `vbDouble` value `5`.
 
 This requirement extends the existing typed scalar declaration model. It does
 not add implicit narrowing from `Double` to `Long`, untyped `Variant`
-declarations, procedure-local declarations, or the distinct `Single`,
-`Currency`, and `Decimal` value types.
+declarations, or procedure-local declarations. The distinct `Single` value
+type followed in `REQ-0195`; `Currency` and `Decimal` remain deferred.
 
 ## Verification
 

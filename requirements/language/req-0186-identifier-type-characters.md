@@ -25,16 +25,18 @@ identifier is followed by an argument list.
 
 ## Scope
 
-The `!`, `%`, and `@` characters report `WFC0097` until distinct `Single`,
-`Integer`, and `Currency` value types exist. This requirement does not add
-implicit `Variant` declarations.
+The `!` character followed in `REQ-0195`, once the evaluator gained a
+distinct `Single` value type. The `%` and `@` characters still report
+`WFC0097` until distinct `Integer` and `Currency` value types exist. This
+requirement does not add implicit `Variant` declarations.
 
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers inferred variables and constants,
   suffixed/unsuffixed aliasing, explicit `As Double` references through `#`,
-  duplicate declarations, mismatched assertions, redundant `As`, and an
-  unsupported `!` declaration.
+  duplicate declarations, mismatched assertions, redundant `As`, and
+  unsupported `%`/`@` declarations. `REQ-0195` covers the `!` declaration
+  character, once supported.
 - `TC-MP0002-identifier-type-characters-cli` verifies inferred `Double` and
   `String` declarations through `wfc --eval`.
 

@@ -101,6 +101,7 @@ retained CTest evidence.
 | 2026-09-17 #77 | Construction | Add `Format`/`Format$` with the eight named numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`, `Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current `Long`/`Double`/`Boolean` model under new `REQ-0193`; unit + CLI tests, README | Commit `4018bfb` |
 | 2026-09-17 #78 | Reference | Probe the local VB6 6.00.8176 / `MSVBVM60.DLL` reference (`VB6.EXE` IDE, `Sub Main` writing to a file, run via F5) to determine `Rnd`'s exact generator algorithm and default seed, and to test whether `Randomize number` reproduces a fixed sequence | No commit (research; findings recorded below and in `REQ-0194`) |
 | 2026-09-17 #79 | Construction | Add `Rnd`/`Randomize` under new `REQ-0194`: the reference-verified default `Rnd` sequence and `Rnd(0)` repeat-last, plus a WFC-owned deterministic reseed hash for `Randomize number`/`Rnd(negative)` and time-based entropy for argument-less `Randomize`; unit + CLI tests, README | Commit `7940625` |
+| 2026-09-18 #80 | Architecture | Add the distinct `Single` numeric value type under new `REQ-0195`: `!` literal suffix/identifier character, `Dim`/`Const As Single`, exact `Long` widening, checked `Double` narrowing (assignment/Const/`CSng`), three-way `Long`/`Single`/`Double` arithmetic promotion, cross-type comparison, `TypeName`/`VarType`, and extending `CSng` (now returns genuine `Single`), `CDbl`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Sgn`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Single`; unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -223,6 +224,7 @@ identified in `planning/reference-environment.md`.
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post information-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Format`/`Format$` named styles) | Pass (72/72) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Rnd`/`Randomize`) | Pass (73/73) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post `Single` numeric type) | Pass (74/74) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -237,6 +239,9 @@ identified in `planning/reference-environment.md`.
 | Define `LenB`/`AscB`/`ChrB` against WFC's stored byte sequence | Current evaluator String architecture | Adds deterministic byte operations without claiming DBCS or BSTR-layout equivalence | `REQ-0177` |
 | Implement only `Format`'s eight named numeric styles this increment; report `WFC0102` for any custom picture string or deferred named style instead of attempting a partial parser | Custom VBA picture strings (`0`/`#`/`,`/`.`/`%`/`E+`/quoted literals/multi-section `;`) need positional literal-character handling that a first increment should not approximate | Delivers the common named-style cases now; a wrong "close enough" custom-format renderer would be a worse outcome than a clear not-yet-supported diagnostic | `REQ-0193` |
 | Use a WFC-owned deterministic seed hash for `Randomize number` and `Rnd(negative)`, rather than deferring them, even though it does not reproduce the reference VB6 runtime's specific per-seed sequence | Owner decision after a local VB6 6.00.8176 probe found `Randomize number` is itself not reproducible in the reference runtime (see Reference Probe Evidence above), so no formula could truthfully claim to match it | Real VB6 programs calling `Randomize N` still run under WFC with a usable, WFC-internally-reproducible sequence, instead of failing outright | `REQ-0194` |
+| Sequence `Single`/`Currency`/`Decimal` as `Single` first (own full increment), deferring `Currency` and `Decimal` | Owner decision. `Decimal` is only reachable through a `Variant` (`CDec`) in real VBA, and this evaluator has no `Variant` type yet, so a declarable `Decimal` is architecturally blocked; `Currency` is a wholly different fixed-point 64-bit representation, not a narrower float, so it is a separate effort from `Single` | Delivers a complete, working `Single` foundation now rather than three simultaneous partial type systems | `REQ-0195` |
+| Add checked `Double`-to-`Single` narrowing for assignment and `Const` initializers (not only the reverse widening direction) | Without it, the common case `Dim x As Single: x = 2.5` (a bare, unsuffixed literal) would fail with a type mismatch, since a plain decimal literal is `Double`; that would make ordinary `Single` declarations feel broken | Matches `CSng`'s existing narrow-with-overflow-check contract; `WFC0009` reports a narrowing result outside the finite `Single` range | `REQ-0195` |
+| Leave `Rnd`'s return type as `Double` rather than switching it to genuine `Single` now that `Single` exists | `REQ-0194`'s already-shipped tests assert exact `Double`-precision rendered strings for the verified default sequence; changing the return type would change those observable values and was not part of this increment's requested scope | Documented as an explicit deferred item in `REQ-0195`'s Scope rather than a silent gap | `REQ-0195` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -337,6 +342,7 @@ when the session completes.
 | Information-function-family arity coverage (increment #76) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Format named-style implementation (increment #77) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Rnd/Randomize reference probe and implementation (increments #78-#79) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Single numeric value type (increment #80) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -389,18 +395,35 @@ parentheses remains deferred with every other intrinsic function under the
 evaluator's existing parenthesized-call-only architecture; `Rnd` returns
 `Double` (no distinct `Single` type yet), matching the `CSng` precedent.
 
+**`Single` numeric value type (increment #80, `REQ-0195`):** adds `Single` as
+a fifth distinct `Value` alternative alongside `Long`/`String`/`Boolean`/
+`Double`. Covers the `!` literal suffix and identifier character, `Dim`/
+`Const As Single`, exact `Long` widening, checked `Double` narrowing
+(assignment, `Const`, and `CSng` all reuse the same overflow-checked narrow),
+`Single`-to-`Double` widening on assignment, three-way `Long`/`Single`/
+`Double` arithmetic promotion (a `Double` operand always dominates), and
+extends `CSng` (now returns a genuine `Single` instead of a `Double`-narrowed-
+to-float value), `CDbl`, `CLng`, `CInt`, `CByte`, `CBool`, `CStr`, `IsNumeric`,
+`Abs`, `Sgn`, `Int`, `Fix`, `Round`, `Str`, and `Hex`/`Oct` to accept `Single`
+the same way they already accept `Double`. `Abs`/`Int`/`Fix`/`Round` preserve
+`Single` in the result, matching their existing `Double`-preserving behavior.
+
 **Remaining next increments:**
 
-- literal/identifier `!` Single, `%` Integer, and `@` Currency forms after
-  those distinct types exist;
+- `Currency` (a 64-bit fixed-point scaled type, architecturally distinct from
+  `Single`/`Double`) and `Decimal` (blocked on a `Variant` type existing,
+  since real VBA only exposes `Decimal` through `CDec` into a `Variant`);
+- literal/identifier `%` Integer and `@` Currency forms, once those distinct
+  types exist;
+- `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`
+  exists (deliberately not changed this increment; see the Decisions table);
 - `Format`/`Format$` custom numeric picture strings and the deferred named
   styles listed above;
 - calling any intrinsic function without parentheses (bare `Rnd`, etc.), which
   needs a `parse_primary` change shared across every function, not just `Rnd`.
 
-`Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`
-services, and `Filter`/`Join`/`Split` (arrays/`Variant`) remain later
-architecture increments.
+`Date`/`Time` services and `Filter`/`Join`/`Split` (arrays/`Variant`) remain
+later architecture increments.
 
 **Arity-evidence sweep (increments #72-#76):** every intrinsic function
 dispatched through the evaluator's arity-check table now has an explicit

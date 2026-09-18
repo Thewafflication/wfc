@@ -20,10 +20,11 @@ shall remain the concatenation operator.
 ## Scope
 
 This requirement does not yet implement identifier type-declaration
-characters. The `!`, `%`, and `@` literal suffixes remain deferred until the
-evaluator has distinct `Single`, `Integer`, and `Currency` value types; mapping
-them to `Double` or `Long` would produce incorrect `TypeName` and `VarType`
-semantics.
+characters (`REQ-0186` adds those separately). The `!` literal suffix
+followed in `REQ-0195`, once the evaluator gained a distinct `Single` value
+type. The `%` and `@` literal suffixes remain deferred until the evaluator has
+distinct `Integer` and `Currency` value types; mapping them to `Long` or
+`Double` would produce incorrect `TypeName` and `VarType` semantics.
 
 ## Verification
 

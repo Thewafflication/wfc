@@ -921,4 +921,17 @@ Print Rnd()]=]
             LABELS "integration;mp-0002;expressions;vba;math;double"
             PASS_REGULAR_EXPRESSION "0.2156059741973877.*0.5267471671104431.*0.2156059741973877"
     )
+
+    add_test(
+        NAME TC-MP0002-single-cli
+        COMMAND wfc --eval [=[Dim x As Single
+x = 2.5
+Print x & " " & TypeName(x) & " " & (x + 1) & " " & TypeName(x + 1) & " " & (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-single-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;numeric;variables;single"
+            PASS_REGULAR_EXPRESSION "2.5 Single 3.5 Single 3.5 Double"
+    )
 endif()

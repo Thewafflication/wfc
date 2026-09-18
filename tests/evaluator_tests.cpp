@@ -311,6 +311,45 @@ int main() {
         "Randomize\nPrint Rnd() >= 0 And Rnd() < 1",
         "True");
     expect_success("Print TypeName(Rnd())", "Double");
+    // Single literals, declarations, arithmetic promotion, and conversion.
+    expect_success("Print 3.5!", "3.5");
+    expect_success("Print 42!", "42");
+    expect_success("Print -3.5!", "-3.5");
+    expect_success("Print TypeName(3.5!) & \" \" & VarType(3.5!)", "Single 4");
+    expect_program_success(
+        "Dim x As Single: x = 2.5: Print x & \" \" & TypeName(x)",
+        "2.5 Single");
+    expect_program_success(
+        "Dim x!: x = 2.5: Print x & \" \" & TypeName(x)",
+        "2.5 Single");
+    expect_program_success(
+        "Const pi As Single = 3.14: Print pi & \" \" & TypeName(pi)",
+        "3.14 Single");
+    expect_program_success(
+        "Dim y As Single\nDim z As Double\ny = 2.5\nz = y\nPrint z & \" \" & TypeName(z)",
+        "2.5 Double");
+    expect_success("Print CSng(2.25) & \" \" & TypeName(CSng(2.25))", "2.25 Single");
+    expect_success("Print TypeName(2.5! + 1)", "Single");
+    expect_success("Print TypeName(2.5! + 1.0#)", "Double");
+    expect_success("Print 2.5! + 1.5! & \" \" & TypeName(2.5! + 1.5!)", "4 Single");
+    expect_success("Print 5! / 2!", "2.5");
+    expect_success("Print Abs(-3.5!) & \" \" & TypeName(Abs(-3.5!))", "3.5 Single");
+    expect_success("Print Int(-2.5!) & \" \" & TypeName(Int(-2.5!))", "-3 Single");
+    expect_success("Print Fix(-2.5!) & \" \" & TypeName(Fix(-2.5!))", "-2 Single");
+    expect_success("Print Sgn(-3.5!)", "-1");
+    expect_success("Print Round(2.5!) & \" \" & TypeName(Round(2.5!))", "2 Single");
+    expect_success(
+        "Print CLng(3.5!) & \" \" & CInt(3.5!) & \" \" & CByte(3.5!) & \" \" & CDbl(3.5!)",
+        "4 4 4 3.5");
+    expect_success("Print CBool(0!)", "False");
+    expect_success("Print CStr(3.5!)", "3.5");
+    expect_success("Print IsNumeric(3.5!)", "True");
+    expect_success("Print Str(3.5!)", " 3.5");
+    expect_success("Print Hex(255!)", "FF");
+    expect_success("Print Format(3.5!, \"Fixed\")", "3.50");
+    expect_success("Print 3.5! = 3.5", "True");
+    expect_success("Print 3.5! = 3.5#", "True");
+    expect_success("Print 3.5! < 4", "True");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
@@ -881,7 +920,8 @@ int main() {
     expect_program_failure("Dim value As Long: value# = 1", "WFC0016");
     expect_program_failure("Dim value#: Dim value As Double", "WFC0013");
     expect_program_failure("Dim value# As Double", "WFC0012");
-    expect_program_failure("Dim value!", "WFC0097");
+    expect_program_failure("Dim value%", "WFC0097");
+    expect_program_failure("Dim value@", "WFC0097");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
@@ -1121,6 +1161,12 @@ int main() {
     expect_program_failure("Print Rnd(1, 2)", "WFC0072");
     expect_program_failure("Randomize \"x\"", "WFC0073");
     expect_program_failure("Dim Randomize As Long", "WFC0017");
+    expect_program_failure("Dim x As Single: x = 1e40", "WFC0009");
+    expect_program_failure("Const pi As Single = 1e40", "WFC0009");
+    expect_program_failure("Print CSng(1e40)", "WFC0009");
+    expect_program_failure("Print 1e38! * 1e38!", "WFC0009");
+    expect_program_failure("Print 1! / 0!", "WFC0008");
+    expect_program_failure("Dim x As Single: x = \"text\"", "WFC0016");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
     expect_program_failure("Print -1e308 - 1e308", "WFC0009");

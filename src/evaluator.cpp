@@ -20,7 +20,7 @@
 namespace {
 
 using Integer = std::int32_t;
-using Value = std::variant<Integer, std::string, bool, double>;
+using Value = std::variant<Integer, std::string, bool, double, float>;
 
 enum class NumericStringStatus { valid, malformed, out_of_range };
 
@@ -65,18 +65,33 @@ struct NumericStringResult {
     return {NumericStringStatus::valid, value};
 }
 
-// A value participates in numeric operators when it is a Long or a Double.
+// A value participates in numeric operators when it is a Long, Single, or
+// Double.
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
     return std::holds_alternative<Integer>(value) ||
+           std::holds_alternative<float>(value) ||
            std::holds_alternative<double>(value);
 }
 
-// Widen a Long or Double value to double for mixed-type numeric evaluation.
+// Widen a Long, Single, or Double value to double for mixed-type numeric
+// evaluation.
 [[nodiscard]] inline double as_double(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<double>(*integer);
     }
+    if (const auto* single = std::get_if<float>(&value)) {
+        return static_cast<double>(*single);
+    }
     return std::get<double>(value);
+}
+
+// Widen a Long or Single value to float for same-precision numeric
+// evaluation. Callers must first establish that neither operand is Double.
+[[nodiscard]] inline float as_single(const Value& value) noexcept {
+    if (const auto* integer = std::get_if<Integer>(&value)) {
+        return static_cast<float>(*integer);
+    }
+    return std::get<float>(value);
 }
 
 [[nodiscard]] char ascii_lower(const char character) noexcept {
@@ -385,7 +400,8 @@ private:
         const char type_character,
         const std::size_t identifier_offset) {
         if (type_character == '\0' || type_character == '$' ||
-            type_character == '&' || type_character == '#') {
+            type_character == '&' || type_character == '#' ||
+            type_character == '!') {
             return true;
         }
         set_error(
@@ -401,6 +417,9 @@ private:
         }
         if (type_character == '#') {
             return Value{0.0}.index();
+        }
+        if (type_character == '!') {
+            return Value{0.0f}.index();
         }
         return Value{Integer{}}.index();
     }
@@ -1476,12 +1495,17 @@ private:
                 initial_value = std::string{};
             } else if (type_character == '#') {
                 initial_value = 0.0;
+            } else if (type_character == '!') {
+                initial_value = 0.0f;
             } else {
                 initial_value = Integer{};
             }
         } else {
             if (!consume_keyword("as")) {
-                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                set_error(
+                    "WFC0012",
+                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    offset_);
                 return false;
             }
             skip_horizontal_whitespace();
@@ -1489,12 +1513,17 @@ private:
                 initial_value = Integer{};
             } else if (consume_keyword("double")) {
                 initial_value = 0.0;
+            } else if (consume_keyword("single")) {
+                initial_value = 0.0f;
             } else if (consume_keyword("string")) {
                 initial_value = std::string{};
             } else if (consume_keyword("boolean")) {
                 initial_value = false;
             } else {
-                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                set_error(
+                    "WFC0012",
+                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    offset_);
                 return false;
             }
         }
@@ -1539,7 +1568,10 @@ private:
             expected_type = type_character_index(type_character);
         } else {
             if (!consume_keyword("as")) {
-                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                set_error(
+                    "WFC0012",
+                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    offset_);
                 return false;
             }
             skip_horizontal_whitespace();
@@ -1547,12 +1579,17 @@ private:
                 expected_type = Value{Integer{}}.index();
             } else if (consume_keyword("double")) {
                 expected_type = Value{0.0}.index();
+            } else if (consume_keyword("single")) {
+                expected_type = Value{0.0f}.index();
             } else if (consume_keyword("string")) {
                 expected_type = Value{std::string{}}.index();
             } else if (consume_keyword("boolean")) {
                 expected_type = Value{false}.index();
             } else {
-                set_error("WFC0012", "expected As Long, As Double, As String, or As Boolean", offset_);
+                set_error(
+                    "WFC0012",
+                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    offset_);
                 return false;
             }
         }
@@ -1572,6 +1609,20 @@ private:
         if (expected_type == Value{0.0}.index() &&
             std::holds_alternative<Integer>(*value)) {
             *value = static_cast<double>(std::get<Integer>(*value));
+        } else if (expected_type == Value{0.0}.index() &&
+                   std::holds_alternative<float>(*value)) {
+            *value = static_cast<double>(std::get<float>(*value));
+        } else if (expected_type == Value{0.0f}.index() &&
+                   std::holds_alternative<Integer>(*value)) {
+            *value = static_cast<float>(std::get<Integer>(*value));
+        } else if (expected_type == Value{0.0f}.index() &&
+                   std::holds_alternative<double>(*value)) {
+            const auto narrowed = static_cast<float>(std::get<double>(*value));
+            if (!std::isfinite(narrowed)) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return false;
+            }
+            *value = narrowed;
         } else if (value->index() != expected_type) {
             set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
             return false;
@@ -1613,6 +1664,20 @@ private:
         if (std::holds_alternative<double>(variable->second) &&
             std::holds_alternative<Integer>(*value)) {
             *value = static_cast<double>(std::get<Integer>(*value));
+        } else if (std::holds_alternative<double>(variable->second) &&
+                   std::holds_alternative<float>(*value)) {
+            *value = static_cast<double>(std::get<float>(*value));
+        } else if (std::holds_alternative<float>(variable->second) &&
+                   std::holds_alternative<Integer>(*value)) {
+            *value = static_cast<float>(std::get<Integer>(*value));
+        } else if (std::holds_alternative<float>(variable->second) &&
+                   std::holds_alternative<double>(*value)) {
+            const auto narrowed = static_cast<float>(std::get<double>(*value));
+            if (!std::isfinite(narrowed)) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return false;
+            }
+            *value = narrowed;
         } else if (variable->second.index() != value->index()) {
             set_error("WFC0016", "assignment type mismatch", identifier_offset);
             return false;
@@ -1898,6 +1963,7 @@ private:
                 return std::nullopt;
             }
             if (!std::holds_alternative<double>(*value) &&
+                !std::holds_alternative<float>(*value) &&
                 require_integer(*value, operator_offset) == nullptr) {
                 return std::nullopt;
             }
@@ -1918,6 +1984,9 @@ private:
             }
             if (const auto* number = std::get_if<double>(&*value)) {
                 return execute_ ? Value{-*number} : Value{0.0};
+            }
+            if (const auto* single = std::get_if<float>(&*value)) {
+                return execute_ ? Value{-*single} : Value{0.0f};
             }
             const auto* integer = require_integer(*value, operator_offset);
             if (integer == nullptr) {
@@ -2221,6 +2290,9 @@ private:
                 }
                 return Value{*integer < 0 ? static_cast<Integer>(-*integer) : *integer};
             }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                return Value{std::abs(*single)};
+            }
             return Value{std::abs(std::get<double>(arguments[0]))};
         }
 
@@ -2300,6 +2372,9 @@ private:
             if (!execute_) {
                 return Value{0.0};
             }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                return Value{is_int ? std::floor(*single) : std::trunc(*single)};
+            }
             const double number = std::get<double>(arguments[0]);
             return Value{is_int ? std::floor(number) : std::trunc(number)};
         }
@@ -2376,6 +2451,16 @@ private:
             }
             if (!execute_) {
                 return Value{0.0};
+            }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                if (digits >= std::numeric_limits<float>::max_digits10) {
+                    return Value{*single};
+                }
+                const float scale = std::pow(10.0f, static_cast<float>(digits));
+                if (std::abs(*single) > std::numeric_limits<float>::max() / scale) {
+                    return Value{*single};
+                }
+                return Value{std::nearbyint(*single * scale) / scale};
             }
             const double number = std::get<double>(arguments[0]);
             if (digits >= std::numeric_limits<double>::max_digits10) {
@@ -2493,6 +2578,9 @@ private:
             if (std::holds_alternative<double>(arguments[0])) {
                 return Value{std::string{"Double"}};
             }
+            if (std::holds_alternative<float>(arguments[0])) {
+                return Value{std::string{"Single"}};
+            }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{std::string{"Boolean"}};
             }
@@ -2508,6 +2596,9 @@ private:
             }
             if (std::holds_alternative<double>(arguments[0])) {
                 return Value{Integer{5}};
+            }
+            if (std::holds_alternative<float>(arguments[0])) {
+                return Value{Integer{4}};
             }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{Integer{11}};
@@ -2571,6 +2662,7 @@ private:
             }
             if (std::holds_alternative<Integer>(arguments[0]) ||
                 std::holds_alternative<bool>(arguments[0]) ||
+                std::holds_alternative<float>(arguments[0]) ||
                 std::holds_alternative<double>(arguments[0])) {
                 return Value{true};
             }
@@ -2599,6 +2691,10 @@ private:
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 return round_double_to_long(*number, 0, 255, identifier_offset);
+            }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                return round_double_to_long(
+                    static_cast<double>(*single), 0, 255, identifier_offset);
             }
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{*boolean ? Integer{255} : Integer{0}};
@@ -2661,11 +2757,13 @@ private:
                 value = static_cast<double>(*integer);
             } else if (const auto* number = std::get_if<double>(&arguments[0])) {
                 value = *number;
+            } else if (const auto* single = std::get_if<float>(&arguments[0])) {
+                value = static_cast<double>(*single);
             } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 value = *boolean ? -1.0 : 0.0;
             } else {
                 if (!execute_) {
-                    return Value{0.0};
+                    return is_csng ? Value{0.0f} : Value{0.0};
                 }
                 const auto parsed =
                     parse_numeric_string(std::get<std::string>(arguments[0]));
@@ -2684,17 +2782,15 @@ private:
                 value = parsed.value;
             }
             if (!execute_) {
-                return Value{0.0};
+                return is_csng ? Value{0.0f} : Value{0.0};
             }
-            // The evaluator has no distinct Single type; CSng narrows to float
-            // precision and stores the result in the Double slot.
             if (is_csng) {
                 const auto narrowed = static_cast<float>(value);
                 if (!std::isfinite(narrowed)) {
                     set_error("WFC0009", "numeric overflow", identifier_offset);
                     return std::nullopt;
                 }
-                value = static_cast<double>(narrowed);
+                return Value{narrowed};
             }
             return Value{value};
         }
@@ -2720,6 +2816,13 @@ private:
                     return Value{Integer{}};
                 }
                 return round_double_to_long(*number, int_min, int_max, identifier_offset);
+            }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(
+                    static_cast<double>(*single), int_min, int_max, identifier_offset);
             }
             if (!execute_) {
                 return Value{Integer{}};
@@ -2754,6 +2857,16 @@ private:
                     std::numeric_limits<Integer>::max(),
                     identifier_offset);
             }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(
+                    static_cast<double>(*single),
+                    std::numeric_limits<Integer>::min(),
+                    std::numeric_limits<Integer>::max(),
+                    identifier_offset);
+            }
             if (!execute_) {
                 return Value{Integer{}};
             }
@@ -2780,6 +2893,9 @@ private:
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 return Value{execute_ && *number != 0.0};
+            }
+            if (const auto* single = std::get_if<float>(&arguments[0])) {
+                return Value{execute_ && *single != 0.0f};
             }
             if (!execute_) {
                 return Value{false};
@@ -3602,14 +3718,31 @@ private:
         return Value{value};
     }
 
+    [[nodiscard]] std::optional<Value> parse_single(
+        const std::size_t start,
+        const std::size_t end) {
+        float value{};
+        const auto conversion =
+            std::from_chars(source_.data() + start, source_.data() + end, value);
+        if (conversion.ec != std::errc{} ||
+            conversion.ptr != source_.data() + end) {
+            set_error("WFC0006", "numeric literal is malformed", start);
+            return std::nullopt;
+        }
+        return Value{value};
+    }
+
     [[nodiscard]] std::optional<Value> parse_number() {
         const auto start = offset_;
         const bool floating_form = lex_number_span();
         const auto end = offset_;
         char suffix = '\0';
-        if (!at_end() && (current() == '#' || current() == '&')) {
+        if (!at_end() && (current() == '#' || current() == '&' || current() == '!')) {
             suffix = current();
             advance();
+        }
+        if (suffix == '!') {
+            return parse_single(start, end);
         }
         if (floating_form || suffix == '#') {
             if (suffix == '&') {
@@ -3633,9 +3766,16 @@ private:
         const bool floating_form = lex_number_span();
         const auto end = offset_;
         char suffix = '\0';
-        if (!at_end() && (current() == '#' || current() == '&')) {
+        if (!at_end() && (current() == '#' || current() == '&' || current() == '!')) {
             suffix = current();
             advance();
+        }
+        if (suffix == '!') {
+            auto value = parse_single(start, end);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            return Value{-std::get<float>(*value)};
         }
         if (floating_form || suffix == '#') {
             if (suffix == '&') {
@@ -3933,8 +4073,10 @@ private:
     }
 
     // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
-    // the exact integer path (including overflow); `/` and any Double operand
-    // promote to Double, matching VB6 numeric widening.
+    // the exact integer path (including overflow); `/` and any Single or
+    // Double operand promote to floating point, matching VB6 numeric
+    // widening. The result is Single only when at least one operand is
+    // Single and neither is Double; a Double operand always dominates.
     [[nodiscard]] std::optional<Value> numeric_binary(
         const Value& left,
         const Value& right,
@@ -3952,8 +4094,45 @@ private:
             static_cast<void>(require_integer(right, operator_offset));
             return std::nullopt;
         }
+
+        const bool result_is_single =
+            !std::holds_alternative<double>(left) && !std::holds_alternative<double>(right) &&
+            (std::holds_alternative<float>(left) || std::holds_alternative<float>(right));
+
         if (!execute_) {
-            return Value{0.0};
+            return result_is_single ? Value{0.0f} : Value{0.0};
+        }
+
+        if (result_is_single) {
+            const float left_value = as_single(left);
+            const float right_value = as_single(right);
+            float result{};
+            switch (operation) {
+            case '+':
+                result = left_value + right_value;
+                break;
+            case '-':
+                result = left_value - right_value;
+                break;
+            case '*':
+                result = left_value * right_value;
+                break;
+            case '/':
+                if (right_value == 0.0f) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = left_value / right_value;
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
+                return std::nullopt;
+            }
+            if (!std::isfinite(result)) {
+                set_error("WFC0009", "numeric overflow", operator_offset);
+                return std::nullopt;
+            }
+            return Value{result};
         }
 
         const double left_value = as_double(left);
@@ -3998,6 +4177,15 @@ private:
         }
         if (const auto* number = std::get_if<double>(&value)) {
             const double rounded = std::nearbyint(*number);
+            if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
+                  rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+                set_error("WFC0009", "integer overflow", operator_offset);
+                return std::nullopt;
+            }
+            return static_cast<Integer>(rounded);
+        }
+        if (const auto* single = std::get_if<float>(&value)) {
+            const double rounded = std::nearbyint(static_cast<double>(*single));
             if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
                   rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
                 set_error("WFC0009", "integer overflow", operator_offset);
@@ -4076,6 +4264,12 @@ private:
             char buffer[32];
             const auto result =
                 std::to_chars(buffer, buffer + sizeof(buffer), *number);
+            return std::string(buffer, result.ptr);
+        }
+        if (const auto* single = std::get_if<float>(&value)) {
+            char buffer[32];
+            const auto result =
+                std::to_chars(buffer, buffer + sizeof(buffer), *single);
             return std::string(buffer, result.ptr);
         }
         if (const auto* string = std::get_if<std::string>(&value)) {
