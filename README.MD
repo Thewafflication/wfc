@@ -155,4 +155,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Sqr(9) & `" `" & Exp(0) 
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value As Double: value = 5: Print TypeName(value) & `" `" & VarType(value)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(1#) & `" `" & TypeName(42&)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value#: value = 2.5: Print TypeName(value#)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Format(1234.5, `"Standard`") & `" `" & Format(0.5, `"Percent`") & `" `" & Format(True, `"Yes/No`")"
 ```

@@ -150,3 +150,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0192 — Error message function subset](req-0192-error-function.md)
   defines selected stable VBA run-time error descriptions and the documented
   fallback for undefined valid numbers.
+- [REQ-0193 — Format named numeric styles](req-0193-format-named-styles.md)
+  defines the eight named `Format`/`Format$` styles over the current `Long`,
+  `Double`, and `Boolean` value model.

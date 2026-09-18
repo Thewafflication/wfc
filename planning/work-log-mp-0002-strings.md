@@ -98,6 +98,7 @@ retained CTest evidence.
 | 2026-09-17 #74 | Verification | Close `REQ-0172`/`REQ-0173`/`REQ-0174`/`REQ-0170`/`REQ-0188`/`REQ-0189` arity evidence for `CStr`/`CLng`/`CBool`/`CInt`/`Val`/`Str`/`Hex`/`Oct` | Commit `b5c3ee1` |
 | 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit `8c270b1` |
 | 2026-09-17 #76 | Verification | Close `REQ-0176`/`REQ-0191` arity evidence for `IsNumeric`/`TypeName`/`VarType`/the six constant-False predicates/`MacID` | Commit `6582079` |
+| 2026-09-17 #77 | Construction | Add `Format`/`Format$` with the eight named numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`, `Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current `Long`/`Double`/`Boolean` model under new `REQ-0193`; unit + CLI tests, README | Commit pending |
 
 ## Verification Log
 
@@ -164,6 +165,7 @@ retained CTest evidence.
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post conversion-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post math-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post information-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post `Format`/`Format$` named styles) | Pass (72/72) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -176,6 +178,7 @@ retained CTest evidence.
 | Restrict `IsNumeric`/`VarType`/`TypeName` to the current representable scalar value set | Current evaluator value architecture | Reports `Long`/`Double`/`Boolean`/`String`; `Null`/`Empty` classifications remain deferred with the Variant model | `REQ-0176`, `REQ-0184` |
 | Return `False` for unavailable Information categories and reject negative `RGB` components | Current evaluator value architecture and VBA `RGB` contract | Avoids inventing unrepresentable Variant states while providing deterministic color packing and clamping | `REQ-0176` |
 | Define `LenB`/`AscB`/`ChrB` against WFC's stored byte sequence | Current evaluator String architecture | Adds deterministic byte operations without claiming DBCS or BSTR-layout equivalence | `REQ-0177` |
+| Implement only `Format`'s eight named numeric styles this increment; report `WFC0102` for any custom picture string or deferred named style instead of attempting a partial parser | Custom VBA picture strings (`0`/`#`/`,`/`.`/`%`/`E+`/quoted literals/multi-section `;`) need positional literal-character handling that a first increment should not approximate | Delivers the common named-style cases now; a wrong "close enough" custom-format renderer would be a worse outcome than a clear not-yet-supported diagnostic | `REQ-0193` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -274,6 +277,7 @@ when the session completes.
 | Conversion-function-family arity coverage (increment #74) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Math-function-family arity coverage (increment #75) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Information-function-family arity coverage (increment #76) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Format named-style implementation (increment #77) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -305,12 +309,22 @@ fractional `Round` (`REQ-0180`), `Abs`/`Sgn`/`Int`/`Fix`
 cover the current `Long`/`Double` model in addition to the earlier conversions,
 floating-point functions, `Val`, arithmetic, and comparison work.
 
+**`Format`/`Format$` (increment #77, `REQ-0193`):** implements the eight named
+numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`,
+`Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current
+`Long`/`Double`/`Boolean` model, plus the one-argument default-rendering form.
+Custom numeric picture strings (`0`, `#`, `,`, `.`, `%`, `E+`/`E-`, quoted
+literal text), the `Currency` and date/time named styles, string picture
+tokens, and applying a named style to a `String` expression remain deferred to
+a follow-on increment; an unrecognized `Style` reports `WFC0102` rather than a
+false result.
+
 **Remaining next increments:**
 
 - literal/identifier `!` Single, `%` Integer, and `@` Currency forms after
   those distinct types exist;
-- `Format`/`Format$` and locale-aware numeric rendering (current `Double`
-  rendering is invariant shortest round-tripping form, per `REQ-0181`);
+- `Format`/`Format$` custom numeric picture strings and the deferred named
+  styles listed above;
 - `Rnd`/`Randomize` once a `Single` value and generator state exist.
 
 `Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`

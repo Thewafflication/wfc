@@ -261,6 +261,32 @@ int main() {
                    "1.2 1.4 -1.2");
     expect_success("Print TypeName(Round(2.0)) & \" \" & Round(1.234567890123456, 20)",
                    "Double 1.234567890123456");
+    expect_success("Print Format(42) & \" \" & Format(3.5) & \" \" & Format(\"hi\")",
+                   "42 3.5 hi");
+    expect_program_success("Print Format(True): Print Format(False)", "True\nFalse");
+    expect_success(
+        "Print Format(1234.5678, \"General Number\") & \" \" & Format(1234, \"General Number\")",
+        "1234.5678 1234");
+    expect_success("Print Format(True, \"General Number\") & \" \" & Format(False, \"General Number\")",
+                   "-1 0");
+    expect_success("Print Format(3, \"Fixed\") & \" \" & Format(-3.456, \"Fixed\")",
+                   "3.00 -3.46");
+    expect_success("Print Format(-0.001, \"Fixed\") & \" \" & Format(-0.0, \"Fixed\")",
+                   "0.00 0.00");
+    expect_success(
+        "Print Format(1234.5, \"Standard\") & \" \" & Format(-1234567.891, \"Standard\")",
+        "1,234.50 -1,234,567.89");
+    expect_success("Print Format(100, \"Standard\")", "100.00");
+    expect_success("Print Format(0.5, \"Percent\")", "50.00%");
+    expect_success(
+        "Print Format(1234.5678, \"Scientific\") & \" \" & Format(0, \"Scientific\") & \" \" & "
+        "Format(0.0001234, \"Scientific\")",
+        "1.23E+03 0.00E+00 1.23E-04");
+    expect_program_success(
+        "Print Format(True, \"Yes/No\"): Print Format(0, \"True/False\"): "
+        "Print Format(1, \"On/Off\")",
+        "Yes\nFalse\nOn");
+    expect_success("Print Format$(42, \"Fixed\")", "42.00");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
@@ -1061,6 +1087,12 @@ int main() {
     expect_program_failure("Print Round(\"x\")", "WFC0073");
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
+    expect_program_failure("Print Format()", "WFC0072");
+    expect_program_failure("Print Format(1, 2, 3)", "WFC0072");
+    expect_program_failure("Print Format(42, 5)", "WFC0073");
+    expect_program_failure("Print Format(\"x\", \"Fixed\")", "WFC0073");
+    expect_program_failure("Print Format(42, \"Nope\")", "WFC0102");
+    expect_program_failure("Print Format(1e308, \"Percent\")", "WFC0009");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
     expect_program_failure("Print -1e308 - 1e308", "WFC0009");

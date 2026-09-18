@@ -895,4 +895,15 @@ Print label & value# & " " & TypeName(value)]=]
             LABELS "integration;mp-0002;statements;numeric;variables;constants"
             PASS_REGULAR_EXPRESSION "value=2.5 Double"
     )
+
+    add_test(
+        NAME TC-MP0002-format-cli
+        COMMAND wfc --eval [=[Print Format(1234.5, "Standard") & " " & Format(0.5, "Percent") & " " & Format(True, "Yes/No")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-format-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "1,234.50 50.00% Yes"
+    )
 endif()

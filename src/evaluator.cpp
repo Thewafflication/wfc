@@ -2061,6 +2061,7 @@ private:
         const bool is_qbcolor = identifier == "qbcolor";
         const bool is_rgb = identifier == "rgb";
         const bool is_strconv = identifier == "strconv";
+        const bool is_format = identifier == "format" || identifier == "format$";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -2070,7 +2071,7 @@ private:
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
             !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid &&
-            !is_error_message && !is_float_math) {
+            !is_error_message && !is_float_math && !is_format) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2123,7 +2124,7 @@ private:
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
-        } else if (is_round) {
+        } else if (is_round || is_format) {
             valid_arity = arguments.size() == 1U || arguments.size() == 2U;
         } else if (is_iif || is_rgb) {
             valid_arity = arguments.size() == 3U;
@@ -2352,6 +2353,74 @@ private:
                 return Value{number};
             }
             return Value{std::nearbyint(number * scale) / scale};
+        }
+
+        if (is_format) {
+            if (arguments.size() == 1U) {
+                return Value{execute_ ? render(arguments[0]) : std::string{}};
+            }
+            const auto* style = std::get_if<std::string>(&arguments[1]);
+            if (style == nullptr) {
+                set_error("WFC0073", "Format requires a String Style argument", identifier_offset);
+                return std::nullopt;
+            }
+            if (!is_number(arguments[0]) && !std::holds_alternative<bool>(arguments[0])) {
+                set_error(
+                    "WFC0073",
+                    "Format with a Style argument requires a Long, Double, or Boolean expression",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            std::string lowered_style = *style;
+            for (char& character : lowered_style) {
+                character = ascii_lower(character);
+            }
+            if (lowered_style == "general number") {
+                if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                    return Value{std::to_string(*integer)};
+                }
+                if (std::holds_alternative<bool>(arguments[0])) {
+                    return Value{std::string{std::get<bool>(arguments[0]) ? "-1" : "0"}};
+                }
+                return Value{render(arguments[0])};
+            }
+            const double widened = std::holds_alternative<bool>(arguments[0])
+                                        ? (std::get<bool>(arguments[0]) ? -1.0 : 0.0)
+                                        : as_double(arguments[0]);
+            if (lowered_style == "yes/no") {
+                return Value{std::string{widened != 0.0 ? "Yes" : "No"}};
+            }
+            if (lowered_style == "true/false") {
+                return Value{std::string{widened != 0.0 ? "True" : "False"}};
+            }
+            if (lowered_style == "on/off") {
+                return Value{std::string{widened != 0.0 ? "On" : "Off"}};
+            }
+            if (lowered_style == "fixed") {
+                return Value{render_fixed_style(widened, false)};
+            }
+            if (lowered_style == "standard") {
+                return Value{render_fixed_style(widened, true)};
+            }
+            if (lowered_style == "percent") {
+                const double scaled = widened * 100.0;
+                if (!std::isfinite(scaled)) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{render_fixed_style(scaled, false) + "%"};
+            }
+            if (lowered_style == "scientific") {
+                return Value{render_scientific_style(widened)};
+            }
+            set_error(
+                "WFC0102",
+                "Format does not yet support this Style value",
+                identifier_offset);
+            return std::nullopt;
         }
 
         if (is_cstr) {
@@ -3554,6 +3623,57 @@ private:
             return std::nullopt;
         }
         return Value{static_cast<Integer>(rounded)};
+    }
+
+    // Render a finite double using VBA's "Fixed"/"Standard" Format styles:
+    // exactly two decimal digits, an optional grouped integer part, and a
+    // leading '-' only when the rounded magnitude is nonzero.
+    [[nodiscard]] static std::string render_fixed_style(
+        const double value,
+        const bool grouping) {
+        const bool negative = value < 0.0;
+        const double magnitude = std::fabs(value);
+        char buffer[400];
+        const auto result = std::to_chars(
+            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::fixed, 2);
+        std::string digits(buffer, result.ptr);
+        if (grouping) {
+            const auto dot = digits.find('.');
+            std::string integer_part = digits.substr(0, dot);
+            const std::string fraction_part = digits.substr(dot);
+            for (int i = static_cast<int>(integer_part.size()) - 3; i > 0; i -= 3) {
+                integer_part.insert(static_cast<std::size_t>(i), ",");
+            }
+            digits = integer_part + fraction_part;
+        }
+        if (negative && digits != "0.00") {
+            digits.insert(digits.begin(), '-');
+        }
+        return digits;
+    }
+
+    // Render a finite double using VBA's "Scientific" Format style: one
+    // mantissa digit, two fraction digits, an uppercase 'E', an explicit
+    // exponent sign, and a minimum two-digit exponent.
+    [[nodiscard]] static std::string render_scientific_style(const double value) {
+        const bool negative = value < 0.0;
+        const double magnitude = std::fabs(value);
+        char buffer[64];
+        const auto result = std::to_chars(
+            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::scientific, 2);
+        const std::string text(buffer, result.ptr);
+        const auto e_position = text.find('e');
+        std::string mantissa = text.substr(0, e_position);
+        const char sign = text[e_position + 1U];
+        std::string exponent_digits = text.substr(e_position + 2U);
+        while (exponent_digits.size() < 2U) {
+            exponent_digits.insert(exponent_digits.begin(), '0');
+        }
+        std::string rendered = mantissa + "E" + sign + exponent_digits;
+        if (negative) {
+            rendered.insert(rendered.begin(), '-');
+        }
+        return rendered;
     }
 
     [[nodiscard]] const Integer* require_integer(

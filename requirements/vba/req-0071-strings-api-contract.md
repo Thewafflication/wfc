@@ -105,6 +105,8 @@ change that identifies the resulting source or run-time limitation.
 The source evaluator implements the current scalar String subset through
 `REQ-0160`--`REQ-0169`, `REQ-0177`, and `REQ-0178`, including the byte-string
 family over its stored byte representation and the `StrConv` case-mapping
-conversions. DBCS code-page semantics, width/kana/Unicode `StrConv`
-conversions, Variant/array members, formatting functions, runtime type
-information, and remaining module members are pending.
+conversions. `REQ-0193` implements the eight named numeric `Format` styles
+over the current `Long`/`Double`/`Boolean` model. DBCS code-page semantics,
+width/kana/Unicode `StrConv` conversions, Variant/array members, custom
+`Format` picture strings, date/time and locale-dependent formatting,
+runtime type information, and remaining module members are pending.
