@@ -32,8 +32,9 @@ until their supporting value models exist.
 ## Verification
 
 Unit tests cover scalar classification, all constant-False predicates, RGB
-component ordering, clamping, arity, type rejection, negative components, and
-the complete sixteen-entry `QBColor` palette contract.
+component ordering, clamping, arity, type rejection, negative components, the
+complete sixteen-entry `QBColor` palette contract, and both wrong-arity forms
+of `IsNumeric`, `TypeName`, `VarType`, and each constant-False predicate.
 `TC-MP0002-isnumeric-cli`, `TC-MP0002-typename-cli`,
 `TC-MP0002-vartype-cli`, `TC-MP0002-info-predicates-cli`, and
 `TC-MP0002-rgb-cli`, and `TC-MP0002-qbcolor-cli` cover the implemented
