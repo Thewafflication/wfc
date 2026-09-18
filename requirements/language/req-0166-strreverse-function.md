@@ -22,6 +22,6 @@ from REQ-0160 apply.
 
 ## Verification
 
-- `tests/evaluator_tests.cpp` covers ordinary, empty, punctuation, and nested
-  calls.
+- `tests/evaluator_tests.cpp` covers ordinary, empty, punctuation, nested
+  calls, and both wrong-arity forms.
 - `TC-MP0002-string-reverse-cli` verifies reversal through `wfc --eval`.

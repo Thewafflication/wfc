@@ -28,5 +28,6 @@ argument, and `WFC0074` for a call in a constant initializer.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers both return spellings, mixed-case function
-  names, variables, nesting, unchanged nonletters, and argument rejection.
+  names, variables, nesting, unchanged nonletters, argument rejection, and both
+  wrong-arity forms of each function.
 - `TC-MP0002-string-case-cli` verifies both functions through `wfc --eval`.

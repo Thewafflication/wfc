@@ -26,5 +26,6 @@ an empty `Asc` input, and `WFC0078` reports a `Chr` code outside 0–127.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers both directions, `$` spelling, nesting,
-  type mismatches, empty input, and lower and upper range violations.
+  type mismatches, empty input, lower and upper range violations, and both
+  wrong-arity forms of each function.
 - `TC-MP0002-character-code-cli` verifies nested conversion through `wfc --eval`.

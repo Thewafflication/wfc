@@ -25,5 +25,6 @@ The shared call-expression diagnostics from REQ-0160 apply.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers left, right, and both-end trimming, `$`
-  spellings, all-space input, nesting, and preservation of other bytes.
+  spellings, all-space input, nesting, preservation of other bytes, and both
+  wrong-arity forms of each function.
 - `TC-MP0002-string-trim-cli` verifies trimming through `wfc --eval`.
