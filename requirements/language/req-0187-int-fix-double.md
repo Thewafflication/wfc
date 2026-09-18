@@ -6,14 +6,14 @@
 
 ## Requirement
 
-`Int(<number>)` and `Fix(<number>)` shall accept a `Long`, `Single`,
-`Currency`, `Decimal`, or `Double` and preserve its numeric type. A `Long` is
-already integral and remains unchanged. For `Single`/`Currency`/`Decimal`/
-`Double`, `Int` rounds downward toward negative infinity while `Fix`
-truncates toward zero. Consequently, both agree for non-negative values but
-`Int(-2.5)` is `-3` while `Fix(-2.5)` is `-2`. `Currency` and `Decimal`
-compute this exactly with scaled-integer/scaled-mantissa arithmetic, not
-floating point.
+`Int(<number>)` and `Fix(<number>)` shall accept an `Integer`, `Long`,
+`Single`, `Currency`, `Decimal`, or `Double` and preserve its numeric type. A
+`Long` or `Integer` is already integral and remains unchanged. For
+`Single`/`Currency`/`Decimal`/`Double`, `Int` rounds downward toward
+negative infinity while `Fix` truncates toward zero. Consequently, both
+agree for non-negative values but `Int(-2.5)` is `-3` while `Fix(-2.5)` is
+`-2`. `Currency` and `Decimal` compute this exactly with
+scaled-integer/scaled-mantissa arithmetic, not floating point.
 
 A non-numeric argument shall report `WFC0073`; wrong arity shall report
 `WFC0072`.
@@ -21,14 +21,15 @@ A non-numeric argument shall report `WFC0073`; wrong arity shall report
 ## Scope
 
 `Single` preservation followed in `REQ-0195`, exact `Currency` preservation
-in `REQ-0196`, and exact `Decimal` preservation in `REQ-0198`.
+in `REQ-0196`, exact `Decimal` preservation in `REQ-0198`, and `Integer` in
+`REQ-0199`.
 
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers positive and negative
-  `Single`/`Currency`/`Decimal`/`Double` values, unchanged `Long` values,
-  result types, non-numeric rejection, and both wrong-arity forms of each
-  function.
+  `Integer`/`Single`/`Currency`/`Decimal`/`Double` values, unchanged `Long`
+  values, result types, non-numeric rejection, and both wrong-arity forms of
+  each function.
 - `TC-MP0002-int-fix-cli` verifies the negative fractional distinction through
   `wfc --eval`.
 

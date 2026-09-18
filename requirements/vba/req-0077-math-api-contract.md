@@ -60,13 +60,13 @@ change that identifies the resulting source or run-time limitation.
 ## Implementation Record
 
 The source evaluator implements `Abs` and `Sgn` for
-`Long`/`Single`/`Currency`/`Decimal`/`Double`, `Atn`/`Cos`/`Exp`/`Log`/`Sin`/
-`Sqr`/`Tan` returning `Double` (widening a `Single`/`Currency`/`Decimal`
-argument), `Int`/`Fix`/`Round` preserving
-`Long`/`Single`/`Currency`/`Decimal`/`Double` (`Currency` and `Decimal`
-exactly, via scaled-integer/scaled-mantissa arithmetic), and `Rnd`/
+`Integer`/`Long`/`Single`/`Currency`/`Decimal`/`Double`, `Atn`/`Cos`/`Exp`/
+`Log`/`Sin`/`Sqr`/`Tan` returning `Double` (widening a
+`Single`/`Currency`/`Decimal` argument), `Int`/`Fix`/`Round` preserving
+`Integer`/`Long`/`Single`/`Currency`/`Decimal`/`Double` (`Currency` and
+`Decimal` exactly, via scaled-integer/scaled-mantissa arithmetic), and `Rnd`/
 `Randomize` through `REQ-0171`, `REQ-0180`, `REQ-0183`, `REQ-0187`,
-`REQ-0194` through `REQ-0198`. `Rnd`/`Randomize` cover the verified
+`REQ-0194` through `REQ-0199`. `Rnd`/`Randomize` cover the verified
 default-sequence and deterministic-reseed forms only, and `Rnd` still
 returns `Double` rather than `Single`; see `REQ-0194`'s Scope for the
 bare-call and exact-reference-sequence limitations and `REQ-0195`'s Scope

@@ -34,8 +34,9 @@ their supporting value models exist.
 ## Verification
 
 Unit tests cover scalar classification (including `Single`, added by
-`REQ-0195`; `Currency`, added by `REQ-0196`; and `Decimal`/`Empty`/`Null`,
-added by `REQ-0197`/`REQ-0198`), `IsNull`/`IsEmpty` returning real results,
+`REQ-0195`; `Currency`, added by `REQ-0196`; `Decimal`/`Empty`/`Null`, added
+by `REQ-0197`/`REQ-0198`; and `Integer`, added by `REQ-0199`), `IsNull`/
+`IsEmpty` returning real results,
 the remaining constant-False predicates, RGB component ordering, clamping,
 arity, type rejection, negative components, the complete sixteen-entry
 `QBColor` palette contract, and both wrong-arity forms of `IsNumeric`,

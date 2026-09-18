@@ -177,3 +177,10 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   exact 96-bit-mantissa, variable-scale (0-28) representation matching COM's
   `DECIMAL`, `CDec`, and exact `+`/`-`/`*`/`/` arithmetic with banker's
   rounding.
+- [REQ-0199 — Integer numeric value type](req-0199-integer-numeric-type.md)
+  defines the distinct 16-bit `Integer` type: the `%` literal suffix and
+  identifier character, `Dim`/`Const As Integer`, checked narrowing from
+  `Long`/`Single`/`Currency`/`Double`, `Integer` < `Long` < `Currency` <
+  `Single` < `Decimal` < `Double` arithmetic promotion, `CInt` now returning
+  a genuine `Integer`, and extending every existing numeric intrinsic to
+  accept `Integer`.

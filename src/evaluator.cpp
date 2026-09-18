@@ -22,6 +22,12 @@ namespace {
 
 using Integer = std::int32_t;
 
+// VB6's Integer (16-bit) type is distinct from the 32-bit Long already
+// aliased above as Integer -- an unfortunate naming collision between this
+// codebase's C++ alias and VB6's own type name that predates this type's
+// introduction. `Int16` is VB6's `Integer`.
+using Int16 = std::int16_t;
+
 // A Currency value is VB6/COM's fixed-point CURRENCY representation: a
 // signed 64-bit integer scaled by 10000 (four decimal digits). The scale was
 // chosen so the type's documented range, -922337203685477.5808 through
@@ -666,8 +672,8 @@ struct Null {
     [[nodiscard]] friend bool operator==(const Null&, const Null&) noexcept { return true; }
 };
 
-using Value =
-    std::variant<Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null>;
+using Value = std::variant<
+    Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16>;
 
 struct NumericStringResult {
     NumericStringStatus status{NumericStringStatus::malformed};
@@ -717,6 +723,7 @@ struct NumericStringResult {
 // being treated as plain numbers.
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
     return std::holds_alternative<Integer>(value) ||
+           std::holds_alternative<Int16>(value) ||
            std::holds_alternative<Currency>(value) ||
            std::holds_alternative<float>(value) ||
            std::holds_alternative<Decimal>(value) ||
@@ -731,6 +738,9 @@ struct NumericStringResult {
 [[nodiscard]] inline double as_double(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<double>(*integer);
+    }
+    if (const auto* short_integer = std::get_if<Int16>(&value)) {
+        return static_cast<double>(*short_integer);
     }
     if (const auto* single = std::get_if<float>(&value)) {
         return static_cast<double>(*single);
@@ -752,32 +762,45 @@ struct NumericStringResult {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<float>(*integer);
     }
+    if (const auto* short_integer = std::get_if<Int16>(&value)) {
+        return static_cast<float>(*short_integer);
+    }
     if (std::holds_alternative<Currency>(value)) {
         return static_cast<float>(as_double(value));
     }
     return std::get<float>(value);
 }
 
-// Widen a Long or Currency value to a Currency scaled int64 for exact
-// fixed-point evaluation. Callers must first establish that neither operand
-// is Single or Double.
+// Widen a Long, Int16, or Currency value to a Currency scaled int64 for
+// exact fixed-point evaluation. Callers must first establish that neither
+// operand is Single or Double.
 [[nodiscard]] inline std::int64_t as_currency_scaled(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<std::int64_t>(*integer) * 10000;
     }
+    if (const auto* short_integer = std::get_if<Int16>(&value)) {
+        return static_cast<std::int64_t>(*short_integer) * 10000;
+    }
     return std::get<Currency>(value).scaled;
 }
 
-// VB6's numeric promotion order for mixed-type arithmetic: Long widens to
-// Currency, which widens to Single, which widens to Decimal, which widens
-// to Double. Double dominates every other type because it has the largest
-// representable magnitude (even though Currency/Decimal are more precise
-// for the values they can hold), matching the same reasoning already
-// applied to Currency. The relative order of Decimal against Single and
-// Double specifically is not verified against the reference implementation
-// (see REQ-0197's Scope); only Decimal-above-Currency and Double-above-
-// everything are held with confidence.
-enum class NumericCategory { integer, currency, single, decimal_precision, double_precision };
+// VB6's numeric promotion order for mixed-type arithmetic: Integer widens to
+// Long, which widens to Currency, which widens to Single, which widens to
+// Decimal, which widens to Double. Double dominates every other type because
+// it has the largest representable magnitude (even though Currency/Decimal
+// are more precise for the values they can hold), matching the same
+// reasoning already applied to Currency. The relative order of Decimal
+// against Single and Double specifically is not verified against the
+// reference implementation (see REQ-0197's Scope); only Decimal-above-
+// Currency and Double-above-everything are held with confidence.
+enum class NumericCategory {
+    int16,
+    integer,
+    currency,
+    single,
+    decimal_precision,
+    double_precision
+};
 
 [[nodiscard]] inline NumericCategory numeric_category(const Value& value) noexcept {
     if (std::holds_alternative<double>(value)) {
@@ -791,6 +814,9 @@ enum class NumericCategory { integer, currency, single, decimal_precision, doubl
     }
     if (std::holds_alternative<Currency>(value)) {
         return NumericCategory::currency;
+    }
+    if (std::holds_alternative<Int16>(value)) {
+        return NumericCategory::int16;
     }
     return NumericCategory::integer;
 }
@@ -1161,7 +1187,8 @@ private:
         const std::size_t identifier_offset) {
         if (type_character == '\0' || type_character == '$' ||
             type_character == '&' || type_character == '#' ||
-            type_character == '!' || type_character == '@') {
+            type_character == '!' || type_character == '@' ||
+            type_character == '%') {
             return true;
         }
         set_error(
@@ -1184,6 +1211,9 @@ private:
         if (type_character == '@') {
             return Value{Currency{}}.index();
         }
+        if (type_character == '%') {
+            return Value{Int16{}}.index();
+        }
         return Value{Integer{}}.index();
     }
 
@@ -1204,8 +1234,8 @@ private:
         return false;
     }
 
-    // Attempt Long/Single/Double/Currency widening or checked narrowing so
-    // `value` matches `target_index`. Leaves `value` unchanged, and returns
+    // Attempt Integer/Long/Single/Double/Currency widening or checked
+    // narrowing so `value` matches `target_index`. Leaves `value` unchanged, and returns
     // true, when no numeric conversion applies (including when it already
     // matches) -- the caller still compares `value->index()` against
     // `target_index` afterward, since a non-numeric mismatch (e.g. a String
@@ -1222,6 +1252,8 @@ private:
         if (target_index == Value{0.0}.index()) {
             if (const auto* integer = std::get_if<Integer>(&value)) {
                 value = static_cast<double>(*integer);
+            } else if (const auto* short_integer = std::get_if<Int16>(&value)) {
+                value = static_cast<double>(*short_integer);
             } else if (const auto* single = std::get_if<float>(&value)) {
                 value = static_cast<double>(*single);
             } else if (std::holds_alternative<Currency>(value)) {
@@ -1232,6 +1264,10 @@ private:
         if (target_index == Value{0.0f}.index()) {
             if (const auto* integer = std::get_if<Integer>(&value)) {
                 value = static_cast<float>(*integer);
+                return true;
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&value)) {
+                value = static_cast<float>(*short_integer);
                 return true;
             }
             if (const auto* number = std::get_if<double>(&value)) {
@@ -1259,6 +1295,10 @@ private:
                 value = Currency{static_cast<std::int64_t>(*integer) * 10000};
                 return true;
             }
+            if (const auto* short_integer = std::get_if<Int16>(&value)) {
+                value = Currency{static_cast<std::int64_t>(*short_integer) * 10000};
+                return true;
+            }
             if (const auto* number = std::get_if<double>(&value)) {
                 const auto scaled = currency_from_double(*number);
                 if (!scaled.has_value()) {
@@ -1275,6 +1315,52 @@ private:
                     return false;
                 }
                 value = Currency{*scaled};
+                return true;
+            }
+            return true;
+        }
+        if (target_index == Value{Int16{}}.index()) {
+            // Widening from Long, or narrowing from Double/Single/Currency
+            // with a checked range (VB6 Integer is -32768 through 32767); an
+            // already-integral Long source needs a plain range check, not
+            // rounding.
+            if (const auto* integer = std::get_if<Integer>(&value)) {
+                if (*integer < std::numeric_limits<Int16>::min() ||
+                    *integer > std::numeric_limits<Int16>::max()) {
+                    set_error("WFC0009", "integer overflow", offset);
+                    return false;
+                }
+                value = static_cast<Int16>(*integer);
+                return true;
+            }
+            if (const auto* number = std::get_if<double>(&value)) {
+                const double rounded = std::nearbyint(*number);
+                if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                      rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+                    set_error("WFC0009", "integer overflow", offset);
+                    return false;
+                }
+                value = static_cast<Int16>(rounded);
+                return true;
+            }
+            if (const auto* single = std::get_if<float>(&value)) {
+                const double rounded = std::nearbyint(static_cast<double>(*single));
+                if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                      rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+                    set_error("WFC0009", "integer overflow", offset);
+                    return false;
+                }
+                value = static_cast<Int16>(rounded);
+                return true;
+            }
+            if (std::holds_alternative<Currency>(value)) {
+                const double rounded = std::nearbyint(as_double(value));
+                if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                      rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+                    set_error("WFC0009", "integer overflow", offset);
+                    return false;
+                }
+                value = static_cast<Int16>(rounded);
                 return true;
             }
             return true;
@@ -2346,6 +2432,8 @@ private:
                 initial_value = 0.0f;
             } else if (type_character == '@') {
                 initial_value = Currency{};
+            } else if (type_character == '%') {
+                initial_value = Int16{};
             } else {
                 initial_value = Integer{};
             }
@@ -2368,6 +2456,8 @@ private:
             skip_horizontal_whitespace();
             if (consume_keyword("long")) {
                 initial_value = Integer{};
+            } else if (consume_keyword("integer")) {
+                initial_value = Int16{};
             } else if (consume_keyword("double")) {
                 initial_value = 0.0;
             } else if (consume_keyword("single")) {
@@ -2384,8 +2474,8 @@ private:
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, As "
-                    "Boolean, or As Variant",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                    "String, As Boolean, or As Variant",
                     offset_);
                 return false;
             }
@@ -2444,6 +2534,8 @@ private:
             skip_horizontal_whitespace();
             if (consume_keyword("long")) {
                 expected_type = Value{Integer{}}.index();
+            } else if (consume_keyword("integer")) {
+                expected_type = Value{Int16{}}.index();
             } else if (consume_keyword("double")) {
                 expected_type = Value{0.0}.index();
             } else if (consume_keyword("single")) {
@@ -2457,8 +2549,8 @@ private:
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, or As "
-                    "Boolean",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                    "String, or As Boolean",
                     offset_);
                 return false;
             }
@@ -2844,6 +2936,7 @@ private:
                 !std::holds_alternative<float>(*value) &&
                 !std::holds_alternative<Currency>(*value) &&
                 !std::holds_alternative<Decimal>(*value) &&
+                !std::holds_alternative<Int16>(*value) &&
                 require_integer(*value, operator_offset) == nullptr) {
                 return std::nullopt;
             }
@@ -2893,6 +2986,16 @@ private:
                     return std::nullopt;
                 }
                 return Value{Currency{-currency->scaled}};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&*value)) {
+                if (!execute_) {
+                    return Value{Int16{}};
+                }
+                if (*short_integer == std::numeric_limits<Int16>::min()) {
+                    set_error("WFC0009", "integer overflow", operator_offset);
+                    return std::nullopt;
+                }
+                return Value{static_cast<Int16>(-*short_integer)};
             }
             const auto* integer = require_integer(*value, operator_offset);
             if (integer == nullptr) {
@@ -3204,6 +3307,14 @@ private:
                 }
                 return Value{*integer < 0 ? static_cast<Integer>(-*integer) : *integer};
             }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                if (*short_integer == std::numeric_limits<Int16>::min()) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{
+                    *short_integer < 0 ? static_cast<Int16>(-*short_integer) : *short_integer};
+            }
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 return Value{std::abs(*single)};
             }
@@ -3313,6 +3424,14 @@ private:
                     *integer < 0 ? -static_cast<std::int64_t>(*integer) : *integer));
                 return Value{result};
             }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                Decimal result;
+                result.negative = *short_integer < 0;
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(
+                    *short_integer < 0 ? -static_cast<std::int32_t>(*short_integer)
+                                       : *short_integer));
+                return Value{result};
+            }
             if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
                 Decimal result;
                 result.negative = currency->scaled < 0;
@@ -3366,6 +3485,9 @@ private:
             }
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ ? *integer : Integer{}};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                return Value{execute_ ? *short_integer : Int16{}};
             }
             if (!execute_) {
                 return Value{0.0};
@@ -3473,6 +3595,9 @@ private:
             }
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ ? *integer : Integer{}};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                return Value{execute_ ? *short_integer : Int16{}};
             }
             if (!execute_) {
                 return Value{0.0};
@@ -3639,6 +3764,9 @@ private:
             if (std::holds_alternative<Integer>(arguments[0])) {
                 return Value{std::string{"Long"}};
             }
+            if (std::holds_alternative<Int16>(arguments[0])) {
+                return Value{std::string{"Integer"}};
+            }
             if (std::holds_alternative<double>(arguments[0])) {
                 return Value{std::string{"Double"}};
             }
@@ -3671,6 +3799,9 @@ private:
             }
             if (std::holds_alternative<Integer>(arguments[0])) {
                 return Value{Integer{3}};
+            }
+            if (std::holds_alternative<Int16>(arguments[0])) {
+                return Value{Integer{2}};  // vbInteger
             }
             if (std::holds_alternative<double>(arguments[0])) {
                 return Value{Integer{5}};
@@ -3759,6 +3890,7 @@ private:
                 return Value{false};
             }
             if (std::holds_alternative<Integer>(arguments[0]) ||
+                std::holds_alternative<Int16>(arguments[0]) ||
                 std::holds_alternative<bool>(arguments[0]) ||
                 std::holds_alternative<float>(arguments[0]) ||
                 std::holds_alternative<double>(arguments[0]) ||
@@ -3797,6 +3929,13 @@ private:
                     return std::nullopt;
                 }
                 return Value{*number};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                if (*short_integer < 0 || *short_integer > 255) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{static_cast<Integer>(*short_integer)};
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 return round_double_to_long(*number, 0, 255, identifier_offset);
@@ -3873,6 +4012,8 @@ private:
             double value{};
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 value = static_cast<double>(*integer);
+            } else if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                value = static_cast<double>(*short_integer);
             } else if (const auto* number = std::get_if<double>(&arguments[0])) {
                 value = *number;
             } else if (const auto* single = std::get_if<float>(&arguments[0])) {
@@ -3929,6 +4070,12 @@ private:
                 }
                 return Value{Currency{static_cast<std::int64_t>(*integer) * 10000}};
             }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Currency{}};
+                }
+                return Value{Currency{static_cast<std::int64_t>(*short_integer) * 10000}};
+            }
             if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
                 return Value{execute_ ? *currency : Currency{}};
             }
@@ -3972,51 +4119,55 @@ private:
         }
 
         if (is_cint) {
-            constexpr Integer int_min{-32768};
-            constexpr Integer int_max{32767};
+            // CInt returns a genuine Int16 (VB6 Integer), not a Long narrowed
+            // to the Integer range but still typed Long.
             if (std::holds_alternative<Null>(arguments[0])) {
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
             if (std::holds_alternative<Empty>(arguments[0])) {
-                return Value{execute_ ? Integer{0} : Integer{}};
+                return Value{execute_ ? Int16{0} : Int16{}};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                return Value{execute_ ? *short_integer : Int16{}};
             }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 if (!execute_) {
-                    return Value{Integer{}};
+                    return Value{Int16{}};
                 }
-                if (*number < int_min || *number > int_max) {
+                if (*number < std::numeric_limits<Int16>::min() ||
+                    *number > std::numeric_limits<Int16>::max()) {
                     set_error("WFC0009", "integer overflow", identifier_offset);
                     return std::nullopt;
                 }
-                return Value{*number};
+                return Value{static_cast<Int16>(*number)};
             }
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
-                return Value{execute_ && *boolean ? Integer{-1} : Integer{0}};
+                return Value{execute_ && *boolean ? Int16{-1} : Int16{0}};
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 if (!execute_) {
-                    return Value{Integer{}};
+                    return Value{Int16{}};
                 }
-                return round_double_to_long(*number, int_min, int_max, identifier_offset);
+                return round_double_to_short_integer(*number, identifier_offset);
             }
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 if (!execute_) {
-                    return Value{Integer{}};
+                    return Value{Int16{}};
                 }
-                return round_double_to_long(
-                    static_cast<double>(*single), int_min, int_max, identifier_offset);
+                return round_double_to_short_integer(
+                    static_cast<double>(*single), identifier_offset);
             }
             if (std::holds_alternative<Currency>(arguments[0]) ||
                 std::holds_alternative<Decimal>(arguments[0])) {
                 if (!execute_) {
-                    return Value{Integer{}};
+                    return Value{Int16{}};
                 }
-                return round_double_to_long(
-                    as_double(arguments[0]), int_min, int_max, identifier_offset);
+                return round_double_to_short_integer(
+                    as_double(arguments[0]), identifier_offset);
             }
             if (!execute_) {
-                return Value{Integer{}};
+                return Value{Int16{}};
             }
 
             const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
@@ -4028,7 +4179,7 @@ private:
                 set_error("WFC0088", "CInt requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
-            return round_double_to_long(parsed.value, int_min, int_max, identifier_offset);
+            return round_double_to_short_integer(parsed.value, identifier_offset);
         }
 
         if (is_clng) {
@@ -4041,6 +4192,9 @@ private:
             }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ ? *number : Integer{}};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                return Value{execute_ ? static_cast<Integer>(*short_integer) : Integer{}};
             }
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{execute_ && *boolean ? Integer{-1} : Integer{0}};
@@ -4108,6 +4262,9 @@ private:
             }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ && *number != 0};
+            }
+            if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
+                return Value{execute_ && *short_integer != 0};
             }
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 return Value{execute_ && *number != 0.0};
@@ -4956,6 +5113,19 @@ private:
         return Value{value};
     }
 
+    [[nodiscard]] std::optional<Value> parse_short_integer(
+        const std::size_t start,
+        const std::size_t end) {
+        Int16 value{};
+        const auto conversion =
+            std::from_chars(source_.data() + start, source_.data() + end, value);
+        if (conversion.ec != std::errc{} || conversion.ptr != source_.data() + end) {
+            set_error("WFC0006", "Integer literal is out of range", start);
+            return std::nullopt;
+        }
+        return Value{value};
+    }
+
     // Parse a non-negative decimal span into a Currency scaled int64,
     // without an intermediate floating-point conversion, so a value with
     // more significant digits than a double can represent exactly (up to
@@ -5027,7 +5197,8 @@ private:
         const auto end = offset_;
         char suffix = '\0';
         if (!at_end() &&
-            (current() == '#' || current() == '&' || current() == '!' || current() == '@')) {
+            (current() == '#' || current() == '&' || current() == '!' || current() == '@' ||
+             current() == '%')) {
             suffix = current();
             advance();
         }
@@ -5042,7 +5213,14 @@ private:
                 set_error("WFC0006", "Long literal suffix requires an integer", start);
                 return std::nullopt;
             }
+            if (suffix == '%') {
+                set_error("WFC0006", "Integer literal suffix requires an integer", start);
+                return std::nullopt;
+            }
             return parse_double(start, end);
+        }
+        if (suffix == '%') {
+            return parse_short_integer(start, end);
         }
         Integer value{};
         const auto conversion =
@@ -5060,7 +5238,8 @@ private:
         const auto end = offset_;
         char suffix = '\0';
         if (!at_end() &&
-            (current() == '#' || current() == '&' || current() == '!' || current() == '@')) {
+            (current() == '#' || current() == '&' || current() == '!' || current() == '@' ||
+             current() == '%')) {
             suffix = current();
             advance();
         }
@@ -5083,11 +5262,32 @@ private:
                 set_error("WFC0006", "Long literal suffix requires an integer", start);
                 return std::nullopt;
             }
+            if (suffix == '%') {
+                set_error("WFC0006", "Integer literal suffix requires an integer", start);
+                return std::nullopt;
+            }
             auto value = parse_double(start, end);
             if (!value.has_value()) {
                 return std::nullopt;
             }
             return Value{-std::get<double>(*value)};
+        }
+
+        if (suffix == '%') {
+            std::uint64_t magnitude{};
+            const auto conversion =
+                std::from_chars(source_.data() + start, source_.data() + end, magnitude);
+            constexpr auto maximum_magnitude =
+                static_cast<std::uint64_t>(std::numeric_limits<Int16>::max()) + 1U;
+            if (conversion.ec == std::errc::result_out_of_range ||
+                magnitude > maximum_magnitude) {
+                set_error("WFC0006", "Integer literal is out of range", start);
+                return std::nullopt;
+            }
+            if (magnitude == maximum_magnitude) {
+                return Value{std::numeric_limits<Int16>::min()};
+            }
+            return Value{static_cast<Int16>(-static_cast<Int16>(magnitude))};
         }
 
         std::uint64_t magnitude{};
@@ -5120,6 +5320,20 @@ private:
             return std::nullopt;
         }
         return Value{static_cast<Integer>(rounded)};
+    }
+
+    // Round a Double to the nearest Int16 (VB6 Integer) using banker's
+    // rounding, rejecting out-of-range values.
+    [[nodiscard]] std::optional<Value> round_double_to_short_integer(
+        const double number,
+        const std::size_t offset) {
+        const double rounded = std::nearbyint(number);
+        if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
+              rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+            set_error("WFC0009", "integer overflow", offset);
+            return std::nullopt;
+        }
+        return Value{static_cast<Int16>(rounded)};
     }
 
     // Render a Currency's exact scaled value as decimal digits: the whole
@@ -5507,6 +5721,11 @@ private:
             std::holds_alternative<Integer>(right)) {
             return integer_binary(left, right, operation, operator_offset);
         }
+        if (operation != '/' &&
+            std::holds_alternative<Int16>(left) &&
+            std::holds_alternative<Int16>(right)) {
+            return short_integer_binary(left, right, operation, operator_offset);
+        }
         if (!is_number(left) || !is_number(right)) {
             if (require_integer(left, operator_offset) == nullptr) {
                 return std::nullopt;
@@ -5516,9 +5735,25 @@ private:
         }
 
         auto category = std::max(numeric_category(left), numeric_category(right));
-        if (category == NumericCategory::integer) {
-            // Only reachable for Long '/' Long, which already promotes to
-            // Double under the pre-existing rule.
+        if (operation != '/' &&
+            (category == NumericCategory::integer || category == NumericCategory::int16)) {
+            // Both-Long and both-Int16 were already short-circuited above, so
+            // reaching here with an integral-only category means one operand
+            // is Int16 and the other Long: widen the Int16 side exactly (it
+            // always fits) and compute exact checked Long arithmetic, the
+            // same as Long op Long.
+            const auto widen_to_long = [](const Value& value) -> Value {
+                if (const auto* short_integer = std::get_if<Int16>(&value)) {
+                    return Value{static_cast<Integer>(*short_integer)};
+                }
+                return value;
+            };
+            return integer_binary(
+                widen_to_long(left), widen_to_long(right), operation, operator_offset);
+        }
+        if (category == NumericCategory::integer || category == NumericCategory::int16) {
+            // Only reachable for `/` between any combination of Long/Int16,
+            // which always promotes to Double under the pre-existing rule.
             category = NumericCategory::double_precision;
         }
 
@@ -5719,6 +5954,9 @@ private:
         if (const auto* integer = std::get_if<Integer>(&value)) {
             return *integer;
         }
+        if (const auto* short_integer = std::get_if<Int16>(&value)) {
+            return static_cast<Integer>(*short_integer);
+        }
         if (const auto* number = std::get_if<double>(&value)) {
             const double rounded = std::nearbyint(*number);
             if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
@@ -5809,9 +6047,50 @@ private:
         return Value{static_cast<Integer>(result)};
     }
 
+    // Exact, checked Int16 (VB6 Integer) `+`/`-`/`*` for two Int16 operands.
+    // Callers guarantee both operands are already Int16 and the operation is
+    // not `/` (which always promotes to Double, matching Long op Long).
+    [[nodiscard]] std::optional<Value> short_integer_binary(
+        const Value& left,
+        const Value& right,
+        const char operation,
+        const std::size_t operator_offset) {
+        const Int16 left_integer = std::get<Int16>(left);
+        const Int16 right_integer = std::get<Int16>(right);
+        if (!execute_) {
+            return Value{Int16{}};
+        }
+
+        std::int32_t result{};
+        switch (operation) {
+        case '+':
+            result = static_cast<std::int32_t>(left_integer) + right_integer;
+            break;
+        case '-':
+            result = static_cast<std::int32_t>(left_integer) - right_integer;
+            break;
+        case '*':
+            result = static_cast<std::int32_t>(left_integer) * right_integer;
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
+        }
+
+        if (result < std::numeric_limits<Int16>::min() ||
+            result > std::numeric_limits<Int16>::max()) {
+            set_error("WFC0009", "integer overflow", operator_offset);
+            return std::nullopt;
+        }
+        return Value{static_cast<Int16>(result)};
+    }
+
     [[nodiscard]] static std::string render(const Value& value) {
         if (const auto* integer = std::get_if<Integer>(&value)) {
             return std::to_string(*integer);
+        }
+        if (const auto* short_integer = std::get_if<Int16>(&value)) {
+            return std::to_string(*short_integer);
         }
         if (const auto* number = std::get_if<double>(&value)) {
             char buffer[32];

@@ -11,7 +11,7 @@ return a `String`:
 
 | Input | Result |
 | --- | --- |
-| `Long` | Base-10 digits with a minus sign only when negative |
+| `Long`/`Integer` | Base-10 digits with a minus sign only when negative (`REQ-0199` for `Integer`) |
 | `Single`/`Double` | The shortest round-tripping decimal form for the argument's type (`REQ-0181`/`REQ-0195`) |
 | `Currency`/`Decimal` | Its exact decimal digits, trailing fractional zeros trimmed (`REQ-0196`/`REQ-0198`) |
 | `Boolean` | `True` or `False` |

@@ -104,6 +104,7 @@ retained CTest evidence.
 | 2026-09-18 #80 | Architecture | Add the distinct `Single` numeric value type under new `REQ-0195`: `!` literal suffix/identifier character, `Dim`/`Const As Single`, exact `Long` widening, checked `Double` narrowing (assignment/Const/`CSng`), three-way `Long`/`Single`/`Double` arithmetic promotion, cross-type comparison, `TypeName`/`VarType`, and extending `CSng` (now returns genuine `Single`), `CDbl`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Sgn`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Single`; unit + CLI tests, README | Commit `2816d6b` |
 | 2026-09-18 #81 | Architecture | Add the distinct `Currency` numeric value type under new `REQ-0196`: scaled-int64 fixed-point representation, exact (non-floating-point) `+`/`-`/`*`/`/` via a hand-rolled 128-bit multiply/divide (portable across x86/x64/ARM64, no compiler intrinsics), `@` literal suffix/identifier character, `Dim`/`Const As Currency`, four-way `Long`/`Currency`/`Single`/`Double` arithmetic promotion, new `CCur`, and extending `CDbl`/`CSng`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Currency` (`Abs`/`Int`/`Fix`/`Round` exactly, via scaled-integer arithmetic); unit + CLI tests, README | Commit `2f3b45f` |
 | 2026-09-18 #82 | Architecture | Add the scalar `Variant` foundation under new `REQ-0197` (`Empty`/`Null` literals and states, `IsNull`/`IsEmpty`, `Dim x As Variant`/bare `Dim x` retyping assignment, three-valued-logic `Null` propagation through every operator and `If`/`While`/`Do` condition, new `WFC0104`) and the distinct `Decimal` numeric value type under new `REQ-0198` (96-bit-mantissa/scale-0-28 exact arithmetic via a hand-rolled 256-bit `BigUInt`, `CDec`, new `WFC0105`, extending `Abs`/`Int`/`Fix`/`Round`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`IsNumeric`/`Hex`/`Oct` to accept `Decimal`); a live VB6 6.00.8176 probe verified the `Null`/`Empty` semantics recorded below; unit + CLI tests, README | Commit `5d17249` |
+| 2026-09-18 #83 | Architecture | Add the distinct 16-bit `Integer` numeric value type under new `REQ-0199` (VB6's `Integer`, distinct from this codebase's own `Integer` C++ alias for `Long`): `%` literal suffix/identifier character, `Dim`/`Const As Integer`, checked narrowing from `Long`/`Single`/`Currency`/`Double`, six-way `Integer < Long < Currency < Single < Decimal < Double` arithmetic promotion (exact checked 16-bit arithmetic for `Integer`+`Integer`, exact widened `Long` arithmetic for mixed `Integer`/`Long`), `CInt` now returning a genuine `Integer` instead of a `Long`-typed narrowed value, and extending `CLng`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`CDec`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct`/`TypeName`/`VarType` to accept `Integer`; unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -282,6 +283,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Single` numeric type) | Pass (74/74) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Currency` numeric type) | Pass (75/75) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post scalar `Variant`/`Decimal`) | Pass (77/77) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post `Integer` numeric type) | Pass (78/78) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -305,6 +307,10 @@ from this record and the local reference environment identified in
 | Implement `Decimal` as a real 96-bit-mantissa, variable-scale (0-28) exact type (a hand-rolled 256-bit `BigUInt` with multiply/binary-long-division), not an alias for `Double` or `Currency` | Owner decision (`AskUserQuestion`): "Full exact Decimal" over a simpler narrower option | Matches COM's actual `DECIMAL` layout exactly and gives genuinely exact arithmetic (verified with a multiplication whose exact intermediate product exceeds 64 bits), at the cost of a larger, hand-rolled big-integer implementation | `REQ-0198` |
 | Correct an initial scoping assumption that `Dim`/`Const As Decimal` needed support | Discovered mid-implementation: real VB6 does not accept `Dim x As Decimal` at all — `Decimal` is reachable only via `CDec` into a `Variant` | No `Dim`/`Const As Decimal` parsing was added; this matches the reference language exactly rather than adding an unsupported syntax extension | `REQ-0198` |
 | Place `Single` below `Decimal` in the `NumericCategory` promotion order as a reasoned-but-unverified choice | The local computer-use screenshot tool became unavailable mid-session, blocking a live VB6 probe of the `Decimal`-vs-`Single` promotion order specifically; `Decimal`-above-`Currency` and `Double`-above-everything remain independently justified without a live probe | Flagged explicitly in the `NumericCategory` code comment and in `REQ-0198`'s Scope, rather than silently asserting an unverified promotion rule | `REQ-0198` |
+| Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
+| Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
+| Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
+| Do not extend `Choose`'s index, `QBColor`'s color index, `RGB`'s components, or other strictly-`Long` intrinsic-function parameters to accept `Integer` | Confirmed these parameters were never extended to accept `Single`/`Currency`/`Decimal` either (probed `Choose(2@, ...)`, which already fails today) — an existing scope boundary from every prior numeric-type increment | Keeps this increment's scope aligned with the established "only the documented function list, not every `Long`-parameter function" precedent | `REQ-0199` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -408,6 +414,7 @@ when the session completes.
 | Single numeric value type (increment #80) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Currency numeric value type (increment #81) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Scalar Variant and Decimal numeric value type (increment #82) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Integer numeric value type (increment #83) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -530,9 +537,35 @@ could not be probed live this session (tooling became unavailable) and is a
 disclosed, reasoned-but-unverified choice (see the Decisions table and
 `REQ-0198`'s Scope).
 
+**Integer numeric value type (increment #83, `REQ-0199`):** adds the
+distinct 16-bit `Integer` type — VB6's own `Integer`, not to be confused
+with this codebase's pre-existing `Integer` C++ alias for `Long` — as a new
+`Int16` (`std::int16_t`) `Value` alternative. Covers the `%` literal suffix
+(range-checked -32768 through 32767, rejecting a fractional/exponent form)
+and identifier character, `Dim`/`Const As Integer`, checked narrowing from
+`Long`/`Single`/`Currency`/`Double` on assignment (banker's rounding for the
+floating-point sources), and exact `Long` widening on assignment. Extends
+the numeric promotion order to six levels,
+`Integer < Long < Currency < Single < Decimal < Double`: `Integer`+
+`Integer` computes exact checked 16-bit arithmetic (a new
+`short_integer_binary`, mirroring the existing `integer_binary` for `Long`);
+a mixed `Integer`/`Long` operand pair widens the `Integer` side exactly and
+computes exact checked `Long` arithmetic (reusing `integer_binary`); any
+purely-integral combination under `/` still promotes to `Double`, matching
+the existing `Long`/`Long`-under-`/` rule. `\`/`Mod` continue to coerce any
+numeric operand (now including `Integer`) to `Long` before dividing,
+unchanged. `CInt` now returns a genuine `Integer` rather than a
+`Long`-typed value narrowed to the `Integer` range (the same kind of change
+`REQ-0195` made to `CSng`), and `CLng`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/
+`CCur`/`CDec`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct`/
+`TypeName`/`VarType` all extend to accept an `Integer` argument. `Choose`'s
+index, `QBColor`'s color index, `RGB`'s components, and other
+strictly-`Long`-parameter intrinsics were confirmed to already exclude
+`Single`/`Currency`/`Decimal` too, so they are left unextended, matching
+that existing precedent rather than a gap specific to this increment.
+
 **Remaining next increments:**
 
-- literal/identifier `%` Integer form, once that distinct type exists;
 - arrays, object references, late binding, and `CVErr`/error-value Variants
   (deliberately excluded from the "scalar Variant" scope; `IsArray`/
   `IsObject`/`IsError`/`IsMissing` stay hardcoded `False`);

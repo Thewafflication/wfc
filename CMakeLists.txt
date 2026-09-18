@@ -977,4 +977,17 @@ Print TypeName(x) & " " & x]=]
             LABELS "integration;mp-0002;expressions;variables;variant"
             PASS_REGULAR_EXPRESSION "Long False False.*Null True \\|\\|.*String hello"
     )
+
+    add_test(
+        NAME TC-MP0002-integer-cli
+        COMMAND wfc --eval [=[Dim x As Integer
+x = 5
+Print x & " " & TypeName(x) & " " & (x + 3&) & " " & TypeName(x + 3&) & " " & (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-integer-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;numeric;variables;integer"
+            PASS_REGULAR_EXPRESSION "5 Integer 8 Long 6 Double"
+    )
 endif()

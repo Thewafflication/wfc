@@ -397,6 +397,53 @@ int main() {
     expect_success("Print 922337203685477.5807@", "922337203685477.5807");
     expect_program_success("Print CBool(0@): Print CBool(5@)", "False\nTrue");
     expect_success("Print 5@ & 3@", "53");
+    // Integer (VB6's 16-bit type) literals, declarations, promotion, and
+    // conversion. Not to be confused with this codebase's own `Integer` C++
+    // alias, which is the 32-bit Long.
+    expect_success("Print 5%", "5");
+    expect_success("Print -5%", "-5");
+    expect_success("Print 32767%", "32767");
+    expect_success("Print -32768%", "-32768");
+    expect_failure("Print 32768%", "WFC0006");
+    expect_failure("Print -32769%", "WFC0006");
+    expect_failure("Print 1.5%", "WFC0006");
+    expect_success("Print TypeName(5%) & \" \" & VarType(5%)", "Integer 2");
+    expect_program_success(
+        "Dim x As Integer: x = 5: Print x & \" \" & TypeName(x)", "5 Integer");
+    expect_program_success(
+        "Dim x%: x = 5: Print x & \" \" & TypeName(x)", "5 Integer");
+    expect_program_success(
+        "Const c As Integer = 5: Print c & \" \" & TypeName(c)", "5 Integer");
+    expect_program_failure("Dim x As Integer: x = 40000", "WFC0009");
+    expect_program_success("Dim x As Integer: x = 3.5: Print x", "4");
+    expect_success("Print TypeName(CInt(5)) & \" \" & VarType(CInt(5))", "Integer 2");
+    expect_success("Print CInt(\"5\") & \" \" & CInt(3.5!)", "5 4");
+    expect_success("Print 5% + 3%", "8");
+    expect_success("Print TypeName(5% + 3%)", "Integer");
+    expect_program_failure("Print 32000% + 32000%", "WFC0009");
+    expect_success("Print TypeName(5% + 3&)", "Long");
+    expect_success("Print TypeName(5% + 3.5)", "Double");
+    expect_success("Print TypeName(5% + 3.5!)", "Single");
+    expect_success("Print TypeName(5% + 3@)", "Currency");
+    expect_success("Print TypeName(5% + CDec(3))", "Decimal");
+    expect_success("Print 5% / 2%", "2.5");
+    expect_success("Print 5% \\ 2% & \" \" & 5% Mod 3%", "2 2");
+    expect_success("Print Abs(-5%) & \" \" & TypeName(Abs(-5%))", "5 Integer");
+    expect_success("Print Int(-2%) & \" \" & Fix(-2%)", "-2 -2");
+    expect_success(
+        "Print Round(5%) & \" \" & TypeName(Round(5%))", "5 Integer");
+    expect_success("Print CLng(5%) & \" \" & TypeName(CLng(5%))", "5 Long");
+    expect_success("Print CByte(5%)", "5");
+    expect_program_success("Print CBool(0%): Print CBool(5%)", "False\nTrue");
+    expect_success("Print CDbl(5%) & \" \" & CSng(5%) & \" \" & CCur(5%)", "5 5 5");
+    expect_success("Print CDec(5%)", "5");
+    expect_success("Print CStr(5%)", "5");
+    expect_success("Print IsNumeric(5%)", "True");
+    expect_success("Print Hex(5%) & \" \" & Oct(8%)", "5 10");
+    expect_success("Print Str(5%)", " 5");
+    expect_program_success(
+        "Print 5% = 5: Print 5% = 5&: Print 5% < 10: Print 5% = 5.0#",
+        "True\nTrue\nTrue\nTrue");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
@@ -956,7 +1003,7 @@ int main() {
         "End If",
         "fallback");
     expect_program_failure("Dim 1 As Long", "WFC0011");
-    expect_program_failure("Dim value As Integer", "WFC0012");
+    expect_program_failure("Dim value As Byte", "WFC0012");
     expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
     expect_program_failure("Dim value As Long: value 1", "WFC0014");
     expect_program_failure("missing = 1", "WFC0015");
@@ -967,7 +1014,7 @@ int main() {
     expect_program_failure("Dim value As Long: value# = 1", "WFC0016");
     expect_program_failure("Dim value#: Dim value As Double", "WFC0013");
     expect_program_failure("Dim value# As Double", "WFC0012");
-    expect_program_failure("Dim value%", "WFC0097");
+    expect_program_success("Dim value%: value = 5: Print TypeName(value)", "Integer");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
@@ -1226,6 +1273,12 @@ int main() {
     expect_program_failure("Print CCur(1, 2)", "WFC0072");
     expect_program_failure("Print CCur(\"abc\")", "WFC0103");
     expect_program_failure("Print CCur(1e40)", "WFC0009");
+    expect_program_failure("Dim x As Integer: x = \"text\"", "WFC0016");
+    expect_program_failure("Print CInt()", "WFC0072");
+    expect_program_failure("Print CInt(1, 2)", "WFC0072");
+    expect_program_failure("Print CInt(\"abc\")", "WFC0088");
+    expect_program_failure("Print CInt(40000)", "WFC0009");
+    expect_program_failure("Print CInt(Null)", "WFC0104");
     expect_program_failure("Print 5@ = \"text\"", "WFC0018");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
