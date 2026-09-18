@@ -61,7 +61,9 @@ change that identifies the resulting source or run-time limitation.
 
 The source evaluator implements `Abs` and `Sgn` for `Long`/`Double`,
 `Atn`/`Cos`/`Exp`/`Log`/`Sin`/`Sqr`/`Tan` returning `Double`, `Int`/`Fix` for
-the current numeric model, and nearest-even `Round` through `REQ-0171`,
-`REQ-0180`, `REQ-0183`, and `REQ-0187`. `Randomize`/`Rnd`, distinct
-Single/Currency/Decimal preservation, complete Variant overloads, and runtime
-type information remain pending.
+the current numeric model, nearest-even `Round`, and `Rnd`/`Randomize`
+through `REQ-0171`, `REQ-0180`, `REQ-0183`, `REQ-0187`, and `REQ-0194`.
+`Rnd`/`Randomize` cover the verified default-sequence and deterministic-reseed
+forms only; see `REQ-0194`'s Scope for the bare-call and exact-reference-
+sequence limitations. Distinct Single/Currency/Decimal preservation, complete
+Variant overloads, and runtime type information remain pending.

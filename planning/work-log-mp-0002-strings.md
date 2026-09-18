@@ -99,6 +99,62 @@ retained CTest evidence.
 | 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit `8c270b1` |
 | 2026-09-17 #76 | Verification | Close `REQ-0176`/`REQ-0191` arity evidence for `IsNumeric`/`TypeName`/`VarType`/the six constant-False predicates/`MacID` | Commit `6582079` |
 | 2026-09-17 #77 | Construction | Add `Format`/`Format$` with the eight named numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`, `Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current `Long`/`Double`/`Boolean` model under new `REQ-0193`; unit + CLI tests, README | Commit `4018bfb` |
+| 2026-09-17 #78 | Reference | Probe the local VB6 6.00.8176 / `MSVBVM60.DLL` reference (`VB6.EXE` IDE, `Sub Main` writing to a file, run via F5) to determine `Rnd`'s exact generator algorithm and default seed, and to test whether `Randomize number` reproduces a fixed sequence | No commit (research; findings recorded below and in `REQ-0194`) |
+| 2026-09-17 #79 | Construction | Add `Rnd`/`Randomize` under new `REQ-0194`: the reference-verified default `Rnd` sequence and `Rnd(0)` repeat-last, plus a WFC-owned deterministic reseed hash for `Randomize number`/`Rnd(negative)` and time-based entropy for argument-less `Randomize`; unit + CLI tests, README | Commit pending |
+
+## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
+
+Per `wsp/testing/test-strategy.md`'s "Reference" test layer (small VB6
+programs recording observed Microsoft behavior), `Rnd`'s internal generator
+algorithm and default seed are not published by Microsoft, so this increment
+probed the local reference environment directly instead of guessing from
+community write-ups.
+
+**Method:** A minimal Standard EXE project (`Sub Main`, no forms) was created
+under the session scratchpad, opened in the local `VB6.EXE` (6.00.8176) IDE,
+and run with F5 (in-IDE execution against `MSVBVM60.DLL` 6.00.9848, per
+`planning/reference-environment.md`). `Sub Main` wrote successive `Rnd`/
+`Randomize` results to a text file with `Print #f`, which was then read back
+and analyzed.
+
+**Finding 1 — default sequence and generator (fully verified):** The first
+`Rnd()` call from a fresh process returns `0.7055475` (the well-known VB6
+fingerprint value). Brute-force search over all `2^24` possible internal
+states found exactly one state, `327680`, whose LCG step
+`state' = (state * 0x43FD43FD + 0xC39EC3) mod 2^24` reproduces the observed
+first three values (`0.7055475`, `0.533424`, `0.5795186`) with no other
+candidate state matching. `Rnd(0)` was confirmed to repeat the third value
+without advancing.
+
+**Finding 2 — `Rnd(negative)` is deterministic but its seed-derivation
+formula was not solved:** `Rnd(-5)` returned `0.8383257` identically across
+two separate process runs, and a subsequent `Rnd(1)` continued the chain from
+that state (`step(state_for_-5)` matched the next observed value within
+floating-point rounding). Twelve additional negative arguments (`-1` through
+`-32768`) were probed but the exact bit-level mapping from argument to seed
+was not reverse-engineered within this increment's scope.
+
+**Finding 3 — `Randomize number` is *not* reproducible in the reference
+runtime:** Three separate probes of `Randomize 1` followed by `Print Rnd`,
+run with different preceding program state, returned three different values
+(`0.1453565`, `0.5899273`, `0.7648737`). A fourth probe called
+`Randomize 1` twice in immediate succession (same open output file, no
+intervening statements) and still got two different results (`0.8569605`,
+then `0.6713328`). This contradicts Microsoft's own published description of
+`Randomize number` as reproducible, and means no formula can truthfully claim
+to match the reference runtime's specific `Randomize(number)` sequence.
+
+**Resulting decision:** presented to the owner as an explicit design choice
+(record below); the owner selected a WFC-owned deterministic seed hash for
+both `Randomize number` and `Rnd(negative)` rather than deferring them
+outright, so real VB6 programs that call `Randomize N` still run under WFC
+and get a usable, WFC-internally-reproducible pseudorandom sequence. See
+`REQ-0194` for the resulting contract.
+
+Probe project files were created under the session scratchpad directory (not
+part of the repository) and are not retained; the derivation above is
+reproducible from the recorded findings and the local reference environment
+identified in `planning/reference-environment.md`.
 
 ## Verification Log
 
@@ -166,6 +222,7 @@ retained CTest evidence.
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post math-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post information-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Format`/`Format$` named styles) | Pass (72/72) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post `Rnd`/`Randomize`) | Pass (73/73) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -179,6 +236,7 @@ retained CTest evidence.
 | Return `False` for unavailable Information categories and reject negative `RGB` components | Current evaluator value architecture and VBA `RGB` contract | Avoids inventing unrepresentable Variant states while providing deterministic color packing and clamping | `REQ-0176` |
 | Define `LenB`/`AscB`/`ChrB` against WFC's stored byte sequence | Current evaluator String architecture | Adds deterministic byte operations without claiming DBCS or BSTR-layout equivalence | `REQ-0177` |
 | Implement only `Format`'s eight named numeric styles this increment; report `WFC0102` for any custom picture string or deferred named style instead of attempting a partial parser | Custom VBA picture strings (`0`/`#`/`,`/`.`/`%`/`E+`/quoted literals/multi-section `;`) need positional literal-character handling that a first increment should not approximate | Delivers the common named-style cases now; a wrong "close enough" custom-format renderer would be a worse outcome than a clear not-yet-supported diagnostic | `REQ-0193` |
+| Use a WFC-owned deterministic seed hash for `Randomize number` and `Rnd(negative)`, rather than deferring them, even though it does not reproduce the reference VB6 runtime's specific per-seed sequence | Owner decision after a local VB6 6.00.8176 probe found `Randomize number` is itself not reproducible in the reference runtime (see Reference Probe Evidence above), so no formula could truthfully claim to match it | Real VB6 programs calling `Randomize N` still run under WFC with a usable, WFC-internally-reproducible sequence, instead of failing outright | `REQ-0194` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -278,6 +336,7 @@ when the session completes.
 | Math-function-family arity coverage (increment #75) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Information-function-family arity coverage (increment #76) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Format named-style implementation (increment #77) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Rnd/Randomize reference probe and implementation (increments #78-#79) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -319,13 +378,25 @@ tokens, and applying a named style to a `String` expression remain deferred to
 a follow-on increment; an unrecognized `Style` reports `WFC0102` rather than a
 false result.
 
+**`Rnd`/`Randomize` (increments #78-#79, `REQ-0194`):** implements the
+reference-verified default `Rnd()` sequence (24-bit LCG, verified byte-for-
+byte against a local VB6 6.00.8176 probe) and `Rnd(0)` repeat-last, plus a
+WFC-owned deterministic reseed hash for `Randomize number` and
+`Rnd(negative)` — the reference runtime itself was found not to reproduce a
+fixed `Randomize(number)` sequence, so this is a documented, evidence-based
+variance rather than an attempt at exact reproduction. Calling `Rnd` without
+parentheses remains deferred with every other intrinsic function under the
+evaluator's existing parenthesized-call-only architecture; `Rnd` returns
+`Double` (no distinct `Single` type yet), matching the `CSng` precedent.
+
 **Remaining next increments:**
 
 - literal/identifier `!` Single, `%` Integer, and `@` Currency forms after
   those distinct types exist;
 - `Format`/`Format$` custom numeric picture strings and the deferred named
   styles listed above;
-- `Rnd`/`Randomize` once a `Single` value and generator state exist.
+- calling any intrinsic function without parentheses (bare `Rnd`, etc.), which
+  needs a `parse_primary` change shared across every function, not just `Rnd`.
 
 `Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`
 services, and `Filter`/`Join`/`Split` (arrays/`Variant`) remain later

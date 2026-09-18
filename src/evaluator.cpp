@@ -1,8 +1,10 @@
 #include "wfc/evaluator.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <charconv>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -202,7 +204,8 @@ struct NumericStringResult {
            identifier == "next" ||
            identifier == "not" ||
            identifier == "option" || identifier == "or" ||
-           identifier == "print" || identifier == "rem" || identifier == "select" ||
+           identifier == "print" || identifier == "randomize" ||
+           identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
            identifier == "explicit" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
@@ -469,6 +472,9 @@ private:
         if (consume_keyword("print")) {
             return parse_print_statement();
         }
+        if (consume_keyword("randomize")) {
+            return parse_randomize_statement(statement_offset);
+        }
         if (consume_keyword("dim")) {
             if (!allow_declarations_) {
                 set_error("WFC0027", "declarations are not supported in conditional blocks", statement_offset);
@@ -512,6 +518,32 @@ private:
             }
             output_ += render(*value);
             has_output_line_ = true;
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool parse_randomize_statement(const std::size_t statement_offset) {
+        skip_horizontal_whitespace();
+        if (at_end() || current() == ':' || current() == '\r' || current() == '\n' ||
+            current() == '\'') {
+            if (execute_) {
+                rnd_state_ = seed_from_number(entropy_seed());
+            }
+            return true;
+        }
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
+            set_error("WFC0073", "Randomize requires a numeric seed", statement_offset);
+            return false;
+        }
+        if (execute_) {
+            const double seed = std::holds_alternative<bool>(*value)
+                                     ? (std::get<bool>(*value) ? -1.0 : 0.0)
+                                     : as_double(*value);
+            rnd_state_ = seed_from_number(seed);
         }
         return true;
     }
@@ -2062,6 +2094,7 @@ private:
         const bool is_rgb = identifier == "rgb";
         const bool is_strconv = identifier == "strconv";
         const bool is_format = identifier == "format" || identifier == "format$";
+        const bool is_rnd = identifier == "rnd";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -2071,7 +2104,7 @@ private:
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
             !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid &&
-            !is_error_message && !is_float_math && !is_format) {
+            !is_error_message && !is_float_math && !is_format && !is_rnd) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2114,7 +2147,7 @@ private:
         }
 
         bool valid_arity{};
-        if (is_error_message) {
+        if (is_error_message || is_rnd) {
             valid_arity = arguments.size() <= 1U;
         } else if (is_mid) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
@@ -2421,6 +2454,29 @@ private:
                 "Format does not yet support this Style value",
                 identifier_offset);
             return std::nullopt;
+        }
+
+        if (is_rnd) {
+            double argument{};
+            if (!arguments.empty()) {
+                if (!is_number(arguments[0]) && !std::holds_alternative<bool>(arguments[0])) {
+                    set_error("WFC0073", "Rnd requires a numeric argument", identifier_offset);
+                    return std::nullopt;
+                }
+                argument = std::holds_alternative<bool>(arguments[0])
+                               ? (std::get<bool>(arguments[0]) ? -1.0 : 0.0)
+                               : as_double(arguments[0]);
+            }
+            if (!execute_) {
+                return Value{0.0};
+            }
+            if (!arguments.empty() && argument == 0.0) {
+                return Value{rnd_last_value_};
+            }
+            rnd_state_ = (!arguments.empty() && argument < 0.0) ? seed_from_number(argument)
+                                                                 : rnd_step(rnd_state_);
+            rnd_last_value_ = rnd_value(rnd_state_);
+            return Value{rnd_last_value_};
         }
 
         if (is_cstr) {
@@ -3676,6 +3732,42 @@ private:
         return rendered;
     }
 
+    // Advance the verified VB6-reference Rnd generator by one 24-bit linear
+    // congruential step: state' = (state * 0x43FD43FD + 0xC39EC3) mod 2^24.
+    // Confirmed byte-for-byte against a local VB6 6.00.8176 probe.
+    [[nodiscard]] static std::uint32_t rnd_step(const std::uint32_t state) noexcept {
+        constexpr std::uint32_t multiplier = 0x43FD43FDU;
+        constexpr std::uint32_t increment = 0x00C39EC3U;
+        constexpr std::uint32_t modulus_mask = 0x00FFFFFFU;  // 2^24 - 1
+        return static_cast<std::uint32_t>(
+            (static_cast<std::uint64_t>(state) * multiplier + increment) & modulus_mask);
+    }
+
+    [[nodiscard]] static double rnd_value(const std::uint32_t state) noexcept {
+        return static_cast<double>(state) / 16777216.0;  // state / 2^24
+    }
+
+    // WFC-owned deterministic seed hash used by Randomize(number) and
+    // Rnd(negative). The reference VB6 runtime's own per-seed sequence is not
+    // reproducible even for an explicit Randomize argument (confirmed by a
+    // local probe: repeated Randomize calls with the same argument produced
+    // different subsequent Rnd() results), so no formula could truthfully
+    // claim to match it. This hash instead guarantees a WFC-specific
+    // contract: the same seed always produces the same subsequent sequence.
+    [[nodiscard]] static std::uint32_t seed_from_number(const double value) noexcept {
+        const auto bits = std::bit_cast<std::uint64_t>(value);
+        auto folded = static_cast<std::uint32_t>(bits ^ (bits >> 32U));
+        folded ^= folded >> 16U;
+        return folded & 0x00FFFFFFU;
+    }
+
+    // Non-deterministic seed source for argument-less Randomize, matching
+    // VB6's documented system-timer-based reseeding.
+    [[nodiscard]] static double entropy_seed() {
+        return static_cast<double>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    }
+
     [[nodiscard]] const Integer* require_integer(
         const Value& value,
         const std::size_t operator_offset) {
@@ -4017,6 +4109,12 @@ private:
     bool exit_do_requested_{};
     std::size_t for_depth_{};
     bool exit_for_requested_{};
+    // Rnd/Randomize generator state. 327680 is the verified default seed of
+    // the reference VB6 6.00.8176 runtime's Rnd generator (confirmed against
+    // a local probe: the first Rnd() call from this seed is 0.7055475,
+    // matching the well-known VB6 fingerprint value).
+    std::uint32_t rnd_state_{327680U};
+    double rnd_last_value_{};
     wfc::Evaluation error_;
 };
 

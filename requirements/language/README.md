@@ -153,3 +153,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0193 — Format named numeric styles](req-0193-format-named-styles.md)
   defines the eight named `Format`/`Format$` styles over the current `Long`,
   `Double`, and `Boolean` value model.
+- [REQ-0194 — Rnd and Randomize](req-0194-rnd-randomize.md) defines the
+  reference-verified default `Rnd` sequence and a WFC-owned deterministic
+  reseed contract for `Randomize`/`Rnd(negative)`.

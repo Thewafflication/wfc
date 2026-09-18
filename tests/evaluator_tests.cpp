@@ -287,6 +287,30 @@ int main() {
         "Print Format(1, \"On/Off\")",
         "Yes\nFalse\nOn");
     expect_success("Print Format$(42, \"Fixed\")", "42.00");
+    expect_success(
+        "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
+        "0.7055475115776062 0.5334240198135376 0.5795186161994934");
+    expect_program_success(
+        "Print Rnd(): Print Rnd(): Print Rnd(0)",
+        "0.7055475115776062\n0.5334240198135376\n0.5334240198135376");
+    expect_success("Print Rnd(0)", "0");
+    expect_success(
+        "Print Rnd(1) & \" \" & Rnd(2) & \" \" & Rnd(3)",
+        "0.7055475115776062 0.5334240198135376 0.5795186161994934");
+    expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.08105587959289551 0.08105587959289551");
+    expect_program_success(
+        "Print Rnd(-5): Print Rnd(1)",
+        "0.08105587959289551\n0.3073505759239197");
+    expect_program_success(
+        "Randomize 42\nPrint Rnd()\nPrint Rnd()\nRandomize 42\nPrint Rnd()",
+        "0.2156059741973877\n0.5267471671104431\n0.2156059741973877");
+    expect_program_success(
+        "Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
+        "0.11961287260055542\n0.7612115740776062");
+    expect_program_success(
+        "Randomize\nPrint Rnd() >= 0 And Rnd() < 1",
+        "True");
+    expect_success("Print TypeName(Rnd())", "Double");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
@@ -1093,6 +1117,10 @@ int main() {
     expect_program_failure("Print Format(\"x\", \"Fixed\")", "WFC0073");
     expect_program_failure("Print Format(42, \"Nope\")", "WFC0102");
     expect_program_failure("Print Format(1e308, \"Percent\")", "WFC0009");
+    expect_program_failure("Print Rnd(\"x\")", "WFC0073");
+    expect_program_failure("Print Rnd(1, 2)", "WFC0072");
+    expect_program_failure("Randomize \"x\"", "WFC0073");
+    expect_program_failure("Dim Randomize As Long", "WFC0017");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
     expect_program_failure("Print -1e308 - 1e308", "WFC0009");

@@ -906,4 +906,19 @@ Print label & value# & " " & TypeName(value)]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "1,234.50 50.00% Yes"
     )
+
+    add_test(
+        NAME TC-MP0002-rnd-randomize-cli
+        COMMAND wfc --eval [=[Randomize 42
+Print Rnd()
+Print Rnd()
+Randomize 42
+Print Rnd()]=]
+    )
+    set_tests_properties(
+        TC-MP0002-rnd-randomize-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;math;double"
+            PASS_REGULAR_EXPRESSION "0.2156059741973877.*0.5267471671104431.*0.2156059741973877"
+    )
 endif()
