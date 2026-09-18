@@ -97,7 +97,7 @@ retained CTest evidence.
 | 2026-09-17 #73 | Verification | Close `REQ-0161`/`REQ-0162`/`REQ-0165`/`REQ-0166` arity evidence for `LCase`/`UCase`/`LTrim`/`RTrim`/`Trim`/`Asc`/`Chr`/`StrReverse` | Commit `bb2e86b` |
 | 2026-09-17 #74 | Verification | Close `REQ-0172`/`REQ-0173`/`REQ-0174`/`REQ-0170`/`REQ-0188`/`REQ-0189` arity evidence for `CStr`/`CLng`/`CBool`/`CInt`/`Val`/`Str`/`Hex`/`Oct` | Commit `b5c3ee1` |
 | 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit `8c270b1` |
-| 2026-09-17 #76 | Verification | Close `REQ-0176`/`REQ-0191` arity evidence for `IsNumeric`/`TypeName`/`VarType`/the six constant-False predicates/`MacID` | Commit pending |
+| 2026-09-17 #76 | Verification | Close `REQ-0176`/`REQ-0191` arity evidence for `IsNumeric`/`TypeName`/`VarType`/the six constant-False predicates/`MacID` | Commit `6582079` |
 
 ## Verification Log
 
@@ -160,6 +160,10 @@ retained CTest evidence.
 | 2026-08-31 | `ctest --preset windows-x64-debug` (post `c72ff59` Double radix conversion) | Pass (68/68; expanded unit/CLI coverage) | Local x64 CTest run |
 
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post CDbl/CSng arity coverage) | Pass (71/71) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post string-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post conversion-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post math-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
+| 2026-09-17 | `ctest --preset windows-x64-debug` (post information-function-family arity coverage) | Pass (71/71; expanded unit coverage) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -312,6 +316,16 @@ floating-point functions, `Val`, arithmetic, and comparison work.
 `Single`, `Currency`, and `Decimal` distinct types, `CCur`/`CDec`, `Date`/`Time`
 services, and `Filter`/`Join`/`Split` (arrays/`Variant`) remain later
 architecture increments.
+
+**Arity-evidence sweep (increments #72-#76):** every intrinsic function
+dispatched through the evaluator's arity-check table now has an explicit
+zero-argument and (where applicable) excess-argument `WFC0072` test. This
+closes the same latent evidence gap that `CByte` (#71) exposed: several
+requirement records asserted `WFC0072` arity behavior, or relied on a shared
+diagnostic contract that implies it, without a corresponding test. The
+underlying evaluator logic (`src/evaluator.cpp`, the `valid_arity` dispatch
+starting near line 2115) needed no changes; only test and requirement-record
+gaps were closed.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the `Strings`/`Conversion` build-out under MP-0002.
