@@ -947,4 +947,34 @@ Print x & " " & TypeName(x) & " " & (10@ / 3@) & " " & (100.5@ * 3@)]=]
             LABELS "integration;mp-0002;expressions;numeric;variables;currency"
             PASS_REGULAR_EXPRESSION "10.5 Currency 3.3333 301.5"
     )
+
+    add_test(
+        NAME TC-MP0002-decimal-cli
+        COMMAND wfc --eval [=[Dim x As Variant
+x = CDec("10.25")
+Print x & " " & TypeName(x) & " " & (x * CDec(2)) & " " & (CDec(1) / CDec(3))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-decimal-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;numeric;variables;decimal;variant"
+            PASS_REGULAR_EXPRESSION "10.25 Decimal 20.5 0.3333333333333333333333333333"
+    )
+
+    add_test(
+        NAME TC-MP0002-variant-cli
+        COMMAND wfc --eval [=[Dim x As Variant
+x = 5
+Print TypeName(x) & " " & CStr(IsNull(x)) & " " & CStr(IsEmpty(x))
+x = Null
+Print TypeName(x) & " " & CStr(IsNull(x)) & " " & (x + 1 & "|" & x & "|")
+x = "hello"
+Print TypeName(x) & " " & x]=]
+    )
+    set_tests_properties(
+        TC-MP0002-variant-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;variables;variant"
+            PASS_REGULAR_EXPRESSION "Long False False.*Null True \\|\\|.*String hello"
+    )
 endif()

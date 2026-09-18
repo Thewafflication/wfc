@@ -4,13 +4,15 @@
 
 The MP-0002 evaluator shall implement the VBA Information functions whose
 behavior can be represented by its current `Long`, `Single`, `Double`,
-`Currency`, `Boolean`, and `String` value model:
+`Currency`, `Decimal`, `Boolean`, `String`, `Empty`, and `Null` value model:
 
 - `IsNumeric`, `TypeName`, and `VarType` shall classify current scalar values.
   `IsNumeric` shall recognize complete, finite decimal and exponent strings
   after trimming ASCII whitespace;
-- `IsArray`, `IsObject`, `IsNull`, `IsEmpty`, `IsError`, and `IsMissing` shall
-  return `False`, because none of those value categories can currently exist;
+- `IsNull` and `IsEmpty` shall report whether a value currently holds `Null`
+  or `Empty` respectively (`REQ-0197`);
+- `IsArray`, `IsObject`, `IsError`, and `IsMissing` shall return `False`,
+  because none of those value categories can currently exist;
 - `QBColor(index)` shall map indices 0 through 15 to the corresponding VBA
   palette color value and reject indices outside that range;
 - `RGB(red, green, blue)` shall require three `Long` components, reject negative
@@ -24,16 +26,17 @@ Out-of-range `QBColor` indices shall fail with `WFC0092`.
 
 ## Scope
 
-This increment does not represent arrays, objects, `Null`, `Empty`, error
-values, omitted Variant arguments, dates, or runtime VBA type information.
-`IsDate` and true results for the unavailable value categories are deferred
-until their supporting value models exist.
+This increment does not represent arrays, objects, error values, omitted
+Variant arguments, dates, or runtime VBA type information. `IsDate` and true
+results for `IsArray`/`IsObject`/`IsError`/`IsMissing` are deferred until
+their supporting value models exist.
 
 ## Verification
 
 Unit tests cover scalar classification (including `Single`, added by
-`REQ-0195`, and `Currency`, added by `REQ-0196`), all constant-False
-predicates, RGB component ordering, clamping,
+`REQ-0195`; `Currency`, added by `REQ-0196`; and `Decimal`/`Empty`/`Null`,
+added by `REQ-0197`/`REQ-0198`), `IsNull`/`IsEmpty` returning real results,
+the remaining constant-False predicates, RGB component ordering, clamping,
 arity, type rejection, negative components, the complete sixteen-entry
 `QBColor` palette contract, and both wrong-arity forms of `IsNumeric`,
 `TypeName`, `VarType`, and each constant-False predicate.

@@ -1,6 +1,7 @@
 #include "wfc/evaluator.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <charconv>
 #include <cctype>
@@ -32,8 +33,6 @@ struct Currency {
         return left.scaled == right.scaled;
     }
 };
-
-using Value = std::variant<Integer, std::string, bool, double, float, Currency>;
 
 // Minimal unsigned 128-bit integer support for exact fixed-point Currency
 // multiplication and division: a signed 64x64 multiply can overflow 64 bits,
@@ -200,6 +199,476 @@ void divide_u128(
 
 enum class NumericStringStatus { valid, malformed, out_of_range };
 
+// A minimal fixed-width unsigned big integer (256 bits, eight 32-bit limbs,
+// least-significant first) used only for exact Decimal arithmetic. Decimal's
+// mantissa is at most 96 bits; a 96-bit x 96-bit product needs up to 192
+// bits, so 256 bits leaves headroom without dynamic allocation.
+struct BigUInt {
+    std::array<std::uint32_t, 8> limb{};
+};
+
+[[nodiscard]] bool is_zero_big(const BigUInt& value) noexcept {
+    for (const auto word : value.limb) {
+        if (word != 0U) {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] int compare_big(const BigUInt& left, const BigUInt& right) noexcept {
+    for (int i = 7; i >= 0; --i) {
+        if (left.limb[static_cast<std::size_t>(i)] != right.limb[static_cast<std::size_t>(i)]) {
+            return left.limb[static_cast<std::size_t>(i)] < right.limb[static_cast<std::size_t>(i)]
+                       ? -1
+                       : 1;
+        }
+    }
+    return 0;
+}
+
+[[nodiscard]] BigUInt add_big(const BigUInt& left, const BigUInt& right) noexcept {
+    BigUInt result;
+    std::uint64_t carry = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        const std::uint64_t sum =
+            static_cast<std::uint64_t>(left.limb[i]) + right.limb[i] + carry;
+        result.limb[i] = static_cast<std::uint32_t>(sum);
+        carry = sum >> 32U;
+    }
+    return result;
+}
+
+// Requires left >= right.
+[[nodiscard]] BigUInt subtract_big(const BigUInt& left, const BigUInt& right) noexcept {
+    BigUInt result;
+    std::int64_t borrow = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        std::int64_t difference =
+            static_cast<std::int64_t>(left.limb[i]) - right.limb[i] - borrow;
+        if (difference < 0) {
+            difference += (std::int64_t{1} << 32U);
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        result.limb[i] = static_cast<std::uint32_t>(difference);
+    }
+    return result;
+}
+
+// The Decimal callers only ever multiply values already confirmed to be at
+// most 96 bits, so the product is always within 192 bits and never
+// overflows this 256-bit representation.
+[[nodiscard]] BigUInt multiply_big(const BigUInt& left, const BigUInt& right) noexcept {
+    BigUInt result;
+    for (std::size_t i = 0; i < 8; ++i) {
+        if (left.limb[i] == 0U) {
+            continue;
+        }
+        std::uint64_t carry = 0;
+        for (std::size_t j = 0; j + i < 8; ++j) {
+            const std::uint64_t product = static_cast<std::uint64_t>(left.limb[i]) * right.limb[j] +
+                                           result.limb[i + j] + carry;
+            result.limb[i + j] = static_cast<std::uint32_t>(product);
+            carry = product >> 32U;
+        }
+    }
+    return result;
+}
+
+[[nodiscard]] BigUInt shift_left_one_big(const BigUInt& value) noexcept {
+    BigUInt result;
+    std::uint32_t carry = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        result.limb[i] = (value.limb[i] << 1U) | carry;
+        carry = value.limb[i] >> 31U;
+    }
+    return result;
+}
+
+// Binary long division: 256 iterations, favoring correctness and simplicity
+// over speed. Decimal arithmetic is not performance-critical.
+void divide_big(
+    const BigUInt& dividend,
+    const BigUInt& divisor,
+    BigUInt& quotient,
+    BigUInt& remainder) noexcept {
+    quotient = BigUInt{};
+    remainder = BigUInt{};
+    for (int bit = 255; bit >= 0; --bit) {
+        remainder = shift_left_one_big(remainder);
+        const auto word = static_cast<std::size_t>(bit) / 32U;
+        const auto offset = static_cast<unsigned>(bit) % 32U;
+        if (((dividend.limb[word] >> offset) & 1U) != 0U) {
+            remainder.limb[0] |= 1U;
+        }
+        if (compare_big(remainder, divisor) >= 0) {
+            remainder = subtract_big(remainder, divisor);
+            quotient.limb[word] |= (std::uint32_t{1} << offset);
+        }
+    }
+}
+
+[[nodiscard]] BigUInt big_from_u32(const std::uint32_t value) noexcept {
+    BigUInt result;
+    result.limb[0] = value;
+    return result;
+}
+
+[[nodiscard]] bool has_bits_beyond_96(const BigUInt& value) noexcept {
+    for (std::size_t i = 3; i < 8; ++i) {
+        if (value.limb[i] != 0U) {
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] BigUInt power_of_ten_big(const int exponent) noexcept {
+    BigUInt result = big_from_u32(1U);
+    for (int i = 0; i < exponent; ++i) {
+        result = multiply_big(result, big_from_u32(10U));
+    }
+    return result;
+}
+
+// Divide `value` by 10, rounding the quotient to the nearest integer with
+// banker's rounding (round half to even), matching this evaluator's
+// established Double-to-integer rounding convention.
+[[nodiscard]] BigUInt divide_by_ten_rounded_big(const BigUInt& value) noexcept {
+    BigUInt quotient;
+    BigUInt remainder;
+    divide_big(value, big_from_u32(10U), quotient, remainder);
+    const std::uint32_t digit = remainder.limb[0];
+    const bool round_up = digit > 5U || (digit == 5U && (quotient.limb[0] & 1U) != 0U);
+    return round_up ? add_big(quotient, big_from_u32(1U)) : quotient;
+}
+
+// VB6/COM's DECIMAL: a sign, a variable scale (0 through 28 digits after the
+// decimal point), and a 96-bit unsigned mantissa. The mantissa occupies the
+// low three limbs of a BigUInt; the remaining limbs are scratch space
+// shared with the arithmetic helpers above and are always zero at rest.
+struct Decimal {
+    bool negative{};
+    std::uint8_t scale{};
+    BigUInt mantissa{};
+
+    [[nodiscard]] friend bool operator==(const Decimal& left, const Decimal& right) noexcept {
+        return left.negative == right.negative && left.scale == right.scale &&
+               left.mantissa.limb == right.mantissa.limb;
+    }
+};
+
+constexpr int decimal_max_scale = 28;
+
+// Rescale `mantissa` up by `scale_diff` decimal places (multiply by
+// 10^scale_diff). Returns nullopt if the result would exceed 96 bits.
+[[nodiscard]] std::optional<BigUInt> rescale_mantissa_up(
+    const BigUInt& mantissa,
+    const int scale_diff) noexcept {
+    if (scale_diff == 0) {
+        return mantissa;
+    }
+    const BigUInt product = multiply_big(mantissa, power_of_ten_big(scale_diff));
+    if (has_bits_beyond_96(product)) {
+        return std::nullopt;
+    }
+    return product;
+}
+
+[[nodiscard]] std::optional<Decimal> decimal_add(const Decimal& left, const Decimal& right) noexcept {
+    const auto scale = std::max(left.scale, right.scale);
+    const auto left_mantissa = rescale_mantissa_up(left.mantissa, scale - left.scale);
+    const auto right_mantissa = rescale_mantissa_up(right.mantissa, scale - right.scale);
+    if (!left_mantissa.has_value() || !right_mantissa.has_value()) {
+        return std::nullopt;
+    }
+    Decimal result;
+    result.scale = scale;
+    if (left.negative == right.negative) {
+        result.mantissa = add_big(*left_mantissa, *right_mantissa);
+        result.negative = left.negative;
+    } else {
+        const int comparison = compare_big(*left_mantissa, *right_mantissa);
+        if (comparison == 0) {
+            result.negative = false;
+        } else if (comparison > 0) {
+            result.mantissa = subtract_big(*left_mantissa, *right_mantissa);
+            result.negative = left.negative;
+        } else {
+            result.mantissa = subtract_big(*right_mantissa, *left_mantissa);
+            result.negative = right.negative;
+        }
+    }
+    if (has_bits_beyond_96(result.mantissa)) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+[[nodiscard]] std::optional<Decimal> decimal_subtract(
+    const Decimal& left,
+    const Decimal& right) noexcept {
+    Decimal negated_right = right;
+    if (!is_zero_big(negated_right.mantissa)) {
+        negated_right.negative = !negated_right.negative;
+    }
+    return decimal_add(left, negated_right);
+}
+
+[[nodiscard]] std::optional<Decimal> decimal_multiply(
+    const Decimal& left,
+    const Decimal& right) noexcept {
+    BigUInt product = multiply_big(left.mantissa, right.mantissa);
+    int scale = static_cast<int>(left.scale) + static_cast<int>(right.scale);
+    while (scale > 0 && (has_bits_beyond_96(product) || scale > decimal_max_scale)) {
+        product = divide_by_ten_rounded_big(product);
+        --scale;
+    }
+    if (has_bits_beyond_96(product)) {
+        return std::nullopt;
+    }
+    Decimal result;
+    result.negative = (left.negative != right.negative) && !is_zero_big(product);
+    result.scale = static_cast<std::uint8_t>(scale);
+    result.mantissa = product;
+    return result;
+}
+
+// Divide with maximum representable precision: the numerator is scaled up
+// (extra factors of 10) before dividing so the quotient carries as many
+// significant decimal digits as fit within scale 0-28 and a 96-bit
+// mantissa, then rounded (banker's rounding) to the nearest representable
+// value. `right` must be nonzero; the caller reports WFC0008 separately.
+[[nodiscard]] std::optional<Decimal> decimal_divide(
+    const Decimal& left,
+    const Decimal& right) noexcept {
+    int result_scale = static_cast<int>(left.scale) - static_cast<int>(right.scale);
+    BigUInt numerator = left.mantissa;
+    while (result_scale < decimal_max_scale) {
+        numerator = multiply_big(numerator, big_from_u32(10U));
+        ++result_scale;
+    }
+    BigUInt quotient;
+    BigUInt remainder;
+    divide_big(numerator, right.mantissa, quotient, remainder);
+    const BigUInt doubled_remainder = shift_left_one_big(remainder);
+    const int comparison = compare_big(doubled_remainder, right.mantissa);
+    const bool round_up = comparison > 0 || (comparison == 0 && (quotient.limb[0] & 1U) != 0U);
+    if (round_up) {
+        quotient = add_big(quotient, big_from_u32(1U));
+    }
+    while (result_scale > 0 && has_bits_beyond_96(quotient)) {
+        quotient = divide_by_ten_rounded_big(quotient);
+        --result_scale;
+    }
+    if (has_bits_beyond_96(quotient) || result_scale < 0 || result_scale > decimal_max_scale) {
+        return std::nullopt;
+    }
+    Decimal result;
+    result.negative = (left.negative != right.negative) && !is_zero_big(quotient);
+    result.scale = static_cast<std::uint8_t>(result_scale);
+    result.mantissa = quotient;
+    return result;
+}
+
+[[nodiscard]] double decimal_to_double(const Decimal& value) noexcept {
+    double magnitude = 0.0;
+    for (int i = 7; i >= 0; --i) {
+        magnitude = magnitude * 4294967296.0 + static_cast<double>(value.mantissa.limb[static_cast<std::size_t>(i)]);
+    }
+    for (int i = 0; i < value.scale; ++i) {
+        magnitude /= 10.0;
+    }
+    return value.negative ? -magnitude : magnitude;
+}
+
+[[nodiscard]] std::string render_decimal(const Decimal& value) {
+    std::string digits;
+    if (is_zero_big(value.mantissa)) {
+        digits = "0";
+    } else {
+        BigUInt remaining = value.mantissa;
+        while (!is_zero_big(remaining)) {
+            BigUInt quotient;
+            BigUInt remainder;
+            divide_big(remaining, big_from_u32(10U), quotient, remainder);
+            digits.push_back(static_cast<char>('0' + remainder.limb[0]));
+            remaining = quotient;
+        }
+        std::reverse(digits.begin(), digits.end());
+    }
+    std::string result;
+    if (value.scale == 0U) {
+        result = digits;
+    } else {
+        if (digits.size() <= value.scale) {
+            digits.insert(digits.begin(), static_cast<std::size_t>(value.scale) - digits.size() + 1U, '0');
+        }
+        const auto point = digits.size() - value.scale;
+        std::string integer_part = digits.substr(0, point);
+        std::string fraction_part = digits.substr(point);
+        while (!fraction_part.empty() && fraction_part.back() == '0') {
+            fraction_part.pop_back();
+        }
+        result = integer_part;
+        if (!fraction_part.empty()) {
+            result += '.';
+            result += fraction_part;
+        }
+    }
+    if (value.negative && result != "0") {
+        result.insert(result.begin(), '-');
+    }
+    return result;
+}
+
+// Parse a complete, finite decimal/exponent String (the same grammar
+// accepted elsewhere by parse_numeric_string) directly into an exact
+// Decimal, without a lossy double intermediate. Surrounding ASCII
+// whitespace and a leading sign are accepted.
+struct DecimalStringResult {
+    NumericStringStatus status{NumericStringStatus::malformed};
+    Decimal value{};
+};
+
+[[nodiscard]] DecimalStringResult parse_decimal_string(const std::string_view text) {
+    std::size_t first = 0;
+    std::size_t last = text.size();
+    const auto is_ascii_whitespace = [](const char character) {
+        return character == ' ' || character == '\t' || character == '\r' || character == '\n';
+    };
+    while (first < last && is_ascii_whitespace(text[first])) {
+        ++first;
+    }
+    while (last > first && is_ascii_whitespace(text[last - 1U])) {
+        --last;
+    }
+    if (first == last) {
+        return {};
+    }
+    bool negative = false;
+    if (text[first] == '+') {
+        ++first;
+    } else if (text[first] == '-') {
+        negative = true;
+        ++first;
+    }
+    if (first == last) {
+        return {};
+    }
+
+    BigUInt mantissa{};
+    int scale = 0;
+    bool any_digit = false;
+    bool mantissa_overflow = false;
+    const auto consume_digit = [&](const char character) {
+        any_digit = true;
+        mantissa = multiply_big(mantissa, big_from_u32(10U));
+        mantissa = add_big(mantissa, big_from_u32(static_cast<std::uint32_t>(character - '0')));
+        if (has_bits_beyond_96(mantissa)) {
+            mantissa_overflow = true;
+        }
+    };
+    std::size_t index = first;
+    while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+        consume_digit(text[index]);
+        ++index;
+    }
+    if (index < last && text[index] == '.') {
+        ++index;
+        while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+            consume_digit(text[index]);
+            ++scale;
+            ++index;
+        }
+    }
+    if (!any_digit) {
+        return {};
+    }
+    int exponent = 0;
+    if (index < last && (text[index] == 'e' || text[index] == 'E')) {
+        ++index;
+        bool exponent_negative = false;
+        if (index < last && (text[index] == '+' || text[index] == '-')) {
+            exponent_negative = text[index] == '-';
+            ++index;
+        }
+        const auto exponent_start = index;
+        int exponent_magnitude = 0;
+        while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+            if (exponent_magnitude < 1'000'000) {
+                exponent_magnitude = exponent_magnitude * 10 + (text[index] - '0');
+            }
+            ++index;
+        }
+        if (index == exponent_start) {
+            return {};
+        }
+        exponent = exponent_negative ? -exponent_magnitude : exponent_magnitude;
+    }
+    if (index != last) {
+        return {};
+    }
+
+    scale -= exponent;
+    while (scale < 0) {
+        mantissa = multiply_big(mantissa, big_from_u32(10U));
+        if (has_bits_beyond_96(mantissa)) {
+            mantissa_overflow = true;
+        }
+        ++scale;
+    }
+    while (scale > decimal_max_scale) {
+        mantissa = divide_by_ten_rounded_big(mantissa);
+        --scale;
+    }
+    if (mantissa_overflow || has_bits_beyond_96(mantissa)) {
+        return {NumericStringStatus::out_of_range, {}};
+    }
+
+    DecimalStringResult result;
+    result.status = NumericStringStatus::valid;
+    result.value.negative = negative && !is_zero_big(mantissa);
+    result.value.scale = static_cast<std::uint8_t>(scale);
+    result.value.mantissa = mantissa;
+    return result;
+}
+
+// Convert a finite double to an exact Decimal by parsing the double's own
+// shortest round-tripping decimal text, rather than scaling the binary
+// value directly; this avoids compounding binary-to-decimal error on top of
+// the conversion. Returns nullopt for a non-finite or out-of-range input.
+[[nodiscard]] std::optional<Decimal> decimal_from_double(const double value) noexcept {
+    if (!std::isfinite(value)) {
+        return std::nullopt;
+    }
+    char buffer[32];
+    const auto conversion = std::to_chars(buffer, buffer + sizeof(buffer), value);
+    const auto parsed = parse_decimal_string(
+        std::string_view(buffer, static_cast<std::size_t>(conversion.ptr - buffer)));
+    if (parsed.status != NumericStringStatus::valid) {
+        return std::nullopt;
+    }
+    return parsed.value;
+}
+
+// Empty (an uninitialized Variant) and Null (a Variant explicitly holding no
+// valid data) are states no other Value alternative can represent. Both are
+// reachable only through a Variant-declared variable: Empty is a Variant's
+// default value, and Null is produced only by the `Null` keyword or by
+// propagation through an expression that already holds Null.
+struct Empty {
+    [[nodiscard]] friend bool operator==(const Empty&, const Empty&) noexcept { return true; }
+};
+struct Null {
+    [[nodiscard]] friend bool operator==(const Null&, const Null&) noexcept { return true; }
+};
+
+using Value =
+    std::variant<Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null>;
+
 struct NumericStringResult {
     NumericStringStatus status{NumericStringStatus::malformed};
     double value{};
@@ -242,18 +711,23 @@ struct NumericStringResult {
 }
 
 // A value participates in numeric operators when it is a Long, Currency,
-// Single, or Double.
+// Single, Decimal, or Double. Empty and Null are deliberately excluded:
+// they need their own coercion/propagation handling (Empty coerces to a
+// context-dependent zero; Null propagates rather than widening) rather than
+// being treated as plain numbers.
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
     return std::holds_alternative<Integer>(value) ||
            std::holds_alternative<Currency>(value) ||
            std::holds_alternative<float>(value) ||
+           std::holds_alternative<Decimal>(value) ||
            std::holds_alternative<double>(value);
 }
 
-// Widen a Long, Currency, Single, or Double value to double for mixed-type
-// numeric evaluation. A Currency value's scaled int64 magnitude can exceed
-// what double represents exactly; callers that need exact Currency results
-// use the dedicated scaled-integer arithmetic instead.
+// Widen a Long, Currency, Single, Decimal, or Double value to double for
+// mixed-type numeric evaluation. A Currency or Decimal value's exact
+// magnitude can exceed what double represents exactly; callers that need
+// exact results use the dedicated scaled-integer/big-integer arithmetic
+// instead.
 [[nodiscard]] inline double as_double(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<double>(*integer);
@@ -264,13 +738,16 @@ struct NumericStringResult {
     if (const auto* currency = std::get_if<Currency>(&value)) {
         return static_cast<double>(currency->scaled) / 10000.0;
     }
+    if (const auto* decimal = std::get_if<Decimal>(&value)) {
+        return decimal_to_double(*decimal);
+    }
     return std::get<double>(value);
 }
 
 // Widen a Long, Currency, or Single value to float for same-precision
 // numeric evaluation. Callers must first establish that neither operand is
-// Double. A Currency operand widens through its exact decimal value (see
-// as_double), matching VB6's Currency-to-Single promotion.
+// Double or Decimal. A Currency operand widens through its exact decimal
+// value (see as_double), matching VB6's Currency-to-Single promotion.
 [[nodiscard]] inline float as_single(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<float>(*integer);
@@ -292,13 +769,22 @@ struct NumericStringResult {
 }
 
 // VB6's numeric promotion order for mixed-type arithmetic: Long widens to
-// Currency, which widens to Single, which widens to Double. The binary
-// operators compute in the wider of the two operand categories.
-enum class NumericCategory { integer, currency, single, double_precision };
+// Currency, which widens to Single, which widens to Decimal, which widens
+// to Double. Double dominates every other type because it has the largest
+// representable magnitude (even though Currency/Decimal are more precise
+// for the values they can hold), matching the same reasoning already
+// applied to Currency. The relative order of Decimal against Single and
+// Double specifically is not verified against the reference implementation
+// (see REQ-0197's Scope); only Decimal-above-Currency and Double-above-
+// everything are held with confidence.
+enum class NumericCategory { integer, currency, single, decimal_precision, double_precision };
 
 [[nodiscard]] inline NumericCategory numeric_category(const Value& value) noexcept {
     if (std::holds_alternative<double>(value)) {
         return NumericCategory::double_precision;
+    }
+    if (std::holds_alternative<Decimal>(value)) {
+        return NumericCategory::decimal_precision;
     }
     if (std::holds_alternative<float>(value)) {
         return NumericCategory::single;
@@ -307,6 +793,64 @@ enum class NumericCategory { integer, currency, single, double_precision };
         return NumericCategory::currency;
     }
     return NumericCategory::integer;
+}
+
+// Kleene three-valued logic for the logical operators: nullopt represents
+// Null (unknown); a definite Boolean is represented as its own value. These
+// tables are verified against the local VB6 6.00.8176 reference for And, Or,
+// and Not; Xor/Eqv/Imp are derived algebraically from those verified
+// primitives (Eqv = Not(Xor(a,b)), Imp = Not(a) Or b), which VBA's own
+// documentation defines them as.
+[[nodiscard]] inline std::optional<bool> ternary_and(
+    const std::optional<bool> left,
+    const std::optional<bool> right) noexcept {
+    if (left == false || right == false) {
+        return false;
+    }
+    if (left.has_value() && right.has_value()) {
+        return true;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<bool> ternary_or(
+    const std::optional<bool> left,
+    const std::optional<bool> right) noexcept {
+    if (left == true || right == true) {
+        return true;
+    }
+    if (left.has_value() && right.has_value()) {
+        return false;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<bool> ternary_not(const std::optional<bool> value) noexcept {
+    if (!value.has_value()) {
+        return std::nullopt;
+    }
+    return !*value;
+}
+
+[[nodiscard]] inline std::optional<bool> ternary_xor(
+    const std::optional<bool> left,
+    const std::optional<bool> right) noexcept {
+    if (left.has_value() && right.has_value()) {
+        return *left != *right;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<bool> ternary_eqv(
+    const std::optional<bool> left,
+    const std::optional<bool> right) noexcept {
+    return ternary_not(ternary_xor(left, right));
+}
+
+[[nodiscard]] inline std::optional<bool> ternary_imp(
+    const std::optional<bool> left,
+    const std::optional<bool> right) noexcept {
+    return ternary_or(ternary_not(left), right);
 }
 
 [[nodiscard]] char ascii_lower(const char character) noexcept {
@@ -433,6 +977,7 @@ enum class NumericCategory { integer, currency, single, double_precision };
            identifier == "loop" || identifier == "mod" ||
            identifier == "next" ||
            identifier == "not" ||
+           identifier == "null" || identifier == "empty" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
            identifier == "rem" || identifier == "select" ||
@@ -939,9 +1484,9 @@ private:
         if (!condition.has_value()) {
             return false;
         }
-        const auto* boolean = std::get_if<bool>(&*condition);
-        if (boolean == nullptr) {
-            set_error("WFC0021", "If condition must be Boolean", condition_offset);
+        const auto boolean =
+            coerce_condition_boolean(*condition, condition_offset, "WFC0021", "If condition must be Boolean");
+        if (!boolean.has_value()) {
             return false;
         }
 
@@ -1008,10 +1553,10 @@ private:
                     execute_ = enclosing_execution;
                     return false;
                 }
-                const auto* elseif_boolean = std::get_if<bool>(&*elseif_condition);
-                if (elseif_boolean == nullptr) {
+                const auto elseif_boolean = coerce_condition_boolean(
+                    *elseif_condition, condition_offset, "WFC0028", "ElseIf condition must be Boolean");
+                if (!elseif_boolean.has_value()) {
                     execute_ = enclosing_execution;
-                    set_error("WFC0028", "ElseIf condition must be Boolean", condition_offset);
                     return false;
                 }
 
@@ -1078,9 +1623,9 @@ private:
         if (!condition.has_value()) {
             return false;
         }
-        const auto* boolean = std::get_if<bool>(&*condition);
-        if (boolean == nullptr) {
-            set_error("WFC0031", "While condition must be Boolean", condition_offset);
+        const auto boolean = coerce_condition_boolean(
+            *condition, condition_offset, "WFC0031", "While condition must be Boolean");
+        if (!boolean.has_value()) {
             return false;
         }
         if (!consume_block_line_end()) {
@@ -1117,10 +1662,10 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            const auto* next_boolean = std::get_if<bool>(&*next_condition);
-            if (next_boolean == nullptr) {
+            const auto next_boolean = coerce_condition_boolean(
+                *next_condition, condition_offset, "WFC0031", "While condition must be Boolean");
+            if (!next_boolean.has_value()) {
                 execute_ = enclosing_execution;
-                set_error("WFC0031", "While condition must be Boolean", condition_offset);
                 return false;
             }
             if (!consume_block_line_end()) {
@@ -1191,9 +1736,9 @@ private:
         if (!condition.has_value()) {
             return false;
         }
-        const auto* boolean = std::get_if<bool>(&*condition);
-        if (boolean == nullptr) {
-            set_error("WFC0035", "Do condition must be Boolean", condition_offset);
+        const auto boolean = coerce_condition_boolean(
+            *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+        if (!boolean.has_value()) {
             return false;
         }
         if (!consume_block_line_end()) {
@@ -1241,10 +1786,10 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            const auto* next_boolean = std::get_if<bool>(&*next_condition);
-            if (next_boolean == nullptr) {
+            const auto next_boolean = coerce_condition_boolean(
+                *next_condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+            if (!next_boolean.has_value()) {
                 execute_ = enclosing_execution;
-                set_error("WFC0035", "Do condition must be Boolean", condition_offset);
                 return false;
             }
             if (!consume_block_line_end()) {
@@ -1299,10 +1844,10 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            const auto* boolean = std::get_if<bool>(&*condition);
-            if (boolean == nullptr) {
+            const auto boolean = coerce_condition_boolean(
+                *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+            if (!boolean.has_value()) {
                 execute_ = enclosing_execution;
-                set_error("WFC0035", "Do condition must be Boolean", condition_offset);
                 return false;
             }
             continuation_offset = offset_;
@@ -1653,7 +2198,12 @@ private:
                             execute_ = enclosing_execution;
                             return false;
                         }
-                        item_matches = std::get<bool>(*comparison);
+                        // A Null selector/case value makes `compare` return
+                        // Null itself (three-valued logic), which is never a
+                        // match, matching Select Case Null never selecting
+                        // any Case clause in real VB6.
+                        const auto* comparison_boolean = std::get_if<bool>(&*comparison);
+                        item_matches = comparison_boolean != nullptr && *comparison_boolean;
                     } else if (consume_keyword("to")) {
                         skip_horizontal_whitespace();
                         const auto upper_offset = offset_;
@@ -1782,6 +2332,7 @@ private:
 
         skip_horizontal_whitespace();
         Value initial_value;
+        bool is_variant = false;
         if (type_character != '\0') {
             if (consume_keyword("as")) {
                 set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
@@ -1798,15 +2349,22 @@ private:
             } else {
                 initial_value = Integer{};
             }
-        } else {
-            if (!consume_keyword("as")) {
+        } else if (!consume_keyword("as")) {
+            // A bare `Dim x` with no As clause and no type-declaration
+            // character implicitly declares a Variant, matching real VB6.
+            if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+                current() == '\'') {
+                initial_value = Empty{};
+                is_variant = true;
+            } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, or As "
-                    "Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, As "
+                    "Boolean, or As Variant",
                     offset_);
                 return false;
             }
+        } else {
             skip_horizontal_whitespace();
             if (consume_keyword("long")) {
                 initial_value = Integer{};
@@ -1820,11 +2378,14 @@ private:
                 initial_value = std::string{};
             } else if (consume_keyword("boolean")) {
                 initial_value = false;
+            } else if (consume_keyword("variant")) {
+                initial_value = Empty{};
+                is_variant = true;
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, or As "
-                    "Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, As "
+                    "Boolean, or As Variant",
                     offset_);
                 return false;
             }
@@ -1835,6 +2396,9 @@ private:
         if (!inserted) {
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
+        }
+        if (is_variant) {
+            variant_variables_.insert(*identifier);
         }
         return true;
     }
@@ -1952,6 +2516,15 @@ private:
         auto value = parse_expression();
         if (!value.has_value()) {
             return false;
+        }
+        if (variant_variables_.contains(identifier)) {
+            // A Variant-declared variable freely accepts any value type,
+            // retyping itself on each assignment (the agreed scalar-Variant
+            // scope: no fixed-type enforcement for these variables).
+            if (execute_) {
+                variable->second = std::move(*value);
+            }
+            return true;
         }
         if (!coerce_numeric_value(*value, variable->second.index(), identifier_offset)) {
             return false;
@@ -2096,11 +2669,14 @@ private:
         if (!value.has_value()) {
             return std::nullopt;
         }
-        const auto* boolean = require_boolean(*value, operator_offset);
-        if (boolean == nullptr) {
+        const auto operand = coerce_ternary_operand(*value, operator_offset);
+        if (!operand.has_value()) {
             return std::nullopt;
         }
-        return Value{!*boolean};
+        if (operand->is_null) {
+            return Value{Null{}};
+        }
+        return Value{!operand->value};
     }
 
     [[nodiscard]] std::optional<Value> parse_comparison() {
@@ -2152,6 +2728,21 @@ private:
             auto right = parse_additive();
             if (!right.has_value()) {
                 return std::nullopt;
+            }
+            // Concatenating two Nulls raises "Invalid use of Null" (verified
+            // against the local VB6 6.00.8176 reference); a single Null
+            // operand instead concatenates as an empty string (also
+            // verified: Null & "x" = "x", with no error).
+            const bool left_null = std::holds_alternative<Null>(*left);
+            const bool right_null = std::holds_alternative<Null>(*right);
+            if (left_null && right_null) {
+                set_error("WFC0104", "Invalid use of Null", operator_offset);
+                return std::nullopt;
+            }
+            if (left_null || right_null) {
+                left = Value{(left_null ? std::string{} : render(*left)) +
+                             (right_null ? std::string{} : render(*right))};
+                continue;
             }
             if (std::holds_alternative<bool>(*left) ||
                 std::holds_alternative<bool>(*right)) {
@@ -2240,9 +2831,19 @@ private:
             if (!value.has_value()) {
                 return std::nullopt;
             }
+            // Unary +/- follow the same Null-propagates,
+            // Empty-coerces-to-zero rule already verified for the binary
+            // arithmetic operators.
+            if (std::holds_alternative<Null>(*value)) {
+                return value;
+            }
+            if (std::holds_alternative<Empty>(*value)) {
+                return Value{Integer{0}};
+            }
             if (!std::holds_alternative<double>(*value) &&
                 !std::holds_alternative<float>(*value) &&
                 !std::holds_alternative<Currency>(*value) &&
+                !std::holds_alternative<Decimal>(*value) &&
                 require_integer(*value, operator_offset) == nullptr) {
                 return std::nullopt;
             }
@@ -2261,11 +2862,27 @@ private:
             if (!value.has_value()) {
                 return std::nullopt;
             }
+            if (std::holds_alternative<Null>(*value)) {
+                return value;
+            }
+            if (std::holds_alternative<Empty>(*value)) {
+                return execute_ ? Value{Integer{0}} : Value{Integer{}};
+            }
             if (const auto* number = std::get_if<double>(&*value)) {
                 return execute_ ? Value{-*number} : Value{0.0};
             }
             if (const auto* single = std::get_if<float>(&*value)) {
                 return execute_ ? Value{-*single} : Value{0.0f};
+            }
+            if (const auto* decimal = std::get_if<Decimal>(&*value)) {
+                if (!execute_) {
+                    return Value{Decimal{}};
+                }
+                Decimal negated = *decimal;
+                if (!is_zero_big(negated.mantissa)) {
+                    negated.negative = !negated.negative;
+                }
+                return Value{negated};
             }
             if (const auto* currency = std::get_if<Currency>(&*value)) {
                 if (!execute_) {
@@ -2314,6 +2931,12 @@ private:
         }
         if (consume_keyword("false")) {
             return Value{false};
+        }
+        if (consume_keyword("null")) {
+            return Value{Null{}};
+        }
+        if (consume_keyword("empty")) {
+            return Value{Empty{}};
         }
         if (consume('(')) {
             auto value = parse_expression();
@@ -2420,6 +3043,7 @@ private:
         const bool is_csng = identifier == "csng";
         const bool is_ccur = identifier == "ccur";
         const bool is_cvar = identifier == "cvar";
+        const bool is_cdec = identifier == "cdec";
         const bool is_macid = identifier == "macid";
         const bool is_error_message = identifier == "error" || identifier == "error$";
         const bool is_isnumeric = identifier == "isnumeric";
@@ -2447,7 +3071,6 @@ private:
         const bool is_iserror = identifier == "iserror";
         const bool is_ismissing = identifier == "ismissing";
         const bool is_constant_false_predicate = is_isarray || is_isobject ||
-                                                 is_isnull || is_isempty ||
                                                  is_iserror || is_ismissing;
         const bool is_qbcolor = identifier == "qbcolor";
         const bool is_rgb = identifier == "rgb";
@@ -2463,7 +3086,8 @@ private:
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
             !is_round && !is_cdbl && !is_csng && !is_ccur && !is_cvar && !is_macid &&
-            !is_error_message && !is_float_math && !is_format && !is_rnd) {
+            !is_error_message && !is_float_math && !is_format && !is_rnd &&
+            !is_isnull && !is_isempty && !is_cdec) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -2590,6 +3214,11 @@ private:
                 }
                 return Value{Currency{currency->scaled < 0 ? -currency->scaled : currency->scaled}};
             }
+            if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
+                Decimal result = *decimal;
+                result.negative = false;
+                return Value{result};
+            }
             return Value{std::abs(std::get<double>(arguments[0]))};
         }
 
@@ -2647,12 +3276,84 @@ private:
         }
 
         if (is_constant_false_predicate) {
-            // The current value model contains only initialized Long, Boolean, and
-            // String scalars: no arrays, object references, Null, Empty, error, or
-            // missing-argument states exist, so each of these predicates is
-            // constant False. True results are deferred with the array, object, and
-            // Variant models that would introduce those states.
+            // IsArray/IsObject/IsError/IsMissing remain constant False: the
+            // agreed scalar-Variant scope explicitly excludes arrays, object
+            // references, and error-value Variants (see REQ-0197). IsNull and
+            // IsEmpty are handled separately below since Null and Empty are
+            // now real, inspectable Value states.
             return Value{false};
+        }
+
+        if (is_isnull) {
+            return Value{execute_ && std::holds_alternative<Null>(arguments[0])};
+        }
+
+        if (is_isempty) {
+            return Value{execute_ && std::holds_alternative<Empty>(arguments[0])};
+        }
+
+        if (is_cdec) {
+            if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
+                return Value{execute_ ? *decimal : Decimal{}};
+            }
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Decimal{}};
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{Decimal{}};
+            }
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                Decimal result;
+                result.negative = *integer < 0;
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(
+                    *integer < 0 ? -static_cast<std::int64_t>(*integer) : *integer));
+                return Value{result};
+            }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                Decimal result;
+                result.negative = currency->scaled < 0;
+                const auto magnitude = currency->scaled < 0
+                    ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
+                    : static_cast<std::uint64_t>(currency->scaled);
+                result.mantissa.limb[0] = static_cast<std::uint32_t>(magnitude);
+                result.mantissa.limb[1] = static_cast<std::uint32_t>(magnitude >> 32U);
+                result.scale = 4U;
+                return Value{result};
+            }
+            if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                Decimal result;
+                result.negative = *boolean;
+                result.mantissa = big_from_u32(*boolean ? 1U : 0U);
+                return Value{result};
+            }
+            double numeric_value{};
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                numeric_value = *number;
+            } else if (const auto* single = std::get_if<float>(&arguments[0])) {
+                numeric_value = static_cast<double>(*single);
+            } else {
+                const auto parsed =
+                    parse_decimal_string(std::get<std::string>(arguments[0]));
+                if (parsed.status == NumericStringStatus::out_of_range) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                if (parsed.status != NumericStringStatus::valid) {
+                    set_error("WFC0105", "CDec requires a numeric value", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{parsed.value};
+            }
+            const auto converted = decimal_from_double(numeric_value);
+            if (!converted.has_value()) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{*converted};
         }
 
         if (is_int || is_fix) {
@@ -2680,6 +3381,24 @@ private:
                     truncated -= 10000;
                 }
                 return Value{Currency{truncated}};
+            }
+            if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
+                if (decimal->scale == 0U) {
+                    return Value{*decimal};
+                }
+                BigUInt quotient;
+                BigUInt remainder;
+                divide_big(decimal->mantissa, power_of_ten_big(decimal->scale), quotient, remainder);
+                Decimal truncated;
+                truncated.negative = decimal->negative;
+                truncated.mantissa = quotient;
+                if (is_int && decimal->negative && !is_zero_big(remainder)) {
+                    truncated.mantissa = add_big(truncated.mantissa, big_from_u32(1U));
+                }
+                if (is_zero_big(truncated.mantissa)) {
+                    truncated.negative = false;
+                }
+                return Value{truncated};
             }
             const double number = std::get<double>(arguments[0]);
             return Value{is_int ? std::floor(number) : std::trunc(number)};
@@ -2786,6 +3505,21 @@ private:
                 }
                 return Value{Currency{rounded_quotient * divisor}};
             }
+            if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
+                if (digits >= decimal->scale) {
+                    return Value{*decimal};
+                }
+                Decimal rounded = *decimal;
+                const Integer reduce_by = static_cast<Integer>(decimal->scale) - digits;
+                for (Integer step = 0; step < reduce_by; ++step) {
+                    rounded.mantissa = divide_by_ten_rounded_big(rounded.mantissa);
+                }
+                rounded.scale = static_cast<std::uint8_t>(digits);
+                if (is_zero_big(rounded.mantissa)) {
+                    rounded.negative = false;
+                }
+                return Value{rounded};
+            }
             const double number = std::get<double>(arguments[0]);
             if (digits >= std::numeric_limits<double>::max_digits10) {
                 return Value{number};
@@ -2889,6 +3623,12 @@ private:
         }
 
         if (is_cstr) {
+            // Verified: CStr(Null), like CBool(Null), raises "Invalid use of
+            // Null" rather than returning a string.
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
             return Value{execute_ ? render(arguments[0]) : std::string{}};
         }
 
@@ -2908,8 +3648,19 @@ private:
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{std::string{"Currency"}};
             }
+            if (std::holds_alternative<Decimal>(arguments[0])) {
+                return Value{std::string{"Decimal"}};
+            }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{std::string{"Boolean"}};
+            }
+            // Verified against the local VB6 6.00.8176 reference:
+            // TypeName(Null) = "Null", TypeName(Empty) = "Empty".
+            if (std::holds_alternative<Null>(arguments[0])) {
+                return Value{std::string{"Null"}};
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{std::string{"Empty"}};
             }
             return Value{std::string{"String"}};
         }
@@ -2930,8 +3681,19 @@ private:
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{Integer{6}};
             }
+            if (std::holds_alternative<Decimal>(arguments[0])) {
+                return Value{Integer{14}};  // vbDecimal
+            }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{Integer{11}};
+            }
+            // Verified against the local VB6 6.00.8176 reference:
+            // VarType(Empty) = 0 (vbEmpty), VarType(Null) = 1 (vbNull).
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{Integer{0}};
+            }
+            if (std::holds_alternative<Null>(arguments[0])) {
+                return Value{Integer{1}};
             }
             return Value{Integer{8}};
         }
@@ -2990,11 +3752,19 @@ private:
             if (!execute_) {
                 return Value{false};
             }
+            // Per documented VB6 behavior (not independently probed this
+            // session): IsNumeric(Empty) is True (Empty coerces to 0, a
+            // number), and IsNumeric(Null) is False.
+            if (std::holds_alternative<Null>(arguments[0])) {
+                return Value{false};
+            }
             if (std::holds_alternative<Integer>(arguments[0]) ||
                 std::holds_alternative<bool>(arguments[0]) ||
                 std::holds_alternative<float>(arguments[0]) ||
                 std::holds_alternative<double>(arguments[0]) ||
-                std::holds_alternative<Currency>(arguments[0])) {
+                std::holds_alternative<Currency>(arguments[0]) ||
+                std::holds_alternative<Decimal>(arguments[0]) ||
+                std::holds_alternative<Empty>(arguments[0])) {
                 return Value{true};
             }
 
@@ -3003,14 +3773,22 @@ private:
         }
 
         if (is_cbyte) {
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
             if (!is_number(arguments[0]) &&
                 !std::holds_alternative<std::string>(arguments[0]) &&
-                !std::holds_alternative<bool>(arguments[0])) {
+                !std::holds_alternative<bool>(arguments[0]) &&
+                !std::holds_alternative<Empty>(arguments[0])) {
                 set_error("WFC0073", "CByte requires a numeric argument", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
                 return Value{Integer{}};
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{Integer{0}};
             }
 
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
@@ -3027,7 +3805,8 @@ private:
                 return round_double_to_long(
                     static_cast<double>(*single), 0, 255, identifier_offset);
             }
-            if (std::holds_alternative<Currency>(arguments[0])) {
+            if (std::holds_alternative<Currency>(arguments[0]) ||
+                std::holds_alternative<Decimal>(arguments[0])) {
                 return round_double_to_long(
                     as_double(arguments[0]), 0, 255, identifier_offset);
             }
@@ -3087,6 +3866,10 @@ private:
         }
 
         if (is_cdbl || is_csng) {
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
             double value{};
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 value = static_cast<double>(*integer);
@@ -3094,10 +3877,13 @@ private:
                 value = *number;
             } else if (const auto* single = std::get_if<float>(&arguments[0])) {
                 value = static_cast<double>(*single);
-            } else if (std::holds_alternative<Currency>(arguments[0])) {
+            } else if (std::holds_alternative<Currency>(arguments[0]) ||
+                       std::holds_alternative<Decimal>(arguments[0])) {
                 value = as_double(arguments[0]);
             } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 value = *boolean ? -1.0 : 0.0;
+            } else if (std::holds_alternative<Empty>(arguments[0])) {
+                value = 0.0;
             } else {
                 if (!execute_) {
                     return is_csng ? Value{0.0f} : Value{0.0};
@@ -3133,6 +3919,10 @@ private:
         }
 
         if (is_ccur) {
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 if (!execute_) {
                     return Value{Currency{}};
@@ -3142,11 +3932,16 @@ private:
             if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
                 return Value{execute_ ? *currency : Currency{}};
             }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{execute_ ? Currency{} : Currency{}};
+            }
             double value{};
             if (const auto* number = std::get_if<double>(&arguments[0])) {
                 value = *number;
             } else if (const auto* single = std::get_if<float>(&arguments[0])) {
                 value = static_cast<double>(*single);
+            } else if (std::holds_alternative<Decimal>(arguments[0])) {
+                value = as_double(arguments[0]);
             } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 value = *boolean ? -1.0 : 0.0;
             } else {
@@ -3179,6 +3974,13 @@ private:
         if (is_cint) {
             constexpr Integer int_min{-32768};
             constexpr Integer int_max{32767};
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{execute_ ? Integer{0} : Integer{}};
+            }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 if (!execute_) {
                     return Value{Integer{}};
@@ -3205,7 +4007,8 @@ private:
                 return round_double_to_long(
                     static_cast<double>(*single), int_min, int_max, identifier_offset);
             }
-            if (std::holds_alternative<Currency>(arguments[0])) {
+            if (std::holds_alternative<Currency>(arguments[0]) ||
+                std::holds_alternative<Decimal>(arguments[0])) {
                 if (!execute_) {
                     return Value{Integer{}};
                 }
@@ -3229,6 +4032,13 @@ private:
         }
 
         if (is_clng) {
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{execute_ ? Integer{0} : Integer{}};
+            }
             if (const auto* number = std::get_if<Integer>(&arguments[0])) {
                 return Value{execute_ ? *number : Integer{}};
             }
@@ -3255,7 +4065,8 @@ private:
                     std::numeric_limits<Integer>::max(),
                     identifier_offset);
             }
-            if (std::holds_alternative<Currency>(arguments[0])) {
+            if (std::holds_alternative<Currency>(arguments[0]) ||
+                std::holds_alternative<Decimal>(arguments[0])) {
                 if (!execute_) {
                     return Value{Integer{}};
                 }
@@ -3283,6 +4094,15 @@ private:
         }
 
         if (is_cbool) {
+            // Verified against the local VB6 6.00.8176 reference:
+            // CBool(Null) raises "Invalid use of Null"; CBool(Empty) = False.
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{false};
+            }
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{execute_ && *boolean};
             }
@@ -3297,6 +4117,9 @@ private:
             }
             if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
                 return Value{execute_ && currency->scaled != 0};
+            }
+            if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
+                return Value{execute_ && !is_zero_big(decimal->mantissa)};
             }
             if (!execute_) {
                 return Value{false};
@@ -4435,42 +5258,96 @@ private:
         return boolean;
     }
 
+
+    // A ternary logical operand: Null and Empty are valid inputs everywhere
+    // a Boolean is otherwise required for And/Or/Not/Xor/Eqv/Imp. Null
+    // coerces to the ternary "unknown" state (nullopt); Empty coerces to
+    // False, matching the verified CBool(Empty) = False behavior. Returns
+    // nullopt with an error already set only for a genuinely wrong type.
+    struct TernaryOperand {
+        bool is_null{};
+        bool value{};
+    };
+
+    [[nodiscard]] std::optional<TernaryOperand> coerce_ternary_operand(
+        const Value& value,
+        const std::size_t operator_offset) {
+        if (std::holds_alternative<Null>(value)) {
+            return TernaryOperand{true, false};
+        }
+        if (std::holds_alternative<Empty>(value)) {
+            return TernaryOperand{false, false};
+        }
+        const auto* boolean = require_boolean(value, operator_offset);
+        if (boolean == nullptr) {
+            return std::nullopt;
+        }
+        return TernaryOperand{false, *boolean};
+    }
+
+    // Coerce an If/While/Do condition value to a Boolean, treating Null and
+    // Empty as False (verified: `If Null Then` takes the Else branch with
+    // no runtime error, unlike CBool(Null), which does error). Returns
+    // nullopt with an error already set only for a genuinely wrong type.
+    [[nodiscard]] std::optional<bool> coerce_condition_boolean(
+        const Value& value,
+        const std::size_t offset,
+        const std::string_view error_code,
+        const std::string_view error_message) {
+        if (std::holds_alternative<Null>(value) || std::holds_alternative<Empty>(value)) {
+            return false;
+        }
+        const auto* boolean = std::get_if<bool>(&value);
+        if (boolean == nullptr) {
+            set_error(error_code, error_message, offset);
+            return std::nullopt;
+        }
+        return *boolean;
+    }
+
     [[nodiscard]] std::optional<Value> logical_binary(
         const Value& left,
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
-        const auto* left_boolean = require_boolean(left, operator_offset);
-        if (left_boolean == nullptr) {
+        const auto left_operand = coerce_ternary_operand(left, operator_offset);
+        if (!left_operand.has_value()) {
             return std::nullopt;
         }
-        const auto* right_boolean = require_boolean(right, operator_offset);
-        if (right_boolean == nullptr) {
+        const auto right_operand = coerce_ternary_operand(right, operator_offset);
+        if (!right_operand.has_value()) {
             return std::nullopt;
         }
+        const std::optional<bool> left_ternary =
+            left_operand->is_null ? std::optional<bool>{} : std::optional<bool>{left_operand->value};
+        const std::optional<bool> right_ternary =
+            right_operand->is_null ? std::optional<bool>{} : std::optional<bool>{right_operand->value};
 
-        bool result{};
+        std::optional<bool> result;
         switch (operation) {
         case 'A':
-            result = *left_boolean && *right_boolean;
+            result = ternary_and(left_ternary, right_ternary);
             break;
         case 'O':
-            result = *left_boolean || *right_boolean;
+            result = ternary_or(left_ternary, right_ternary);
             break;
         case 'X':
-            result = *left_boolean != *right_boolean;
+            result = ternary_xor(left_ternary, right_ternary);
             break;
         case 'E':
-            result = *left_boolean == *right_boolean;
+            result = ternary_eqv(left_ternary, right_ternary);
             break;
         case 'I':
-            result = !*left_boolean || *right_boolean;
+            result = ternary_imp(left_ternary, right_ternary);
             break;
         default:
             set_error("WFC0004", "unsupported operator", operator_offset);
             return std::nullopt;
         }
-        return Value{result};
+        if (!result.has_value()) {
+            return Value{Null{}};
+        }
+        return Value{*result};
     }
 
     [[nodiscard]] int compare_strings(
@@ -4510,6 +5387,30 @@ private:
         const Value& right,
         const std::string_view operation,
         const std::size_t operator_offset) {
+        // A comparison against Null yields Null itself (three-valued
+        // logic), not True or False: VB6 famously cannot answer "x = Null"
+        // definitively, which is why IsNull exists. Verified against the
+        // local VB6 6.00.8176 reference.
+        if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
+            return Value{Null{}};
+        }
+        // Empty coerces to whichever side of the comparison the other
+        // operand expects: a number if compared against a number, an empty
+        // string if compared against a String. Verified (Empty = 0 and
+        // Empty = "" are both True).
+        if (std::holds_alternative<Empty>(left) || std::holds_alternative<Empty>(right)) {
+            Value coerced_left = left;
+            Value coerced_right = right;
+            if (std::holds_alternative<Empty>(left)) {
+                coerced_left = std::holds_alternative<std::string>(right) ? Value{std::string{}}
+                                                                           : Value{Integer{0}};
+            }
+            if (std::holds_alternative<Empty>(right)) {
+                coerced_right = std::holds_alternative<std::string>(left) ? Value{std::string{}}
+                                                                           : Value{Integer{0}};
+            }
+            return compare(coerced_left, coerced_right, operation, operator_offset);
+        }
         // Long and Double operands compare numerically, in either combination;
         // int32 widens to double exactly, so the ordering is precise.
         if (is_number(left) && is_number(right)) {
@@ -4591,6 +5492,16 @@ private:
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
+        if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
+            return Value{Null{}};
+        }
+        if (std::holds_alternative<Empty>(left) || std::holds_alternative<Empty>(right)) {
+            const Value coerced_left =
+                std::holds_alternative<Empty>(left) ? Value{Integer{0}} : left;
+            const Value coerced_right =
+                std::holds_alternative<Empty>(right) ? Value{Integer{0}} : right;
+            return numeric_binary(coerced_left, coerced_right, operation, operator_offset);
+        }
         if (operation != '/' &&
             std::holds_alternative<Integer>(left) &&
             std::holds_alternative<Integer>(right)) {
@@ -4617,9 +5528,75 @@ private:
                 return Value{Currency{}};
             case NumericCategory::single:
                 return Value{0.0f};
+            case NumericCategory::decimal_precision:
+                return Value{Decimal{}};
             default:
                 return Value{0.0};
             }
+        }
+
+        if (category == NumericCategory::decimal_precision) {
+            // Long, Currency, and Single can all be the *other* operand here
+            // (each sorts below decimal_precision), so each needs an exact
+            // or best-effort widening to Decimal. Currency widens exactly
+            // (its scaled int64 becomes a scale-4 Decimal mantissa). Single
+            // has no exact decimal form in general and widens through its
+            // shortest round-tripping decimal text, the same as any other
+            // Double-to-Decimal conversion.
+            const auto to_decimal = [](const Value& value) -> Decimal {
+                if (const auto* decimal = std::get_if<Decimal>(&value)) {
+                    return *decimal;
+                }
+                if (const auto* integer = std::get_if<Integer>(&value)) {
+                    Decimal result;
+                    result.negative = *integer < 0;
+                    result.mantissa = big_from_u32(
+                        static_cast<std::uint32_t>(*integer < 0 ? -static_cast<std::int64_t>(*integer)
+                                                                 : *integer));
+                    return result;
+                }
+                if (const auto* currency = std::get_if<Currency>(&value)) {
+                    Decimal result;
+                    result.negative = currency->scaled < 0;
+                    const auto magnitude = currency->scaled < 0
+                        ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
+                        : static_cast<std::uint64_t>(currency->scaled);
+                    result.mantissa.limb[0] = static_cast<std::uint32_t>(magnitude);
+                    result.mantissa.limb[1] = static_cast<std::uint32_t>(magnitude >> 32U);
+                    result.scale = 4U;
+                    return result;
+                }
+                return decimal_from_double(as_double(value)).value_or(Decimal{});
+            };
+            const Decimal left_decimal = to_decimal(left);
+            const Decimal right_decimal = to_decimal(right);
+            std::optional<Decimal> result;
+            switch (operation) {
+            case '+':
+                result = decimal_add(left_decimal, right_decimal);
+                break;
+            case '-':
+                result = decimal_subtract(left_decimal, right_decimal);
+                break;
+            case '*':
+                result = decimal_multiply(left_decimal, right_decimal);
+                break;
+            case '/':
+                if (is_zero_big(right_decimal.mantissa)) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = decimal_divide(left_decimal, right_decimal);
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
+                return std::nullopt;
+            }
+            if (!result.has_value()) {
+                set_error("WFC0009", "numeric overflow", operator_offset);
+                return std::nullopt;
+            }
+            return Value{*result};
         }
 
         if (category == NumericCategory::currency) {
@@ -4760,7 +5737,7 @@ private:
             }
             return static_cast<Integer>(rounded);
         }
-        if (std::holds_alternative<Currency>(value)) {
+        if (std::holds_alternative<Currency>(value) || std::holds_alternative<Decimal>(value)) {
             const double rounded = std::nearbyint(as_double(value));
             if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
                   rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
@@ -4851,8 +5828,20 @@ private:
         if (const auto* currency = std::get_if<Currency>(&value)) {
             return render_currency(currency->scaled);
         }
+        if (const auto* decimal = std::get_if<Decimal>(&value)) {
+            return render_decimal(*decimal);
+        }
         if (const auto* string = std::get_if<std::string>(&value)) {
             return *string;
+        }
+        // Empty renders as an empty string (verified: Print/CStr of an
+        // uninitialized Variant produces no text). Null also renders as an
+        // empty string here as a safe, non-crashing fallback for this
+        // unconditional static formatter; every explicit conversion path
+        // that must instead raise "Invalid use of Null" (CStr, concatenation
+        // of two Nulls, etc.) rejects Null before ever calling render().
+        if (std::holds_alternative<Empty>(value) || std::holds_alternative<Null>(value)) {
+            return "";
         }
         return std::get<bool>(value) ? "True" : "False";
     }
@@ -4869,6 +5858,7 @@ private:
     std::size_t offset_{};
     std::unordered_map<std::string, Value> variables_;
     std::unordered_set<std::string> constants_;
+    std::unordered_set<std::string> variant_variables_;
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};

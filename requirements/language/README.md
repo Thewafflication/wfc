@@ -167,3 +167,13 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   suffix and identifier character, `Dim`/`Const As Currency`, four-way
   `Long`/`Currency`/`Single`/`Double` arithmetic promotion, `CCur`, and
   extending every existing numeric intrinsic to accept `Currency`.
+- [REQ-0197 — Scalar Variant value type](req-0197-variant-scalar-type.md)
+  defines the scalar `Variant`: `Dim x As Variant`/bare `Dim x` freely
+  retyping across every representable value type, the `Null`/`Empty`
+  literals and states, `IsNull`/`IsEmpty`, and three-valued (Kleene) logic
+  propagation of `Null` through every operator and condition check.
+- [REQ-0198 — Decimal numeric value type](req-0198-decimal-numeric-type.md)
+  defines the distinct `Decimal` type reachable only through `Variant`: an
+  exact 96-bit-mantissa, variable-scale (0-28) representation matching COM's
+  `DECIMAL`, `CDec`, and exact `+`/`-`/`*`/`/` arithmetic with banker's
+  rounding.

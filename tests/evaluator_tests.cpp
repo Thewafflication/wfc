@@ -1308,6 +1308,86 @@ int main() {
     expect_program_failure("Select Case 1\nCase Is 1\nEnd Select", "WFC0061");
     expect_program_failure("Select Case True\nCase Is < False\nEnd Select", "WFC0018");
 
+    // Decimal: CDec conversion, exact 96-bit-mantissa arithmetic, and type
+    // preservation through the numeric functions.
+    expect_success("Print TypeName(CDec(2)) & \" \" & VarType(CDec(2))", "Decimal 14");
+    expect_success("Print CDec(2) + CDec(3)", "5");
+    expect_success("Print CDec(\"10.25\") * CDec(\"2\")", "20.5");
+    expect_success("Print CDec(10) / CDec(4)", "2.5");
+    expect_success(
+        "Print CDec(1) / CDec(3)",
+        "0.3333333333333333333333333333");
+    expect_success(
+        "Print CDec(\"123456789012345\") * CDec(\"123456789012345\")",
+        "15241578753238669120562399025");
+    expect_success("Print CDec(2.5) + CDec(2.5)", "5");
+    expect_success("Print -CDec(5.5)", "-5.5");
+    expect_success("Print CDec(5@)", "5");
+    expect_success("Print CDec(True)", "-1");
+    expect_success(
+        "Print Abs(CDec(-5.5)) & \" \" & TypeName(Abs(CDec(-5.5)))",
+        "5.5 Decimal");
+    expect_success("Print Int(CDec(-2.5)) & \" \" & Fix(CDec(-2.5))", "-3 -2");
+    expect_success("Print Round(CDec(2.5), 0)", "2");
+    expect_success("Print Round(CDec(1.5), 0)", "2");
+    expect_success(
+        "Print Round(CDec(1.2345), 2) & \" \" & TypeName(Round(CDec(1.2345), 2))",
+        "1.23 Decimal");
+    expect_success("Print CLng(CDec(5.5))", "6");
+    expect_success("Print CStr(CDec(10.5))", "10.5");
+    expect_success(
+        "Print CStr(CBool(CDec(0))) & \" \" & CStr(CBool(CDec(1)))",
+        "False True");
+    expect_success("Print IsNumeric(CDec(5))", "True");
+    expect_success("Print Hex(CDec(255))", "FF");
+    expect_program_failure("Print CDec(Null)", "WFC0104");
+    expect_program_failure("Print CDec(\"notanumber\")", "WFC0105");
+    expect_program_failure("Print CDec(1e40)", "WFC0009");
+    expect_program_failure("Print CDec(10) / CDec(0)", "WFC0008");
+    expect_program_failure("Print CDec()", "WFC0072");
+    expect_program_failure("Print CDec(1, 2)", "WFC0072");
+
+    // Scalar Variant: Empty/Null literals, IsNull/IsEmpty, retyping
+    // assignment, and three-valued-logic propagation through the operators.
+    // Verified against the local VB6 6.00.8176 reference (see REQ-0197).
+    expect_success("Print TypeName(Null) & \" \" & TypeName(Empty)", "Null Empty");
+    expect_success("Print VarType(Null) & \" \" & VarType(Empty)", "1 0");
+    expect_success("Print CStr(IsNull(Null)) & \" \" & CStr(IsEmpty(Empty))", "True True");
+    expect_success("Print CStr(IsNull(Empty)) & \" \" & CStr(IsEmpty(Null))", "False False");
+    expect_success("Print Null & \"x\"", "x");
+    expect_success("Print \"x\" & Null", "x");
+    expect_success("Print Empty & \"x\"", "x");
+    expect_program_failure("Print Null & Null", "WFC0104");
+    expect_program_failure("Print CBool(Null)", "WFC0104");
+    expect_program_failure("Print CStr(Null)", "WFC0104");
+    expect_program_success("Dim n: n = Empty + 5: Print n", "5");
+    expect_program_success("Dim n: n = (Empty = 0): Print CStr(n)", "True");
+    expect_program_success("Dim n: n = (Empty = \"\"): Print CStr(n)", "True");
+    expect_program_success("Dim n: n = Null + 5: Print CStr(IsNull(n))", "True");
+    expect_program_success("Dim n: n = (Null = 5): Print CStr(IsNull(n))", "True");
+    expect_program_success("Dim n: n = (Null And False): Print CStr(IsNull(n))", "False");
+    expect_program_success("Dim n: n = (Null And True): Print CStr(IsNull(n))", "True");
+    expect_program_success("Dim n: n = (Null Or True): Print CStr(IsNull(n))", "False");
+    expect_program_success("Dim n: n = (Null Or False): Print CStr(IsNull(n))", "True");
+    expect_program_success("Dim n: n = (Not Null): Print CStr(IsNull(n))", "True");
+    expect_program_success(
+        "Dim x As Long\nx = 9\nIf Null Then\nx = 1\nElse\nx = 2\nEnd If\nPrint x",
+        "2");
+    expect_program_success("Dim x As Variant\nx = 5\nPrint TypeName(x)", "Long");
+    expect_program_success(
+        "Dim x As Variant\nx = 5\nx = \"hi\"\nPrint TypeName(x)",
+        "String");
+    expect_program_success(
+        "Dim x As Variant\nx = 5\nx = 3.5\nx = True\nPrint TypeName(x)",
+        "Boolean");
+    expect_program_success("Dim x\nPrint TypeName(x)", "Empty");
+    expect_program_success(
+        "Dim x As Variant\nx = 1\nDim y As Long\ny = x\nPrint y",
+        "1");
+    expect_program_failure(
+        "Dim x As Variant\nx = \"hi\"\nDim y As Long\ny = x",
+        "WFC0016");
+
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";
         return EXIT_FAILURE;

@@ -18,13 +18,13 @@ not representable as a signed 32-bit value.
 argument. Calls may be nested in other expressions and intrinsic calls.
 
 `Abs` returns a `Double` magnitude for a `Double` input, a `Single` magnitude
-for a `Single` input (`REQ-0195`), and an exact `Currency` magnitude for a
-`Currency` input (`REQ-0196`). `Decimal` inputs remain outside this
-requirement.
+for a `Single` input (`REQ-0195`), an exact `Currency` magnitude for a
+`Currency` input (`REQ-0196`), and an exact `Decimal` magnitude for a
+`Decimal` input (`REQ-0198`).
 
 ## Verification
 
-- `tests/evaluator_tests.cpp` covers Long/Single/Currency/Double negative,
-  zero, and positive values, result types, nesting, type mismatch, Long
-  overflow behavior, and both wrong-arity forms of each function.
+- `tests/evaluator_tests.cpp` covers Long/Single/Currency/Decimal/Double
+  negative, zero, and positive values, result types, nesting, type mismatch,
+  Long overflow behavior, and both wrong-arity forms of each function.
 - `TC-MP0002-integer-math-cli` verifies both functions through `wfc --eval`.

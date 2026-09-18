@@ -103,6 +103,7 @@ retained CTest evidence.
 | 2026-09-17 #79 | Construction | Add `Rnd`/`Randomize` under new `REQ-0194`: the reference-verified default `Rnd` sequence and `Rnd(0)` repeat-last, plus a WFC-owned deterministic reseed hash for `Randomize number`/`Rnd(negative)` and time-based entropy for argument-less `Randomize`; unit + CLI tests, README | Commit `7940625` |
 | 2026-09-18 #80 | Architecture | Add the distinct `Single` numeric value type under new `REQ-0195`: `!` literal suffix/identifier character, `Dim`/`Const As Single`, exact `Long` widening, checked `Double` narrowing (assignment/Const/`CSng`), three-way `Long`/`Single`/`Double` arithmetic promotion, cross-type comparison, `TypeName`/`VarType`, and extending `CSng` (now returns genuine `Single`), `CDbl`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Sgn`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Single`; unit + CLI tests, README | Commit `2816d6b` |
 | 2026-09-18 #81 | Architecture | Add the distinct `Currency` numeric value type under new `REQ-0196`: scaled-int64 fixed-point representation, exact (non-floating-point) `+`/`-`/`*`/`/` via a hand-rolled 128-bit multiply/divide (portable across x86/x64/ARM64, no compiler intrinsics), `@` literal suffix/identifier character, `Dim`/`Const As Currency`, four-way `Long`/`Currency`/`Single`/`Double` arithmetic promotion, new `CCur`, and extending `CDbl`/`CSng`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Currency` (`Abs`/`Int`/`Fix`/`Round` exactly, via scaled-integer arithmetic); unit + CLI tests, README | Commit `2f3b45f` |
+| 2026-09-18 #82 | Architecture | Add the scalar `Variant` foundation under new `REQ-0197` (`Empty`/`Null` literals and states, `IsNull`/`IsEmpty`, `Dim x As Variant`/bare `Dim x` retyping assignment, three-valued-logic `Null` propagation through every operator and `If`/`While`/`Do` condition, new `WFC0104`) and the distinct `Decimal` numeric value type under new `REQ-0198` (96-bit-mantissa/scale-0-28 exact arithmetic via a hand-rolled 256-bit `BigUInt`, `CDec`, new `WFC0105`, extending `Abs`/`Int`/`Fix`/`Round`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`IsNumeric`/`Hex`/`Oct` to accept `Decimal`); a live VB6 6.00.8176 probe verified the `Null`/`Empty` semantics recorded below; unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -157,6 +158,59 @@ Probe project files were created under the session scratchpad directory (not
 part of the repository) and are not retained; the derivation above is
 reproducible from the recorded findings and the local reference environment
 identified in `planning/reference-environment.md`.
+
+## Reference Probe Evidence — `Null`/`Empty` semantics (increment #82)
+
+Per `wsp/testing/test-strategy.md`'s "Reference" test layer, `Null`/`Empty`
+propagation through VB6's operators is only loosely specified by Microsoft's
+documentation (particularly the exact `Null`-concatenation and
+`If Null Then` behavior), so this increment probed the local reference
+environment directly rather than assuming from community write-ups.
+
+**Method:** A minimal Standard EXE project (`Sub Main`, no forms) was
+created under `C:\Users\jmwau\vbprobe2` (a shallow path was required — the
+sandbox blocks typing a full path into a VB6 file-open dialog, and this
+project's automation instead double-click-navigates folders), opened in the
+local `VB6.EXE` (6.00.8176) IDE, and run with Run > Start against
+`MSVBVM60.DLL`, per `planning/reference-environment.md`. Each risky
+expression was evaluated by direct assignment inside `Sub Main`'s own
+`On Error Resume Next` scope (an expression like `Null & "x"` raised an
+unhandled error 94 when passed directly as a `Sub` argument, aborting the
+run before any output was written), with `Err.Clear` between cases, and
+results were written with `Print #f` to an absolute output path (a relative
+`Open "out.txt" For Output` produced no discoverable file in this
+environment).
+
+**Findings (all confirmed, `Err.Number = 0` unless noted):**
+
+| Expression | Result |
+| --- | --- |
+| `Null & "x"`, `"x" & Null` | `"x"` (no error) |
+| `Null & Null` | Run-time error 94, "Invalid use of Null" |
+| `Empty & "x"` | `"x"` |
+| `TypeName(Null)` / `TypeName(Empty)` | `"Null"` / `"Empty"` |
+| `IsNull(Null)` / `IsEmpty(Empty)` | `True` / `True` |
+| `VarType(Null)` / `VarType(Empty)` | `1` / `0` |
+| `Empty + 5` | `5` |
+| `Empty = 0`, `Empty = ""` | `True`, `True` |
+| `Null + 5`, `Null = 5` | Both propagate `Null`, no error |
+| `CBool(Null)` | Run-time error 94 |
+| `CBool(Empty)` | `False` |
+| `Null And False` / `Null And True` | `False` / `Null` |
+| `Null Or True` / `Null Or False` | `True` / `Null` |
+| `Not Null` | `Null` |
+| `If Null Then x=1 Else x=2` | Takes the `Else` branch (`x=2`); no error |
+
+**Resulting decision:** every finding above was implemented directly (three-
+valued Kleene logic for `And`/`Or`/`Not`; `Xor`/`Eqv`/`Imp` were derived
+algebraically from the verified `And`/`Or`/`Not` primitives via the standard
+identities, not independently probed). See `REQ-0197` for the resulting
+contract.
+
+Probe project files were created under `C:\Users\jmwau\vbprobe2` (not part
+of the repository) and are not retained; the findings above are reproducible
+from this record and the local reference environment identified in
+`planning/reference-environment.md`.
 
 ## Verification Log
 
@@ -227,6 +281,7 @@ identified in `planning/reference-environment.md`.
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Rnd`/`Randomize`) | Pass (73/73) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Single` numeric type) | Pass (74/74) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Currency` numeric type) | Pass (75/75) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post scalar `Variant`/`Decimal`) | Pass (77/77) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -246,6 +301,10 @@ identified in `planning/reference-environment.md`.
 | Leave `Rnd`'s return type as `Double` rather than switching it to genuine `Single` now that `Single` exists | `REQ-0194`'s already-shipped tests assert exact `Double`-precision rendered strings for the verified default sequence; changing the return type would change those observable values and was not part of this increment's requested scope | Documented as an explicit deferred item in `REQ-0195`'s Scope rather than a silent gap | `REQ-0195` |
 | Implement `Currency` `*`/`/` with an exact, hand-rolled 128-bit multiply/divide instead of a `double` intermediate or a compiler intrinsic | `Currency`'s whole purpose is exact decimal money math; a `double` intermediate would silently reintroduce the binary-floating-point rounding `Currency` exists to avoid, and MSVC's `_mul128`/`_umul128` intrinsics are x64-only, which would break the project's x86/ARM64 targets | A portable ~130-line grade-school 128-bit multiply and binary long-division, built from ordinary `std::uint64_t` arithmetic, gives exact results on every target architecture | `REQ-0196` |
 | Bound `Currency` literal parsing to a single magnitude ceiling (`int64_max`, i.e. 922337203685477.5807) for both signs, rather than allowing the most-negative literal's one-tick-wider range (...5808) | The asymmetry only matters at one exact boundary value; a uniform bound keeps the literal parser simple and its overflow diagnostic easy to reason about | The one-tick gap at the extreme negative boundary is reachable via subtraction instead (confirmed by a passing overflow test at that exact boundary) | `REQ-0196` |
+| Scope `Variant` to "scalar only": free retyping across `Empty`/`Null`/`Boolean`/`Long`/`Single`/`Currency`/`Double`/`Decimal`/`String`, explicitly excluding arrays, object references, late binding, and `CVErr`/error-value Variants | Owner decision (`AskUserQuestion`), given as a two-part scoping choice alongside the `Decimal` scope below | Delivers a complete, working scalar-retyping/`Null`/`Empty` foundation now rather than a partial array/object model; `IsArray`/`IsObject`/`IsError`/`IsMissing` stay hardcoded `False`, matching `REQ-0176`'s existing precedent | `REQ-0197` |
+| Implement `Decimal` as a real 96-bit-mantissa, variable-scale (0-28) exact type (a hand-rolled 256-bit `BigUInt` with multiply/binary-long-division), not an alias for `Double` or `Currency` | Owner decision (`AskUserQuestion`): "Full exact Decimal" over a simpler narrower option | Matches COM's actual `DECIMAL` layout exactly and gives genuinely exact arithmetic (verified with a multiplication whose exact intermediate product exceeds 64 bits), at the cost of a larger, hand-rolled big-integer implementation | `REQ-0198` |
+| Correct an initial scoping assumption that `Dim`/`Const As Decimal` needed support | Discovered mid-implementation: real VB6 does not accept `Dim x As Decimal` at all — `Decimal` is reachable only via `CDec` into a `Variant` | No `Dim`/`Const As Decimal` parsing was added; this matches the reference language exactly rather than adding an unsupported syntax extension | `REQ-0198` |
+| Place `Single` below `Decimal` in the `NumericCategory` promotion order as a reasoned-but-unverified choice | The local computer-use screenshot tool became unavailable mid-session, blocking a live VB6 probe of the `Decimal`-vs-`Single` promotion order specifically; `Decimal`-above-`Currency` and `Double`-above-everything remain independently justified without a live probe | Flagged explicitly in the `NumericCategory` code comment and in `REQ-0198`'s Scope, rather than silently asserting an unverified promotion rule | `REQ-0198` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -348,6 +407,7 @@ when the session completes.
 | Rnd/Randomize reference probe and implementation (increments #78-#79) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Single numeric value type (increment #80) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Currency numeric value type (increment #81) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Scalar Variant and Decimal numeric value type (increment #82) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -435,11 +495,49 @@ targets x86 and ARM64). Adds the new `CCur` conversion, and extends `CDbl`,
 `Fix`/`Round` preserve it exactly, using the same scaled-integer arithmetic
 as the binary operators.
 
+**Scalar `Variant` and `Decimal` (increment #82, `REQ-0197`/`REQ-0198`):**
+adds the scalar `Variant`: `Dim x As Variant`/bare `Dim x` (initialized to
+`Empty`) freely retype across every representable value type on each
+assignment, unlike a fixed-type declaration; `Null` and `Empty` become real,
+inspectable `Value` states (new `Empty`/`Null` structs) reachable via the
+`Null`/`Empty` literal keywords, with `IsNull`/`IsEmpty` split out of the
+constant-`False` predicate group to inspect them. Three-valued (Kleene)
+logic governs `Null`'s propagation through `+`/`-`/`*`/`/` (propagates
+`Null`), every comparison (propagates `Null`), `And`/`Or`/`Not`/`Xor`/`Eqv`/
+`Imp` (the standard ternary truth tables; `Xor`/`Eqv`/`Imp` derived
+algebraically from the verified `And`/`Or`/`Not`), `&` concatenation (a
+single `Null` operand becomes `""`; two together report new `WFC0104`), and
+every `If`/`ElseIf`/`While`/`Do` condition check (`Null`/`Empty` take the
+`False` branch without error, via a new shared `coerce_condition_boolean`
+helper replacing five separate inline checks). `Empty` coerces to a
+type-appropriate zero (`0`, `False`, `""`) wherever a definite value is
+needed. Also adds the distinct `Decimal` type, reachable only through
+`Variant`/`CDec` (matching real VB6 exactly — `Dim x As Decimal` is not
+valid syntax): an exact 96-bit-mantissa, variable-scale (0-28) representation
+matching COM's `DECIMAL`, built on a hand-rolled 256-bit `BigUInt` (add/
+subtract/schoolbook-multiply/binary-long-division) since a 96x96-bit product
+needs up to 192 bits before scale reduction. `+`/`-` align to the larger
+scale exactly; `*` reduces scale with banker's rounding when the exact
+product doesn't fit; `/` scales the numerator up to maximize quotient
+precision (up to scale 28) before exact integer division. Extends `Abs`,
+`Int`, `Fix`, `Round`, `CLng`, `CInt`, `CByte`, `CBool`, `CStr`, `CDbl`,
+`CSng`, `CCur`, `IsNumeric`, and `Hex`/`Oct` to accept `Decimal`
+(`Abs`/`Int`/`Fix`/`Round`/`CStr` exactly, via mantissa arithmetic or
+`render_decimal`, not a lossy `Double` intermediate). A live VB6 6.00.8176
+probe verified every `Null`/`Empty` semantic implemented (see the Reference
+Probe Evidence section above); the `Decimal`-vs-`Single` promotion order
+could not be probed live this session (tooling became unavailable) and is a
+disclosed, reasoned-but-unverified choice (see the Decisions table and
+`REQ-0198`'s Scope).
+
 **Remaining next increments:**
 
-- `Decimal` (blocked on a `Variant` type existing, since real VBA only
-  exposes `Decimal` through `CDec` into a `Variant`);
 - literal/identifier `%` Integer form, once that distinct type exists;
+- arrays, object references, late binding, and `CVErr`/error-value Variants
+  (deliberately excluded from the "scalar Variant" scope; `IsArray`/
+  `IsObject`/`IsError`/`IsMissing` stay hardcoded `False`);
+- verifying the `Decimal`-vs-`Single` promotion order against the reference
+  runtime (see the Decisions table above);
 - `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`
   exists (deliberately not changed this increment; see the Decisions table);
 - `Format`'s `Currency` named style (needs a locale currency-symbol

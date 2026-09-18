@@ -74,10 +74,13 @@ change that identifies the resulting source or run-time limitation.
 
 The source evaluator implements `Hex`, `Oct`, `Str`, decimal/radix `Val`,
 `MacID`, `CStr`, `CByte`, `CBool`, `CInt`, `CLng`, `CSng`, `CDbl`, `CCur`,
-current-scalar `CVar`, and a bounded `Error`/`Error$` catalog through
-REQ-0170, REQ-0172 through REQ-0175, REQ-0181, REQ-0182, REQ-0188 through
-REQ-0192, REQ-0195, and REQ-0196. `CSng` returns a genuine `Single` value
-(`REQ-0195`), not a `Double`-narrowed-to-float-precision value. `CCur`
-(`REQ-0196`) rounds to the nearest exact `Currency` tick rather than a
-binary-floating-point approximation. `CDec`, complete Variant behavior,
-runtime type information, and the remaining members are pending.
+`CDec`, current-scalar `CVar`, `Fix`, `Int`, and a bounded `Error`/`Error$`
+catalog through REQ-0170, REQ-0172 through REQ-0175, REQ-0181, REQ-0182,
+REQ-0187 through REQ-0192, and REQ-0195 through REQ-0198. `CSng` returns a
+genuine `Single` value (`REQ-0195`), not a `Double`-narrowed-to-float-
+precision value. `CCur` (`REQ-0196`) rounds to the nearest exact `Currency`
+tick rather than a binary-floating-point approximation. `CDec` (`REQ-0198`)
+returns an exact 96-bit-mantissa `Decimal`, reachable only through a scalar
+`Variant` (`REQ-0197`). `CDate`, `CVDate`, `CVErr`, complete Variant behavior
+(arrays, objects, and error values remain out of scope per `REQ-0197`), and
+runtime type information beyond `TypeName`/`VarType` remain pending.
