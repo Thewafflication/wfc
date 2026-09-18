@@ -23,6 +23,6 @@ and general Variant coercion remain outside this requirement.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers all three current input types, negative
-  values, concatenation, and nested use.
+  values, concatenation, nested use, and both wrong-arity forms.
 - `TC-MP0002-cstr-cli` verifies numeric and Boolean conversion through
   `wfc --eval`.

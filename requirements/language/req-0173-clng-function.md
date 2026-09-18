@@ -29,7 +29,8 @@ coercion remain outside this requirement.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers every current input type, signs,
-  whitespace, nested conversion, malformed strings, fractions, and overflow.
+  whitespace, nested conversion, malformed strings, fractions, overflow, and
+  both wrong-arity forms.
 - `TC-MP0002-clng-cli` verifies String and Boolean conversion through
   `wfc --eval`.
 

@@ -32,7 +32,8 @@ this requirement.
 - `tests/evaluator_tests.cpp` covers signs, embedded blanks, prefix termination,
   empty/non-numeric input, commas, type mismatch, overflow, fractional and
   exponent prefixes returning `Double`, a leading-dot form, hexadecimal/octal
-  prefixes, signed-width behavior, radix prefix termination, and overflow.
+  prefixes, signed-width behavior, radix prefix termination, overflow, and
+  both wrong-arity forms.
 - `TC-MP0002-val-cli` verifies embedded-blank and radix parsing through
   `wfc --eval`.
 

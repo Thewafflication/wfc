@@ -29,7 +29,8 @@ decimal or exponent value.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers every current input type, case-insensitive
-  names, signed numeric strings, whitespace, invalid strings, and overflow.
+  names, signed numeric strings, whitespace, invalid strings, overflow, and
+  both wrong-arity forms.
 - `TC-MP0002-cbool-cli` verifies numeric and String conversion through
   `wfc --eval`.
 

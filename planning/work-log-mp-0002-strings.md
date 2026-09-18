@@ -95,6 +95,7 @@ retained CTest evidence.
 | 2026-09-01 #71 | Verification | Close `REQ-0175` arity evidence with zero- and two-argument `CByte` failures | Commit `692f78f` |
 | 2026-09-17 #72 | Verification | Close `REQ-0182` arity evidence with zero- and two-argument `CDbl`/`CSng` failures | Commit `d5e4fe2` |
 | 2026-09-17 #73 | Verification | Close `REQ-0161`/`REQ-0162`/`REQ-0165`/`REQ-0166` arity evidence for `LCase`/`UCase`/`LTrim`/`RTrim`/`Trim`/`Asc`/`Chr`/`StrReverse` | Commit `bb2e86b` |
+| 2026-09-17 #74 | Verification | Close `REQ-0172`/`REQ-0173`/`REQ-0174`/`REQ-0170`/`REQ-0188`/`REQ-0189` arity evidence for `CStr`/`CLng`/`CBool`/`CInt`/`Val`/`Str`/`Hex`/`Oct` | Commit pending |
 
 ## Verification Log
 
@@ -264,6 +265,7 @@ when the session completes.
 | CByte arity coverage (increment #71) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | CDbl/CSng arity coverage (increment #72) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | String-function-family arity coverage (increment #73) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Conversion-function-family arity coverage (increment #74) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 

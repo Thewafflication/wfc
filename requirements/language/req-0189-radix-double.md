@@ -26,7 +26,8 @@ value types. This requirement retains the current 32-bit `Long` radix width.
 
 - `tests/evaluator_tests.cpp` covers half-even rounding in both directions,
   numeric Strings with whitespace and exponent forms, negative two's-complement
-  output, malformed/non-numeric rejection, and overflow.
+  output, malformed/non-numeric rejection, overflow, and both wrong-arity forms
+  of each function.
 - `TC-MP0002-radix-cli` verifies numeric-String hexadecimal and octal conversion
   through `wfc --eval`.
 

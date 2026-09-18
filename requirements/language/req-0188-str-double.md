@@ -24,7 +24,8 @@ heuristics remain deferred to `Format` and the locale layer. `Single`,
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers positive, negative, zero, negative zero,
-  exponent input, both function spellings, and non-numeric rejection.
+  exponent input, both function spellings, non-numeric rejection, and both
+  wrong-arity forms.
 - `TC-MP0002-str-cli` verifies positive and negative fractional values through
   `wfc --eval`.
 
