@@ -33,7 +33,8 @@ base-10 helpers remain deferred.
 - `tests/evaluator_tests.cpp` covers exact results (`Sqr(9)`, `Exp(0)`,
   `Log(1)`, `Sin(0)`, `Cos(0)`, `Tan(0)`), the `Atn` identity for pi, an
   `Exp`/`Log` round trip, domain rejection for `Sqr`/`Log`, and a non-numeric
-  argument. It also verifies `Exp` overflow rejection.
+  argument. It also verifies `Exp` overflow rejection and both wrong-arity
+  forms of every listed function.
 - `TC-MP0002-float-math-cli` verifies representative functions through
   `wfc --eval`.
 

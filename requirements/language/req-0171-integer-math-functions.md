@@ -23,5 +23,6 @@ and `Currency` inputs remain outside this requirement.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers Long/Double negative, zero, and positive
-  values, result types, nesting, type mismatch, and Long overflow behavior.
+  values, result types, nesting, type mismatch, Long overflow behavior, and
+  both wrong-arity forms of each function.
 - `TC-MP0002-integer-math-cli` verifies both functions through `wfc --eval`.

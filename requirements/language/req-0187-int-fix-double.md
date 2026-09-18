@@ -23,7 +23,8 @@ distinct value types.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers positive and negative `Double` values,
-  unchanged `Long` values, result types, and non-numeric rejection.
+  unchanged `Long` values, result types, non-numeric rejection, and both
+  wrong-arity forms of each function.
 - `TC-MP0002-int-fix-cli` verifies the negative fractional distinction through
   `wfc --eval`.
 
