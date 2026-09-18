@@ -102,6 +102,7 @@ retained CTest evidence.
 | 2026-09-17 #78 | Reference | Probe the local VB6 6.00.8176 / `MSVBVM60.DLL` reference (`VB6.EXE` IDE, `Sub Main` writing to a file, run via F5) to determine `Rnd`'s exact generator algorithm and default seed, and to test whether `Randomize number` reproduces a fixed sequence | No commit (research; findings recorded below and in `REQ-0194`) |
 | 2026-09-17 #79 | Construction | Add `Rnd`/`Randomize` under new `REQ-0194`: the reference-verified default `Rnd` sequence and `Rnd(0)` repeat-last, plus a WFC-owned deterministic reseed hash for `Randomize number`/`Rnd(negative)` and time-based entropy for argument-less `Randomize`; unit + CLI tests, README | Commit `7940625` |
 | 2026-09-18 #80 | Architecture | Add the distinct `Single` numeric value type under new `REQ-0195`: `!` literal suffix/identifier character, `Dim`/`Const As Single`, exact `Long` widening, checked `Double` narrowing (assignment/Const/`CSng`), three-way `Long`/`Single`/`Double` arithmetic promotion, cross-type comparison, `TypeName`/`VarType`, and extending `CSng` (now returns genuine `Single`), `CDbl`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Sgn`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Single`; unit + CLI tests, README | Commit `2816d6b` |
+| 2026-09-18 #81 | Architecture | Add the distinct `Currency` numeric value type under new `REQ-0196`: scaled-int64 fixed-point representation, exact (non-floating-point) `+`/`-`/`*`/`/` via a hand-rolled 128-bit multiply/divide (portable across x86/x64/ARM64, no compiler intrinsics), `@` literal suffix/identifier character, `Dim`/`Const As Currency`, four-way `Long`/`Currency`/`Single`/`Double` arithmetic promotion, new `CCur`, and extending `CDbl`/`CSng`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Currency` (`Abs`/`Int`/`Fix`/`Round` exactly, via scaled-integer arithmetic); unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -225,6 +226,7 @@ identified in `planning/reference-environment.md`.
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Format`/`Format$` named styles) | Pass (72/72) | Local x64 CTest run |
 | 2026-09-17 | `ctest --preset windows-x64-debug` (post `Rnd`/`Randomize`) | Pass (73/73) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Single` numeric type) | Pass (74/74) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post `Currency` numeric type) | Pass (75/75) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -242,6 +244,8 @@ identified in `planning/reference-environment.md`.
 | Sequence `Single`/`Currency`/`Decimal` as `Single` first (own full increment), deferring `Currency` and `Decimal` | Owner decision. `Decimal` is only reachable through a `Variant` (`CDec`) in real VBA, and this evaluator has no `Variant` type yet, so a declarable `Decimal` is architecturally blocked; `Currency` is a wholly different fixed-point 64-bit representation, not a narrower float, so it is a separate effort from `Single` | Delivers a complete, working `Single` foundation now rather than three simultaneous partial type systems | `REQ-0195` |
 | Add checked `Double`-to-`Single` narrowing for assignment and `Const` initializers (not only the reverse widening direction) | Without it, the common case `Dim x As Single: x = 2.5` (a bare, unsuffixed literal) would fail with a type mismatch, since a plain decimal literal is `Double`; that would make ordinary `Single` declarations feel broken | Matches `CSng`'s existing narrow-with-overflow-check contract; `WFC0009` reports a narrowing result outside the finite `Single` range | `REQ-0195` |
 | Leave `Rnd`'s return type as `Double` rather than switching it to genuine `Single` now that `Single` exists | `REQ-0194`'s already-shipped tests assert exact `Double`-precision rendered strings for the verified default sequence; changing the return type would change those observable values and was not part of this increment's requested scope | Documented as an explicit deferred item in `REQ-0195`'s Scope rather than a silent gap | `REQ-0195` |
+| Implement `Currency` `*`/`/` with an exact, hand-rolled 128-bit multiply/divide instead of a `double` intermediate or a compiler intrinsic | `Currency`'s whole purpose is exact decimal money math; a `double` intermediate would silently reintroduce the binary-floating-point rounding `Currency` exists to avoid, and MSVC's `_mul128`/`_umul128` intrinsics are x64-only, which would break the project's x86/ARM64 targets | A portable ~130-line grade-school 128-bit multiply and binary long-division, built from ordinary `std::uint64_t` arithmetic, gives exact results on every target architecture | `REQ-0196` |
+| Bound `Currency` literal parsing to a single magnitude ceiling (`int64_max`, i.e. 922337203685477.5807) for both signs, rather than allowing the most-negative literal's one-tick-wider range (...5808) | The asymmetry only matters at one exact boundary value; a uniform bound keeps the literal parser simple and its overflow diagnostic easy to reason about | The one-tick gap at the extreme negative boundary is reachable via subtraction instead (confirmed by a passing overflow test at that exact boundary) | `REQ-0196` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -343,6 +347,7 @@ when the session completes.
 | Format named-style implementation (increment #77) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Rnd/Randomize reference probe and implementation (increments #78-#79) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Single numeric value type (increment #80) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Currency numeric value type (increment #81) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -408,17 +413,39 @@ to-float value), `CDbl`, `CLng`, `CInt`, `CByte`, `CBool`, `CStr`, `IsNumeric`,
 the same way they already accept `Double`. `Abs`/`Int`/`Fix`/`Round` preserve
 `Single` in the result, matching their existing `Double`-preserving behavior.
 
+**`Currency` numeric value type (increment #81, `REQ-0196`):** adds `Currency`
+as a sixth distinct `Value` alternative: a scaled-`int64` fixed-point
+representation (four decimal digits) chosen so the type's documented range
+maps exactly onto `std::int64_t`'s min/max. Covers the `@` literal suffix and
+identifier character (rejecting an exponent or more than four fractional
+digits, or an out-of-range magnitude, all with `WFC0006`), `Dim`/
+`Const As Currency`, exact `Long` widening, checked `Single`/`Double`
+narrowing and `Currency`-to-`Single`/`Double` widening, and four-way
+`Long`/`Currency`/`Single`/`Double` arithmetic promotion matching VB6's
+`Long < Currency < Single < Double` order. `Currency`-category `+`/`-`/`*`/`/`
+compute with exact scaled-integer arithmetic rather than floating point —
+`+`/`-` with checked 64-bit addition/subtraction, `*`/`/` with a hand-rolled
+128-bit multiply/binary-long-division (a 64x64 product, or a `value * 10000`
+numerator, can each exceed 64 bits; the intermediate is exact rather than a
+lossy `double` approximation, and the implementation is portable standard
+C++ rather than an x64-only compiler intrinsic, since the project also
+targets x86 and ARM64). Adds the new `CCur` conversion, and extends `CDbl`,
+`CSng`, `CLng`, `CInt`, `CByte`, `CBool`, `CStr`, `IsNumeric`, `Abs`, `Int`,
+`Fix`, `Round`, `Str`, and `Hex`/`Oct` to accept `Currency`; `Abs`/`Int`/
+`Fix`/`Round` preserve it exactly, using the same scaled-integer arithmetic
+as the binary operators.
+
 **Remaining next increments:**
 
-- `Currency` (a 64-bit fixed-point scaled type, architecturally distinct from
-  `Single`/`Double`) and `Decimal` (blocked on a `Variant` type existing,
-  since real VBA only exposes `Decimal` through `CDec` into a `Variant`);
-- literal/identifier `%` Integer and `@` Currency forms, once those distinct
-  types exist;
+- `Decimal` (blocked on a `Variant` type existing, since real VBA only
+  exposes `Decimal` through `CDec` into a `Variant`);
+- literal/identifier `%` Integer form, once that distinct type exists;
 - `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`
   exists (deliberately not changed this increment; see the Decisions table);
-- `Format`/`Format$` custom numeric picture strings and the deferred named
-  styles listed above;
+- `Format`'s `Currency` named style (needs a locale currency-symbol
+  convention, a `Format`-specific design question separate from the
+  `Currency` type itself) and the custom numeric picture strings and other
+  deferred named styles listed above;
 - calling any intrinsic function without parentheses (bare `Rnd`, etc.), which
   needs a `parse_primary` change shared across every function, not just `Rnd`.
 

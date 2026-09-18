@@ -350,6 +350,53 @@ int main() {
     expect_success("Print 3.5! = 3.5", "True");
     expect_success("Print 3.5! = 3.5#", "True");
     expect_success("Print 3.5! < 4", "True");
+    // Currency literals, declarations, exact arithmetic, and conversion.
+    expect_success("Print 10.5@", "10.5");
+    expect_success("Print 42@", "42");
+    expect_success("Print -1.5@", "-1.5");
+    expect_success("Print TypeName(5@) & \" \" & VarType(5@)", "Currency 6");
+    expect_program_success(
+        "Dim x As Currency: x = 10.5: Print x & \" \" & TypeName(x)",
+        "10.5 Currency");
+    expect_program_success(
+        "Dim x@: x = 10.5: Print x & \" \" & TypeName(x)",
+        "10.5 Currency");
+    expect_program_success(
+        "Const c As Currency = 10.5: Print c & \" \" & TypeName(c)",
+        "10.5 Currency");
+    expect_program_success(
+        "Dim x As Currency\nDim y As Double\nx = 10.5\ny = x\nPrint y & \" \" & TypeName(y)",
+        "10.5 Double");
+    expect_success("Print CCur(5) & \" \" & TypeName(CCur(5))", "5 Currency");
+    expect_success("Print CCur(\"10.5\")", "10.5");
+    expect_success("Print CCur(3.5!)", "3.5");
+    expect_success("Print 10@ + 5@", "15");
+    expect_success("Print 10.5@ - 3.25@", "7.25");
+    expect_success("Print 100.5@ * 3@", "301.5");
+    expect_success("Print 10@ / 4@", "2.5");
+    expect_success("Print 10@ / 3@", "3.3333");
+    expect_success("Print TypeName(5@ + 3)", "Currency");
+    expect_success("Print 5@ + 3.5! & \" \" & TypeName(5@ + 3.5!)", "8.5 Single");
+    expect_success("Print 5@ + 3.5 & \" \" & TypeName(5@ + 3.5)", "8.5 Double");
+    expect_success("Print Abs(-5.5@) & \" \" & TypeName(Abs(-5.5@))", "5.5 Currency");
+    expect_success("Print Int(-2.5@) & \" \" & Fix(-2.5@)", "-3 -2");
+    expect_success(
+        "Print Round(1.2345@, 2) & \" \" & TypeName(Round(1.2345@, 2))",
+        "1.23 Currency");
+    expect_success("Print CLng(5.5@)", "6");
+    expect_success("Print CDbl(10.5@) & \" \" & TypeName(CDbl(10.5@))", "10.5 Double");
+    expect_success("Print CSng(10.5@) & \" \" & TypeName(CSng(10.5@))", "10.5 Single");
+    expect_success("Print IsNumeric(5@)", "True");
+    expect_success("Print CStr(5@)", "5");
+    expect_success("Print Str(1.5@)", " 1.5");
+    expect_success("Print Hex(255@)", "FF");
+    expect_success("Print Format(10.5@, \"Fixed\")", "10.50");
+    expect_program_success(
+        "Print 5@ = 5: Print 5@ = 5.0#: Print 5@ < 6: Print 5.5@ > 5",
+        "True\nTrue\nTrue\nTrue");
+    expect_success("Print 922337203685477.5807@", "922337203685477.5807");
+    expect_program_success("Print CBool(0@): Print CBool(5@)", "False\nTrue");
+    expect_success("Print 5@ & 3@", "53");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
@@ -921,7 +968,6 @@ int main() {
     expect_program_failure("Dim value#: Dim value As Double", "WFC0013");
     expect_program_failure("Dim value# As Double", "WFC0012");
     expect_program_failure("Dim value%", "WFC0097");
-    expect_program_failure("Dim value@", "WFC0097");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
@@ -1167,6 +1213,20 @@ int main() {
     expect_program_failure("Print 1e38! * 1e38!", "WFC0009");
     expect_program_failure("Print 1! / 0!", "WFC0008");
     expect_program_failure("Dim x As Single: x = \"text\"", "WFC0016");
+    expect_program_failure("Print 1.23456@", "WFC0006");
+    expect_program_failure("Print 1.5E2@", "WFC0006");
+    expect_program_failure("Print 922337203685478@", "WFC0006");
+    expect_program_failure("Print 10@ / 0@", "WFC0008");
+    expect_program_failure("Print 100000000000@ * 100000000000@", "WFC0009");
+    expect_program_failure(
+        "Print -922337203685477.5807@ - 0.0002@",
+        "WFC0009");
+    expect_program_failure("Dim x As Currency: x = \"text\"", "WFC0016");
+    expect_program_failure("Print CCur()", "WFC0072");
+    expect_program_failure("Print CCur(1, 2)", "WFC0072");
+    expect_program_failure("Print CCur(\"abc\")", "WFC0103");
+    expect_program_failure("Print CCur(1e40)", "WFC0009");
+    expect_program_failure("Print 5@ = \"text\"", "WFC0018");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
     expect_program_failure("Print -1e308 - 1e308", "WFC0009");

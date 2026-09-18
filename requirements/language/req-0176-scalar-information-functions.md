@@ -4,7 +4,7 @@
 
 The MP-0002 evaluator shall implement the VBA Information functions whose
 behavior can be represented by its current `Long`, `Single`, `Double`,
-`Boolean`, and `String` value model:
+`Currency`, `Boolean`, and `String` value model:
 
 - `IsNumeric`, `TypeName`, and `VarType` shall classify current scalar values.
   `IsNumeric` shall recognize complete, finite decimal and exponent strings
@@ -32,7 +32,8 @@ until their supporting value models exist.
 ## Verification
 
 Unit tests cover scalar classification (including `Single`, added by
-`REQ-0195`), all constant-False predicates, RGB component ordering, clamping,
+`REQ-0195`, and `Currency`, added by `REQ-0196`), all constant-False
+predicates, RGB component ordering, clamping,
 arity, type rejection, negative components, the complete sixteen-entry
 `QBColor` palette contract, and both wrong-arity forms of `IsNumeric`,
 `TypeName`, `VarType`, and each constant-False predicate.

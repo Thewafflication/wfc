@@ -934,4 +934,17 @@ Print x & " " & TypeName(x) & " " & (x + 1) & " " & TypeName(x + 1) & " " & (x +
             LABELS "integration;mp-0002;expressions;numeric;variables;single"
             PASS_REGULAR_EXPRESSION "2.5 Single 3.5 Single 3.5 Double"
     )
+
+    add_test(
+        NAME TC-MP0002-currency-cli
+        COMMAND wfc --eval [=[Dim x As Currency
+x = 10.5
+Print x & " " & TypeName(x) & " " & (10@ / 3@) & " " & (100.5@ * 3@)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-currency-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;numeric;variables;currency"
+            PASS_REGULAR_EXPRESSION "10.5 Currency 3.3333 301.5"
+    )
 endif()

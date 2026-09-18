@@ -17,13 +17,14 @@ not representable as a signed 32-bit value.
 `Sgn` returns -1 for a negative argument, 0 for zero, and 1 for a positive
 argument. Calls may be nested in other expressions and intrinsic calls.
 
-`Abs` returns a `Double` magnitude for a `Double` input, and a `Single`
-magnitude for a `Single` input (`REQ-0195`). `Decimal` and `Currency` inputs
-remain outside this requirement.
+`Abs` returns a `Double` magnitude for a `Double` input, a `Single` magnitude
+for a `Single` input (`REQ-0195`), and an exact `Currency` magnitude for a
+`Currency` input (`REQ-0196`). `Decimal` inputs remain outside this
+requirement.
 
 ## Verification
 
-- `tests/evaluator_tests.cpp` covers Long/Single/Double negative, zero, and
-  positive values, result types, nesting, type mismatch, Long overflow
-  behavior, and both wrong-arity forms of each function.
+- `tests/evaluator_tests.cpp` covers Long/Single/Currency/Double negative,
+  zero, and positive values, result types, nesting, type mismatch, Long
+  overflow behavior, and both wrong-arity forms of each function.
 - `TC-MP0002-integer-math-cli` verifies both functions through `wfc --eval`.

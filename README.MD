@@ -158,4 +158,5 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value#: value = 2.5: Print
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Format(1234.5, `"Standard`") & `" `" & Format(0.5, `"Percent`") & `" `" & Format(True, `"Yes/No`")"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Randomize 42`nPrint Rnd()`nPrint Rnd()`nRandomize 42`nPrint Rnd()"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Single`nx = 2.5`nPrint x & `" `" & TypeName(x) & `" `" & TypeName(x + 1.0#)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Currency`nx = 10.5`nPrint x & `" `" & TypeName(x) & `" `" & (10@ / 3@) & `" `" & (100.5@ * 3@)"
 ```

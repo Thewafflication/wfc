@@ -161,3 +161,9 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   character, `Dim`/`Const As Single`, `Long`/`Single`/`Double` arithmetic
   promotion, and extending every existing `Long`/`Double` intrinsic to accept
   `Single`.
+- [REQ-0196 — Currency numeric value type](req-0196-currency-numeric-type.md)
+  defines the distinct `Currency` type: a scaled-int64 fixed-point
+  representation with exact (not floating-point) arithmetic, the `@` literal
+  suffix and identifier character, `Dim`/`Const As Currency`, four-way
+  `Long`/`Currency`/`Single`/`Double` arithmetic promotion, `CCur`, and
+  extending every existing numeric intrinsic to accept `Currency`.

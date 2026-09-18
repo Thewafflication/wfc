@@ -20,7 +20,183 @@
 namespace {
 
 using Integer = std::int32_t;
-using Value = std::variant<Integer, std::string, bool, double, float>;
+
+// A Currency value is VB6/COM's fixed-point CURRENCY representation: a
+// signed 64-bit integer scaled by 10000 (four decimal digits). The scale was
+// chosen so the type's documented range, -922337203685477.5808 through
+// 922337203685477.5807, maps exactly onto std::int64_t's min/max.
+struct Currency {
+    std::int64_t scaled{};
+
+    [[nodiscard]] friend bool operator==(const Currency left, const Currency right) noexcept {
+        return left.scaled == right.scaled;
+    }
+};
+
+using Value = std::variant<Integer, std::string, bool, double, float, Currency>;
+
+// Minimal unsigned 128-bit integer support for exact fixed-point Currency
+// multiplication and division: a signed 64x64 multiply can overflow 64 bits,
+// and computing round(a*b/10000) or round(a*10000/b) exactly (rather than
+// through a lossy double intermediate) needs the full-width product.
+struct UInt128 {
+    std::uint64_t high{};
+    std::uint64_t low{};
+};
+
+[[nodiscard]] UInt128 multiply_u64(const std::uint64_t left, const std::uint64_t right) noexcept {
+    const std::uint64_t left_lo = left & 0xFFFFFFFFULL;
+    const std::uint64_t left_hi = left >> 32U;
+    const std::uint64_t right_lo = right & 0xFFFFFFFFULL;
+    const std::uint64_t right_hi = right >> 32U;
+    const std::uint64_t lo_lo = left_lo * right_lo;
+    const std::uint64_t hi_lo = left_hi * right_lo;
+    const std::uint64_t lo_hi = left_lo * right_hi;
+    const std::uint64_t hi_hi = left_hi * right_hi;
+    const std::uint64_t cross =
+        (lo_lo >> 32U) + (hi_lo & 0xFFFFFFFFULL) + (lo_hi & 0xFFFFFFFFULL);
+    UInt128 result;
+    result.low = (lo_lo & 0xFFFFFFFFULL) | (cross << 32U);
+    result.high = hi_hi + (hi_lo >> 32U) + (lo_hi >> 32U) + (cross >> 32U);
+    return result;
+}
+
+[[nodiscard]] int compare_u128(const UInt128 left, const UInt128 right) noexcept {
+    if (left.high != right.high) {
+        return left.high < right.high ? -1 : 1;
+    }
+    if (left.low != right.low) {
+        return left.low < right.low ? -1 : 1;
+    }
+    return 0;
+}
+
+[[nodiscard]] UInt128 subtract_u128(const UInt128 left, const UInt128 right) noexcept {
+    UInt128 result;
+    result.low = left.low - right.low;
+    result.high = left.high - right.high - (left.low < right.low ? 1ULL : 0ULL);
+    return result;
+}
+
+[[nodiscard]] UInt128 shift_left_one_u128(const UInt128 value) noexcept {
+    UInt128 result;
+    result.high = (value.high << 1U) | (value.low >> 63U);
+    result.low = value.low << 1U;
+    return result;
+}
+
+// Binary long division: correct for any 128-bit dividend/divisor, at the
+// cost of 128 iterations. Currency operations are not performance-critical,
+// so simplicity and correctness are preferred over a faster algorithm.
+void divide_u128(
+    const UInt128 dividend,
+    const UInt128 divisor,
+    UInt128& quotient,
+    UInt128& remainder) noexcept {
+    quotient = UInt128{};
+    remainder = UInt128{};
+    for (int bit = 127; bit >= 0; --bit) {
+        remainder = shift_left_one_u128(remainder);
+        const bool dividend_bit = bit >= 64
+            ? (((dividend.high >> (bit - 64)) & 1ULL) != 0ULL)
+            : (((dividend.low >> bit) & 1ULL) != 0ULL);
+        if (dividend_bit) {
+            remainder.low |= 1ULL;
+        }
+        if (compare_u128(remainder, divisor) >= 0) {
+            remainder = subtract_u128(remainder, divisor);
+            if (bit >= 64) {
+                quotient.high |= (std::uint64_t{1} << (bit - 64));
+            } else {
+                quotient.low |= (std::uint64_t{1} << bit);
+            }
+        }
+    }
+}
+
+[[nodiscard]] std::uint64_t magnitude_of(const std::int64_t value) noexcept {
+    return value < 0 ? (~static_cast<std::uint64_t>(value) + 1ULL)
+                      : static_cast<std::uint64_t>(value);
+}
+
+// round(left * right / 10000) computed with an exact 128-bit intermediate
+// product, using banker's rounding on the discarded remainder. Returns
+// nullopt when the mathematical result does not fit in int64_t.
+[[nodiscard]] std::optional<std::int64_t> currency_multiply(
+    const std::int64_t left,
+    const std::int64_t right) noexcept {
+    const bool negative = (left < 0) != (right < 0);
+    const UInt128 product = multiply_u64(magnitude_of(left), magnitude_of(right));
+    const UInt128 divisor{0ULL, 10000ULL};
+    UInt128 quotient{};
+    UInt128 remainder{};
+    divide_u128(product, divisor, quotient, remainder);
+    const int comparison = compare_u128(shift_left_one_u128(remainder), divisor);
+    const bool round_up =
+        comparison > 0 || (comparison == 0 && (quotient.low % 2ULL) != 0ULL);
+    if (round_up) {
+        if (quotient.low == std::numeric_limits<std::uint64_t>::max()) {
+            quotient.low = 0ULL;
+            ++quotient.high;
+        } else {
+            ++quotient.low;
+        }
+    }
+    if (quotient.high != 0ULL ||
+        quotient.low > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        return std::nullopt;
+    }
+    const auto magnitude = static_cast<std::int64_t>(quotient.low);
+    return negative ? -magnitude : magnitude;
+}
+
+// round(left * 10000 / right) computed with an exact 128-bit intermediate
+// numerator, using banker's rounding on the discarded remainder. `right`
+// must be nonzero. Returns nullopt on overflow.
+[[nodiscard]] std::optional<std::int64_t> currency_divide(
+    const std::int64_t left,
+    const std::int64_t right) noexcept {
+    const bool negative = (left < 0) != (right < 0);
+    const UInt128 numerator = multiply_u64(magnitude_of(left), 10000ULL);
+    const UInt128 divisor{0ULL, magnitude_of(right)};
+    UInt128 quotient{};
+    UInt128 remainder{};
+    divide_u128(numerator, divisor, quotient, remainder);
+    const int comparison = compare_u128(shift_left_one_u128(remainder), divisor);
+    const bool round_up =
+        comparison > 0 || (comparison == 0 && (quotient.low % 2ULL) != 0ULL);
+    if (round_up) {
+        if (quotient.low == std::numeric_limits<std::uint64_t>::max()) {
+            quotient.low = 0ULL;
+            ++quotient.high;
+        } else {
+            ++quotient.low;
+        }
+    }
+    if (quotient.high != 0ULL ||
+        quotient.low > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        return std::nullopt;
+    }
+    const auto magnitude = static_cast<std::int64_t>(quotient.low);
+    return negative ? -magnitude : magnitude;
+}
+
+// Round a finite double to the nearest Currency tick (banker's rounding,
+// matching this evaluator's established Double-to-integer rounding
+// convention) and check it against Currency's representable range. Returns
+// nullopt for a non-finite or out-of-range input.
+[[nodiscard]] std::optional<std::int64_t> currency_from_double(const double value) noexcept {
+    if (!std::isfinite(value)) {
+        return std::nullopt;
+    }
+    const double scaled = std::nearbyint(value * 10000.0);
+    constexpr double minimum = -9223372036854775808.0;  // exactly 2^63, exact in double
+    constexpr double upper_bound = 9223372036854775808.0;  // 2^63, exclusive upper bound
+    if (!(scaled >= minimum && scaled < upper_bound)) {
+        return std::nullopt;
+    }
+    return static_cast<std::int64_t>(scaled);
+}
 
 enum class NumericStringStatus { valid, malformed, out_of_range };
 
@@ -65,16 +241,19 @@ struct NumericStringResult {
     return {NumericStringStatus::valid, value};
 }
 
-// A value participates in numeric operators when it is a Long, Single, or
-// Double.
+// A value participates in numeric operators when it is a Long, Currency,
+// Single, or Double.
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
     return std::holds_alternative<Integer>(value) ||
+           std::holds_alternative<Currency>(value) ||
            std::holds_alternative<float>(value) ||
            std::holds_alternative<double>(value);
 }
 
-// Widen a Long, Single, or Double value to double for mixed-type numeric
-// evaluation.
+// Widen a Long, Currency, Single, or Double value to double for mixed-type
+// numeric evaluation. A Currency value's scaled int64 magnitude can exceed
+// what double represents exactly; callers that need exact Currency results
+// use the dedicated scaled-integer arithmetic instead.
 [[nodiscard]] inline double as_double(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<double>(*integer);
@@ -82,16 +261,52 @@ struct NumericStringResult {
     if (const auto* single = std::get_if<float>(&value)) {
         return static_cast<double>(*single);
     }
+    if (const auto* currency = std::get_if<Currency>(&value)) {
+        return static_cast<double>(currency->scaled) / 10000.0;
+    }
     return std::get<double>(value);
 }
 
-// Widen a Long or Single value to float for same-precision numeric
-// evaluation. Callers must first establish that neither operand is Double.
+// Widen a Long, Currency, or Single value to float for same-precision
+// numeric evaluation. Callers must first establish that neither operand is
+// Double. A Currency operand widens through its exact decimal value (see
+// as_double), matching VB6's Currency-to-Single promotion.
 [[nodiscard]] inline float as_single(const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<float>(*integer);
     }
+    if (std::holds_alternative<Currency>(value)) {
+        return static_cast<float>(as_double(value));
+    }
     return std::get<float>(value);
+}
+
+// Widen a Long or Currency value to a Currency scaled int64 for exact
+// fixed-point evaluation. Callers must first establish that neither operand
+// is Single or Double.
+[[nodiscard]] inline std::int64_t as_currency_scaled(const Value& value) noexcept {
+    if (const auto* integer = std::get_if<Integer>(&value)) {
+        return static_cast<std::int64_t>(*integer) * 10000;
+    }
+    return std::get<Currency>(value).scaled;
+}
+
+// VB6's numeric promotion order for mixed-type arithmetic: Long widens to
+// Currency, which widens to Single, which widens to Double. The binary
+// operators compute in the wider of the two operand categories.
+enum class NumericCategory { integer, currency, single, double_precision };
+
+[[nodiscard]] inline NumericCategory numeric_category(const Value& value) noexcept {
+    if (std::holds_alternative<double>(value)) {
+        return NumericCategory::double_precision;
+    }
+    if (std::holds_alternative<float>(value)) {
+        return NumericCategory::single;
+    }
+    if (std::holds_alternative<Currency>(value)) {
+        return NumericCategory::currency;
+    }
+    return NumericCategory::integer;
 }
 
 [[nodiscard]] char ascii_lower(const char character) noexcept {
@@ -401,7 +616,7 @@ private:
         const std::size_t identifier_offset) {
         if (type_character == '\0' || type_character == '$' ||
             type_character == '&' || type_character == '#' ||
-            type_character == '!') {
+            type_character == '!' || type_character == '@') {
             return true;
         }
         set_error(
@@ -421,6 +636,9 @@ private:
         if (type_character == '!') {
             return Value{0.0f}.index();
         }
+        if (type_character == '@') {
+            return Value{Currency{}}.index();
+        }
         return Value{Integer{}}.index();
     }
 
@@ -439,6 +657,84 @@ private:
         }
         set_error("WFC0016", "identifier type-declaration character mismatch", identifier_offset);
         return false;
+    }
+
+    // Attempt Long/Single/Double/Currency widening or checked narrowing so
+    // `value` matches `target_index`. Leaves `value` unchanged, and returns
+    // true, when no numeric conversion applies (including when it already
+    // matches) -- the caller still compares `value->index()` against
+    // `target_index` afterward, since a non-numeric mismatch (e.g. a String
+    // assigned to a Double target) is not this function's concern. Returns
+    // false only after reporting WFC0009 for a narrowing conversion whose
+    // result does not fit the target type.
+    [[nodiscard]] bool coerce_numeric_value(
+        Value& value,
+        const std::size_t target_index,
+        const std::size_t offset) {
+        if (value.index() == target_index) {
+            return true;
+        }
+        if (target_index == Value{0.0}.index()) {
+            if (const auto* integer = std::get_if<Integer>(&value)) {
+                value = static_cast<double>(*integer);
+            } else if (const auto* single = std::get_if<float>(&value)) {
+                value = static_cast<double>(*single);
+            } else if (std::holds_alternative<Currency>(value)) {
+                value = as_double(value);
+            }
+            return true;
+        }
+        if (target_index == Value{0.0f}.index()) {
+            if (const auto* integer = std::get_if<Integer>(&value)) {
+                value = static_cast<float>(*integer);
+                return true;
+            }
+            if (const auto* number = std::get_if<double>(&value)) {
+                const auto narrowed = static_cast<float>(*number);
+                if (!std::isfinite(narrowed)) {
+                    set_error("WFC0009", "numeric overflow", offset);
+                    return false;
+                }
+                value = narrowed;
+                return true;
+            }
+            if (std::holds_alternative<Currency>(value)) {
+                const auto narrowed = static_cast<float>(as_double(value));
+                if (!std::isfinite(narrowed)) {
+                    set_error("WFC0009", "numeric overflow", offset);
+                    return false;
+                }
+                value = narrowed;
+                return true;
+            }
+            return true;
+        }
+        if (target_index == Value{Currency{}}.index()) {
+            if (const auto* integer = std::get_if<Integer>(&value)) {
+                value = Currency{static_cast<std::int64_t>(*integer) * 10000};
+                return true;
+            }
+            if (const auto* number = std::get_if<double>(&value)) {
+                const auto scaled = currency_from_double(*number);
+                if (!scaled.has_value()) {
+                    set_error("WFC0009", "numeric overflow", offset);
+                    return false;
+                }
+                value = Currency{*scaled};
+                return true;
+            }
+            if (const auto* single = std::get_if<float>(&value)) {
+                const auto scaled = currency_from_double(static_cast<double>(*single));
+                if (!scaled.has_value()) {
+                    set_error("WFC0009", "numeric overflow", offset);
+                    return false;
+                }
+                value = Currency{*scaled};
+                return true;
+            }
+            return true;
+        }
+        return true;
     }
 
     [[nodiscard]] bool parse_statement() {
@@ -1497,6 +1793,8 @@ private:
                 initial_value = 0.0;
             } else if (type_character == '!') {
                 initial_value = 0.0f;
+            } else if (type_character == '@') {
+                initial_value = Currency{};
             } else {
                 initial_value = Integer{};
             }
@@ -1504,7 +1802,8 @@ private:
             if (!consume_keyword("as")) {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, or As "
+                    "Boolean",
                     offset_);
                 return false;
             }
@@ -1515,6 +1814,8 @@ private:
                 initial_value = 0.0;
             } else if (consume_keyword("single")) {
                 initial_value = 0.0f;
+            } else if (consume_keyword("currency")) {
+                initial_value = Currency{};
             } else if (consume_keyword("string")) {
                 initial_value = std::string{};
             } else if (consume_keyword("boolean")) {
@@ -1522,7 +1823,8 @@ private:
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, or As "
+                    "Boolean",
                     offset_);
                 return false;
             }
@@ -1570,7 +1872,8 @@ private:
             if (!consume_keyword("as")) {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, or As "
+                    "Boolean",
                     offset_);
                 return false;
             }
@@ -1581,6 +1884,8 @@ private:
                 expected_type = Value{0.0}.index();
             } else if (consume_keyword("single")) {
                 expected_type = Value{0.0f}.index();
+            } else if (consume_keyword("currency")) {
+                expected_type = Value{Currency{}}.index();
             } else if (consume_keyword("string")) {
                 expected_type = Value{std::string{}}.index();
             } else if (consume_keyword("boolean")) {
@@ -1588,7 +1893,8 @@ private:
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As String, or As Boolean",
+                    "expected As Long, As Double, As Single, As Currency, As String, or As "
+                    "Boolean",
                     offset_);
                 return false;
             }
@@ -1606,24 +1912,10 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (expected_type == Value{0.0}.index() &&
-            std::holds_alternative<Integer>(*value)) {
-            *value = static_cast<double>(std::get<Integer>(*value));
-        } else if (expected_type == Value{0.0}.index() &&
-                   std::holds_alternative<float>(*value)) {
-            *value = static_cast<double>(std::get<float>(*value));
-        } else if (expected_type == Value{0.0f}.index() &&
-                   std::holds_alternative<Integer>(*value)) {
-            *value = static_cast<float>(std::get<Integer>(*value));
-        } else if (expected_type == Value{0.0f}.index() &&
-                   std::holds_alternative<double>(*value)) {
-            const auto narrowed = static_cast<float>(std::get<double>(*value));
-            if (!std::isfinite(narrowed)) {
-                set_error("WFC0009", "numeric overflow", identifier_offset);
-                return false;
-            }
-            *value = narrowed;
-        } else if (value->index() != expected_type) {
+        if (!coerce_numeric_value(*value, expected_type, identifier_offset)) {
+            return false;
+        }
+        if (value->index() != expected_type) {
             set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
             return false;
         }
@@ -1661,24 +1953,10 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (std::holds_alternative<double>(variable->second) &&
-            std::holds_alternative<Integer>(*value)) {
-            *value = static_cast<double>(std::get<Integer>(*value));
-        } else if (std::holds_alternative<double>(variable->second) &&
-                   std::holds_alternative<float>(*value)) {
-            *value = static_cast<double>(std::get<float>(*value));
-        } else if (std::holds_alternative<float>(variable->second) &&
-                   std::holds_alternative<Integer>(*value)) {
-            *value = static_cast<float>(std::get<Integer>(*value));
-        } else if (std::holds_alternative<float>(variable->second) &&
-                   std::holds_alternative<double>(*value)) {
-            const auto narrowed = static_cast<float>(std::get<double>(*value));
-            if (!std::isfinite(narrowed)) {
-                set_error("WFC0009", "numeric overflow", identifier_offset);
-                return false;
-            }
-            *value = narrowed;
-        } else if (variable->second.index() != value->index()) {
+        if (!coerce_numeric_value(*value, variable->second.index(), identifier_offset)) {
+            return false;
+        }
+        if (variable->second.index() != value->index()) {
             set_error("WFC0016", "assignment type mismatch", identifier_offset);
             return false;
         }
@@ -1964,6 +2242,7 @@ private:
             }
             if (!std::holds_alternative<double>(*value) &&
                 !std::holds_alternative<float>(*value) &&
+                !std::holds_alternative<Currency>(*value) &&
                 require_integer(*value, operator_offset) == nullptr) {
                 return std::nullopt;
             }
@@ -1987,6 +2266,16 @@ private:
             }
             if (const auto* single = std::get_if<float>(&*value)) {
                 return execute_ ? Value{-*single} : Value{0.0f};
+            }
+            if (const auto* currency = std::get_if<Currency>(&*value)) {
+                if (!execute_) {
+                    return Value{Currency{}};
+                }
+                if (currency->scaled == std::numeric_limits<std::int64_t>::min()) {
+                    set_error("WFC0009", "numeric overflow", operator_offset);
+                    return std::nullopt;
+                }
+                return Value{Currency{-currency->scaled}};
             }
             const auto* integer = require_integer(*value, operator_offset);
             if (integer == nullptr) {
@@ -2129,6 +2418,7 @@ private:
         const bool is_cint = identifier == "cint";
         const bool is_cdbl = identifier == "cdbl";
         const bool is_csng = identifier == "csng";
+        const bool is_ccur = identifier == "ccur";
         const bool is_cvar = identifier == "cvar";
         const bool is_macid = identifier == "macid";
         const bool is_error_message = identifier == "error" || identifier == "error$";
@@ -2172,7 +2462,7 @@ private:
             !is_cint && !is_isnumeric && !is_typename && !is_vartype && !is_iif &&
             !is_choose && !is_switch && !is_int && !is_fix &&
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
-            !is_round && !is_cdbl && !is_csng && !is_cvar && !is_macid &&
+            !is_round && !is_cdbl && !is_csng && !is_ccur && !is_cvar && !is_macid &&
             !is_error_message && !is_float_math && !is_format && !is_rnd) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
@@ -2293,6 +2583,13 @@ private:
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 return Value{std::abs(*single)};
             }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                if (currency->scaled == std::numeric_limits<std::int64_t>::min()) {
+                    set_error("WFC0009", "integer overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                return Value{Currency{currency->scaled < 0 ? -currency->scaled : currency->scaled}};
+            }
             return Value{std::abs(std::get<double>(arguments[0]))};
         }
 
@@ -2374,6 +2671,15 @@ private:
             }
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 return Value{is_int ? std::floor(*single) : std::trunc(*single)};
+            }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                const std::int64_t scaled = currency->scaled;
+                const std::int64_t remainder = scaled % 10000;
+                std::int64_t truncated = scaled - remainder;
+                if (is_int && remainder != 0 && scaled < 0) {
+                    truncated -= 10000;
+                }
+                return Value{Currency{truncated}};
             }
             const double number = std::get<double>(arguments[0]);
             return Value{is_int ? std::floor(number) : std::trunc(number)};
@@ -2461,6 +2767,24 @@ private:
                     return Value{*single};
                 }
                 return Value{std::nearbyint(*single * scale) / scale};
+            }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                if (digits >= 4) {
+                    return Value{*currency};
+                }
+                static constexpr std::int64_t divisors[4] = {10000, 1000, 100, 10};
+                const std::int64_t divisor = divisors[digits];
+                const std::int64_t scaled = currency->scaled;
+                const std::int64_t quotient = scaled / divisor;
+                const std::int64_t remainder = scaled % divisor;
+                const std::int64_t abs_remainder = remainder < 0 ? -remainder : remainder;
+                const std::int64_t half = divisor / 2;
+                std::int64_t rounded_quotient = quotient;
+                if (abs_remainder > half ||
+                    (abs_remainder == half && (quotient % 2 != 0))) {
+                    rounded_quotient += (scaled < 0 ? -1 : 1);
+                }
+                return Value{Currency{rounded_quotient * divisor}};
             }
             const double number = std::get<double>(arguments[0]);
             if (digits >= std::numeric_limits<double>::max_digits10) {
@@ -2581,6 +2905,9 @@ private:
             if (std::holds_alternative<float>(arguments[0])) {
                 return Value{std::string{"Single"}};
             }
+            if (std::holds_alternative<Currency>(arguments[0])) {
+                return Value{std::string{"Currency"}};
+            }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{std::string{"Boolean"}};
             }
@@ -2599,6 +2926,9 @@ private:
             }
             if (std::holds_alternative<float>(arguments[0])) {
                 return Value{Integer{4}};
+            }
+            if (std::holds_alternative<Currency>(arguments[0])) {
+                return Value{Integer{6}};
             }
             if (std::holds_alternative<bool>(arguments[0])) {
                 return Value{Integer{11}};
@@ -2663,7 +2993,8 @@ private:
             if (std::holds_alternative<Integer>(arguments[0]) ||
                 std::holds_alternative<bool>(arguments[0]) ||
                 std::holds_alternative<float>(arguments[0]) ||
-                std::holds_alternative<double>(arguments[0])) {
+                std::holds_alternative<double>(arguments[0]) ||
+                std::holds_alternative<Currency>(arguments[0])) {
                 return Value{true};
             }
 
@@ -2695,6 +3026,10 @@ private:
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 return round_double_to_long(
                     static_cast<double>(*single), 0, 255, identifier_offset);
+            }
+            if (std::holds_alternative<Currency>(arguments[0])) {
+                return round_double_to_long(
+                    as_double(arguments[0]), 0, 255, identifier_offset);
             }
             if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 return Value{*boolean ? Integer{255} : Integer{0}};
@@ -2759,6 +3094,8 @@ private:
                 value = *number;
             } else if (const auto* single = std::get_if<float>(&arguments[0])) {
                 value = static_cast<double>(*single);
+            } else if (std::holds_alternative<Currency>(arguments[0])) {
+                value = as_double(arguments[0]);
             } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
                 value = *boolean ? -1.0 : 0.0;
             } else {
@@ -2795,6 +3132,50 @@ private:
             return Value{value};
         }
 
+        if (is_ccur) {
+            if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
+                if (!execute_) {
+                    return Value{Currency{}};
+                }
+                return Value{Currency{static_cast<std::int64_t>(*integer) * 10000}};
+            }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                return Value{execute_ ? *currency : Currency{}};
+            }
+            double value{};
+            if (const auto* number = std::get_if<double>(&arguments[0])) {
+                value = *number;
+            } else if (const auto* single = std::get_if<float>(&arguments[0])) {
+                value = static_cast<double>(*single);
+            } else if (const auto* boolean = std::get_if<bool>(&arguments[0])) {
+                value = *boolean ? -1.0 : 0.0;
+            } else {
+                if (!execute_) {
+                    return Value{Currency{}};
+                }
+                const auto parsed =
+                    parse_numeric_string(std::get<std::string>(arguments[0]));
+                if (parsed.status == NumericStringStatus::out_of_range) {
+                    set_error("WFC0009", "numeric overflow", identifier_offset);
+                    return std::nullopt;
+                }
+                if (parsed.status != NumericStringStatus::valid) {
+                    set_error("WFC0103", "CCur requires a numeric value", identifier_offset);
+                    return std::nullopt;
+                }
+                value = parsed.value;
+            }
+            if (!execute_) {
+                return Value{Currency{}};
+            }
+            const auto scaled = currency_from_double(value);
+            if (!scaled.has_value()) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{Currency{*scaled}};
+        }
+
         if (is_cint) {
             constexpr Integer int_min{-32768};
             constexpr Integer int_max{32767};
@@ -2823,6 +3204,13 @@ private:
                 }
                 return round_double_to_long(
                     static_cast<double>(*single), int_min, int_max, identifier_offset);
+            }
+            if (std::holds_alternative<Currency>(arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(
+                    as_double(arguments[0]), int_min, int_max, identifier_offset);
             }
             if (!execute_) {
                 return Value{Integer{}};
@@ -2867,6 +3255,16 @@ private:
                     std::numeric_limits<Integer>::max(),
                     identifier_offset);
             }
+            if (std::holds_alternative<Currency>(arguments[0])) {
+                if (!execute_) {
+                    return Value{Integer{}};
+                }
+                return round_double_to_long(
+                    as_double(arguments[0]),
+                    std::numeric_limits<Integer>::min(),
+                    std::numeric_limits<Integer>::max(),
+                    identifier_offset);
+            }
             if (!execute_) {
                 return Value{Integer{}};
             }
@@ -2896,6 +3294,9 @@ private:
             }
             if (const auto* single = std::get_if<float>(&arguments[0])) {
                 return Value{execute_ && *single != 0.0f};
+            }
+            if (const auto* currency = std::get_if<Currency>(&arguments[0])) {
+                return Value{execute_ && currency->scaled != 0};
             }
             if (!execute_) {
                 return Value{false};
@@ -3732,17 +4133,86 @@ private:
         return Value{value};
     }
 
+    // Parse a non-negative decimal span into a Currency scaled int64,
+    // without an intermediate floating-point conversion, so a value with
+    // more significant digits than a double can represent exactly (up to
+    // Currency's full 19-digit magnitude) still parses exactly. Currency
+    // literals do not support exponent notation.
+    [[nodiscard]] std::optional<Value> parse_currency(
+        const std::size_t start,
+        const std::size_t end) {
+        const std::string_view text = source_.substr(start, end - start);
+        if (text.find_first_of("eE") != std::string_view::npos) {
+            set_error(
+                "WFC0006", "Currency literal does not support exponent notation", start);
+            return std::nullopt;
+        }
+        const auto dot = text.find('.');
+        const std::string_view integer_part = dot == std::string_view::npos
+            ? text
+            : text.substr(0, dot);
+        const std::string_view fraction_part = dot == std::string_view::npos
+            ? std::string_view{}
+            : text.substr(dot + 1U);
+        if (fraction_part.size() > 4U) {
+            set_error(
+                "WFC0006",
+                "Currency literal supports at most four decimal digits",
+                start);
+            return std::nullopt;
+        }
+        std::uint64_t integer_magnitude{};
+        if (!integer_part.empty()) {
+            const auto conversion = std::from_chars(
+                integer_part.data(), integer_part.data() + integer_part.size(),
+                integer_magnitude);
+            if (conversion.ec != std::errc{}) {
+                set_error("WFC0006", "Currency literal is out of range", start);
+                return std::nullopt;
+            }
+        }
+        std::uint64_t fraction_magnitude{};
+        if (!fraction_part.empty()) {
+            const auto conversion = std::from_chars(
+                fraction_part.data(), fraction_part.data() + fraction_part.size(),
+                fraction_magnitude);
+            if (conversion.ec != std::errc{}) {
+                set_error("WFC0006", "numeric literal is malformed", start);
+                return std::nullopt;
+            }
+            for (std::size_t pad = fraction_part.size(); pad < 4U; ++pad) {
+                fraction_magnitude *= 10ULL;
+            }
+        }
+        constexpr auto maximum =
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+        if (integer_magnitude > maximum / 10000ULL) {
+            set_error("WFC0006", "Currency literal is out of range", start);
+            return std::nullopt;
+        }
+        const std::uint64_t scaled_integer = integer_magnitude * 10000ULL;
+        if (scaled_integer > maximum - fraction_magnitude) {
+            set_error("WFC0006", "Currency literal is out of range", start);
+            return std::nullopt;
+        }
+        return Value{Currency{static_cast<std::int64_t>(scaled_integer + fraction_magnitude)}};
+    }
+
     [[nodiscard]] std::optional<Value> parse_number() {
         const auto start = offset_;
         const bool floating_form = lex_number_span();
         const auto end = offset_;
         char suffix = '\0';
-        if (!at_end() && (current() == '#' || current() == '&' || current() == '!')) {
+        if (!at_end() &&
+            (current() == '#' || current() == '&' || current() == '!' || current() == '@')) {
             suffix = current();
             advance();
         }
         if (suffix == '!') {
             return parse_single(start, end);
+        }
+        if (suffix == '@') {
+            return parse_currency(start, end);
         }
         if (floating_form || suffix == '#') {
             if (suffix == '&') {
@@ -3766,7 +4236,8 @@ private:
         const bool floating_form = lex_number_span();
         const auto end = offset_;
         char suffix = '\0';
-        if (!at_end() && (current() == '#' || current() == '&' || current() == '!')) {
+        if (!at_end() &&
+            (current() == '#' || current() == '&' || current() == '!' || current() == '@')) {
             suffix = current();
             advance();
         }
@@ -3776,6 +4247,13 @@ private:
                 return std::nullopt;
             }
             return Value{-std::get<float>(*value)};
+        }
+        if (suffix == '@') {
+            auto value = parse_currency(start, end);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            return Value{Currency{-std::get<Currency>(*value).scaled}};
         }
         if (floating_form || suffix == '#') {
             if (suffix == '&') {
@@ -3819,6 +4297,35 @@ private:
             return std::nullopt;
         }
         return Value{static_cast<Integer>(rounded)};
+    }
+
+    // Render a Currency's exact scaled value as decimal digits: the whole
+    // part, then a '.' and up to four fraction digits with trailing zeros
+    // trimmed (an exact whole amount has no decimal point at all), matching
+    // the shortest-round-tripping-form convention this evaluator already
+    // uses for Double/Single rendering. No leading space (see render_str_
+    // style callers, which add one for Str's sign-space convention).
+    [[nodiscard]] static std::string render_currency(const std::int64_t scaled) {
+        const bool negative = scaled < 0;
+        const std::uint64_t magnitude = negative
+            ? (~static_cast<std::uint64_t>(scaled) + 1ULL)
+            : static_cast<std::uint64_t>(scaled);
+        const std::uint64_t whole_part = magnitude / 10000ULL;
+        const std::uint64_t fraction_part = magnitude % 10000ULL;
+        std::string result = std::to_string(whole_part);
+        if (fraction_part != 0ULL) {
+            std::string fraction = std::to_string(fraction_part);
+            fraction.insert(fraction.begin(), 4U - fraction.size(), '0');
+            while (fraction.back() == '0') {
+                fraction.pop_back();
+            }
+            result += '.';
+            result += fraction;
+        }
+        if (negative) {
+            result.insert(result.begin(), '-');
+        }
+        return result;
     }
 
     // Render a finite double using VBA's "Fixed"/"Standard" Format styles:
@@ -4073,10 +4580,12 @@ private:
     }
 
     // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
-    // the exact integer path (including overflow); `/` and any Single or
-    // Double operand promote to floating point, matching VB6 numeric
-    // widening. The result is Single only when at least one operand is
-    // Single and neither is Double; a Double operand always dominates.
+    // the exact integer path (including overflow); every other combination
+    // computes in the wider of the two operand categories, in VB6's
+    // Long < Currency < Single < Double promotion order (a Long-only `/`
+    // still promotes to Double, matching the pre-existing rule). Currency
+    // computes with exact scaled-int64 arithmetic rather than floating
+    // point, preserving its whole point: exact decimal money math.
     [[nodiscard]] std::optional<Value> numeric_binary(
         const Value& left,
         const Value& right,
@@ -4095,15 +4604,73 @@ private:
             return std::nullopt;
         }
 
-        const bool result_is_single =
-            !std::holds_alternative<double>(left) && !std::holds_alternative<double>(right) &&
-            (std::holds_alternative<float>(left) || std::holds_alternative<float>(right));
-
-        if (!execute_) {
-            return result_is_single ? Value{0.0f} : Value{0.0};
+        auto category = std::max(numeric_category(left), numeric_category(right));
+        if (category == NumericCategory::integer) {
+            // Only reachable for Long '/' Long, which already promotes to
+            // Double under the pre-existing rule.
+            category = NumericCategory::double_precision;
         }
 
-        if (result_is_single) {
+        if (!execute_) {
+            switch (category) {
+            case NumericCategory::currency:
+                return Value{Currency{}};
+            case NumericCategory::single:
+                return Value{0.0f};
+            default:
+                return Value{0.0};
+            }
+        }
+
+        if (category == NumericCategory::currency) {
+            const std::int64_t left_scaled = as_currency_scaled(left);
+            const std::int64_t right_scaled = as_currency_scaled(right);
+            std::optional<std::int64_t> result;
+            switch (operation) {
+            case '+': {
+                std::int64_t sum{};
+                const bool overflowed =
+                    (right_scaled > 0 && left_scaled > std::numeric_limits<std::int64_t>::max() - right_scaled) ||
+                    (right_scaled < 0 && left_scaled < std::numeric_limits<std::int64_t>::min() - right_scaled);
+                if (!overflowed) {
+                    sum = left_scaled + right_scaled;
+                    result = sum;
+                }
+                break;
+            }
+            case '-': {
+                std::int64_t difference{};
+                const bool overflowed =
+                    (right_scaled < 0 && left_scaled > std::numeric_limits<std::int64_t>::max() + right_scaled) ||
+                    (right_scaled > 0 && left_scaled < std::numeric_limits<std::int64_t>::min() + right_scaled);
+                if (!overflowed) {
+                    difference = left_scaled - right_scaled;
+                    result = difference;
+                }
+                break;
+            }
+            case '*':
+                result = currency_multiply(left_scaled, right_scaled);
+                break;
+            case '/':
+                if (right_scaled == 0) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = currency_divide(left_scaled, right_scaled);
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
+                return std::nullopt;
+            }
+            if (!result.has_value()) {
+                set_error("WFC0009", "numeric overflow", operator_offset);
+                return std::nullopt;
+            }
+            return Value{Currency{*result}};
+        }
+
+        if (category == NumericCategory::single) {
             const float left_value = as_single(left);
             const float right_value = as_single(right);
             float result{};
@@ -4193,6 +4760,15 @@ private:
             }
             return static_cast<Integer>(rounded);
         }
+        if (std::holds_alternative<Currency>(value)) {
+            const double rounded = std::nearbyint(as_double(value));
+            if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
+                  rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+                set_error("WFC0009", "integer overflow", operator_offset);
+                return std::nullopt;
+            }
+            return static_cast<Integer>(rounded);
+        }
         set_error("WFC0007", "operator requires integer operands", operator_offset);
         return std::nullopt;
     }
@@ -4271,6 +4847,9 @@ private:
             const auto result =
                 std::to_chars(buffer, buffer + sizeof(buffer), *single);
             return std::string(buffer, result.ptr);
+        }
+        if (const auto* currency = std::get_if<Currency>(&value)) {
+            return render_currency(currency->scaled);
         }
         if (const auto* string = std::get_if<std::string>(&value)) {
             return *string;

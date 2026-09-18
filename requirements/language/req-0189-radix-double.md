@@ -6,12 +6,13 @@
 
 ## Requirement
 
-`Hex`/`Hex$` and `Oct`/`Oct$` shall accept a `Long`, `Single`, `Double`, or
-`String` containing a complete finite decimal/exponent number after
-surrounding ASCII whitespace is removed. A `Single`, `Double`, or numeric
-`String` shall first be rounded to the nearest even `Long` (banker's
-rounding). The resulting 32-bit value shall then be rendered using the
-existing uppercase two's-complement hexadecimal or octal representation.
+`Hex`/`Hex$` and `Oct`/`Oct$` shall accept a `Long`, `Single`, `Currency`,
+`Double`, or `String` containing a complete finite decimal/exponent number
+after surrounding ASCII whitespace is removed. A `Single`, `Currency`,
+`Double`, or numeric `String` shall first be rounded to the nearest even
+`Long` (banker's rounding). The resulting 32-bit value shall then be rendered
+using the existing uppercase two's-complement hexadecimal or octal
+representation.
 
 A malformed numeric `String` shall report `WFC0099`; another non-numeric
 argument shall report `WFC0073`. A rounded value outside the `Long` range shall
@@ -19,16 +20,16 @@ report `WFC0009`; wrong arity shall report `WFC0072`.
 
 ## Scope
 
-`Single` inputs followed in `REQ-0195`. `Currency` and `Decimal` inputs
-remain deferred with those distinct value types. This requirement retains the
-current 32-bit `Long` radix width.
+`Single` inputs followed in `REQ-0195` and `Currency` inputs in `REQ-0196`.
+`Decimal` inputs remain deferred with that distinct value type. This
+requirement retains the current 32-bit `Long` radix width.
 
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers half-even rounding in both directions,
-  a `Single` input, numeric Strings with whitespace and exponent forms,
-  negative two's-complement output, malformed/non-numeric rejection, overflow,
-  and both wrong-arity forms of each function.
+  `Single` and `Currency` inputs, numeric Strings with whitespace and
+  exponent forms, negative two's-complement output, malformed/non-numeric
+  rejection, overflow, and both wrong-arity forms of each function.
 - `TC-MP0002-radix-cli` verifies numeric-String hexadecimal and octal conversion
   through `wfc --eval`.
 

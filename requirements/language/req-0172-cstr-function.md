@@ -13,13 +13,14 @@ return a `String`:
 | --- | --- |
 | `Long` | Base-10 digits with a minus sign only when negative |
 | `Single`/`Double` | The shortest round-tripping decimal form for the argument's type (`REQ-0181`/`REQ-0195`) |
+| `Currency` | Its exact decimal digits, trailing fractional zeros trimmed (`REQ-0196`) |
 | `Boolean` | `True` or `False` |
 | `String` | The input unchanged |
 
 Calls may be nested inside other expressions and intrinsic calls.
 
-Date, Empty, Null, Error, Currency, locale-dependent formatting, and general
-Variant coercion remain outside this requirement.
+Date, Empty, Null, Error, locale-dependent formatting, and general Variant
+coercion remain outside this requirement.
 
 ## Verification
 
