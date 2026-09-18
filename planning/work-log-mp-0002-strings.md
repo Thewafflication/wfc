@@ -98,7 +98,7 @@ retained CTest evidence.
 | 2026-09-17 #74 | Verification | Close `REQ-0172`/`REQ-0173`/`REQ-0174`/`REQ-0170`/`REQ-0188`/`REQ-0189` arity evidence for `CStr`/`CLng`/`CBool`/`CInt`/`Val`/`Str`/`Hex`/`Oct` | Commit `b5c3ee1` |
 | 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit `8c270b1` |
 | 2026-09-17 #76 | Verification | Close `REQ-0176`/`REQ-0191` arity evidence for `IsNumeric`/`TypeName`/`VarType`/the six constant-False predicates/`MacID` | Commit `6582079` |
-| 2026-09-17 #77 | Construction | Add `Format`/`Format$` with the eight named numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`, `Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current `Long`/`Double`/`Boolean` model under new `REQ-0193`; unit + CLI tests, README | Commit pending |
+| 2026-09-17 #77 | Construction | Add `Format`/`Format$` with the eight named numeric styles (`General Number`, `Fixed`, `Standard`, `Percent`, `Scientific`, `Yes/No`, `True/False`, `On/Off`) over the current `Long`/`Double`/`Boolean` model under new `REQ-0193`; unit + CLI tests, README | Commit `4018bfb` |
 
 ## Verification Log
 
