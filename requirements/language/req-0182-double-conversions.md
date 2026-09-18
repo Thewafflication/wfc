@@ -37,7 +37,8 @@ until the `Currency` and `Decimal` types exist.
 - `tests/evaluator_tests.cpp` covers `Long`, `Double`, `Boolean`, and `String`
   inputs, a signed and whitespace-padded String, single-precision narrowing,
   round-trips through `CLng`, empty/malformed rejection, `Double` String
-  overflow, and positive/negative Single-range overflow.
+  overflow, positive/negative Single-range overflow, and both wrong-arity
+  forms of each function.
 - `TC-MP0002-cdbl-cli` verifies `CDbl` and `CSng` through `wfc --eval`.
 
 ## Traceability

@@ -998,6 +998,10 @@ int main() {
     expect_program_failure("Print CSng(\"1.2.3\")", "WFC0095");
     expect_program_failure("Print CSng(1e100)", "WFC0009");
     expect_program_failure("Print CSng(\"-1e100\")", "WFC0009");
+    expect_program_failure("Print CDbl()", "WFC0072");
+    expect_program_failure("Print CDbl(1, 2)", "WFC0072");
+    expect_program_failure("Print CSng()", "WFC0072");
+    expect_program_failure("Print CSng(1, 2)", "WFC0072");
     expect_program_failure("Print Sqr(-1)", "WFC0096");
     expect_program_failure("Print Log(0)", "WFC0096");
     expect_program_failure("Print Exp(1000)", "WFC0009");
