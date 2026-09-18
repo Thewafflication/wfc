@@ -94,7 +94,7 @@ retained CTest evidence.
 | 2026-08-31 #70 | Verification | Complete `REQ-0181` non-finite arithmetic coverage with the missing widened subtraction overflow case | Commit `b9f086e` |
 | 2026-09-01 #71 | Verification | Close `REQ-0175` arity evidence with zero- and two-argument `CByte` failures | Commit `692f78f` |
 | 2026-09-17 #72 | Verification | Close `REQ-0182` arity evidence with zero- and two-argument `CDbl`/`CSng` failures | Commit `d5e4fe2` |
-| 2026-09-17 #73 | Verification | Close `REQ-0161`/`REQ-0162`/`REQ-0165`/`REQ-0166` arity evidence for `LCase`/`UCase`/`LTrim`/`RTrim`/`Trim`/`Asc`/`Chr`/`StrReverse` | Commit pending |
+| 2026-09-17 #73 | Verification | Close `REQ-0161`/`REQ-0162`/`REQ-0165`/`REQ-0166` arity evidence for `LCase`/`UCase`/`LTrim`/`RTrim`/`Trim`/`Asc`/`Chr`/`StrReverse` | Commit `bb2e86b` |
 
 ## Verification Log
 
