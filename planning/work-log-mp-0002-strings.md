@@ -96,7 +96,7 @@ retained CTest evidence.
 | 2026-09-17 #72 | Verification | Close `REQ-0182` arity evidence with zero- and two-argument `CDbl`/`CSng` failures | Commit `d5e4fe2` |
 | 2026-09-17 #73 | Verification | Close `REQ-0161`/`REQ-0162`/`REQ-0165`/`REQ-0166` arity evidence for `LCase`/`UCase`/`LTrim`/`RTrim`/`Trim`/`Asc`/`Chr`/`StrReverse` | Commit `bb2e86b` |
 | 2026-09-17 #74 | Verification | Close `REQ-0172`/`REQ-0173`/`REQ-0174`/`REQ-0170`/`REQ-0188`/`REQ-0189` arity evidence for `CStr`/`CLng`/`CBool`/`CInt`/`Val`/`Str`/`Hex`/`Oct` | Commit `b5c3ee1` |
-| 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit pending |
+| 2026-09-17 #75 | Verification | Close `REQ-0171`/`REQ-0187`/`REQ-0183` arity evidence for `Abs`/`Sgn`/`Int`/`Fix`/`Sqr`/`Sin`/`Cos`/`Tan`/`Atn`/`Exp`/`Log` | Commit `8c270b1` |
 
 ## Verification Log
 
