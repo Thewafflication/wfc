@@ -990,4 +990,32 @@ Print x & " " & TypeName(x) & " " & (x + 3&) & " " & TypeName(x + 3&) & " " & (x
             LABELS "integration;mp-0002;expressions;numeric;variables;integer"
             PASS_REGULAR_EXPRESSION "5 Integer 8 Long 6 Double"
     )
+
+    add_test(
+        NAME TC-MP0002-array-cli
+        COMMAND wfc --eval [=[Dim arr(3) As Long
+arr(0) = 10
+arr(3) = 40
+Print arr(0) & " " & arr(3) & " " & LBound(arr) & " " & UBound(arr) & " " & CStr(IsArray(arr))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-array-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;variables;array"
+            PASS_REGULAR_EXPRESSION "10 40 0 3 True"
+    )
+
+    add_test(
+        NAME TC-MP0002-object-cli
+        COMMAND wfc --eval [=[Dim x As Object
+Print TypeName(Nothing) & " " & CStr(IsObject(x))
+Set x = Nothing
+Print CStr(x Is Nothing)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-object-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;variables;object"
+            PASS_REGULAR_EXPRESSION "Nothing True.*True"
+    )
 endif()

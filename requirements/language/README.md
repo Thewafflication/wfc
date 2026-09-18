@@ -184,3 +184,13 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `Single` < `Decimal` < `Double` arithmetic promotion, `CInt` now returning
   a genuine `Integer`, and extending every existing numeric intrinsic to
   accept `Integer`.
+- [REQ-0200 — Minimal object-reference stub](req-0200-minimal-object-reference.md)
+  defines `Nothing` as a distinct value state, `Dim x As Object`, the `Set`
+  statement (the only legal way to assign an object reference), the `Is`
+  operator for object identity, and `IsObject`/`TypeName`/`VarType`
+  returning real results for it.
+- [REQ-0201 — Fixed-size one-dimensional arrays](req-0201-fixed-size-arrays.md)
+  defines `Dim arr(n)`/`Dim arr(lo To hi) As Type` arrays over the
+  `Integer`/`Long`/`Double`/`Single`/`Currency`/`String`/`Boolean` element
+  types, indexed read/write, `LBound`/`UBound`, and `IsArray`/`TypeName`/
+  `VarType` returning real results for arrays.

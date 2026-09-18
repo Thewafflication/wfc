@@ -105,6 +105,7 @@ retained CTest evidence.
 | 2026-09-18 #81 | Architecture | Add the distinct `Currency` numeric value type under new `REQ-0196`: scaled-int64 fixed-point representation, exact (non-floating-point) `+`/`-`/`*`/`/` via a hand-rolled 128-bit multiply/divide (portable across x86/x64/ARM64, no compiler intrinsics), `@` literal suffix/identifier character, `Dim`/`Const As Currency`, four-way `Long`/`Currency`/`Single`/`Double` arithmetic promotion, new `CCur`, and extending `CDbl`/`CSng`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to accept `Currency` (`Abs`/`Int`/`Fix`/`Round` exactly, via scaled-integer arithmetic); unit + CLI tests, README | Commit `2f3b45f` |
 | 2026-09-18 #82 | Architecture | Add the scalar `Variant` foundation under new `REQ-0197` (`Empty`/`Null` literals and states, `IsNull`/`IsEmpty`, `Dim x As Variant`/bare `Dim x` retyping assignment, three-valued-logic `Null` propagation through every operator and `If`/`While`/`Do` condition, new `WFC0104`) and the distinct `Decimal` numeric value type under new `REQ-0198` (96-bit-mantissa/scale-0-28 exact arithmetic via a hand-rolled 256-bit `BigUInt`, `CDec`, new `WFC0105`, extending `Abs`/`Int`/`Fix`/`Round`/`CLng`/`CInt`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`IsNumeric`/`Hex`/`Oct` to accept `Decimal`); a live VB6 6.00.8176 probe verified the `Null`/`Empty` semantics recorded below; unit + CLI tests, README | Commit `5d17249` |
 | 2026-09-18 #83 | Architecture | Add the distinct 16-bit `Integer` numeric value type under new `REQ-0199` (VB6's `Integer`, distinct from this codebase's own `Integer` C++ alias for `Long`): `%` literal suffix/identifier character, `Dim`/`Const As Integer`, checked narrowing from `Long`/`Single`/`Currency`/`Double`, six-way `Integer < Long < Currency < Single < Decimal < Double` arithmetic promotion (exact checked 16-bit arithmetic for `Integer`+`Integer`, exact widened `Long` arithmetic for mixed `Integer`/`Long`), `CInt` now returning a genuine `Integer` instead of a `Long`-typed narrowed value, and extending `CLng`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`CDec`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct`/`TypeName`/`VarType` to accept `Integer`; unit + CLI tests, README | Commit `10710e5` |
+| 2026-09-18 #84 | Architecture | Add fixed-size one-dimensional arrays under new `REQ-0201` (`Dim arr(n)`/`Dim arr(lo To hi) As Type`, indexed read/write with `WFC0111` bounds checking, `LBound`/`UBound`, `IsArray`, `TypeName`/`VarType`; new `ArrayValue{vector<Value>, lower_bound}` alternative, a forward-declared recursive `Value` variant) and a minimal object-reference stub under new `REQ-0200` (`Nothing` as a distinct state, `Dim x As Object`, the `Set` statement as the only legal object assignment, the `Is` operator for object identity, `IsObject`/`TypeName`/`VarType`); scoped via two `AskUserQuestion` calls ("Fixed-size 1-D arrays only" / "Minimal object stub"); unit + CLI tests, README | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -284,6 +285,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Currency` numeric type) | Pass (75/75) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post scalar `Variant`/`Decimal`) | Pass (77/77) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Integer` numeric type) | Pass (78/78) | Local x64 CTest run |
+| 2026-09-18 | `ctest --preset windows-x64-debug` (post fixed-size arrays and minimal object stub) | Pass (80/80) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -311,6 +313,10 @@ from this record and the local reference environment identified in
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
 | Do not extend `Choose`'s index, `QBColor`'s color index, `RGB`'s components, or other strictly-`Long` intrinsic-function parameters to accept `Integer` | Confirmed these parameters were never extended to accept `Single`/`Currency`/`Decimal` either (probed `Choose(2@, ...)`, which already fails today) — an existing scope boundary from every prior numeric-type increment | Keeps this increment's scope aligned with the established "only the documented function list, not every `Long`-parameter function" precedent | `REQ-0199` |
+| Scope arrays to "fixed-size 1-D only" (no `ReDim`, no multiple dimensions, no `Preserve`, no array-typed function parameters/returns, no `For Each`) and objects to a "minimal stub" (`Nothing`/`Set`/`Is`/`IsObject` only, no class modules/`New`/property-or-method access) | Owner decision (`AskUserQuestion`), given as two scoping choices after the owner's bare instruction "implement arrays and object references next" — both features individually cover a wide range of possible depth, and a full object model in particular is closer to a new language feature than a type increment | Delivers working, testable array indexing and a real `Nothing`/`IsObject`/`Is` foundation now, rather than an open-ended architecture effort; both REQ docs' Scope sections enumerate the deferred items explicitly | `REQ-0200`, `REQ-0201` |
+| Represent an array as a new `ArrayValue{std::vector<Value>, Integer lower_bound}` `Value` alternative, making `Value` a genuinely recursive type (an array can be a `Value`, and a `Value` can be an array) | The alternative -- indirection via `unique_ptr`/`shared_ptr` with an explicit out-of-line destructor -- adds Rule-of-5 boilerplate for no behavioral benefit, since C++17 `std::vector<T>` already supports an incomplete `T` at class-member-declaration time, becoming valid once `T` (here, `Value`) is complete before the vector's own methods are actually used | Verified by building immediately after the structural change, before writing any array behavior on top of it: forward-declare `ArrayValue`, declare the `Value` alias naming it, then define `ArrayValue`'s body referencing `std::vector<Value>` -- compiles cleanly on MSVC's STL | `REQ-0201` |
+| Give `Object`-typed variables their own `object_variables_` tracking set (mirroring `variant_variables_`), rather than inferring "is this an Object" from "does it currently hold `Nothing`" | A `Variant`-declared variable can also currently hold `Nothing` (via `Set`), and the two cases need different assignment rules: plain `=` is rejected only for a fixed `Object` target, not for a `Variant` one currently holding `Nothing` | Correctly distinguishes "this variable's fixed declared type is Object" from "this variable happens to hold Nothing right now" without adding a new `Value` state | `REQ-0200` |
+| Reject `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As Object`) rather than attempting per-element retyping or per-element `Nothing` tracking | `Variant`'s existing retyping design is tracked per *variable name* (`variant_variables_`), not per array *element*; extending that to element granularity is a meaningfully larger feature, and array-of-`Object` has nothing productive to hold without class modules anyway | Kept explicitly in each REQ's Scope rather than silently producing a wrong result for these combinations (`Dim arr() As Variant` reports the same `WFC0012` "unrecognized As-clause type" diagnostic a genuinely unsupported type reports elsewhere) | `REQ-0201` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -415,6 +421,7 @@ when the session completes.
 | Currency numeric value type (increment #81) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Scalar Variant and Decimal numeric value type (increment #82) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Integer numeric value type (increment #83) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Fixed-size arrays and minimal object stub (increment #84) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -564,11 +571,45 @@ strictly-`Long`-parameter intrinsics were confirmed to already exclude
 `Single`/`Currency`/`Decimal` too, so they are left unextended, matching
 that existing precedent rather than a gap specific to this increment.
 
+**Fixed-size arrays and minimal object stub (increment #84, `REQ-0201`/
+`REQ-0200`):** adds a new, genuinely recursive `ArrayValue{std::vector<Value>
+elements, Integer lower_bound}` `Value` alternative for fixed-size
+one-dimensional arrays: `Dim arr(n)`/`Dim arr(lo To hi) As Type` (`Type` one
+of the existing fixed scalar types), indexed read (`parse_array_index`, a
+new branch in `parse_primary`) and write (`parse_array_element_assignment`,
+dispatched from a new `parse_assignment_or_array_element` wrapper at both
+statement-parsing call sites), bounds-checked with new `WFC0111`, `LBound`/
+`UBound`, and real `IsArray`/`TypeName`/`VarType` results (`"Long()"`/
+`8195` for a `Long` array, matching VB6's element-VarType-ORed-with-
+`vbArray` convention). Also adds a minimal object-reference stub: `Nothing`
+as a new distinct `Value` state (the only object value this evaluator can
+produce, since it has no class modules or `New`), `Dim x As Object` (a
+fixed, non-retyping type, tracked via a new `object_variables_` set
+mirroring `variant_variables_`), a new `Set` statement as the only legal
+way to assign an object reference (new `WFC0106`/`WFC0108`/`WFC0109`), the
+`Is` operator for object identity (new `WFC0107`, also used to reject plain
+`=`/`<>`/etc. on an object reference, matching real VB6), and real
+`IsObject`/`TypeName`/`VarType` results. Both features were scoped via two
+`AskUserQuestion` calls after the owner's bare instruction ("Fixed-size 1-D
+arrays only" / "Minimal object stub") rather than assumed, since each could
+otherwise range from a small addition to a multi-session architecture
+effort. Closed the resulting exhaustive-elimination crash sites for the two
+new `Value` alternatives across `render`, concatenation, every `CXxx`
+conversion, `IsNumeric`, and the `Select Case ... To` range form (the same
+audit pattern applied to every prior new `Value` alternative this session).
+
 **Remaining next increments:**
 
-- arrays, object references, late binding, and `CVErr`/error-value Variants
-  (deliberately excluded from the "scalar Variant" scope; `IsArray`/
-  `IsObject`/`IsError`/`IsMissing` stay hardcoded `False`);
+- class modules, `New`, `CreateObject`, method/property access, and
+  `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
+  array-typed parameters (deliberately excluded from this increment's
+  "fixed-size 1-D arrays only"/"minimal object stub" scope; see `REQ-0200`'s
+  and `REQ-0201`'s Scope sections);
+- `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As
+  Object`), which need per-element retyping/Nothing-tracking beyond this
+  increment's per-variable tracking;
+- late binding and `CVErr`/error-value Variants (`IsError`/`IsMissing` stay
+  hardcoded `False`);
 - verifying the `Decimal`-vs-`Single` promotion order against the reference
   runtime (see the Decisions table above);
 - `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`

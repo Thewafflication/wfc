@@ -11,8 +11,11 @@ behavior can be represented by its current `Long`, `Single`, `Double`,
   after trimming ASCII whitespace;
 - `IsNull` and `IsEmpty` shall report whether a value currently holds `Null`
   or `Empty` respectively (`REQ-0197`);
-- `IsArray`, `IsObject`, `IsError`, and `IsMissing` shall return `False`,
-  because none of those value categories can currently exist;
+- `IsArray` and `IsObject` shall report whether a value currently holds an
+  array or an object reference (`Nothing`) respectively (`REQ-0201`/
+  `REQ-0200`);
+- `IsError` and `IsMissing` shall return `False`, because neither
+  error-value Variants nor omitted-argument detection exist yet;
 - `QBColor(index)` shall map indices 0 through 15 to the corresponding VBA
   palette color value and reject indices outside that range;
 - `RGB(red, green, blue)` shall require three `Long` components, reject negative
@@ -26,17 +29,18 @@ Out-of-range `QBColor` indices shall fail with `WFC0092`.
 
 ## Scope
 
-This increment does not represent arrays, objects, error values, omitted
-Variant arguments, dates, or runtime VBA type information. `IsDate` and true
-results for `IsArray`/`IsObject`/`IsError`/`IsMissing` are deferred until
-their supporting value models exist.
+This increment does not represent error values, omitted Variant arguments,
+dates, or runtime VBA type information beyond `TypeName`/`VarType`. `IsDate`
+and true results for `IsError`/`IsMissing` are deferred until their
+supporting value models exist.
 
 ## Verification
 
 Unit tests cover scalar classification (including `Single`, added by
 `REQ-0195`; `Currency`, added by `REQ-0196`; `Decimal`/`Empty`/`Null`, added
-by `REQ-0197`/`REQ-0198`; and `Integer`, added by `REQ-0199`), `IsNull`/
-`IsEmpty` returning real results,
+by `REQ-0197`/`REQ-0198`; `Integer`, added by `REQ-0199`; and arrays/
+`Nothing`, added by `REQ-0201`/`REQ-0200`), `IsNull`/`IsEmpty`/`IsArray`/
+`IsObject` returning real results,
 the remaining constant-False predicates, RGB component ordering, clamping,
 arity, type rejection, negative components, the complete sixteen-entry
 `QBColor` palette contract, and both wrong-arity forms of `IsNumeric`,

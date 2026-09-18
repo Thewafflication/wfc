@@ -672,8 +672,38 @@ struct Null {
     [[nodiscard]] friend bool operator==(const Null&, const Null&) noexcept { return true; }
 };
 
+// Nothing is the unset state of an object reference. This evaluator does not
+// yet support class modules, New, or any other way to produce a non-Nothing
+// object value (see REQ-0200's Scope), so Nothing is the only state an
+// Object-typed or object-holding-Variant value can ever have.
+struct Nothing {
+    [[nodiscard]] friend bool operator==(const Nothing&, const Nothing&) noexcept { return true; }
+};
+
+// Forward-declared so Value (below) can name it as an alternative; its body,
+// which needs Value to already be nameable (std::vector<Value> elements),
+// is completed just after Value's declaration.
+struct ArrayValue;
+
 using Value = std::variant<
-    Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16>;
+    Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
+    ArrayValue>;
+
+// A fixed-size, one-dimensional array (`Dim arr(n)` or `Dim arr(lo To hi) As
+// Type`). `lower_bound` is the first valid index; `elements.size()` gives
+// the element count, so the last valid index is `lower_bound +
+// elements.size() - 1`. All elements share the array's one declared element
+// type, enforced at element-assignment time the same way a fixed-type
+// scalar variable enforces its type.
+struct ArrayValue {
+    std::vector<Value> elements;
+    Integer lower_bound{};
+
+    [[nodiscard]] friend bool operator==(
+        const ArrayValue& left, const ArrayValue& right) noexcept {
+        return left.lower_bound == right.lower_bound && left.elements == right.elements;
+    }
+};
 
 struct NumericStringResult {
     NumericStringStatus status{NumericStringStatus::malformed};
@@ -819,6 +849,54 @@ enum class NumericCategory {
         return NumericCategory::int16;
     }
     return NumericCategory::integer;
+}
+
+// The VB6 TypeName for a scalar array element (never Decimal/Empty/Null/
+// Nothing/ArrayValue, since array element types in this evaluator's scope
+// are restricted to Long/Integer/Double/Single/Currency/String/Boolean).
+[[nodiscard]] inline std::string element_type_name(const Value& element) {
+    if (std::holds_alternative<Integer>(element)) {
+        return "Long";
+    }
+    if (std::holds_alternative<Int16>(element)) {
+        return "Integer";
+    }
+    if (std::holds_alternative<double>(element)) {
+        return "Double";
+    }
+    if (std::holds_alternative<float>(element)) {
+        return "Single";
+    }
+    if (std::holds_alternative<Currency>(element)) {
+        return "Currency";
+    }
+    if (std::holds_alternative<bool>(element)) {
+        return "Boolean";
+    }
+    return "String";
+}
+
+// The VarType code for a scalar array element, mirroring element_type_name.
+[[nodiscard]] inline Integer element_vartype_code(const Value& element) {
+    if (std::holds_alternative<Integer>(element)) {
+        return 3;
+    }
+    if (std::holds_alternative<Int16>(element)) {
+        return 2;
+    }
+    if (std::holds_alternative<double>(element)) {
+        return 5;
+    }
+    if (std::holds_alternative<float>(element)) {
+        return 4;
+    }
+    if (std::holds_alternative<Currency>(element)) {
+        return 6;
+    }
+    if (std::holds_alternative<bool>(element)) {
+        return 11;
+    }
+    return 8;
 }
 
 // Kleene three-valued logic for the logical operators: nullopt represents
@@ -1004,6 +1082,7 @@ enum class NumericCategory {
            identifier == "next" ||
            identifier == "not" ||
            identifier == "null" || identifier == "empty" ||
+           identifier == "nothing" || identifier == "object" || identifier == "set" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
            identifier == "rem" || identifier == "select" ||
@@ -1438,6 +1517,9 @@ private:
             }
             return parse_constant_declaration();
         }
+        if (consume_keyword("set")) {
+            return parse_set_statement();
+        }
 
         const bool has_let = consume_keyword("let");
         if (has_let) {
@@ -1449,7 +1531,7 @@ private:
             set_error("WFC0010", "expected statement", statement_offset);
             return false;
         }
-        return parse_assignment(std::move(*identifier), type_character);
+        return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
 
     [[nodiscard]] bool parse_print_statement() {
@@ -2299,7 +2381,9 @@ private:
                             return false;
                         }
                         if (upper_value->index() != selector->index() ||
-                            std::holds_alternative<bool>(*selector)) {
+                            std::holds_alternative<bool>(*selector) ||
+                            (!is_number(*selector) &&
+                             !std::holds_alternative<std::string>(*selector))) {
                             execute_ = enclosing_execution;
                             set_error(
                                 "WFC0060",
@@ -2385,6 +2469,9 @@ private:
         if (consume_keyword("print")) {
             return parse_print_statement();
         }
+        if (consume_keyword("set")) {
+            return parse_set_statement();
+        }
 
         const bool has_let = consume_keyword("let");
         if (has_let) {
@@ -2396,7 +2483,7 @@ private:
             set_error("WFC0023", "expected Print or assignment branch", statement_offset);
             return false;
         }
-        return parse_assignment(std::move(*identifier), type_character);
+        return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
 
     [[nodiscard]] bool parse_declaration() {
@@ -2417,68 +2504,143 @@ private:
         }
 
         skip_horizontal_whitespace();
-        Value initial_value;
+        bool is_array = false;
+        Integer array_lower = 0;
+        Integer array_upper = 0;
+        if (!at_end() && current() == '(') {
+            is_array = true;
+            advance();
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ')') {
+                set_error(
+                    "WFC0116",
+                    "array declaration requires a bound (ReDim-only dynamic arrays are not "
+                    "supported)",
+                    offset_);
+                return false;
+            }
+            const auto first_offset = offset_;
+            auto first_bound = parse_expression();
+            if (!first_bound.has_value()) {
+                return false;
+            }
+            const auto first_long = coerce_long(*first_bound, first_offset);
+            if (!first_long.has_value()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("to")) {
+                skip_horizontal_whitespace();
+                const auto second_offset = offset_;
+                auto second_bound = parse_expression();
+                if (!second_bound.has_value()) {
+                    return false;
+                }
+                const auto second_long = coerce_long(*second_bound, second_offset);
+                if (!second_long.has_value()) {
+                    return false;
+                }
+                array_lower = *first_long;
+                array_upper = *second_long;
+            } else {
+                array_lower = 0;
+                array_upper = *first_long;
+            }
+            skip_horizontal_whitespace();
+            if (!consume(')')) {
+                set_error("WFC0005", "expected closing parenthesis", offset_);
+                return false;
+            }
+            if (array_lower > array_upper) {
+                set_error(
+                    "WFC0117",
+                    "array lower bound must not exceed the upper bound",
+                    identifier_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+        }
+
+        Value element_default;
         bool is_variant = false;
+        bool is_object = false;
         if (type_character != '\0') {
             if (consume_keyword("as")) {
                 set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
                 return false;
             }
             if (type_character == '$') {
-                initial_value = std::string{};
+                element_default = std::string{};
             } else if (type_character == '#') {
-                initial_value = 0.0;
+                element_default = 0.0;
             } else if (type_character == '!') {
-                initial_value = 0.0f;
+                element_default = 0.0f;
             } else if (type_character == '@') {
-                initial_value = Currency{};
+                element_default = Currency{};
             } else if (type_character == '%') {
-                initial_value = Int16{};
+                element_default = Int16{};
             } else {
-                initial_value = Integer{};
+                element_default = Integer{};
             }
         } else if (!consume_keyword("as")) {
             // A bare `Dim x` with no As clause and no type-declaration
             // character implicitly declares a Variant, matching real VB6.
-            if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-                current() == '\'') {
-                initial_value = Empty{};
+            // Arrays require an explicit element type in this evaluator
+            // (Variant-element arrays are outside the current array scope).
+            if (!is_array && (at_end() || current() == '\r' || current() == '\n' ||
+                current() == ':' || current() == '\'')) {
+                element_default = Empty{};
                 is_variant = true;
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, As "
-                    "Boolean, or As Variant",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                    "String, As Boolean, As Object, or As Variant",
                     offset_);
                 return false;
             }
         } else {
             skip_horizontal_whitespace();
             if (consume_keyword("long")) {
-                initial_value = Integer{};
+                element_default = Integer{};
             } else if (consume_keyword("integer")) {
-                initial_value = Int16{};
+                element_default = Int16{};
             } else if (consume_keyword("double")) {
-                initial_value = 0.0;
+                element_default = 0.0;
             } else if (consume_keyword("single")) {
-                initial_value = 0.0f;
+                element_default = 0.0f;
             } else if (consume_keyword("currency")) {
-                initial_value = Currency{};
+                element_default = Currency{};
             } else if (consume_keyword("string")) {
-                initial_value = std::string{};
+                element_default = std::string{};
             } else if (consume_keyword("boolean")) {
-                initial_value = false;
-            } else if (consume_keyword("variant")) {
-                initial_value = Empty{};
+                element_default = false;
+            } else if (!is_array && consume_keyword("object")) {
+                element_default = Nothing{};
+                is_object = true;
+            } else if (!is_array && consume_keyword("variant")) {
+                element_default = Empty{};
                 is_variant = true;
             } else {
                 set_error(
                     "WFC0012",
-                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                    "String, As Boolean, or As Variant",
+                    is_array
+                        ? "expected As Integer, As Long, As Double, As Single, As Currency, "
+                          "As String, or As Boolean"
+                        : "expected As Integer, As Long, As Double, As Single, As Currency, "
+                          "As String, As Boolean, As Object, or As Variant",
                     offset_);
                 return false;
             }
+        }
+
+        Value initial_value;
+        if (is_array) {
+            const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
+            initial_value = ArrayValue{
+                std::vector<Value>(size, std::move(element_default)), array_lower};
+        } else {
+            initial_value = std::move(element_default);
         }
 
         const auto [entry, inserted] = variables_.emplace(*identifier, std::move(initial_value));
@@ -2489,6 +2651,9 @@ private:
         }
         if (is_variant) {
             variant_variables_.insert(*identifier);
+        }
+        if (is_object) {
+            object_variables_.insert(*identifier);
         }
         return true;
     }
@@ -2598,6 +2763,10 @@ private:
             set_error("WFC0062", "cannot assign to constant", identifier_offset);
             return false;
         }
+        if (object_variables_.contains(identifier)) {
+            set_error("WFC0108", "object assignment requires Set", identifier_offset);
+            return false;
+        }
 
         skip_horizontal_whitespace();
         if (!consume('=')) {
@@ -2628,6 +2797,144 @@ private:
         if (execute_) {
             variable->second = std::move(*value);
         }
+        return true;
+    }
+
+    // `Set identifier = expression` is the only legal way to assign an
+    // object reference (see REQ-0200): the target must be a fixed
+    // `Object`-typed variable or a `Variant`-declared one, and the source
+    // expression must itself be an object reference. Since this evaluator
+    // has no class modules, `New`, or any other way to produce a
+    // non-Nothing object value, the source can currently only ever be
+    // `Nothing` or another object-holding variable's current (`Nothing`)
+    // value.
+    [[nodiscard]] bool parse_set_statement() {
+        skip_horizontal_whitespace();
+        const auto identifier_offset = offset_;
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
+        if (!identifier.has_value()) {
+            set_error("WFC0011", "expected variable name after Set", identifier_offset);
+            return false;
+        }
+        const auto variable = variables_.find(*identifier);
+        if (variable == variables_.end()) {
+            set_error("WFC0015", "undeclared variable", identifier_offset);
+            return false;
+        }
+        if (!type_character_matches(variable->second, type_character, identifier_offset)) {
+            return false;
+        }
+        if (constants_.contains(*identifier)) {
+            set_error("WFC0062", "cannot assign to constant", identifier_offset);
+            return false;
+        }
+        if (!object_variables_.contains(*identifier) &&
+            !variant_variables_.contains(*identifier)) {
+            set_error(
+                "WFC0109", "Set requires an Object or Variant target", identifier_offset);
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        if (!std::holds_alternative<Nothing>(*value)) {
+            set_error("WFC0106", "Set requires an object reference", identifier_offset);
+            return false;
+        }
+        if (execute_) {
+            variable->second = std::move(*value);
+        }
+        return true;
+    }
+
+    // Dispatches a bare `identifier = ...`/`identifier(...) = ...` statement
+    // to array-element assignment when `identifier` names a declared array
+    // and is immediately followed by `(`, or to ordinary scalar assignment
+    // otherwise.
+    [[nodiscard]] bool parse_assignment_or_array_element(
+        std::string identifier,
+        const char type_character = '\0') {
+        if (type_character == '\0') {
+            const auto variable = variables_.find(identifier);
+            if (variable != variables_.end() &&
+                std::holds_alternative<ArrayValue>(variable->second)) {
+                const auto saved_offset = offset_;
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '(') {
+                    const auto identifier_offset = saved_offset - identifier.size();
+                    return parse_array_element_assignment(identifier, identifier_offset);
+                }
+                offset_ = saved_offset;
+            }
+        }
+        return parse_assignment(std::move(identifier), type_character);
+    }
+
+    [[nodiscard]] bool parse_array_element_assignment(
+        const std::string& identifier,
+        const std::size_t identifier_offset) {
+        const auto variable = variables_.find(identifier);
+        advance();  // consume '('
+        skip_horizontal_whitespace();
+        const auto index_offset = offset_;
+        auto index_value = parse_expression();
+        if (!index_value.has_value()) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ',') {
+            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
+            return false;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return false;
+        }
+        const auto index = coerce_long(*index_value, index_offset);
+        if (!index.has_value()) {
+            return false;
+        }
+
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+
+        auto& array = std::get<ArrayValue>(variable->second);
+        const auto element_type_index = array.elements.front().index();
+        if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
+            return false;
+        }
+        if (element_type_index != value->index()) {
+            set_error("WFC0016", "assignment type mismatch", identifier_offset);
+            return false;
+        }
+        if (!execute_) {
+            return true;
+        }
+        const Integer upper_bound =
+            array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
+        if (*index < array.lower_bound || *index > upper_bound) {
+            set_error("WFC0111", "array subscript out of range", index_offset);
+            return false;
+        }
+        array.elements[static_cast<std::size_t>(*index - array.lower_bound)] =
+            std::move(*value);
         return true;
     }
 
@@ -2779,6 +3086,24 @@ private:
 
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
+        if (consume_keyword("is")) {
+            skip_horizontal_whitespace();
+            auto right = parse_concatenation();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            // Since this evaluator has no class modules, New, or any other
+            // way to produce a non-Nothing object value, `Is` can only ever
+            // compare Nothing to Nothing (always True) -- both operands
+            // must still be object references (Nothing), matching real
+            // VB6's requirement that Is only accepts object operands.
+            if (!std::holds_alternative<Nothing>(*left) ||
+                !std::holds_alternative<Nothing>(*right)) {
+                set_error("WFC0107", "Is requires object operands", operator_offset);
+                return std::nullopt;
+            }
+            return Value{true};
+        }
         std::string_view operation;
         if (consume('=')) {
             operation = "=";
@@ -2836,8 +3161,11 @@ private:
                              (right_null ? std::string{} : render(*right))};
                 continue;
             }
-            if (std::holds_alternative<bool>(*left) ||
-                std::holds_alternative<bool>(*right)) {
+            if (std::holds_alternative<bool>(*left) || std::holds_alternative<bool>(*right) ||
+                std::holds_alternative<Nothing>(*left) ||
+                std::holds_alternative<Nothing>(*right) ||
+                std::holds_alternative<ArrayValue>(*left) ||
+                std::holds_alternative<ArrayValue>(*right)) {
                 set_error(
                     "WFC0020", "concatenation requires String or Long operands", operator_offset);
                 return std::nullopt;
@@ -3041,6 +3369,9 @@ private:
         if (consume_keyword("empty")) {
             return Value{Empty{}};
         }
+        if (consume_keyword("nothing")) {
+            return Value{Nothing{}};
+        }
         if (consume('(')) {
             auto value = parse_expression();
             if (!value.has_value()) {
@@ -3059,6 +3390,18 @@ private:
             auto identifier = parse_identifier(&type_character);
             skip_horizontal_whitespace();
             if (!at_end() && current() == '(') {
+                const auto array_variable = variables_.find(*identifier);
+                if (array_variable != variables_.end() &&
+                    std::holds_alternative<ArrayValue>(array_variable->second)) {
+                    if (type_character != '\0') {
+                        set_error(
+                            "WFC0016",
+                            "identifier type-declaration character mismatch",
+                            identifier_offset);
+                        return std::nullopt;
+                    }
+                    return parse_array_index(array_variable->second);
+                }
                 if (type_character != '\0') {
                     identifier->push_back(type_character);
                 }
@@ -3102,6 +3445,43 @@ private:
 
         set_error("WFC0002", "expected expression", offset_);
         return std::nullopt;
+    }
+
+    // Reads `array_variable(index)`. `array_variable` is the array's
+    // current Value (a reference into `variables_`, stable across this call
+    // since expression parsing never inserts into that map).
+    [[nodiscard]] std::optional<Value> parse_array_index(const Value& array_variable) {
+        const auto& array = std::get<ArrayValue>(array_variable);
+        advance();  // consume '('
+        skip_horizontal_whitespace();
+        const auto index_offset = offset_;
+        auto index_value = parse_expression();
+        if (!index_value.has_value()) {
+            return std::nullopt;
+        }
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ',') {
+            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
+            return std::nullopt;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return std::nullopt;
+        }
+        const auto index = coerce_long(*index_value, index_offset);
+        if (!index.has_value()) {
+            return std::nullopt;
+        }
+        if (!execute_) {
+            return array.elements.front();
+        }
+        const Integer upper_bound =
+            array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
+        if (*index < array.lower_bound || *index > upper_bound) {
+            set_error("WFC0111", "array subscript out of range", index_offset);
+            return std::nullopt;
+        }
+        return array.elements[static_cast<std::size_t>(*index - array.lower_bound)];
     }
 
     [[nodiscard]] std::optional<Value> parse_function_call(
@@ -3173,8 +3553,9 @@ private:
         const bool is_isempty = identifier == "isempty";
         const bool is_iserror = identifier == "iserror";
         const bool is_ismissing = identifier == "ismissing";
-        const bool is_constant_false_predicate = is_isarray || is_isobject ||
-                                                 is_iserror || is_ismissing;
+        const bool is_constant_false_predicate = is_iserror || is_ismissing;
+        const bool is_lbound = identifier == "lbound";
+        const bool is_ubound = identifier == "ubound";
         const bool is_qbcolor = identifier == "qbcolor";
         const bool is_rgb = identifier == "rgb";
         const bool is_strconv = identifier == "strconv";
@@ -3190,7 +3571,8 @@ private:
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
             !is_round && !is_cdbl && !is_csng && !is_ccur && !is_cvar && !is_macid &&
             !is_error_message && !is_float_math && !is_format && !is_rnd &&
-            !is_isnull && !is_isempty && !is_cdec) {
+            !is_isnull && !is_isempty && !is_cdec &&
+            !is_isarray && !is_isobject && !is_lbound && !is_ubound) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -3387,11 +3769,11 @@ private:
         }
 
         if (is_constant_false_predicate) {
-            // IsArray/IsObject/IsError/IsMissing remain constant False: the
-            // agreed scalar-Variant scope explicitly excludes arrays, object
-            // references, and error-value Variants (see REQ-0197). IsNull and
-            // IsEmpty are handled separately below since Null and Empty are
-            // now real, inspectable Value states.
+            // IsError/IsMissing remain constant False: `CVErr`/error-value
+            // Variants and omitted-argument detection remain outside this
+            // evaluator's scope. IsNull/IsEmpty/IsArray/IsObject are handled
+            // separately below since Null, Empty, arrays, and object
+            // references are all real, inspectable Value states.
             return Value{false};
         }
 
@@ -3403,12 +3785,47 @@ private:
             return Value{execute_ && std::holds_alternative<Empty>(arguments[0])};
         }
 
+        if (is_isarray) {
+            return Value{execute_ && std::holds_alternative<ArrayValue>(arguments[0])};
+        }
+
+        if (is_isobject) {
+            // Verified VB6 fact: IsObject(Nothing) is True -- Nothing is
+            // still an object reference (just an unset one), distinct from
+            // Null/Empty.
+            return Value{execute_ && std::holds_alternative<Nothing>(arguments[0])};
+        }
+
+        if (is_lbound || is_ubound) {
+            const auto* array = std::get_if<ArrayValue>(&arguments[0]);
+            if (array == nullptr) {
+                set_error(
+                    "WFC0073",
+                    is_lbound ? "LBound requires an array argument"
+                              : "UBound requires an array argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{Integer{}};
+            }
+            return Value{
+                is_lbound
+                    ? array->lower_bound
+                    : array->lower_bound + static_cast<Integer>(array->elements.size()) - 1};
+        }
+
         if (is_cdec) {
             if (const auto* decimal = std::get_if<Decimal>(&arguments[0])) {
                 return Value{execute_ ? *decimal : Decimal{}};
             }
             if (std::holds_alternative<Null>(arguments[0])) {
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0105", "CDec requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
@@ -3754,6 +4171,14 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
+            if (std::holds_alternative<Nothing>(arguments[0])) {
+                set_error("WFC0106", "Invalid use of Nothing", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0073", "CStr does not accept an array argument", identifier_offset);
+                return std::nullopt;
+            }
             return Value{execute_ ? render(arguments[0]) : std::string{}};
         }
 
@@ -3790,6 +4215,15 @@ private:
             if (std::holds_alternative<Empty>(arguments[0])) {
                 return Value{std::string{"Empty"}};
             }
+            // Verified VB6 fact: TypeName(Nothing) = "Nothing".
+            if (std::holds_alternative<Nothing>(arguments[0])) {
+                return Value{std::string{"Nothing"}};
+            }
+            if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
+                // Real VB6 renders an array's TypeName as its element type
+                // name plus "()", e.g. "Long()".
+                return Value{element_type_name(array->elements.front()) + "()"};
+            }
             return Value{std::string{"String"}};
         }
 
@@ -3825,6 +4259,14 @@ private:
             }
             if (std::holds_alternative<Null>(arguments[0])) {
                 return Value{Integer{1}};
+            }
+            // Verified VB6 fact: VarType(Nothing) = 9 (vbObject).
+            if (std::holds_alternative<Nothing>(arguments[0])) {
+                return Value{Integer{9}};
+            }
+            if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
+                // Real VB6 ORs the element VarType with vbArray (8192).
+                return Value{Integer{element_vartype_code(array->elements.front()) + 8192}};
             }
             return Value{Integer{8}};
         }
@@ -3886,7 +4328,9 @@ private:
             // Per documented VB6 behavior (not independently probed this
             // session): IsNumeric(Empty) is True (Empty coerces to 0, a
             // number), and IsNumeric(Null) is False.
-            if (std::holds_alternative<Null>(arguments[0])) {
+            if (std::holds_alternative<Null>(arguments[0]) ||
+                std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
                 return Value{false};
             }
             if (std::holds_alternative<Integer>(arguments[0]) ||
@@ -4009,6 +4453,14 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error(
+                    "WFC0073",
+                    is_cdbl ? "CDbl requires a numeric value" : "CSng requires a numeric value",
+                    identifier_offset);
+                return std::nullopt;
+            }
             double value{};
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                 value = static_cast<double>(*integer);
@@ -4062,6 +4514,11 @@ private:
         if (is_ccur) {
             if (std::holds_alternative<Null>(arguments[0])) {
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0073", "CCur requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
             if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
@@ -4125,6 +4582,11 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0088", "CInt requires a numeric value", identifier_offset);
+                return std::nullopt;
+            }
             if (std::holds_alternative<Empty>(arguments[0])) {
                 return Value{execute_ ? Int16{0} : Int16{}};
             }
@@ -4185,6 +4647,11 @@ private:
         if (is_clng) {
             if (std::holds_alternative<Null>(arguments[0])) {
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0086", "CLng requires a numeric value", identifier_offset);
                 return std::nullopt;
             }
             if (std::holds_alternative<Empty>(arguments[0])) {
@@ -4252,6 +4719,11 @@ private:
             // CBool(Null) raises "Invalid use of Null"; CBool(Empty) = False.
             if (std::holds_alternative<Null>(arguments[0])) {
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Nothing>(arguments[0]) ||
+                std::holds_alternative<ArrayValue>(arguments[0])) {
+                set_error("WFC0087", "CBool requires a Boolean or numeric value", identifier_offset);
                 return std::nullopt;
             }
             if (std::holds_alternative<Empty>(arguments[0])) {
@@ -5608,6 +6080,13 @@ private:
         if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
             return Value{Null{}};
         }
+        // Object references compare only through Is, matching real VB6
+        // (plain =/<> on an object reference requires a default member,
+        // which nothing in this evaluator's minimal object model has).
+        if (std::holds_alternative<Nothing>(left) || std::holds_alternative<Nothing>(right)) {
+            set_error("WFC0107", "object comparison requires Is", operator_offset);
+            return std::nullopt;
+        }
         // Empty coerces to whichever side of the comparison the other
         // operand expects: a number if compared against a number, an empty
         // string if compared against a String. Verified (Empty = 0 and
@@ -6122,6 +6601,13 @@ private:
         if (std::holds_alternative<Empty>(value) || std::holds_alternative<Null>(value)) {
             return "";
         }
+        // Nothing and arrays render as empty strings here as a safe,
+        // non-crashing fallback for this unconditional static formatter,
+        // matching Null/Empty's convention; CStr explicitly rejects Nothing
+        // (mirroring its Null rejection) before ever calling render().
+        if (std::holds_alternative<Nothing>(value) || std::holds_alternative<ArrayValue>(value)) {
+            return "";
+        }
         return std::get<bool>(value) ? "True" : "False";
     }
 
@@ -6138,6 +6624,7 @@ private:
     std::unordered_map<std::string, Value> variables_;
     std::unordered_set<std::string> constants_;
     std::unordered_set<std::string> variant_variables_;
+    std::unordered_set<std::string> object_variables_;
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};

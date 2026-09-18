@@ -444,6 +444,50 @@ int main() {
     expect_program_success(
         "Print 5% = 5: Print 5% = 5&: Print 5% < 10: Print 5% = 5.0#",
         "True\nTrue\nTrue\nTrue");
+    // Fixed-size one-dimensional arrays: Dim arr(n)/arr(lo To hi), indexed
+    // read/write, LBound/UBound, IsArray, TypeName/VarType.
+    expect_program_success(
+        "Dim arr(3) As Long\narr(0) = 10\narr(3) = 40\nPrint arr(0) & \" \" & arr(3)",
+        "10 40");
+    expect_program_success(
+        "Dim arr(1 To 5) As String\narr(1) = \"a\"\narr(5) = \"z\"\n"
+        "Print arr(1) & arr(5)",
+        "az");
+    expect_program_success(
+        "Dim arr(-2 To 2) As Long\narr(-2) = 42\nPrint arr(-2) & \" \" & LBound(arr) & "
+        "\" \" & UBound(arr)",
+        "42 -2 2");
+    expect_program_success("Dim arr(3) As Long\nPrint CStr(IsArray(arr))", "True");
+    expect_success("Print CStr(IsArray(5))", "False");
+    expect_program_success(
+        "Dim arr(3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr)", "Long() 8195");
+    expect_program_success(
+        "Const n As Long = 3\nDim arr(n) As Long\nDim i As Long\nFor i = 0 To n\n"
+        "arr(i) = i * i\nNext i\nFor i = 0 To n\nPrint arr(i)\nNext i",
+        "0\n1\n4\n9");
+    expect_program_failure("Dim arr(3) As Long\nPrint arr(4)", "WFC0111");
+    expect_program_failure("Dim arr(3) As Long\narr(4) = 1", "WFC0111");
+    expect_program_failure("Dim arr(3) As Long\narr(0) = \"text\"", "WFC0016");
+    expect_program_failure("Dim arr(5 To 2) As Long", "WFC0117");
+    expect_program_failure("Dim arr() As Long", "WFC0116");
+    expect_program_failure("Dim arr(3) As Variant", "WFC0012");
+    expect_program_failure("Dim arr(3) As Object", "WFC0012");
+    // Minimal object-reference stub: Nothing, Set, Is, IsObject.
+    expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
+    expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");
+    expect_success("Print CStr(IsObject(5))", "False");
+    expect_success("Print CStr(Nothing Is Nothing)", "True");
+    expect_program_success(
+        "Dim x As Object\nSet x = Nothing\nPrint CStr(x Is Nothing)", "True");
+    expect_program_success(
+        "Dim x As Variant\nSet x = Nothing\nPrint TypeName(x) & \" \" & CStr(x Is Nothing)",
+        "Nothing True");
+    expect_program_failure("Dim x As Object\nx = Nothing", "WFC0108");
+    expect_program_failure("Dim x As Long\nSet x = Nothing", "WFC0109");
+    expect_program_failure("Dim x As Object\nSet x = 5", "WFC0106");
+    expect_program_failure("Print 5 Is Nothing", "WFC0107");
+    expect_program_failure("Print Nothing = Nothing", "WFC0107");
+    expect_program_failure("Print CStr(Nothing)", "WFC0106");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");

@@ -83,6 +83,7 @@ tick rather than a binary-floating-point approximation. `CDec` (`REQ-0198`)
 returns an exact 96-bit-mantissa `Decimal`, reachable only through a scalar
 `Variant` (`REQ-0197`). `CInt` (`REQ-0199`) returns a genuine 16-bit
 `Integer` value, not a `Long`-narrowed-to-Integer-range value. `CDate`,
-`CVDate`, `CVErr`, complete Variant behavior (arrays, objects, and error
-values remain out of scope per `REQ-0197`), and runtime type information
-beyond `TypeName`/`VarType` remain pending.
+`CVDate`, `CVErr`, error-value Variants, class-module/`New`-based object
+behavior beyond the minimal `Nothing` stub (`REQ-0200`), array behavior
+beyond fixed-size one-dimensional arrays (`REQ-0201`), and runtime type
+information beyond `TypeName`/`VarType` remain pending.

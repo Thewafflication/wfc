@@ -162,4 +162,6 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Currency`nx = 10.5`nP
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Variant`nx = CDec(`"10.25`")`nPrint x & `" `" & TypeName(x) & `" `" & (x * CDec(2))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x`nx = 5`nPrint TypeName(x)`nx = Null`nPrint CStr(IsNull(x))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Integer`nx = 5`nPrint x & `" `" & TypeName(x) & `" `" & (x + 3&)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(3) As Long`narr(0) = 10`narr(3) = 40`nPrint arr(0) & `" `" & arr(3) & `" `" & LBound(arr) & `" `" & UBound(arr)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Object`nPrint TypeName(Nothing)`nSet x = Nothing`nPrint CStr(x Is Nothing)"
 ```
