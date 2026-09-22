@@ -109,6 +109,7 @@ retained CTest evidence.
 | 2026-09-18 #85 | Architecture | Add user-defined `Sub`/`Function` procedures under new `REQ-0202` (module-level declarations found by a pre-scan pass so calls resolve regardless of textual order, forward reference, recursion bounded by a new `WFC0123` depth guard, `ByVal`/`ByRef` parameters with copy-back for bare-identifier `ByRef` arguments, per-call local variable scope via a new `Scope`/two-level scope-chain refactor replacing the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members, `Function` return via self-name assignment, `Exit Sub`/`Exit Function`, and the `Call` statement); the prerequisite the owner's "finish objects" request surfaced as missing, scoped to procedures-only (no class modules) via `AskUserQuestion`; fixed a `std::vector`-reallocation pointer-invalidation bug (switched `scopes_` to `std::deque`) that silently broke `ByRef` write-back and crashed on recursion during this increment's own testing; unit + CLI tests, README | Commit `671633b` |
 | 2026-09-22 #86 | Architecture | Add a class-modules foundation under new `REQ-0203`: classes supplied as separate sources alongside the standard module (new CLI `--class <Name> <source>`, new `wfc::ClassModuleSource`/`evaluate_program` overload), field declarations, `Sub`/`Function` methods, `Property Get`/`Let`/`Set` accessors, `New`/`Dim x As New ClassName`/`Dim x As ClassName`, `.` member access, unqualified sibling-member calls (implicit `Me`), and a new `ObjectInstance` `Value` alternative (a `shared_ptr<InstanceData>` handle, `InstanceData` embedding a `Scope` for field storage) giving `Is`/`Set`/`TypeName`/`VarType`/`IsObject` real non-`Nothing` results for the first time since `REQ-0200`; scoped via three `AskUserQuestion` choices ("Separate file per class" / "Fields + methods + Property accessors" / "New only, no Class_Initialize/Terminate"); fixed a live bug found during this increment's own testing where a class method calling a sibling method (including itself, for recursion) unqualified failed with "unsupported function" because `instance_scopes_` (originally a `Scope*` stack) had no way to recover the current instance's *class* to look the sibling up in, by switching it to an `InstanceData*` stack; unit + CLI tests, README | Commit `d8d3ad6` |
 | 2026-09-22 #87 | Architecture | Add the `Me` keyword and the `Class_Initialize`/`Class_Terminate` lifecycle hooks under new `REQ-0204`, closing the two gaps `REQ-0203` explicitly deferred (owner request: "do the me keyword class initailize and terminate"); `Me` gives `InstanceData` `enable_shared_from_this` so it can hand out a new `ObjectInstance` sharing the current call's own instance identity; `Class_Initialize` runs from `instantiate_class` immediately after field initialization (a plain nested call, no hazard); `Class_Terminate` deliberately does **not** hook `~InstanceData()` -- doing so would let an instance's last-reference drop fire from *inside* another container's own teardown (a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction), where reentrantly pushing a new call frame onto a mid-`pop_back()` `scopes_` is undefined behavior -- instead a new `terminate_if_last_reference`/`drain_scope_instances` pair fires it only from three explicit, always-safe points (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program), draining one variable at a time so two same-frame aliases of one instance still terminate it exactly once; unit + CLI tests, README | Commit `df1de48` |
+| 2026-09-22 #88 | Architecture | Add three class-module refinements under new `REQ-0205`, chosen (of four offered via `AskUserQuestion`) from `REQ-0203`'s own "Remaining next increments" list: unqualified sibling `Property Let`/`Set` writes (the assignment counterpart of the existing unqualified method/`Property Get` read/call), class-typed/`As Object` fields and `Function`/`Property Get` return types (reusing `REQ-0200`'s existing `Object`-variable machinery unchanged), and indexed `Property Get`/`Let`/`Set` accessors (`Property Get`'s former zero-parameter requirement and `Property Let`/`Set`'s former exactly-one-parameter requirement both relaxed); switched `scan_classes` to a two-pass scan (register every class name, then scan every body) so a class-typed field/return type can reference a class declared later on the `--class` command line; found and fixed a real bug during this increment's own testing where an unqualified read inside a `Property Let`/`Set` body ignored its own value parameter whenever it shared the property's own name (`Property Let V(v As Long)`), because the existing unqualified-`Property-Get` fallback in `parse_primary_base` ran *before* the local-parameter lookup instead of after; unit + CLI tests, README | Commit `ec4a5b3` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -292,6 +293,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post user-defined Sub/Function procedures) | Pass (81/81) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-modules foundation) | Pass (82/82) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Me/Class_Initialize/Class_Terminate) | Pass (83/83) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post class-module refinements) | Pass (84/84) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -337,6 +339,9 @@ from this record and the local reference environment identified in
 | Do not hook `Class_Terminate` onto `~InstanceData()`'s own C++ destructor; fire it only from three explicit points instead (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program) | A destructor hook would fire whenever the last `shared_ptr` reference happens to be dropped, including *during* another container's own teardown -- a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction at program end -- and reentrantly calling back into the evaluator (pushing a new call frame onto a `scopes_` that is itself mid-`pop_back()`) at that point is undefined behavior, not merely awkward | Fires `Class_Terminate` only while the interpreter is fully alive and not itself mid-teardown of anything, at the documented cost of three gaps (no firing for an unbound temporary instance, no cascading to an instance only reachable through the terminated one's own fields, and same-frame aliases relying on drain order) recorded in `REQ-0204`'s Scope | `REQ-0204` |
 | Drain a call frame's/the module scope's ObjectInstance-holding variables one at a time -- terminate-then-clear-to-Empty each, in sequence -- rather than checking every variable first and clearing them all afterward | Two variables in the *same* frame can alias the same instance (e.g. `Dim a As New Foo` then `Set b = a`); checking all of them before clearing any would show every alias with a use_count inflated by the others still being live, so none would ever look like "the last reference" | Verified directly: `Dim a As New Foo`/`Set b = a`/end of `Sub` fires `Class_Terminate` exactly once, at whichever of `a`/`b` the unordered_map iteration happens to drain second | `REQ-0204` |
 | Only drain the module scope (and therefore only fire any surviving module-level instance's `Class_Terminate`) on `evaluate()`'s successful-completion path, not on any error return | Every other return in `evaluate()` is already reporting a fatal error; running more class-member code during that unwind seemed more likely to compound the failure (or mask the original error with a new one from inside `Class_Terminate`) than to clean up after it | A disclosed, deliberate scope boundary rather than an oversight -- recorded explicitly in `REQ-0204`'s Scope | `REQ-0204` |
+| Reorder `parse_primary_base`'s unqualified-identifier resolution to try `find_variable` (local parameter/variable, then instance field) *before* falling back to a sibling `Property Get` of the same name, instead of the original order | Live testing exposed the original order's bug directly: `Property Let V(v As Long)` -- a common pattern, since a property's own value parameter is often named after the property -- read `v` as `0` instead of the just-bound parameter, because the sibling-`Property-Get` check for "v" ran first and recursively called `Property Get V()` instead of reading the local parameter | Matches ordinary lexical scoping (local shadows outer); verified with the same collision (`Property Let V(v As Long)`) both through `obj.V = x` and an unqualified sibling write | `REQ-0205` |
+| Switch `scan_classes` from a single pass (scan each class's body immediately after registering its name) to two passes (register every class's name first, then scan every body) | A class-typed field/return type (`As SomeClass`) needs to look `SomeClass` up in `class_definitions_` while scanning the *referencing* class's own body; a single pass only has names registered for classes that appeared earlier among the `--class` arguments, silently failing to resolve a forward reference | Verified directly: `--class Holder "Public c As Counter" --class Counter "Public n As Long"` (`Holder` first, referencing `Counter` declared after it) resolves correctly | `REQ-0205` |
+| Give a class-typed/`Object`-typed field or return-value slot no new tracking mechanism, reusing `Scope`'s existing `object_variables`/`object_class_names` sets (already used for `Dim x As Object`/`As SomeClass` variables and parameters) | The existing machinery already does exactly what an object-typed field/return slot needs -- fixed-type, `Nothing`-initialized, `Set`-only assignment, optional exact-class checking -- since `InstanceData::fields` and a call frame are both already a `Scope` | Zero new diagnostic codes or assignment logic needed for this half of the increment; `parse_set_statement`'s and `parse_member_set_assignment`'s object-reference-assignment logic was further unified into one shared `assign_object_reference` helper while making this change | `REQ-0205` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -346,6 +351,9 @@ from this record and the local reference environment identified in
 | CTest's regular-expression engine did not match the multi-line `CBool` CLI output | The CLI command produced the correct `True`/`False` lines, but its pass expression failed | Kept the CLI assertion single-line through `CStr(CBool(...))` and restored an exact output expression | Closed |
 | `parse_procedure_declaration_skip` jumped `offset_` past a declaration's trailing line break (not just past "End Sub"/"End Function" itself) | The very next top-level statement after a skipped declaration failed with `WFC0004` "unexpected trailing input", since `evaluate()`'s main loop still tried to consume a statement separator that was already gone | Changed `skip_to_matching_end` to leave the cursor right after "End Sub"/"End Function", not past its line break, matching every other statement handler's convention of leaving separator-consumption to the caller | Closed |
 | `ByRef` argument write-back silently did nothing, and self-recursive calls segfaulted | Both traced to the same root cause: `std::vector<Scope>::push_back` reallocating on growth can copy (not move) existing `Scope` elements, orphaning the `Value*` pointer a `ByRef` argument captured before the call pushed its new frame | Switched `scopes_` from `std::vector<Scope>` to `std::deque<Scope>`, which guarantees push/pop at the ends never invalidates references or pointers to existing elements; verified with the same `ByRef` and recursive-`Factorial` cases | Closed |
+| `Property Let V(v As Long)` read its own value parameter as `0` instead of the bound argument, whenever the parameter's name matched the property's own name | `parse_primary_base`'s unqualified-sibling-`Property-Get` fallback ran *before* `find_variable`, so reading `v` inside the Let body recursively called `Property Get V()` (returning the field's still-unchanged value) instead of resolving the local parameter `v` | Reordered the check to run only after `find_variable` finds nothing, so a local parameter/variable always shadows a same-named property; verified with `b.V = 99` and an unqualified `V = 42` from a sibling method, both correctly updating the backing field | Closed |
+| An old unit test asserted `WFC0130` ("Property Get does not accept parameters") for a parameterized `Property Get` | That restriction was deliberately lifted this same increment (indexed properties), so the assertion now correctly failed with no error at all | Removed the stale assertion (the same scenario is now covered by this increment's own indexed-property success cases) | Closed |
+| The first attempt at `obj.Name(args)` for an indexed `Property Get` reported `WFC0135` "unknown member" | `parse_member_access_after_dot`'s `(`-branch only checked `class_def.methods`, calling `call_class_method` unconditionally and erroring immediately when the name was a property, not a method | Added a `property_get` fallback (with its own argument-list parsing) alongside the method-call branch, mirrored in the unqualified-sibling-call `(`-branch in `parse_primary_base` for the same case with no `.` at all | Closed |
 
 ## Measurements
 
@@ -447,6 +455,7 @@ when the session completes.
 | User-defined Sub/Function procedures (increment #85) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Class modules foundation (increment #86) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Me keyword and Class_Initialize/Class_Terminate (increment #87) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Class-module refinements (increment #88) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -758,21 +767,58 @@ instance never explicitly cleared, a module-level instance surviving to
 program end, and the same-frame-alias case all fire `Class_Terminate`
 exactly once, in the right place.
 
+**Class-module refinements (increment #88, `REQ-0205`):** the owner
+selected three items (of four offered via `AskUserQuestion`) from this same
+log's own "Remaining next increments" list: unqualified sibling
+`Property Let`/`Set` writes, class-typed/`As Object` fields and return
+types, and indexed `Property` accessors. Unqualified writes mirror the
+existing unqualified read/call fallback exactly, added symmetrically to
+`parse_assignment` (`Property Let`) and `parse_set_statement`
+(`Property Set`). Class-typed/`Object`-typed fields and `Function`/
+`Property Get` return types needed no new assignment machinery at all --
+`Scope`'s existing `object_variables`/`object_class_names` sets (already
+built for `Dim x As Object`/`As SomeClass`) apply unchanged to
+`InstanceData::fields` and a call frame's return-value slot, since both are
+already a `Scope`; `parse_set_statement`'s and `parse_member_set_
+assignment`'s object-assignment logic were unified into one shared
+`assign_object_reference` helper along the way. Resolving `As SomeClass`
+against a class declared *later* on the `--class` command line required
+switching `scan_classes` from one pass to two (register every class name
+first, then scan every body), otherwise a forward reference would see an
+unregistered name. Indexed properties relaxed `Property Get`'s former
+zero-parameter requirement and `Property Let`/`Set`'s former
+exactly-one-parameter requirement, with the value parameter always last;
+`obj.Name(args)` reads and `obj.Name(args) = expr`/`Set obj.Name(args) =
+expr` writes reuse the exact same parenthesized-argument-list parsing a
+method call already uses, via a new shared `invoke_property_let_or_set`
+helper.
+
+Live testing during this same increment surfaced one real, since-fixed
+bug, found while testing the *first* item (unqualified writes) rather than
+anything indexed-property-specific: `Property Let V(v As Long)` -- a
+common real-world pattern, naming a property's own value parameter after
+the property -- read its own parameter `v` as `0` instead of the value
+just bound to it. The cause: `parse_primary_base`'s existing
+unqualified-sibling-`Property-Get` fallback (added under `REQ-0203`) ran
+*before* the local-parameter/variable lookup, so reading `v` recursively
+called `Property Get V()` (returning the backing field's still-stale
+value) instead of resolving the local parameter. Reordering the check to
+run only once `find_variable` finds nothing fixed it, matching ordinary
+lexical scoping (local shadows outer) -- the same reordering that had
+already been applied correctly, from the start, to the new unqualified
+`Property Let`/`Set` write paths this same increment added.
+
 **Remaining next increments:**
 
-- class inheritance, interfaces (`Implements`), an unqualified *write* to a
-  sibling `Property Let`/`Set` (only unqualified reads/calls have a
-  member-dispatch hook so far -- `parse_assignment`'s bare-identifier path
-  does not), `CreateObject`/`GetObject`/COM interop, indexed `Property`
-  accessors, class-typed/`Object`-typed fields and array elements, a
-  dedicated `As ClassName` method/`Property Get` return type (a `Variant`
-  return already covers returning an object -- see `REQ-0203`'s Scope),
-  lazy `As New` auto-instantiation, `Class_Terminate` cascading to an
-  instance only reachable through the terminated one's own fields, and
-  `Optional`/`ParamArray`/`Static`/visibility modifiers on a class member
-  (all deliberately excluded from `REQ-0203`/`REQ-0204`'s scope, alongside
-  the same exclusions `REQ-0202` already lists for module-level
-  procedures);
+- class inheritance, interfaces (`Implements`), `CreateObject`/
+  `GetObject`/COM interop, array-of-class/array-of-`Object` elements, a
+  class-typed method/property *parameter* (only a field/return type may be
+  class-typed so far), lazy `As New` auto-instantiation, `Class_Terminate`
+  cascading to an instance only reachable through the terminated one's own
+  fields, and `Optional`/`ParamArray`/`Static`/visibility modifiers on a
+  class member (all deliberately excluded from `REQ-0203`/`REQ-0204`/
+  `REQ-0205`'s scope, alongside the same exclusions `REQ-0202` already
+  lists for module-level procedures);
 - `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
   array-typed parameters (deliberately excluded from `REQ-0201`'s
   "fixed-size 1-D arrays only" scope);
