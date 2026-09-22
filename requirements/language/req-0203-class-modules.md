@@ -1,8 +1,11 @@
 # REQ-0203 — Class modules foundation
 
 **Status:** Implemented (see `REQ-0204` for the `Me` keyword and the
-`Class_Initialize`/`Class_Terminate` lifecycle hooks, deferred from this
-requirement's original Scope and since implemented as a follow-on increment)
+`Class_Initialize`/`Class_Terminate` lifecycle hooks, and `REQ-0205` for
+class-typed/`As Object` fields and return types, indexed `Property`
+accessors, and unqualified sibling `Property Let` writes — all deferred
+from this requirement's original Scope and since implemented as follow-on
+increments)
 **Milestone:** MP-0002 — Core VB/VBA Language Execution
 **Depends on:** REQ-0141, REQ-0176, REQ-0197, REQ-0200, REQ-0201, and REQ-0202
 
@@ -62,9 +65,9 @@ End Property
   Calling a sibling method or `Property Get` of the same class unqualified
   (including a method calling itself, for recursion) is the implicit-`Me`
   equivalent of `Me.Method(...)`; `REQ-0204` later adds an explicit `Me`
-  keyword covering every case this implicit form does not (an unqualified
-  *write* to a sibling `Property Let`/`Set`, and passing the current
-  instance itself to another call).
+  keyword (also covering, for example, passing the current instance itself
+  to another call), and `REQ-0205` extends the same unqualified convenience
+  to a sibling `Property Let`/`Set` write.
 - `Property Get Name() As Type` returns a value via assignment to its own
   name, exactly like a `Function`; it accepts no parameters (an indexed
   property is deferred — see Scope). `Property Let Name(value [As Type])`
@@ -87,9 +90,9 @@ End Property
   `obj.Field = expr` writes the field directly or invokes `Property Let` (a
   `Property Let` of the same name takes precedence over a same-named field —
   moot in practice, since a class cannot declare both); `Set obj.Property =
-  expr` invokes `Property Set` (the only member-access `Set` target this
-  evaluator supports — a class-typed field would need its own `Set` target,
-  which is deferred; see Scope). `obj.Method(args)` is an expression
+  expr` invokes `Property Set` when the class declares one, or (`REQ-0205`)
+  assigns directly to a class-typed/`As Object` field with no accessor.
+  `obj.Method(args)` is an expression
   (`Function` methods) or, via `Call obj.Method(args)`, a statement (`Sub`
   methods), mirroring `REQ-0202`'s existing module-level-procedure
   convention exactly.
@@ -139,20 +142,6 @@ This is a foundation, not a complete VB6 object model. It does not add:
   requirement, unlike VB6's own (also reference-counted) COM object model;
 - `CreateObject`, `GetObject`, or any COM/host interop — this evaluator has
   no host to interop with;
-- class-typed or `Object`-typed fields, and array-of-class/array-of-`Object`
-  elements — a field's `Type` is the same eight-scalar-type list `Dim`
-  accepts minus `Object` (matching `REQ-0202`'s existing parameter/return-
-  type precedent); an object reference can still be *stored* in a `Variant`
-  field (already possible since `REQ-0197`/`REQ-0200`), which is how this
-  increment's own `Property Set` verification stores one internally;
-- a dedicated `As ClassName` method/`Property Get` return type — a method
-  can still effectively return an object by declaring `As Variant` and
-  using `Set Name = New Other`/`Set Name = expr` inside its own body (the
-  existing `Variant` return-type machinery from `REQ-0202` already supports
-  this without any class-specific code);
-- indexed `Property Get`/`Let`/`Set` (a parameter list beyond the single
-  value parameter) — `Property Get` accepts zero parameters, `Property
-  Let`/`Set` accept exactly one;
 - `Optional` parameters, `ParamArray`, default parameter values, `Static`
   methods, and `Public`/`Private` visibility modifiers on any class member —
   the same exclusions `REQ-0202` already lists for module-level procedures,

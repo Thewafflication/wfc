@@ -1117,4 +1117,44 @@ Print "after"]=]
             LABELS "integration;mp-0002;statements;classes;object"
             PASS_REGULAR_EXPRESSION "init.*101.*102.*term 102.*after"
     )
+
+    add_test(
+        NAME TC-MP0002-class-refinements-cli
+        COMMAND wfc
+            --class Counter [=[Public n As Long]=]
+            --class Pair [=[Public a As Long
+Public b As Long
+
+Property Get Item(i As Long) As Long
+If i = 0 Then
+Item = a
+Else
+Item = b
+End If
+End Property
+
+Property Let Item(i As Long, v As Long)
+If i = 0 Then
+a = v
+Else
+b = v
+End If
+End Property]=]
+            --class Holder [=[Public c As Counter]=]
+            --eval [=[Dim p As New Pair
+p.Item(0) = 10
+p.Item(1) = 20
+Print p.Item(0) & " " & p.Item(1)
+Dim h As New Holder
+Dim c As New Counter
+c.n = 5
+Set h.c = c
+Print h.c.n & " " & CStr(h.c Is c)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-refinements-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "10 20.*5 True"
+    )
 endif()

@@ -216,3 +216,11 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   a successful program for module-level variables) — a documented
   approximation of VB6's reference-counted lifetime, not full COM-style
   refcounting.
+- [REQ-0205 — Class-module refinements](req-0205-class-module-refinements.md)
+  defines three further REQ-0203 follow-ups: an unqualified sibling
+  `Property Let`/`Set` write (local variables/parameters correctly shadow a
+  same-named property); class-typed and `As Object` fields and `Function`/
+  `Property Get` return types, with forward references between classes
+  resolved regardless of `--class` order (a two-pass `scan_classes`); and
+  indexed `Property Get`/`Let`/`Set` accessors (`obj.Name(args)`, alongside
+  the existing zero-parameter form).

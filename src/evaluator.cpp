@@ -1202,6 +1202,14 @@ struct ProcedureDef {
     bool is_function{};
     std::size_t return_type_index{};
     bool return_is_variant{};
+    // A Function/Property Get declared `As Object` or `As SomeClass`
+    // (REQ-0205): the call's own name slot holds Nothing or an
+    // ObjectInstance, exactly like an Object-typed variable (assignable
+    // only via Set). `return_class_name` is empty for the generic
+    // `As Object` (any class's instance accepted), or the (lowercased)
+    // required class name for `As SomeClass`.
+    bool return_is_object{};
+    std::string return_class_name;
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
@@ -1215,6 +1223,12 @@ struct ProcedureDef {
 struct ClassFieldDef {
     std::size_t type_index{};
     bool is_variant{};
+    // A field declared `As Object` or `As SomeClass` (REQ-0205): the field
+    // holds Nothing or an ObjectInstance. `class_name` is empty for the
+    // generic `As Object` (any class's instance accepted), or the
+    // (lowercased) required class name for `As SomeClass`.
+    bool is_object{};
+    std::string class_name;
 };
 
 // A class module's declarations, found by `Interpreter::scan_class_body`
@@ -1589,19 +1603,21 @@ private:
                 skip_horizontal_whitespace();
                 ClassFieldDef field;
                 if (consume_keyword("as")) {
-                    skip_horizontal_whitespace();
                     const auto type_offset = offset_;
-                    const auto type_result = parse_type_keyword();
+                    const auto type_result = parse_scalar_object_or_class_type();
                     if (!type_result.has_value()) {
                         set_error(
                             "WFC0012",
                             "expected As Integer, As Long, As Double, As Single, As Currency, "
-                            "As String, As Boolean, or As Variant",
+                            "As String, As Boolean, As Object, As Variant, or a known class "
+                            "name",
                             type_offset);
                         return false;
                     }
-                    field.type_index = type_result->default_value.index();
+                    field.type_index = type_result->type_index;
                     field.is_variant = type_result->is_variant;
+                    field.is_object = type_result->is_object;
+                    field.class_name = type_result->class_name;
                 } else {
                     // A bare field declaration with no As clause is
                     // implicitly Variant, matching a bare module-level Dim.
@@ -1665,14 +1681,12 @@ private:
                     return false;
                 }
                 if (accessor == Accessor::get) {
-                    if (!definition.parameters.empty()) {
-                        set_error(
-                            "WFC0130",
-                            "Property Get does not accept parameters (indexed properties are "
-                            "not supported)",
-                            name_offset);
-                        return false;
-                    }
+                    // Property Get may take zero or more index parameters
+                    // (REQ-0205's indexed properties -- `Property Get
+                    // Name(index [, ...]) As Type`, accessed as
+                    // `obj.Name(args)` exactly like a method call); zero
+                    // parameters is the plain, non-indexed form accessed as
+                    // `obj.Name` with no parentheses at all.
                     skip_horizontal_whitespace();
                     if (!consume_keyword("as")) {
                         set_error(
@@ -1681,32 +1695,40 @@ private:
                             offset_);
                         return false;
                     }
-                    skip_horizontal_whitespace();
                     const auto type_offset = offset_;
-                    const auto type_result = parse_type_keyword();
+                    const auto type_result = parse_scalar_object_or_class_type();
                     if (!type_result.has_value()) {
                         set_error(
                             "WFC0012",
                             "expected As Integer, As Long, As Double, As Single, As Currency, "
-                            "As String, As Boolean, or As Variant",
+                            "As String, As Boolean, As Object, As Variant, or a known class "
+                            "name",
                             type_offset);
                         return false;
                     }
-                    definition.return_type_index = type_result->default_value.index();
+                    definition.return_type_index = type_result->type_index;
                     definition.return_is_variant = type_result->is_variant;
+                    definition.return_is_object = type_result->is_object;
+                    definition.return_class_name = type_result->class_name;
                 } else {
-                    if (definition.parameters.size() != 1U) {
+                    // Property Let/Set's last parameter is always the value
+                    // being assigned; any parameters before it are index
+                    // parameters (REQ-0205), so at least one parameter (the
+                    // value alone, for the plain non-indexed form) is
+                    // required, but there is no upper bound.
+                    if (definition.parameters.empty()) {
                         set_error(
                             "WFC0131",
-                            "Property Let/Set requires exactly one parameter",
+                            "Property Let/Set requires at least one parameter",
                             name_offset);
                         return false;
                     }
                     if (accessor == Accessor::set &&
-                        !definition.parameters.front().is_object_reference) {
+                        !definition.parameters.back().is_object_reference) {
                         set_error(
                             "WFC0132",
-                            "Property Set's parameter must be declared As Object",
+                            "Property Set's last parameter (the value) must be declared As "
+                            "Object",
                             name_offset);
                         return false;
                     }
@@ -1763,19 +1785,20 @@ private:
                         offset_);
                     return false;
                 }
-                skip_horizontal_whitespace();
                 const auto type_offset = offset_;
-                const auto type_result = parse_type_keyword();
+                const auto type_result = parse_scalar_object_or_class_type();
                 if (!type_result.has_value()) {
                     set_error(
                         "WFC0012",
                         "expected As Integer, As Long, As Double, As Single, As Currency, "
-                        "As String, As Boolean, or As Variant",
+                        "As String, As Boolean, As Object, As Variant, or a known class name",
                         type_offset);
                     return false;
                 }
-                definition.return_type_index = type_result->default_value.index();
+                definition.return_type_index = type_result->type_index;
                 definition.return_is_variant = type_result->is_variant;
+                definition.return_is_object = type_result->is_object;
+                definition.return_class_name = type_result->class_name;
             }
             if (!consume_block_line_end()) {
                 return false;
@@ -1817,6 +1840,16 @@ private:
     // body_start/body_end offsets are only meaningful against the source
     // they were scanned from -- the same reason call_procedure later swaps
     // source_ back in before running a method/property body.
+    //
+    // Two passes: the first registers every class's name (and its own
+    // source, needed by the second pass) with no member scanning at all, so
+    // the second pass -- which actually scans each class's fields/methods/
+    // properties, and therefore needs to recognize `As SomeClass`
+    // field/return types (REQ-0205) -- sees every class name up front,
+    // regardless of which `--class` argument came first. Without this, a
+    // class referencing another declared *after* it on the command line
+    // would see an unresolved name where a real VB6 project (compiled as a
+    // whole) would not.
     [[nodiscard]] bool scan_classes() {
         for (const auto& class_source : class_sources_) {
             std::string lowered_name;
@@ -1829,14 +1862,15 @@ private:
                 set_error("WFC0126", "duplicate or reserved class name", offset_);
                 return false;
             }
-
             ClassDef class_def;
             class_def.source = class_source.source;
             class_def.display_name = class_source.name;
-
+            class_definitions_.emplace(std::move(lowered_name), std::move(class_def));
+        }
+        for (auto& [lowered_name, class_def] : class_definitions_) {
             const auto saved_source = source_;
             const auto saved_offset = offset_;
-            source_ = class_source.source;
+            source_ = class_def.source;
             offset_ = 0;
             const bool scanned_ok = scan_class_body(class_def);
             source_ = saved_source;
@@ -1844,7 +1878,6 @@ private:
             if (!scanned_ok) {
                 return false;
             }
-            class_definitions_.emplace(std::move(lowered_name), std::move(class_def));
         }
         return true;
     }
@@ -1912,20 +1945,21 @@ private:
                         as_offset);
                     return false;
                 }
-                skip_horizontal_whitespace();
                 const auto type_offset = offset_;
-                const auto type_result = parse_type_keyword();
+                const auto type_result = parse_scalar_object_or_class_type();
                 if (!type_result.has_value()) {
                     offset_ = saved_offset;
                     set_error(
                         "WFC0012",
                         "expected As Integer, As Long, As Double, As Single, As Currency, "
-                        "As String, As Boolean, or As Variant",
+                        "As String, As Boolean, As Object, As Variant, or a known class name",
                         type_offset);
                     return false;
                 }
-                definition.return_type_index = type_result->default_value.index();
+                definition.return_type_index = type_result->type_index;
                 definition.return_is_variant = type_result->is_variant;
+                definition.return_is_object = type_result->is_object;
+                definition.return_class_name = type_result->class_name;
             }
             if (!consume_block_line_end()) {
                 offset_ = saved_offset;
@@ -2094,6 +2128,43 @@ private:
         if (consume_keyword("variant")) {
             return TypeKeywordResult{Value{Empty{}}, true};
         }
+        return std::nullopt;
+    }
+
+    // A field's or a Function/Property Get return's resolved type (REQ-0205):
+    // one of parse_type_keyword's eight scalars, the generic `Object`
+    // (`is_object` true, `class_name` empty), or a known class name
+    // (`is_object` true, `class_name` set). Exactly one of `is_variant`/
+    // `is_object` is ever true, or neither (a plain scalar).
+    struct ResolvedType {
+        std::size_t type_index{};
+        bool is_variant{};
+        bool is_object{};
+        std::string class_name;
+    };
+
+    // Resolves the `Type` keyword sequence immediately following an already-
+    // consumed `As` for a class field or a Function/Property Get return
+    // type. Returns nullopt without reporting an error when nothing matches
+    // (leaving offset_ at the unconsumed type token), so each caller can
+    // report its own "expected ..." message listing exactly the forms it
+    // accepts.
+    [[nodiscard]] std::optional<ResolvedType> parse_scalar_object_or_class_type() {
+        skip_horizontal_whitespace();
+        if (consume_keyword("object")) {
+            return ResolvedType{Value{Nothing{}}.index(), false, true, {}};
+        }
+        if (const auto type_result = parse_type_keyword()) {
+            return ResolvedType{type_result->default_value.index(), type_result->is_variant, false, {}};
+        }
+        const auto saved_offset = offset_;
+        char class_type_character{};
+        auto class_name = parse_identifier(&class_type_character);
+        if (class_name.has_value() && class_type_character == '\0' &&
+            class_definitions_.contains(*class_name)) {
+            return ResolvedType{Value{Nothing{}}.index(), false, true, std::move(*class_name)};
+        }
+        offset_ = saved_offset;
         return std::nullopt;
     }
 
@@ -3637,6 +3708,24 @@ private:
             (type_character == '\0' ? 0U : 1U);
         const auto variable = find_variable(identifier);
         if (variable.value == nullptr) {
+            // An unqualified write to a sibling Property Let of the class
+            // currently executing -- the assignment counterpart of the
+            // unqualified Property Get read/sibling method call
+            // current_instance/current_class_def already give expressions
+            // (see REQ-0203's parse_primary_base/parse_call_statement).
+            if (type_character == '\0') {
+                if (auto* const instance = current_instance()) {
+                    if (const auto* const class_def = current_class_def()) {
+                        const auto letter_iterator =
+                            class_def->property_let.find(identifier);
+                        if (letter_iterator != class_def->property_let.end()) {
+                            return invoke_property_let_or_set(
+                                *instance, *class_def, letter_iterator->second, identifier,
+                                identifier_offset);
+                        }
+                    }
+                }
+            }
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
@@ -3687,12 +3776,89 @@ private:
         return true;
     }
 
-    // `Set obj.Prop = expression` assigns through a Property Set accessor --
-    // the only member-access Set target this evaluator supports (a plain
-    // field is always read/written through ordinary `=`; class-typed
-    // fields, which would need their own Set target, are deferred -- see
-    // REQ-0203's Scope). `base` is the already-evaluated object reference
-    // the member is accessed on; its own '.' has already been consumed.
+    // Assigns an object reference into `target`, the way `Set` always does:
+    // `source` must itself be Nothing or a live instance (`WFC0106`
+    // otherwise), and, when `declared_class_name` is non-empty (a `Dim`/
+    // field declared `As ClassName` rather than the generic `As Object`),
+    // an `ObjectInstance` source's own class must match it exactly
+    // (`WFC0137`). Shared by parse_set_statement (a plain variable target)
+    // and parse_member_set_assignment's plain-field-target branch (a
+    // class-typed or `As Object` field with no Property Set accessor,
+    // under REQ-0205).
+    [[nodiscard]] bool assign_object_reference(
+        Value& target,
+        const std::string& declared_class_name,
+        Value source,
+        const std::size_t offset) {
+        if (!std::holds_alternative<Nothing>(source) &&
+            !std::holds_alternative<ObjectInstance>(source)) {
+            set_error("WFC0106", "Set requires an object reference", offset);
+            return false;
+        }
+        if (!declared_class_name.empty() && std::holds_alternative<ObjectInstance>(source) &&
+            std::get<ObjectInstance>(source).data->class_name != declared_class_name) {
+            set_error(
+                "WFC0137", "Set source does not match the target's declared class", offset);
+            return false;
+        }
+        if (execute_) {
+            if (!terminate_if_last_reference(target)) {
+                return false;
+            }
+            target = std::move(source);
+        }
+        return true;
+    }
+
+    // Parses the remainder of a Property Let/Set-routed assignment once
+    // `definition` has already been resolved: an optional parenthesized
+    // index-argument list (an indexed property -- `Property Let/Set
+    // Name(index [, ...], value)`, `Property Get Name(index [, ...]) As
+    // Type`; see REQ-0205), the assignment operator, and the value
+    // expression, then invokes `definition` with the index arguments
+    // followed by the value as its final argument. Shared by an
+    // unqualified sibling write (parse_assignment), `obj.Prop[(args)] =
+    // expr` (parse_member_assignment), and `Set obj.Prop[(args)] = expr`
+    // (parse_member_set_assignment).
+    [[nodiscard]] bool invoke_property_let_or_set(
+        InstanceData& instance,
+        const ClassDef& class_def,
+        const ProcedureDef& definition,
+        const std::string& property_name,
+        const std::size_t property_offset) {
+        std::vector<CallArgument> arguments;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '(') {
+            auto parsed = parse_call_argument_list();
+            if (!parsed.has_value()) {
+                return false;
+            }
+            arguments = std::move(*parsed);
+        }
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        arguments.push_back(CallArgument{std::move(*value), nullptr});
+        auto result = invoke_definition(
+            definition, property_name, std::move(arguments), property_offset, class_def.source,
+            &instance);
+        return result.has_value();
+    }
+
+    // `Set obj.Prop = expression` assigns through a Property Set accessor
+    // when the class declares one for `Prop`; otherwise, for a class-typed
+    // or `As Object` field with no accessor, directly to that field (see
+    // REQ-0205 -- a plain, non-object field has no `Set` target at all,
+    // since it is always read/written through ordinary `=`). `base` is the
+    // already-evaluated object reference the member is accessed on; its
+    // own '.' has already been consumed.
     [[nodiscard]] bool parse_member_set_assignment(const Value base, const std::size_t base_offset) {
         skip_horizontal_whitespace();
         const auto member_offset = offset_;
@@ -3710,7 +3876,13 @@ private:
         const auto class_iterator = class_definitions_.find(instance.class_name);
         const ClassDef& class_def = class_iterator->second;
         const auto setter_iterator = class_def.property_set.find(*member_name);
-        if (setter_iterator == class_def.property_set.end()) {
+        if (setter_iterator != class_def.property_set.end()) {
+            return invoke_property_let_or_set(
+                instance, class_def, setter_iterator->second, *member_name, member_offset);
+        }
+        const auto field_iterator = instance.fields.variables.find(*member_name);
+        if (field_iterator == instance.fields.variables.end() ||
+            !instance.fields.object_variables.contains(*member_name)) {
             set_error("WFC0135", "unknown member (no Property Set accessor)", member_offset);
             return false;
         }
@@ -3724,12 +3896,12 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        std::vector<CallArgument> arguments;
-        arguments.push_back(CallArgument{std::move(*value), nullptr});
-        auto result = invoke_definition(
-            setter_iterator->second, *member_name, std::move(arguments), member_offset,
-            class_def.source, &instance);
-        return result.has_value();
+        const auto declared_class = instance.fields.object_class_names.find(*member_name);
+        const std::string declared_class_name =
+            declared_class != instance.fields.object_class_names.end() ? declared_class->second
+                                                                         : std::string{};
+        return assign_object_reference(
+            field_iterator->second, declared_class_name, std::move(*value), member_offset);
     }
 
     // `Set identifier = expression` is the only legal way to assign an
@@ -3766,6 +3938,22 @@ private:
         }
         const auto variable = find_variable(*identifier);
         if (variable.value == nullptr) {
+            // An unqualified `Set Prop = expr` for a sibling Property Set
+            // of the class currently executing -- the Set counterpart of
+            // parse_assignment's unqualified Property Let write (REQ-0205).
+            if (type_character == '\0') {
+                if (auto* const instance = current_instance()) {
+                    if (const auto* const class_def = current_class_def()) {
+                        const auto setter_iterator =
+                            class_def->property_set.find(*identifier);
+                        if (setter_iterator != class_def->property_set.end()) {
+                            return invoke_property_let_or_set(
+                                *instance, *class_def, setter_iterator->second, *identifier,
+                                identifier_offset);
+                        }
+                    }
+                }
+            }
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
@@ -3805,27 +3993,12 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (!std::holds_alternative<Nothing>(*value) &&
-            !std::holds_alternative<ObjectInstance>(*value)) {
-            set_error("WFC0106", "Set requires an object reference", identifier_offset);
-            return false;
-        }
         const auto declared_class = variable.scope->object_class_names.find(*identifier);
-        if (declared_class != variable.scope->object_class_names.end() &&
-            std::holds_alternative<ObjectInstance>(*value) &&
-            std::get<ObjectInstance>(*value).data->class_name != declared_class->second) {
-            set_error(
-                "WFC0137", "Set source does not match the target's declared class",
-                identifier_offset);
-            return false;
-        }
-        if (execute_) {
-            if (!terminate_if_last_reference(*variable.value)) {
-                return false;
-            }
-            *variable.value = std::move(*value);
-        }
-        return true;
+        const std::string declared_class_name =
+            declared_class != variable.scope->object_class_names.end() ? declared_class->second
+                                                                         : std::string{};
+        return assign_object_reference(
+            *variable.value, declared_class_name, std::move(*value), identifier_offset);
     }
 
     // `identifier.member = expression` writes through a Property Let
@@ -3850,6 +4023,21 @@ private:
         const auto class_iterator = class_definitions_.find(instance.class_name);
         const ClassDef& class_def = class_iterator->second;
 
+        const auto letter_iterator = class_def.property_let.find(*member_name);
+        if (letter_iterator != class_def.property_let.end()) {
+            return invoke_property_let_or_set(
+                instance, class_def, letter_iterator->second, *member_name, member_offset);
+        }
+
+        const auto field_iterator = instance.fields.variables.find(*member_name);
+        if (field_iterator == instance.fields.variables.end()) {
+            set_error("WFC0135", "unknown member", member_offset);
+            return false;
+        }
+        if (instance.fields.object_variables.contains(*member_name)) {
+            set_error("WFC0108", "object assignment requires Set", member_offset);
+            return false;
+        }
         skip_horizontal_whitespace();
         if (!consume('=')) {
             set_error("WFC0014", "expected assignment operator", offset_);
@@ -3858,22 +4046,6 @@ private:
         skip_horizontal_whitespace();
         auto value = parse_expression();
         if (!value.has_value()) {
-            return false;
-        }
-
-        const auto letter_iterator = class_def.property_let.find(*member_name);
-        if (letter_iterator != class_def.property_let.end()) {
-            std::vector<CallArgument> arguments;
-            arguments.push_back(CallArgument{std::move(*value), nullptr});
-            auto result = invoke_definition(
-                letter_iterator->second, *member_name, std::move(arguments), member_offset,
-                class_def.source, &instance);
-            return result.has_value();
-        }
-
-        const auto field_iterator = instance.fields.variables.find(*member_name);
-        if (field_iterator == instance.fields.variables.end()) {
-            set_error("WFC0135", "unknown member", member_offset);
             return false;
         }
         if (instance.fields.variant_variables.contains(*member_name)) {
@@ -4433,11 +4605,22 @@ private:
         auto instance = std::make_shared<InstanceData>();
         instance->class_name = class_name;
         for (const auto& [field_name, field_def] : class_iterator->second.fields) {
-            instance->fields.variables.emplace(
-                field_name,
-                field_def.is_variant ? Value{Empty{}} : zero_value_for_index(field_def.type_index));
+            Value initial_value;
+            if (field_def.is_object) {
+                initial_value = Value{Nothing{}};
+            } else if (field_def.is_variant) {
+                initial_value = Value{Empty{}};
+            } else {
+                initial_value = zero_value_for_index(field_def.type_index);
+            }
+            instance->fields.variables.emplace(field_name, std::move(initial_value));
             if (field_def.is_variant) {
                 instance->fields.variant_variables.insert(field_name);
+            } else if (field_def.is_object) {
+                instance->fields.object_variables.insert(field_name);
+                if (!field_def.class_name.empty()) {
+                    instance->fields.object_class_names.emplace(field_name, field_def.class_name);
+                }
             }
         }
         const auto initializer_iterator = class_iterator->second.methods.find("class_initialize");
@@ -4580,6 +4763,21 @@ private:
                                     *instance, *class_def, *identifier, identifier_offset,
                                     /*require_function=*/true);
                             }
+                            // An unqualified indexed Property Get read
+                            // (REQ-0205): `Item(0)` reaches the same
+                            // parenthesized shape a sibling method call
+                            // would.
+                            const auto getter_iterator =
+                                class_def->property_get.find(*identifier);
+                            if (getter_iterator != class_def->property_get.end()) {
+                                auto arguments = parse_call_argument_list();
+                                if (!arguments.has_value()) {
+                                    return std::nullopt;
+                                }
+                                return invoke_definition(
+                                    getter_iterator->second, *identifier, std::move(*arguments),
+                                    identifier_offset, class_def->source, instance);
+                            }
                         }
                     }
                 }
@@ -4606,23 +4804,29 @@ private:
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
             }
-            // An unqualified read of the current class's own Property Get
-            // (no parentheses, like a field read), the same implicit-Me
-            // convenience as the method-call branch above.
-            if (type_character == '\0') {
-                if (auto* const instance = current_instance()) {
-                    if (const auto* const class_def = current_class_def()) {
-                        const auto getter_iterator = class_def->property_get.find(*identifier);
-                        if (getter_iterator != class_def->property_get.end()) {
-                            return invoke_definition(
-                                getter_iterator->second, *identifier, {}, identifier_offset,
-                                class_def->source, instance);
+            const auto variable = find_variable(*identifier);
+            if (variable.value == nullptr) {
+                // An unqualified read of the current class's own Property
+                // Get (no parentheses, like a field read), the same
+                // implicit-Me convenience as the method-call branch above.
+                // Checked only once find_variable has already found nothing
+                // -- a local parameter/variable of the same name (a Property
+                // Let's own value parameter commonly shares its property's
+                // name, e.g. `Property Let V(v As Long)`) must shadow it,
+                // matching ordinary lexical scoping.
+                if (type_character == '\0') {
+                    if (auto* const instance = current_instance()) {
+                        if (const auto* const class_def = current_class_def()) {
+                            const auto getter_iterator =
+                                class_def->property_get.find(*identifier);
+                            if (getter_iterator != class_def->property_get.end()) {
+                                return invoke_definition(
+                                    getter_iterator->second, *identifier, {}, identifier_offset,
+                                    class_def->source, instance);
+                            }
                         }
                     }
                 }
-            }
-            const auto variable = find_variable(*identifier);
-            if (variable.value == nullptr) {
                 set_error("WFC0015", "undeclared variable", identifier_offset);
                 return std::nullopt;
             }
@@ -4791,6 +4995,9 @@ private:
             if (!definition.is_function) {
                 return Value{Empty{}};
             }
+            if (definition.return_is_object) {
+                return Value{Nothing{}};
+            }
             return definition.return_is_variant ? Value{Empty{}}
                                                   : zero_value_for_index(definition.return_type_index);
         }
@@ -4834,13 +5041,29 @@ private:
         }
         if (definition.is_function) {
             frame.is_function_frame = true;
-            frame.variables.emplace(
-                binding_name,
-                definition.return_is_variant
-                    ? Value{Empty{}}
-                    : zero_value_for_index(definition.return_type_index));
+            Value initial_return_value;
+            if (definition.return_is_object) {
+                initial_return_value = Value{Nothing{}};
+            } else if (definition.return_is_variant) {
+                initial_return_value = Value{Empty{}};
+            } else {
+                initial_return_value = zero_value_for_index(definition.return_type_index);
+            }
+            frame.variables.emplace(binding_name, std::move(initial_return_value));
             if (definition.return_is_variant) {
                 frame.variant_variables.insert(binding_name);
+            } else if (definition.return_is_object) {
+                // The return-value slot behaves exactly like an Object-
+                // typed local (REQ-0205): plain `Name = expr` inside the
+                // body is rejected (WFC0108, via parse_assignment's
+                // existing object_variables check) -- only `Set Name =
+                // expr` may assign it, reusing REQ-0200's existing Set
+                // machinery (including the class-match check when
+                // return_class_name is non-empty) with no new code.
+                frame.object_variables.insert(binding_name);
+                if (!definition.return_class_name.empty()) {
+                    frame.object_class_names.emplace(binding_name, definition.return_class_name);
+                }
             }
         }
 
@@ -5092,8 +5315,32 @@ private:
 
         skip_horizontal_whitespace();
         if (!at_end() && current() == '(') {
-            return call_class_method(
-                instance, class_def, *member_name, member_offset, require_function);
+            if (class_def.methods.contains(*member_name)) {
+                return call_class_method(
+                    instance, class_def, *member_name, member_offset, require_function);
+            }
+            // An indexed Property Get (REQ-0205): `obj.Name(args)` reaches
+            // the same parenthesized-call shape a method call would, since
+            // a class cannot declare both a method and a property under the
+            // same name (see scan_class_body's WFC0128 check).
+            const auto indexed_getter_iterator = class_def.property_get.find(*member_name);
+            if (indexed_getter_iterator != class_def.property_get.end()) {
+                if (constant_expression_) {
+                    set_error(
+                        "WFC0074", "constant initializer cannot call a procedure",
+                        member_offset);
+                    return std::nullopt;
+                }
+                auto arguments = parse_call_argument_list();
+                if (!arguments.has_value()) {
+                    return std::nullopt;
+                }
+                return invoke_definition(
+                    indexed_getter_iterator->second, *member_name, std::move(*arguments),
+                    member_offset, class_def.source, &instance);
+            }
+            set_error("WFC0135", "unknown member", member_offset);
+            return std::nullopt;
         }
         const auto getter_iterator = class_def.property_get.find(*member_name);
         if (getter_iterator != class_def.property_get.end()) {

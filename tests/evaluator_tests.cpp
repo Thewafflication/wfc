@@ -658,9 +658,6 @@ int main() {
     expect_classes_failure(
         {{"Foo", "Public x As Long\nSub x()\nEnd Sub"}}, "Print \"unused\"", "WFC0128");
     expect_classes_failure(
-        {{"Foo", "Property Get Bad(n As Long) As Long\nBad = n\nEnd Property"}},
-        "Print \"unused\"", "WFC0130");
-    expect_classes_failure(
         {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0135");
     // The Me keyword and the Class_Initialize/Class_Terminate lifecycle
     // hooks. Class_Initialize runs against a fully field-initialized
@@ -708,6 +705,80 @@ int main() {
     expect_classes_failure(
         {{"Foo", "Function Class_Terminate() As Long\nEnd Function"}},
         "Print \"unused\"", "WFC0139");
+    // Class-module refinements (REQ-0205): an unqualified sibling write to
+    // a Property Let (including when the property's own name collides with
+    // its value parameter's name -- the local parameter must shadow it),
+    // class-typed/As Object fields and Function/Property Get return types
+    // (with cross-class forward references resolved regardless of --class
+    // order), and indexed Property Get/Let/Set.
+    expect_classes_success(
+        {{"Box", "Public m_v As Long\n\n"
+                 "Property Get V() As Long\nV = m_v\nEnd Property\n\n"
+                 "Property Let V(v As Long)\nm_v = v\nEnd Property\n\n"
+                 "Sub SetIt()\nV = 42\nEnd Sub"}},
+        "Dim b As New Box\nb.V = 99\nPrint b.V\nCall b.SetIt()\nPrint b.V",
+        "99\n42");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"},
+         {"Box", "Public m_v As Variant\n\n"
+                 "Property Set V(v As Object)\nSet m_v = v\nEnd Property\n\n"
+                 "Property Get V() As Variant\nSet V = m_v\nEnd Property\n\n"
+                 "Sub Attach()\nSet V = New Counter\nEnd Sub"}},
+        "Dim b As New Box\nCall b.Attach()\nPrint TypeName(b.V)",
+        "Counter");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"},
+         {"Holder", "Public c As Counter"}},
+        "Dim h As New Holder\nDim c As New Counter\nc.n = 5\nSet h.c = c\n"
+        "Print h.c.n & \" \" & CStr(h.c Is c)",
+        "5 True");
+    expect_classes_failure(
+        {{"A", "Public v As Long"}, {"B", "Public v As Long"}, {"Holder", "Public a As A"}},
+        "Dim h As New Holder\nDim b As New B\nSet h.a = b", "WFC0137");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}, {"Holder", "Public obj As Object"}},
+        "Dim h As New Holder\nDim c As New Counter\nSet h.obj = c\n"
+        "Print TypeName(h.obj) & \" \" & h.obj.n",
+        "Counter 0");
+    expect_classes_success(
+        // Holder references Counter before Counter is scanned -- the
+        // two-pass scan_classes (register every class name, then scan
+        // every body) resolves this regardless of --class order.
+        {{"Holder", "Public c As Counter"}, {"Counter", "Public n As Long"}},
+        "Dim h As New Holder\nPrint TypeName(h.c) & \" \" & CStr(h.c Is Nothing)",
+        "Nothing True");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Function MakeCounter() As Counter\nSet MakeCounter = New Counter\n"
+        "MakeCounter.n = 7\nEnd Function\nDim c As Counter\nSet c = MakeCounter()\n"
+        "Print c.n & \" \" & TypeName(c)",
+        "7 Counter");
+    expect_classes_failure(
+        {{"Counter", "Public n As Long"}},
+        "Function MakeCounter() As Counter\nMakeCounter = New Counter\nEnd Function\n"
+        "Print MakeCounter().n",
+        "WFC0108");
+    expect_classes_success(
+        {{"Pair", "Public a As Long\nPublic b As Long\n\n"
+                  "Property Get Item(i As Long) As Long\n"
+                  "If i = 0 Then\nItem = a\nElse\nItem = b\nEnd If\nEnd Property\n\n"
+                  "Property Let Item(i As Long, v As Long)\n"
+                  "If i = 0 Then\na = v\nElse\nb = v\nEnd If\nEnd Property"}},
+        "Dim p As New Pair\np.Item(0) = 10\np.Item(1) = 20\n"
+        "Print p.Item(0) & \" \" & p.Item(1)",
+        "10 20");
+    expect_classes_success(
+        {{"Store", "Public m_v As Variant\n\n"
+                   "Property Set Item(i As Long, v As Object)\nSet m_v = v\nEnd Property\n\n"
+                   "Property Get Item(i As Long) As Variant\nSet Item = m_v\nEnd Property"},
+         {"Counter", "Public n As Long"}},
+        "Dim s As New Store\nDim c As New Counter\nc.n = 3\nSet s.Item(0) = c\n"
+        "Print s.Item(0).n",
+        "3");
+    expect_classes_failure(
+        {{"Pair", "Public a As Long\n\n"
+                  "Property Get Item(i As Long) As Long\nItem = a\nEnd Property"}},
+        "Dim p As New Pair\nPrint p.Item()", "WFC0072");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
