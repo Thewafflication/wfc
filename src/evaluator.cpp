@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -686,9 +687,30 @@ struct Nothing {
 // is completed just after Value's declaration.
 struct ArrayValue;
 
+// Forward-declared so ObjectInstance (below) can hold a handle to it. Its
+// full body (which embeds a Scope, and therefore needs Scope -- and Value --
+// already complete) is defined further down, right after Scope itself.
+// std::shared_ptr of an incomplete type is fine as a class member: unlike
+// std::unique_ptr, its destructor does not require T to be complete at the
+// point of declaration.
+struct InstanceData;
+
+// A live class-module instance, produced by `New ClassName`. Distinct from
+// Nothing (REQ-0200's unset object-reference state): two ObjectInstance
+// values are the same object (`Is`) exactly when they share the same
+// underlying InstanceData, matching VB6 reference-type identity semantics.
+struct ObjectInstance {
+    std::shared_ptr<InstanceData> data;
+
+    [[nodiscard]] friend bool operator==(
+        const ObjectInstance& left, const ObjectInstance& right) noexcept {
+        return left.data == right.data;
+    }
+};
+
 using Value = std::variant<
     Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
-    ArrayValue>;
+    ArrayValue, ObjectInstance>;
 
 // A fixed-size, one-dimensional array (`Dim arr(n)` or `Dim arr(lo To hi) As
 // Type`). `lower_bound` is the first valid index; `elements.size()` gives
@@ -759,6 +781,14 @@ struct NumericStringResult {
            std::holds_alternative<float>(value) ||
            std::holds_alternative<Decimal>(value) ||
            std::holds_alternative<double>(value);
+}
+
+// An object reference: either Nothing (REQ-0200's unset state) or a live
+// `New`-produced class instance (REQ-0203). Every place that used to check
+// only for Nothing, back when Nothing was the only object-reference value
+// this evaluator could produce, now checks for both.
+[[nodiscard]] inline bool is_object_reference(const Value& value) noexcept {
+    return std::holds_alternative<Nothing>(value) || std::holds_alternative<ObjectInstance>(value);
 }
 
 // Widen a Long, Currency, Single, Decimal, or Double value to double for
@@ -1085,6 +1115,7 @@ enum class NumericCategory {
            identifier == "null" || identifier == "empty" ||
            identifier == "nothing" || identifier == "object" || identifier == "set" ||
            identifier == "sub" || identifier == "function" || identifier == "call" ||
+           identifier == "new" || identifier == "property" || identifier == "get" ||
            identifier == "byval" || identifier == "byref" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
@@ -1120,6 +1151,12 @@ struct Scope {
     std::unordered_set<std::string> constants;
     std::unordered_set<std::string> variant_variables;
     std::unordered_set<std::string> object_variables;
+    // Only populated for a variable declared `As ClassName` (as opposed to
+    // the generic `As Object`, which accepts an instance of any class):
+    // maps the variable's name to the lowercased class name Set must match.
+    // A generic Object-typed variable (in object_variables but absent here)
+    // accepts Nothing or any class's instance.
+    std::unordered_map<std::string, std::string> object_class_names;
     // Only meaningful for a procedure-call scope (never the module scope):
     // distinguishes a Function call's frame (Exit Function is valid, and
     // the procedure's own name holds its return value) from a Sub's.
@@ -1146,6 +1183,11 @@ struct ProcedureParameter {
     std::size_t type_index{};
     bool is_variant{};
     bool by_val{};
+    // Only meaningful for a Property Set member's single parameter: it
+    // accepts an object reference (Nothing or an ObjectInstance) rather
+    // than a fixed scalar type, since this evaluator's parameter type
+    // keywords (see parse_type_keyword) do not otherwise include Object.
+    bool is_object_reference{};
 };
 
 // A `Sub`/`Function` declaration found by the module-level pre-scan
@@ -1162,6 +1204,49 @@ struct ProcedureDef {
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
+};
+
+// One `Dim`/`Public` field declared at a class module's top level (see
+// ClassDef below). Every field declaration is treated identically regardless
+// of the `Dim`/`Public` keyword used -- this evaluator does not model
+// Public/Private visibility for class members, matching REQ-0202's existing
+// precedent for module-level Sub/Function declarations.
+struct ClassFieldDef {
+    std::size_t type_index{};
+    bool is_variant{};
+};
+
+// A class module's declarations, found by `Interpreter::scan_class_body`
+// (mirroring `scan_procedures`' role for the standard module): its own
+// source text, field declarations, `Sub`/`Function` methods, and `Property
+// Get`/`Let`/`Set` accessors. `source` is a real VB6 class's separate .cls
+// file, supplied via `wfc::ClassModuleSource`; a class's members only ever
+// see their own instance's fields and their own locals/parameters, never the
+// standard module's variables, matching VB6's own module-to-module
+// isolation (see REQ-0203's Scope).
+struct ClassDef {
+    std::string_view source;
+    // The original, as-supplied spelling (for TypeName rendering); lookups
+    // themselves are keyed by the lowercased name, like every other
+    // identifier in this evaluator.
+    std::string display_name;
+    std::unordered_map<std::string, ClassFieldDef> fields;
+    std::unordered_map<std::string, ProcedureDef> methods;
+    std::unordered_map<std::string, ProcedureDef> property_get;
+    std::unordered_map<std::string, ProcedureDef> property_let;
+    std::unordered_map<std::string, ProcedureDef> property_set;
+};
+
+// The storage backing one live `New ClassName` instance. Reuses Scope for
+// field storage (a class instance's fields need exactly the same
+// name/value/constants-are-irrelevant/variant-retyping shape a procedure's
+// local scope already provides). Held behind a shared_ptr so every
+// ObjectInstance Value copy referring to the same instance shares one
+// identity, matching VB6 reference-type semantics (`Is`, and mutating a
+// field through one reference is visible through another).
+struct InstanceData {
+    std::string class_name;
+    Scope fields;
 };
 
 // One evaluated call argument. `byref_target` is non-null only when the
@@ -1183,13 +1268,25 @@ public:
     explicit Interpreter(const std::string_view source, const bool allow_identifiers = true)
         : source_(source), allow_identifiers_(allow_identifiers) {}
 
+    Interpreter(
+        const std::string_view source,
+        std::vector<wfc::ClassModuleSource> classes,
+        const bool allow_identifiers = true)
+        : source_(source), allow_identifiers_(allow_identifiers), class_sources_(std::move(classes)) {}
+
     [[nodiscard]] Scope& current_scope() noexcept { return scopes_.back(); }
     [[nodiscard]] Scope& module_scope() noexcept { return scopes_.front(); }
     [[nodiscard]] bool in_procedure() const noexcept { return scopes_.size() > 1U; }
 
     // Looks `name` up in the current procedure's local scope (if any),
-    // falling back to the module scope. Never sees an enclosing caller's
-    // locals, matching VB6's module/procedure two-level scoping.
+    // falling back to the module scope -- or, while executing inside a
+    // class member (`instance_scopes_` non-empty), that instance's own
+    // field scope instead. A class member never falls through to the real
+    // module scope: each class is its own isolated module, matching VB6's
+    // module-to-module isolation (a class does not implicitly see a
+    // standard module's variables, and vice versa). Neither level ever sees
+    // an enclosing caller's locals, matching VB6's module/procedure
+    // two-level scoping.
     [[nodiscard]] VariableLookup find_variable(const std::string& name) {
         if (in_procedure()) {
             auto& local = current_scope();
@@ -1197,6 +1294,14 @@ public:
             if (entry != local.variables.end()) {
                 return {&entry->second, &local};
             }
+        }
+        if (!instance_scopes_.empty()) {
+            auto& fields = instance_scopes_.back()->fields;
+            const auto entry = fields.variables.find(name);
+            if (entry != fields.variables.end()) {
+                return {&entry->second, &fields};
+            }
+            return {};
         }
         auto& module = module_scope();
         const auto entry = module.variables.find(name);
@@ -1207,6 +1312,9 @@ public:
     }
 
     [[nodiscard]] wfc::Evaluation evaluate() {
+        if (!scan_classes()) {
+            return std::move(error_);
+        }
         if (!scan_procedures()) {
             return std::move(error_);
         }
@@ -1329,7 +1437,8 @@ private:
     // Parses `(` [`ByVal`|`ByRef`] name [`As` Type] {`,` ...} `)` into
     // `definition.parameters`, used by `scan_procedures` for both `Sub` and
     // `Function` declarations.
-    [[nodiscard]] bool scan_procedure_parameters(ProcedureDef& definition) {
+    [[nodiscard]] bool scan_procedure_parameters(
+        ProcedureDef& definition, const bool allow_object_parameter = false) {
         skip_horizontal_whitespace();
         if (!consume('(')) {
             set_error(
@@ -1373,17 +1482,25 @@ private:
             } else if (consume_keyword("as")) {
                 skip_horizontal_whitespace();
                 const auto type_offset = offset_;
-                const auto type_result = parse_type_keyword();
-                if (!type_result.has_value()) {
-                    set_error(
-                        "WFC0012",
-                        "expected As Integer, As Long, As Double, As Single, As Currency, "
-                        "As String, As Boolean, or As Variant",
-                        type_offset);
-                    return false;
+                if (allow_object_parameter && consume_keyword("object")) {
+                    parameter.is_object_reference = true;
+                    parameter.type_index = Value{Nothing{}}.index();
+                } else {
+                    const auto type_result = parse_type_keyword();
+                    if (!type_result.has_value()) {
+                        set_error(
+                            "WFC0012",
+                            allow_object_parameter
+                                ? "expected As Integer, As Long, As Double, As Single, As "
+                                  "Currency, As String, As Boolean, As Object, or As Variant"
+                                : "expected As Integer, As Long, As Double, As Single, As "
+                                  "Currency, As String, As Boolean, or As Variant",
+                            type_offset);
+                        return false;
+                    }
+                    parameter.type_index = type_result->default_value.index();
+                    parameter.is_variant = type_result->is_variant;
                 }
-                parameter.type_index = type_result->default_value.index();
-                parameter.is_variant = type_result->is_variant;
             } else {
                 // A bare parameter with no As clause and no type character
                 // is implicitly Variant, matching real VB6.
@@ -1399,6 +1516,302 @@ private:
                 set_error("WFC0005", "expected closing parenthesis", offset_);
                 return false;
             }
+        }
+        return true;
+    }
+
+    // Returns whether `name` is already used anywhere in `class_def` (as a
+    // field, a method, or any Property accessor), regardless of kind --
+    // used to reject a field or method name that collides with any existing
+    // member. A Property accessor's own duplicate check is narrower (see
+    // scan_class_body): Get/Let/Set of the *same* property name are meant
+    // to coexist.
+    [[nodiscard]] static bool class_member_name_used(const ClassDef& class_def, const std::string& name) {
+        return class_def.fields.contains(name) || class_def.methods.contains(name) ||
+               class_def.property_get.contains(name) || class_def.property_let.contains(name) ||
+               class_def.property_set.contains(name);
+    }
+
+    // Parses one already-installed class module source (see scan_classes)
+    // top-to-bottom, finding its field declarations, `Sub`/`Function`
+    // methods, and `Property Get`/`Let`/`Set` accessors -- mirroring
+    // scan_procedures' pre-pass role (locating declarations and body
+    // ranges, never executing anything), extended with the field and
+    // Property forms a class body can also contain. Unlike a standard
+    // module, a class body has no other top-level content at all: no
+    // executable statements, since nothing calls a class module's own body
+    // directly (see REQ-0203's Scope). `Dim` and `Public` are accepted
+    // identically for a field declaration: this evaluator does not model
+    // Public/Private visibility for class members (matching REQ-0202's
+    // existing precedent for module-level procedures), so every field,
+    // method, and property is reachable via `.` access.
+    [[nodiscard]] bool scan_class_body(ClassDef& class_def) {
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                return true;
+            }
+            const auto line_offset = offset_;
+
+            if (consume_keyword("dim") || consume_keyword("public")) {
+                skip_horizontal_whitespace();
+                const auto name_offset = offset_;
+                char type_character{};
+                auto name = parse_identifier(&type_character);
+                if (!name.has_value() || type_character != '\0') {
+                    set_error("WFC0011", "expected field name", name_offset);
+                    return false;
+                }
+                if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+                    set_error(
+                        "WFC0128", "duplicate or reserved class member name", name_offset);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                ClassFieldDef field;
+                if (consume_keyword("as")) {
+                    skip_horizontal_whitespace();
+                    const auto type_offset = offset_;
+                    const auto type_result = parse_type_keyword();
+                    if (!type_result.has_value()) {
+                        set_error(
+                            "WFC0012",
+                            "expected As Integer, As Long, As Double, As Single, As Currency, "
+                            "As String, As Boolean, or As Variant",
+                            type_offset);
+                        return false;
+                    }
+                    field.type_index = type_result->default_value.index();
+                    field.is_variant = type_result->is_variant;
+                } else {
+                    // A bare field declaration with no As clause is
+                    // implicitly Variant, matching a bare module-level Dim.
+                    field.type_index = Value{Empty{}}.index();
+                    field.is_variant = true;
+                }
+                // A field declaration is a plain statement line, not a
+                // block opener -- unlike Sub/Function/Property (which
+                // always need a body to follow, so consume_block_line_end's
+                // "a line break is mandatory" requirement is right for
+                // them), a class's last field can legally be its source's
+                // very last line with no trailing line break.
+                if (!consume_statement_end()) {
+                    return false;
+                }
+                class_def.fields.emplace(std::move(*name), field);
+                continue;
+            }
+
+            if (consume_keyword("property")) {
+                skip_horizontal_whitespace();
+                enum class Accessor { get, let, set };
+                Accessor accessor;
+                if (consume_keyword("get")) {
+                    accessor = Accessor::get;
+                } else if (consume_keyword("let")) {
+                    accessor = Accessor::let;
+                } else if (consume_keyword("set")) {
+                    accessor = Accessor::set;
+                } else {
+                    set_error("WFC0129", "expected Get, Let, or Set after Property", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const auto name_offset = offset_;
+                char type_character{};
+                auto name = parse_identifier(&type_character);
+                if (!name.has_value() || type_character != '\0') {
+                    set_error("WFC0118", "expected property name", name_offset);
+                    return false;
+                }
+                if (is_reserved_identifier(*name) || class_def.fields.contains(*name) ||
+                    class_def.methods.contains(*name)) {
+                    set_error(
+                        "WFC0128", "duplicate or reserved class member name", name_offset);
+                    return false;
+                }
+                auto& accessor_table = accessor == Accessor::get   ? class_def.property_get
+                                        : accessor == Accessor::let ? class_def.property_let
+                                                                     : class_def.property_set;
+                if (accessor_table.contains(*name)) {
+                    set_error(
+                        "WFC0128", "duplicate Property accessor for this name", name_offset);
+                    return false;
+                }
+
+                ProcedureDef definition;
+                definition.is_function = accessor == Accessor::get;
+                if (!scan_procedure_parameters(
+                        definition, /*allow_object_parameter=*/accessor == Accessor::set)) {
+                    return false;
+                }
+                if (accessor == Accessor::get) {
+                    if (!definition.parameters.empty()) {
+                        set_error(
+                            "WFC0130",
+                            "Property Get does not accept parameters (indexed properties are "
+                            "not supported)",
+                            name_offset);
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    if (!consume_keyword("as")) {
+                        set_error(
+                            "WFC0012",
+                            "expected As after Property Get parameter list",
+                            offset_);
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    const auto type_offset = offset_;
+                    const auto type_result = parse_type_keyword();
+                    if (!type_result.has_value()) {
+                        set_error(
+                            "WFC0012",
+                            "expected As Integer, As Long, As Double, As Single, As Currency, "
+                            "As String, As Boolean, or As Variant",
+                            type_offset);
+                        return false;
+                    }
+                    definition.return_type_index = type_result->default_value.index();
+                    definition.return_is_variant = type_result->is_variant;
+                } else {
+                    if (definition.parameters.size() != 1U) {
+                        set_error(
+                            "WFC0131",
+                            "Property Let/Set requires exactly one parameter",
+                            name_offset);
+                        return false;
+                    }
+                    if (accessor == Accessor::set &&
+                        !definition.parameters.front().is_object_reference) {
+                        set_error(
+                            "WFC0132",
+                            "Property Set's parameter must be declared As Object",
+                            name_offset);
+                        return false;
+                    }
+                }
+                if (!consume_block_line_end()) {
+                    return false;
+                }
+                definition.body_start = offset_;
+                if (!skip_to_matching_end("property", definition.body_end)) {
+                    set_error("WFC0133", "expected End Property", line_offset);
+                    return false;
+                }
+                definition.declaration_end = offset_;
+                accessor_table.emplace(std::move(*name), std::move(definition));
+                continue;
+            }
+
+            bool is_function = false;
+            if (consume_keyword("sub")) {
+                is_function = false;
+            } else if (consume_keyword("function")) {
+                is_function = true;
+            } else {
+                set_error(
+                    "WFC0127",
+                    "expected a class member declaration (Dim, Public, Sub, Function, or "
+                    "Property)",
+                    line_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            const auto name_offset = offset_;
+            char type_character{};
+            auto name = parse_identifier(&type_character);
+            if (!name.has_value() || type_character != '\0') {
+                set_error("WFC0118", "expected procedure name", name_offset);
+                return false;
+            }
+            if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+                set_error("WFC0128", "duplicate or reserved class member name", name_offset);
+                return false;
+            }
+            ProcedureDef definition;
+            definition.is_function = is_function;
+            if (!scan_procedure_parameters(definition)) {
+                return false;
+            }
+            if (is_function) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("as")) {
+                    set_error(
+                        "WFC0012",
+                        "expected As after Function parameter list",
+                        offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const auto type_offset = offset_;
+                const auto type_result = parse_type_keyword();
+                if (!type_result.has_value()) {
+                    set_error(
+                        "WFC0012",
+                        "expected As Integer, As Long, As Double, As Single, As Currency, "
+                        "As String, As Boolean, or As Variant",
+                        type_offset);
+                    return false;
+                }
+                definition.return_type_index = type_result->default_value.index();
+                definition.return_is_variant = type_result->is_variant;
+            }
+            if (!consume_block_line_end()) {
+                return false;
+            }
+            definition.body_start = offset_;
+            if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
+                set_error(
+                    is_function ? "WFC0120" : "WFC0121",
+                    is_function ? "expected End Function" : "expected End Sub",
+                    line_offset);
+                return false;
+            }
+            definition.declaration_end = offset_;
+            class_def.methods.emplace(std::move(*name), std::move(definition));
+        }
+    }
+
+    // Scans every class module source supplied alongside the standard
+    // module (see wfc::ClassModuleSource), registering each one's
+    // definition in class_definitions_ before the standard module's own
+    // scan_procedures/execution begins, so `New ClassName` and `As
+    // ClassName` can resolve regardless of textual order between the
+    // classes and the module. Temporarily installs each class's own source
+    // into source_/offset_ (restored afterward) since ProcedureDef's
+    // body_start/body_end offsets are only meaningful against the source
+    // they were scanned from -- the same reason call_procedure later swaps
+    // source_ back in before running a method/property body.
+    [[nodiscard]] bool scan_classes() {
+        for (const auto& class_source : class_sources_) {
+            std::string lowered_name;
+            lowered_name.reserve(class_source.name.size());
+            for (const char character : class_source.name) {
+                lowered_name.push_back(ascii_lower(character));
+            }
+            if (lowered_name.empty() || is_reserved_identifier(lowered_name) ||
+                class_definitions_.contains(lowered_name)) {
+                set_error("WFC0126", "duplicate or reserved class name", offset_);
+                return false;
+            }
+
+            ClassDef class_def;
+            class_def.source = class_source.source;
+            class_def.display_name = class_source.name;
+
+            const auto saved_source = source_;
+            const auto saved_offset = offset_;
+            source_ = class_source.source;
+            offset_ = 0;
+            const bool scanned_ok = scan_class_body(class_def);
+            source_ = saved_source;
+            offset_ = saved_offset;
+            if (!scanned_ok) {
+                return false;
+            }
+            class_definitions_.emplace(std::move(lowered_name), std::move(class_def));
         }
         return true;
     }
@@ -2986,6 +3399,8 @@ private:
             }
         } else {
             skip_horizontal_whitespace();
+            std::string declared_class_name;
+            bool eager_new = false;
             if (consume_keyword("long")) {
                 element_default = Integer{};
             } else if (consume_keyword("integer")) {
@@ -3006,16 +3421,66 @@ private:
             } else if (!is_array && consume_keyword("variant")) {
                 element_default = Empty{};
                 is_variant = true;
+            } else if (!is_array && consume_keyword("new")) {
+                // `As New ClassName` eagerly instantiates the class right
+                // here (a documented simplification of VB6's lazy
+                // auto-instantiation, which only creates the instance on
+                // first use; see REQ-0203's Scope).
+                skip_horizontal_whitespace();
+                const auto class_name_offset = offset_;
+                char class_type_character{};
+                auto class_name = parse_identifier(&class_type_character);
+                if (!class_name.has_value() || class_type_character != '\0' ||
+                    !class_definitions_.contains(*class_name)) {
+                    set_error("WFC0134", "unknown class name", class_name_offset);
+                    return false;
+                }
+                declared_class_name = std::move(*class_name);
+                is_object = true;
+                eager_new = true;
             } else {
-                set_error(
-                    "WFC0012",
-                    is_array
-                        ? "expected As Integer, As Long, As Double, As Single, As Currency, "
-                          "As String, or As Boolean"
-                        : "expected As Integer, As Long, As Double, As Single, As Currency, "
-                          "As String, As Boolean, As Object, or As Variant",
-                    offset_);
-                return false;
+                // A bare identifier here, if it names a known class, is a
+                // fixed `As ClassName` declaration (initialized to
+                // Nothing, like `As Object`, but Set-checked against this
+                // specific class -- see parse_set_statement).
+                const auto class_name_offset = offset_;
+                const auto saved_offset = offset_;
+                char class_type_character{};
+                auto class_name = parse_identifier(&class_type_character);
+                if (!is_array && class_name.has_value() && class_type_character == '\0' &&
+                    class_definitions_.contains(*class_name)) {
+                    declared_class_name = std::move(*class_name);
+                    element_default = Nothing{};
+                    is_object = true;
+                } else {
+                    offset_ = saved_offset;
+                    set_error(
+                        "WFC0012",
+                        is_array
+                            ? "expected As Integer, As Long, As Double, As Single, As Currency, "
+                              "As String, or As Boolean"
+                            : "expected As Integer, As Long, As Double, As Single, As Currency, "
+                              "As String, As Boolean, As Object, As Variant, or a known class "
+                              "name",
+                        class_name_offset);
+                    return false;
+                }
+            }
+
+            if (eager_new) {
+                auto instance = instantiate_class(declared_class_name, identifier_offset);
+                if (!instance.has_value()) {
+                    return false;
+                }
+                element_default = std::move(*instance);
+            }
+
+            if (!declared_class_name.empty()) {
+                // Neither branch above sets declared_class_name when
+                // is_array is true (array element types are restricted to
+                // the fixed scalar list; see REQ-0201's Scope), so this
+                // variable is always scalar here.
+                current_scope().object_class_names.emplace(*identifier, declared_class_name);
             }
         }
 
@@ -3186,14 +3651,60 @@ private:
         return true;
     }
 
+    // `Set obj.Prop = expression` assigns through a Property Set accessor --
+    // the only member-access Set target this evaluator supports (a plain
+    // field is always read/written through ordinary `=`; class-typed
+    // fields, which would need their own Set target, are deferred -- see
+    // REQ-0203's Scope). `base` is the already-evaluated object reference
+    // the member is accessed on; its own '.' has already been consumed.
+    [[nodiscard]] bool parse_member_set_assignment(const Value base, const std::size_t base_offset) {
+        skip_horizontal_whitespace();
+        const auto member_offset = offset_;
+        char type_character{};
+        auto member_name = parse_identifier(&type_character);
+        if (!member_name.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected member name after '.'", member_offset);
+            return false;
+        }
+        if (std::holds_alternative<Nothing>(base)) {
+            set_error("WFC0106", "Invalid use of Nothing", base_offset);
+            return false;
+        }
+        InstanceData& instance = *std::get<ObjectInstance>(base).data;
+        const auto class_iterator = class_definitions_.find(instance.class_name);
+        const ClassDef& class_def = class_iterator->second;
+        const auto setter_iterator = class_def.property_set.find(*member_name);
+        if (setter_iterator == class_def.property_set.end()) {
+            set_error("WFC0135", "unknown member (no Property Set accessor)", member_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        std::vector<CallArgument> arguments;
+        arguments.push_back(CallArgument{std::move(*value), nullptr});
+        auto result = invoke_definition(
+            setter_iterator->second, *member_name, std::move(arguments), member_offset,
+            class_def.source, &instance);
+        return result.has_value();
+    }
+
     // `Set identifier = expression` is the only legal way to assign an
     // object reference (see REQ-0200): the target must be a fixed
-    // `Object`-typed variable or a `Variant`-declared one, and the source
-    // expression must itself be an object reference. Since this evaluator
-    // has no class modules, `New`, or any other way to produce a
-    // non-Nothing object value, the source can currently only ever be
-    // `Nothing` or another object-holding variable's current (`Nothing`)
-    // value.
+    // `Object`-typed (or `As ClassName`-typed) variable or a `Variant`-
+    // declared one, and the source expression must itself be an object
+    // reference -- `Nothing`, or (since REQ-0203) a live `New`-produced
+    // instance. A target declared `As ClassName` (as opposed to the generic
+    // `As Object`) additionally requires the source instance's own class to
+    // match exactly (this evaluator has no class hierarchy/interfaces, so
+    // "match" is always exact identity, not a compatible-supertype check).
     [[nodiscard]] bool parse_set_statement() {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
@@ -3208,6 +3719,18 @@ private:
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
+
+        const auto after_identifier_offset = offset_;
+        skip_horizontal_whitespace();
+        if (type_character == '\0' && !at_end() && current() == '.' &&
+            (std::holds_alternative<Nothing>(*variable.value) ||
+             std::holds_alternative<ObjectInstance>(*variable.value))) {
+            const auto base = *variable.value;
+            advance();
+            return parse_member_set_assignment(base, identifier_offset);
+        }
+        offset_ = after_identifier_offset;
+
         if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
             return false;
         }
@@ -3232,8 +3755,18 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (!std::holds_alternative<Nothing>(*value)) {
+        if (!std::holds_alternative<Nothing>(*value) &&
+            !std::holds_alternative<ObjectInstance>(*value)) {
             set_error("WFC0106", "Set requires an object reference", identifier_offset);
+            return false;
+        }
+        const auto declared_class = variable.scope->object_class_names.find(*identifier);
+        if (declared_class != variable.scope->object_class_names.end() &&
+            std::holds_alternative<ObjectInstance>(*value) &&
+            std::get<ObjectInstance>(*value).data->class_name != declared_class->second) {
+            set_error(
+                "WFC0137", "Set source does not match the target's declared class",
+                identifier_offset);
             return false;
         }
         if (execute_) {
@@ -3242,10 +3775,77 @@ private:
         return true;
     }
 
-    // Dispatches a bare `identifier = ...`/`identifier(...) = ...` statement
-    // to array-element assignment when `identifier` names a declared array
-    // and is immediately followed by `(`, or to ordinary scalar assignment
-    // otherwise.
+    // `identifier.member = expression` writes through a Property Let
+    // accessor when the class declares one for `member`, otherwise directly
+    // to that instance field. `base` is the already-evaluated object
+    // reference the member is accessed on; its own '.' has already been
+    // consumed.
+    [[nodiscard]] bool parse_member_assignment(const Value base, const std::size_t base_offset) {
+        skip_horizontal_whitespace();
+        const auto member_offset = offset_;
+        char type_character{};
+        auto member_name = parse_identifier(&type_character);
+        if (!member_name.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected member name after '.'", member_offset);
+            return false;
+        }
+        if (std::holds_alternative<Nothing>(base)) {
+            set_error("WFC0106", "Invalid use of Nothing", base_offset);
+            return false;
+        }
+        InstanceData& instance = *std::get<ObjectInstance>(base).data;
+        const auto class_iterator = class_definitions_.find(instance.class_name);
+        const ClassDef& class_def = class_iterator->second;
+
+        skip_horizontal_whitespace();
+        if (!consume('=')) {
+            set_error("WFC0014", "expected assignment operator", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+
+        const auto letter_iterator = class_def.property_let.find(*member_name);
+        if (letter_iterator != class_def.property_let.end()) {
+            std::vector<CallArgument> arguments;
+            arguments.push_back(CallArgument{std::move(*value), nullptr});
+            auto result = invoke_definition(
+                letter_iterator->second, *member_name, std::move(arguments), member_offset,
+                class_def.source, &instance);
+            return result.has_value();
+        }
+
+        const auto field_iterator = instance.fields.variables.find(*member_name);
+        if (field_iterator == instance.fields.variables.end()) {
+            set_error("WFC0135", "unknown member", member_offset);
+            return false;
+        }
+        if (instance.fields.variant_variables.contains(*member_name)) {
+            if (execute_) {
+                field_iterator->second = std::move(*value);
+            }
+            return true;
+        }
+        if (!coerce_numeric_value(*value, field_iterator->second.index(), member_offset)) {
+            return false;
+        }
+        if (field_iterator->second.index() != value->index()) {
+            set_error("WFC0016", "assignment type mismatch", member_offset);
+            return false;
+        }
+        if (execute_) {
+            field_iterator->second = std::move(*value);
+        }
+        return true;
+    }
+
+    // Dispatches a bare `identifier = ...`/`identifier(...) = ...`/
+    // `identifier.member = ...` statement to array-element assignment,
+    // member assignment, or ordinary scalar assignment, in that order,
+    // based on what immediately follows `identifier`.
     [[nodiscard]] bool parse_assignment_or_array_element(
         std::string identifier,
         const char type_character = '\0') {
@@ -3258,6 +3858,19 @@ private:
                 if (!at_end() && current() == '(') {
                     const auto identifier_offset = saved_offset - identifier.size();
                     return parse_array_element_assignment(identifier, identifier_offset);
+                }
+                offset_ = saved_offset;
+            }
+            if (variable.value != nullptr &&
+                (std::holds_alternative<Nothing>(*variable.value) ||
+                 std::holds_alternative<ObjectInstance>(*variable.value))) {
+                const auto saved_offset = offset_;
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '.') {
+                    const auto identifier_offset = saved_offset - identifier.size();
+                    const auto base = *variable.value;
+                    advance();
+                    return parse_member_assignment(base, identifier_offset);
                 }
                 offset_ = saved_offset;
             }
@@ -3478,17 +4091,19 @@ private:
             if (!right.has_value()) {
                 return std::nullopt;
             }
-            // Since this evaluator has no class modules, New, or any other
-            // way to produce a non-Nothing object value, `Is` can only ever
-            // compare Nothing to Nothing (always True) -- both operands
-            // must still be object references (Nothing), matching real
+            // `Is` compares two object references for identity: Nothing Is
+            // Nothing is always True; two live instances are the same
+            // object exactly when they share the same underlying
+            // InstanceData (Value's variant-generated operator== already
+            // does the right thing for both cases, since ObjectInstance's
+            // own operator== compares the shared_ptr, not field contents).
+            // Both operands must still be object references, matching real
             // VB6's requirement that Is only accepts object operands.
-            if (!std::holds_alternative<Nothing>(*left) ||
-                !std::holds_alternative<Nothing>(*right)) {
+            if (!is_object_reference(*left) || !is_object_reference(*right)) {
                 set_error("WFC0107", "Is requires object operands", operator_offset);
                 return std::nullopt;
             }
-            return Value{true};
+            return Value{*left == *right};
         }
         std::string_view operation;
         if (consume('=')) {
@@ -3548,8 +4163,7 @@ private:
                 continue;
             }
             if (std::holds_alternative<bool>(*left) || std::holds_alternative<bool>(*right) ||
-                std::holds_alternative<Nothing>(*left) ||
-                std::holds_alternative<Nothing>(*right) ||
+                is_object_reference(*left) || is_object_reference(*right) ||
                 std::holds_alternative<ArrayValue>(*left) ||
                 std::holds_alternative<ArrayValue>(*right)) {
                 set_error(
@@ -3727,7 +4341,64 @@ private:
         return parse_primary();
     }
 
+    // A class instantiation, either from `New ClassName` or (eagerly, a
+    // documented simplification of VB6's lazy auto-instantiation semantics
+    // for `Dim x As New ClassName`; see REQ-0203's Scope) from a `Dim`
+    // declaration. Every declared field is initialized to its type's zero
+    // value, matching a fixed-type variable's own default.
+    [[nodiscard]] std::optional<Value> instantiate_class(
+        const std::string& class_name, const std::size_t offset) {
+        const auto class_iterator = class_definitions_.find(class_name);
+        if (class_iterator == class_definitions_.end()) {
+            set_error("WFC0134", "unknown class name", offset);
+            return std::nullopt;
+        }
+        if (constant_expression_) {
+            set_error(
+                "WFC0074", "constant initializer cannot call a procedure", offset);
+            return std::nullopt;
+        }
+        auto instance = std::make_shared<InstanceData>();
+        instance->class_name = class_name;
+        for (const auto& [field_name, field_def] : class_iterator->second.fields) {
+            instance->fields.variables.emplace(
+                field_name,
+                field_def.is_variant ? Value{Empty{}} : zero_value_for_index(field_def.type_index));
+            if (field_def.is_variant) {
+                instance->fields.variant_variables.insert(field_name);
+            }
+        }
+        return Value{ObjectInstance{std::move(instance)}};
+    }
+
+    // Wraps parse_primary_base with postfix `.member`/`.member(args)`
+    // handling, applied in a loop so a member that itself evaluates to an
+    // object reference (a Variant-typed field or a Variant-returning
+    // Function/Property Get holding one -- this evaluator's only routes to
+    // an object-valued result besides a plain variable, since a dedicated
+    // "As ClassName" method/property return type is deferred; see REQ-0203's
+    // Scope) chains further (`a.b.c`), without every parse_primary_base exit
+    // path needing to know about member access itself.
     [[nodiscard]] std::optional<Value> parse_primary() {
+        const auto base_offset = offset_;
+        auto value = parse_primary_base();
+        if (!value.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            if (at_end() || current() != '.') {
+                return value;
+            }
+            advance();
+            value = parse_member_access_after_dot(std::move(*value), base_offset);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_primary_base() {
         skip_horizontal_whitespace();
         if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
             current() == '\'') {
@@ -3757,6 +4428,17 @@ private:
         }
         if (consume_keyword("nothing")) {
             return Value{Nothing{}};
+        }
+        if (consume_keyword("new")) {
+            skip_horizontal_whitespace();
+            const auto class_name_offset = offset_;
+            char class_type_character{};
+            auto class_name = parse_identifier(&class_type_character);
+            if (!class_name.has_value() || class_type_character != '\0') {
+                set_error("WFC0011", "expected class name after New", class_name_offset);
+                return std::nullopt;
+            }
+            return instantiate_class(*class_name, class_name_offset);
         }
         if (consume('(')) {
             auto value = parse_expression();
@@ -3791,6 +4473,24 @@ private:
                 if (type_character == '\0' && procedures_.contains(*identifier)) {
                     return parse_procedure_call(*identifier, identifier_offset);
                 }
+                // An unqualified call to a sibling method of the class
+                // currently executing (including a method calling itself,
+                // for recursion) -- the implicit-Me equivalent of
+                // `Me.Method(args)`, which this evaluator does not require
+                // spelling out since a class method never sees a same-named
+                // module-level procedure anyway (its scope is isolated from
+                // the module; see find_variable).
+                if (type_character == '\0') {
+                    if (auto* const instance = current_instance()) {
+                        if (const auto* const class_def = current_class_def()) {
+                            if (class_def->methods.contains(*identifier)) {
+                                return call_class_method(
+                                    *instance, *class_def, *identifier, identifier_offset,
+                                    /*require_function=*/true);
+                            }
+                        }
+                    }
+                }
                 if (type_character != '\0') {
                     identifier->push_back(type_character);
                 }
@@ -3813,6 +4513,21 @@ private:
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
                 return std::nullopt;
+            }
+            // An unqualified read of the current class's own Property Get
+            // (no parentheses, like a field read), the same implicit-Me
+            // convenience as the method-call branch above.
+            if (type_character == '\0') {
+                if (auto* const instance = current_instance()) {
+                    if (const auto* const class_def = current_class_def()) {
+                        const auto getter_iterator = class_def->property_get.find(*identifier);
+                        if (getter_iterator != class_def->property_get.end()) {
+                            return invoke_definition(
+                                getter_iterator->second, *identifier, {}, identifier_offset,
+                                class_def->source, instance);
+                        }
+                    }
+                }
             }
             const auto variable = find_variable(*identifier);
             if (variable.value == nullptr) {
@@ -3917,29 +4632,9 @@ private:
         }
     }
 
-    // Parses `(args)` for a call to the already-looked-up procedure
-    // `name`/`definition`, binds parameters into a new local scope
-    // (widening/narrowing each ByVal-or-typed argument the same way a
-    // `Dim`-typed assignment would, and passing a Variant parameter
-    // through unchanged), runs the body, copies ByRef results back to
-    // their callers' variables, and returns the call's result (the
-    // procedure's own name slot for a Function, `Empty` for a Sub).
-    [[nodiscard]] std::optional<Value> call_procedure(
-        const std::string& name,
-        const std::size_t identifier_offset,
-        const bool require_function) {
-        const auto definition_iterator = procedures_.find(name);
-        const auto& definition = definition_iterator->second;
-        if (require_function && !definition.is_function) {
-            set_error("WFC0122", "a Sub cannot be used in an expression", identifier_offset);
-            return std::nullopt;
-        }
-        if (constant_expression_) {
-            set_error(
-                "WFC0074", "constant initializer cannot call a procedure", identifier_offset);
-            return std::nullopt;
-        }
-
+    // Parses `(arg, arg, ...)` (already-consumed opening keyword/name), used
+    // by both a module-level procedure call and a `.method(args)` call.
+    [[nodiscard]] std::optional<std::vector<CallArgument>> parse_call_argument_list() {
         skip_horizontal_whitespace();
         if (!consume('(')) {
             set_error(
@@ -3966,6 +4661,32 @@ private:
                 skip_horizontal_whitespace();
             }
         }
+        return arguments;
+    }
+
+    // Binds already-evaluated `arguments` to `definition`'s parameters into
+    // a new local scope (widening/narrowing each ByVal-or-typed argument the
+    // same way a `Dim`-typed assignment would, passing a Variant parameter
+    // through unchanged, and accepting only an object reference for a
+    // Property Set's `is_object_reference` parameter), runs the body against
+    // `body_source` (the module's own source for a plain procedure, or a
+    // class's own source for a method/property -- see scan_classes),
+    // optionally within `instance_scope`'s field scope (see find_variable),
+    // copies ByRef results back to their callers' variables, and returns the
+    // call's result (the `binding_name` slot for a Function/Property Get,
+    // `Empty` otherwise). Shared by call_procedure (module-level calls) and
+    // parse_member_access_after_dot (method/property calls); the two differ
+    // in how the callee is looked up and how its argument list is parsed
+    // (parenthesized for a method call, a single already-evaluated
+    // expression for a Property Let/Set), which is why they remain separate
+    // callers rather than one further-generalized entry point.
+    [[nodiscard]] std::optional<Value> invoke_definition(
+        const ProcedureDef& definition,
+        const std::string& binding_name,
+        std::vector<CallArgument> arguments,
+        const std::size_t identifier_offset,
+        const std::string_view body_source,
+        InstanceData* const instance) {
         if (arguments.size() != definition.parameters.size()) {
             set_error(
                 "WFC0072",
@@ -3981,14 +4702,10 @@ private:
             return definition.return_is_variant ? Value{Empty{}}
                                                   : zero_value_for_index(definition.return_type_index);
         }
-        // Each nested call recurses through this same C++ function (via
-        // parse_statement/parse_expression's own deep call chain), so an
-        // unbounded VB6 recursion would otherwise overflow the native call
-        // stack -- a process crash -- instead of failing cleanly. 64 was
-        // chosen empirically: unguarded recursion was observed to crash a
-        // local debug build somewhere between 100 and 128 levels, so 64
-        // leaves a comfortable margin (a release build, with smaller
-        // per-frame stack usage, has more headroom still).
+        // See call_procedure's own identical guard: every nested call
+        // recurses through this same C++ function, so unbounded VB6
+        // recursion (now including a method calling another method, or
+        // itself) must still be bounded to avoid a native stack overflow.
         if (procedure_depth_ >= 64U) {
             set_error("WFC0123", "procedure call nesting is too deep", identifier_offset);
             return std::nullopt;
@@ -3998,6 +4715,17 @@ private:
         for (std::size_t index = 0U; index < arguments.size(); ++index) {
             const auto& parameter = definition.parameters[index];
             auto& argument = arguments[index];
+            if (parameter.is_object_reference) {
+                if (!std::holds_alternative<Nothing>(argument.value) &&
+                    !std::holds_alternative<ObjectInstance>(argument.value)) {
+                    set_error(
+                        "WFC0106", "Property Set requires an object reference", identifier_offset);
+                    return std::nullopt;
+                }
+                frame.variables.emplace(parameter.name, std::move(argument.value));
+                frame.object_variables.insert(parameter.name);
+                continue;
+            }
             if (parameter.is_variant) {
                 frame.variables.emplace(parameter.name, std::move(argument.value));
                 frame.variant_variables.insert(parameter.name);
@@ -4015,25 +4743,34 @@ private:
         if (definition.is_function) {
             frame.is_function_frame = true;
             frame.variables.emplace(
-                name,
+                binding_name,
                 definition.return_is_variant
                     ? Value{Empty{}}
                     : zero_value_for_index(definition.return_type_index));
             if (definition.return_is_variant) {
-                frame.variant_variables.insert(name);
+                frame.variant_variables.insert(binding_name);
             }
         }
 
         scopes_.push_back(std::move(frame));
+        if (instance != nullptr) {
+            instance_scopes_.push_back(instance);
+        }
         const auto saved_offset = offset_;
+        const auto saved_source = source_;
         const auto enclosing_execution = execute_;
         ++procedure_depth_;
         offset_ = definition.body_start;
+        source_ = body_source;
         execute_ = true;
         const bool ran_ok = run_procedure_body(definition.body_end);
         --procedure_depth_;
         execute_ = enclosing_execution;
         offset_ = saved_offset;
+        source_ = saved_source;
+        if (instance != nullptr) {
+            instance_scopes_.pop_back();
+        }
 
         if (!ran_ok) {
             scopes_.pop_back();
@@ -4041,7 +4778,7 @@ private:
         }
 
         std::optional<Value> result =
-            definition.is_function ? scopes_.back().variables.at(name) : Value{Empty{}};
+            definition.is_function ? scopes_.back().variables.at(binding_name) : Value{Empty{}};
         for (std::size_t index = 0U; index < arguments.size(); ++index) {
             const auto& parameter = definition.parameters[index];
             if (!parameter.by_val && arguments[index].byref_target != nullptr) {
@@ -4052,9 +4789,139 @@ private:
         return result;
     }
 
+    // Parses `(args)` for a call to the already-looked-up module-level
+    // procedure `name`, then runs it via invoke_definition against the
+    // module's own source and no instance scope.
+    [[nodiscard]] std::optional<Value> call_procedure(
+        const std::string& name,
+        const std::size_t identifier_offset,
+        const bool require_function) {
+        const auto definition_iterator = procedures_.find(name);
+        const auto& definition = definition_iterator->second;
+        if (require_function && !definition.is_function) {
+            set_error("WFC0122", "a Sub cannot be used in an expression", identifier_offset);
+            return std::nullopt;
+        }
+        if (constant_expression_) {
+            set_error(
+                "WFC0074", "constant initializer cannot call a procedure", identifier_offset);
+            return std::nullopt;
+        }
+        auto arguments = parse_call_argument_list();
+        if (!arguments.has_value()) {
+            return std::nullopt;
+        }
+        return invoke_definition(
+            definition, name, std::move(*arguments), identifier_offset, source_, nullptr);
+    }
+
     [[nodiscard]] std::optional<Value> parse_procedure_call(
         const std::string& name, const std::size_t identifier_offset) {
         return call_procedure(name, identifier_offset, /*require_function=*/true);
+    }
+
+    // Whether a method/property call is currently executing, and if so, its
+    // instance and class (see instance_scopes_). Used to resolve an
+    // unqualified call/read to a sibling member of the class currently
+    // executing -- the implicit-Me equivalent VB6 itself provides for a
+    // class's own members, without spelling out `Me.`.
+    [[nodiscard]] InstanceData* current_instance() noexcept {
+        return instance_scopes_.empty() ? nullptr : instance_scopes_.back();
+    }
+    [[nodiscard]] const ClassDef* current_class_def() {
+        auto* const instance = current_instance();
+        if (instance == nullptr) {
+            return nullptr;
+        }
+        const auto iterator = class_definitions_.find(instance->class_name);
+        return iterator == class_definitions_.end() ? nullptr : &iterator->second;
+    }
+
+    // Parses `(args)` for a call to `class_def`'s already-looked-up
+    // `member_name` method on `instance`, requiring it to be a Function
+    // when `require_function` (an expression-context call; false for a
+    // `Call`-statement Sub invocation). Shared by parse_member_access_after_dot
+    // (an explicit `obj.Method(args)`) and parse_primary_base/
+    // parse_call_statement (an unqualified sibling call resolved via
+    // current_instance/current_class_def).
+    [[nodiscard]] std::optional<Value> call_class_method(
+        InstanceData& instance,
+        const ClassDef& class_def,
+        const std::string& member_name,
+        const std::size_t member_offset,
+        const bool require_function) {
+        const auto method_iterator = class_def.methods.find(member_name);
+        if (method_iterator == class_def.methods.end()) {
+            set_error("WFC0135", "unknown member", member_offset);
+            return std::nullopt;
+        }
+        if (require_function && !method_iterator->second.is_function) {
+            set_error("WFC0122", "a Sub cannot be used in an expression", member_offset);
+            return std::nullopt;
+        }
+        if (constant_expression_) {
+            set_error(
+                "WFC0074", "constant initializer cannot call a procedure", member_offset);
+            return std::nullopt;
+        }
+        auto arguments = parse_call_argument_list();
+        if (!arguments.has_value()) {
+            return std::nullopt;
+        }
+        return invoke_definition(
+            method_iterator->second, member_name, std::move(*arguments), member_offset,
+            class_def.source, &instance);
+    }
+
+    // Parses `.member` or `.member(args)` immediately after `base`'s own
+    // '.' has already been consumed (see parse_primary's postfix loop).
+    // `base` must currently be an object reference (Nothing or a live
+    // instance); `base_offset` is used for the "requires an object
+    // reference"/"Invalid use of Nothing" diagnostics. Dispatches to a
+    // method call (a `(` follows the member name), a Property Get, or a
+    // plain field read, in that order -- a class cannot declare a field and
+    // a Property accessor under the same name (see scan_class_body), so
+    // this order is unambiguous.
+    [[nodiscard]] std::optional<Value> parse_member_access_after_dot(
+        const Value base, const std::size_t base_offset, const bool require_function = true) {
+        if (!std::holds_alternative<Nothing>(base) &&
+            !std::holds_alternative<ObjectInstance>(base)) {
+            set_error("WFC0136", "member access requires an object reference", base_offset);
+            return std::nullopt;
+        }
+        skip_horizontal_whitespace();
+        const auto member_offset = offset_;
+        char type_character{};
+        auto member_name = parse_identifier(&type_character);
+        if (!member_name.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected member name after '.'", member_offset);
+            return std::nullopt;
+        }
+        if (std::holds_alternative<Nothing>(base)) {
+            set_error("WFC0106", "Invalid use of Nothing", base_offset);
+            return std::nullopt;
+        }
+        InstanceData& instance = *std::get<ObjectInstance>(base).data;
+        const auto class_iterator = class_definitions_.find(instance.class_name);
+        const ClassDef& class_def = class_iterator->second;
+
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '(') {
+            return call_class_method(
+                instance, class_def, *member_name, member_offset, require_function);
+        }
+        const auto getter_iterator = class_def.property_get.find(*member_name);
+        if (getter_iterator != class_def.property_get.end()) {
+            return invoke_definition(
+                getter_iterator->second, *member_name, {}, member_offset, class_def.source,
+                &instance);
+        }
+        const auto field_iterator = instance.fields.variables.find(*member_name);
+        if (field_iterator != instance.fields.variables.end()) {
+            return field_iterator->second;
+        }
+        set_error("WFC0135", "unknown member", member_offset);
+        return std::nullopt;
     }
 
     // `Call name(args)` -- the only supported way to invoke a Sub as a
@@ -4071,7 +4938,41 @@ private:
             set_error("WFC0011", "expected procedure name after Call", identifier_offset);
             return false;
         }
+        // `Call obj.Method(args)` -- a method call on an object reference,
+        // dispatched the same way an expression's `obj.Method(args)` would
+        // be, but allowing a Sub (its result is simply discarded, like any
+        // other Call target).
+        const auto after_identifier_offset = offset_;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '.') {
+            const auto variable = find_variable(*identifier);
+            if (variable.value != nullptr &&
+                (std::holds_alternative<Nothing>(*variable.value) ||
+                 std::holds_alternative<ObjectInstance>(*variable.value))) {
+                const auto base = *variable.value;
+                advance();
+                const auto result = parse_member_access_after_dot(
+                    base, identifier_offset, /*require_function=*/false);
+                return result.has_value();
+            }
+        }
+        offset_ = after_identifier_offset;
         if (!procedures_.contains(*identifier)) {
+            // An unqualified `Call Method(args)` for a sibling method of
+            // the class currently executing (see current_instance/
+            // current_class_def) -- the Call-statement counterpart of the
+            // same implicit-Me convenience parse_primary_base gives
+            // expressions.
+            if (auto* const instance = current_instance()) {
+                if (const auto* const class_def = current_class_def()) {
+                    if (class_def->methods.contains(*identifier)) {
+                        const auto result = call_class_method(
+                            *instance, *class_def, *identifier, identifier_offset,
+                            /*require_function=*/false);
+                        return result.has_value();
+                    }
+                }
+            }
             set_error("WFC0015", "undeclared procedure", identifier_offset);
             return false;
         }
@@ -4450,8 +5351,8 @@ private:
         if (is_isobject) {
             // Verified VB6 fact: IsObject(Nothing) is True -- Nothing is
             // still an object reference (just an unset one), distinct from
-            // Null/Empty.
-            return Value{execute_ && std::holds_alternative<Nothing>(arguments[0])};
+            // Null/Empty. A live instance is of course an object too.
+            return Value{execute_ && is_object_reference(arguments[0])};
         }
 
         if (is_lbound || is_ubound) {
@@ -4481,7 +5382,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error("WFC0105", "CDec requires a numeric value", identifier_offset);
                 return std::nullopt;
@@ -4829,7 +5730,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0])) {
+            if (is_object_reference(arguments[0])) {
                 set_error("WFC0106", "Invalid use of Nothing", identifier_offset);
                 return std::nullopt;
             }
@@ -4877,6 +5778,12 @@ private:
             if (std::holds_alternative<Nothing>(arguments[0])) {
                 return Value{std::string{"Nothing"}};
             }
+            // A live instance's TypeName is its own class's name (its
+            // as-supplied spelling, not the lowercased lookup key).
+            if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
+                return Value{
+                    class_definitions_.at(instance->data->class_name).display_name};
+            }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
                 // Real VB6 renders an array's TypeName as its element type
                 // name plus "()", e.g. "Long()".
@@ -4918,8 +5825,10 @@ private:
             if (std::holds_alternative<Null>(arguments[0])) {
                 return Value{Integer{1}};
             }
-            // Verified VB6 fact: VarType(Nothing) = 9 (vbObject).
-            if (std::holds_alternative<Nothing>(arguments[0])) {
+            // Verified VB6 fact: VarType(Nothing) = 9 (vbObject). A live
+            // instance is also vbObject: VarType never encodes which class,
+            // only that the value is an object reference.
+            if (is_object_reference(arguments[0])) {
                 return Value{Integer{9}};
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
@@ -4987,7 +5896,7 @@ private:
             // session): IsNumeric(Empty) is True (Empty coerces to 0, a
             // number), and IsNumeric(Null) is False.
             if (std::holds_alternative<Null>(arguments[0]) ||
-                std::holds_alternative<Nothing>(arguments[0]) ||
+                is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 return Value{false};
             }
@@ -5111,7 +6020,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error(
                     "WFC0073",
@@ -5174,7 +6083,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error("WFC0073", "CCur requires a numeric value", identifier_offset);
                 return std::nullopt;
@@ -5240,7 +6149,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error("WFC0088", "CInt requires a numeric value", identifier_offset);
                 return std::nullopt;
@@ -5307,7 +6216,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error("WFC0086", "CLng requires a numeric value", identifier_offset);
                 return std::nullopt;
@@ -5379,7 +6288,7 @@ private:
                 set_error("WFC0104", "Invalid use of Null", identifier_offset);
                 return std::nullopt;
             }
-            if (std::holds_alternative<Nothing>(arguments[0]) ||
+            if (is_object_reference(arguments[0]) ||
                 std::holds_alternative<ArrayValue>(arguments[0])) {
                 set_error("WFC0087", "CBool requires a Boolean or numeric value", identifier_offset);
                 return std::nullopt;
@@ -6741,7 +7650,7 @@ private:
         // Object references compare only through Is, matching real VB6
         // (plain =/<> on an object reference requires a default member,
         // which nothing in this evaluator's minimal object model has).
-        if (std::holds_alternative<Nothing>(left) || std::holds_alternative<Nothing>(right)) {
+        if (is_object_reference(left) || is_object_reference(right)) {
             set_error("WFC0107", "object comparison requires Is", operator_offset);
             return std::nullopt;
         }
@@ -7259,11 +8168,12 @@ private:
         if (std::holds_alternative<Empty>(value) || std::holds_alternative<Null>(value)) {
             return "";
         }
-        // Nothing and arrays render as empty strings here as a safe,
-        // non-crashing fallback for this unconditional static formatter,
-        // matching Null/Empty's convention; CStr explicitly rejects Nothing
-        // (mirroring its Null rejection) before ever calling render().
-        if (std::holds_alternative<Nothing>(value) || std::holds_alternative<ArrayValue>(value)) {
+        // Nothing, a live instance, and arrays render as empty strings here
+        // as a safe, non-crashing fallback for this unconditional static
+        // formatter, matching Null/Empty's convention; CStr explicitly
+        // rejects an object reference (mirroring its Null rejection) before
+        // ever calling render().
+        if (is_object_reference(value) || std::holds_alternative<ArrayValue>(value)) {
             return "";
         }
         return std::get<bool>(value) ? "True" : "False";
@@ -7292,6 +8202,25 @@ private:
     // pop_back, where std::vector's reallocation would not.
     std::deque<Scope> scopes_{Scope{}};
     std::unordered_map<std::string, ProcedureDef> procedures_;
+    // Class module sources supplied alongside the standard module (see
+    // wfc::ClassModuleSource), and the class definitions scan_classes()
+    // extracts from them (keyed by lowercased class name, like every other
+    // identifier lookup in this evaluator).
+    std::vector<wfc::ClassModuleSource> class_sources_;
+    std::unordered_map<std::string, ClassDef> class_definitions_;
+    // The stack of instances currently executing a method/property call,
+    // innermost last. Non-empty exactly while executing inside a class
+    // member's body; find_variable consults its back()'s fields instead of
+    // the real module scope while it is non-empty (see find_variable), and
+    // an unqualified call (parse_primary_base/parse_call_statement) checks
+    // its back()'s class for a sibling method/property before falling back
+    // to an "undeclared" error, so a method can call another method of its
+    // own class -- including itself, for recursion -- without an explicit
+    // `Me.` qualifier. A std::deque for the same pointer-stability reason
+    // scopes_ is one: an inner call's pushed InstanceData must never be
+    // invalidated by an outer call's later, unrelated container growth
+    // (moot for a deque, unlike a vector).
+    std::deque<InstanceData*> instance_scopes_;
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};
@@ -7323,6 +8252,11 @@ namespace wfc {
 
 Evaluation evaluate_program(const std::string_view source) {
     return Interpreter(source).evaluate();
+}
+
+Evaluation evaluate_program(
+    const std::string_view source, const std::vector<ClassModuleSource>& classes) {
+    return Interpreter(source, classes).evaluate();
 }
 
 Evaluation evaluate_print_statement(const std::string_view source) {

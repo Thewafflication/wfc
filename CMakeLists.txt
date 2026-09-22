@@ -1045,4 +1045,45 @@ Print n]=]
             LABELS "integration;mp-0002;statements;procedures"
             PASS_REGULAR_EXPRESSION "120.*11"
     )
+
+    add_test(
+        NAME TC-MP0002-class-cli
+        COMMAND wfc
+            --class Counter [=[Public value As Long
+
+Sub Increment()
+value = value + 1
+End Sub
+
+Function GetValue() As Long
+GetValue = value
+End Function
+
+Property Get Doubled() As Long
+Doubled = value * 2
+End Property
+
+Property Let Doubled(v As Long)
+value = v \ 2
+End Property]=]
+            --eval [=[Dim c As New Counter
+Call c.Increment()
+Call c.Increment()
+Print c.GetValue()
+Print c.Doubled
+c.Doubled = 20
+Print c.value
+Print TypeName(c) & " " & VarType(c) & " " & CStr(IsObject(c))
+Dim d As Counter
+Print CStr(d Is Nothing)
+Set d = c
+Print CStr(d Is c)
+Print CStr(c Is New Counter)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "2.*4.*10.*Counter 9 True.*True.*True.*False"
+    )
 endif()

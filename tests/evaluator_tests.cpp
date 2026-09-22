@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -39,6 +40,30 @@ void expect_program_failure(const std::string_view source, const std::string_vie
     const auto result = wfc::evaluate_program(source);
     if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
         std::cerr << "expected " << code << " for program [" << source << "] but got ["
+                  << result.diagnostic << "]\n";
+        ++failures;
+    }
+}
+
+void expect_classes_success(
+    const std::vector<wfc::ClassModuleSource>& classes,
+    const std::string_view source,
+    const std::string_view expected) {
+    const auto result = wfc::evaluate_program(source, classes);
+    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
+        std::cerr << "expected success for [" << source << "] with classes but got ["
+                  << result.diagnostic << "]\n";
+        ++failures;
+    }
+}
+
+void expect_classes_failure(
+    const std::vector<wfc::ClassModuleSource>& classes,
+    const std::string_view source,
+    const std::string_view code) {
+    const auto result = wfc::evaluate_program(source, classes);
+    if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
+        std::cerr << "expected " << code << " for [" << source << "] with classes but got ["
                   << result.diagnostic << "]\n";
         ++failures;
     }
@@ -574,6 +599,69 @@ int main() {
         "Function Foo() As Long\nFoo = 1\nEnd Function\nExit Function", "WFC0125");
     expect_program_failure(
         "Sub Foo(n As Long)\nExit Function\nEnd Sub\nCall Foo(1)", "WFC0125");
+    // Class modules: fields, methods, Property Get/Let/Set, New, and Is
+    // identity, each supplied as a separate wfc::ClassModuleSource (this
+    // evaluator's stand-in for a real VB6 project's separate .cls files).
+    expect_classes_success(
+        {{"Counter", "Public value As Long\n\n"
+                     "Sub Increment()\nvalue = value + 1\nEnd Sub\n\n"
+                     "Function GetValue() As Long\nGetValue = value\nEnd Function"}},
+        "Dim c As New Counter\nCall c.Increment()\nCall c.Increment()\nPrint c.GetValue()",
+        "2");
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Dim c As New Counter\nc.value = 5\nPrint c.value & \" \" & TypeName(c) & \" \" & "
+        "VarType(c) & \" \" & CStr(IsObject(c))",
+        "5 Counter 9 True");
+    expect_classes_success(
+        {{"Box", "Public m_value As Long\n\n"
+                 "Property Get Value() As Long\nValue = m_value * 2\nEnd Property\n\n"
+                 "Property Let Value(v As Long)\nm_value = v \\ 2\nEnd Property"}},
+        "Dim b As New Box\nb.Value = 20\nPrint b.Value & \" \" & b.m_value",
+        "20 10");
+    expect_classes_success(
+        {{"Box", "Public m_inner As Variant\n\n"
+                 "Property Set Inner(v As Object)\nSet m_inner = v\nEnd Property\n\n"
+                 "Property Get Inner() As Variant\nSet Inner = m_inner\nEnd Property"},
+         {"Counter", "Public value As Long"}},
+        "Dim b As New Box\nDim c As New Counter\nc.value = 5\nSet b.Inner = c\n"
+        "Dim c2 As Counter\nSet c2 = b.Inner\nc2.value = 99\nPrint c.value & \" \" & "
+        "CStr(c2 Is c)",
+        "99 True");
+    // A method calling a sibling method of its own class unqualified
+    // (including itself, for recursion) -- the implicit-Me equivalent of
+    // `Me.Method(...)`.
+    expect_classes_success(
+        {{"Calc", "Function Factorial(n As Long) As Long\nIf n <= 1 Then\nFactorial = 1\n"
+                  "Else\nFactorial = n * Factorial(n - 1)\nEnd If\nEnd Function\n\n"
+                  "Function DoubleFactorial(n As Long) As Long\n"
+                  "DoubleFactorial = Factorial(n) * 2\nEnd Function"}},
+        "Dim c As New Calc\nPrint c.DoubleFactorial(5)",
+        "240");
+    // Nothing (the class-typed-variable default) rejects member access, Set
+    // enforces the declared class, and `Is` compares identity.
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Dim c As Counter\nPrint CStr(c Is Nothing)\nDim c2 As New Counter\n"
+        "Print CStr(c2 Is New Counter)",
+        "True\nFalse");
+    expect_classes_failure(
+        {{"Counter", "Public value As Long"}},
+        "Dim c As Counter\nCall c.Increment()", "WFC0106");
+    expect_classes_failure({}, "Dim x As New Nope", "WFC0134");
+    expect_classes_failure(
+        {{"A", "Public v As Long"}, {"B", "Public v As Long"}},
+        "Dim a As A\nDim b As New B\nSet a = b", "WFC0137");
+    expect_classes_failure(
+        {{"Foo", "Sub Bar(n As Long)\nEnd Sub"}},
+        "Dim f As New Foo\nCall f.Bar()", "WFC0072");
+    expect_classes_failure(
+        {{"Foo", "Public x As Long\nSub x()\nEnd Sub"}}, "Print \"unused\"", "WFC0128");
+    expect_classes_failure(
+        {{"Foo", "Property Get Bad(n As Long) As Long\nBad = n\nEnd Property"}},
+        "Print \"unused\"", "WFC0130");
+    expect_classes_failure(
+        {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0135");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");

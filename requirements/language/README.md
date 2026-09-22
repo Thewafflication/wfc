@@ -200,3 +200,10 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `ByRef` parameters, per-call local variable scope, `Function` return via
   self-name assignment, `Exit Sub`/`Exit Function`, and the `Call`
   statement.
+- [REQ-0203 — Class modules foundation](req-0203-class-modules.md) defines
+  class modules supplied as separate sources alongside the standard module
+  (`wfc --class <Name> <source>`), covering field declarations, `Sub`/
+  `Function` methods, `Property Get`/`Let`/`Set` accessors, `New`/
+  `Dim x As New ClassName`/`Dim x As ClassName`, `.` member access,
+  unqualified sibling-member calls (implicit `Me`), and `Is`/`TypeName`/
+  `VarType`/`IsObject` for a live instance.
