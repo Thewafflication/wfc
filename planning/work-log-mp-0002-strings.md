@@ -108,6 +108,7 @@ retained CTest evidence.
 | 2026-09-18 #84 | Architecture | Add fixed-size one-dimensional arrays under new `REQ-0201` (`Dim arr(n)`/`Dim arr(lo To hi) As Type`, indexed read/write with `WFC0111` bounds checking, `LBound`/`UBound`, `IsArray`, `TypeName`/`VarType`; new `ArrayValue{vector<Value>, lower_bound}` alternative, a forward-declared recursive `Value` variant) and a minimal object-reference stub under new `REQ-0200` (`Nothing` as a distinct state, `Dim x As Object`, the `Set` statement as the only legal object assignment, the `Is` operator for object identity, `IsObject`/`TypeName`/`VarType`); scoped via two `AskUserQuestion` calls ("Fixed-size 1-D arrays only" / "Minimal object stub"); unit + CLI tests, README | Commit `5ca5db4` |
 | 2026-09-18 #85 | Architecture | Add user-defined `Sub`/`Function` procedures under new `REQ-0202` (module-level declarations found by a pre-scan pass so calls resolve regardless of textual order, forward reference, recursion bounded by a new `WFC0123` depth guard, `ByVal`/`ByRef` parameters with copy-back for bare-identifier `ByRef` arguments, per-call local variable scope via a new `Scope`/two-level scope-chain refactor replacing the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members, `Function` return via self-name assignment, `Exit Sub`/`Exit Function`, and the `Call` statement); the prerequisite the owner's "finish objects" request surfaced as missing, scoped to procedures-only (no class modules) via `AskUserQuestion`; fixed a `std::vector`-reallocation pointer-invalidation bug (switched `scopes_` to `std::deque`) that silently broke `ByRef` write-back and crashed on recursion during this increment's own testing; unit + CLI tests, README | Commit `671633b` |
 | 2026-09-22 #86 | Architecture | Add a class-modules foundation under new `REQ-0203`: classes supplied as separate sources alongside the standard module (new CLI `--class <Name> <source>`, new `wfc::ClassModuleSource`/`evaluate_program` overload), field declarations, `Sub`/`Function` methods, `Property Get`/`Let`/`Set` accessors, `New`/`Dim x As New ClassName`/`Dim x As ClassName`, `.` member access, unqualified sibling-member calls (implicit `Me`), and a new `ObjectInstance` `Value` alternative (a `shared_ptr<InstanceData>` handle, `InstanceData` embedding a `Scope` for field storage) giving `Is`/`Set`/`TypeName`/`VarType`/`IsObject` real non-`Nothing` results for the first time since `REQ-0200`; scoped via three `AskUserQuestion` choices ("Separate file per class" / "Fields + methods + Property accessors" / "New only, no Class_Initialize/Terminate"); fixed a live bug found during this increment's own testing where a class method calling a sibling method (including itself, for recursion) unqualified failed with "unsupported function" because `instance_scopes_` (originally a `Scope*` stack) had no way to recover the current instance's *class* to look the sibling up in, by switching it to an `InstanceData*` stack; unit + CLI tests, README | Commit `d8d3ad6` |
+| 2026-09-22 #87 | Architecture | Add the `Me` keyword and the `Class_Initialize`/`Class_Terminate` lifecycle hooks under new `REQ-0204`, closing the two gaps `REQ-0203` explicitly deferred (owner request: "do the me keyword class initailize and terminate"); `Me` gives `InstanceData` `enable_shared_from_this` so it can hand out a new `ObjectInstance` sharing the current call's own instance identity; `Class_Initialize` runs from `instantiate_class` immediately after field initialization (a plain nested call, no hazard); `Class_Terminate` deliberately does **not** hook `~InstanceData()` -- doing so would let an instance's last-reference drop fire from *inside* another container's own teardown (a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction), where reentrantly pushing a new call frame onto a mid-`pop_back()` `scopes_` is undefined behavior -- instead a new `terminate_if_last_reference`/`drain_scope_instances` pair fires it only from three explicit, always-safe points (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program), draining one variable at a time so two same-frame aliases of one instance still terminate it exactly once; unit + CLI tests, README | Commit `df1de48` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -290,6 +291,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post fixed-size arrays and minimal object stub) | Pass (80/80) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post user-defined Sub/Function procedures) | Pass (81/81) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-modules foundation) | Pass (82/82) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post Me/Class_Initialize/Class_Terminate) | Pass (83/83) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -331,6 +333,10 @@ from this record and the local reference environment identified in
 | Give class fields no `Object`/class-typed option (the same eight-scalar-type list `Dim` already accepts, minus `Object`) | Matches `REQ-0202`'s own existing precedent excluding `Object` from procedure parameter/return types; an object reference can still be stored in a `Variant` field (already possible since `REQ-0197`/`REQ-0200`) | Kept scope bounded to what a `Property Set` member actually needs (a `Variant` backing field), rather than also solving class-typed-field storage/type-checking in the same increment | `REQ-0203` |
 | Resolve an unqualified call/read inside a class method against that method's *own* class's sibling members (methods and `Property Get`) before falling back to "undeclared", rather than requiring an explicit `Me.` qualifier | Discovered mid-implementation: the increment's own recursion test (`Factorial` calling itself, and a second method calling `Factorial`, both unqualified) failed with "unsupported function" until this was added -- `Me` itself is not implemented, so without this fallback a class could never call its own methods at all | Matches real VB6, where a class module's own members are directly callable unqualified; `instance_scopes_` was switched from a `Scope*` stack to an `InstanceData*` stack specifically so the current instance's *class* (needed to look up a sibling method) is recoverable, not just its field storage | `REQ-0203` |
 | Leave unqualified *writes* to a sibling `Property Let`/`Set` (from within another method, with no `Me.` qualifier) unsupported this increment, even though unqualified reads/calls are | `parse_assignment`'s bare-identifier statement path has no member-dispatch hook the way `parse_primary`/`parse_call_statement` were extended to have; adding one is a smaller, separate follow-up rather than blocking this increment | A narrower, disclosed gap: external `obj.Prop = expr` and unqualified sibling method/`Property Get` access both already work; only the combination (unqualified + write + Property) is deferred | `REQ-0203` |
+| Give `InstanceData` `enable_shared_from_this` so `Me` can hand out a new `ObjectInstance` | The alternative -- wrapping the raw `InstanceData*` `instance_scopes_` already tracks in a brand-new `shared_ptr` -- would create a second, independent control block; once both it and the original reached zero, the same `InstanceData` would be freed twice | `enable_shared_from_this` shares the *existing* control block instead, since `InstanceData` is only ever created via `make_shared`; verified with `Set y = x.GetSelf()` (a `Function As Variant` returning `Me`) followed by `y Is x` | `REQ-0204` |
+| Do not hook `Class_Terminate` onto `~InstanceData()`'s own C++ destructor; fire it only from three explicit points instead (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program) | A destructor hook would fire whenever the last `shared_ptr` reference happens to be dropped, including *during* another container's own teardown -- a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction at program end -- and reentrantly calling back into the evaluator (pushing a new call frame onto a `scopes_` that is itself mid-`pop_back()`) at that point is undefined behavior, not merely awkward | Fires `Class_Terminate` only while the interpreter is fully alive and not itself mid-teardown of anything, at the documented cost of three gaps (no firing for an unbound temporary instance, no cascading to an instance only reachable through the terminated one's own fields, and same-frame aliases relying on drain order) recorded in `REQ-0204`'s Scope | `REQ-0204` |
+| Drain a call frame's/the module scope's ObjectInstance-holding variables one at a time -- terminate-then-clear-to-Empty each, in sequence -- rather than checking every variable first and clearing them all afterward | Two variables in the *same* frame can alias the same instance (e.g. `Dim a As New Foo` then `Set b = a`); checking all of them before clearing any would show every alias with a use_count inflated by the others still being live, so none would ever look like "the last reference" | Verified directly: `Dim a As New Foo`/`Set b = a`/end of `Sub` fires `Class_Terminate` exactly once, at whichever of `a`/`b` the unordered_map iteration happens to drain second | `REQ-0204` |
+| Only drain the module scope (and therefore only fire any surviving module-level instance's `Class_Terminate`) on `evaluate()`'s successful-completion path, not on any error return | Every other return in `evaluate()` is already reporting a fatal error; running more class-member code during that unwind seemed more likely to compound the failure (or mask the original error with a new one from inside `Class_Terminate`) than to clean up after it | A disclosed, deliberate scope boundary rather than an oversight -- recorded explicitly in `REQ-0204`'s Scope | `REQ-0204` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -440,6 +446,7 @@ when the session completes.
 | Fixed-size arrays and minimal object stub (increment #84) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | User-defined Sub/Function procedures (increment #85) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Class modules foundation (increment #86) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Me keyword and Class_Initialize/Class_Terminate (increment #87) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -706,19 +713,66 @@ unqualified-sibling-call/read fallback to `parse_primary_base`/
 before/after). Confirmed with a self-recursive `Factorial` method and a
 second method calling it, both unqualified.
 
+**Me keyword and Class_Initialize/Class_Terminate (increment #87,
+`REQ-0204`):** the owner's next instruction named exactly the two gaps
+`REQ-0203`'s own Scope section had just deferred ("do the me keyword class
+initailize and terminate"). `Me` is now a reserved keyword, valid only
+inside a class member's body (`WFC0138` outside one), producing a fresh
+`ObjectInstance` that shares the current call's own instance identity via
+a new `InstanceData : enable_shared_from_this<InstanceData>` base (plain
+raw-pointer wrapping would have created a second, independent `shared_ptr`
+control block -- a double-free once both reached zero). `Me` slots into
+the existing postfix `.` chain and the `Me`-specific branches added to
+`parse_assignment_or_array_element`/`parse_call_statement`/
+`parse_set_statement`, so `Me.Field`, `Me.Method(args)`,
+`Call Me.Method(args)`, `Set Me.Property = expr`, and passing/returning
+`Me` itself (`Set x = Me`, `Set GetSelf = Me` from an `As Variant`
+`Function`) all work the same way the equivalent access through an
+ordinary object-reference variable already did.
+
+`Class_Initialize` (an optional, parameterless `Sub`) runs from
+`instantiate_class` immediately after every field is zero-initialized and
+before the new instance is handed back -- a plain nested call with no
+lifetime hazard, since it happens mid-expression-evaluation, never inside
+any container's own teardown. `Class_Terminate` needed more care: the
+first design considered, a destructor hook on `InstanceData` firing
+whenever its `shared_ptr` refcount reaches zero, was rejected after
+tracing through exactly when that refcount can hit zero -- including from
+*inside* a `Scope`'s `variables` map destroying its own `Value`s as part
+of a call frame's `scopes_.pop_back()`, or the `Interpreter`'s own final
+member destruction at the very end of the program. Reentrantly calling
+back into the evaluator's mutable state (pushing a new call frame onto a
+`scopes_` deque that is itself mid-`pop_back()`) from inside that teardown
+is undefined behavior, not merely awkward, so no destructor hook was
+added. Instead, a new `terminate_if_last_reference`/`drain_scope_instances`
+pair fires `Class_Terminate` only from three explicit, always-safe points:
+a `Set` overwrite (including `Set x = Nothing`), a call frame's own locals
+as `invoke_definition` returns (draining one variable at a time -- checking
+`use_count() == 1` and clearing to `Empty` as it goes, not pre-scanning
+all of them first, so two same-frame aliases of the same instance still
+terminate it exactly once instead of never), and the module scope at the
+end of a successful program (draining before `output_` is moved out, so a
+`Print` inside `Class_Terminate` still reaches the final output). Verified
+directly: `Set x = Nothing` on a module-level variable, a `Sub`-local
+instance never explicitly cleared, a module-level instance surviving to
+program end, and the same-frame-alias case all fire `Class_Terminate`
+exactly once, in the right place.
+
 **Remaining next increments:**
 
-- class inheritance, interfaces (`Implements`), `Property`-member/`Me`
-  refinements (`Me` itself, and unqualified *writes* to a sibling
-  `Property Let`/`Set`), `Class_Initialize`/`Class_Terminate`,
-  `CreateObject`/`GetObject`/COM interop, indexed `Property` accessors,
-  class-typed/`Object`-typed fields and array elements, a dedicated
-  `As ClassName` method/`Property Get` return type (a `Variant` return
-  already covers returning an object -- see `REQ-0203`'s Scope), lazy
-  `As New` auto-instantiation, and `Optional`/`ParamArray`/`Static`/
-  visibility modifiers on a class member (all deliberately excluded from
-  `REQ-0203`'s scope, alongside the same exclusions `REQ-0202` already
-  lists for module-level procedures);
+- class inheritance, interfaces (`Implements`), an unqualified *write* to a
+  sibling `Property Let`/`Set` (only unqualified reads/calls have a
+  member-dispatch hook so far -- `parse_assignment`'s bare-identifier path
+  does not), `CreateObject`/`GetObject`/COM interop, indexed `Property`
+  accessors, class-typed/`Object`-typed fields and array elements, a
+  dedicated `As ClassName` method/`Property Get` return type (a `Variant`
+  return already covers returning an object -- see `REQ-0203`'s Scope),
+  lazy `As New` auto-instantiation, `Class_Terminate` cascading to an
+  instance only reachable through the terminated one's own fields, and
+  `Optional`/`ParamArray`/`Static`/visibility modifiers on a class member
+  (all deliberately excluded from `REQ-0203`/`REQ-0204`'s scope, alongside
+  the same exclusions `REQ-0202` already lists for module-level
+  procedures);
 - `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
   array-typed parameters (deliberately excluded from `REQ-0201`'s
   "fixed-size 1-D arrays only" scope);
