@@ -110,6 +110,7 @@ retained CTest evidence.
 | 2026-09-22 #86 | Architecture | Add a class-modules foundation under new `REQ-0203`: classes supplied as separate sources alongside the standard module (new CLI `--class <Name> <source>`, new `wfc::ClassModuleSource`/`evaluate_program` overload), field declarations, `Sub`/`Function` methods, `Property Get`/`Let`/`Set` accessors, `New`/`Dim x As New ClassName`/`Dim x As ClassName`, `.` member access, unqualified sibling-member calls (implicit `Me`), and a new `ObjectInstance` `Value` alternative (a `shared_ptr<InstanceData>` handle, `InstanceData` embedding a `Scope` for field storage) giving `Is`/`Set`/`TypeName`/`VarType`/`IsObject` real non-`Nothing` results for the first time since `REQ-0200`; scoped via three `AskUserQuestion` choices ("Separate file per class" / "Fields + methods + Property accessors" / "New only, no Class_Initialize/Terminate"); fixed a live bug found during this increment's own testing where a class method calling a sibling method (including itself, for recursion) unqualified failed with "unsupported function" because `instance_scopes_` (originally a `Scope*` stack) had no way to recover the current instance's *class* to look the sibling up in, by switching it to an `InstanceData*` stack; unit + CLI tests, README | Commit `d8d3ad6` |
 | 2026-09-22 #87 | Architecture | Add the `Me` keyword and the `Class_Initialize`/`Class_Terminate` lifecycle hooks under new `REQ-0204`, closing the two gaps `REQ-0203` explicitly deferred (owner request: "do the me keyword class initailize and terminate"); `Me` gives `InstanceData` `enable_shared_from_this` so it can hand out a new `ObjectInstance` sharing the current call's own instance identity; `Class_Initialize` runs from `instantiate_class` immediately after field initialization (a plain nested call, no hazard); `Class_Terminate` deliberately does **not** hook `~InstanceData()` -- doing so would let an instance's last-reference drop fire from *inside* another container's own teardown (a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction), where reentrantly pushing a new call frame onto a mid-`pop_back()` `scopes_` is undefined behavior -- instead a new `terminate_if_last_reference`/`drain_scope_instances` pair fires it only from three explicit, always-safe points (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program), draining one variable at a time so two same-frame aliases of one instance still terminate it exactly once; unit + CLI tests, README | Commit `df1de48` |
 | 2026-09-22 #88 | Architecture | Add three class-module refinements under new `REQ-0205`, chosen (of four offered via `AskUserQuestion`) from `REQ-0203`'s own "Remaining next increments" list: unqualified sibling `Property Let`/`Set` writes (the assignment counterpart of the existing unqualified method/`Property Get` read/call), class-typed/`As Object` fields and `Function`/`Property Get` return types (reusing `REQ-0200`'s existing `Object`-variable machinery unchanged), and indexed `Property Get`/`Let`/`Set` accessors (`Property Get`'s former zero-parameter requirement and `Property Let`/`Set`'s former exactly-one-parameter requirement both relaxed); switched `scan_classes` to a two-pass scan (register every class name, then scan every body) so a class-typed field/return type can reference a class declared later on the `--class` command line; found and fixed a real bug during this increment's own testing where an unqualified read inside a `Property Let`/`Set` body ignored its own value parameter whenever it shared the property's own name (`Property Let V(v As Long)`), because the existing unqualified-`Property-Get` fallback in `parse_primary_base` ran *before* the local-parameter lookup instead of after; unit + CLI tests, README | Commit `ec4a5b3` |
+| 2026-09-22 #89 | Architecture | Add the fourth item selected alongside `REQ-0205` (of four offered via `AskUserQuestion`) under new `REQ-0206`: `Optional [= default]` parameters, `ParamArray` (collecting trailing call arguments into a fresh `ArrayValue`, reusing `REQ-0201`'s existing array type unchanged), `Static` locals (persisted on the owning `ProcedureDef` itself via a new `mutable Scope statics` member and a save/restored `current_procedure_def_` pointer, copied into/out of each call's own frame), and `Public`/`Private` class-member visibility (a bare `Dim` field now implicitly `Private`, correcting `REQ-0203`'s original "no visibility modeled" simplification; enforced per-*class*, not per-instance, via a new `member_accessible` check comparing `current_class_def()` against the target's own class) -- extended to both module-level procedures and class members; found and fixed a real, unrelated latent crash during this increment's own testing: an empty `ParamArray`'s zero-length array, indexed from inside a dry-run type-check pass over an unreached `For` loop body, called `.front()` on an empty `std::vector` in `parse_array_index`'s pre-existing `!execute_` short-circuit (never triggered before, since a `Dim`-declared array can never actually be empty); also fixed a second bug in the same session where `parse_type_keyword()` was called directly after `consume_keyword("as")` with no intervening whitespace skip in the new `ParamArray` element-type parser, unlike every other `As Type` call site; unit + CLI tests, README | Commit `8ecc856` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -294,6 +295,7 @@ from this record and the local reference environment identified in
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-modules foundation) | Pass (82/82) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Me/Class_Initialize/Class_Terminate) | Pass (83/83) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-module refinements) | Pass (84/84) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post Optional/ParamArray/Static/visibility) | Pass (85/85) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -342,6 +344,11 @@ from this record and the local reference environment identified in
 | Reorder `parse_primary_base`'s unqualified-identifier resolution to try `find_variable` (local parameter/variable, then instance field) *before* falling back to a sibling `Property Get` of the same name, instead of the original order | Live testing exposed the original order's bug directly: `Property Let V(v As Long)` -- a common pattern, since a property's own value parameter is often named after the property -- read `v` as `0` instead of the just-bound parameter, because the sibling-`Property-Get` check for "v" ran first and recursively called `Property Get V()` instead of reading the local parameter | Matches ordinary lexical scoping (local shadows outer); verified with the same collision (`Property Let V(v As Long)`) both through `obj.V = x` and an unqualified sibling write | `REQ-0205` |
 | Switch `scan_classes` from a single pass (scan each class's body immediately after registering its name) to two passes (register every class's name first, then scan every body) | A class-typed field/return type (`As SomeClass`) needs to look `SomeClass` up in `class_definitions_` while scanning the *referencing* class's own body; a single pass only has names registered for classes that appeared earlier among the `--class` arguments, silently failing to resolve a forward reference | Verified directly: `--class Holder "Public c As Counter" --class Counter "Public n As Long"` (`Holder` first, referencing `Counter` declared after it) resolves correctly | `REQ-0205` |
 | Give a class-typed/`Object`-typed field or return-value slot no new tracking mechanism, reusing `Scope`'s existing `object_variables`/`object_class_names` sets (already used for `Dim x As Object`/`As SomeClass` variables and parameters) | The existing machinery already does exactly what an object-typed field/return slot needs -- fixed-type, `Nothing`-initialized, `Set`-only assignment, optional exact-class checking -- since `InstanceData::fields` and a call frame are both already a `Scope` | Zero new diagnostic codes or assignment logic needed for this half of the increment; `parse_set_statement`'s and `parse_member_set_assignment`'s object-reference-assignment logic was further unified into one shared `assign_object_reference` helper while making this change | `REQ-0205` |
+| Store `Static` variable persistence on the owning `ProcedureDef` itself (a new `mutable Scope statics` member) rather than in any per-call `Scope`, with a save/restored `current_procedure_def_` pointer identifying "the currently executing procedure" for a `Static` statement to find its own storage | `ProcedureDef` instances live in `procedures_`/`class_def.methods` for the whole program and are never moved or erased once scanned (`unordered_map` reference stability), making them a natural, already-available home for state that must outlive any single call's transient frame | `mutable` lets every existing `const ProcedureDef&` call site keep working unchanged; verified with three successive calls to a `Function` incrementing a `Static` counter, observing `1`, `2`, `3` | `REQ-0206` |
+| Copy a `Static` variable's value out of the frame and into persistent storage one variable at a time (via a new `Scope::static_variable_names` set), rather than trying to alias the frame's slot directly to the persistent one | A `Scope::variables` map stores `Value`s inline, not by reference, so there is no way for a frame's slot to *be* the persistent slot without a larger redesign; copy-in at the `Static` statement and copy-out just before the frame is discarded is a smaller, correct-enough substitute | Matches the value-copy-in/copy-out convention already established for ByRef parameter write-back in the very same function | `REQ-0206` |
+| Enforce `Private` per-*class*, not per-instance -- a `Foo` method may reach *any* `Foo` instance's `Private` members, not only `Me`'s own -- via a new `member_accessible` check comparing `current_class_def()` (the class whose method is currently executing, if any) against the target's own class, rather than comparing instance identity | Matches real VB6 exactly, and was actually the *simpler* of the two designs once identified: it needs no new tracking at all, only a pointer comparison against machinery (`current_class_def()`) `REQ-0203`'s unqualified-sibling-call fallback had already introduced | Verified both directions: one `Foo` instance's method reading a *different* `Foo` instance's `Private` field (allowed) and a `Bar` method reading a `Foo` instance's `Private` field through a class-typed field it holds (rejected, `WFC0142`) | `REQ-0206` |
+| Make a bare `Dim` class field implicitly `Private` (not `Public`, as `REQ-0203`'s original "visibility unmodeled, everything reachable" simplification effectively made every field) once real `Public`/`Private` enforcement existed to make the distinction meaningful | Matches real VB6's own module-level default exactly (a bare `Dim`, in *any* module type, is private to that module); confirmed no existing test relied on a `Dim`-declared class field being externally reachable before making this change | A deliberate, disclosed behavior change from `REQ-0203`'s original simplification, not merely an addition -- existing class-module source written against this evaluator using bare `Dim` for an externally-facing field would need to switch to `Public` | `REQ-0206` |
+| Do not make `IsMissing` meaningful for an omitted `Optional Variant` parameter with no default | Real VB6's own `IsMissing` only distinguishes this one narrow case (any other `Optional` parameter form always reports `False` even when omitted); implementing it would need tracking a per-parameter-per-call "was this specific argument omitted" bit entirely separate from the bound value, for a rarely-relied-on piece of introspection | `REQ-0176`'s existing `IsMissing`-stays-`False` scope boundary is left exactly as it was; recorded explicitly as a disclosed, deliberate non-implementation in `REQ-0206`'s Scope rather than an oversight | `REQ-0206` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -354,6 +361,8 @@ from this record and the local reference environment identified in
 | `Property Let V(v As Long)` read its own value parameter as `0` instead of the bound argument, whenever the parameter's name matched the property's own name | `parse_primary_base`'s unqualified-sibling-`Property-Get` fallback ran *before* `find_variable`, so reading `v` inside the Let body recursively called `Property Get V()` (returning the field's still-unchanged value) instead of resolving the local parameter `v` | Reordered the check to run only after `find_variable` finds nothing, so a local parameter/variable always shadows a same-named property; verified with `b.V = 99` and an unqualified `V = 42` from a sibling method, both correctly updating the backing field | Closed |
 | An old unit test asserted `WFC0130` ("Property Get does not accept parameters") for a parameterized `Property Get` | That restriction was deliberately lifted this same increment (indexed properties), so the assertion now correctly failed with no error at all | Removed the stale assertion (the same scenario is now covered by this increment's own indexed-property success cases) | Closed |
 | The first attempt at `obj.Name(args)` for an indexed `Property Get` reported `WFC0135` "unknown member" | `parse_member_access_after_dot`'s `(`-branch only checked `class_def.methods`, calling `call_class_method` unconditionally and erroring immediately when the name was a property, not a method | Added a `property_get` fallback (with its own argument-list parsing) alongside the method-call branch, mirrored in the unqualified-sibling-call `(`-branch in `parse_primary_base` for the same case with no `.` at all | Closed |
+| `ParamArray nums() As Long` reported `WFC0141` "requires an explicit element type" even though one was clearly written | The new `ParamArray` element-type parser called `consume_keyword("as")` then `parse_type_keyword()` directly, with no `skip_horizontal_whitespace()` between them -- unlike every other `As Type` call site in the file -- so `parse_type_keyword()`'s own `consume_keyword("long")` saw a leading space, not `l`, and failed | Added the missing `skip_horizontal_whitespace()` between the two calls; verified with the exact reported case (`ParamArray nums() As Long`) and the full `Total`/`Sum2` test functions | Closed |
+| `Total()` (a `ParamArray`-only call with zero extra arguments) crashed the process (exit code 3) instead of returning `0` | `parse_array_index`'s pre-existing `!execute_` (dry-run/type-check) short-circuit called `.front()` on the array unconditionally; a `For i = LBound(nums) To UBound(nums)` loop over an empty array (`0 To -1`) still type-checks its body once with `execute_ = false`, and `nums(i)` inside it hit `.front()` on a genuinely empty `std::vector` -- undefined behavior that had never been reachable before, since a `Dim`-declared array's size is always at least 1 | Return a placeholder `Long` instead of `.front()` when `array.elements` is empty in that dry-run-only path (the real value is discarded there regardless); verified `Total()` now returns `0` without crashing, alongside `Total(1, 2, 3, 4)` still returning `10` | Closed |
 
 ## Measurements
 
@@ -456,6 +465,7 @@ when the session completes.
 | Class modules foundation (increment #86) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Me keyword and Class_Initialize/Class_Terminate (increment #87) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Class-module refinements (increment #88) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Optional/ParamArray/Static/visibility (increment #89) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -808,6 +818,62 @@ lexical scoping (local shadows outer) -- the same reordering that had
 already been applied correctly, from the start, to the new unqualified
 `Property Let`/`Set` write paths this same increment added.
 
+**Optional/ParamArray/Static/visibility (increment #89, `REQ-0206`):** the
+fourth item selected alongside `REQ-0205` (of four offered via
+`AskUserQuestion`) from this same log's own "Remaining next increments"
+list -- a procedure-system increment rather than a class-specific one,
+applying uniformly to module-level procedures and class members.
+`Optional [As Type] [= default]` parameters relax the previous exact-arity
+requirement to a range, filling an omitted trailing argument with `default`
+(scanned as a constant expression, mirroring `Const`) or the type's zero
+value. `ParamArray name() As Type` collects every remaining call argument
+into a fresh zero-based `ArrayValue` -- reusing `REQ-0201`'s existing array
+type completely unchanged, including a genuinely empty array (`LBound = 0`,
+`UBound = -1`) when called with zero extra arguments. `Static name [As
+Type]` persists a local's value across separate calls by storing it on a
+new `mutable Scope statics` member added directly to `ProcedureDef` (found
+once at scan time and never moved afterward, making it a natural home for
+state outlasting any one call's frame), located via a new
+save/restored `current_procedure_def_` pointer; each call copies the
+persisted value into its own frame at the `Static` statement and copies it
+back out just before the frame is discarded.
+
+`Public`/`Private` visibility is the change with the widest blast radius:
+it corrects `REQ-0203`'s original "not modeled, everything reachable"
+simplification, making a bare `Dim` class field implicitly `Private`
+(matching real VB6's own default) rather than externally accessible like
+`Public`. Enforcement is per-*class*, not per-instance -- a new
+`member_accessible` check compares `current_class_def()` (the class whose
+method is currently executing, if any) against the target member's own
+class, so one `Foo` instance's method can reach *any* `Foo` instance's
+`Private` members, while module-level code or a different class's method
+cannot. `Public`/`Private` is also accepted (but not enforced) before a
+module-level `Sub`/`Function`, since this evaluator has only one standard
+module.
+
+Live testing during this same increment surfaced two real, since-fixed
+bugs, both found while exercising `ParamArray` rather than anything
+`Optional`/`Static`/visibility-specific. First, `ParamArray nums() As Long`
+itself failed to parse ("requires an explicit element type" despite one
+being written): the new element-type parser called `consume_keyword("as")`
+then `parse_type_keyword()` back-to-back with no `skip_horizontal_
+whitespace()` between them, unlike every other `As Type` call site in the
+file, so `parse_type_keyword()`'s own keyword match saw a leading space
+instead of the type name's first letter and failed. Second, and more
+serious: calling a `ParamArray`-only function with zero extra arguments
+(`Total()`) crashed the process outright. The cause was unrelated to
+anything new in `ParamArray`'s own binding logic -- it was a latent bug in
+`parse_array_index`'s pre-existing `!execute_` (dry-run/type-check)
+short-circuit, which called `.front()` on the array unconditionally. A
+`For i = LBound(nums) To UBound(nums)` loop over a genuinely empty array
+(`0 To -1`) still type-checks its body once with `execute_ = false`, and
+indexing `nums(i)` inside that dry run hit `.front()` on an empty
+`std::vector` -- undefined behavior that had simply never been reachable
+before this increment, since a `Dim`-declared array's size is always at
+least 1. Fixed by returning a placeholder value instead of `.front()` when
+the array is empty in that dry-run-only path (the real value there is
+always discarded regardless).
+
 **Remaining next increments:**
 
 - class inheritance, interfaces (`Implements`), `CreateObject`/
@@ -815,21 +881,22 @@ already been applied correctly, from the start, to the new unqualified
   class-typed method/property *parameter* (only a field/return type may be
   class-typed so far), lazy `As New` auto-instantiation, `Class_Terminate`
   cascading to an instance only reachable through the terminated one's own
-  fields, and `Optional`/`ParamArray`/`Static`/visibility modifiers on a
-  class member (all deliberately excluded from `REQ-0203`/`REQ-0204`/
-  `REQ-0205`'s scope, alongside the same exclusions `REQ-0202` already
-  lists for module-level procedures);
+  fields, `IsMissing` for an omitted `Optional Variant` argument, `Static`
+  arrays/object references, and a `Private` *class* declaration itself
+  (only individual members have visibility, not a whole class) -- all
+  deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/`REQ-0206`'s
+  scope, alongside the same exclusions `REQ-0202` already lists for
+  module-level procedures;
 - `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
   array-typed parameters (deliberately excluded from `REQ-0201`'s
   "fixed-size 1-D arrays only" scope);
 - `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As
   Object`), which need per-element retyping/Nothing-tracking beyond this
   increment's per-variable tracking;
-- `Optional` parameters, `ParamArray`, default parameter values, `Static`
-  procedures, and `Public`/`Private` visibility modifiers on a `Sub`/
-  `Function` declaration (deliberately excluded from `REQ-0202`'s scope);
 - late binding and `CVErr`/error-value Variants (`IsError`/`IsMissing` stay
-  hardcoded `False`);
+  hardcoded `False` -- `REQ-0206` added `Optional`/`ParamArray`/`Static`/
+  `Public`/`Private` for `Sub`/`Function` declarations, originally deferred
+  here, but deliberately left `IsMissing` unimplemented; see its Scope);
 - verifying the `Decimal`-vs-`Single` promotion order against the reference
   runtime (see the Decisions table above);
 - `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`
