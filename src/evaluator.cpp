@@ -1116,6 +1116,7 @@ enum class NumericCategory {
            identifier == "nothing" || identifier == "object" || identifier == "set" ||
            identifier == "sub" || identifier == "function" || identifier == "call" ||
            identifier == "new" || identifier == "property" || identifier == "get" ||
+           identifier == "me" ||
            identifier == "byval" || identifier == "byref" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
@@ -1244,7 +1245,14 @@ struct ClassDef {
 // ObjectInstance Value copy referring to the same instance shares one
 // identity, matching VB6 reference-type semantics (`Is`, and mutating a
 // field through one reference is visible through another).
-struct InstanceData {
+//
+// Inherits enable_shared_from_this so the `Me` keyword can hand out a new
+// ObjectInstance sharing this same instance's ownership (ObjectInstance
+// identity, and `Is`, depend on every reference sharing one control block --
+// wrapping the raw InstanceData* instance_scopes_ tracks in a *new*
+// shared_ptr would create a second, independent control block, leading to a
+// double-free once both reached zero).
+struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::string class_name;
     Scope fields;
 };
@@ -1330,6 +1338,17 @@ public:
                 return std::move(error_);
             }
             skip_program_leading_trivia();
+        }
+
+        // Terminate any module-level variable still holding the last
+        // reference to an instance, the same way a call frame's locals are
+        // drained at the end of a call -- but only on this successful
+        // completion path; the interpreter is already erroring out on every
+        // other return in this function, and running more class-member code
+        // during that unwind is more likely to compound the failure than
+        // clean up after it.
+        if (!drain_scope_instances(module_scope())) {
+            return std::move(error_);
         }
 
         wfc::Evaluation result;
@@ -1770,6 +1789,20 @@ private:
                 return false;
             }
             definition.declaration_end = offset_;
+            // Class_Initialize/Class_Terminate are the lifecycle hooks New
+            // (instantiate_class) and drain_scope_instances/
+            // terminate_if_last_reference invoke automatically -- both
+            // always call with zero arguments, so a declaration with
+            // parameters (or written as a Function) could never actually
+            // run correctly and is rejected up front instead.
+            if ((*name == "class_initialize" || *name == "class_terminate") &&
+                (definition.is_function || !definition.parameters.empty())) {
+                set_error(
+                    "WFC0139",
+                    "Class_Initialize/Class_Terminate must be a parameterless Sub",
+                    name_offset);
+                return false;
+            }
             class_def.methods.emplace(std::move(*name), std::move(definition));
         }
     }
@@ -3634,6 +3667,9 @@ private:
             // retyping itself on each assignment (the agreed scalar-Variant
             // scope: no fixed-type enforcement for these variables).
             if (execute_) {
+                if (!terminate_if_last_reference(*variable.value)) {
+                    return false;
+                }
                 *variable.value = std::move(*value);
             }
             return true;
@@ -3714,6 +3750,20 @@ private:
             set_error("WFC0011", "expected variable name after Set", identifier_offset);
             return false;
         }
+        // `Set Me.Prop = expression`.
+        if (type_character == '\0' && *identifier == "me") {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '.') {
+                auto base = me_value(identifier_offset);
+                if (!base.has_value()) {
+                    return false;
+                }
+                advance();
+                return parse_member_set_assignment(*base, identifier_offset);
+            }
+            set_error("WFC0011", "expected member name after '.'", offset_);
+            return false;
+        }
         const auto variable = find_variable(*identifier);
         if (variable.value == nullptr) {
             set_error("WFC0015", "undeclared variable", identifier_offset);
@@ -3770,6 +3820,9 @@ private:
             return false;
         }
         if (execute_) {
+            if (!terminate_if_last_reference(*variable.value)) {
+                return false;
+            }
             *variable.value = std::move(*value);
         }
         return true;
@@ -3825,6 +3878,9 @@ private:
         }
         if (instance.fields.variant_variables.contains(*member_name)) {
             if (execute_) {
+                if (!terminate_if_last_reference(field_iterator->second)) {
+                    return false;
+                }
                 field_iterator->second = std::move(*value);
             }
             return true;
@@ -3849,6 +3905,20 @@ private:
     [[nodiscard]] bool parse_assignment_or_array_element(
         std::string identifier,
         const char type_character = '\0') {
+        if (type_character == '\0' && identifier == "me") {
+            const auto identifier_offset = offset_ - identifier.size();
+            const auto saved_offset = offset_;
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '.') {
+                auto base = me_value(identifier_offset);
+                if (!base.has_value()) {
+                    return false;
+                }
+                advance();
+                return parse_member_assignment(*base, identifier_offset);
+            }
+            offset_ = saved_offset;
+        }
         if (type_character == '\0') {
             const auto variable = find_variable(identifier);
             if (variable.value != nullptr &&
@@ -4345,7 +4415,9 @@ private:
     // documented simplification of VB6's lazy auto-instantiation semantics
     // for `Dim x As New ClassName`; see REQ-0203's Scope) from a `Dim`
     // declaration. Every declared field is initialized to its type's zero
-    // value, matching a fixed-type variable's own default.
+    // value, matching a fixed-type variable's own default, before
+    // `Class_Initialize` (if the class declares one) runs against the new,
+    // fully field-initialized instance.
     [[nodiscard]] std::optional<Value> instantiate_class(
         const std::string& class_name, const std::size_t offset) {
         const auto class_iterator = class_definitions_.find(class_name);
@@ -4366,6 +4438,20 @@ private:
                 field_def.is_variant ? Value{Empty{}} : zero_value_for_index(field_def.type_index));
             if (field_def.is_variant) {
                 instance->fields.variant_variables.insert(field_name);
+            }
+        }
+        const auto initializer_iterator = class_iterator->second.methods.find("class_initialize");
+        if (initializer_iterator != class_iterator->second.methods.end()) {
+            // invoke_definition's own !execute_ short-circuit already skips
+            // actually running the body during a dry-run/type-check-only
+            // pass (an unreached If branch, ...), so New still allocates a
+            // correctly-typed placeholder instance there without invoking
+            // any Class_Initialize side effect.
+            if (!invoke_definition(
+                     initializer_iterator->second, "class_initialize", {}, offset,
+                     class_iterator->second.source, instance.get())
+                     .has_value()) {
+                return std::nullopt;
             }
         }
         return Value{ObjectInstance{std::move(instance)}};
@@ -4428,6 +4514,12 @@ private:
         }
         if (consume_keyword("nothing")) {
             return Value{Nothing{}};
+        }
+        {
+            const auto me_offset = offset_;
+            if (consume_keyword("me")) {
+                return me_value(me_offset);
+            }
         }
         if (consume_keyword("new")) {
             skip_horizontal_whitespace();
@@ -4785,7 +4877,15 @@ private:
                 *arguments[index].byref_target = scopes_.back().variables.at(parameter.name);
             }
         }
+        // The return value and any ByRef write-backs above are already
+        // copied out, bumping their use_count, so an instance among them
+        // correctly survives this drain rather than being (wrongly) treated
+        // as going out of scope here.
+        const bool drained_ok = drain_scope_instances(scopes_.back());
         scopes_.pop_back();
+        if (!drained_ok) {
+            return std::nullopt;
+        }
         return result;
     }
 
@@ -4835,6 +4935,91 @@ private:
         }
         const auto iterator = class_definitions_.find(instance->class_name);
         return iterator == class_definitions_.end() ? nullptr : &iterator->second;
+    }
+
+    // The `Me` keyword: a fresh ObjectInstance sharing the current class
+    // member's own instance (see current_instance), via
+    // enable_shared_from_this so it shares that instance's existing control
+    // block rather than creating a second, independent one. `offset` is the
+    // `Me` token's own position, for the "only valid inside a class member"
+    // diagnostic.
+    [[nodiscard]] std::optional<Value> me_value(const std::size_t offset) {
+        auto* const instance = current_instance();
+        if (instance == nullptr) {
+            set_error("WFC0138", "Me is only valid inside a class member", offset);
+            return std::nullopt;
+        }
+        return Value{ObjectInstance{instance->shared_from_this()}};
+    }
+
+    // If `value` currently holds the *only* remaining reference to a live
+    // instance (`use_count() == 1`) whose class declares `Class_Terminate`,
+    // invokes it now, before `value` is itself overwritten or destroyed by
+    // the caller. Returns false only when the invoked Class_Terminate body
+    // itself raised an error (propagated as this statement's own failure).
+    //
+    // Deliberately called only from well-defined, non-reentrant-hazardous
+    // points -- Set's overwrite, a Variant's plain-`=` overwrite, and (via
+    // drain_scope_instances) a call frame's locals at the end of a call and
+    // the module scope at the end of the program -- never from a C++
+    // destructor. Hooking ~InstanceData itself was considered and rejected:
+    // an instance's last shared_ptr reference can be dropped from *inside*
+    // another container's own teardown (a Scope's `variables` map
+    // destroying its Values as part of `scopes_.pop_back()`, or the
+    // Interpreter's own member destruction at the very end of the program),
+    // and reentrantly calling back into this evaluator's mutable state
+    // (`scopes_.push_back` for the call frame, mid-`pop_back` of that same
+    // deque) from within that teardown is undefined behavior. Calling from
+    // these explicit points instead means Class_Terminate always runs while
+    // the interpreter is fully alive and not mid-teardown of anything.
+    [[nodiscard]] bool terminate_if_last_reference(Value& value) {
+        const auto* const instance_value = std::get_if<ObjectInstance>(&value);
+        if (instance_value == nullptr || instance_value->data.use_count() != 1) {
+            return true;
+        }
+        const auto class_iterator = class_definitions_.find(instance_value->data->class_name);
+        if (class_iterator == class_definitions_.end()) {
+            return true;
+        }
+        const auto terminate_iterator = class_iterator->second.methods.find("class_terminate");
+        if (terminate_iterator == class_iterator->second.methods.end()) {
+            return true;
+        }
+        InstanceData* const instance = instance_value->data.get();
+        return invoke_definition(
+                   terminate_iterator->second, "class_terminate", {}, 0,
+                   class_iterator->second.source, instance)
+            .has_value();
+    }
+
+    // Drains every ObjectInstance-holding variable in `scope` (a call
+    // frame's locals at the end of a call, or the module scope at the end
+    // of the program), terminating each one that has become the last
+    // reference (see terminate_if_last_reference) and then clearing it to
+    // Empty. Clearing as it goes, one variable at a time, rather than
+    // checking every variable first and clearing afterward, matters for two
+    // reasons: it gives two same-frame variables that alias the same
+    // instance an accurate use_count when each is checked in turn (whichever
+    // is drained second correctly sees the first's reference already
+    // gone), and it means the scope's own destructor (whether that runs via
+    // an explicit `scopes_.pop_back()` right after this returns, or the
+    // Interpreter's own final teardown for the module scope) never touches
+    // a live ObjectInstance, avoiding the reentrancy hazard
+    // terminate_if_last_reference's own comment describes. A caller-visible
+    // return value (the function's result, or a ByRef argument's write-back
+    // target) must already have been copied out before calling this, since
+    // a copy bumps use_count and correctly prevents that instance from
+    // being treated as terminable here.
+    [[nodiscard]] bool drain_scope_instances(Scope& scope) {
+        for (auto& [name, value] : scope.variables) {
+            if (!terminate_if_last_reference(value)) {
+                return false;
+            }
+            if (std::holds_alternative<ObjectInstance>(value)) {
+                value = Value{Empty{}};
+            }
+        }
+        return true;
     }
 
     // Parses `(args)` for a call to `class_def`'s already-looked-up
@@ -4936,6 +5121,22 @@ private:
         auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value() || type_character != '\0') {
             set_error("WFC0011", "expected procedure name after Call", identifier_offset);
+            return false;
+        }
+        // `Call Me.Method(args)`.
+        if (*identifier == "me") {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '.') {
+                auto base = me_value(identifier_offset);
+                if (!base.has_value()) {
+                    return false;
+                }
+                advance();
+                const auto result = parse_member_access_after_dot(
+                    *base, identifier_offset, /*require_function=*/false);
+                return result.has_value();
+            }
+            set_error("WFC0015", "undeclared procedure", identifier_offset);
             return false;
         }
         // `Call obj.Method(args)` -- a method call on an object reference,

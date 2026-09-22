@@ -1,6 +1,8 @@
 # REQ-0203 — Class modules foundation
 
-**Status:** Implemented
+**Status:** Implemented (see `REQ-0204` for the `Me` keyword and the
+`Class_Initialize`/`Class_Terminate` lifecycle hooks, deferred from this
+requirement's original Scope and since implemented as a follow-on increment)
 **Milestone:** MP-0002 — Core VB/VBA Language Execution
 **Depends on:** REQ-0141, REQ-0176, REQ-0197, REQ-0200, REQ-0201, and REQ-0202
 
@@ -59,8 +61,10 @@ End Property
   isolation (a class module and a standard module are separate scopes).
   Calling a sibling method or `Property Get` of the same class unqualified
   (including a method calling itself, for recursion) is the implicit-`Me`
-  equivalent of `Me.Method(...)`; this evaluator does not otherwise
-  recognize a `Me` keyword (see Scope).
+  equivalent of `Me.Method(...)`; `REQ-0204` later adds an explicit `Me`
+  keyword covering every case this implicit form does not (an unqualified
+  *write* to a sibling `Property Let`/`Set`, and passing the current
+  instance itself to another call).
 - `Property Get Name() As Type` returns a value via assignment to its own
   name, exactly like a `Function`; it accepts no parameters (an indexed
   property is deferred — see Scope). `Property Let Name(value [As Type])`
@@ -133,20 +137,8 @@ This is a foundation, not a complete VB6 object model. It does not add:
   C++ `shared_ptr` reference counting — an instance is freed once every
   `Value` holding it is destroyed, with no explicit `Nothing`-assignment
   requirement, unlike VB6's own (also reference-counted) COM object model;
-- `Class_Initialize`/`Class_Terminate` lifecycle events — `New` zero-
-  initializes fields with no user-code hook, and there is no destruction
-  hook at all (an owner decision, made explicitly alongside the "separate
-  file per class" and "fields + methods + Property accessors" scoping
-  choices via `AskUserQuestion`);
 - `CreateObject`, `GetObject`, or any COM/host interop — this evaluator has
   no host to interop with;
-- a `Me` keyword — an unqualified sibling call/read already reaches the
-  current instance implicitly (see Requirement), which covers method-to-
-  method and method-to-Property-Get access; only an unqualified *write* to
-  a sibling `Property Let`/`Set` from within another method has no route
-  without `Me` (a narrower, disclosed gap: `parse_assignment`'s bare-
-  identifier path has no member-dispatch hook the way
-  `parse_primary`/`parse_call_statement` now do);
 - class-typed or `Object`-typed fields, and array-of-class/array-of-`Object`
   elements — a field's `Type` is the same eight-scalar-type list `Dim`
   accepts minus `Object` (matching `REQ-0202`'s existing parameter/return-

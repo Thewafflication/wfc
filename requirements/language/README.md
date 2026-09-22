@@ -207,3 +207,12 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `Dim x As New ClassName`/`Dim x As ClassName`, `.` member access,
   unqualified sibling-member calls (implicit `Me`), and `Is`/`TypeName`/
   `VarType`/`IsObject` for a live instance.
+- [REQ-0204 — The Me keyword and Class_Initialize/Class_Terminate](req-0204-me-and-class-lifecycle.md)
+  defines the explicit `Me` keyword and the `Class_Initialize`/
+  `Class_Terminate` lifecycle hooks REQ-0203 deferred: `Class_Initialize`
+  runs automatically at `New`, after fields are initialized; `Class_Terminate`
+  runs when a variable is found to hold an instance's last reference (at
+  `Set`, at the end of a call for that call's own locals, and at the end of
+  a successful program for module-level variables) — a documented
+  approximation of VB6's reference-counted lifetime, not full COM-style
+  refcounting.

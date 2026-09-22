@@ -1086,4 +1086,35 @@ Print CStr(c Is New Counter)]=]
             LABELS "integration;mp-0002;statements;classes;object"
             PASS_REGULAR_EXPRESSION "2.*4.*10.*Counter 9 True.*True.*True.*False"
     )
+
+    add_test(
+        NAME TC-MP0002-class-lifecycle-cli
+        COMMAND wfc
+            --class Foo [=[Public n As Long
+
+Sub Class_Initialize()
+n = 100
+Print "init"
+End Sub
+
+Sub Class_Terminate()
+Print "term " & n
+End Sub
+
+Sub Bump()
+n = n + 1
+Print Me.n
+End Sub]=]
+            --eval [=[Dim x As New Foo
+Call x.Bump()
+Call x.Bump()
+Set x = Nothing
+Print "after"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-lifecycle-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "init.*101.*102.*term 102.*after"
+    )
 endif()

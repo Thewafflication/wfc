@@ -662,6 +662,52 @@ int main() {
         "Print \"unused\"", "WFC0130");
     expect_classes_failure(
         {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0135");
+    // The Me keyword and the Class_Initialize/Class_Terminate lifecycle
+    // hooks. Class_Initialize runs against a fully field-initialized
+    // instance at New; Class_Terminate runs when the last reference to an
+    // instance is dropped -- via Set (including Set x = Nothing), at the
+    // end of a Sub/Function/Property call for that call's own locals, and
+    // at the end of the program for any surviving module-level variable.
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\n"
+                     "Sub Class_Initialize()\nn = 100\nEnd Sub\n\n"
+                     "Sub Bump()\nn = n + 1\nPrint Me.n\nEnd Sub"}},
+        "Dim c As New Counter\nCall c.Bump()\nCall c.Bump()",
+        "101\n102");
+    expect_classes_success(
+        {{"Foo", "Sub Class_Terminate()\nPrint \"terminated\"\nEnd Sub"}},
+        "Dim x As New Foo\nPrint \"before\"\nSet x = Nothing\nPrint \"after\"",
+        "before\nterminated\nafter");
+    expect_classes_success(
+        {{"Foo", "Sub Class_Terminate()\nPrint \"local-terminated\"\nEnd Sub"}},
+        "Sub MakeOne()\nDim x As New Foo\nPrint \"inside\"\nEnd Sub\n"
+        "Call MakeOne()\nPrint \"outside\"",
+        "inside\nlocal-terminated\noutside");
+    expect_classes_success(
+        {{"Foo", "Sub Class_Terminate()\nPrint \"program-end-terminated\"\nEnd Sub"}},
+        "Dim x As New Foo\nPrint \"hi\"",
+        "hi\nprogram-end-terminated");
+    expect_classes_success(
+        {{"Foo", "Public v As Long\n\n"
+                 "Function GetSelf() As Variant\nSet GetSelf = Me\nEnd Function"}},
+        "Dim x As New Foo\nx.v = 7\nDim y As Variant\nSet y = x.GetSelf()\n"
+        "Print y.v & \" \" & CStr(y Is x)",
+        "7 True");
+    expect_classes_success(
+        // Two same-frame variables aliasing the same instance still
+        // terminate it exactly once, at whichever alias is drained last.
+        {{"Foo", "Sub Class_Terminate()\nPrint \"terminated-once\"\nEnd Sub"}},
+        "Sub Test()\nDim a As New Foo\nDim b As Variant\nSet b = a\n"
+        "Print \"before end\"\nEnd Sub\nCall Test()\nPrint \"after\"",
+        "before end\nterminated-once\nafter");
+    expect_classes_failure({}, "Print Me", "WFC0138");
+    expect_classes_failure({}, "Dim Me As Long", "WFC0017");
+    expect_classes_failure(
+        {{"Foo", "Sub Class_Initialize(n As Long)\nEnd Sub"}},
+        "Print \"unused\"", "WFC0139");
+    expect_classes_failure(
+        {{"Foo", "Function Class_Terminate() As Long\nEnd Function"}},
+        "Print \"unused\"", "WFC0139");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");
