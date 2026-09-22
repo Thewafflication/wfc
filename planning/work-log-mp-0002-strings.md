@@ -107,6 +107,7 @@ retained CTest evidence.
 | 2026-09-18 #83 | Architecture | Add the distinct 16-bit `Integer` numeric value type under new `REQ-0199` (VB6's `Integer`, distinct from this codebase's own `Integer` C++ alias for `Long`): `%` literal suffix/identifier character, `Dim`/`Const As Integer`, checked narrowing from `Long`/`Single`/`Currency`/`Double`, six-way `Integer < Long < Currency < Single < Decimal < Double` arithmetic promotion (exact checked 16-bit arithmetic for `Integer`+`Integer`, exact widened `Long` arithmetic for mixed `Integer`/`Long`), `CInt` now returning a genuine `Integer` instead of a `Long`-typed narrowed value, and extending `CLng`/`CByte`/`CBool`/`CStr`/`CDbl`/`CSng`/`CCur`/`CDec`/`IsNumeric`/`Abs`/`Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct`/`TypeName`/`VarType` to accept `Integer`; unit + CLI tests, README | Commit `10710e5` |
 | 2026-09-18 #84 | Architecture | Add fixed-size one-dimensional arrays under new `REQ-0201` (`Dim arr(n)`/`Dim arr(lo To hi) As Type`, indexed read/write with `WFC0111` bounds checking, `LBound`/`UBound`, `IsArray`, `TypeName`/`VarType`; new `ArrayValue{vector<Value>, lower_bound}` alternative, a forward-declared recursive `Value` variant) and a minimal object-reference stub under new `REQ-0200` (`Nothing` as a distinct state, `Dim x As Object`, the `Set` statement as the only legal object assignment, the `Is` operator for object identity, `IsObject`/`TypeName`/`VarType`); scoped via two `AskUserQuestion` calls ("Fixed-size 1-D arrays only" / "Minimal object stub"); unit + CLI tests, README | Commit `5ca5db4` |
 | 2026-09-18 #85 | Architecture | Add user-defined `Sub`/`Function` procedures under new `REQ-0202` (module-level declarations found by a pre-scan pass so calls resolve regardless of textual order, forward reference, recursion bounded by a new `WFC0123` depth guard, `ByVal`/`ByRef` parameters with copy-back for bare-identifier `ByRef` arguments, per-call local variable scope via a new `Scope`/two-level scope-chain refactor replacing the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members, `Function` return via self-name assignment, `Exit Sub`/`Exit Function`, and the `Call` statement); the prerequisite the owner's "finish objects" request surfaced as missing, scoped to procedures-only (no class modules) via `AskUserQuestion`; fixed a `std::vector`-reallocation pointer-invalidation bug (switched `scopes_` to `std::deque`) that silently broke `ByRef` write-back and crashed on recursion during this increment's own testing; unit + CLI tests, README | Commit `671633b` |
+| 2026-09-22 #86 | Architecture | Add a class-modules foundation under new `REQ-0203`: classes supplied as separate sources alongside the standard module (new CLI `--class <Name> <source>`, new `wfc::ClassModuleSource`/`evaluate_program` overload), field declarations, `Sub`/`Function` methods, `Property Get`/`Let`/`Set` accessors, `New`/`Dim x As New ClassName`/`Dim x As ClassName`, `.` member access, unqualified sibling-member calls (implicit `Me`), and a new `ObjectInstance` `Value` alternative (a `shared_ptr<InstanceData>` handle, `InstanceData` embedding a `Scope` for field storage) giving `Is`/`Set`/`TypeName`/`VarType`/`IsObject` real non-`Nothing` results for the first time since `REQ-0200`; scoped via three `AskUserQuestion` choices ("Separate file per class" / "Fields + methods + Property accessors" / "New only, no Class_Initialize/Terminate"); fixed a live bug found during this increment's own testing where a class method calling a sibling method (including itself, for recursion) unqualified failed with "unsupported function" because `instance_scopes_` (originally a `Scope*` stack) had no way to recover the current instance's *class* to look the sibling up in, by switching it to an `InstanceData*` stack; unit + CLI tests, README | Commit `d8d3ad6` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -288,6 +289,7 @@ from this record and the local reference environment identified in
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post `Integer` numeric type) | Pass (78/78) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post fixed-size arrays and minimal object stub) | Pass (80/80) | Local x64 CTest run |
 | 2026-09-18 | `ctest --preset windows-x64-debug` (post user-defined Sub/Function procedures) | Pass (81/81) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post class-modules foundation) | Pass (82/82) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -323,6 +325,12 @@ from this record and the local reference environment identified in
 | Refactor the four flat `variables_`/`constants_`/`variant_variables_`/`object_variables_` members into a `Scope` struct plus a `scopes_` scope-chain, with lookups checking only the current frame and the module frame (never an intermediate caller's frame) | Procedure calls need real local variable scope (parameters and local `Dim`s invisible outside the call, distinct from module-level variables) and recursion needs each call to get its own independent local storage; VB6 itself has no scope deeper than module/procedure, so a full nested lexical-scope stack was not needed, only two visible levels | A ~28-call-site mechanical refactor (every existing `variables_.find`/`.contains`/`.emplace`/`.insert` call site), done before writing any new procedure-call logic on top of it, verified against the full existing test suite before proceeding | `REQ-0202` |
 | Switch `scopes_` from `std::vector<Scope>` to `std::deque<Scope>` | Discovered via live testing during this same increment: a `ByRef` argument's write-back pointer (captured before a call pushes its new frame) silently stopped working, and deep recursion segfaulted -- both traced to `std::vector::push_back` reallocating on growth, which can copy (rather than move) existing elements and orphan pointers previously taken into them; `std::deque` guarantees push/pop at the ends never invalidates references or pointers to existing elements | Fixed both symptoms; verified with the same `ByRef` and recursive-Factorial cases that first exposed the bug, plus the full test suite | `REQ-0202` |
 | Bound procedure-call recursion at a fixed depth (`WFC0123` beyond 64 levels) rather than leaving it unguarded | Since each VB6-level call recurses through this evaluator's own C++ call chain (`run_procedure_body` → `parse_statement` → ... → `parse_procedure_call` → `call_procedure` → `run_procedure_body` again), unbounded VB6 recursion can overflow the native call stack -- a process crash, observed directly in this session between roughly 100 and 128 levels in a local debug build | 64 was chosen empirically for a comfortable margin below the observed crash range (a release build, with smaller per-frame stack usage, has more headroom); verified a runaway self-recursive function fails cleanly with `WFC0123` instead of crashing, while ordinary recursion (`Factorial(10)`) still succeeds | `REQ-0202` |
+| Supply each class module as its own separate source (`wfc::ClassModuleSource`/CLI `--class <Name> <source>`) rather than an inline `Class ClassName ... End Class` block in the same source text | Owner decision (`AskUserQuestion`): mirrors a real VB6 project's separate `.cls` files, at the cost of extending the CLI/API to accept multiple named sources instead of one flat blob | This evaluator had no multi-file/multi-module concept at all before this increment; chosen over the inline-block alternative specifically because it matches real VB6 project structure rather than inventing non-standard syntax | `REQ-0203` |
+| Cover fields, methods, and `Property Get`/`Let`/`Set` accessors together in this first class-modules increment, rather than fields and methods alone | Owner decision (`AskUserQuestion`), given alongside the declaration-form and lifecycle choices | Delivers real encapsulation (computed properties, a way to expose an object reference without a class-typed field) in the same increment as basic instantiation, rather than a still-incomplete fields-only class | `REQ-0203` |
+| Instantiate `Dim x As New ClassName` eagerly, at the `Dim` statement itself, rather than VB6's lazy auto-instantiation (created on `x`'s first actual use) | Owner decision (`AskUserQuestion`): "New only" was chosen over also adding `Class_Initialize`/`Class_Terminate`, and eager instantiation was the simpler of the two `As New` semantics to build correctly first | Lazy semantics would need a third variable state ("declared `As New`, not yet instantiated") tracked per read, not just per `Set`; documented as an explicit, disclosed simplification rather than attempted this increment | `REQ-0203` |
+| Give class fields no `Object`/class-typed option (the same eight-scalar-type list `Dim` already accepts, minus `Object`) | Matches `REQ-0202`'s own existing precedent excluding `Object` from procedure parameter/return types; an object reference can still be stored in a `Variant` field (already possible since `REQ-0197`/`REQ-0200`) | Kept scope bounded to what a `Property Set` member actually needs (a `Variant` backing field), rather than also solving class-typed-field storage/type-checking in the same increment | `REQ-0203` |
+| Resolve an unqualified call/read inside a class method against that method's *own* class's sibling members (methods and `Property Get`) before falling back to "undeclared", rather than requiring an explicit `Me.` qualifier | Discovered mid-implementation: the increment's own recursion test (`Factorial` calling itself, and a second method calling `Factorial`, both unqualified) failed with "unsupported function" until this was added -- `Me` itself is not implemented, so without this fallback a class could never call its own methods at all | Matches real VB6, where a class module's own members are directly callable unqualified; `instance_scopes_` was switched from a `Scope*` stack to an `InstanceData*` stack specifically so the current instance's *class* (needed to look up a sibling method) is recoverable, not just its field storage | `REQ-0203` |
+| Leave unqualified *writes* to a sibling `Property Let`/`Set` (from within another method, with no `Me.` qualifier) unsupported this increment, even though unqualified reads/calls are | `parse_assignment`'s bare-identifier statement path has no member-dispatch hook the way `parse_primary`/`parse_call_statement` were extended to have; adding one is a smaller, separate follow-up rather than blocking this increment | A narrower, disclosed gap: external `obj.Prop = expr` and unqualified sibling method/`Property Get` access both already work; only the combination (unqualified + write + Property) is deferred | `REQ-0203` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -431,6 +439,7 @@ when the session completes.
 | Integer numeric value type (increment #83) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Fixed-size arrays and minimal object stub (increment #84) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | User-defined Sub/Function procedures (increment #85) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Class modules foundation (increment #86) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -656,12 +665,60 @@ between 100 and 128 nested calls), addressed with a `WFC0123` depth guard
 at 64 levels (chosen empirically for a comfortable safety margin below the
 observed crash range).
 
+**Class modules foundation (increment #86, `REQ-0203`):** the owner chose
+"Class modules foundation" from this log's own "Remaining next increments"
+list (via `AskUserQuestion`), then three further `AskUserQuestion` choices
+scoped it: classes supplied as separate sources alongside the standard
+module (new CLI `--class <Name> <source>`, mirroring a real VB6 project's
+separate `.cls` files, over an inline `Class...End Class` block) with
+fields, methods, *and* `Property Get`/`Let`/`Set` accessors together (over
+fields/methods alone), and `New`-only instantiation (no
+`Class_Initialize`/`Class_Terminate`). Adds a new `ObjectInstance` `Value`
+alternative -- a `shared_ptr<InstanceData>` handle (`InstanceData`:
+`{class_name, Scope fields}`, reusing `Scope` for per-instance field
+storage) -- giving `Is`/`Set`/`TypeName`/`VarType`/`IsObject` a real,
+non-`Nothing` object value for the first time since `REQ-0200`'s stub;
+every one of that requirement's `holds_alternative<Nothing>` rejection
+sites (`render`, `&` concatenation, `compare`, every `CXxx` conversion,
+`IsNumeric`) was audited and extended to reject an `ObjectInstance` the
+same way, since none of them are compiler-enforced exhaustive `std::visit`
+matches. A class's own source is scanned by a new `scan_class_body`
+(mirroring `scan_procedures`), and a class method/property's body executes
+against its own class's source (`source_`/`offset_` are swapped in and
+back around the call, exactly like `execute_` already is) and its own
+instance's field scope (a new `instance_scopes_` stack `find_variable`
+consults instead of the real module scope, so a class is isolated from the
+standard module exactly like a second, separate VB6 module would be).
+`.member` access chains through a new `parse_primary` postfix loop (so a
+`Variant` field/return value that happens to hold another instance chains
+further, `a.b.c`, with no class-typed-field-specific code needed for it).
+
+Live testing during this same increment surfaced one real, since-fixed
+bug: a method calling a sibling method of its own class unqualified
+(including calling itself, for recursion) failed with "unsupported
+function". `Me` is not implemented, so nothing else lets a class call its
+own members at all without this; the root cause was that `instance_scopes_`
+was originally a `Scope*` stack (enough for field lookups) with no way to
+recover the current instance's *class* to look a sibling method up in --
+fixed by switching it to an `InstanceData*` stack, then adding the
+unqualified-sibling-call/read fallback to `parse_primary_base`/
+`parse_call_statement` (see the Decisions table above for the full
+before/after). Confirmed with a self-recursive `Factorial` method and a
+second method calling it, both unqualified.
+
 **Remaining next increments:**
 
-- class modules, `Property Let`/`Get`/`Set` members, `New`, `CreateObject`,
-  and method/property access on an object reference -- the layer this
-  increment's procedure foundation was built to eventually support, still a
-  distinct, separately-scoped future increment;
+- class inheritance, interfaces (`Implements`), `Property`-member/`Me`
+  refinements (`Me` itself, and unqualified *writes* to a sibling
+  `Property Let`/`Set`), `Class_Initialize`/`Class_Terminate`,
+  `CreateObject`/`GetObject`/COM interop, indexed `Property` accessors,
+  class-typed/`Object`-typed fields and array elements, a dedicated
+  `As ClassName` method/`Property Get` return type (a `Variant` return
+  already covers returning an object -- see `REQ-0203`'s Scope), lazy
+  `As New` auto-instantiation, and `Optional`/`ParamArray`/`Static`/
+  visibility modifiers on a class member (all deliberately excluded from
+  `REQ-0203`'s scope, alongside the same exclusions `REQ-0202` already
+  lists for module-level procedures);
 - `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
   array-typed parameters (deliberately excluded from `REQ-0201`'s
   "fixed-size 1-D arrays only" scope);
