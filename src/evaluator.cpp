@@ -1118,6 +1118,9 @@ enum class NumericCategory {
            identifier == "new" || identifier == "property" || identifier == "get" ||
            identifier == "me" ||
            identifier == "byval" || identifier == "byref" ||
+           identifier == "optional" || identifier == "paramarray" ||
+           identifier == "static" || identifier == "private" ||
+           identifier == "public" ||
            identifier == "option" || identifier == "or" ||
            identifier == "print" || identifier == "randomize" ||
            identifier == "rem" || identifier == "select" ||
@@ -1162,6 +1165,11 @@ struct Scope {
     // distinguishes a Function call's frame (Exit Function is valid, and
     // the procedure's own name holds its return value) from a Sub's.
     bool is_function_frame{};
+    // REQ-0206: names declared by a `Static` statement within the
+    // procedure call this scope belongs to. invoke_definition copies each
+    // one's final value back into the owning ProcedureDef's persistent
+    // `statics` scope just before this frame is discarded.
+    std::unordered_set<std::string> static_variable_names;
 };
 
 // The result of looking a variable name up across the (at most two) scopes
@@ -1189,6 +1197,19 @@ struct ProcedureParameter {
     // than a fixed scalar type, since this evaluator's parameter type
     // keywords (see parse_type_keyword) do not otherwise include Object.
     bool is_object_reference{};
+    // REQ-0206: `Optional [name [As Type] [= default]]`. An omitted
+    // trailing argument at the call site binds `default_value` (if
+    // `has_default`) or the type's own zero value otherwise. Every
+    // parameter after the first Optional one must itself be Optional (or
+    // the trailing ParamArray).
+    bool is_optional{};
+    bool has_default{};
+    Value default_value;
+    // REQ-0206: `ParamArray name()` -- must be the last parameter,
+    // collects every call argument from this position onward into a fresh
+    // zero-based array bound to `name`. Mutually exclusive with
+    // `is_optional` (a ParamArray has no notion of a single default value).
+    bool is_param_array{};
 };
 
 // A `Sub`/`Function` declaration found by the module-level pre-scan
@@ -1213,16 +1234,32 @@ struct ProcedureDef {
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
+    // REQ-0206: true for a class member (or, parsed but unenforced, a
+    // module-level procedure -- see scan_procedures) declared `Private`, or
+    // a class member declared with a bare `Dim`/no modifier at all (VB6's
+    // own default); false for `Public` or a module-level procedure with no
+    // modifier (nothing to restrict access from, since this evaluator has
+    // only one standard module). A class member's dot-access sites check
+    // this against current_class_def() (see member_accessible).
+    bool is_private{};
+    // REQ-0206: `Static name [As Type]` declarations inside this
+    // procedure's own body persist their values across separate calls.
+    // Storage lives here, on the ProcedureDef itself (found once by
+    // scan_procedures/scan_class_body and never moved or erased
+    // afterward), rather than in any per-call Scope; `mutable` because
+    // every other member function receives its ProcedureDef by const
+    // reference. See parse_static_declaration/current_procedure_def_.
+    mutable Scope statics;
 };
 
-// One `Dim`/`Public` field declared at a class module's top level (see
-// ClassDef below). Every field declaration is treated identically regardless
-// of the `Dim`/`Public` keyword used -- this evaluator does not model
-// Public/Private visibility for class members, matching REQ-0202's existing
-// precedent for module-level Sub/Function declarations.
+// One `Dim`/`Public`/`Private` field declared at a class module's top level
+// (see ClassDef below). `Public` and `Private` fields differ only in
+// `is_private` (REQ-0206); a bare `Dim` is implicitly `Private`, matching
+// real VB6's own module-level default.
 struct ClassFieldDef {
     std::size_t type_index{};
     bool is_variant{};
+    bool is_private{};
     // A field declared `As Object` or `As SomeClass` (REQ-0205): the field
     // holds Nothing or an ObjectInstance. `class_name` is empty for the
     // generic `As Object` (any class's instance accepted), or the
@@ -1482,14 +1519,40 @@ private:
         if (consume(')')) {
             return true;
         }
+        // REQ-0206: once an Optional parameter has been seen, every
+        // parameter after it must itself be Optional or the trailing
+        // ParamArray -- a required parameter cannot follow.
+        bool seen_optional = false;
         while (true) {
             skip_horizontal_whitespace();
+            const auto modifier_offset = offset_;
             ProcedureParameter parameter;
-            if (consume_keyword("byval")) {
+            bool is_param_array = false;
+            bool is_optional = false;
+            if (consume_keyword("paramarray")) {
+                is_param_array = true;
+                skip_horizontal_whitespace();
+            } else if (consume_keyword("optional")) {
+                is_optional = true;
+                skip_horizontal_whitespace();
+            }
+            if (is_param_array) {
+                // ParamArray is always effectively ByVal: each call builds
+                // it a fresh array, so there is no caller variable for a
+                // ByRef write-back to reach.
+                parameter.by_val = true;
+            } else if (consume_keyword("byval")) {
                 parameter.by_val = true;
                 skip_horizontal_whitespace();
             } else if (consume_keyword("byref")) {
                 skip_horizontal_whitespace();
+            }
+            if (!is_optional && !is_param_array && seen_optional) {
+                set_error(
+                    "WFC0140",
+                    "a required parameter cannot follow an Optional parameter",
+                    modifier_offset);
+                return false;
             }
             const auto parameter_name_offset = offset_;
             char type_character{};
@@ -1507,7 +1570,40 @@ private:
             }
             parameter.name = std::move(*name);
             skip_horizontal_whitespace();
-            if (type_character != '\0') {
+            if (is_param_array) {
+                if (type_character != '\0' || !consume('(')) {
+                    set_error(
+                        "WFC0141",
+                        "ParamArray parameter must be declared as an array: name()",
+                        offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!consume(')')) {
+                    set_error(
+                        "WFC0141",
+                        "ParamArray parameter must be declared as an array: name()",
+                        offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const auto element_type_offset = offset_;
+                const auto matched_as = consume_keyword("as");
+                if (matched_as) {
+                    skip_horizontal_whitespace();
+                }
+                const auto type_result = matched_as ? parse_type_keyword() : std::nullopt;
+                if (!matched_as || !type_result.has_value() || type_result->is_variant) {
+                    set_error(
+                        "WFC0141",
+                        "ParamArray requires an explicit element type: As Integer, As Long, "
+                        "As Double, As Single, As Currency, As String, or As Boolean",
+                        element_type_offset);
+                    return false;
+                }
+                parameter.type_index = type_result->default_value.index();
+                parameter.is_param_array = true;
+            } else if (type_character != '\0') {
                 if (!validate_type_character(type_character, parameter_name_offset)) {
                     return false;
                 }
@@ -1540,10 +1636,45 @@ private:
                 parameter.type_index = Value{Empty{}}.index();
                 parameter.is_variant = true;
             }
+
+            if (is_optional) {
+                parameter.is_optional = true;
+                seen_optional = true;
+                skip_horizontal_whitespace();
+                if (consume('=')) {
+                    skip_horizontal_whitespace();
+                    const auto default_offset = offset_;
+                    const bool enclosing_constant_expression = constant_expression_;
+                    constant_expression_ = true;
+                    auto default_value = parse_expression();
+                    constant_expression_ = enclosing_constant_expression;
+                    if (!default_value.has_value()) {
+                        return false;
+                    }
+                    if (!parameter.is_variant) {
+                        if (!coerce_numeric_value(
+                                *default_value, parameter.type_index, default_offset)) {
+                            return false;
+                        }
+                        if (default_value->index() != parameter.type_index) {
+                            set_error(
+                                "WFC0016", "default value type mismatch", default_offset);
+                            return false;
+                        }
+                    }
+                    parameter.has_default = true;
+                    parameter.default_value = std::move(*default_value);
+                }
+            }
+
             definition.parameters.push_back(std::move(parameter));
             skip_horizontal_whitespace();
             if (consume(')')) {
                 break;
+            }
+            if (is_param_array) {
+                set_error("WFC0141", "ParamArray must be the last parameter", offset_);
+                return false;
             }
             if (!consume(',')) {
                 set_error("WFC0005", "expected closing parenthesis", offset_);
@@ -1573,11 +1704,16 @@ private:
     // Property forms a class body can also contain. Unlike a standard
     // module, a class body has no other top-level content at all: no
     // executable statements, since nothing calls a class module's own body
-    // directly (see REQ-0203's Scope). `Dim` and `Public` are accepted
-    // identically for a field declaration: this evaluator does not model
-    // Public/Private visibility for class members (matching REQ-0202's
-    // existing precedent for module-level procedures), so every field,
-    // method, and property is reachable via `.` access.
+    // directly (see REQ-0203's Scope).
+    //
+    // A line beginning `Dim` always introduces a field, implicitly
+    // `Private` (matching real VB6's own module-level default for a bare
+    // `Dim`). A line beginning `Public`/`Private` is ambiguous on its own --
+    // `Public x As Long` is a field, `Public Sub Name()` is a method -- so
+    // the modifier is consumed first and then either `Property`/`Sub`/
+    // `Function` or a field name is looked for (REQ-0206; visibility was
+    // entirely unmodeled before it, with every member reachable via `.`
+    // regardless of the `Dim`/`Public` keyword written).
     [[nodiscard]] bool scan_class_body(ClassDef& class_def) {
         while (true) {
             skip_program_leading_trivia();
@@ -1586,248 +1722,305 @@ private:
             }
             const auto line_offset = offset_;
 
-            if (consume_keyword("dim") || consume_keyword("public")) {
-                skip_horizontal_whitespace();
-                const auto name_offset = offset_;
-                char type_character{};
-                auto name = parse_identifier(&type_character);
-                if (!name.has_value() || type_character != '\0') {
-                    set_error("WFC0011", "expected field name", name_offset);
+            if (consume_keyword("dim")) {
+                if (!scan_class_field_declaration(class_def, /*is_private=*/true)) {
                     return false;
                 }
-                if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
-                    set_error(
-                        "WFC0128", "duplicate or reserved class member name", name_offset);
-                    return false;
-                }
-                skip_horizontal_whitespace();
-                ClassFieldDef field;
-                if (consume_keyword("as")) {
-                    const auto type_offset = offset_;
-                    const auto type_result = parse_scalar_object_or_class_type();
-                    if (!type_result.has_value()) {
-                        set_error(
-                            "WFC0012",
-                            "expected As Integer, As Long, As Double, As Single, As Currency, "
-                            "As String, As Boolean, As Object, As Variant, or a known class "
-                            "name",
-                            type_offset);
-                        return false;
-                    }
-                    field.type_index = type_result->type_index;
-                    field.is_variant = type_result->is_variant;
-                    field.is_object = type_result->is_object;
-                    field.class_name = type_result->class_name;
-                } else {
-                    // A bare field declaration with no As clause is
-                    // implicitly Variant, matching a bare module-level Dim.
-                    field.type_index = Value{Empty{}}.index();
-                    field.is_variant = true;
-                }
-                // A field declaration is a plain statement line, not a
-                // block opener -- unlike Sub/Function/Property (which
-                // always need a body to follow, so consume_block_line_end's
-                // "a line break is mandatory" requirement is right for
-                // them), a class's last field can legally be its source's
-                // very last line with no trailing line break.
-                if (!consume_statement_end()) {
-                    return false;
-                }
-                class_def.fields.emplace(std::move(*name), field);
                 continue;
+            }
+
+            bool is_private = false;
+            bool has_visibility_keyword = false;
+            if (consume_keyword("private")) {
+                is_private = true;
+                has_visibility_keyword = true;
+                skip_horizontal_whitespace();
+            } else if (consume_keyword("public")) {
+                has_visibility_keyword = true;
+                skip_horizontal_whitespace();
             }
 
             if (consume_keyword("property")) {
-                skip_horizontal_whitespace();
-                enum class Accessor { get, let, set };
-                Accessor accessor;
-                if (consume_keyword("get")) {
-                    accessor = Accessor::get;
-                } else if (consume_keyword("let")) {
-                    accessor = Accessor::let;
-                } else if (consume_keyword("set")) {
-                    accessor = Accessor::set;
-                } else {
-                    set_error("WFC0129", "expected Get, Let, or Set after Property", offset_);
+                if (!scan_class_property_declaration(class_def, is_private, line_offset)) {
                     return false;
                 }
-                skip_horizontal_whitespace();
-                const auto name_offset = offset_;
-                char type_character{};
-                auto name = parse_identifier(&type_character);
-                if (!name.has_value() || type_character != '\0') {
-                    set_error("WFC0118", "expected property name", name_offset);
-                    return false;
-                }
-                if (is_reserved_identifier(*name) || class_def.fields.contains(*name) ||
-                    class_def.methods.contains(*name)) {
-                    set_error(
-                        "WFC0128", "duplicate or reserved class member name", name_offset);
-                    return false;
-                }
-                auto& accessor_table = accessor == Accessor::get   ? class_def.property_get
-                                        : accessor == Accessor::let ? class_def.property_let
-                                                                     : class_def.property_set;
-                if (accessor_table.contains(*name)) {
-                    set_error(
-                        "WFC0128", "duplicate Property accessor for this name", name_offset);
-                    return false;
-                }
-
-                ProcedureDef definition;
-                definition.is_function = accessor == Accessor::get;
-                if (!scan_procedure_parameters(
-                        definition, /*allow_object_parameter=*/accessor == Accessor::set)) {
-                    return false;
-                }
-                if (accessor == Accessor::get) {
-                    // Property Get may take zero or more index parameters
-                    // (REQ-0205's indexed properties -- `Property Get
-                    // Name(index [, ...]) As Type`, accessed as
-                    // `obj.Name(args)` exactly like a method call); zero
-                    // parameters is the plain, non-indexed form accessed as
-                    // `obj.Name` with no parentheses at all.
-                    skip_horizontal_whitespace();
-                    if (!consume_keyword("as")) {
-                        set_error(
-                            "WFC0012",
-                            "expected As after Property Get parameter list",
-                            offset_);
-                        return false;
-                    }
-                    const auto type_offset = offset_;
-                    const auto type_result = parse_scalar_object_or_class_type();
-                    if (!type_result.has_value()) {
-                        set_error(
-                            "WFC0012",
-                            "expected As Integer, As Long, As Double, As Single, As Currency, "
-                            "As String, As Boolean, As Object, As Variant, or a known class "
-                            "name",
-                            type_offset);
-                        return false;
-                    }
-                    definition.return_type_index = type_result->type_index;
-                    definition.return_is_variant = type_result->is_variant;
-                    definition.return_is_object = type_result->is_object;
-                    definition.return_class_name = type_result->class_name;
-                } else {
-                    // Property Let/Set's last parameter is always the value
-                    // being assigned; any parameters before it are index
-                    // parameters (REQ-0205), so at least one parameter (the
-                    // value alone, for the plain non-indexed form) is
-                    // required, but there is no upper bound.
-                    if (definition.parameters.empty()) {
-                        set_error(
-                            "WFC0131",
-                            "Property Let/Set requires at least one parameter",
-                            name_offset);
-                        return false;
-                    }
-                    if (accessor == Accessor::set &&
-                        !definition.parameters.back().is_object_reference) {
-                        set_error(
-                            "WFC0132",
-                            "Property Set's last parameter (the value) must be declared As "
-                            "Object",
-                            name_offset);
-                        return false;
-                    }
-                }
-                if (!consume_block_line_end()) {
-                    return false;
-                }
-                definition.body_start = offset_;
-                if (!skip_to_matching_end("property", definition.body_end)) {
-                    set_error("WFC0133", "expected End Property", line_offset);
-                    return false;
-                }
-                definition.declaration_end = offset_;
-                accessor_table.emplace(std::move(*name), std::move(definition));
                 continue;
             }
-
             bool is_function = false;
+            bool matched_sub_or_function = true;
             if (consume_keyword("sub")) {
                 is_function = false;
             } else if (consume_keyword("function")) {
                 is_function = true;
             } else {
+                matched_sub_or_function = false;
+            }
+            if (matched_sub_or_function) {
+                if (!scan_class_procedure_declaration(
+                        class_def, is_function, is_private, line_offset)) {
+                    return false;
+                }
+                continue;
+            }
+            if (has_visibility_keyword) {
+                if (!scan_class_field_declaration(class_def, is_private)) {
+                    return false;
+                }
+                continue;
+            }
+            set_error(
+                "WFC0127",
+                "expected a class member declaration (Dim, Public, Private, Sub, Function, "
+                "or Property)",
+                line_offset);
+            return false;
+        }
+    }
+
+    // `[Dim|Public|Private] name [As Type]` -- the keyword itself has
+    // already been consumed by scan_class_body, which also determined
+    // `is_private`.
+    [[nodiscard]] bool scan_class_field_declaration(ClassDef& class_def, const bool is_private) {
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected field name", name_offset);
+            return false;
+        }
+        if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+            set_error("WFC0128", "duplicate or reserved class member name", name_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        ClassFieldDef field;
+        field.is_private = is_private;
+        if (consume_keyword("as")) {
+            const auto type_offset = offset_;
+            const auto type_result = parse_scalar_object_or_class_type();
+            if (!type_result.has_value()) {
                 set_error(
-                    "WFC0127",
-                    "expected a class member declaration (Dim, Public, Sub, Function, or "
-                    "Property)",
-                    line_offset);
+                    "WFC0012",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, "
+                    "As String, As Boolean, As Object, As Variant, or a known class "
+                    "name",
+                    type_offset);
                 return false;
             }
+            field.type_index = type_result->type_index;
+            field.is_variant = type_result->is_variant;
+            field.is_object = type_result->is_object;
+            field.class_name = type_result->class_name;
+        } else {
+            // A bare field declaration with no As clause is implicitly
+            // Variant, matching a bare module-level Dim.
+            field.type_index = Value{Empty{}}.index();
+            field.is_variant = true;
+        }
+        // A field declaration is a plain statement line, not a block
+        // opener -- unlike Sub/Function/Property (which always need a body
+        // to follow, so consume_block_line_end's "a line break is
+        // mandatory" requirement is right for them), a class's last field
+        // can legally be its source's very last line with no trailing line
+        // break.
+        if (!consume_statement_end()) {
+            return false;
+        }
+        class_def.fields.emplace(std::move(*name), std::move(field));
+        return true;
+    }
+
+    // `Property Get|Let|Set name(...) [As Type] ... End Property` -- the
+    // `Property` keyword has already been consumed by scan_class_body,
+    // which also determined `is_private`.
+    [[nodiscard]] bool scan_class_property_declaration(
+        ClassDef& class_def, const bool is_private, const std::size_t line_offset) {
+        skip_horizontal_whitespace();
+        enum class Accessor { get, let, set };
+        Accessor accessor;
+        if (consume_keyword("get")) {
+            accessor = Accessor::get;
+        } else if (consume_keyword("let")) {
+            accessor = Accessor::let;
+        } else if (consume_keyword("set")) {
+            accessor = Accessor::set;
+        } else {
+            set_error("WFC0129", "expected Get, Let, or Set after Property", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value() || type_character != '\0') {
+            set_error("WFC0118", "expected property name", name_offset);
+            return false;
+        }
+        if (is_reserved_identifier(*name) || class_def.fields.contains(*name) ||
+            class_def.methods.contains(*name)) {
+            set_error(
+                "WFC0128", "duplicate or reserved class member name", name_offset);
+            return false;
+        }
+        auto& accessor_table = accessor == Accessor::get   ? class_def.property_get
+                                : accessor == Accessor::let ? class_def.property_let
+                                                             : class_def.property_set;
+        if (accessor_table.contains(*name)) {
+            set_error(
+                "WFC0128", "duplicate Property accessor for this name", name_offset);
+            return false;
+        }
+
+        ProcedureDef definition;
+        definition.is_function = accessor == Accessor::get;
+        definition.is_private = is_private;
+        if (!scan_procedure_parameters(
+                definition, /*allow_object_parameter=*/accessor == Accessor::set)) {
+            return false;
+        }
+        if (accessor == Accessor::get) {
+            // Property Get may take zero or more index parameters
+            // (REQ-0205's indexed properties -- `Property Get
+            // Name(index [, ...]) As Type`, accessed as
+            // `obj.Name(args)` exactly like a method call); zero
+            // parameters is the plain, non-indexed form accessed as
+            // `obj.Name` with no parentheses at all.
             skip_horizontal_whitespace();
-            const auto name_offset = offset_;
-            char type_character{};
-            auto name = parse_identifier(&type_character);
-            if (!name.has_value() || type_character != '\0') {
-                set_error("WFC0118", "expected procedure name", name_offset);
-                return false;
-            }
-            if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
-                set_error("WFC0128", "duplicate or reserved class member name", name_offset);
-                return false;
-            }
-            ProcedureDef definition;
-            definition.is_function = is_function;
-            if (!scan_procedure_parameters(definition)) {
-                return false;
-            }
-            if (is_function) {
-                skip_horizontal_whitespace();
-                if (!consume_keyword("as")) {
-                    set_error(
-                        "WFC0012",
-                        "expected As after Function parameter list",
-                        offset_);
-                    return false;
-                }
-                const auto type_offset = offset_;
-                const auto type_result = parse_scalar_object_or_class_type();
-                if (!type_result.has_value()) {
-                    set_error(
-                        "WFC0012",
-                        "expected As Integer, As Long, As Double, As Single, As Currency, "
-                        "As String, As Boolean, As Object, As Variant, or a known class name",
-                        type_offset);
-                    return false;
-                }
-                definition.return_type_index = type_result->type_index;
-                definition.return_is_variant = type_result->is_variant;
-                definition.return_is_object = type_result->is_object;
-                definition.return_class_name = type_result->class_name;
-            }
-            if (!consume_block_line_end()) {
-                return false;
-            }
-            definition.body_start = offset_;
-            if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
+            if (!consume_keyword("as")) {
                 set_error(
-                    is_function ? "WFC0120" : "WFC0121",
-                    is_function ? "expected End Function" : "expected End Sub",
-                    line_offset);
+                    "WFC0012",
+                    "expected As after Property Get parameter list",
+                    offset_);
                 return false;
             }
-            definition.declaration_end = offset_;
-            // Class_Initialize/Class_Terminate are the lifecycle hooks New
-            // (instantiate_class) and drain_scope_instances/
-            // terminate_if_last_reference invoke automatically -- both
-            // always call with zero arguments, so a declaration with
-            // parameters (or written as a Function) could never actually
-            // run correctly and is rejected up front instead.
-            if ((*name == "class_initialize" || *name == "class_terminate") &&
-                (definition.is_function || !definition.parameters.empty())) {
+            const auto type_offset = offset_;
+            const auto type_result = parse_scalar_object_or_class_type();
+            if (!type_result.has_value()) {
                 set_error(
-                    "WFC0139",
-                    "Class_Initialize/Class_Terminate must be a parameterless Sub",
+                    "WFC0012",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, "
+                    "As String, As Boolean, As Object, As Variant, or a known class "
+                    "name",
+                    type_offset);
+                return false;
+            }
+            definition.return_type_index = type_result->type_index;
+            definition.return_is_variant = type_result->is_variant;
+            definition.return_is_object = type_result->is_object;
+            definition.return_class_name = type_result->class_name;
+        } else {
+            // Property Let/Set's last parameter is always the value
+            // being assigned; any parameters before it are index
+            // parameters (REQ-0205), so at least one parameter (the
+            // value alone, for the plain non-indexed form) is
+            // required, but there is no upper bound.
+            if (definition.parameters.empty()) {
+                set_error(
+                    "WFC0131",
+                    "Property Let/Set requires at least one parameter",
                     name_offset);
                 return false;
             }
-            class_def.methods.emplace(std::move(*name), std::move(definition));
+            if (accessor == Accessor::set &&
+                !definition.parameters.back().is_object_reference) {
+                set_error(
+                    "WFC0132",
+                    "Property Set's last parameter (the value) must be declared As "
+                    "Object",
+                    name_offset);
+                return false;
+            }
         }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+        definition.body_start = offset_;
+        if (!skip_to_matching_end("property", definition.body_end)) {
+            set_error("WFC0133", "expected End Property", line_offset);
+            return false;
+        }
+        definition.declaration_end = offset_;
+        accessor_table.emplace(std::move(*name), std::move(definition));
+        return true;
+    }
+
+    // `Sub|Function name(...) [As Type] ... End Sub|Function` -- the
+    // `Sub`/`Function` keyword has already been consumed by scan_class_body,
+    // which also determined `is_private`.
+    [[nodiscard]] bool scan_class_procedure_declaration(
+        ClassDef& class_def, const bool is_function, const bool is_private,
+        const std::size_t line_offset) {
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value() || type_character != '\0') {
+            set_error("WFC0118", "expected procedure name", name_offset);
+            return false;
+        }
+        if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+            set_error("WFC0128", "duplicate or reserved class member name", name_offset);
+            return false;
+        }
+        ProcedureDef definition;
+        definition.is_function = is_function;
+        definition.is_private = is_private;
+        if (!scan_procedure_parameters(definition)) {
+            return false;
+        }
+        if (is_function) {
+            skip_horizontal_whitespace();
+            if (!consume_keyword("as")) {
+                set_error(
+                    "WFC0012",
+                    "expected As after Function parameter list",
+                    offset_);
+                return false;
+            }
+            const auto type_offset = offset_;
+            const auto type_result = parse_scalar_object_or_class_type();
+            if (!type_result.has_value()) {
+                set_error(
+                    "WFC0012",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, "
+                    "As String, As Boolean, As Object, As Variant, or a known class name",
+                    type_offset);
+                return false;
+            }
+            definition.return_type_index = type_result->type_index;
+            definition.return_is_variant = type_result->is_variant;
+            definition.return_is_object = type_result->is_object;
+            definition.return_class_name = type_result->class_name;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+        definition.body_start = offset_;
+        if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
+            set_error(
+                is_function ? "WFC0120" : "WFC0121",
+                is_function ? "expected End Function" : "expected End Sub",
+                line_offset);
+            return false;
+        }
+        definition.declaration_end = offset_;
+        // Class_Initialize/Class_Terminate are the lifecycle hooks New
+        // (instantiate_class) and drain_scope_instances/
+        // terminate_if_last_reference invoke automatically -- both
+        // always call with zero arguments, so a declaration with
+        // parameters (or written as a Function) could never actually
+        // run correctly and is rejected up front instead.
+        if ((*name == "class_initialize" || *name == "class_terminate") &&
+            (definition.is_function || !definition.parameters.empty())) {
+            set_error(
+                "WFC0139",
+                "Class_Initialize/Class_Terminate must be a parameterless Sub",
+                name_offset);
+            return false;
+        }
+        class_def.methods.emplace(std::move(*name), std::move(definition));
+        return true;
     }
 
     // Scans every class module source supplied alongside the standard
@@ -1902,12 +2095,26 @@ private:
                 break;
             }
             const auto line_offset = offset_;
+            // A leading `Public`/`Private` is accepted (real VB6 source
+            // commonly writes one) but not enforced -- REQ-0206 makes
+            // Private meaningful for a *class* member's dot-accessibility,
+            // but this evaluator has only one standard module, so nothing
+            // exists for a module-level Private procedure to be hidden
+            // from. If neither the modifier nor a bare Sub/Function follows,
+            // this is some other statement; restore and skip the line as
+            // scan_procedures already does for anything it doesn't
+            // recognize.
+            const auto pre_modifier_offset = offset_;
+            if (consume_keyword("public") || consume_keyword("private")) {
+                skip_horizontal_whitespace();
+            }
             bool is_function = false;
             if (consume_keyword("sub")) {
                 is_function = false;
             } else if (consume_keyword("function")) {
                 is_function = true;
             } else {
+                offset_ = pre_modifier_offset;
                 skip_rest_of_line();
                 continue;
             }
@@ -2369,6 +2576,22 @@ private:
         if (consume_keyword("sub") || consume_keyword("function")) {
             return parse_procedure_declaration_skip(statement_offset);
         }
+        {
+            // `Public`/`Private Sub|Function Name(...)` -- the modifier is
+            // parsed (matching real VB6 source) but not enforced at module
+            // level (see scan_procedures); restore position if what
+            // follows isn't actually a procedure declaration; consumed
+            // here so `Public`/`Private` (both are reserved keywords) never
+            // exists as a fully-unrecognized standalone statement.
+            const auto pre_modifier_offset = offset_;
+            if (consume_keyword("public") || consume_keyword("private")) {
+                skip_horizontal_whitespace();
+                if (consume_keyword("sub") || consume_keyword("function")) {
+                    return parse_procedure_declaration_skip(statement_offset);
+                }
+                offset_ = pre_modifier_offset;
+            }
+        }
         if (consume_keyword("call")) {
             return parse_call_statement();
         }
@@ -2384,6 +2607,15 @@ private:
                 return false;
             }
             return parse_declaration();
+        }
+        if (consume_keyword("static")) {
+            if (!allow_declarations_) {
+                set_error(
+                    "WFC0027", "declarations are not supported in conditional blocks",
+                    statement_offset);
+                return false;
+            }
+            return parse_static_declaration(statement_offset);
         }
         if (consume_keyword("const")) {
             if (!allow_declarations_) {
@@ -3388,6 +3620,113 @@ private:
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
 
+    // `Static name [As Type]` inside a Sub/Function/Property body
+    // (REQ-0206): unlike an ordinary local `Dim`, the variable's value
+    // survives from one call to the next. Storage lives on the currently
+    // executing procedure's own ProcedureDef (`current_procedure_def_->
+    // statics`, found once by scan_procedures/scan_class_body and never
+    // moved afterward) rather than in this call's transient Scope;
+    // invoke_definition copies the frame's final value back into that
+    // persistent storage just before discarding the frame. Scoped to
+    // scalar/Variant types only for this first increment -- no arrays, no
+    // `Object`/class types (a Static array or object reference would need
+    // the same persistent-storage treatment `ArrayValue`/`ObjectInstance`
+    // do not yet have outside a Scope's ordinary variables map).
+    [[nodiscard]] bool parse_static_declaration(const std::size_t statement_offset) {
+        if (current_procedure_def_ == nullptr) {
+            set_error(
+                "WFC0144", "Static is only valid inside a Sub, Function, or Property",
+                statement_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto identifier_offset = offset_;
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
+        if (!identifier.has_value()) {
+            set_error("WFC0011", "expected variable name", identifier_offset);
+            return false;
+        }
+        if (is_reserved_identifier(*identifier)) {
+            set_error(
+                "WFC0017", "reserved keyword cannot be a variable name", identifier_offset);
+            return false;
+        }
+        if (!validate_type_character(type_character, identifier_offset)) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+
+        Value element_default;
+        bool is_variant = false;
+        if (type_character != '\0') {
+            if (consume_keyword("as")) {
+                set_error(
+                    "WFC0012", "type-declaration character cannot be combined with As",
+                    offset_);
+                return false;
+            }
+            if (type_character == '$') {
+                element_default = std::string{};
+            } else if (type_character == '#') {
+                element_default = 0.0;
+            } else if (type_character == '!') {
+                element_default = 0.0f;
+            } else if (type_character == '@') {
+                element_default = Currency{};
+            } else if (type_character == '%') {
+                element_default = Int16{};
+            } else {
+                element_default = Integer{};
+            }
+        } else if (!consume_keyword("as")) {
+            if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+                current() == '\'') {
+                element_default = Empty{};
+                is_variant = true;
+            } else {
+                set_error(
+                    "WFC0012",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                    "String, As Boolean, or As Variant",
+                    offset_);
+                return false;
+            }
+        } else {
+            skip_horizontal_whitespace();
+            const auto type_offset = offset_;
+            const auto type_result = parse_type_keyword();
+            if (!type_result.has_value()) {
+                set_error(
+                    "WFC0012",
+                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                    "String, As Boolean, or As Variant",
+                    type_offset);
+                return false;
+            }
+            element_default = type_result->default_value;
+            is_variant = type_result->is_variant;
+        }
+
+        if (current_scope().variables.contains(*identifier)) {
+            set_error("WFC0013", "duplicate variable declaration", identifier_offset);
+            return false;
+        }
+        auto& statics = current_procedure_def_->statics;
+        if (!statics.variables.contains(*identifier)) {
+            statics.variables.emplace(*identifier, std::move(element_default));
+            if (is_variant) {
+                statics.variant_variables.insert(*identifier);
+            }
+        }
+        current_scope().variables.emplace(*identifier, statics.variables.at(*identifier));
+        if (is_variant) {
+            current_scope().variant_variables.insert(*identifier);
+        }
+        current_scope().static_variable_names.insert(*identifier);
+        return true;
+    }
+
     [[nodiscard]] bool parse_declaration() {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
@@ -3877,6 +4216,10 @@ private:
         const ClassDef& class_def = class_iterator->second;
         const auto setter_iterator = class_def.property_set.find(*member_name);
         if (setter_iterator != class_def.property_set.end()) {
+            if (!member_accessible(class_def, setter_iterator->second.is_private)) {
+                set_error("WFC0142", "member is not accessible outside its class", member_offset);
+                return false;
+            }
             return invoke_property_let_or_set(
                 instance, class_def, setter_iterator->second, *member_name, member_offset);
         }
@@ -3884,6 +4227,12 @@ private:
         if (field_iterator == instance.fields.variables.end() ||
             !instance.fields.object_variables.contains(*member_name)) {
             set_error("WFC0135", "unknown member (no Property Set accessor)", member_offset);
+            return false;
+        }
+        const auto field_def_iterator = class_def.fields.find(*member_name);
+        if (field_def_iterator != class_def.fields.end() &&
+            !member_accessible(class_def, field_def_iterator->second.is_private)) {
+            set_error("WFC0142", "member is not accessible outside its class", member_offset);
             return false;
         }
         skip_horizontal_whitespace();
@@ -4025,6 +4374,10 @@ private:
 
         const auto letter_iterator = class_def.property_let.find(*member_name);
         if (letter_iterator != class_def.property_let.end()) {
+            if (!member_accessible(class_def, letter_iterator->second.is_private)) {
+                set_error("WFC0142", "member is not accessible outside its class", member_offset);
+                return false;
+            }
             return invoke_property_let_or_set(
                 instance, class_def, letter_iterator->second, *member_name, member_offset);
         }
@@ -4032,6 +4385,12 @@ private:
         const auto field_iterator = instance.fields.variables.find(*member_name);
         if (field_iterator == instance.fields.variables.end()) {
             set_error("WFC0135", "unknown member", member_offset);
+            return false;
+        }
+        const auto field_def_iterator = class_def.fields.find(*member_name);
+        if (field_def_iterator != class_def.fields.end() &&
+            !member_accessible(class_def, field_def_iterator->second.is_private)) {
+            set_error("WFC0142", "member is not accessible outside its class", member_offset);
             return false;
         }
         if (instance.fields.object_variables.contains(*member_name)) {
@@ -4983,7 +5342,23 @@ private:
         const std::size_t identifier_offset,
         const std::string_view body_source,
         InstanceData* const instance) {
-        if (arguments.size() != definition.parameters.size()) {
+        // REQ-0206: Optional parameters make the required argument count a
+        // range rather than a fixed number; a trailing ParamArray removes
+        // the upper bound entirely (every argument from its position
+        // onward is collected into it, including zero of them).
+        const auto& parameters = definition.parameters;
+        const bool has_param_array = !parameters.empty() && parameters.back().is_param_array;
+        const std::size_t fixed_and_optional_count =
+            has_param_array ? parameters.size() - 1U : parameters.size();
+        std::size_t required_count = fixed_and_optional_count;
+        for (std::size_t index = 0U; index < fixed_and_optional_count; ++index) {
+            if (parameters[index].is_optional) {
+                required_count = index;
+                break;
+            }
+        }
+        if (arguments.size() < required_count ||
+            (!has_param_array && arguments.size() > fixed_and_optional_count)) {
             set_error(
                 "WFC0072",
                 "procedure received the wrong number of arguments",
@@ -5011,9 +5386,24 @@ private:
         }
 
         Scope frame;
-        for (std::size_t index = 0U; index < arguments.size(); ++index) {
-            const auto& parameter = definition.parameters[index];
-            auto& argument = arguments[index];
+        for (std::size_t index = 0U; index < fixed_and_optional_count; ++index) {
+            const auto& parameter = parameters[index];
+            // An omitted trailing Optional argument binds its own default
+            // (or the type's zero value when no `= expr` was written) --
+            // this synthesized argument is never a ByRef write-back target,
+            // matching a literal/expression argument.
+            CallArgument synthesized_argument;
+            CallArgument* argument_ptr;
+            if (index < arguments.size()) {
+                argument_ptr = &arguments[index];
+            } else {
+                synthesized_argument.value = parameter.has_default
+                    ? parameter.default_value
+                    : (parameter.is_variant ? Value{Empty{}}
+                                             : zero_value_for_index(parameter.type_index));
+                argument_ptr = &synthesized_argument;
+            }
+            auto& argument = *argument_ptr;
             if (parameter.is_object_reference) {
                 if (!std::holds_alternative<Nothing>(argument.value) &&
                     !std::holds_alternative<ObjectInstance>(argument.value)) {
@@ -5038,6 +5428,25 @@ private:
                 return std::nullopt;
             }
             frame.variables.emplace(parameter.name, std::move(argument.value));
+        }
+        if (has_param_array) {
+            const auto& param_array_parameter = parameters.back();
+            std::vector<Value> elements;
+            for (std::size_t index = fixed_and_optional_count; index < arguments.size();
+                 ++index) {
+                Value element_value = std::move(arguments[index].value);
+                if (!coerce_numeric_value(
+                        element_value, param_array_parameter.type_index, identifier_offset)) {
+                    return std::nullopt;
+                }
+                if (element_value.index() != param_array_parameter.type_index) {
+                    set_error("WFC0016", "argument type mismatch", identifier_offset);
+                    return std::nullopt;
+                }
+                elements.push_back(std::move(element_value));
+            }
+            frame.variables.emplace(
+                param_array_parameter.name, Value{ArrayValue{std::move(elements), 0}});
         }
         if (definition.is_function) {
             frame.is_function_frame = true;
@@ -5074,6 +5483,8 @@ private:
         const auto saved_offset = offset_;
         const auto saved_source = source_;
         const auto enclosing_execution = execute_;
+        const auto* const enclosing_procedure_def = current_procedure_def_;
+        current_procedure_def_ = &definition;
         ++procedure_depth_;
         offset_ = definition.body_start;
         source_ = body_source;
@@ -5083,8 +5494,23 @@ private:
         execute_ = enclosing_execution;
         offset_ = saved_offset;
         source_ = saved_source;
+        current_procedure_def_ = enclosing_procedure_def;
         if (instance != nullptr) {
             instance_scopes_.pop_back();
+        }
+
+        // REQ-0206: copy each Static variable's final value in this call's
+        // frame back into the procedure's own persistent storage before the
+        // frame itself is discarded, so the next call to this same
+        // procedure sees it. Done regardless of ran_ok, on the same
+        // reasoning Class_Terminate's drain does not run on a failed call:
+        // once an error is fatal to the whole program anyway, whether a
+        // Static happened to get one more write makes no observable
+        // difference, so this simply is not reached for a failed call.
+        if (ran_ok) {
+            for (const auto& name : scopes_.back().static_variable_names) {
+                definition.statics.variables[name] = scopes_.back().variables.at(name);
+            }
         }
 
         if (!ran_ok) {
@@ -5094,8 +5520,13 @@ private:
 
         std::optional<Value> result =
             definition.is_function ? scopes_.back().variables.at(binding_name) : Value{Empty{}};
-        for (std::size_t index = 0U; index < arguments.size(); ++index) {
-            const auto& parameter = definition.parameters[index];
+        // Bounded by fixed_and_optional_count, not arguments.size(): a
+        // ParamArray's own collected elements (beyond that point) are
+        // always ByVal, with no corresponding `parameters` entry per
+        // argument to look up in the first place.
+        for (std::size_t index = 0U; index < std::min(arguments.size(), fixed_and_optional_count);
+             ++index) {
+            const auto& parameter = parameters[index];
             if (!parameter.by_val && arguments[index].byref_target != nullptr) {
                 *arguments[index].byref_target = scopes_.back().variables.at(parameter.name);
             }
@@ -5158,6 +5589,18 @@ private:
         }
         const auto iterator = class_definitions_.find(instance->class_name);
         return iterator == class_definitions_.end() ? nullptr : &iterator->second;
+    }
+
+    // REQ-0206: whether a `Private` field/method/property of `class_def`
+    // may be accessed via `.`/`Call ...`/`Set ...` right now. Private
+    // visibility in VB6 is per-*class*, not per-instance: code executing
+    // inside any method of the *same* class may reach a Private member of
+    // *any* instance of that class (including, but not only, `Me`), while
+    // code executing at module level or inside a *different* class's
+    // method may not. `is_private` members of `class_def` are otherwise
+    // fully accessible (this check is a no-op for a Public member).
+    [[nodiscard]] bool member_accessible(const ClassDef& class_def, const bool is_private) {
+        return !is_private || current_class_def() == &class_def;
     }
 
     // The `Me` keyword: a fresh ObjectInstance sharing the current class
@@ -5263,6 +5706,10 @@ private:
             set_error("WFC0135", "unknown member", member_offset);
             return std::nullopt;
         }
+        if (!member_accessible(class_def, method_iterator->second.is_private)) {
+            set_error("WFC0142", "member is not accessible outside its class", member_offset);
+            return std::nullopt;
+        }
         if (require_function && !method_iterator->second.is_function) {
             set_error("WFC0122", "a Sub cannot be used in an expression", member_offset);
             return std::nullopt;
@@ -5325,6 +5772,11 @@ private:
             // same name (see scan_class_body's WFC0128 check).
             const auto indexed_getter_iterator = class_def.property_get.find(*member_name);
             if (indexed_getter_iterator != class_def.property_get.end()) {
+                if (!member_accessible(class_def, indexed_getter_iterator->second.is_private)) {
+                    set_error(
+                        "WFC0142", "member is not accessible outside its class", member_offset);
+                    return std::nullopt;
+                }
                 if (constant_expression_) {
                     set_error(
                         "WFC0074", "constant initializer cannot call a procedure",
@@ -5344,12 +5796,22 @@ private:
         }
         const auto getter_iterator = class_def.property_get.find(*member_name);
         if (getter_iterator != class_def.property_get.end()) {
+            if (!member_accessible(class_def, getter_iterator->second.is_private)) {
+                set_error("WFC0142", "member is not accessible outside its class", member_offset);
+                return std::nullopt;
+            }
             return invoke_definition(
                 getter_iterator->second, *member_name, {}, member_offset, class_def.source,
                 &instance);
         }
         const auto field_iterator = instance.fields.variables.find(*member_name);
         if (field_iterator != instance.fields.variables.end()) {
+            const auto field_def_iterator = class_def.fields.find(*member_name);
+            if (field_def_iterator != class_def.fields.end() &&
+                !member_accessible(class_def, field_def_iterator->second.is_private)) {
+                set_error("WFC0142", "member is not accessible outside its class", member_offset);
+                return std::nullopt;
+            }
             return field_iterator->second;
         }
         set_error("WFC0135", "unknown member", member_offset);
@@ -5480,7 +5942,15 @@ private:
             return std::nullopt;
         }
         if (!execute_) {
-            return array.elements.front();
+            // array.elements can legitimately be empty now that a
+            // ParamArray (REQ-0206) can be called with zero extra
+            // arguments -- .front() on an empty vector would be undefined
+            // behavior. There is no real element to infer a type from in
+            // that case (ArrayValue does not separately tag its element
+            // type), so a placeholder Long stands in; this is only ever
+            // reached while type-checking an unreached branch, where the
+            // actual value is discarded.
+            return array.elements.empty() ? Value{Integer{}} : array.elements.front();
         }
         const Integer upper_bound =
             array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
@@ -8669,6 +9139,14 @@ private:
     // invalidated by an outer call's later, unrelated container growth
     // (moot for a deque, unlike a vector).
     std::deque<InstanceData*> instance_scopes_;
+    // REQ-0206: the innermost currently-executing call's own ProcedureDef,
+    // so a `Static` statement inside its body can find (and later copy a
+    // value back into) that exact definition's persistent `statics` Scope.
+    // A plain pointer with save/restore around each call in
+    // invoke_definition, mirroring execute_/offset_/source_ -- procedure
+    // calls nest but are never concurrent, so there is never more than one
+    // "current" definition to restore per returning call.
+    const ProcedureDef* current_procedure_def_{};
     std::string output_;
     bool has_output_line_{};
     bool execute_{true};

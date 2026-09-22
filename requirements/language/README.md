@@ -224,3 +224,11 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   resolved regardless of `--class` order (a two-pass `scan_classes`); and
   indexed `Property Get`/`Let`/`Set` accessors (`obj.Name(args)`, alongside
   the existing zero-parameter form).
+- [REQ-0206 — Optional/ParamArray/Static parameters and Public/Private
+  visibility](req-0206-procedure-modifiers.md) extends both module-level
+  procedures and class members with `Optional [= default]` parameters,
+  `ParamArray` (collecting trailing call arguments into a fresh array),
+  `Static` locals (persisting across separate calls to the same
+  procedure), and `Public`/`Private` visibility (a bare `Dim` class field
+  is now implicitly `Private`; a `Private` member is accessible from any
+  method of the *same class*, on any instance, and nowhere else).

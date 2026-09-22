@@ -779,6 +779,84 @@ int main() {
         {{"Pair", "Public a As Long\n\n"
                   "Property Get Item(i As Long) As Long\nItem = a\nEnd Property"}},
         "Dim p As New Pair\nPrint p.Item()", "WFC0072");
+    // Optional parameters (with and without a default), ParamArray, Static
+    // locals, and Public/Private class-member visibility (REQ-0206).
+    expect_program_success(
+        "Function Greet(name As String, Optional greeting As String = \"Hello\") As String\n"
+        "Greet = greeting & \", \" & name\nEnd Function\n"
+        "Print Greet(\"World\")\nPrint Greet(\"Bob\", \"Hi\")",
+        "Hello, World\nHi, Bob");
+    expect_program_success(
+        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd Function\n"
+        "Print Add(5)\nPrint Add(5, 10)",
+        "5\n15");
+    expect_program_failure(
+        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd Function\n"
+        "Print Add()",
+        "WFC0072");
+    expect_program_failure(
+        "Sub Foo(Optional a As Long, b As Long)\nEnd Sub", "WFC0140");
+    expect_program_failure(
+        "Sub Foo(Optional a As Long = \"text\")\nEnd Sub", "WFC0016");
+    expect_program_success(
+        "Function Total(ParamArray nums() As Long) As Long\n"
+        "Dim i As Long\nDim s As Long\ns = 0\n"
+        "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nNext i\n"
+        "Total = s\nEnd Function\n"
+        "Print Total(1, 2, 3, 4)\nPrint Total()",
+        "10\n0");
+    expect_program_success(
+        "Function Sum2(base As Long, ParamArray nums() As Long) As Long\n"
+        "Dim i As Long\nDim s As Long\ns = base\n"
+        "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nNext i\n"
+        "Sum2 = s\nEnd Function\n"
+        "Print Sum2(100, 1, 2, 3)",
+        "106");
+    expect_program_failure(
+        "Sub Foo(ParamArray nums() As Long, x As Long)\nEnd Sub", "WFC0141");
+    expect_program_success(
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "NextId = counter\nEnd Function\n"
+        "Print NextId()\nPrint NextId()\nPrint NextId()",
+        "1\n2\n3");
+    expect_program_failure("Static x As Long", "WFC0144");
+    expect_classes_success(
+        {{"Foo", "Dim secret As Long\n\n"
+                 "Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+                 "Function GetSecret() As Long\nGetSecret = secret\nEnd Function"}},
+        "Dim f As New Foo\nCall f.SetSecret(42)\nPrint f.GetSecret()",
+        "42");
+    expect_classes_failure(
+        {{"Foo", "Dim secret As Long\nSub SetSecret(v As Long)\nsecret = v\nEnd Sub"}},
+        "Dim f As New Foo\nPrint f.secret", "WFC0142");
+    expect_classes_failure(
+        {{"Foo", "Private secret As Long\n\n"
+                 "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+                 "Private Function Helper() As Long\nHelper = secret * 2\nEnd Function"}},
+        "Dim f As New Foo\nCall f.SetSecret(10)\nPrint f.Helper()", "WFC0142");
+    expect_classes_success(
+        {{"Foo", "Private secret As Long\n\n"
+                 "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+                 "Private Function Helper() As Long\nHelper = secret * 2\nEnd Function\n\n"
+                 "Public Function DoubleSecret() As Long\nDoubleSecret = Helper()\n"
+                 "End Function"}},
+        "Dim f As New Foo\nCall f.SetSecret(10)\nPrint f.DoubleSecret()",
+        "20");
+    expect_classes_success(
+        // Private is per-class, not per-instance: a Foo method may reach
+        // another Foo instance's private field.
+        {{"Foo", "Private v As Long\nPublic other As Foo\n\n"
+                 "Sub SetV(n As Long)\nv = n\nEnd Sub\n\n"
+                 "Function CompareToOther() As Boolean\n"
+                 "CompareToOther = (v = other.v)\nEnd Function"}},
+        "Dim a As New Foo\nDim b As New Foo\nCall a.SetV(5)\nCall b.SetV(5)\n"
+        "Set a.other = b\nPrint a.CompareToOther()",
+        "True");
+    expect_classes_failure(
+        {{"Foo", "Private v As Long\nSub SetV(n As Long)\nv = n\nEnd Sub"},
+         {"Bar", "Public target As Foo\nFunction Peek() As Long\nPeek = target.v\nEnd Function"}},
+        "Dim a As New Foo\nDim b As New Bar\nCall a.SetV(5)\nSet b.target = a\nPrint b.Peek()",
+        "WFC0142");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
     expect_success("Print .5 + .25", "0.75");

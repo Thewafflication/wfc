@@ -1157,4 +1157,56 @@ Print h.c.n & " " & CStr(h.c Is c)]=]
             LABELS "integration;mp-0002;statements;classes;object"
             PASS_REGULAR_EXPRESSION "10 20.*5 True"
     )
+
+    add_test(
+        NAME TC-MP0002-procedure-modifiers-cli
+        COMMAND wfc
+            --class Foo [=[Private secret As Long
+
+Public Sub SetSecret(v As Long)
+secret = v
+End Sub
+
+Private Function Helper() As Long
+Helper = secret * 2
+End Function
+
+Public Function DoubleSecret() As Long
+DoubleSecret = Helper()
+End Function]=]
+            --eval [=[Function Greet(name As String, Optional greeting As String = "Hello") As String
+Greet = greeting & ", " & name
+End Function
+Print Greet("World")
+Print Greet("Bob", "Hi")
+
+Function Total(ParamArray nums() As Long) As Long
+Dim i As Long
+Dim s As Long
+s = 0
+For i = LBound(nums) To UBound(nums)
+s = s + nums(i)
+Next i
+Total = s
+End Function
+Print Total(1, 2, 3, 4)
+
+Function NextId() As Long
+Static counter As Long
+counter = counter + 1
+NextId = counter
+End Function
+Print NextId()
+Print NextId()
+
+Dim f As New Foo
+Call f.SetSecret(10)
+Print f.DoubleSecret()]=]
+    )
+    set_tests_properties(
+        TC-MP0002-procedure-modifiers-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;classes"
+            PASS_REGULAR_EXPRESSION "Hello, World.*Hi, Bob.*10.*1.*2.*20"
+    )
 endif()

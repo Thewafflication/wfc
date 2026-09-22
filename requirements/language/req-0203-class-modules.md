@@ -1,11 +1,12 @@
 # REQ-0203 — Class modules foundation
 
 **Status:** Implemented (see `REQ-0204` for the `Me` keyword and the
-`Class_Initialize`/`Class_Terminate` lifecycle hooks, and `REQ-0205` for
+`Class_Initialize`/`Class_Terminate` lifecycle hooks, `REQ-0205` for
 class-typed/`As Object` fields and return types, indexed `Property`
-accessors, and unqualified sibling `Property Let` writes — all deferred
-from this requirement's original Scope and since implemented as follow-on
-increments)
+accessors, and unqualified sibling `Property Let` writes, and `REQ-0206`
+for `Optional`/`ParamArray`/`Static`/`Public`/`Private` on a class member —
+all deferred from this requirement's original Scope and since implemented
+as follow-on increments)
 **Milestone:** MP-0002 — Core VB/VBA Language Execution
 **Depends on:** REQ-0141, REQ-0176, REQ-0197, REQ-0200, REQ-0201, and REQ-0202
 
@@ -45,16 +46,16 @@ Property Set Name(parameter As Object)
 End Property
 ```
 
-- A field declaration (`Dim` or `Public` — treated identically; see Scope)
-  declares one instance field. `Type` is one of the same eight scalar types
-  `Dim` already accepts at module level (`Integer`, `Long`, `Double`,
-  `Single`, `Currency`, `String`, `Boolean`, `Variant`) minus `Object`; a
-  bare declaration with no `As` clause is implicitly `Variant`, matching a
-  bare module-level `Dim`. Every declared field is reachable via `.` access
-  from outside the class and directly (unqualified) from within its own
-  methods/properties — this evaluator does not model `Public`/`Private`
-  visibility for class members, matching `REQ-0202`'s existing precedent for
-  module-level procedures.
+- A field declaration (`Dim` or `Public` — see Scope) declares one instance
+  field. `Type` is one of the same eight scalar types `Dim` already accepts
+  at module level (`Integer`, `Long`, `Double`, `Single`, `Currency`,
+  `String`, `Boolean`, `Variant`) minus `Object`; a bare declaration with no
+  `As` clause is implicitly `Variant`, matching a bare module-level `Dim`.
+  `REQ-0206` later adds `Public`/`Private` visibility, making `Dim` and
+  `Public` genuinely distinct (`Dim` becomes an implicitly-`Private`
+  synonym, matching real VB6's own default) — every field/method/property
+  is reachable via `.` access from outside the class in *this* requirement,
+  since visibility is not yet modeled here.
 - `Sub`/`Function` methods have exactly the grammar and capabilities
   `REQ-0202` already gives a module-level procedure (`ByVal`/`ByRef`
   parameters, recursion, `Exit Sub`/`Exit Function`), except that a method's
@@ -142,10 +143,6 @@ This is a foundation, not a complete VB6 object model. It does not add:
   requirement, unlike VB6's own (also reference-counted) COM object model;
 - `CreateObject`, `GetObject`, or any COM/host interop — this evaluator has
   no host to interop with;
-- `Optional` parameters, `ParamArray`, default parameter values, `Static`
-  methods, and `Public`/`Private` visibility modifiers on any class member —
-  the same exclusions `REQ-0202` already lists for module-level procedures,
-  extended uniformly to class members;
 - class inheritance, interfaces (`Implements`), `TypeOf ... Is ...`, late
   binding, or a default member (`obj` used bare implying a default
   property) — this evaluator's class model has no hierarchy at all, which
