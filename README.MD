@@ -74,8 +74,8 @@ a real VB6 project's separate `.cls` files. The evaluator currently covers,
 at a high level: declarations (`Dim`/`Const`/`Static`), every numeric type
 (`Integer`, `Long`, `Single`, `Double`, `Currency`, `Decimal` via `Variant`)
 plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
-`Do`/`For`/`For Each`), fixed-size and dynamic (`ReDim`/`ReDim Preserve`/
-`Erase`) one-dimensional arrays, the core `Strings`/
+`Do`/`For`/`For Each`), fixed-size (including multi-dimensional) and
+dynamic (`ReDim`/`ReDim Preserve`/`Erase`) arrays, the core `Strings`/
 `Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
 `Function` procedures (`Optional`/`ParamArray`/`Static`), and a minimal
 class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
@@ -105,6 +105,7 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(InStrRev(`"one t
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(3) As Long`narr(0) = 10`narr(3) = 40`nPrint arr(0) & `" `" & arr(3) & `" `" & LBound(arr) & `" `" & UBound(arr)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr() As Long`nReDim arr(3)`narr(0) = 1`narr(3) = 4`nReDim Preserve arr(5)`nPrint arr(0) & `" `" & arr(3) & `" `" & UBound(arr)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(3) As Long`nDim x As Long`nDim total As Long`narr(0)=10`narr(1)=20`narr(2)=30`narr(3)=40`nFor Each x In arr`ntotal = total + x`nNext x`nErase arr`nPrint total & `" `" & UBound(arr)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim grid(1 To 2, 1 To 3) As Long`ngrid(1, 1) = 1`ngrid(2, 3) = 6`nPrint grid(1, 1) & `" `" & grid(2, 3) & `" `" & LBound(grid, 2) & `" `" & UBound(grid, 2)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Object`nPrint TypeName(Nothing)`nSet x = Nothing`nPrint CStr(x Is Nothing)"
 
 # Procedures, with Optional/ParamArray

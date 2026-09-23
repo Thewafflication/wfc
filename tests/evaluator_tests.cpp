@@ -578,6 +578,39 @@ int main() {
         "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext", "WFC0016");
     expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0147");
     expect_program_failure("Dim x As Long\nFor Each x 5\nNext", "WFC0147");
+    // Multi-dimensional (fixed-size only) arrays: Dim arr(b1, b2, ...),
+    // indexed read/write, LBound/UBound with a dimension argument,
+    // TypeName/VarType/IsArray unaffected, Erase and For Each work
+    // unchanged over the flat element list (REQ-0210).
+    expect_program_success(
+        "Dim arr(2, 3) As Long\narr(0, 0) = 1\narr(2, 3) = 99\narr(1, 2) = 5\n"
+        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & arr(1, 2) & \" \" & LBound(arr) & "
+        "\" \" & UBound(arr) & \" \" & LBound(arr, 2) & \" \" & UBound(arr, 2)",
+        "1 99 5 0 2 0 3");
+    expect_program_success(
+        "Dim arr(1 To 2, 1 To 3) As String\narr(1, 1) = \"a\"\narr(2, 3) = \"z\"\n"
+        "Print arr(1, 1) & arr(2, 3) & \" \" & LBound(arr) & \" \" & UBound(arr) & "
+        "\" \" & LBound(arr, 2) & \" \" & UBound(arr, 2)",
+        "az 1 2 1 3");
+    expect_program_success(
+        "Dim arr(2, 3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr) & \" \" & "
+        "CStr(IsArray(arr))",
+        "Long() 8195 True");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint arr(0, 4)", "WFC0111");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint arr(0)", "WFC0115");
+    expect_program_failure("Dim arr(2) As Long\nPrint arr(0, 1)", "WFC0115");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 3)", "WFC0148");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 0)", "WFC0148");
+    expect_program_success(
+        "Dim arr(1, 2) As Long\nDim x As Long\nDim total As Long\n"
+        "arr(0, 0) = 1\narr(0, 1) = 2\narr(0, 2) = 3\n"
+        "arr(1, 0) = 4\narr(1, 1) = 5\narr(1, 2) = 6\n"
+        "For Each x In arr\ntotal = total + x\nNext\nPrint total",
+        "21");
+    expect_program_success(
+        "Dim arr(1, 1) As Long\narr(0, 0) = 9\nErase arr\nPrint arr(0, 0) & \" \" & UBound(arr)",
+        "0 1");
+    expect_program_failure("Dim arr() As Long\nReDim arr(2, 3)", "WFC0115");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
     expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");

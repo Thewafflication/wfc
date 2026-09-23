@@ -243,3 +243,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `For Each identifier In arrayExpression ... Next`, iterating an array's
   elements in order, sharing `Exit For` and `Next`-matching with the
   numeric `For` loop.
+- [REQ-0210 — Multi-dimensional arrays (fixed-size only)](req-0210-multidimensional-arrays.md)
+  defines `Dim identifier(bound1, bound2, ...) As Type`, indexed read/write,
+  and a dimension-argument form of `LBound`/`UBound`, extending
+  `REQ-0201`'s one-dimensional foundation.

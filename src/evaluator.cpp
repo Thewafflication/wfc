@@ -712,12 +712,15 @@ using Value = std::variant<
     Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
     ArrayValue, ObjectInstance>;
 
-// A fixed-size, one-dimensional array (`Dim arr(n)` or `Dim arr(lo To hi) As
-// Type`). `lower_bound` is the first valid index; `elements.size()` gives
-// the element count, so the last valid index is `lower_bound +
-// elements.size() - 1`. All elements share the array's one declared element
-// type, enforced at element-assignment time the same way a fixed-type
-// scalar variable enforces its type.
+// A fixed-size or dynamic, one-dimensional or (fixed-size only) multi-
+// dimensional array (`Dim arr(n)`, `Dim arr(lo To hi) As Type`, `Dim
+// arr(n, m) As Type`, or `Dim arr() As Type`). For an ordinary 1-D array
+// (`dimensions` empty), `lower_bound` is the first valid index and
+// `elements.size()` gives the element count, so the last valid index is
+// `lower_bound + elements.size() - 1`; for a multi-dimensional array, see
+// `dimensions` below instead. All elements share the array's one declared
+// element type, enforced at element-assignment time the same way a
+// fixed-type scalar variable enforces its type.
 struct ArrayValue {
     std::vector<Value> elements;
     Integer lower_bound{};
@@ -737,10 +740,21 @@ struct ArrayValue {
     bool is_dynamic{false};
     bool is_allocated{true};
     std::size_t element_type_index{};
+    // Present (size >= 2) only for a fixed-size multi-dimensional array
+    // (`Dim arr(b1, b2, ...)`, REQ-0210); empty for an ordinary 1-D array,
+    // which continues to use `lower_bound`/`elements.size()` alone. Each
+    // entry is one dimension's [lower, upper] bound, outermost dimension
+    // first; `elements` is laid out in row-major order (the last dimension
+    // varies fastest), matching real VB6's `For Each` iteration order over
+    // a multi-dimensional array. Multi-dimensional arrays are fixed-size
+    // only in this evaluator: `ReDim`/`ReDim Preserve` still reject a comma
+    // (`WFC0115`) regardless of this field.
+    std::vector<std::pair<Integer, Integer>> dimensions{};
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
-        return left.lower_bound == right.lower_bound && left.elements == right.elements;
+        return left.lower_bound == right.lower_bound && left.elements == right.elements &&
+               left.dimensions == right.dimensions;
     }
 };
 
@@ -3935,6 +3949,11 @@ private:
         bool is_dynamic_array = false;
         Integer array_lower = 0;
         Integer array_upper = 0;
+        // Populated only when the declaration writes two or more
+        // comma-separated bounds (a fixed-size multi-dimensional array,
+        // REQ-0210); stays empty for the ordinary 1-D forms, which
+        // continue to use array_lower/array_upper alone.
+        std::vector<std::pair<Integer, Integer>> array_dimensions;
         if (!at_end() && current() == '(') {
             is_array = true;
             advance();
@@ -3943,7 +3962,9 @@ private:
                 // `Dim identifier()` with no bound: a dynamic array,
                 // unallocated until its first `ReDim` (REQ-0207). WFC0116
                 // previously rejected this form outright; retired now that
-                // dynamic arrays are supported.
+                // dynamic arrays are supported. Dynamic multi-dimensional
+                // arrays (`Dim arr(,) As Type`) are not supported -- only
+                // this single-empty-bound 1-D form reaches here.
                 is_dynamic_array = true;
                 advance();
                 skip_horizontal_whitespace();
@@ -3952,44 +3973,60 @@ private:
                 // No bounds to parse; fall through to the shared `As Type`
                 // handling below.
             } else {
-                const auto first_offset = offset_;
-                auto first_bound = parse_expression();
-                if (!first_bound.has_value()) {
-                    return false;
-                }
-                const auto first_long = coerce_long(*first_bound, first_offset);
-                if (!first_long.has_value()) {
-                    return false;
-                }
-                skip_horizontal_whitespace();
-                if (consume_keyword("to")) {
+                while (true) {
+                    const auto first_offset = offset_;
+                    auto first_bound = parse_expression();
+                    if (!first_bound.has_value()) {
+                        return false;
+                    }
+                    const auto first_long = coerce_long(*first_bound, first_offset);
+                    if (!first_long.has_value()) {
+                        return false;
+                    }
+                    Integer dimension_lower = 0;
+                    Integer dimension_upper = 0;
                     skip_horizontal_whitespace();
-                    const auto second_offset = offset_;
-                    auto second_bound = parse_expression();
-                    if (!second_bound.has_value()) {
+                    if (consume_keyword("to")) {
+                        skip_horizontal_whitespace();
+                        const auto second_offset = offset_;
+                        auto second_bound = parse_expression();
+                        if (!second_bound.has_value()) {
+                            return false;
+                        }
+                        const auto second_long = coerce_long(*second_bound, second_offset);
+                        if (!second_long.has_value()) {
+                            return false;
+                        }
+                        dimension_lower = *first_long;
+                        dimension_upper = *second_long;
+                    } else {
+                        dimension_lower = 0;
+                        dimension_upper = *first_long;
+                    }
+                    if (dimension_lower > dimension_upper) {
+                        set_error(
+                            "WFC0117",
+                            "array lower bound must not exceed the upper bound",
+                            identifier_offset);
                         return false;
                     }
-                    const auto second_long = coerce_long(*second_bound, second_offset);
-                    if (!second_long.has_value()) {
-                        return false;
+                    array_dimensions.emplace_back(dimension_lower, dimension_upper);
+                    skip_horizontal_whitespace();
+                    if (!at_end() && current() == ',') {
+                        advance();
+                        skip_horizontal_whitespace();
+                        continue;
                     }
-                    array_lower = *first_long;
-                    array_upper = *second_long;
-                } else {
-                    array_lower = 0;
-                    array_upper = *first_long;
+                    break;
                 }
-                skip_horizontal_whitespace();
                 if (!consume(')')) {
                     set_error("WFC0005", "expected closing parenthesis", offset_);
                     return false;
                 }
-                if (array_lower > array_upper) {
-                    set_error(
-                        "WFC0117",
-                        "array lower bound must not exceed the upper bound",
-                        identifier_offset);
-                    return false;
+                if (array_dimensions.size() == 1U) {
+                    array_lower = array_dimensions.front().first;
+                    array_upper = array_dimensions.front().second;
+                    array_dimensions.clear();
                 }
             }
             skip_horizontal_whitespace();
@@ -4127,6 +4164,16 @@ private:
                 initial_value = ArrayValue{
                     /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
                     /*is_allocated=*/false, element_type_index};
+            } else if (!array_dimensions.empty()) {
+                std::size_t total_size = 1U;
+                for (const auto& dimension : array_dimensions) {
+                    total_size *=
+                        static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                }
+                initial_value = ArrayValue{
+                    std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
+                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
+                    array_dimensions};
             } else {
                 const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
                 initial_value = ArrayValue{
@@ -4839,28 +4886,91 @@ private:
         return parse_assignment(std::move(identifier), type_character);
     }
 
+    // Parses a comma-separated index-expression list "i1, i2, ..." (the
+    // caller has already consumed the opening '('), coercing each to
+    // `Long`, and leaves `offset_` just past the matching ')'. Always runs
+    // regardless of `execute_` so the parser advances correctly even
+    // during a dry-run pass; range-checking and flat-offset computation
+    // are the caller's job (via `array_flat_offset`), skipped during a dry
+    // run the same way every other runtime check in this evaluator is.
+    // Shared by `parse_array_index` (read) and
+    // `parse_array_element_assignment` (write). REQ-0210.
+    [[nodiscard]] std::optional<std::vector<std::pair<Integer, std::size_t>>> parse_index_list(
+        const std::size_t dimension_count) {
+        std::vector<std::pair<Integer, std::size_t>> indices;
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto index_offset = offset_;
+            auto index_value = parse_expression();
+            if (!index_value.has_value()) {
+                return std::nullopt;
+            }
+            const auto index = coerce_long(*index_value, index_offset);
+            if (!index.has_value()) {
+                return std::nullopt;
+            }
+            indices.emplace_back(*index, index_offset);
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ',') {
+                advance();
+                continue;
+            }
+            break;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return std::nullopt;
+        }
+        if (indices.size() != dimension_count) {
+            set_error(
+                "WFC0115", "index count does not match array dimensions", indices.front().second);
+            return std::nullopt;
+        }
+        return indices;
+    }
+
+    // Computes the flat storage offset for `indices` into `array` (already
+    // count-matched by `parse_index_list`), range-checking each dimension
+    // against its declared bounds. Only meaningful under real execution --
+    // callers skip this during a dry run. REQ-0210.
+    [[nodiscard]] std::optional<std::size_t> array_flat_offset(
+        const ArrayValue& array, const std::vector<std::pair<Integer, std::size_t>>& indices) {
+        if (array.dimensions.empty()) {
+            const Integer upper_bound =
+                array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
+            if (indices[0].first < array.lower_bound || indices[0].first > upper_bound) {
+                set_error("WFC0111", "array subscript out of range", indices[0].second);
+                return std::nullopt;
+            }
+            return static_cast<std::size_t>(indices[0].first - array.lower_bound);
+        }
+        std::size_t flat_offset = 0;
+        for (std::size_t dim = 0; dim < array.dimensions.size(); ++dim) {
+            const auto& dimension_bound = array.dimensions[dim];
+            const auto& index_entry = indices[dim];
+            if (index_entry.first < dimension_bound.first ||
+                index_entry.first > dimension_bound.second) {
+                set_error("WFC0111", "array subscript out of range", index_entry.second);
+                return std::nullopt;
+            }
+            const auto dimension_size =
+                static_cast<std::size_t>(dimension_bound.second - dimension_bound.first) + 1U;
+            flat_offset = flat_offset * dimension_size +
+                static_cast<std::size_t>(index_entry.first - dimension_bound.first);
+        }
+        return flat_offset;
+    }
+
     [[nodiscard]] bool parse_array_element_assignment(
         const std::string& identifier,
         const std::size_t identifier_offset) {
         const auto variable = find_variable(identifier);
         advance();  // consume '('
-        skip_horizontal_whitespace();
-        const auto index_offset = offset_;
-        auto index_value = parse_expression();
-        if (!index_value.has_value()) {
-            return false;
-        }
-        skip_horizontal_whitespace();
-        if (!at_end() && current() == ',') {
-            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
-            return false;
-        }
-        if (!consume(')')) {
-            set_error("WFC0005", "expected closing parenthesis", offset_);
-            return false;
-        }
-        const auto index = coerce_long(*index_value, index_offset);
-        if (!index.has_value()) {
+        auto& array = std::get<ArrayValue>(*variable.value);
+        const auto dimension_count =
+            array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+        auto indices = parse_index_list(dimension_count);
+        if (!indices.has_value()) {
             return false;
         }
 
@@ -4875,7 +4985,6 @@ private:
             return false;
         }
 
-        auto& array = std::get<ArrayValue>(*variable.value);
         const auto element_type_index = array.element_type_index;
         if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
             return false;
@@ -4887,14 +4996,11 @@ private:
         if (!execute_) {
             return true;
         }
-        const Integer upper_bound =
-            array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
-        if (*index < array.lower_bound || *index > upper_bound) {
-            set_error("WFC0111", "array subscript out of range", index_offset);
+        const auto flat_offset = array_flat_offset(array, *indices);
+        if (!flat_offset.has_value()) {
             return false;
         }
-        array.elements[static_cast<std::size_t>(*index - array.lower_bound)] =
-            std::move(*value);
+        array.elements[*flat_offset] = std::move(*value);
         return true;
     }
 
@@ -6285,23 +6391,10 @@ private:
     [[nodiscard]] std::optional<Value> parse_array_index(const Value& array_variable) {
         const auto& array = std::get<ArrayValue>(array_variable);
         advance();  // consume '('
-        skip_horizontal_whitespace();
-        const auto index_offset = offset_;
-        auto index_value = parse_expression();
-        if (!index_value.has_value()) {
-            return std::nullopt;
-        }
-        skip_horizontal_whitespace();
-        if (!at_end() && current() == ',') {
-            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
-            return std::nullopt;
-        }
-        if (!consume(')')) {
-            set_error("WFC0005", "expected closing parenthesis", offset_);
-            return std::nullopt;
-        }
-        const auto index = coerce_long(*index_value, index_offset);
-        if (!index.has_value()) {
+        const auto dimension_count =
+            array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+        auto indices = parse_index_list(dimension_count);
+        if (!indices.has_value()) {
             return std::nullopt;
         }
         if (!execute_) {
@@ -6315,13 +6408,11 @@ private:
             // unreached branch, where the actual value is discarded.
             return array_element_default(array.element_type_index);
         }
-        const Integer upper_bound =
-            array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
-        if (*index < array.lower_bound || *index > upper_bound) {
-            set_error("WFC0111", "array subscript out of range", index_offset);
+        const auto flat_offset = array_flat_offset(array, *indices);
+        if (!flat_offset.has_value()) {
             return std::nullopt;
         }
-        return array.elements[static_cast<std::size_t>(*index - array.lower_bound)];
+        return array.elements[*flat_offset];
     }
 
     [[nodiscard]] std::optional<Value> parse_function_call(
@@ -6465,7 +6556,7 @@ private:
             valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
         } else if (is_strcomp) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
-        } else if (is_round || is_format) {
+        } else if (is_round || is_format || is_lbound || is_ubound) {
             valid_arity = arguments.size() == 1U || arguments.size() == 2U;
         } else if (is_iif || is_rgb) {
             valid_arity = arguments.size() == 3U;
@@ -6646,8 +6737,28 @@ private:
                     identifier_offset);
                 return std::nullopt;
             }
+            // The optional second argument is a 1-based dimension number
+            // (REQ-0210), defaulting to 1 -- the only meaningful value for
+            // an ordinary 1-D array.
+            Integer dimension = 1;
+            if (arguments.size() == 2U) {
+                const auto* dimension_argument = std::get_if<Integer>(&arguments[1]);
+                if (dimension_argument == nullptr) {
+                    set_error(
+                        "WFC0073", "LBound/UBound dimension must be Long", identifier_offset);
+                    return std::nullopt;
+                }
+                dimension = *dimension_argument;
+            }
             if (!execute_) {
                 return Value{Integer{}};
+            }
+            const std::size_t dimension_count =
+                array->dimensions.empty() ? std::size_t{1} : array->dimensions.size();
+            if (dimension < 1 || static_cast<std::size_t>(dimension) > dimension_count) {
+                set_error(
+                    "WFC0148", "LBound/UBound dimension is out of range", identifier_offset);
+                return std::nullopt;
             }
             if (!array->is_allocated) {
                 // Matches real VB6: LBound/UBound on a dynamic array before
@@ -6657,10 +6768,15 @@ private:
                 set_error("WFC0111", "array subscript out of range", identifier_offset);
                 return std::nullopt;
             }
-            return Value{
-                is_lbound
-                    ? array->lower_bound
-                    : array->lower_bound + static_cast<Integer>(array->elements.size()) - 1};
+            if (array->dimensions.empty()) {
+                return Value{
+                    is_lbound
+                        ? array->lower_bound
+                        : array->lower_bound + static_cast<Integer>(array->elements.size()) - 1};
+            }
+            const auto& dimension_bound =
+                array->dimensions[static_cast<std::size_t>(dimension) - 1U];
+            return Value{is_lbound ? dimension_bound.first : dimension_bound.second};
         }
 
         if (is_cdec) {

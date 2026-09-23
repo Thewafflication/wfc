@@ -60,8 +60,10 @@ now the dynamic-array declaration this requirement adds.
 This requirement adds only `ReDim`/`ReDim Preserve` for a one-dimensional
 array. It does not add:
 
-- multiple dimensions (`ReDim arr(i, j)`) — a comma inside `(...)` reports
-  `WFC0115`, matching `REQ-0201`'s existing declaration-time rule;
+- multiple dimensions (`ReDim arr(i, j)`) — a comma inside `(...)` still
+  reports `WFC0115`, even after `REQ-0210` added fixed-size
+  multi-dimensional arrays; a multi-dimensional array's shape is fixed for
+  its entire lifetime in this evaluator, dynamic or not;
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or array-typed `Sub`/`Function` parameters — the first two
   are now covered by their own requirements; array parameters remain

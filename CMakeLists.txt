@@ -1268,4 +1268,18 @@ Print total]=]
             LABELS "integration;mp-0002;statements;loops;array"
             PASS_REGULAR_EXPRESSION "100"
     )
+
+    add_test(
+        NAME TC-MP0002-multidim-array-cli
+        COMMAND wfc --eval [=[Dim arr(1 To 2, 1 To 3) As Long
+arr(1, 1) = 1
+arr(2, 3) = 6
+Print arr(1, 1) & " " & arr(2, 3) & " " & LBound(arr, 2) & " " & UBound(arr, 2) & " " & TypeName(arr)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-multidim-array-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array"
+            PASS_REGULAR_EXPRESSION "1 6 1 3 Long\\(\\)"
+    )
 endif()

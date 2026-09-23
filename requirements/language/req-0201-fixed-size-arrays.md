@@ -44,8 +44,11 @@ of that type would have).
 ## Diagnostics
 
 `WFC0111` reports an out-of-range array index (read or write). `WFC0115`
-reports a comma inside an index or declaration bound expression (a
-multi-dimensional array, which is out of scope). `WFC0117` reports a
+originally reported any comma inside an index expression (multi-dimensional
+arrays were entirely out of scope); `REQ-0210` gives fixed-size
+multi-dimensional arrays real support and repurposes `WFC0115` to report an
+index count that does not match the array's declared dimension count.
+`WFC0117` reports a
 `Dim identifier(<lower> To <upper>)` whose lower bound exceeds its upper
 bound. `WFC0073` reports `LBound`/`UBound` called on a non-array argument.
 `WFC0016` reports an element-assignment type mismatch, reusing the existing
@@ -62,8 +65,8 @@ subset. It does not add:
   — its size is fixed for the variable's lifetime, set at `Dim` time.
   `Dim identifier()` (no bound) instead declares a *dynamic* array, which
   `ReDim`/`ReDim Preserve` can resize; see `REQ-0207`;
-- multiple dimensions (`arr(i, j)`) — a comma inside `(...)` reports
-  `WFC0115`;
+- multiple dimensions with dynamic (`ReDim`-able) resizing — a
+  fixed-size multi-dimensional array is now covered by `REQ-0210`;
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or passing an array as a function argument to a
   user-defined procedure;
