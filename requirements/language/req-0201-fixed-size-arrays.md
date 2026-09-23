@@ -19,8 +19,8 @@ of that type would have).
 
 - `Type` may be `Integer`, `Long`, `Double`, `Single`, `Currency`, `String`,
   or `Boolean` — the same fixed, non-retyping scalar types `Dim` already
-  supports. `Variant` and `Object` array elements are outside this
-  requirement's scope (see Scope).
+  supports. `Variant` and `Object` array elements were outside this
+  requirement's original scope; `REQ-0212` later added both.
 - `identifier(<index>)` reads or writes one element: the index expression
   is coerced to `Long` the same way an array bound is, and an index outside
   the array's declared `[lower, upper]` range reports `WFC0111`. Writing
@@ -74,9 +74,8 @@ subset. It does not add:
   identifier(n)` always means `0 To n`, matching VB6's un-declared default;
 - `Variant`- or `Object`-element arrays — an array's per-element retyping
   would need the same tracking `Variant`'s scalar retyping uses, but at
-  element granularity, which this increment does not add; `Dim arr() As
-  Variant`/`As Object` reports `WFC0012`, the same "unrecognized As-clause
-  type" diagnostic a genuinely unsupported type reports elsewhere;
+  element granularity, which this increment does not add (see `REQ-0212`,
+  which does);
 - exact real-VB6 semantics for whole-array assignment (`arr1 = arr2`) and
   bare-array comparison. Real VB6 does not allow direct assignment or
   comparison between fixed-size array variables at all (a compile error);
@@ -92,10 +91,10 @@ subset. It does not add:
   (including a negative lower bound), indexed read/write, `LBound`/`UBound`,
   `IsArray`, `TypeName`/`VarType`, a `For`-loop-driven fill-and-read round
   trip, out-of-range read/write (`WFC0111`), an element-assignment type
-  mismatch (`WFC0016`), a reversed bound (`WFC0117`), and rejected
-  `Variant`/`Object` element types. `REQ-0207` covers the bound-less
-  `Dim identifier()` dynamic-array declaration this requirement's original
-  `WFC0116` rejected.
+  mismatch (`WFC0016`), and a reversed bound (`WFC0117`). `REQ-0207` covers
+  the bound-less `Dim identifier()` dynamic-array declaration this
+  requirement's original `WFC0116` rejected; `REQ-0212` covers `Variant`/
+  `Object` element types.
 - `TC-MP0002-array-cli` verifies declaration, indexed read/write, `LBound`/
   `UBound`, and `IsArray` through `wfc --eval`.
 

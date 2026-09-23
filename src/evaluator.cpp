@@ -750,6 +750,17 @@ struct ArrayValue {
     // only in this evaluator: `ReDim`/`ReDim Preserve` still reject a comma
     // (`WFC0115`) regardless of this field.
     std::vector<std::pair<Integer, Integer>> dimensions{};
+    // `Dim arr(...) As Variant`/`As Object` (REQ-0212): an element retypes
+    // freely on plain assignment (`is_variant_element`, the per-element
+    // analogue of a scalar Variant's `variant_variables` membership) or
+    // must be an object reference assigned only via `Set`
+    // (`is_object_element`, the per-element analogue of
+    // `object_variables`). Mutually exclusive with each other; when either
+    // is set, `element_type_index` is not a fixed per-element type and is
+    // not consulted for element reads/writes (only `array_element_default`
+    // still uses it, to seed new slots with `Empty`/`Nothing`).
+    bool is_variant_element{false};
+    bool is_object_element{false};
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
@@ -758,12 +769,16 @@ struct ArrayValue {
     }
 };
 
-// The default (zero) value for one of the fixed scalar types a Dim'd array's
-// elements may hold, keyed by that type's `Value::index()`. Mirrors the
-// same seven-type list `parse_declaration`'s array branch already accepts;
-// falls back to Integer (unreachable for a legitimately-typed array) rather
-// than asserting, matching this codebase's general preference for a safe
-// placeholder over a crash when a value is only needed for its type.
+// The default (zero) value for one of the fixed scalar types a Dim'd
+// array's elements may hold, keyed by that type's `Value::index()`.
+// Mirrors the same seven-type list `parse_declaration`'s array branch
+// already accepts, plus `Empty`/`Nothing` for a Variant-/Object-element
+// array's own `element_type_index` (REQ-0212; `Empty`/`Nothing` never
+// collide with any fixed scalar array's element type, so this is
+// unambiguous). Falls back to Integer (unreachable for a legitimately-
+// typed array) rather than asserting, matching this codebase's general
+// preference for a safe placeholder over a crash when a value is only
+// needed for its type.
 [[nodiscard]] inline Value array_element_default(const std::size_t type_index) noexcept {
     if (type_index == Value{std::string{}}.index()) {
         return Value{std::string{}};
@@ -782,6 +797,12 @@ struct ArrayValue {
     }
     if (type_index == Value{Int16{}}.index()) {
         return Value{Int16{}};
+    }
+    if (type_index == Value{Empty{}}.index()) {
+        return Value{Empty{}};
+    }
+    if (type_index == Value{Nothing{}}.index()) {
+        return Value{Nothing{}};
     }
     return Value{Integer{}};
 }
@@ -4139,10 +4160,10 @@ private:
                 element_default = std::string{};
             } else if (consume_keyword("boolean")) {
                 element_default = false;
-            } else if (!is_array && consume_keyword("object")) {
+            } else if (consume_keyword("object")) {
                 element_default = Nothing{};
                 is_object = true;
-            } else if (!is_array && consume_keyword("variant")) {
+            } else if (consume_keyword("variant")) {
                 element_default = Empty{};
                 is_variant = true;
             } else if (!is_array && consume_keyword("new")) {
@@ -4182,7 +4203,7 @@ private:
                         "WFC0012",
                         is_array
                             ? "expected As Integer, As Long, As Double, As Single, As Currency, "
-                              "As String, or As Boolean"
+                              "As String, As Boolean, As Object, or As Variant"
                             : "expected As Integer, As Long, As Double, As Single, As Currency, "
                               "As String, As Boolean, As Object, As Variant, or a known class "
                               "name",
@@ -4214,7 +4235,8 @@ private:
             if (is_dynamic_array) {
                 initial_value = ArrayValue{
                     /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
-                    /*is_allocated=*/false, element_type_index};
+                    /*is_allocated=*/false, element_type_index, /*dimensions=*/{}, is_variant,
+                    is_object};
             } else if (!array_dimensions.empty()) {
                 std::size_t total_size = 1U;
                 for (const auto& dimension : array_dimensions) {
@@ -4224,12 +4246,13 @@ private:
                 initial_value = ArrayValue{
                     std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
                     /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                    array_dimensions};
+                    array_dimensions, is_variant, is_object};
             } else {
                 const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
                 initial_value = ArrayValue{
                     std::vector<Value>(size, std::move(element_default)), array_lower,
-                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index};
+                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
+                    /*dimensions=*/{}, is_variant, is_object};
             }
         } else {
             initial_value = std::move(element_default);
@@ -4242,10 +4265,19 @@ private:
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
         }
-        if (is_variant) {
+        // A Variant/Object-*element* array (REQ-0212) does not itself go in
+        // variant_variables/object_variables: those sets govern a whole
+        // scalar/object variable's own retyping-on-assignment and
+        // Set-only rules, which do not apply to the array *variable*
+        // itself (a whole-array assignment like `arr1 = arr2` is an
+        // ordinary same-type value copy, matching every other array kind's
+        // existing REQ-0201 simplification) -- only to its elements,
+        // checked directly against ArrayValue.is_variant_element/
+        // is_object_element wherever an element is read or written.
+        if (is_variant && !is_array) {
             current_scope().variant_variables.insert(*identifier);
         }
-        if (is_object) {
+        if (is_object && !is_array) {
             current_scope().object_variables.insert(*identifier);
         }
         return true;
@@ -4774,6 +4806,45 @@ private:
             advance();
             return parse_member_set_assignment(base, identifier_offset);
         }
+        // `Set arrayName(index [, index...]) = expression`, the Object-
+        // element-array (REQ-0212) counterpart of a plain Object variable's
+        // `Set name = expression`.
+        if (type_character == '\0' && !at_end() && current() == '(' &&
+            std::holds_alternative<ArrayValue>(*variable.value)) {
+            auto& array = std::get<ArrayValue>(*variable.value);
+            if (!array.is_object_element) {
+                set_error(
+                    "WFC0109", "Set requires an Object or Variant target", identifier_offset);
+                return false;
+            }
+            advance();  // consume '('
+            const auto dimension_count =
+                array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+            auto indices = parse_index_list(dimension_count);
+            if (!indices.has_value()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume('=')) {
+                set_error("WFC0014", "expected assignment operator", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            auto value = parse_expression();
+            if (!value.has_value()) {
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto flat_offset = array_flat_offset(array, *indices);
+            if (!flat_offset.has_value()) {
+                return false;
+            }
+            return assign_object_reference(
+                array.elements[*flat_offset], /*declared_class_name=*/std::string{},
+                std::move(*value), identifier_offset);
+        }
         offset_ = after_identifier_offset;
 
         if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
@@ -5024,6 +5095,14 @@ private:
         if (!indices.has_value()) {
             return false;
         }
+        // An Object-element array (REQ-0212) matches a scalar Object
+        // variable's own rule: a plain `=` is rejected outright, requiring
+        // `Set arr(i) = ...` instead (see parse_member_set_assignment's
+        // array-element branch).
+        if (array.is_object_element) {
+            set_error("WFC0108", "object assignment requires Set", identifier_offset);
+            return false;
+        }
 
         skip_horizontal_whitespace();
         if (!consume('=')) {
@@ -5036,13 +5115,18 @@ private:
             return false;
         }
 
-        const auto element_type_index = array.element_type_index;
-        if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
-            return false;
-        }
-        if (element_type_index != value->index()) {
-            set_error("WFC0016", "assignment type mismatch", identifier_offset);
-            return false;
+        // A Variant-element array (REQ-0212) retypes freely per element,
+        // the same as a scalar Variant variable -- no fixed-type
+        // enforcement.
+        if (!array.is_variant_element) {
+            const auto element_type_index = array.element_type_index;
+            if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
+                return false;
+            }
+            if (element_type_index != value->index()) {
+                set_error("WFC0016", "assignment type mismatch", identifier_offset);
+                return false;
+            }
         }
         if (!execute_) {
             return true;
@@ -7264,9 +7348,17 @@ private:
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
                 // Real VB6 renders an array's TypeName as its element type
-                // name plus "()", e.g. "Long()". Uses the array's declared
-                // element type (not its current first element, which may
-                // not exist for an unallocated dynamic array).
+                // name plus "()", e.g. "Long()", "Variant()", "Object()".
+                // Uses the array's declared element type (not its current
+                // first element, which may not exist for an unallocated
+                // dynamic array, and which -- for a Variant/Object-element
+                // array, REQ-0212 -- is not fixed at all).
+                if (array->is_variant_element) {
+                    return Value{std::string{"Variant()"}};
+                }
+                if (array->is_object_element) {
+                    return Value{std::string{"Object()"}};
+                }
                 return Value{
                     element_type_name(array_element_default(array->element_type_index)) + "()"};
             }
@@ -7316,6 +7408,12 @@ private:
                 // Real VB6 ORs the element VarType with vbArray (8192). Uses
                 // the array's declared element type, the same as TypeName
                 // above.
+                if (array->is_variant_element) {
+                    return Value{Integer{12 + 8192}};  // vbVariant Or vbArray
+                }
+                if (array->is_object_element) {
+                    return Value{Integer{9 + 8192}};  // vbObject Or vbArray
+                }
                 return Value{
                     Integer{element_vartype_code(array_element_default(array->element_type_index)) +
                              8192}};

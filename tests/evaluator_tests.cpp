@@ -494,8 +494,6 @@ int main() {
     expect_program_failure("Dim arr(3) As Long\narr(4) = 1", "WFC0111");
     expect_program_failure("Dim arr(3) As Long\narr(0) = \"text\"", "WFC0016");
     expect_program_failure("Dim arr(5 To 2) As Long", "WFC0117");
-    expect_program_failure("Dim arr(3) As Variant", "WFC0012");
-    expect_program_failure("Dim arr(3) As Object", "WFC0012");
     // Dynamic arrays: Dim arr() As Type declares an unallocated array;
     // ReDim/ReDim Preserve allocate/reallocate it (REQ-0207).
     expect_program_success(
@@ -647,6 +645,40 @@ int main() {
         "Dim c As New Summer\nDim arr(2) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\n"
         "Print c.Sum(arr)",
         "6");
+    // Variant- and Object-element arrays: Dim arr(...) As Variant/As
+    // Object. A Variant element retypes freely on plain `=`, like a
+    // scalar Variant; an Object element is Set-only, like a scalar Object
+    // (REQ-0212).
+    expect_program_success(
+        "Dim arr(2) As Variant\narr(0) = 5\narr(1) = \"hello\"\narr(2) = True\n"
+        "Print TypeName(arr(0)) & \" \" & TypeName(arr(1)) & \" \" & TypeName(arr(2)) & "
+        "\" \" & TypeName(arr) & \" \" & VarType(arr)",
+        "Long String Boolean Variant() 8204");
+    expect_program_success(
+        "Dim arr(1) As Object\nPrint TypeName(arr) & \" \" & VarType(arr) & \" \" & "
+        "CStr(arr(0) Is Nothing)",
+        "Object() 8201 True");
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Dim arr(1) As Object\nDim c As New Counter\nSet arr(0) = c\n"
+        "Print CStr(arr(0) Is c)",
+        "True");
+    expect_program_failure("Dim arr(1) As Object\narr(0) = 5", "WFC0108");
+    expect_classes_failure(
+        {{"Counter", "Public value As Long"}},
+        "Dim arr(1) As Object\nDim other As New Counter\narr(0) = other",
+        "WFC0108");
+    expect_program_success(
+        "Dim arr() As Variant\nReDim arr(1)\narr(0) = \"a\"\narr(1) = 2\n"
+        "ReDim Preserve arr(3)\n"
+        "Print TypeName(arr(0)) & \" \" & TypeName(arr(2)) & \" \" & TypeName(arr(3))",
+        "String Empty Empty");
+    expect_program_success(
+        "Dim grid(1, 1) As Object\nPrint TypeName(grid) & \" \" & CStr(grid(0, 0) Is Nothing)",
+        "Object() True");
+    expect_program_success(
+        "Dim a(1) As Variant\nDim b(1) As Variant\na(0) = 1\nb(0) = 2\na = b\nPrint a(0)",
+        "2");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
     expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");

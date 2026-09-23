@@ -251,3 +251,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `name() As Type` as an always-ByRef, dimension-count-agnostic
   array parameter, whose mutations (including a `ReDim` inside the callee)
   write back to the caller's array.
+- [REQ-0212 — Variant- and Object-element arrays](req-0212-variant-object-arrays.md)
+  defines `Dim identifier(...) As Variant`/`As Object`, giving array
+  elements per-element `Variant`-retyping or `Set`-only `Object` behavior
+  matching the corresponding scalar type.

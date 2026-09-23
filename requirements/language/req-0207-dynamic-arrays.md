@@ -67,8 +67,9 @@ array. It does not add:
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or array-typed `Sub`/`Function` parameters (see
   `REQ-0211`) — all three are now covered by their own requirements;
-- `Variant`- or `Object`-element dynamic arrays — `Dim arr() As Variant`/
-  `As Object` still reports `WFC0012`, the same as a fixed-size array;
+- `Variant`- or `Object`-element dynamic arrays were originally excluded
+  here too; `REQ-0212` later added both for a dynamic array the same as a
+  fixed-size one;
 - `ReDim` as an *implicit* declaration (real VB6 allows `ReDim x(5)` with no
   prior `Dim` at procedure scope, treating it as the declaration itself).
   This evaluator's `ReDim` always requires a prior `Dim identifier()`;

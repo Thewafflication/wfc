@@ -1309,4 +1309,21 @@ Print arr(0) & " " & arr(1) & " " & arr(2) & " " & arr(3)]=]
             LABELS "integration;mp-0002;statements;procedures;array"
             PASS_REGULAR_EXPRESSION "10.*2 4 6 8"
     )
+
+    add_test(
+        NAME TC-MP0002-variant-object-array-cli
+        COMMAND wfc --eval [=[Dim arr(2) As Variant
+arr(0) = 5
+arr(1) = "hello"
+arr(2) = True
+Print TypeName(arr(0)) & " " & TypeName(arr(1)) & " " & TypeName(arr(2)) & " " & TypeName(arr)
+Dim objs(0) As Object
+Print TypeName(objs) & " " & CStr(objs(0) Is Nothing)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-variant-object-array-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array;variant;object"
+            PASS_REGULAR_EXPRESSION "Long String Boolean Variant\\(\\).*Object\\(\\) True"
+    )
 endif()
