@@ -62,9 +62,10 @@ array. It does not add:
 
 - multiple dimensions (`ReDim arr(i, j)`) — a comma inside `(...)` reports
   `WFC0115`, matching `REQ-0201`'s existing declaration-time rule;
-- `Erase`, `For Each` iteration over an array, or array-typed `Sub`/
-  `Function` parameters — deliberately excluded from this increment's scope
-  (still listed as future work alongside `REQ-0201`'s own exclusions);
+- `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
+  `REQ-0209`), or array-typed `Sub`/`Function` parameters — the first two
+  are now covered by their own requirements; array parameters remain
+  future work;
 - `Variant`- or `Object`-element dynamic arrays — `Dim arr() As Variant`/
   `As Object` still reports `WFC0012`, the same as a fixed-size array;
 - `ReDim` as an *implicit* declaration (real VB6 allows `ReDim x(5)` with no

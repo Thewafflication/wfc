@@ -1149,10 +1149,13 @@ enum class NumericCategory {
 
 [[nodiscard]] bool is_reserved_identifier(const std::string_view identifier) noexcept {
     return identifier == "and" || identifier == "as" || identifier == "boolean" ||
-           identifier == "dim" || identifier == "do" || identifier == "eqv" ||
+           identifier == "dim" || identifier == "do" || identifier == "each" ||
+           identifier == "eqv" ||
+           identifier == "erase" ||
            identifier == "exit" || identifier == "false" || identifier == "for" ||
            identifier == "else" || identifier == "elseif" || identifier == "if" ||
-           identifier == "imp" || identifier == "is" || identifier == "let" ||
+           identifier == "imp" || identifier == "in" || identifier == "is" ||
+           identifier == "let" ||
            identifier == "long" || identifier == "case" || identifier == "const" ||
            identifier == "loop" || identifier == "mod" ||
            identifier == "next" ||
@@ -2595,6 +2598,10 @@ private:
             return parse_do_statement();
         }
         if (consume_keyword("for")) {
+            skip_horizontal_whitespace();
+            if (consume_keyword("each")) {
+                return parse_for_each_statement();
+            }
             return parse_for_statement();
         }
         if (consume_keyword("select")) {
@@ -2679,6 +2686,9 @@ private:
             // declaration, so it is not gated by allow_declarations_ --
             // real VB6 permits it inside a conditional block.
             return parse_redim_statement();
+        }
+        if (consume_keyword("erase")) {
+            return parse_erase_statement();
         }
         if (consume_keyword("set")) {
             return parse_set_statement();
@@ -3438,6 +3448,129 @@ private:
         }
     }
 
+    // `For Each identifier In arrayExpr ... Next [identifier]` (REQ-0209).
+    // Only an array is an iterable collection in this evaluator (no other
+    // collection type exists yet). The control variable must already be
+    // declared: a Variant control variable retypes to each element in
+    // turn, the same as any Variant assignment; a fixed-type one requires
+    // the array's element type to match exactly, using the same
+    // widening/narrowing and type-mismatch rules as an ordinary scalar
+    // assignment. Iterates over a snapshot of the array taken once at loop
+    // entry, so a `ReDim` inside the loop body cannot affect the ongoing
+    // iteration (a disclosed simplification: real VB6 disallows `ReDim`ing
+    // an array that is the subject of an active `For Each` at all). An
+    // unallocated dynamic array (REQ-0207) iterates zero times, the same as
+    // any other empty array -- reasoned by analogy with a zero-length
+    // `ParamArray`, not independently verified against the reference
+    // runtime for this specific case (see Scope).
+    [[nodiscard]] bool parse_for_each_statement() {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        const auto variable_offset = offset_;
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
+        if (!identifier.has_value()) {
+            set_error("WFC0043", "expected For Each control variable", variable_offset);
+            return false;
+        }
+        const auto variable = find_variable(*identifier);
+        if (variable.value == nullptr) {
+            set_error("WFC0015", "undeclared variable", variable_offset);
+            return false;
+        }
+        if (!type_character_matches(*variable.value, type_character, variable_offset)) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume_keyword("in")) {
+            set_error("WFC0147", "expected In after For Each control variable", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto collection_offset = offset_;
+        auto collection_value = parse_expression();
+        if (!collection_value.has_value()) {
+            return false;
+        }
+        const auto* array = std::get_if<ArrayValue>(&*collection_value);
+        if (array == nullptr) {
+            set_error("WFC0147", "For Each requires an array", collection_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+
+        const bool target_is_variant = variable.scope->variant_variables.contains(*identifier);
+        const auto count = array->elements.size();
+        const auto assign_element = [&](const std::size_t index) -> bool {
+            Value element_value = array->elements[index];
+            if (target_is_variant) {
+                *variable.value = std::move(element_value);
+                return true;
+            }
+            if (!coerce_numeric_value(element_value, variable.value->index(), variable_offset)) {
+                return false;
+            }
+            if (element_value.index() != variable.value->index()) {
+                set_error("WFC0016", "assignment type mismatch", variable_offset);
+                return false;
+            }
+            *variable.value = std::move(element_value);
+            return true;
+        };
+
+        const auto body_offset = offset_;
+        std::size_t continuation_offset{};
+        std::size_t index = 0;
+        bool continue_loop = enclosing_execution && index < count;
+        if (continue_loop && !assign_element(index)) {
+            execute_ = enclosing_execution;
+            return false;
+        }
+        if (!continue_loop) {
+            execute_ = false;
+            ++for_depth_;
+            const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+            --for_depth_;
+            execute_ = enclosing_execution;
+            return parsed_body;
+        }
+
+        while (continue_loop) {
+            offset_ = body_offset;
+            execute_ = enclosing_execution;
+            ++for_depth_;
+            const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+            --for_depth_;
+            if (!parsed_body) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            if (exit_for_requested_) {
+                exit_for_requested_ = false;
+                offset_ = continuation_offset;
+                execute_ = enclosing_execution;
+                return true;
+            }
+            if (exit_do_requested_) {
+                offset_ = continuation_offset;
+                execute_ = false;
+                return true;
+            }
+            ++index;
+            continue_loop = index < count;
+            if (continue_loop && !assign_element(index)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+        }
+
+        offset_ = continuation_offset;
+        execute_ = enclosing_execution;
+        return true;
+    }
+
     [[nodiscard]] bool parse_select_statement() {
         const bool enclosing_execution = execute_;
         skip_horizontal_whitespace();
@@ -4128,6 +4261,54 @@ private:
         array.elements = std::move(new_elements);
         array.lower_bound = new_lower;
         array.is_allocated = true;
+        return true;
+    }
+
+    // `Erase identifier[, identifier...]` (REQ-0208). For a fixed-size
+    // array, resets every element to the declared type's default value
+    // (the array stays allocated at its original bounds). For a dynamic
+    // array, deallocates it entirely -- as if it had never been `ReDim`'d
+    // -- matching real VB6's differing `Erase` behavior for the two array
+    // kinds.
+    [[nodiscard]] bool parse_erase_statement() {
+        std::vector<std::pair<std::string, std::size_t>> targets;
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto identifier_offset = offset_;
+            char type_character{};
+            auto identifier = parse_identifier(&type_character);
+            if (!identifier.has_value()) {
+                set_error("WFC0011", "expected array name", identifier_offset);
+                return false;
+            }
+            targets.emplace_back(std::move(*identifier), identifier_offset);
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ',') {
+                advance();
+                continue;
+            }
+            break;
+        }
+        if (!execute_) {
+            return true;
+        }
+        for (const auto& target : targets) {
+            const auto variable = find_variable(target.first);
+            if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value)) {
+                set_error("WFC0146", "Erase requires an array argument", target.second);
+                return false;
+            }
+            auto& array = std::get<ArrayValue>(*variable.value);
+            if (array.is_dynamic) {
+                array.elements.clear();
+                array.lower_bound = 0;
+                array.is_allocated = false;
+            } else {
+                std::fill(
+                    array.elements.begin(), array.elements.end(),
+                    array_element_default(array.element_type_index));
+            }
+        }
         return true;
     }
 

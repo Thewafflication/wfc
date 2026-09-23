@@ -1227,4 +1227,45 @@ Print arr(0) & " " & arr(3) & " " & arr(5) & " " & UBound(arr)]=]
             LABELS "integration;mp-0002;statements;array"
             PASS_REGULAR_EXPRESSION "True Long\\(\\).*1 4 0 3.*1 4 0 5"
     )
+
+    add_test(
+        NAME TC-MP0002-erase-cli
+        COMMAND wfc --eval [=[Dim arr(3) As Long
+arr(0) = 1
+arr(3) = 4
+Erase arr
+Print arr(0) & " " & arr(3) & " " & UBound(arr)
+Dim dyn() As Long
+ReDim dyn(2)
+dyn(0) = 5
+Erase dyn
+Print CStr(IsArray(dyn))]=]
+    )
+    set_tests_properties(
+        TC-MP0002-erase-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array"
+            PASS_REGULAR_EXPRESSION "0 0 3.*True"
+    )
+
+    add_test(
+        NAME TC-MP0002-for-each-cli
+        COMMAND wfc --eval [=[Dim arr(3) As Long
+Dim x As Long
+Dim total As Long
+arr(0) = 10
+arr(1) = 20
+arr(2) = 30
+arr(3) = 40
+For Each x In arr
+total = total + x
+Next x
+Print total]=]
+    )
+    set_tests_properties(
+        TC-MP0002-for-each-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops;array"
+            PASS_REGULAR_EXPRESSION "100"
+    )
 endif()

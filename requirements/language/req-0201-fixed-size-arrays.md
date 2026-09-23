@@ -64,9 +64,9 @@ subset. It does not add:
   `ReDim`/`ReDim Preserve` can resize; see `REQ-0207`;
 - multiple dimensions (`arr(i, j)`) — a comma inside `(...)` reports
   `WFC0115`;
-- `Erase`, `For Each` iteration over an array, or passing an array as a
-  function argument to a user-defined procedure (this evaluator has no
-  user-defined `Sub`/`Function` parameter model at all yet);
+- `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
+  `REQ-0209`), or passing an array as a function argument to a
+  user-defined procedure;
 - `Option Base 1` (or any `Option Base` statement) — a bound-less `Dim
   identifier(n)` always means `0 To n`, matching VB6's un-declared default;
 - `Variant`- or `Object`-element arrays — an array's per-element retyping

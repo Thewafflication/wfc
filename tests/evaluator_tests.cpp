@@ -539,6 +539,45 @@ int main() {
         "Dim arr() As Long\nReDim Preserve arr(2)\narr(0) = 5\n"
         "Print arr(0) & \" \" & UBound(arr)",
         "5 2");
+    // Erase: resets a fixed-size array's elements in place, but fully
+    // deallocates a dynamic array (REQ-0208).
+    expect_program_success(
+        "Dim arr(3) As Long\narr(0) = 1\narr(3) = 4\nErase arr\n"
+        "Print arr(0) & \" \" & arr(3) & \" \" & UBound(arr)",
+        "0 0 3");
+    expect_program_success(
+        "Dim a(1) As Long\nDim b(1) As Long\na(0) = 1\nb(0) = 2\nErase a, b\n"
+        "Print a(0) & \" \" & b(0)",
+        "0 0");
+    expect_program_failure(
+        "Dim arr() As Long\nReDim arr(2)\narr(0) = 5\nErase arr\nPrint UBound(arr)",
+        "WFC0111");
+    expect_program_failure("Dim x As Long\nErase x", "WFC0146");
+    expect_program_failure("Erase arr", "WFC0146");
+    // For Each: iterates an array's elements in order; the control variable
+    // must already be declared, either Variant (retypes per element) or a
+    // fixed type matching the array's element type exactly (REQ-0209).
+    expect_program_success(
+        "Dim arr(3) As Long\nDim x As Long\nDim total As Long\n"
+        "arr(0) = 10\narr(1) = 20\narr(2) = 30\narr(3) = 40\n"
+        "For Each x In arr\ntotal = total + x\nNext x\nPrint total",
+        "100");
+    expect_program_success(
+        "Dim v\nDim arr(2) As String\narr(0) = \"a\"\narr(1) = \"b\"\narr(2) = \"c\"\n"
+        "Dim s As String\nFor Each v In arr\ns = s & v\nNext\nPrint s",
+        "abc");
+    expect_program_success(
+        "Dim x As Long\nDim arr(5) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\n"
+        "For Each x In arr\nIf x = 2 Then\nExit For\nEnd If\nNext\nPrint x",
+        "2");
+    expect_program_success(
+        "Dim x As Long\nDim arr() As Long\nDim n As Long\n"
+        "For Each x In arr\nn = n + 1\nNext\nPrint n",
+        "0");
+    expect_program_failure(
+        "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext", "WFC0016");
+    expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0147");
+    expect_program_failure("Dim x As Long\nFor Each x 5\nNext", "WFC0147");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
     expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");

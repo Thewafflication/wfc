@@ -236,3 +236,10 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `Dim identifier()` (an unallocated dynamic array) and the
   `ReDim [Preserve] identifier(<bound>)` statement that allocates or
   reallocates it, extending `REQ-0201`'s fixed-size array foundation.
+- [REQ-0208 — Erase statement](req-0208-erase-statement.md) defines
+  `Erase identifier[, identifier...]`, resetting a fixed-size array's
+  elements in place or fully deallocating a dynamic array.
+- [REQ-0209 — For Each over an array](req-0209-for-each.md) defines
+  `For Each identifier In arrayExpression ... Next`, iterating an array's
+  elements in order, sharing `Exit For` and `Next`-matching with the
+  numeric `For` loop.
