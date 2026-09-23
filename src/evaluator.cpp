@@ -847,20 +847,21 @@ struct NumericStringResult {
 
 // VB6's numeric promotion order for mixed-type arithmetic: Integer widens to
 // Long, which widens to Currency, which widens to Single, which widens to
-// Decimal, which widens to Double. Double dominates every other type because
-// it has the largest representable magnitude (even though Currency/Decimal
-// are more precise for the values they can hold), matching the same
-// reasoning already applied to Currency. The relative order of Decimal
-// against Single and Double specifically is not verified against the
-// reference implementation (see REQ-0197's Scope); only Decimal-above-
-// Currency and Double-above-everything are held with confidence.
+// Double, which widens to Decimal. Decimal dominates every other type,
+// including Double, verified directly against a local VB6 6.00.8176
+// reference probe: `CDec(1) + 1234567.89` (a Double literal) returns a
+// Decimal `1234568.89`, and the same holds for Decimal vs Currency and
+// Decimal vs Long. This corrects an earlier, unverified assumption that
+// Double's larger representable magnitude made it dominant; real VB6 instead
+// keeps the operation in Decimal's exact fixed-point representation whenever
+// either operand is Decimal.
 enum class NumericCategory {
     int16,
     integer,
     currency,
     single,
-    decimal_precision,
-    double_precision
+    double_precision,
+    decimal_precision
 };
 
 [[nodiscard]] inline NumericCategory numeric_category(const Value& value) noexcept {
@@ -8743,13 +8744,15 @@ private:
         }
 
         if (category == NumericCategory::decimal_precision) {
-            // Long, Currency, and Single can all be the *other* operand here
-            // (each sorts below decimal_precision), so each needs an exact
-            // or best-effort widening to Decimal. Currency widens exactly
-            // (its scaled int64 becomes a scale-4 Decimal mantissa). Single
-            // has no exact decimal form in general and widens through its
-            // shortest round-tripping decimal text, the same as any other
-            // Double-to-Decimal conversion.
+            // Int16, Long, Currency, Single, or Double can all be the *other*
+            // operand here (each sorts below decimal_precision), so each
+            // needs an exact or best-effort widening to Decimal. Currency
+            // widens exactly (its scaled int64 becomes a scale-4 Decimal
+            // mantissa). Int16, Long, Single, and Double have no dedicated
+            // branch below and fall through to the generic Double-to-Decimal
+            // conversion via `as_double`, which is exact for Int16/Long and
+            // best-effort (shortest round-tripping decimal text) for
+            // Single/Double.
             const auto to_decimal = [](const Value& value) -> Decimal {
                 if (const auto* decimal = std::get_if<Decimal>(&value)) {
                     return *decimal;

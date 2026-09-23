@@ -28,10 +28,13 @@ that `Dim`/`Const As Decimal` would need support).
   than a binary-floating-point artifact. `CDec(Null)` reports `WFC0104`; a
   malformed `String` reports `WFC0105`; a magnitude or scale outside
   `Decimal`'s range reports `WFC0009`.
-- `+`, `-`, `*`, and `/` produce an exact `Decimal` result when at least one
-  operand is `Decimal` and neither operand is `Double` (`Double` dominates
-  every other numeric type, matching the existing `Currency`/`Single`
-  precedent):
+- `+`, `-`, `*`, and `/` produce an exact `Decimal` result whenever at least
+  one operand is `Decimal`. `Decimal` dominates every other numeric type,
+  including `Double` — verified against a local VB6 6.00.8176 reference
+  probe (`CDec(1) + 1234567.89`, a large-magnitude `Double` literal, returns
+  a `Decimal` `1234568.89`, and the same holds for `Decimal` vs `Currency`
+  and `Decimal` vs `Long`). This corrects the previous, unverified assumption
+  that `Double`'s larger representable magnitude made it dominant instead:
   - `+`/`-` align both operands to the larger scale (exact, since increasing
     scale is a power-of-ten multiply) and add/subtract the 96-bit-or-narrower
     mantissas as signed magnitudes.
@@ -46,10 +49,10 @@ that `Dim`/`Const As Decimal` would need support).
     zero `Decimal`.
   - Any operation whose exact result does not fit `Decimal`'s 96-bit
     mantissa/scale-28 range reports `WFC0009`.
-- `Long`, `Currency`, and `Single` operands widen to `Decimal` losslessly
-  (`Long`, `Currency`) or through their shortest round-tripping decimal text
-  (`Single`, the same conversion `CDec` itself uses) before the operation
-  above.
+- `Long`, `Currency`, `Single`, and `Double` operands widen to `Decimal`
+  losslessly (`Long`, `Currency`) or through their shortest round-tripping
+  decimal text (`Single`, `Double`; the same conversion `CDec` itself uses)
+  before the operation above.
 - Comparisons involving a `Decimal` operand evaluate numerically the same way
   every other numeric comparison does (widening to `Double`); this is exact
   enough for comparison purposes even though it is not `Decimal`'s
@@ -87,16 +90,6 @@ This requirement does not add:
 
 - `Dim`/`Const As Decimal` — not valid VB6 syntax; `Decimal` is Variant-only,
   matching the reference language exactly (see Requirement);
-- a verified promotion order between `Decimal` and `Single`. `Decimal` is
-  held with confidence to dominate `Currency` (a `Decimal` mantissa
-  represents every `Currency` value exactly, with headroom to spare) and to
-  be dominated by `Double` (matching the existing precedent that `Double`
-  dominates every other numeric type). The relative order against `Single`
-  specifically was not independently verified against the reference
-  runtime this session (the local verification tooling became unavailable
-  mid-session); WFC places `Single` below `Decimal` as a reasoned but
-  unverified choice, flagged here and in the `NumericCategory` comment in
-  `src/evaluator.cpp`;
 - `Format`'s named styles gaining `Decimal`-specific behavior (`Format`
   already accepts a `Decimal` argument by widening through `Double`, the
   same as every other numeric type it accepts);
@@ -110,12 +103,19 @@ This requirement does not add:
   `Double`/`String`, `TypeName`/`VarType`, exact `+`/`-`/`*`/`/` arithmetic
   (including a multiplication whose exact intermediate product needs more
   than 64 bits, and a division producing a full-precision repeating
-  decimal), `Abs`/`Int`/`Fix`/`Round` type and value preservation (including
-  banker's-rounding-to-even cases), `CLng`/`CStr`/`CBool`/`IsNumeric`/`Hex`
-  over a `Decimal` argument, and the `WFC0104`/`WFC0105`/`WFC0008`/`WFC0009`
-  diagnostics.
+  decimal), `Decimal` dominating `Single`, `Currency`, `Long`, and `Double`
+  in mixed-type arithmetic (both operand orders), `Abs`/`Int`/`Fix`/`Round`
+  type and value preservation (including banker's-rounding-to-even cases),
+  `CLng`/`CStr`/`CBool`/`IsNumeric`/`Hex` over a `Decimal` argument, and the
+  `WFC0104`/`WFC0105`/`WFC0008`/`WFC0009` diagnostics.
 - `TC-MP0002-decimal-cli` verifies declaration-via-`Variant`, `TypeName`,
   exact multiplication, and a full-precision division through `wfc --eval`.
+
+## Reference
+
+- Local reference probe: VB6 6.00.8176 (`VB6.EXE`), per
+  `planning/reference-environment.md`. Probe source and captured output are
+  recorded in `planning/work-log-mp-0002.md` (increment #91).
 
 ## Traceability
 

@@ -1813,6 +1813,41 @@ int main() {
     expect_program_failure("Print CDec()", "WFC0072");
     expect_program_failure("Print CDec(1, 2)", "WFC0072");
 
+    // Decimal promotion order in mixed-type arithmetic: Decimal dominates
+    // Single, Currency, Long, and (contrary to Double's dominance over every
+    // other numeric type) Double too, in both operand orders. Verified
+    // against a local VB6 6.00.8176 reference probe (see REQ-0198).
+    expect_program_success(
+        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) + s) & \" \" & (CDec(1) + s)",
+        "Decimal 2.5");
+    expect_program_success(
+        "Dim s As Single\ns = 1.5\nPrint TypeName(s + CDec(1)) & \" \" & (s + CDec(1))",
+        "Decimal 2.5");
+    expect_program_success(
+        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) * s) & \" \" & (CDec(1) * s)",
+        "Decimal 1.5");
+    expect_program_success(
+        "Dim c As Currency\nc = 2.5\nPrint TypeName(CDec(1) + c) & \" \" & (CDec(1) + c)",
+        "Decimal 3.5");
+    expect_program_success(
+        "Dim c As Currency\nc = 2.5\nPrint TypeName(c + CDec(1)) & \" \" & (c + CDec(1))",
+        "Decimal 3.5");
+    expect_success(
+        "Print TypeName(CDec(1) + 3) & \" \" & (CDec(1) + 3)",
+        "Decimal 4");
+    expect_success(
+        "Print TypeName(3 + CDec(1)) & \" \" & (3 + CDec(1))",
+        "Decimal 4");
+    expect_success(
+        "Print TypeName(CDec(1) + 1234567.89) & \" \" & (CDec(1) + 1234567.89)",
+        "Decimal 1234568.89");
+    expect_success(
+        "Print TypeName(1234567.89 + CDec(1)) & \" \" & (1234567.89 + CDec(1))",
+        "Decimal 1234568.89");
+    expect_success(
+        "Print TypeName(CDec(1) / 3) & \" \" & (CDec(1) / 3)",
+        "Decimal 0.3333333333333333333333333333");
+
     // Scalar Variant: Empty/Null literals, IsNull/IsEmpty, retyping
     // assignment, and three-valued-logic propagation through the operators.
     // Verified against the local VB6 6.00.8176 reference (see REQ-0197).
