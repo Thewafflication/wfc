@@ -18,7 +18,12 @@ the mostly complete replacement claim and its explicit exclusions. The
 [roadmap to 1.0.0](planning/roadmap-1.0.md) divides delivery into evidence-gated
 milestones from `0.1.0` through release.
 
-The initial work plan is [MP-0001 — Foundation and Feasibility](planning/MP-0001-foundation-and-feasibility.md).
+The initial work plan was [MP-0001 — Foundation and
+Feasibility](planning/MP-0001-foundation-and-feasibility.md), now complete.
+The active milestone is MP-0002 — Core VB/VBA Language Execution, tracked in
+[`planning/work-log-mp-0002.md`](planning/work-log-mp-0002.md) with delivered
+scope indexed in [`requirements/language/README.md`](requirements/language/README.md);
+see [`planning/README.md`](planning/README.md) for the full planning index.
 The [VB6 discovery baseline](planning/reference-environment.md) records the
 installed reference components and inspection tools.
 
@@ -63,110 +68,48 @@ Equivalent `windows-x86-debug` and `windows-arm64-debug` presets are provided.
 ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
-The current command accepts sequential `Dim`, assignment, `Print`, and
-single-line `If <Boolean expression> Then <branch> [Else <branch>]` and block
-`If <Boolean expression> Then` / ordered `ElseIf` / optional `Else` / `End If`
-statements, plus `While <Boolean expression>` / `Wend` loops. Pre-test and
-post-test `Do While` / `Do Until` loops terminate with `Loop`; `Exit Do`
-terminates the innermost active `Do` loop. Declared-`Long` `For...Next` loops
-support inclusive bounds and an optional `Step`; `Exit For` terminates the
-innermost active counter loop. `Select Case` supports ordered, same-type
-equality branches, comma-separated values, inclusive ranges, `Case Is`
-relations, and `Case Else`.
-A single-line conditional branch is either `Print <expression>` or an
-assignment. Variables may be `Long`, `String`, or `Boolean`; expressions
-support literals, variables, typed constants, parentheses, arithmetic,
-concatenation, same-type comparisons, and strict Boolean `Not`, `And`, `Or`,
-`Xor`, `Eqv`, and `Imp`. It remains an early MP-0002 subset and does not claim
-general VB6 compatibility:
+`wfc --eval <source>` runs a standalone module; `wfc --class <Name> <source>`
+(repeatable) supplies one or more class modules alongside it, standing in for
+a real VB6 project's separate `.cls` files. The evaluator currently covers,
+at a high level: declarations (`Dim`/`Const`/`Static`), every numeric type
+(`Integer`, `Long`, `Single`, `Double`, `Currency`, `Decimal` via `Variant`)
+plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
+`Do`/`For`), fixed-size one-dimensional arrays, the core `Strings`/
+`Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
+`Function` procedures (`Optional`/`ParamArray`/`Static`), and a minimal
+class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
+`New`/`Me`, lifecycle hooks, `Public`/`Private`). It does not claim general
+VB6 compatibility — see the [language requirements
+index](requirements/language/README.md) for exactly what is specified and
+implemented, `REQ`-numbered and cross-referenced to its diagnostics and
+scope boundary, and [`planning/work-log-mp-0002.md`](planning/work-log-mp-0002.md)
+for the chronological build-out.
+
+A representative sample (the exhaustive, always-current set of runnable
+examples is the `TC-MP0002-*-cli` integration tests in `CMakeLists.txt`):
 
 ```powershell
+# Basics and control flow
 out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print "Hello, WFC!"'
-out/build/windows-x64-debug/Debug/wfc.exe --eval 'Print (2 + 3) * 4 & " items"'
-out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: total = 6 * 7: Print total'
-out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim ready As Boolean: ready = 6 * 7 = 42: Print ready And Not False'
-out/build/windows-x64-debug/Debug/wfc.exe --eval 'Dim total As Long: If True Then total = 42 Else total = 0: If total = 42 Then Print "selected"'
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim total As Long`nIf True Then`n total = 42`nEnd If`nPrint total"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "If False Then`n Print `"first`"`nElseIf True Then`n Print `"selected`"`nEnd If"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nWhile index < 3`n Print index`n index = index + 1`nWend"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo Until index = 3`n Print index`n index = index + 1`nLoop"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim index As Long`nDo`n Print index`n index = index + 1`nLoop While index < 3"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Rem a VB comment`nPrint 42"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Do While True`n Print `"once`"`n Exit Do`nLoop"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 3`n Print i`nNext i"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim i As Long`nFor i = 1 To 10`n If i = 3 Then`n  Exit For`n End If`nNext i`nPrint i"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1`n Print `"one`"`nCase 2`n Print `"two`"`nEnd Select"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 2`nCase 1, 2, 3`n Print `"selected`"`nEnd Select"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Select Case 7`nCase Is >= 5`n Print `"selected`"`nEnd Select"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Const answer As Long = 6 * 7`nPrint answer"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Explicit`nDim value As Long`nvalue = 42`nPrint value"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Option Compare Text`nPrint `"Alpha`" = `"alpha`""
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Len(`"Hello, WFC!`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LCase$(`"Hello, WFC!`")`nPrint UCase(`"Hello, WFC!`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Trim$(`"  Hello, WFC!  `") & `"]`""
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Left$(`"Hello`", 2) & Right$(`"WFC!`", 2)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Mid$(`"Hello, WFC!`", 8, 3)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Chr$(Asc(`"W`")) & Chr$(70) & Chr$(67)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrReverse(`"!CFW ,olleH`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Space$(3) & `"]`""
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print String$(3, `"*`") & String(2, 61)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(`"Hello, WFC!`", `"WFC`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(3, `"abcabc`", `"bc`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrComp(`"abc`", `"abd`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(`"abcabc`", `"b`", `"X`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"&H`" & Hex(255) & `" `" & Oct(8)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Str(42) & `"]`""
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStr(1, `"aXbXc`", `"x`", vbTextCompare)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(`"prefix aXbXc`", `"x`", `"-`", 8, 1, vbTextCompare)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print InStrRev(`"one two one`", `"one`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Val(`" 2 45 7th Street`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Abs(-42) & `" `" & Sgn(-42)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(42) & `" `" & CStr(True)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CLng(`" 42 `") & `" `" & CLng(True)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(CBool(1)) & `" `" & CStr(CBool(`"False`"))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CByte(0) & `" `" & CByte(255)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(CVar(42)) & `" `" & TypeName(CVar(2.5))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Hex(MacID(`"TEXT`"))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Error(5) & `" | `" & Error$(11)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CInt(-32768) & `" `" & CInt(`"32767`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsNumeric(`" -42 `")) & `" `" & CStr(IsNumeric(`"abc`"))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(42) & `" `" & TypeName(True) & `" `" & TypeName(`"x`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print VarType(42) & `" `" & VarType(True) & `" `" & VarType(`"x`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print IIf(1 < 2, `"low`", `"high`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Choose(2, `"red`", `"green`", `"blue`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Switch(1 > 2, `"a`", 2 > 1, `"b`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Int(-7) & `" `" & Fix(42)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print AscW(`"A`") & `" `" & ChrW(66)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CStr(IsArray(1)) & `" `" & CStr(IsObject(1)) & `" `" & CStr(IsNull(1))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print RGB(255, 0, 0) & `" `" & RGB(0, 0, 255)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print QBColor(1) & `" `" & QBColor(12) & `" `" & QBColor(15)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LenB(`"WFC`") & `" `" & AscB(`"A`") & `" `" & ChrB(66)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print LeftB(`"WFC`", 2) & `" `" & RightB(`"WFC`", 2) & `" `" & MidB(`"WFC`", 2, 1)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print StrConv(`"the quICK fox`", vbProperCase)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print vbTrue & `" `" & vbYes & `" `" & vbReadOnly & `" `" & vbSaturday"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print AscB(vbTab) & `" `" & AscB(vbCr) & `" `" & Len(vbCrLf)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Round(2.5) & `" `" & Round(1.25, 1)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Int(-2.5) & `" `" & Fix(-2.5) & `" `" & Abs(-2.5)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print `"[`" & Str(2.5) & `"] [`" & Str(-2.5) & `"]`""
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Hex(15.5) & `" `" & Oct(7.5)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print 5 / 2 & `" `" & (1.5 + 2.5) & `" `" & CLng(2.5)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print CDbl(`"2.5`") + CDbl(3) & `" `" & CSng(2.25)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Sqr(9) & `" `" & Exp(0) & `" `" & CLng(Atn(1) * 4 * 1000000)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value As Double: value = 5: Print TypeName(value) & `" `" & VarType(value)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print TypeName(1#) & `" `" & TypeName(42&)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim value#: value = 2.5: Print TypeName(value#)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Format(1234.5, `"Standard`") & `" `" & Format(0.5, `"Percent`") & `" `" & Format(True, `"Yes/No`")"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Randomize 42`nPrint Rnd()`nPrint Rnd()`nRandomize 42`nPrint Rnd()"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Single`nx = 2.5`nPrint x & `" `" & TypeName(x) & `" `" & TypeName(x + 1.0#)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Currency`nx = 10.5`nPrint x & `" `" & TypeName(x) & `" `" & (10@ / 3@) & `" `" & (100.5@ * 3@)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Variant`nx = CDec(`"10.25`")`nPrint x & `" `" & TypeName(x) & `" `" & (x * CDec(2))"
+
+# Types, conversions, and strings
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Currency`nx = 10.5`nPrint x & `" `" & TypeName(x) & `" `" & (10@ / 3@)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x`nx = 5`nPrint TypeName(x)`nx = Null`nPrint CStr(IsNull(x))"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Integer`nx = 5`nPrint x & `" `" & TypeName(x) & `" `" & (x + 3&)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Print Replace(InStrRev(`"one two one`", `"one`") & `": `" & Mid$(`"Hello, WFC!`", 8, 3), `"WFC`", `"world`")"
+
+# Arrays and the minimal object stub
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(3) As Long`narr(0) = 10`narr(3) = 40`nPrint arr(0) & `" `" & arr(3) & `" `" & LBound(arr) & `" `" & UBound(arr)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Object`nPrint TypeName(Nothing)`nSet x = Nothing`nPrint CStr(x Is Nothing)"
+
+# Procedures, with Optional/ParamArray
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Factorial(n As Long) As Long`nIf n <= 1 Then`nFactorial = 1`nElse`nFactorial = n * Factorial(n - 1)`nEnd If`nEnd Function`nPrint Factorial(5)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Greet(name As String, Optional greeting As String = `"Hello`") As String`nGreet = greeting & `", `" & name`nEnd Function`nFunction Total(ParamArray nums() As Long) As Long`nDim i As Long`nDim s As Long`nFor i = LBound(nums) To UBound(nums)`ns = s + nums(i)`nNext i`nTotal = s`nEnd Function`nPrint Greet(`"World`") & `" | `" & Total(1, 2, 3, 4)"
+
+# Class modules: fields, methods, properties, New/Me, lifecycle, Private
 out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Public value As Long`n`nSub Increment()`nvalue = value + 1`nEnd Sub`n`nProperty Get Doubled() As Long`nDoubled = value * 2`nEnd Property" --eval "Dim c As New Counter`nCall c.Increment()`nCall c.Increment()`nPrint c.value & `" `" & c.Doubled & `" `" & TypeName(c)"
-out/build/windows-x64-debug/Debug/wfc.exe --class Foo "Public n As Long`n`nSub Class_Initialize()`nn = 100`nEnd Sub`n`nSub Class_Terminate()`nPrint `"term `" & n`nEnd Sub`n`nSub Bump()`nn = n + 1`nPrint Me.n`nEnd Sub" --eval "Dim x As New Foo`nCall x.Bump()`nSet x = Nothing"
+out/build/windows-x64-debug/Debug/wfc.exe --class Foo "Private n As Long`n`nSub Class_Initialize()`nn = 100`nEnd Sub`n`nSub Class_Terminate()`nPrint `"term `" & n`nEnd Sub`n`nSub Bump()`nn = n + 1`nPrint Me.n`nEnd Sub" --eval "Dim x As New Foo`nCall x.Bump()`nSet x = Nothing"
 out/build/windows-x64-debug/Debug/wfc.exe --class Pair "Public a As Long`nPublic b As Long`n`nProperty Get Item(i As Long) As Long`nIf i = 0 Then`nItem = a`nElse`nItem = b`nEnd If`nEnd Property`n`nProperty Let Item(i As Long, v As Long)`nIf i = 0 Then`na = v`nElse`nb = v`nEnd If`nEnd Property" --eval "Dim p As New Pair`np.Item(0) = 10`np.Item(1) = 20`nPrint p.Item(0) & `" `" & p.Item(1)"
-out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Greet(name As String, Optional greeting As String = `"Hello`") As String`nGreet = greeting & `", `" & name`nEnd Function`nFunction Total(ParamArray nums() As Long) As Long`nDim i As Long`nDim s As Long`nFor i = LBound(nums) To UBound(nums)`ns = s + nums(i)`nNext i`nTotal = s`nEnd Function`nPrint Greet(`"World`") & `" | `" & Greet(`"Bob`", `"Hi`") & `" | `" & Total(1, 2, 3, 4)"
 ```

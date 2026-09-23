@@ -85,7 +85,7 @@ This increment does not implement:
 - [Microsoft VBA `Randomize` statement reference](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/randomize-statement)
 - Local reference probe: VB6 6.00.8176 (`VB6.EXE`) / `MSVBVM60.DLL` 6.00.9848,
   per `planning/reference-environment.md`. Probe source and captured output
-  are recorded in `planning/work-log-mp-0002-strings.md` (increment #78).
+  are recorded in `planning/work-log-mp-0002.md` (increment #78).
 
 ## Traceability
 

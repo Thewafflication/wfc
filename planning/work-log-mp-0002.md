@@ -1,11 +1,16 @@
-# Work Log — MP-0002 VBA Strings Functions
+# Work Log — MP-0002 Core VB/VBA Language Execution
 
 **Content type:** Work log (per `wsp/processes/work-log-template.md`)
 
-**Milestone or work package:** MP-0002 — Core VB/VBA language execution; `Strings`
-module (`REQ-0071`) intrinsic function build-out.
+**Milestone or work package:** MP-0002 — Core VB/VBA language execution. Began
+as the `Strings` module (`REQ-0071`) intrinsic function build-out (hence this
+file's original name, `work-log-mp-0002-strings.md`, renamed to
+`work-log-mp-0002.md` once scope grew well beyond it); has since covered the
+rest of MP-0002's intrinsic-function surface, the full numeric type system,
+fixed-size arrays, a minimal object-reference stub, user-defined procedures,
+and a minimal class-module foundation.
 
-**Period:** 2026-08-29 (active session).
+**Period:** 2026-08-29 through 2026-09-22 (spanning multiple sessions).
 
 **Starting baseline:** `89aff7f` — "Pre-authorize local cmake/ctest/wfc runs".
 
@@ -13,10 +18,53 @@ module (`REQ-0071`) intrinsic function build-out.
 
 **Status:** Active
 
-This log records the chronological execution of an autonomous session that
-extends the evaluator's `Strings` intrinsic surface. It supplements, and does
-not replace, the accepted MP-0002 plan, the controlled Git history, and the
-retained CTest evidence.
+This log records the chronological execution of every session's work against
+MP-0002 to date. It supplements, and does not replace, the accepted MP-0002
+plan, the controlled Git history, and the retained CTest evidence.
+
+## Contents by Theme
+
+The increment table immediately below is strictly chronological; this index
+groups the same increments by theme for faster navigation. Every increment
+number links to nothing in particular (GitHub doesn't anchor table rows) —
+search this file for `#<N>` to jump to a specific one, or `` `REQ-XXXX` `` for
+a specific requirement.
+
+- **Increments #1–#40** (2026-08-29 – 2026-08-30) — `Strings`/`Conversion`/
+  `Information` intrinsic build-out: `InStr`, `StrComp`, `Replace`, `Hex`/
+  `Oct`, `Str`, comparison methods, `InStrRev`, `Val`, `Abs`/`Sgn`, the
+  `CXxx` conversion family, `IsNumeric`, `TypeName`, `VarType`, `IIf`/
+  `Choose`/`Switch`, `Int`/`Fix`, `AscW`/`ChrW`, the constant-`False`
+  Information predicates, `RGB`/`QBColor`, byte-string functions, `StrConv`,
+  six increments of VBA constant enumerations, and `Round`.
+- **Increments #41–#76** (2026-08-31 – 2026-09-17) — the `Double` numeric
+  foundation and everything it touched: the `Double` type itself, `CDbl`/
+  `CSng`, floating-point math functions, fractional `Val`, declarations,
+  literal suffixes and identifier type characters, extending `Abs`/`Sgn`/
+  `Int`/`Fix`/`Round`/`Str`/`Hex`/`Oct` to `Double`, a shared numeric-string
+  parser refactor, four rounds of non-finite/overflow diagnostic closure,
+  and the arity-evidence sweep (increments #72–#76) closing `WFC0072`
+  coverage gaps across every intrinsic-function family.
+- **Increments #77–#79** (2026-09-17) — `Format`/`Format$` (named numeric
+  styles) and `Rnd`/`Randomize` (including a local VB6 6.00.8176 reference
+  probe to determine the exact default generator and seed).
+- **Increments #80–#83** (2026-09-18) — the remaining numeric value types:
+  `Single`, `Currency` (exact scaled-integer arithmetic), scalar `Variant`
+  and `Decimal` together (with a live `Null`/`Empty` semantics probe), and
+  the distinct 16-bit `Integer` type.
+  - See `REQ-0195`–`REQ-0199`.
+- **Increment #84** (2026-09-18) — fixed-size one-dimensional arrays
+  (`REQ-0201`) and a minimal object-reference stub (`REQ-0200`), the
+  evaluator's first genuinely recursive `Value` variant.
+- **Increment #85** (2026-09-18) — user-defined `Sub`/`Function` procedures
+  (`REQ-0202`): the module/procedure two-level scope-chain refactor,
+  `ByVal`/`ByRef`, recursion, and the `Call` statement.
+- **Increments #86–#89** (2026-09-22) — the class-module foundation, built
+  in four back-to-back increments: fields/methods/properties/`New`/`Is`
+  (`REQ-0203`); `Me` and `Class_Initialize`/`Class_Terminate`
+  (`REQ-0204`); unqualified sibling `Property` writes, class-typed fields/
+  return types, and indexed `Property` accessors (`REQ-0205`); and
+  `Optional`/`ParamArray`/`Static`/`Public`/`Private` (`REQ-0206`).
 
 ## Work Performed
 

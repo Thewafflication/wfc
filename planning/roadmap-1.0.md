@@ -23,8 +23,8 @@ gate may not be bypassed by moving unfinished work into an undocumented gap.
 | Milestone | Target | Capability baseline | Required exit gate |
 | --- | --- | --- | --- |
 | MP-0001 | 0.1.0 | Foundation and feasibility | Controlled scope, architecture, dependencies, build/test skeleton, and one vertical slice |
-| MP-0002 | 0.2.0 | Core VB/VBA language execution | Non-visual projects parse, bind, execute, and pass the core language/VBA reference suite |
-| MP-0003 | 0.3.0 | Classes, projects, and Automation | Multi-file projects, class modules, events, COM identity, and Automation work end to end |
+| MP-0002 | 0.2.0 | Core VB/VBA language execution | Non-visual projects parse, bind, execute, and pass the core language/VBA reference suite, including a minimal class-module/object foundation pulled forward from MP-0003 (see that milestone's note) |
+| MP-0003 | 0.3.0 | Classes, projects, and Automation | Multi-file projects, class inheritance/interfaces, events, COM identity, and Automation work end to end, building on MP-0002's class-module foundation |
 | MP-0004 | 0.4.0 | Forms and intrinsic controls | Ordinary/MDI forms and retained intrinsic controls load, interact, persist, and pass behavioral probes |
 | MP-0005 | 0.5.0 | Component authoring, `stdole`, and OLE2 | ActiveX components, font/picture contracts, persistence, registration, and retained OLE hosting work |
 | MP-0006 | 0.6.0 | `MSComctlLib` compatibility | Nine common controls satisfy API, behavior, event, rendering, and persistence gates |
@@ -43,8 +43,8 @@ controlled disposition.
 | Milestone | Existing allocation | Additional requirements to specify |
 | --- | --- | --- |
 | MP-0001 / 0.1.0 | Static discovery evidence and project-level foundation objectives | Build, architecture, dependency, probe-harness, test-dispatch, and vertical-slice requirements |
-| MP-0002 / 0.2.0 | `REQ-0069`–`REQ-0094` VBA API contracts | VB language, VBA behavior, core runtime values, diagnostics, `.vbp/.bas`, and approved legacy dispositions |
-| MP-0003 / 0.3.0 | Service/object contracts `REQ-0051`, `REQ-0052`, `REQ-0058`, `REQ-0067`, and `REQ-0068` | Classes, Automation, COM ABI, `Licenses`, retained `Control`, project references, and service-class behavior |
+| MP-0002 / 0.2.0 | `REQ-0069`–`REQ-0094` VBA API contracts; `REQ-0200`, `REQ-0203`–`REQ-0206` minimal class-module foundation (pulled forward from MP-0003 during MP-0002 execution — see that milestone's note) | VB language, VBA behavior, core runtime values, diagnostics, `.vbp/.bas`, and approved legacy dispositions |
+| MP-0003 / 0.3.0 | Service/object contracts `REQ-0051`, `REQ-0052`, `REQ-0058`, `REQ-0067`, and `REQ-0068` | Class inheritance/interfaces, events/`WithEvents`, Automation, COM ABI, `Licenses`, retained `Control`, project references, and service-class behavior, building on MP-0002's `REQ-0200`/`REQ-0203`–`REQ-0206` foundation |
 | MP-0004 / 0.4.0 | Visual/form contracts `REQ-0037`–`REQ-0050`, `REQ-0053`–`REQ-0062`, and behaviors `REQ-0106`–`REQ-0131` as retained | Form/resource formats, defaults, accessibility, rendering, and any replacement requirement created by a legacy removal |
 | MP-0005 / 0.5.0 | OLE/component contracts `REQ-0063`–`REQ-0066` as retained and `stdole` `REQ-0095`–`REQ-0098` | Component persistence, registration, licensing, property bags, OLE2 behavior, and approved removal diagnostics |
 | MP-0006 / 0.6.0 | `MSComctlLib` `REQ-0001`–`REQ-0036` | Additional defaults, persistence, accessibility, DPI, theme, and error requirements discovered by probes |
@@ -93,7 +93,15 @@ dates, strings, arrays, variants, and locale behavior.
 - procedures, module state, expressions, statements, arrays, UDTs, variants,
   strings, errors, and conditional compilation;
 - core VBA library behavior and deterministic reference probes;
-- `.vbp`, `.bas`, and module dependency loading; and
+- `.vbp`, `.bas`, and module dependency loading;
+- a minimal class-module foundation (`REQ-0200`, `REQ-0203`–`REQ-0206`),
+  pulled forward from MP-0003 during MP-0002 execution: fields, methods,
+  `Property Get`/`Let`/`Set` (including indexed accessors), `New`, `Me`,
+  `Class_Initialize`/`Class_Terminate`, class-typed references, and
+  `Public`/`Private` member visibility. This does not satisfy MP-0003 —
+  there is no inheritance, `Implements`, events/`WithEvents`, COM identity,
+  multi-file projects, or `.cls`/project-file loading (classes are supplied
+  via the `wfc --class` CLI flag, not a real VB6 project); and
 - disposition DDE, DAO/Data, OLE1, ActiveX Documents, PropertyPage hosting, and
   legacy help candidates before later subsystem gates.
 
@@ -108,15 +116,22 @@ needed by MP-0003 or MP-0004 lacks a controlled disposition.
 ### Outcome
 
 Multi-file projects with class modules, objects, properties, events, interfaces,
-collections, and Automation clients/servers execute end to end.
+collections, and Automation clients/servers execute end to end, building on
+the minimal class-module foundation (fields, methods, properties, `New`,
+`Me`, lifecycle hooks, and `Public`/`Private` visibility) MP-0002 already
+delivered under `REQ-0200`/`REQ-0203`–`REQ-0206`.
 
 ### Principal Work
 
-- class lifetime, default instances, `WithEvents`, `Implements`, properties,
-  enumerators, and object/error semantics;
+- class lifetime beyond `REQ-0203`'s `New`/`Class_Initialize`/
+  `Class_Terminate` (default instances, lazy `As New` auto-instantiation),
+  `WithEvents`, `Implements`, interfaces, class inheritance, enumerators,
+  and object/error semantics beyond the exact-identity `Set`/`Is` MP-0002
+  already has;
 - COM identity, type information, `IUnknown`, `IDispatch`, connection points,
   variants, safe arrays, registration, activation, and threading decisions;
-- `.cls` and component project metadata; and
+- `.cls` and component project metadata, and loading a real multi-file VB6
+  project (`.vbp`) instead of MP-0002's synthetic `wfc --class` CLI flag; and
 - API/behavior closure for `App`, `Global`, `Screen`, `Clipboard`, `Licenses`,
   `Control`, and `VBControlExtender` as applicable.
 

@@ -99,7 +99,7 @@ does not add:
 
 - Local reference probe: VB6 6.00.8176 (`VB6.EXE`), per
   `planning/reference-environment.md`. Probe source and captured output are
-  recorded in `planning/work-log-mp-0002-strings.md` (increment #82). The
+  recorded in `planning/work-log-mp-0002.md` (increment #82). The
   probe verified: `TypeName`/`VarType` of `Null` and `Empty`;
   `IsNull`/`IsEmpty` of each; `Null & "x"` and `"x" & Null` both equal `"x"`
   with no error; `Null & Null` raises run-time error 94 ("Invalid use of
