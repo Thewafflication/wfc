@@ -6630,14 +6630,22 @@ private:
                                : as_double(arguments[0]);
             }
             if (!execute_) {
-                return Value{0.0};
+                return Value{0.0f};
             }
             if (!arguments.empty() && argument == 0.0) {
                 return Value{rnd_last_value_};
             }
             rnd_state_ = (!arguments.empty() && argument < 0.0) ? seed_from_number(argument)
                                                                  : rnd_step(rnd_state_);
-            rnd_last_value_ = rnd_value(rnd_state_);
+            // REQ-0195's own Scope explicitly deferred this: real VB6's Rnd
+            // returns Single, not Double. Narrowing rnd_value's double
+            // result to float here (rather than computing state / 2^24 in
+            // float from the start) is exact for this specific case --
+            // dividing by a power of two is exact/correctly-rounded in
+            // both precisions, and rounding a correctly-rounded double
+            // result to the nearest float gives the same answer a genuine
+            // single-precision division would.
+            rnd_last_value_ = static_cast<float>(rnd_value(rnd_state_));
             return Value{rnd_last_value_};
         }
 
@@ -9168,7 +9176,7 @@ private:
     // a local probe: the first Rnd() call from this seed is 0.7055475,
     // matching the well-known VB6 fingerprint value).
     std::uint32_t rnd_state_{327680U};
-    double rnd_last_value_{};
+    float rnd_last_value_{};
     wfc::Evaluation error_;
 };
 

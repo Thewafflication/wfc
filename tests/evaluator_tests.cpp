@@ -314,28 +314,28 @@ int main() {
     expect_success("Print Format$(42, \"Fixed\")", "42.00");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
-        "0.7055475115776062 0.5334240198135376 0.5795186161994934");
+        "0.7055475 0.533424 0.5795186");
     expect_program_success(
         "Print Rnd(): Print Rnd(): Print Rnd(0)",
-        "0.7055475115776062\n0.5334240198135376\n0.5334240198135376");
+        "0.7055475\n0.533424\n0.533424");
     expect_success("Print Rnd(0)", "0");
     expect_success(
         "Print Rnd(1) & \" \" & Rnd(2) & \" \" & Rnd(3)",
-        "0.7055475115776062 0.5334240198135376 0.5795186161994934");
-    expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.08105587959289551 0.08105587959289551");
+        "0.7055475 0.533424 0.5795186");
+    expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.08105588 0.08105588");
     expect_program_success(
         "Print Rnd(-5): Print Rnd(1)",
-        "0.08105587959289551\n0.3073505759239197");
+        "0.08105588\n0.30735058");
     expect_program_success(
         "Randomize 42\nPrint Rnd()\nPrint Rnd()\nRandomize 42\nPrint Rnd()",
-        "0.2156059741973877\n0.5267471671104431\n0.2156059741973877");
+        "0.21560597\n0.52674717\n0.21560597");
     expect_program_success(
         "Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
-        "0.11961287260055542\n0.7612115740776062");
+        "0.11961287\n0.7612116");
     expect_program_success(
         "Randomize\nPrint Rnd() >= 0 And Rnd() < 1",
         "True");
-    expect_success("Print TypeName(Rnd())", "Double");
+    expect_success("Print TypeName(Rnd())", "Single");
     // Single literals, declarations, arithmetic promotion, and conversion.
     expect_success("Print 3.5!", "3.5");
     expect_success("Print 42!", "42");

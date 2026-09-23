@@ -12,7 +12,8 @@ statement, used as `Randomize` or `Randomize number`. `number` may be a
 `Long`, `Double`, or `Boolean` (a `Boolean` widens to -1/0).
 
 `Rnd()`, called with no argument or with a positive `number`, returns the
-next value in a process-global sequence and advances the generator. The
+next value in a process-global sequence and advances the generator, as a
+`Single` (matching real VB6 — see the Scope note this superseded). The
 sequence is produced by a 24-bit linear congruential generator:
 
 ```
@@ -62,9 +63,18 @@ This increment does not implement:
   even though Microsoft's public documentation describes it as deterministic;
   no formula could truthfully claim to match VB6's specific per-seed output,
   so WFC defines its own deterministic seed hash instead. This is a
-  documented, evidence-based variance, not a silent approximation;
-- a distinct `Single` result type. `Rnd` returns a `Double` in the current
-  value model, matching the established `CSng` precedent (`REQ-0182`).
+  documented, evidence-based variance, not a silent approximation.
+
+`Rnd` originally returned a `Double` (this increment's own initial scope
+boundary, deferring a distinct `Single` result until that type existed —
+`REQ-0195`). Once `Single` existed, a later increment narrowed `rnd_value`'s
+double-precision result to `float` at the point of return: since the
+generator's own arithmetic (`state / 2^24`, a division by a power of two) is
+exact/correctly-rounded in both precisions, narrowing the already-computed
+double result gives the identical answer a genuine single-precision
+division would, verified directly against the same reference fingerprint
+(`0.7055475`, now rendered without the extra double-precision digits the
+`Double` result previously carried).
 
 ## Verification
 
@@ -75,7 +85,8 @@ This increment does not implement:
   gives the same result, and a later `Rnd()` continues the resulting
   sequence), `Randomize number` reseeding deterministically (repeating the
   seed repeats the sequence), argument-less `Randomize` keeping subsequent
-  values in `[0, 1)`, `TypeName`, non-numeric arguments, and arity.
+  values in `[0, 1)`, `TypeName` returning `"Single"`, non-numeric
+  arguments, and arity.
 - `TC-MP0002-rnd-randomize-cli` verifies deterministic reseeding through
   `wfc --eval`.
 

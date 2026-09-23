@@ -918,8 +918,8 @@ Print Rnd()]=]
     set_tests_properties(
         TC-MP0002-rnd-randomize-cli
         PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math;double"
-            PASS_REGULAR_EXPRESSION "0.2156059741973877.*0.5267471671104431.*0.2156059741973877"
+            LABELS "integration;mp-0002;expressions;vba;math;single"
+            PASS_REGULAR_EXPRESSION "0.21560597.*0.52674717.*0.21560597"
     )
 
     add_test(

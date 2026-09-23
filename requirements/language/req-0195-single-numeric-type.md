@@ -57,10 +57,10 @@ not add:
 - `Format`'s named styles gaining a `Single`-specific named style (they
   already accept `Single` by the existing `Long`/`Double`/`Boolean` widening
   in `REQ-0193`, since `Format` widens through `Double`);
-- `Rnd` returning a genuine `Single` (`REQ-0194` documented this as a known,
-  deliberate gap pending this increment; `Rnd` still returns `Double`, since
-  changing its return type is a separate, narrower increment that was not
-  requested with this one);
+- `Rnd` returning a genuine `Single` — deliberately not part of *this*
+  increment (`REQ-0194` documented it as a known gap pending `Single`
+  existing at all); implemented later as its own narrower follow-up, see
+  `REQ-0194`'s own updated Scope note;
 - calling any intrinsic function without parentheses, which remains deferred
   with every other function under the evaluator's existing
   parenthesized-call-only architecture.
