@@ -160,6 +160,7 @@ a specific requirement.
 | 2026-09-22 #88 | Architecture | Add three class-module refinements under new `REQ-0205`, chosen (of four offered via `AskUserQuestion`) from `REQ-0203`'s own "Remaining next increments" list: unqualified sibling `Property Let`/`Set` writes (the assignment counterpart of the existing unqualified method/`Property Get` read/call), class-typed/`As Object` fields and `Function`/`Property Get` return types (reusing `REQ-0200`'s existing `Object`-variable machinery unchanged), and indexed `Property Get`/`Let`/`Set` accessors (`Property Get`'s former zero-parameter requirement and `Property Let`/`Set`'s former exactly-one-parameter requirement both relaxed); switched `scan_classes` to a two-pass scan (register every class name, then scan every body) so a class-typed field/return type can reference a class declared later on the `--class` command line; found and fixed a real bug during this increment's own testing where an unqualified read inside a `Property Let`/`Set` body ignored its own value parameter whenever it shared the property's own name (`Property Let V(v As Long)`), because the existing unqualified-`Property-Get` fallback in `parse_primary_base` ran *before* the local-parameter lookup instead of after; unit + CLI tests, README | Commit `ec4a5b3` |
 | 2026-09-22 #89 | Architecture | Add the fourth item selected alongside `REQ-0205` (of four offered via `AskUserQuestion`) under new `REQ-0206`: `Optional [= default]` parameters, `ParamArray` (collecting trailing call arguments into a fresh `ArrayValue`, reusing `REQ-0201`'s existing array type unchanged), `Static` locals (persisted on the owning `ProcedureDef` itself via a new `mutable Scope statics` member and a save/restored `current_procedure_def_` pointer, copied into/out of each call's own frame), and `Public`/`Private` class-member visibility (a bare `Dim` field now implicitly `Private`, correcting `REQ-0203`'s original "no visibility modeled" simplification; enforced per-*class*, not per-instance, via a new `member_accessible` check comparing `current_class_def()` against the target's own class) -- extended to both module-level procedures and class members; found and fixed a real, unrelated latent crash during this increment's own testing: an empty `ParamArray`'s zero-length array, indexed from inside a dry-run type-check pass over an unreached `For` loop body, called `.front()` on an empty `std::vector` in `parse_array_index`'s pre-existing `!execute_` short-circuit (never triggered before, since a `Dim`-declared array can never actually be empty); also fixed a second bug in the same session where `parse_type_keyword()` was called directly after `consume_keyword("as")` with no intervening whitespace skip in the new `ParamArray` element-type parser, unlike every other `As Type` call site; unit + CLI tests, README | Commit `8ecc856` |
 | 2026-09-22 #90 | Construction | Close one of the two items the owner pointed at from `REQ-0194`/`REQ-0195`'s own "Remaining next increments" bullets: `Rnd` now returns a genuine `Single` instead of `Double`, narrowing `rnd_value`'s double-precision result to `float` only at the point of return (the generator's own arithmetic, `state / 2^24`, is exact/correctly-rounded in both precisions, so narrowing the already-computed double result is provably identical to computing it in single precision from the start); every existing `Rnd`/`Randomize` test's expected string updated to the shorter, more-precisely-fingerprint-matching `Single` rendering (e.g. `0.7055475` instead of `0.7055475115776062` -- the extra digits were always double-precision noise the reference runtime never actually produces, since real VB6 `Rnd` is genuinely `Single`); `TypeName(Rnd())` now reports `"Single"`; unit + CLI tests | Commit `6e60bcf` |
+| 2026-09-22 #91 | Reference, Correction | Close the second `REQ-0194`/`REQ-0195`-pointed item, "verifying the Decimal-vs-Single promotion order," with a live VB6 6.00.8176 probe (owner: "ask for vb6 again please I was afk," after an earlier attempt was denied while the owner was away) -- and found the probe's answer was bigger than the question asked: `Decimal` dominates not only `Single` (as already coded) but also `Double`, `Currency`, and `Long` in mixed-type arithmetic (`CDec(1) + 1234567.89`, a large-magnitude `Double` literal, returns `Decimal` `1234568.89`; confirmed both operand orders and for `*`/`/` too), contradicting the existing `NumericCategory` enum's `double_precision` sitting *above* `decimal_precision` and the accompanying comment's claim that "Double-above-everything" was independently justified. Corrected the promotion order (`decimal_precision` now sorts highest) in `src/evaluator.cpp`; the existing `to_decimal` widening helper already handled every lower category generically through `as_double`, so no other logic needed to change. Updated `REQ-0198`'s Requirement/Scope text (removing the now-resolved "unverified against Single" disclosure) and added mixed-type `Decimal`-dominance unit tests; unit + CLI tests, README | Commit `fd6d271` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -268,6 +269,54 @@ of the repository) and are not retained; the findings above are reproducible
 from this record and the local reference environment identified in
 `planning/reference-environment.md`.
 
+## Reference Probe Evidence — `Decimal` promotion order (increment #91)
+
+Per `wsp/testing/test-strategy.md`'s "Reference" test layer, `REQ-0198`'s
+Scope section had flagged `Decimal`'s promotion order against `Single` as a
+reasoned-but-unverified choice (a prior session's probe attempt could not
+complete). This increment probed the local reference environment directly.
+
+**Method:** A Standard EXE project (`Form1`, code in `Form_Load`) was created
+in the local `VB6.EXE` (6.00.8176) IDE and run with F5, per
+`planning/reference-environment.md`. Each case computed a mixed-type
+expression involving `CDec(1)` and wrote `TypeName(result) & " = " &
+CStr(result)` to a text file with `Print #f`, read back afterward.
+
+**Findings (all confirmed):**
+
+| Expression | Result |
+| --- | --- |
+| `CDec(1) + Single(1.5)` | `Decimal = 2.5` |
+| `Single(1.5) + CDec(1)` | `Decimal = 2.5` |
+| `CDec(1) * Single(1.5)` | `Decimal = 1.5` |
+| `Single(1.5) * CDec(1)` | `Decimal = 1.5` |
+| `CDec(1) + 2.5` (Double literal) | `Decimal = 3.5` |
+| `CDec(1) + 1234567.89` (large-magnitude Double literal) | `Decimal = 1234568.89` |
+| `1234567.89 + CDec(1)` | `Decimal = 1234568.89` |
+| `CDec(1) + Currency(2.5)` | `Decimal = 3.5` |
+| `Currency(2.5) + CDec(1)` | `Decimal = 3.5` |
+| `CDec(1) + Long(3)` | `Decimal = 4` |
+| `CDec(1) / 3` | `Decimal = 0.3333333333333333333333333333` |
+
+`Decimal` won every case, including against a large-magnitude `Double`
+literal (ruling out a small-value fluke) and under both `+`/`*`/`/`. No case
+returned `Double`, `Single`, `Currency`, or `Long`.
+
+**Resulting decision:** `NumericCategory`'s promotion order in
+`src/evaluator.cpp` was corrected so `decimal_precision` sorts above
+`double_precision` (previously the reverse), matching `int16 < integer <
+currency < single < double_precision < decimal_precision`. The existing
+`to_decimal` widening helper inside the `decimal_precision` arithmetic branch
+already converted every lower category generically via `as_double`
+(previously reached only for `Int16`/`Long`/`Currency`/`Single`, now also
+reached for `Double`), so no other logic changed. See `REQ-0198` for the
+resulting contract.
+
+Probe project files were created under the VB6 IDE's default project
+location (not part of the repository) and are not retained; the findings
+above are reproducible from this record and the local reference environment
+identified in `planning/reference-environment.md`.
+
 ## Verification Log
 
 | Date | Configuration or method | Result | Evidence or failure reference |
@@ -346,6 +395,7 @@ from this record and the local reference environment identified in
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-module refinements) | Pass (84/84) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Optional/ParamArray/Static/visibility) | Pass (85/85) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Rnd Single return type) | Pass (85/85) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post Decimal promotion-order correction) | Pass (85/85; expanded unit coverage) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -368,7 +418,8 @@ from this record and the local reference environment identified in
 | Scope `Variant` to "scalar only": free retyping across `Empty`/`Null`/`Boolean`/`Long`/`Single`/`Currency`/`Double`/`Decimal`/`String`, explicitly excluding arrays, object references, late binding, and `CVErr`/error-value Variants | Owner decision (`AskUserQuestion`), given as a two-part scoping choice alongside the `Decimal` scope below | Delivers a complete, working scalar-retyping/`Null`/`Empty` foundation now rather than a partial array/object model; `IsArray`/`IsObject`/`IsError`/`IsMissing` stay hardcoded `False`, matching `REQ-0176`'s existing precedent | `REQ-0197` |
 | Implement `Decimal` as a real 96-bit-mantissa, variable-scale (0-28) exact type (a hand-rolled 256-bit `BigUInt` with multiply/binary-long-division), not an alias for `Double` or `Currency` | Owner decision (`AskUserQuestion`): "Full exact Decimal" over a simpler narrower option | Matches COM's actual `DECIMAL` layout exactly and gives genuinely exact arithmetic (verified with a multiplication whose exact intermediate product exceeds 64 bits), at the cost of a larger, hand-rolled big-integer implementation | `REQ-0198` |
 | Correct an initial scoping assumption that `Dim`/`Const As Decimal` needed support | Discovered mid-implementation: real VB6 does not accept `Dim x As Decimal` at all — `Decimal` is reachable only via `CDec` into a `Variant` | No `Dim`/`Const As Decimal` parsing was added; this matches the reference language exactly rather than adding an unsupported syntax extension | `REQ-0198` |
-| Place `Single` below `Decimal` in the `NumericCategory` promotion order as a reasoned-but-unverified choice | The local computer-use screenshot tool became unavailable mid-session, blocking a live VB6 probe of the `Decimal`-vs-`Single` promotion order specifically; `Decimal`-above-`Currency` and `Double`-above-everything remain independently justified without a live probe | Flagged explicitly in the `NumericCategory` code comment and in `REQ-0198`'s Scope, rather than silently asserting an unverified promotion rule | `REQ-0198` |
+| Place `Single` below `Decimal` in the `NumericCategory` promotion order as a reasoned-but-unverified choice (superseded by increment #91 below) | The local computer-use screenshot tool became unavailable mid-session, blocking a live VB6 probe of the `Decimal`-vs-`Single` promotion order specifically; `Decimal`-above-`Currency` and `Double`-above-everything remain independently justified without a live probe | Flagged explicitly in the `NumericCategory` code comment and in `REQ-0198`'s Scope, rather than silently asserting an unverified promotion rule | `REQ-0198` |
+| Reorder `NumericCategory` so `decimal_precision` sorts above `double_precision` (`Decimal` dominates `Double`, reversing the prior assumption) | A live VB6 6.00.8176 probe (see Reference Probe Evidence above) found `Decimal` dominates `Double` at both small and large magnitude, plus `Currency` and `Long`, contradicting the prior "Double dominates everything" comment, which was itself never independently verified | Corrects a real, previously-shipped behavior gap (`CDec(1) + 1234567.89` would have wrongly returned `Double` before this fix); the existing `to_decimal` widening helper needed no changes, since it already converted every lower category generically | `REQ-0198` |
 | Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
@@ -518,6 +569,7 @@ when the session completes.
 | Class-module refinements (increment #88) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Optional/ParamArray/Static/visibility (increment #89) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Rnd Single return type (increment #90) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Decimal promotion-order correction (increment #91) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -636,9 +688,10 @@ precision (up to scale 28) before exact integer division. Extends `Abs`,
 `render_decimal`, not a lossy `Double` intermediate). A live VB6 6.00.8176
 probe verified every `Null`/`Empty` semantic implemented (see the Reference
 Probe Evidence section above); the `Decimal`-vs-`Single` promotion order
-could not be probed live this session (tooling became unavailable) and is a
-disclosed, reasoned-but-unverified choice (see the Decisions table and
-`REQ-0198`'s Scope).
+could not be probed live this session (tooling became unavailable) and was a
+disclosed, reasoned-but-unverified choice at the time (see the Decisions
+table and `REQ-0198`'s Scope) -- resolved by increment #91 below, which also
+found `Decimal` dominates `Double` and `Currency`.
 
 **Integer numeric value type (increment #83, `REQ-0199`):** adds the
 distinct 16-bit `Integer` type — VB6's own `Integer`, not to be confused
@@ -943,6 +996,30 @@ noise the reference VB6 runtime (whose `Rnd` is genuinely `Single`) never
 actually produces; the `Single` rendering is a strictly closer match to the
 already-recorded reference fingerprint than the old `Double` rendering was.
 
+**Decimal promotion-order correction (increment #91, `REQ-0198`):** the
+owner's remaining pointed-at item, "verifying the Decimal-vs-Single
+promotion order," needed a live VB6 probe rather than a code change (owner:
+"ask for vb6 again please I was afk," after an earlier `request_access`
+attempt was denied while the owner was away). The probe confirmed `Decimal`
+dominates `Single` as already coded, but also revealed `Decimal` dominates
+`Double` -- at both small and large magnitude -- plus `Currency` and `Long`
+(see the Reference Probe Evidence section above), directly contradicting the
+existing `NumericCategory` comment's claim that "Double dominates every
+other numeric type" was independently justified. That claim had never
+actually been verified against the reference runtime; it was a reasoned
+assumption based on `Double` having the largest representable magnitude,
+which turns out not to be how real VB6 resolves mixed `Decimal` arithmetic
+(it stays in `Decimal`'s exact fixed-point representation instead). Fixed by
+reordering the `NumericCategory` enum so `decimal_precision` sorts above
+`double_precision`; the arithmetic branch's existing `to_decimal` helper
+already had a generic `as_double`-based fallback for every category with no
+dedicated conversion, so `Double` operands fall into the same path `Int16`/
+`Single` already used, with no new conversion logic required. Updated
+`REQ-0198`'s Requirement and Scope sections to state the now-fully-verified
+six-way order and removed the stale "unverified against Single" disclosure;
+added unit tests covering `Decimal` dominance over `Single`/`Currency`/
+`Long`/`Double` in both operand orders.
+
 **Remaining next increments:**
 
 - class inheritance, interfaces (`Implements`), `CreateObject`/
@@ -966,10 +1043,6 @@ already-recorded reference fingerprint than the old `Double` rendering was.
   hardcoded `False` -- `REQ-0206` added `Optional`/`ParamArray`/`Static`/
   `Public`/`Private` for `Sub`/`Function` declarations, originally deferred
   here, but deliberately left `IsMissing` unimplemented; see its Scope);
-- verifying the `Decimal`-vs-`Single` promotion order against the reference
-  runtime (see the Decisions table above; still open as of increment #90 --
-  the owner named it alongside `Rnd`'s `Single` return type, but it needs a
-  live VB6 probe, not a code change, and was not completed this increment);
 - `Format`'s `Currency` named style (needs a locale currency-symbol
   convention, a `Format`-specific design question separate from the
   `Currency` type itself) and the custom numeric picture strings and other
