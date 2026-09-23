@@ -159,6 +159,7 @@ a specific requirement.
 | 2026-09-22 #87 | Architecture | Add the `Me` keyword and the `Class_Initialize`/`Class_Terminate` lifecycle hooks under new `REQ-0204`, closing the two gaps `REQ-0203` explicitly deferred (owner request: "do the me keyword class initailize and terminate"); `Me` gives `InstanceData` `enable_shared_from_this` so it can hand out a new `ObjectInstance` sharing the current call's own instance identity; `Class_Initialize` runs from `instantiate_class` immediately after field initialization (a plain nested call, no hazard); `Class_Terminate` deliberately does **not** hook `~InstanceData()` -- doing so would let an instance's last-reference drop fire from *inside* another container's own teardown (a `Scope`'s `variables` map destroying its `Value`s as part of `scopes_.pop_back()`, or the `Interpreter`'s own final member destruction), where reentrantly pushing a new call frame onto a mid-`pop_back()` `scopes_` is undefined behavior -- instead a new `terminate_if_last_reference`/`drain_scope_instances` pair fires it only from three explicit, always-safe points (a `Set` overwrite, a call frame's locals as the call returns, and the module scope at the end of a successful program), draining one variable at a time so two same-frame aliases of one instance still terminate it exactly once; unit + CLI tests, README | Commit `df1de48` |
 | 2026-09-22 #88 | Architecture | Add three class-module refinements under new `REQ-0205`, chosen (of four offered via `AskUserQuestion`) from `REQ-0203`'s own "Remaining next increments" list: unqualified sibling `Property Let`/`Set` writes (the assignment counterpart of the existing unqualified method/`Property Get` read/call), class-typed/`As Object` fields and `Function`/`Property Get` return types (reusing `REQ-0200`'s existing `Object`-variable machinery unchanged), and indexed `Property Get`/`Let`/`Set` accessors (`Property Get`'s former zero-parameter requirement and `Property Let`/`Set`'s former exactly-one-parameter requirement both relaxed); switched `scan_classes` to a two-pass scan (register every class name, then scan every body) so a class-typed field/return type can reference a class declared later on the `--class` command line; found and fixed a real bug during this increment's own testing where an unqualified read inside a `Property Let`/`Set` body ignored its own value parameter whenever it shared the property's own name (`Property Let V(v As Long)`), because the existing unqualified-`Property-Get` fallback in `parse_primary_base` ran *before* the local-parameter lookup instead of after; unit + CLI tests, README | Commit `ec4a5b3` |
 | 2026-09-22 #89 | Architecture | Add the fourth item selected alongside `REQ-0205` (of four offered via `AskUserQuestion`) under new `REQ-0206`: `Optional [= default]` parameters, `ParamArray` (collecting trailing call arguments into a fresh `ArrayValue`, reusing `REQ-0201`'s existing array type unchanged), `Static` locals (persisted on the owning `ProcedureDef` itself via a new `mutable Scope statics` member and a save/restored `current_procedure_def_` pointer, copied into/out of each call's own frame), and `Public`/`Private` class-member visibility (a bare `Dim` field now implicitly `Private`, correcting `REQ-0203`'s original "no visibility modeled" simplification; enforced per-*class*, not per-instance, via a new `member_accessible` check comparing `current_class_def()` against the target's own class) -- extended to both module-level procedures and class members; found and fixed a real, unrelated latent crash during this increment's own testing: an empty `ParamArray`'s zero-length array, indexed from inside a dry-run type-check pass over an unreached `For` loop body, called `.front()` on an empty `std::vector` in `parse_array_index`'s pre-existing `!execute_` short-circuit (never triggered before, since a `Dim`-declared array can never actually be empty); also fixed a second bug in the same session where `parse_type_keyword()` was called directly after `consume_keyword("as")` with no intervening whitespace skip in the new `ParamArray` element-type parser, unlike every other `As Type` call site; unit + CLI tests, README | Commit `8ecc856` |
+| 2026-09-22 #90 | Construction | Close one of the two items the owner pointed at from `REQ-0194`/`REQ-0195`'s own "Remaining next increments" bullets: `Rnd` now returns a genuine `Single` instead of `Double`, narrowing `rnd_value`'s double-precision result to `float` only at the point of return (the generator's own arithmetic, `state / 2^24`, is exact/correctly-rounded in both precisions, so narrowing the already-computed double result is provably identical to computing it in single precision from the start); every existing `Rnd`/`Randomize` test's expected string updated to the shorter, more-precisely-fingerprint-matching `Single` rendering (e.g. `0.7055475` instead of `0.7055475115776062` -- the extra digits were always double-precision noise the reference runtime never actually produces, since real VB6 `Rnd` is genuinely `Single`); `TypeName(Rnd())` now reports `"Single"`; unit + CLI tests | Commit `6e60bcf` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -344,6 +345,7 @@ from this record and the local reference environment identified in
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Me/Class_Initialize/Class_Terminate) | Pass (83/83) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post class-module refinements) | Pass (84/84) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Optional/ParamArray/Static/visibility) | Pass (85/85) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post Rnd Single return type) | Pass (85/85) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -397,6 +399,7 @@ from this record and the local reference environment identified in
 | Enforce `Private` per-*class*, not per-instance -- a `Foo` method may reach *any* `Foo` instance's `Private` members, not only `Me`'s own -- via a new `member_accessible` check comparing `current_class_def()` (the class whose method is currently executing, if any) against the target's own class, rather than comparing instance identity | Matches real VB6 exactly, and was actually the *simpler* of the two designs once identified: it needs no new tracking at all, only a pointer comparison against machinery (`current_class_def()`) `REQ-0203`'s unqualified-sibling-call fallback had already introduced | Verified both directions: one `Foo` instance's method reading a *different* `Foo` instance's `Private` field (allowed) and a `Bar` method reading a `Foo` instance's `Private` field through a class-typed field it holds (rejected, `WFC0142`) | `REQ-0206` |
 | Make a bare `Dim` class field implicitly `Private` (not `Public`, as `REQ-0203`'s original "visibility unmodeled, everything reachable" simplification effectively made every field) once real `Public`/`Private` enforcement existed to make the distinction meaningful | Matches real VB6's own module-level default exactly (a bare `Dim`, in *any* module type, is private to that module); confirmed no existing test relied on a `Dim`-declared class field being externally reachable before making this change | A deliberate, disclosed behavior change from `REQ-0203`'s original simplification, not merely an addition -- existing class-module source written against this evaluator using bare `Dim` for an externally-facing field would need to switch to `Public` | `REQ-0206` |
 | Do not make `IsMissing` meaningful for an omitted `Optional Variant` parameter with no default | Real VB6's own `IsMissing` only distinguishes this one narrow case (any other `Optional` parameter form always reports `False` even when omitted); implementing it would need tracking a per-parameter-per-call "was this specific argument omitted" bit entirely separate from the bound value, for a rarely-relied-on piece of introspection | `REQ-0176`'s existing `IsMissing`-stays-`False` scope boundary is left exactly as it was; recorded explicitly as a disclosed, deliberate non-implementation in `REQ-0206`'s Scope rather than an oversight | `REQ-0206` |
+| Reverse the earlier `REQ-0195` decision to leave `Rnd` returning `Double`; narrow `rnd_value`'s result to `float` only at the final return point, rather than reworking the generator's own arithmetic to operate in `float` throughout | The owner directly named this exact deferred item next; narrowing only at the boundary is provably equivalent here specifically because the generator's arithmetic (`state / 2^24`) is a division by a power of two, which is exact/correctly-rounded in both precisions -- there is no meaningful "compute in float instead" version that could give a different answer | Verified against the same reference fingerprint (`0.7055475`) already recorded in `REQ-0194`; the `Single` rendering is in fact a closer match to the reference than the old `Double` rendering was, since VB6's real `Rnd` is genuinely `Single` and never produces the old double-precision noise digits | `REQ-0194` |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -514,6 +517,7 @@ when the session completes.
 | Me keyword and Class_Initialize/Class_Terminate (increment #87) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Class-module refinements (increment #88) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Optional/ParamArray/Static/visibility (increment #89) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Rnd Single return type (increment #90) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -922,6 +926,23 @@ least 1. Fixed by returning a placeholder value instead of `.front()` when
 the array is empty in that dry-run-only path (the real value there is
 always discarded regardless).
 
+**Rnd Single return type (increment #90):** the owner pointed directly at
+one of two items this same log's "Remaining next increments" list had just
+recorded as deliberately deferred. `Rnd` now returns a genuine `Single`
+instead of `Double`, closing the gap `REQ-0194` disclosed back when `Single`
+did not exist yet and `REQ-0195` then explicitly declined to revisit. The
+fix is a single narrowing at the point of return (`static_cast<float>(
+rnd_value(rnd_state_))`), not a rework of the generator's own arithmetic:
+`state / 2^24` is a division by a power of two, which is exact/correctly-
+rounded in both `float` and `double`, so narrowing the already-computed
+double result is provably identical to computing the same division in
+single precision from the start. Every existing `Rnd`/`Randomize` test's
+expected output string got shorter as a result -- `0.7055475` instead of
+`0.7055475115776062` -- since the extra digits were always double-precision
+noise the reference VB6 runtime (whose `Rnd` is genuinely `Single`) never
+actually produces; the `Single` rendering is a strictly closer match to the
+already-recorded reference fingerprint than the old `Double` rendering was.
+
 **Remaining next increments:**
 
 - class inheritance, interfaces (`Implements`), `CreateObject`/
@@ -946,9 +967,9 @@ always discarded regardless).
   `Public`/`Private` for `Sub`/`Function` declarations, originally deferred
   here, but deliberately left `IsMissing` unimplemented; see its Scope);
 - verifying the `Decimal`-vs-`Single` promotion order against the reference
-  runtime (see the Decisions table above);
-- `Rnd` returning a genuine `Single` instead of `Double`, now that `Single`
-  exists (deliberately not changed this increment; see the Decisions table);
+  runtime (see the Decisions table above; still open as of increment #90 --
+  the owner named it alongside `Rnd`'s `Single` return type, but it needs a
+  live VB6 probe, not a code change, and was not completed this increment);
 - `Format`'s `Currency` named style (needs a locale currency-symbol
   convention, a `Format`-specific design question separate from the
   `Currency` type itself) and the custom numeric picture strings and other
