@@ -165,6 +165,7 @@ a specific requirement.
 | 2026-09-23 #93 | Architecture | Add `Erase` (new `REQ-0208`) and `For Each` over an array (new `REQ-0209`), the next two items from the owner's pasted remaining-increments list after `ReDim`/`ReDim Preserve`. `Erase identifier[, identifier...]` resets a fixed-size array's elements to the declared type's default in place (bounds unchanged), or fully deallocates a dynamic array (as if never `ReDim`'d, `is_allocated = false`); new `WFC0146` reports a non-array/undeclared target. `For Each identifier In arrayExpr ... Next [identifier]` iterates a snapshot of the array's elements taken at loop entry, reusing the existing numeric `For`'s `parse_for_body`/`Exit For`/`for_depth_` machinery unchanged (only the per-iteration control-variable assignment and continuation condition differ); a `Variant` control variable retypes per element, a fixed-type one requires an exact element-type match (`WFC0016` otherwise); new `WFC0147` reports a missing `In` or a non-array collection expression. Added `each`/`in`/`erase` to the reserved-identifier list, matching the existing precedent for other contextual statement keywords (`to`/`step`). Manually verified every new path (fixed/dynamic `Erase`, `Long`-typed and `Variant`-typed `For Each`, `Exit For` inside `For Each`, a zero-iteration unallocated-array loop, and the `WFC0016`/`WFC0147` diagnostics) via `wfc --eval` before writing formal tests; unit + CLI tests, README | Commit `9c0ef3d` |
 | 2026-09-23 #94 | Architecture | Add fixed-size multi-dimensional arrays under new `REQ-0210`, the fourth item from the owner's pasted remaining-increments list: `Dim identifier(b1, b2, ...) As Type` (two or more comma-separated bounds, each the same `<bound>`/`<lower> To <upper>` form as the existing 1-D grammar) declares a fixed-size N-dimensional array; `identifier(i1, i2, ...)` reads/writes one element, and `LBound`/`UBound` gained an optional 1-based dimension argument (new `WFC0148` for one out of range). `ArrayValue` gained a `dimensions` field (`vector<pair<Integer,Integer>>`, empty for an ordinary 1-D array) holding each dimension's bound, with `elements` laid out flat in row-major order (last dimension fastest, matching real VB6's `For Each` iteration order); `WFC0115` (previously an unconditional "comma means multi-dim, which is unsupported" rejection) now means "index count does not match the array's declared dimension count," since indexing genuinely supports commas. Multi-dimensional arrays are fixed-size only: `ReDim`/`ReDim Preserve` (`REQ-0207`) still reject any comma in their own bound list unchanged, so a multi-dim array's shape never changes after `Dim`. Refactored the read (`parse_array_index`) and write (`parse_array_element_assignment`) index-parsing/bounds-checking into two new shared helpers, `parse_index_list` (parses N comma-separated indices, always running regardless of `execute_` so the parser advances correctly in a dry run) and `array_flat_offset` (range-checks and flattens, skipped during a dry run) -- both call sites are now shorter than before this change, not longer, despite gaining multi-dimensional support. `Erase` (`REQ-0208`) and `For Each` (`REQ-0209`) needed zero code changes: both already operate generically on `ArrayValue`'s flat `elements`/`is_dynamic`/`is_allocated` fields regardless of dimension count, confirmed by testing both directly against a 2-D array. Manually verified every new path (declaration with default and explicit `To` bounds, indexed read/write, out-of-range index, index-count mismatch in both directions, `LBound`/`UBound` with and without a dimension argument, out-of-range dimension, `TypeName`/`VarType`/`IsArray`, `For Each` summing a 2-D array, `Erase` on a 2-D array, and `ReDim` still rejecting a multi-dim bound) via `wfc --eval` before writing formal tests; unit + CLI tests, README | Commit `e6b8cae` |
 | 2026-09-23 #95 | Architecture | Add array-typed `Sub`/`Function` parameters under new `REQ-0211`, the fifth and final item from the owner's original pasted remaining-increments list: `name() As Type` declares a dimension-count-agnostic, always-`ByRef` array parameter (new `ProcedureParameter.is_array_parameter`, reusing `type_index` for the required *element* type rather than a whole-array type, since no single `Value` alternative means "array of Long"). Binding requires the call argument to already be a bare-identifier array variable of matching element type (`WFC0016` mismatch, new `WFC0149` if not a variable at all); write-back needed *zero* new code, since it reuses `REQ-0202`'s existing bare-identifier `ByRef` copy-back mechanism verbatim (`parameter.by_val` is always `false` for an array parameter, and `argument.byref_target` is always non-null by construction) -- confirmed this correctly propagates not just element writes but a `ReDim Preserve` performed *inside* the callee, since the whole `ArrayValue` (including its new size/bounds) is what gets copied back. `LBound`/`UBound`/indexed read-write/`Erase`/`For Each` all work unchanged inside the callee, and a multi-dimensional array binds the same way (the parameter declaration never fixes a dimension count). New `WFC0149` also rejects an explicit `ByVal` (real VB6 disallows it on an array parameter) and `Optional` (not implemented) at the parameter-declaration site itself, alongside a malformed `name(...)` form mirroring `ParamArray`'s own `WFC0141` pattern. Extends to class methods for free, since `scan_procedure_parameters` is already shared between module-level procedures and class members. Manually verified every new path (sum-and-double round trip showing write-back, a `ReDim Preserve` inside the callee growing the caller's array, a multi-dim array bound to a plain array parameter, element-type mismatch, `ByVal`/`Optional` rejection, and a class method's own array parameter) via `wfc --eval` before writing formal tests; unit + CLI tests, README | Commit `6d1cb99` |
+| 2026-09-23 #96 | Architecture | Add `Variant`- and `Object`-element arrays under new `REQ-0212`, the second and final item from the owner's original pasted list (the one not yet picked up after increment #95): `Dim identifier(...) As Variant`/`As Object` now parses for a fixed-size, dynamic, or multi-dimensional array (previously rejected with `WFC0012`, since the `!is_array &&` guard on those two `As`-clause branches simply dropped). A `Variant` element retypes freely on plain `arr(i) = expr`, mirroring a scalar `Variant`'s existing retyping rule; an `Object` element is `Set`-only (`WFC0108` on a plain `=`), mirroring a scalar `Object`'s existing rule -- both checked directly against two new `ArrayValue` fields, `is_variant_element`/`is_object_element`, rather than adding the array's own *name* to the existing `variant_variables`/`object_variables` scope-level sets (which would have wrongly let a whole-array assignment like `arr1 = arr2` retype `arr1` away from being an array at all, since those sets exist for a whole scalar/object *variable's* own rules, not an array's per-element ones). Added a new `Set arrayName(index...) = expr` parse path to `parse_set_statement` (previously `Set` had no array-element form at all), reusing `assign_object_reference` directly against the computed element slot. Fixed a real, would-have-shipped bug surfaced by writing the ReDim-refill test first: `array_element_default` (used to seed a `ReDim`-grown slot) had no `Empty`/`Nothing` cases, so a grown `Variant`/`Object` array's new slots would have gotten a stray `Integer` `0` instead -- added both cases, unambiguous since neither collides with any fixed scalar array's element type. `TypeName`/`VarType` special-case both new array kinds to report the array's own declared kind (`"Variant()"`/`"Object()"`, `8204`/`8201`) rather than trying to read a `Variant` element's current type through the now-inapplicable `element_type_index`. Removed the two now-stale `REQ-0201` unit tests that asserted `Dim arr(3) As Variant`/`As Object` fail with `WFC0012` (that failure is exactly what this increment changes). Explicitly out of scope, disclosed in `REQ-0212`: `Class_Terminate` does not proactively drain an instance reachable only through an array element (mirrors `REQ-0204`'s own existing field-cascade gap, not independently solved here), and an array-typed `Sub`/`Function` parameter (`REQ-0211`) still requires a concrete scalar element type, not `Variant`/`Object`. Manually verified every new path (per-element retyping across three scalar types with correct per-element and array-level `TypeName`/`VarType`, `Object`-element `Set`/`Is`/plain-`=`-rejection both at module level and through a class instance, a dynamic array's `ReDim Preserve` refilling new slots with `Empty`, and a multi-dimensional `Object`-element array) via `wfc --eval` before writing formal tests; unit + CLI tests, README | Commit `9aa15b5` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -404,6 +405,7 @@ identified in `planning/reference-environment.md`.
 | 2026-09-23 | `ctest --preset windows-x64-debug` (post Erase / For Each) | Pass (88/88) | Local x64 CTest run |
 | 2026-09-23 | `ctest --preset windows-x64-debug` (post multi-dimensional arrays) | Pass (89/89) | Local x64 CTest run |
 | 2026-09-23 | `ctest --preset windows-x64-debug` (post array-typed parameters) | Pass (90/90) | Local x64 CTest run |
+| 2026-09-23 | `ctest --preset windows-x64-debug` (post Variant/Object-element arrays) | Pass (91/91) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -438,6 +440,8 @@ identified in `planning/reference-environment.md`.
 | Lay out a multi-dimensional array's `elements` in row-major order (the last dimension varies fastest) | Matches real VB6's `For Each` iteration order over a multi-dimensional array, and `REQ-0209`'s `For Each` already iterates `elements` in plain flat (index 0, 1, 2, ...) order with no dimension awareness at all -- row-major is the layout that makes that existing, unmodified iteration order correct | Verified directly: summing a 2-D array's elements via `For Each` gives the same total as summing via nested indexed reads | `REQ-0210` |
 | Reuse `ProcedureParameter.type_index` to hold an array parameter's required *element* type, rather than adding a separate field | Only one of "scalar type" and "array element type" is ever meaningful for a given parameter (`is_array_parameter` distinguishes which), and every other place `type_index` is already read (zero-value synthesis for an omitted Optional, arity/type-mismatch messages) either does not apply to an array parameter (Optional is rejected for one) or needs the same value an added field would have held anyway | No new field, no new branch in the handful of other `type_index` readers -- `is_array_parameter` alone is enough for `invoke_definition`'s binding loop to interpret it correctly | `REQ-0211` |
 | Require an array argument to be a bare identifier (reject anything else with new `WFC0149`), rather than accepting any array-valued expression | This evaluator has no array-valued expression other than a bare variable reference anyway (no array literals, no array-returning functions), so the restriction costs nothing in practice; explicitly rejecting instead of silently mishandling a hypothetical future array expression documents the real constraint (an array parameter's write-back needs a live variable to write back *into*) | The `WFC0149` branch is unreachable today (an `ArrayValue` can only ever reach a call argument via a bare identifier, which always sets `byref_target`), kept as defensive, self-documenting code rather than an unstated assumption | `REQ-0211` |
+| Check `ArrayValue.is_variant_element`/`is_object_element` directly at each element read/write site, rather than adding a `Variant`/`Object`-element array's own *name* to the existing `variant_variables`/`object_variables` scope-level sets | Those sets already govern a whole scalar/object *variable's* own rules (freely retyping on assignment, or requiring `Set`); adding an array's name to them would have made a whole-array assignment like `arr1 = arr2` (an ordinary same-type value copy, `REQ-0201`'s existing simplification) incorrectly hit the Variant-retyping or Set-only branch instead, potentially letting `arr1` retype away from being an array at all | Verified directly: whole-array assignment between two `Variant`-element arrays still works as a plain array copy, unaffected by the new per-element flags | `REQ-0212` |
+| Do not extend `Class_Terminate`'s lifetime-tracking (`terminate_if_last_reference`) to an `Object`-element array's element assignment | A scalar `Object`/`Variant` variable's assignment path already calls it before overwriting; doing the same for an array element would need the same care `REQ-0204` itself documented as already incomplete (no cascading through a field) extended to array elements too -- a meaningfully separate correctness effort, not a small addition | A disclosed, recorded gap in `REQ-0212`'s Scope rather than a partially-correct attempt: an instance reachable only through an array element is not proactively terminated when that element is overwritten, `Erase`d, or the array goes out of scope | `REQ-0212` |
 | Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
@@ -485,6 +489,7 @@ identified in `planning/reference-environment.md`.
 | `Total()` (a `ParamArray`-only call with zero extra arguments) crashed the process (exit code 3) instead of returning `0` | `parse_array_index`'s pre-existing `!execute_` (dry-run/type-check) short-circuit called `.front()` on the array unconditionally; a `For i = LBound(nums) To UBound(nums)` loop over an empty array (`0 To -1`) still type-checks its body once with `execute_ = false`, and `nums(i)` inside it hit `.front()` on a genuinely empty `std::vector` -- undefined behavior that had never been reachable before, since a `Dim`-declared array's size is always at least 1 | Return a placeholder `Long` instead of `.front()` when `array.elements` is empty in that dry-run-only path (the real value is discarded there regardless); verified `Total()` now returns `0` without crashing, alongside `Total(1, 2, 3, 4)` still returning `10` | Closed |
 | Writing to element 0 of an unallocated dynamic array (`Dim arr() As Long: arr(0) = 1`) would have crashed the process | `parse_array_element_assignment` called `array.elements.front().index()` unconditionally to find the element type for its type-mismatch check; a dynamic array's `elements` is genuinely empty (not just transiently, inside a dry run, like the pre-existing `ParamArray` case above) until its first `ReDim` -- undefined behavior on an empty `std::vector`, discovered while implementing `REQ-0207`, before any test exercised the unallocated-write path | Replaced with `array.element_type_index` (the array's declared type, always available regardless of `elements.size()`), the same fix applied to the two `TypeName`/`VarType` `.front()` calls found by the same audit | Closed |
 | `TypeName`/`VarType` on an empty `ParamArray` (called with zero extra arguments) would have crashed, and on a *non-empty* one would have reported the wrong type once the crash was naively fixed with a placeholder | Same root cause as the write-path bug above (`.elements.front()` unconditionally), plus a second latent gap the fix exposed: the `ParamArray`-construction site never set an element-type tag at all, so a placeholder fix would have made every `ParamArray`'s `TypeName` wrong, not just the empty one's | Set `element_type_index` from `param_array_parameter.type_index` (the `ParamArray`'s own declared element type) at construction, then read it via `array_element_default` in `TypeName`/`VarType` instead of inspecting a current element | Closed |
+| A `ReDim`-grown slot of a `Variant`/`Object`-element array would have been seeded with `Integer` `0` instead of `Empty`/`Nothing` | `array_element_default` (used by `ReDim` to fill newly-created slots) had no case for either type -- it only covered the seven fixed scalar array-element types, since a `Variant`/`Object`-element array did not exist when it was first written | Added `Empty`/`Nothing` cases, keyed by their own `Value::index()` the same way every other case already is; unambiguous, since neither index can collide with any fixed scalar array's element type | Closed |
 
 ## Measurements
 
@@ -594,6 +599,7 @@ when the session completes.
 | Erase / For Each (increment #93) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Multi-dimensional arrays (increment #94) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Array-typed parameters (increment #95) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Variant/Object-element arrays (increment #96) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -1143,8 +1149,43 @@ a multi-dimensional array binds the same way as a 1-D one. This closes
 every item from the *first* of the owner's two originally-pasted
 "Remaining next increments" bullets (`ReDim`/`ReDim Preserve`/
 multi-dimensional arrays/`Erase`/`For Each`/array-typed parameters);
-`Variant`/`Object`-element arrays, the second bullet, is the one item
-from the owner's original pasted list not yet picked up.
+`Variant`/`Object`-element arrays, the second bullet, was the one item
+from the owner's original pasted list not yet picked up -- closed by the
+very next increment below.
+
+**Variant- and Object-element arrays (increment #96, `REQ-0212`):** the
+second and final item from the owner's original pasted remaining-
+increments list. `Dim identifier(...) As Variant`/`As Object` now parses
+for any array kind (fixed, dynamic, multi-dimensional) by simply dropping
+the `!is_array &&` guard those two `As`-clause branches already had. A
+`Variant` element retypes freely per element (mirroring a scalar
+`Variant`'s rule); an `Object` element is `Set`-only (`WFC0108` on plain
+`=`, mirroring a scalar `Object`'s rule) -- both checked via two new
+`ArrayValue` fields, `is_variant_element`/`is_object_element`, rather
+than adding the array's own *name* to the existing scope-level
+`variant_variables`/`object_variables` sets, which would have wrongly let
+a whole-array assignment retype the array away from being an array at
+all (those sets govern a whole scalar/object *variable's* own rules, not
+an array's per-element ones). Added `Set arrayName(index...) = expr`
+parsing to `parse_set_statement`, which previously had no array-element
+form at all, reusing `assign_object_reference` directly against the
+computed element slot. Found and fixed a real bug surfaced by writing the
+`ReDim`-refill test first: `array_element_default` had no `Empty`/
+`Nothing` cases, so a `ReDim`-grown `Variant`/`Object` array's new slots
+would have been seeded with a stray `Integer` `0` instead -- both cases
+added, unambiguous since neither index collides with any fixed scalar
+array's element type. `TypeName`/`VarType` special-case both new kinds to
+report the array's own declared kind (`"Variant()"`/`"Object()"`) rather
+than a nonsensical lookup through the now-inapplicable
+`element_type_index`. Removed two now-stale `REQ-0201` tests asserting
+`Dim arr(3) As Variant`/`As Object` fail with `WFC0012` -- that failure
+is exactly what this increment changes. Deliberately left open, disclosed
+in `REQ-0212`'s Scope: `Class_Terminate` does not proactively drain an
+instance reachable only through an array element (mirroring `REQ-0204`'s
+own existing field-cascade gap, not solved here), and `REQ-0211`'s array
+parameters still require a concrete scalar element type, not `Variant`/
+`Object`. This closes both bullets from the owner's original pasted
+remaining-increments list in full.
 
 **Remaining next increments:**
 
@@ -1153,22 +1194,21 @@ from the owner's original pasted list not yet picked up.
   class-typed method/property *parameter* (only a field/return type may be
   class-typed so far), lazy `As New` auto-instantiation, `Class_Terminate`
   cascading to an instance only reachable through the terminated one's own
-  fields, `IsMissing` for an omitted `Optional Variant` argument, `Static`
-  arrays/object references, and a `Private` *class* declaration itself
-  (only individual members have visibility, not a whole class) -- all
-  deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/`REQ-0206`'s
-  scope, alongside the same exclusions `REQ-0202` already lists for
-  module-level procedures;
+  fields (now also true of one reachable only through an array element,
+  `REQ-0212`), `IsMissing` for an omitted `Optional Variant` argument,
+  `Static` arrays/object references, and a `Private` *class* declaration
+  itself (only individual members have visibility, not a whole class) --
+  all deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/
+  `REQ-0206`'s scope, alongside the same exclusions `REQ-0202` already
+  lists for module-level procedures;
 - dynamic multi-dimensional arrays (`Dim arr(,) As Type` / `ReDim` changing
   a multi-dim array's shape) -- `REQ-0210`'s multi-dimensional arrays are
   fixed-size only;
-- `Variant`/`Object`-element arrays (dynamic or fixed, 1-D or multi-dim) --
-  the one array item never picked up from the owner's original pasted
-  list, since it needs per-element retyping/`Nothing`-tracking beyond this
-  evaluator's existing per-variable tracking, a meaningfully larger
-  feature than every other array increment so far;
-- an array *return type* for a `Function` (only a parameter may be
-  array-typed, per `REQ-0211`'s Scope), and `ByVal`/`Optional`
+- a class-typed array element (`Dim arr() As SomeClass`, only the generic
+  `As Object` form is covered by `REQ-0212`), an array *return type* for a
+  `Function` (only a parameter may be array-typed, per `REQ-0211`'s
+  Scope), a `Variant`/`Object`-element array-typed parameter (`REQ-0211`
+  still requires a concrete scalar element type), and `ByVal`/`Optional`
   array parameters (neither valid in real VB6 or implemented here);
 - `ReDim` as an implicit first declaration (real VB6 allows `ReDim x(5)`
   with no prior `Dim` at procedure scope) -- this evaluator's `ReDim`
