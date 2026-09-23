@@ -161,6 +161,7 @@ a specific requirement.
 | 2026-09-22 #89 | Architecture | Add the fourth item selected alongside `REQ-0205` (of four offered via `AskUserQuestion`) under new `REQ-0206`: `Optional [= default]` parameters, `ParamArray` (collecting trailing call arguments into a fresh `ArrayValue`, reusing `REQ-0201`'s existing array type unchanged), `Static` locals (persisted on the owning `ProcedureDef` itself via a new `mutable Scope statics` member and a save/restored `current_procedure_def_` pointer, copied into/out of each call's own frame), and `Public`/`Private` class-member visibility (a bare `Dim` field now implicitly `Private`, correcting `REQ-0203`'s original "no visibility modeled" simplification; enforced per-*class*, not per-instance, via a new `member_accessible` check comparing `current_class_def()` against the target's own class) -- extended to both module-level procedures and class members; found and fixed a real, unrelated latent crash during this increment's own testing: an empty `ParamArray`'s zero-length array, indexed from inside a dry-run type-check pass over an unreached `For` loop body, called `.front()` on an empty `std::vector` in `parse_array_index`'s pre-existing `!execute_` short-circuit (never triggered before, since a `Dim`-declared array can never actually be empty); also fixed a second bug in the same session where `parse_type_keyword()` was called directly after `consume_keyword("as")` with no intervening whitespace skip in the new `ParamArray` element-type parser, unlike every other `As Type` call site; unit + CLI tests, README | Commit `8ecc856` |
 | 2026-09-22 #90 | Construction | Close one of the two items the owner pointed at from `REQ-0194`/`REQ-0195`'s own "Remaining next increments" bullets: `Rnd` now returns a genuine `Single` instead of `Double`, narrowing `rnd_value`'s double-precision result to `float` only at the point of return (the generator's own arithmetic, `state / 2^24`, is exact/correctly-rounded in both precisions, so narrowing the already-computed double result is provably identical to computing it in single precision from the start); every existing `Rnd`/`Randomize` test's expected string updated to the shorter, more-precisely-fingerprint-matching `Single` rendering (e.g. `0.7055475` instead of `0.7055475115776062` -- the extra digits were always double-precision noise the reference runtime never actually produces, since real VB6 `Rnd` is genuinely `Single`); `TypeName(Rnd())` now reports `"Single"`; unit + CLI tests | Commit `6e60bcf` |
 | 2026-09-22 #91 | Reference, Correction | Close the second `REQ-0194`/`REQ-0195`-pointed item, "verifying the Decimal-vs-Single promotion order," with a live VB6 6.00.8176 probe (owner: "ask for vb6 again please I was afk," after an earlier attempt was denied while the owner was away) -- and found the probe's answer was bigger than the question asked: `Decimal` dominates not only `Single` (as already coded) but also `Double`, `Currency`, and `Long` in mixed-type arithmetic (`CDec(1) + 1234567.89`, a large-magnitude `Double` literal, returns `Decimal` `1234568.89`; confirmed both operand orders and for `*`/`/` too), contradicting the existing `NumericCategory` enum's `double_precision` sitting *above* `decimal_precision` and the accompanying comment's claim that "Double-above-everything" was independently justified. Corrected the promotion order (`decimal_precision` now sorts highest) in `src/evaluator.cpp`; the existing `to_decimal` widening helper already handled every lower category generically through `as_double`, so no other logic needed to change. Updated `REQ-0198`'s Requirement/Scope text (removing the now-resolved "unverified against Single" disclosure) and added mixed-type `Decimal`-dominance unit tests; unit + CLI tests, README | Commit `fd6d271` |
+| 2026-09-22 #92 | Architecture | Add dynamic arrays under new `REQ-0207`, chosen (scoped via `AskUserQuestion`, "ReDim/Preserve only") from two remaining-next-increments bullets the owner pasted verbatim: `Dim identifier()` (no bound) now declares an unallocated dynamic array instead of reporting `WFC0116`, and the new `ReDim [Preserve] identifier(<bound>)` statement allocates/reallocates it, reusing `REQ-0201`'s bound-expression grammar and `WFC0117`/`WFC0115` diagnostics; new `WFC0145` reports a `ReDim` target that is not a previously declared dynamic array (undeclared, non-array, or fixed-size); `LBound`/`UBound`/indexing on an unallocated array reuses the existing `WFC0111` (matching real VB6's identical run-time error 9 for both cases). `ArrayValue` gained `is_dynamic`/`is_allocated`/`element_type_index` fields (a type *index*, not a `Value`, since a `Value` member directly inside `ArrayValue` would make `ArrayValue` and `Value` recursively complete-type-dependent on each other, unlike the existing `std::vector<Value> elements`, which breaks that cycle through heap indirection); a new `array_element_default` free function reconstructs the zero value for a stored type index. Found and fixed three real, since-fixed crash/regression risks surfaced by dynamic arrays being able to stay genuinely empty for a program's entire lifetime (not just transiently, as an empty `ParamArray` already could): `parse_array_element_assignment` read `array.elements.front().index()` unconditionally to find the element type for its type-mismatch check; `TypeName`/`VarType` read `array->elements.front()` unconditionally for the same reason; and the `ParamArray`-construction site never set its own array's `element_type_index`, which would have made `TypeName`/`VarType` on *any* `ParamArray` (empty or not) silently report the wrong type once those `.front()` calls were replaced. All three now use `element_type_index`/`array_element_default` instead of inspecting a current element; unit + CLI tests, README | Commit `6c646a3` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -396,6 +397,7 @@ identified in `planning/reference-environment.md`.
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Optional/ParamArray/Static/visibility) | Pass (85/85) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Rnd Single return type) | Pass (85/85) | Local x64 CTest run |
 | 2026-09-22 | `ctest --preset windows-x64-debug` (post Decimal promotion-order correction) | Pass (85/85; expanded unit coverage) | Local x64 CTest run |
+| 2026-09-22 | `ctest --preset windows-x64-debug` (post dynamic arrays / ReDim / ReDim Preserve) | Pass (86/86) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -420,6 +422,9 @@ identified in `planning/reference-environment.md`.
 | Correct an initial scoping assumption that `Dim`/`Const As Decimal` needed support | Discovered mid-implementation: real VB6 does not accept `Dim x As Decimal` at all — `Decimal` is reachable only via `CDec` into a `Variant` | No `Dim`/`Const As Decimal` parsing was added; this matches the reference language exactly rather than adding an unsupported syntax extension | `REQ-0198` |
 | Place `Single` below `Decimal` in the `NumericCategory` promotion order as a reasoned-but-unverified choice (superseded by increment #91 below) | The local computer-use screenshot tool became unavailable mid-session, blocking a live VB6 probe of the `Decimal`-vs-`Single` promotion order specifically; `Decimal`-above-`Currency` and `Double`-above-everything remain independently justified without a live probe | Flagged explicitly in the `NumericCategory` code comment and in `REQ-0198`'s Scope, rather than silently asserting an unverified promotion rule | `REQ-0198` |
 | Reorder `NumericCategory` so `decimal_precision` sorts above `double_precision` (`Decimal` dominates `Double`, reversing the prior assumption) | A live VB6 6.00.8176 probe (see Reference Probe Evidence above) found `Decimal` dominates `Double` at both small and large magnitude, plus `Currency` and `Long`, contradicting the prior "Double dominates everything" comment, which was itself never independently verified | Corrects a real, previously-shipped behavior gap (`CDec(1) + 1234567.89` would have wrongly returned `Double` before this fix); the existing `to_decimal` widening helper needed no changes, since it already converted every lower category generically | `REQ-0198` |
+| Scope dynamic arrays to "ReDim/Preserve only," deferring multi-dimensional arrays, `Erase`, `For Each`, array-typed parameters, and Variant/Object-element arrays | Owner pasted two "Remaining next increments" bullets covering all of the above at once; `AskUserQuestion` offered four escalating scope options (ReDim/Preserve alone, +multi-dim, +the rest of the first bullet, or both bullets in full) and the owner chose the smallest | Delivers a complete, working `ReDim`/`ReDim Preserve` foundation now rather than several simultaneous partial features; the other five items stay explicitly listed as future work | `REQ-0207` |
+| Require `ReDim`'s target to already be `Dim`-declared as a dynamic array (`Dim identifier()`), rather than letting `ReDim` serve as an implicit first declaration the way real VB6 permits at procedure scope | A `ReDim`-as-declaration would need its own name-registration path distinct from `Dim`'s (current scope, duplicate-name checking, `As Type` parsing) for a form real VB6 itself restricts to procedure-local arrays (not module-level); narrower and simpler to require the existing `Dim identifier()` first, matching how every other WFC statement that operates on a variable already requires it declared | A disclosed simplification recorded in `REQ-0207`'s Scope, not a silent gap; `ReDim` without a prior matching `Dim identifier()` reports the new `WFC0145` | `REQ-0207` |
+| Store `ArrayValue`'s element type as a `std::size_t element_type_index` (a `Value::index()`) rather than a `Value element_default` member | `Value` is `std::variant<..., ArrayValue, ...>`; a `Value` stored directly inside `ArrayValue` (not through a container's heap indirection, unlike the existing `std::vector<Value> elements`) would make `ArrayValue`'s own size depend on `Value`'s size, which depends on `ArrayValue`'s size -- an unresolvable recursive-complete-type requirement, not merely a style choice | A new free function, `array_element_default(type_index)`, reconstructs the zero value for one of the seven array-eligible scalar types on demand; verified by building immediately after the structural change, mirroring how `REQ-0201`'s original `ArrayValue{vector<Value>, Integer}` was verified before adding array behavior on top of it | `REQ-0207` |
 | Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
@@ -465,6 +470,8 @@ identified in `planning/reference-environment.md`.
 | The first attempt at `obj.Name(args)` for an indexed `Property Get` reported `WFC0135` "unknown member" | `parse_member_access_after_dot`'s `(`-branch only checked `class_def.methods`, calling `call_class_method` unconditionally and erroring immediately when the name was a property, not a method | Added a `property_get` fallback (with its own argument-list parsing) alongside the method-call branch, mirrored in the unqualified-sibling-call `(`-branch in `parse_primary_base` for the same case with no `.` at all | Closed |
 | `ParamArray nums() As Long` reported `WFC0141` "requires an explicit element type" even though one was clearly written | The new `ParamArray` element-type parser called `consume_keyword("as")` then `parse_type_keyword()` directly, with no `skip_horizontal_whitespace()` between them -- unlike every other `As Type` call site in the file -- so `parse_type_keyword()`'s own `consume_keyword("long")` saw a leading space, not `l`, and failed | Added the missing `skip_horizontal_whitespace()` between the two calls; verified with the exact reported case (`ParamArray nums() As Long`) and the full `Total`/`Sum2` test functions | Closed |
 | `Total()` (a `ParamArray`-only call with zero extra arguments) crashed the process (exit code 3) instead of returning `0` | `parse_array_index`'s pre-existing `!execute_` (dry-run/type-check) short-circuit called `.front()` on the array unconditionally; a `For i = LBound(nums) To UBound(nums)` loop over an empty array (`0 To -1`) still type-checks its body once with `execute_ = false`, and `nums(i)` inside it hit `.front()` on a genuinely empty `std::vector` -- undefined behavior that had never been reachable before, since a `Dim`-declared array's size is always at least 1 | Return a placeholder `Long` instead of `.front()` when `array.elements` is empty in that dry-run-only path (the real value is discarded there regardless); verified `Total()` now returns `0` without crashing, alongside `Total(1, 2, 3, 4)` still returning `10` | Closed |
+| Writing to element 0 of an unallocated dynamic array (`Dim arr() As Long: arr(0) = 1`) would have crashed the process | `parse_array_element_assignment` called `array.elements.front().index()` unconditionally to find the element type for its type-mismatch check; a dynamic array's `elements` is genuinely empty (not just transiently, inside a dry run, like the pre-existing `ParamArray` case above) until its first `ReDim` -- undefined behavior on an empty `std::vector`, discovered while implementing `REQ-0207`, before any test exercised the unallocated-write path | Replaced with `array.element_type_index` (the array's declared type, always available regardless of `elements.size()`), the same fix applied to the two `TypeName`/`VarType` `.front()` calls found by the same audit | Closed |
+| `TypeName`/`VarType` on an empty `ParamArray` (called with zero extra arguments) would have crashed, and on a *non-empty* one would have reported the wrong type once the crash was naively fixed with a placeholder | Same root cause as the write-path bug above (`.elements.front()` unconditionally), plus a second latent gap the fix exposed: the `ParamArray`-construction site never set an element-type tag at all, so a placeholder fix would have made every `ParamArray`'s `TypeName` wrong, not just the empty one's | Set `element_type_index` from `param_array_parameter.type_index` (the `ParamArray`'s own declared element type) at construction, then read it via `array_element_default` in `TypeName`/`VarType` instead of inspecting a current element | Closed |
 
 ## Measurements
 
@@ -570,6 +577,7 @@ when the session completes.
 | Optional/ParamArray/Static/visibility (increment #89) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Rnd Single return type (increment #90) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Decimal promotion-order correction (increment #91) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Dynamic arrays / ReDim / ReDim Preserve (increment #92) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -1020,6 +1028,46 @@ six-way order and removed the stale "unverified against Single" disclosure;
 added unit tests covering `Decimal` dominance over `Single`/`Currency`/
 `Long`/`Double` in both operand orders.
 
+**Dynamic arrays / ReDim / ReDim Preserve (increment #92, `REQ-0207`):** the
+owner pasted two "Remaining next increments" bullets from this same log
+(multi-dimensional/`Erase`/`For Each`/array-parameters, and Variant/Object-
+element arrays); `AskUserQuestion` offered four escalating scope options and
+the owner chose the smallest, "ReDim/Preserve only." `Dim identifier()` (no
+bound) now declares a dynamic array, unallocated until `ReDim`, instead of
+reporting `WFC0116` (retired); the new `ReDim [Preserve] identifier(<bound>)`
+statement reuses `REQ-0201`'s bound-expression grammar and `WFC0117`/
+`WFC0115` diagnostics, adding new `WFC0145` for a target that is not a
+previously `Dim identifier()`-declared dynamic array. Unlike `Dim`/`Const`/
+`Static`, `ReDim` is an ordinary executable statement (not gated by
+`allow_declarations_`), so it works inside `If`/`While`/`Do`/`For` blocks.
+`LBound`/`UBound`/indexing on an unallocated array reuses the existing
+`WFC0111`, matching real VB6's identical run-time error 9 for both an
+out-of-bounds index and an unallocated array -- verified distinct from a
+legitimately zero-length *allocated* array (an empty `ParamArray`), which
+still answers `UBound < LBound` without error.
+
+`ArrayValue` gained `is_dynamic`/`is_allocated`/`element_type_index` fields.
+The last stores a `Value::index()`, not a `Value` itself: `Value` is
+`std::variant<..., ArrayValue, ...>`, so a `Value` held directly inside
+`ArrayValue` (unlike the existing `std::vector<Value> elements`, whose
+heap indirection breaks the cycle) would make `ArrayValue` and `Value`
+recursively depend on each other's complete size -- unbuildable, not merely
+inelegant. A new `array_element_default(type_index)` free function
+reconstructs the type's zero value on demand.
+
+Auditing every `.front()` call this change made newly reachable on a
+genuinely (not just transiently) empty array found two real crash risks
+beyond `ReDim` itself, both fixed the same way: `parse_array_element_
+assignment` read `array.elements.front().index()` unconditionally for its
+type-mismatch check (crashes writing to an unallocated array's element 0),
+and `TypeName`/`VarType` did the same for the array's type-name/VarType
+code. A third, subtler gap surfaced while fixing the second: the
+`ParamArray`-construction site never set an element-type tag at all, so a
+naive placeholder fix would have made `TypeName`/`VarType` report the wrong
+type for *every* `ParamArray`, not just an empty one -- fixed by setting
+`element_type_index` from the `ParamArray` parameter's own declared type at
+construction.
+
 **Remaining next increments:**
 
 - class inheritance, interfaces (`Implements`), `CreateObject`/
@@ -1033,12 +1081,13 @@ added unit tests covering `Decimal` dominance over `Single`/`Currency`/
   deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/`REQ-0206`'s
   scope, alongside the same exclusions `REQ-0202` already lists for
   module-level procedures;
-- `ReDim`/`ReDim Preserve`/multi-dimensional arrays/`Erase`/`For Each`/
-  array-typed parameters (deliberately excluded from `REQ-0201`'s
-  "fixed-size 1-D arrays only" scope);
-- `Variant`- and `Object`-element arrays (`Dim arr() As Variant`/`As
-  Object`), which need per-element retyping/Nothing-tracking beyond this
-  increment's per-variable tracking;
+- multi-dimensional arrays/`Erase`/`For Each`/array-typed parameters, and
+  `Variant`/`Object`-element (dynamic or fixed) arrays -- deliberately
+  excluded from `REQ-0207`'s "ReDim/Preserve only" scope, alongside the
+  matching exclusions `REQ-0201` already lists;
+- `ReDim` as an implicit first declaration (real VB6 allows `ReDim x(5)`
+  with no prior `Dim` at procedure scope) -- this evaluator's `ReDim`
+  always requires a prior `Dim identifier()` (`REQ-0207`'s Scope);
 - late binding and `CVErr`/error-value Variants (`IsError`/`IsMissing` stay
   hardcoded `False` -- `REQ-0206` added `Optional`/`ParamArray`/`Static`/
   `Public`/`Private` for `Sub`/`Function` declarations, originally deferred
