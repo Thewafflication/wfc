@@ -101,8 +101,9 @@ no class-module layer yet. Accordingly, this requirement does not add:
   an object reference — the prerequisite this increment was scoped to
   deliver, not the class-module layer itself, which remains a distinct,
   separately-scoped future increment;
-- array or `Object` parameters or return types — a parameter/return type is
-  one of the eight scalar types `parse_type_keyword` recognizes;
+- `Object` parameters or an array/`Object` return type — a return type is
+  one of the eight scalar types `parse_type_keyword` recognizes (an array
+  *parameter* was added later, see `REQ-0211`);
 - `Optional` parameters, `ParamArray`, or default parameter values;
 - `Static` procedures (persisting local variables across calls);
 - `Public`/`Private` visibility modifiers on a `Sub`/`Function` declaration

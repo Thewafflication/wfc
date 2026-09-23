@@ -611,6 +611,42 @@ int main() {
         "Dim arr(1, 1) As Long\narr(0, 0) = 9\nErase arr\nPrint arr(0, 0) & \" \" & UBound(arr)",
         "0 1");
     expect_program_failure("Dim arr() As Long\nReDim arr(2, 3)", "WFC0115");
+    // Array-typed Sub/Function parameters: name() As Type, always ByRef
+    // (mutations -- including a ReDim inside the callee -- write back to
+    // the caller's array, reusing the existing ByRef bare-identifier
+    // write-back mechanism unchanged); a multi-dimensional array binds the
+    // same way, keeping its own dimension count (REQ-0211).
+    expect_program_success(
+        "Function Total(nums() As Long) As Long\nDim i As Long\nDim s As Long\ns = 0\n"
+        "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nnums(i) = nums(i) * 2\nNext i\n"
+        "Total = s\nEnd Function\n"
+        "Dim arr(3) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\narr(3) = 4\n"
+        "Print Total(arr)\nPrint arr(0) & \" \" & arr(1) & \" \" & arr(2) & \" \" & arr(3)",
+        "10\n2 4 6 8");
+    expect_program_success(
+        "Sub Grow(nums() As Long)\nReDim Preserve nums(UBound(nums) + 1)\n"
+        "nums(UBound(nums)) = 99\nEnd Sub\n"
+        "Dim arr() As Long\nReDim arr(1)\narr(0) = 1\narr(1) = 2\nCall Grow(arr)\n"
+        "Print arr(0) & \" \" & arr(1) & \" \" & arr(2) & \" \" & UBound(arr)",
+        "1 2 99 2");
+    expect_program_success(
+        "Sub Fill(nums() As Long)\nnums(0, 0) = 100\nEnd Sub\n"
+        "Dim grid(1, 1) As Long\nCall Fill(grid)\nPrint grid(0, 0)",
+        "100");
+    expect_program_failure(
+        "Sub Foo(nums() As Long)\nEnd Sub\nDim s(2) As String\nCall Foo(s)", "WFC0016");
+    expect_program_failure(
+        "Sub Foo(ByVal nums() As Long)\nEnd Sub", "WFC0149");
+    expect_program_failure(
+        "Sub Foo(Optional nums() As Long)\nEnd Sub", "WFC0149");
+    expect_classes_success(
+        {{"Summer", "Public Function Sum(nums() As Long) As Long\n"
+                    "Dim i As Long\nDim s As Long\n"
+                    "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nNext i\n"
+                    "Sum = s\nEnd Function"}},
+        "Dim c As New Summer\nDim arr(2) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\n"
+        "Print c.Sum(arr)",
+        "6");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
     expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");

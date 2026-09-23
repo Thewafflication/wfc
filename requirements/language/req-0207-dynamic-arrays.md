@@ -65,9 +65,8 @@ array. It does not add:
   multi-dimensional arrays; a multi-dimensional array's shape is fixed for
   its entire lifetime in this evaluator, dynamic or not;
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
-  `REQ-0209`), or array-typed `Sub`/`Function` parameters — the first two
-  are now covered by their own requirements; array parameters remain
-  future work;
+  `REQ-0209`), or array-typed `Sub`/`Function` parameters (see
+  `REQ-0211`) — all three are now covered by their own requirements;
 - `Variant`- or `Object`-element dynamic arrays — `Dim arr() As Variant`/
   `As Object` still reports `WFC0012`, the same as a fixed-size array;
 - `ReDim` as an *implicit* declaration (real VB6 allows `ReDim x(5)` with no

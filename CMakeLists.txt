@@ -1282,4 +1282,31 @@ Print arr(1, 1) & " " & arr(2, 3) & " " & LBound(arr, 2) & " " & UBound(arr, 2) 
             LABELS "integration;mp-0002;statements;array"
             PASS_REGULAR_EXPRESSION "1 6 1 3 Long\\(\\)"
     )
+
+    add_test(
+        NAME TC-MP0002-array-parameter-cli
+        COMMAND wfc --eval [=[Function Total(nums() As Long) As Long
+Dim i As Long
+Dim s As Long
+s = 0
+For i = LBound(nums) To UBound(nums)
+s = s + nums(i)
+nums(i) = nums(i) * 2
+Next i
+Total = s
+End Function
+Dim arr(3) As Long
+arr(0) = 1
+arr(1) = 2
+arr(2) = 3
+arr(3) = 4
+Print Total(arr)
+Print arr(0) & " " & arr(1) & " " & arr(2) & " " & arr(3)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-array-parameter-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;array"
+            PASS_REGULAR_EXPRESSION "10.*2 4 6 8"
+    )
 endif()

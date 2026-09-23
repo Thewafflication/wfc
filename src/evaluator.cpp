@@ -1273,6 +1273,14 @@ struct ProcedureParameter {
     // zero-based array bound to `name`. Mutually exclusive with
     // `is_optional` (a ParamArray has no notion of a single default value).
     bool is_param_array{};
+    // REQ-0211: a plain (non-ParamArray) array parameter, `name() As
+    // Type`. `type_index` holds the required element type, not the
+    // parameter's own type (there is no single `Value` alternative for
+    // "array of Long"). Always effectively ByRef: `scan_procedure_
+    // parameters` rejects an explicit `ByVal` on an array parameter, since
+    // an array is a reference-like value in real VB6 and this evaluator
+    // has no other way to alias the caller's array.
+    bool is_array_parameter{};
 };
 
 // A `Sub`/`Function` declaration found by the module-level pre-scan
@@ -1666,6 +1674,49 @@ private:
                 }
                 parameter.type_index = type_result->default_value.index();
                 parameter.is_param_array = true;
+            } else if (type_character == '\0' && !at_end() && current() == '(') {
+                // A plain (non-ParamArray) array parameter, `name() As
+                // Type` (REQ-0211): always effectively ByRef -- an array is
+                // a reference-like value in real VB6, and this evaluator
+                // has no other way to alias the caller's array -- so an
+                // explicit `ByVal` here is rejected rather than silently
+                // ignored.
+                advance();
+                skip_horizontal_whitespace();
+                if (!consume(')')) {
+                    set_error(
+                        "WFC0149",
+                        "array parameter must be declared as an array: name()",
+                        offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const auto element_type_offset = offset_;
+                const auto matched_as = consume_keyword("as");
+                if (matched_as) {
+                    skip_horizontal_whitespace();
+                }
+                const auto type_result = matched_as ? parse_type_keyword() : std::nullopt;
+                if (!matched_as || !type_result.has_value() || type_result->is_variant) {
+                    set_error(
+                        "WFC0149",
+                        "array parameter requires an explicit element type: As Integer, As "
+                        "Long, As Double, As Single, As Currency, As String, or As Boolean",
+                        element_type_offset);
+                    return false;
+                }
+                if (parameter.by_val) {
+                    set_error(
+                        "WFC0149", "array parameters must be passed ByRef", modifier_offset);
+                    return false;
+                }
+                if (is_optional) {
+                    set_error(
+                        "WFC0149", "array parameters cannot be Optional", modifier_offset);
+                    return false;
+                }
+                parameter.type_index = type_result->default_value.index();
+                parameter.is_array_parameter = true;
             } else if (type_character != '\0') {
                 if (!validate_type_character(type_character, parameter_name_offset)) {
                     return false;
@@ -5879,6 +5930,20 @@ private:
                 }
                 frame.variables.emplace(parameter.name, std::move(argument.value));
                 frame.object_variables.insert(parameter.name);
+                continue;
+            }
+            if (parameter.is_array_parameter) {
+                const auto* array = std::get_if<ArrayValue>(&argument.value);
+                if (array == nullptr || array->element_type_index != parameter.type_index) {
+                    set_error("WFC0016", "argument type mismatch", identifier_offset);
+                    return std::nullopt;
+                }
+                if (argument.byref_target == nullptr) {
+                    set_error(
+                        "WFC0149", "array argument must be a variable", identifier_offset);
+                    return std::nullopt;
+                }
+                frame.variables.emplace(parameter.name, std::move(argument.value));
                 continue;
             }
             if (parameter.is_variant) {

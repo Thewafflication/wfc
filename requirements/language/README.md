@@ -247,3 +247,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `Dim identifier(bound1, bound2, ...) As Type`, indexed read/write,
   and a dimension-argument form of `LBound`/`UBound`, extending
   `REQ-0201`'s one-dimensional foundation.
+- [REQ-0211 — Array-typed Sub/Function parameters](req-0211-array-parameters.md)
+  defines `name() As Type` as an always-ByRef, dimension-count-agnostic
+  array parameter, whose mutations (including a `ReDim` inside the callee)
+  write back to the caller's array.

@@ -77,7 +77,8 @@ plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
 `Do`/`For`/`For Each`), fixed-size (including multi-dimensional) and
 dynamic (`ReDim`/`ReDim Preserve`/`Erase`) arrays, the core `Strings`/
 `Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
-`Function` procedures (`Optional`/`ParamArray`/`Static`), and a minimal
+`Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters),
+and a minimal
 class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
 `New`/`Me`, lifecycle hooks, `Public`/`Private`). It does not claim general
 VB6 compatibility — see the [language requirements
@@ -108,9 +109,10 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(3) As Long`nDim x As L
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim grid(1 To 2, 1 To 3) As Long`ngrid(1, 1) = 1`ngrid(2, 3) = 6`nPrint grid(1, 1) & `" `" & grid(2, 3) & `" `" & LBound(grid, 2) & `" `" & UBound(grid, 2)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Object`nPrint TypeName(Nothing)`nSet x = Nothing`nPrint CStr(x Is Nothing)"
 
-# Procedures, with Optional/ParamArray
+# Procedures, with Optional/ParamArray/array parameters
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Factorial(n As Long) As Long`nIf n <= 1 Then`nFactorial = 1`nElse`nFactorial = n * Factorial(n - 1)`nEnd If`nEnd Function`nPrint Factorial(5)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Greet(name As String, Optional greeting As String = `"Hello`") As String`nGreet = greeting & `", `" & name`nEnd Function`nFunction Total(ParamArray nums() As Long) As Long`nDim i As Long`nDim s As Long`nFor i = LBound(nums) To UBound(nums)`ns = s + nums(i)`nNext i`nTotal = s`nEnd Function`nPrint Greet(`"World`") & `" | `" & Total(1, 2, 3, 4)"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Sub DoubleAll(nums() As Long)`nDim i As Long`nFor i = LBound(nums) To UBound(nums)`nnums(i) = nums(i) * 2`nNext i`nEnd Sub`nDim arr(2) As Long`narr(0) = 1`narr(1) = 2`narr(2) = 3`nCall DoubleAll(arr)`nPrint arr(0) & `" `" & arr(1) & `" `" & arr(2)"
 
 # Class modules: fields, methods, properties, New/Me, lifecycle, Private
 out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Public value As Long`n`nSub Increment()`nvalue = value + 1`nEnd Sub`n`nProperty Get Doubled() As Long`nDoubled = value * 2`nEnd Property" --eval "Dim c As New Counter`nCall c.Increment()`nCall c.Increment()`nPrint c.value & `" `" & c.Doubled & `" `" & TypeName(c)"

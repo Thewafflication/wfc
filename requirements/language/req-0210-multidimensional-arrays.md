@@ -54,9 +54,10 @@ not add:
   reference runtime — the flattening formula is a standard row-major
   generalization exercised by this requirement's own 2-D and 3-D-shaped
   tests, but higher dimension counts were not separately probed;
-- array-typed `Sub`/`Function` parameters, and `Variant`/`Object`-element
-  arrays (multi-dimensional or not) — both remain excluded, matching
-  `REQ-0201`'s existing exclusions;
+- `Variant`/`Object`-element arrays (multi-dimensional or not) — remains
+  excluded, matching `REQ-0201`'s existing exclusion. A multi-dimensional
+  array *can* be passed to an array-typed parameter (`REQ-0211`), since
+  that parameter form is dimension-count-agnostic;
 - `Option Base 1` — a bound-less dimension in any position still means
   `0 To <bound>`, matching `REQ-0201`'s existing 1-D rule.
 

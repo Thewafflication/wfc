@@ -69,7 +69,7 @@ subset. It does not add:
   fixed-size multi-dimensional array is now covered by `REQ-0210`;
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or passing an array as a function argument to a
-  user-defined procedure;
+  user-defined procedure (see `REQ-0211`);
 - `Option Base 1` (or any `Option Base` statement) — a bound-less `Dim
   identifier(n)` always means `0 To n`, matching VB6's un-declared default;
 - `Variant`- or `Object`-element arrays — an array's per-element retyping
