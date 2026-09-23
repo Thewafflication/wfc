@@ -1209,4 +1209,22 @@ Print f.DoubleSecret()]=]
             LABELS "integration;mp-0002;statements;procedures;classes"
             PASS_REGULAR_EXPRESSION "Hello, World.*Hi, Bob.*10.*1.*2.*20"
     )
+
+    add_test(
+        NAME TC-MP0002-redim-cli
+        COMMAND wfc --eval [=[Dim arr() As Long
+Print CStr(IsArray(arr)) & " " & TypeName(arr)
+ReDim arr(3)
+arr(0) = 1
+arr(3) = 4
+Print arr(0) & " " & arr(3) & " " & LBound(arr) & " " & UBound(arr)
+ReDim Preserve arr(5)
+Print arr(0) & " " & arr(3) & " " & arr(5) & " " & UBound(arr)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-redim-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array"
+            PASS_REGULAR_EXPRESSION "True Long\\(\\).*1 4 0 3.*1 4 0 5"
+    )
 endif()

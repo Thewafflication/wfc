@@ -494,9 +494,51 @@ int main() {
     expect_program_failure("Dim arr(3) As Long\narr(4) = 1", "WFC0111");
     expect_program_failure("Dim arr(3) As Long\narr(0) = \"text\"", "WFC0016");
     expect_program_failure("Dim arr(5 To 2) As Long", "WFC0117");
-    expect_program_failure("Dim arr() As Long", "WFC0116");
     expect_program_failure("Dim arr(3) As Variant", "WFC0012");
     expect_program_failure("Dim arr(3) As Object", "WFC0012");
+    // Dynamic arrays: Dim arr() As Type declares an unallocated array;
+    // ReDim/ReDim Preserve allocate/reallocate it (REQ-0207).
+    expect_program_success(
+        "Dim arr() As Long\nPrint CStr(IsArray(arr)) & \" \" & TypeName(arr)",
+        "True Long()");
+    expect_program_failure("Dim arr() As Long\nPrint UBound(arr)", "WFC0111");
+    expect_program_failure("Dim arr() As Long\nPrint LBound(arr)", "WFC0111");
+    expect_program_failure("Dim arr() As Long\nPrint arr(0)", "WFC0111");
+    expect_program_failure("Dim arr() As Long\narr(0) = 1", "WFC0111");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(3)\narr(0) = 10\narr(3) = 40\n"
+        "Print arr(0) & \" \" & arr(3) & \" \" & LBound(arr) & \" \" & UBound(arr)",
+        "10 40 0 3");
+    expect_program_success(
+        "Dim arr() As String\nReDim arr(1 To 3)\narr(1) = \"a\"\narr(3) = \"c\"\n"
+        "Print arr(1) & arr(3) & \" \" & LBound(arr) & \" \" & UBound(arr)",
+        "ac 1 3");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(3)\narr(0) = 1\narr(1) = 2\narr(2) = 3\narr(3) = 4\n"
+        "ReDim Preserve arr(5)\n"
+        "Print arr(0) & \" \" & arr(3) & \" \" & arr(4) & \" \" & arr(5) & \" \" & UBound(arr)",
+        "1 4 0 0 5");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(5)\narr(0) = 1\narr(4) = 5\narr(5) = 6\n"
+        "ReDim Preserve arr(3)\n"
+        "Print arr(0) & \" \" & arr(3) & \" \" & UBound(arr)",
+        "1 0 3");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(3)\narr(2) = 9\nReDim arr(3)\nPrint arr(2)",
+        "0");
+    expect_program_failure(
+        "Dim arr(3) As Long\nReDim arr(5)", "WFC0145");
+    expect_program_failure("ReDim arr(5)", "WFC0145");
+    expect_program_failure("Dim x As Long\nReDim x(5)", "WFC0145");
+    expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0117");
+    expect_program_failure("Dim arr() As Long\nReDim arr(2, 3)", "WFC0115");
+    expect_program_success(
+        "Dim arr() As Long\nIf True Then\nReDim arr(2)\narr(1) = 7\nEnd If\nPrint arr(1)",
+        "7");
+    expect_program_success(
+        "Dim arr() As Long\nReDim Preserve arr(2)\narr(0) = 5\n"
+        "Print arr(0) & \" \" & UBound(arr)",
+        "5 2");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
     expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");

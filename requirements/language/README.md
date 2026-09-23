@@ -232,3 +232,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   procedure), and `Public`/`Private` visibility (a bare `Dim` class field
   is now implicitly `Private`; a `Private` member is accessible from any
   method of the *same class*, on any instance, and nowhere else).
+- [REQ-0207 — Dynamic arrays: ReDim and ReDim Preserve](req-0207-dynamic-arrays.md)
+  defines `Dim identifier()` (an unallocated dynamic array) and the
+  `ReDim [Preserve] identifier(<bound>)` statement that allocates or
+  reallocates it, extending `REQ-0201`'s fixed-size array foundation.

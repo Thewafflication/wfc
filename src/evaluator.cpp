@@ -721,12 +721,56 @@ using Value = std::variant<
 struct ArrayValue {
     std::vector<Value> elements;
     Integer lower_bound{};
+    // A dynamic array (`Dim arr()`, declared with no bound) can later be
+    // `ReDim`/`ReDim Preserve`d; a fixed-size array (`Dim arr(n)`) cannot
+    // (REQ-0207). `is_allocated` is false only for a dynamic array before
+    // its first `ReDim` -- distinct from a merely zero-length array (for
+    // example a `ParamArray` called with no extra arguments), which is
+    // allocated and empty at the same time. `element_type_index` remembers
+    // the array's declared element type (a `Value::index()`, not the value
+    // itself -- storing a `Value` directly here, rather than through a
+    // `std::vector`'s indirection, would make `ArrayValue` and `Value`
+    // recursively complete-type-dependent on each other) so `ReDim` can
+    // refill newly-created slots via `array_element_default`, and so
+    // TypeName/VarType/element-type checks have an answer even when
+    // `elements` is empty.
+    bool is_dynamic{false};
+    bool is_allocated{true};
+    std::size_t element_type_index{};
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
         return left.lower_bound == right.lower_bound && left.elements == right.elements;
     }
 };
+
+// The default (zero) value for one of the fixed scalar types a Dim'd array's
+// elements may hold, keyed by that type's `Value::index()`. Mirrors the
+// same seven-type list `parse_declaration`'s array branch already accepts;
+// falls back to Integer (unreachable for a legitimately-typed array) rather
+// than asserting, matching this codebase's general preference for a safe
+// placeholder over a crash when a value is only needed for its type.
+[[nodiscard]] inline Value array_element_default(const std::size_t type_index) noexcept {
+    if (type_index == Value{std::string{}}.index()) {
+        return Value{std::string{}};
+    }
+    if (type_index == Value{bool{}}.index()) {
+        return Value{false};
+    }
+    if (type_index == Value{double{}}.index()) {
+        return Value{0.0};
+    }
+    if (type_index == Value{float{}}.index()) {
+        return Value{0.0f};
+    }
+    if (type_index == Value{Currency{}}.index()) {
+        return Value{Currency{}};
+    }
+    if (type_index == Value{Int16{}}.index()) {
+        return Value{Int16{}};
+    }
+    return Value{Integer{}};
+}
 
 struct NumericStringResult {
     NumericStringStatus status{NumericStringStatus::malformed};
@@ -1123,7 +1167,8 @@ enum class NumericCategory {
            identifier == "static" || identifier == "private" ||
            identifier == "public" ||
            identifier == "option" || identifier == "or" ||
-           identifier == "print" || identifier == "randomize" ||
+           identifier == "preserve" ||
+           identifier == "print" || identifier == "randomize" || identifier == "redim" ||
            identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
            identifier == "explicit" || identifier == "step" || identifier == "to" ||
@@ -2628,6 +2673,13 @@ private:
             }
             return parse_constant_declaration();
         }
+        if (consume_keyword("redim")) {
+            // Unlike Dim/Static/Const, ReDim is an executable statement (it
+            // resizes an already-declared dynamic array), not a
+            // declaration, so it is not gated by allow_declarations_ --
+            // real VB6 permits it inside a conditional block.
+            return parse_redim_statement();
+        }
         if (consume_keyword("set")) {
             return parse_set_statement();
         }
@@ -3747,6 +3799,7 @@ private:
 
         skip_horizontal_whitespace();
         bool is_array = false;
+        bool is_dynamic_array = false;
         Integer array_lower = 0;
         Integer array_upper = 0;
         if (!at_end() && current() == '(') {
@@ -3754,51 +3807,57 @@ private:
             advance();
             skip_horizontal_whitespace();
             if (!at_end() && current() == ')') {
-                set_error(
-                    "WFC0116",
-                    "array declaration requires a bound (ReDim-only dynamic arrays are not "
-                    "supported)",
-                    offset_);
-                return false;
-            }
-            const auto first_offset = offset_;
-            auto first_bound = parse_expression();
-            if (!first_bound.has_value()) {
-                return false;
-            }
-            const auto first_long = coerce_long(*first_bound, first_offset);
-            if (!first_long.has_value()) {
-                return false;
-            }
-            skip_horizontal_whitespace();
-            if (consume_keyword("to")) {
+                // `Dim identifier()` with no bound: a dynamic array,
+                // unallocated until its first `ReDim` (REQ-0207). WFC0116
+                // previously rejected this form outright; retired now that
+                // dynamic arrays are supported.
+                is_dynamic_array = true;
+                advance();
                 skip_horizontal_whitespace();
-                const auto second_offset = offset_;
-                auto second_bound = parse_expression();
-                if (!second_bound.has_value()) {
-                    return false;
-                }
-                const auto second_long = coerce_long(*second_bound, second_offset);
-                if (!second_long.has_value()) {
-                    return false;
-                }
-                array_lower = *first_long;
-                array_upper = *second_long;
+            }
+            if (is_dynamic_array) {
+                // No bounds to parse; fall through to the shared `As Type`
+                // handling below.
             } else {
-                array_lower = 0;
-                array_upper = *first_long;
-            }
-            skip_horizontal_whitespace();
-            if (!consume(')')) {
-                set_error("WFC0005", "expected closing parenthesis", offset_);
-                return false;
-            }
-            if (array_lower > array_upper) {
-                set_error(
-                    "WFC0117",
-                    "array lower bound must not exceed the upper bound",
-                    identifier_offset);
-                return false;
+                const auto first_offset = offset_;
+                auto first_bound = parse_expression();
+                if (!first_bound.has_value()) {
+                    return false;
+                }
+                const auto first_long = coerce_long(*first_bound, first_offset);
+                if (!first_long.has_value()) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (consume_keyword("to")) {
+                    skip_horizontal_whitespace();
+                    const auto second_offset = offset_;
+                    auto second_bound = parse_expression();
+                    if (!second_bound.has_value()) {
+                        return false;
+                    }
+                    const auto second_long = coerce_long(*second_bound, second_offset);
+                    if (!second_long.has_value()) {
+                        return false;
+                    }
+                    array_lower = *first_long;
+                    array_upper = *second_long;
+                } else {
+                    array_lower = 0;
+                    array_upper = *first_long;
+                }
+                skip_horizontal_whitespace();
+                if (!consume(')')) {
+                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    return false;
+                }
+                if (array_lower > array_upper) {
+                    set_error(
+                        "WFC0117",
+                        "array lower bound must not exceed the upper bound",
+                        identifier_offset);
+                    return false;
+                }
             }
             skip_horizontal_whitespace();
         }
@@ -3930,9 +3989,17 @@ private:
 
         Value initial_value;
         if (is_array) {
-            const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
-            initial_value = ArrayValue{
-                std::vector<Value>(size, std::move(element_default)), array_lower};
+            const auto element_type_index = element_default.index();
+            if (is_dynamic_array) {
+                initial_value = ArrayValue{
+                    /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
+                    /*is_allocated=*/false, element_type_index};
+            } else {
+                const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
+                initial_value = ArrayValue{
+                    std::vector<Value>(size, std::move(element_default)), array_lower,
+                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index};
+            }
         } else {
             initial_value = std::move(element_default);
         }
@@ -3950,6 +4017,117 @@ private:
         if (is_object) {
             current_scope().object_variables.insert(*identifier);
         }
+        return true;
+    }
+
+    // `ReDim [Preserve] identifier(<bound>)` / `ReDim [Preserve] identifier(
+    // <lower> To <upper>)` (REQ-0207). Unlike `Dim`, `ReDim` is an ordinary
+    // executable statement, not a declaration: it targets a variable
+    // already declared `Dim identifier()` (a dynamic array, `ArrayValue.
+    // is_dynamic`), reallocating it to the new bound. `ReDim` never carries
+    // an `As Type` clause -- the element type is fixed by the original
+    // `Dim` and remembered on the array itself (`element_type_index`).
+    // `Preserve` copies every element whose index survives into the new
+    // range from the old array; without it (or before the array's first
+    // `ReDim`), every slot is reset to the element type's default value.
+    [[nodiscard]] bool parse_redim_statement() {
+        skip_horizontal_whitespace();
+        const bool preserve = consume_keyword("preserve");
+        if (preserve) {
+            skip_horizontal_whitespace();
+        }
+        const auto identifier_offset = offset_;
+        char type_character{};
+        auto identifier = parse_identifier(&type_character);
+        if (!identifier.has_value()) {
+            set_error("WFC0011", "expected array name", identifier_offset);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (at_end() || current() != '(') {
+            set_error("WFC0145", "ReDim requires an array bound", offset_);
+            return false;
+        }
+        advance();
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ')') {
+            set_error("WFC0145", "ReDim requires an array bound", offset_);
+            return false;
+        }
+        const auto first_offset = offset_;
+        auto first_bound = parse_expression();
+        if (!first_bound.has_value()) {
+            return false;
+        }
+        const auto first_long = coerce_long(*first_bound, first_offset);
+        if (!first_long.has_value()) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        Integer new_lower = 0;
+        Integer new_upper = 0;
+        if (consume_keyword("to")) {
+            skip_horizontal_whitespace();
+            const auto second_offset = offset_;
+            auto second_bound = parse_expression();
+            if (!second_bound.has_value()) {
+                return false;
+            }
+            const auto second_long = coerce_long(*second_bound, second_offset);
+            if (!second_long.has_value()) {
+                return false;
+            }
+            new_lower = *first_long;
+            new_upper = *second_long;
+        } else {
+            new_lower = 0;
+            new_upper = *first_long;
+        }
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ',') {
+            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
+            return false;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return false;
+        }
+        if (new_lower > new_upper) {
+            set_error(
+                "WFC0117", "array lower bound must not exceed the upper bound", identifier_offset);
+            return false;
+        }
+
+        if (!execute_) {
+            return true;
+        }
+
+        const auto variable = find_variable(*identifier);
+        if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value) ||
+            !std::get<ArrayValue>(*variable.value).is_dynamic) {
+            set_error(
+                "WFC0145",
+                "ReDim requires a previously declared dynamic array (Dim identifier())",
+                identifier_offset);
+            return false;
+        }
+        auto& array = std::get<ArrayValue>(*variable.value);
+
+        const auto new_size = static_cast<std::size_t>(new_upper - new_lower) + 1U;
+        std::vector<Value> new_elements(new_size, array_element_default(array.element_type_index));
+        if (preserve && array.is_allocated && !array.elements.empty()) {
+            const Integer old_upper =
+                array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
+            const Integer overlap_lower = std::max(array.lower_bound, new_lower);
+            const Integer overlap_upper = std::min(old_upper, new_upper);
+            for (Integer index = overlap_lower; index <= overlap_upper; ++index) {
+                new_elements[static_cast<std::size_t>(index - new_lower)] =
+                    array.elements[static_cast<std::size_t>(index - array.lower_bound)];
+            }
+        }
+        array.elements = std::move(new_elements);
+        array.lower_bound = new_lower;
+        array.is_allocated = true;
         return true;
     }
 
@@ -4517,7 +4695,7 @@ private:
         }
 
         auto& array = std::get<ArrayValue>(*variable.value);
-        const auto element_type_index = array.elements.front().index();
+        const auto element_type_index = array.element_type_index;
         if (!coerce_numeric_value(*value, element_type_index, identifier_offset)) {
             return false;
         }
@@ -5447,7 +5625,10 @@ private:
                 elements.push_back(std::move(element_value));
             }
             frame.variables.emplace(
-                param_array_parameter.name, Value{ArrayValue{std::move(elements), 0}});
+                param_array_parameter.name,
+                Value{ArrayValue{
+                    std::move(elements), 0, /*is_dynamic=*/false, /*is_allocated=*/true,
+                    param_array_parameter.type_index}});
         }
         if (definition.is_function) {
             frame.is_function_frame = true;
@@ -5943,15 +6124,15 @@ private:
             return std::nullopt;
         }
         if (!execute_) {
-            // array.elements can legitimately be empty now that a
-            // ParamArray (REQ-0206) can be called with zero extra
-            // arguments -- .front() on an empty vector would be undefined
-            // behavior. There is no real element to infer a type from in
-            // that case (ArrayValue does not separately tag its element
-            // type), so a placeholder Long stands in; this is only ever
-            // reached while type-checking an unreached branch, where the
-            // actual value is discarded.
-            return array.elements.empty() ? Value{Integer{}} : array.elements.front();
+            // array.elements can legitimately be empty here -- a
+            // ParamArray (REQ-0206) called with zero extra arguments, or an
+            // unallocated dynamic array before its first ReDim (REQ-0207)
+            // -- so a placeholder of the array's own declared element type
+            // stands in via array_element_default (ArrayValue.
+            // element_type_index) rather than reading a nonexistent first
+            // element; this is only ever reached while type-checking an
+            // unreached branch, where the actual value is discarded.
+            return array_element_default(array.element_type_index);
         }
         const Integer upper_bound =
             array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
@@ -6286,6 +6467,14 @@ private:
             }
             if (!execute_) {
                 return Value{Integer{}};
+            }
+            if (!array->is_allocated) {
+                // Matches real VB6: LBound/UBound on a dynamic array before
+                // its first ReDim raises the same "subscript out of range"
+                // error an out-of-bounds index does, rather than silently
+                // answering from an empty [0, -1] range.
+                set_error("WFC0111", "array subscript out of range", identifier_offset);
+                return std::nullopt;
             }
             return Value{
                 is_lbound
@@ -6713,8 +6902,11 @@ private:
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
                 // Real VB6 renders an array's TypeName as its element type
-                // name plus "()", e.g. "Long()".
-                return Value{element_type_name(array->elements.front()) + "()"};
+                // name plus "()", e.g. "Long()". Uses the array's declared
+                // element type (not its current first element, which may
+                // not exist for an unallocated dynamic array).
+                return Value{
+                    element_type_name(array_element_default(array->element_type_index)) + "()"};
             }
             return Value{std::string{"String"}};
         }
@@ -6759,8 +6951,12 @@ private:
                 return Value{Integer{9}};
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
-                // Real VB6 ORs the element VarType with vbArray (8192).
-                return Value{Integer{element_vartype_code(array->elements.front()) + 8192}};
+                // Real VB6 ORs the element VarType with vbArray (8192). Uses
+                // the array's declared element type, the same as TypeName
+                // above.
+                return Value{
+                    Integer{element_vartype_code(array_element_default(array->element_type_index)) +
+                             8192}};
             }
             return Value{Integer{8}};
         }

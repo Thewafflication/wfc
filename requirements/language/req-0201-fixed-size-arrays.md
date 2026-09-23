@@ -45,20 +45,23 @@ of that type would have).
 
 `WFC0111` reports an out-of-range array index (read or write). `WFC0115`
 reports a comma inside an index or declaration bound expression (a
-multi-dimensional array, which is out of scope). `WFC0116` reports a
-`Dim identifier()` with no bound (a `ReDim`-only dynamic array, which is out
-of scope). `WFC0117` reports a `Dim identifier(<lower> To <upper>)` whose
-lower bound exceeds its upper bound. `WFC0073` reports `LBound`/`UBound`
-called on a non-array argument. `WFC0016` reports an element-assignment
-type mismatch, reusing the existing scalar-assignment diagnostic.
+multi-dimensional array, which is out of scope). `WFC0117` reports a
+`Dim identifier(<lower> To <upper>)` whose lower bound exceeds its upper
+bound. `WFC0073` reports `LBound`/`UBound` called on a non-array argument.
+`WFC0016` reports an element-assignment type mismatch, reusing the existing
+scalar-assignment diagnostic. `WFC0116` originally reported a
+`Dim identifier()` with no bound; retired by `REQ-0207`, which gives that
+form a real meaning (a dynamic array).
 
 ## Scope
 
 This requirement implements only the agreed "fixed-size 1-D arrays only"
 subset. It does not add:
 
-- `ReDim`/`ReDim Preserve` or any other dynamic resizing — every array's
-  size is fixed for the variable's lifetime, set at `Dim` time;
+- `ReDim`/`ReDim Preserve` for a `Dim identifier(<bound>)` fixed-size array
+  — its size is fixed for the variable's lifetime, set at `Dim` time.
+  `Dim identifier()` (no bound) instead declares a *dynamic* array, which
+  `ReDim`/`ReDim Preserve` can resize; see `REQ-0207`;
 - multiple dimensions (`arr(i, j)`) — a comma inside `(...)` reports
   `WFC0115`;
 - `Erase`, `For Each` iteration over an array, or passing an array as a
@@ -86,8 +89,10 @@ subset. It does not add:
   (including a negative lower bound), indexed read/write, `LBound`/`UBound`,
   `IsArray`, `TypeName`/`VarType`, a `For`-loop-driven fill-and-read round
   trip, out-of-range read/write (`WFC0111`), an element-assignment type
-  mismatch (`WFC0016`), a reversed bound (`WFC0117`), a bound-less
-  declaration (`WFC0116`), and rejected `Variant`/`Object` element types.
+  mismatch (`WFC0016`), a reversed bound (`WFC0117`), and rejected
+  `Variant`/`Object` element types. `REQ-0207` covers the bound-less
+  `Dim identifier()` dynamic-array declaration this requirement's original
+  `WFC0116` rejected.
 - `TC-MP0002-array-cli` verifies declaration, indexed read/write, `LBound`/
   `UBound`, and `IsArray` through `wfc --eval`.
 
