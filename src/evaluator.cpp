@@ -9475,10 +9475,59 @@ private:
         return rendered;
     }
 
-    // Renders a VBA "custom numeric picture" `Format` `Style` (REQ-0218):
-    // any `Style` that does not name one of the reserved named styles
-    // above is treated this way, character by character. `0` is a digit
-    // placeholder that forces a `0` when no digit remains at that
+    // Splits a custom numeric picture `Format` `Style` on `;` into its
+    // positive/negative/zero sections (REQ-0220) and renders `value`
+    // through whichever section real VB6 selects for it, delegating the
+    // actual character-by-character rendering of that one section to
+    // `render_custom_numeric_picture_section`.
+    //
+    // One section (no `;` at all) applies to every value unchanged
+    // (REQ-0218's original behavior, including its automatic leading `-`
+    // for a negative value). Two sections split positive-or-zero (the
+    // first) from negative (the second); three add a dedicated zero
+    // section (the third), selected whenever `value` is exactly `0.0`,
+    // ahead of the positive/negative check. A fourth (text) section, for
+    // applying `Format` to a `String` expression, is out of scope --
+    // `REQ-0193`'s Scope already excludes a `String` expression from every
+    // named/custom style.
+    //
+    // A negative value rendered through the dedicated negative section
+    // uses its own magnitude (`std::fabs`) with no automatic leading `-`:
+    // passing a non-negative number into the single-section helper below
+    // means its own "negative ⇒ leading '-'" check never fires, so any
+    // sign in the output must come from the negative section's own
+    // literal characters -- matching real VB6, where the negative section
+    // is responsible for its own sign.
+    [[nodiscard]] static std::string render_custom_numeric_picture(
+        const double value, const std::string& picture) {
+        std::vector<std::string> sections;
+        std::string::size_type section_start = 0U;
+        while (true) {
+            const auto semicolon = picture.find(';', section_start);
+            if (semicolon == std::string::npos) {
+                sections.push_back(picture.substr(section_start));
+                break;
+            }
+            sections.push_back(picture.substr(section_start, semicolon - section_start));
+            section_start = semicolon + 1U;
+        }
+        if (sections.size() == 1U) {
+            return render_custom_numeric_picture_section(value, sections.front());
+        }
+        if (sections.size() >= 3U && value == 0.0) {
+            return render_custom_numeric_picture_section(0.0, sections[2]);
+        }
+        if (value < 0.0) {
+            return render_custom_numeric_picture_section(std::fabs(value), sections[1]);
+        }
+        return render_custom_numeric_picture_section(value, sections.front());
+    }
+
+    // Renders one section of a VBA "custom numeric picture" `Format`
+    // `Style` (REQ-0218; multi-section dispatch is `REQ-0220`, above):
+    // any `Style` section that does not name one of the reserved named
+    // styles above is treated this way, character by character. `0` is a
+    // digit placeholder that forces a `0` when no digit remains at that
     // position; `#` is a digit placeholder that shows nothing when no
     // digit remains; `.` marks the single decimal point, splitting the
     // picture into an integer and a fraction section; a `,` among the
@@ -9488,12 +9537,14 @@ private:
     // The fraction section is rounded to its own placeholder count using
     // the same nearest-even rounding `to_chars`'s fixed format already
     // gives `Fixed`/`Standard`, and a trailing run of `#`-placeholder
-    // digits that rounded to `0` is trimmed. A negative value gets a
+    // digits that rounded to `0` is trimmed. A negative `value` gets a
     // leading `-` unless the entire rendered magnitude is zero, matching
-    // `Fixed`/`Standard`'s own convention. A second literal `.` (if any)
-    // is treated as an ordinary literal character within the fraction
-    // section, not a second decimal point.
-    [[nodiscard]] static std::string render_custom_numeric_picture(
+    // `Fixed`/`Standard`'s own convention (a multi-section picture's
+    // negative section is only ever called with a non-negative magnitude
+    // by the dispatcher above, so this never fires for it). A second
+    // literal `.` (if any) is treated as an ordinary literal character
+    // within the fraction section, not a second decimal point.
+    [[nodiscard]] static std::string render_custom_numeric_picture_section(
         const double value, const std::string& picture) {
         const bool negative = value < 0.0;
         const double magnitude = std::fabs(value);
@@ -9559,30 +9610,80 @@ private:
             }
         }
         std::string integer_output_reversed;
+        // Parallel to `integer_output_reversed`: true at every position
+        // that holds an actual digit (from a placeholder or from the
+        // overflow below), false at a literal. Comma grouping below walks
+        // this to group only the digit run itself, so a literal sitting
+        // after the last placeholder (a closing `)` on a parenthesized
+        // negative picture, for example) is not miscounted as part of it.
+        std::vector<bool> integer_output_is_digit_reversed;
         std::size_t digit_source_index = integer_digits.size();
+        // Any digit beyond the leftmost placeholder is inserted right next
+        // to that placeholder's own digit, not shoved past whatever
+        // literal text happens to sit further left in the picture (for
+        // example a `(`/`$` prefix on a negative/currency picture) --
+        // `leftmost_placeholder_point` remembers where, in this
+        // right-to-left buffer, that insertion belongs: updated every time
+        // a placeholder is processed, so its final value is wherever the
+        // *last* (i.e. leftmost) one landed. A picture with no placeholder
+        // at all never updates it, leaving it at the buffer's eventual
+        // full length -- overflow digits then land at the very front of
+        // the rendered result instead, ahead of every literal character,
+        // matching this function's other documented "no placeholders"
+        // behavior.
+        std::size_t leftmost_placeholder_point = 0U;
+        bool seen_placeholder = false;
         for (auto pic_iterator = integer_pic_digits_only.rbegin();
              pic_iterator != integer_pic_digits_only.rend(); ++pic_iterator) {
             const char character = *pic_iterator;
             if (character == '0') {
                 integer_output_reversed.push_back(
                     digit_source_index > 0U ? integer_digits[--digit_source_index] : '0');
+                integer_output_is_digit_reversed.push_back(true);
+                leftmost_placeholder_point = integer_output_reversed.size();
+                seen_placeholder = true;
             } else if (character == '#') {
                 if (digit_source_index > 0U) {
                     integer_output_reversed.push_back(integer_digits[--digit_source_index]);
+                    integer_output_is_digit_reversed.push_back(true);
                 }
+                leftmost_placeholder_point = integer_output_reversed.size();
+                seen_placeholder = true;
             } else {
                 integer_output_reversed.push_back(character);
+                integer_output_is_digit_reversed.push_back(false);
             }
         }
-        while (digit_source_index > 0U) {
-            integer_output_reversed.push_back(integer_digits[--digit_source_index]);
+        if (digit_source_index > 0U) {
+            std::string overflow_digits;
+            while (digit_source_index > 0U) {
+                overflow_digits.push_back(integer_digits[--digit_source_index]);
+            }
+            const std::size_t insertion_point =
+                seen_placeholder ? leftmost_placeholder_point : integer_output_reversed.size();
+            integer_output_reversed.insert(insertion_point, overflow_digits);
+            integer_output_is_digit_reversed.insert(
+                integer_output_is_digit_reversed.begin() +
+                    static_cast<std::ptrdiff_t>(insertion_point),
+                overflow_digits.size(), true);
         }
         std::string integer_output(integer_output_reversed.rbegin(), integer_output_reversed.rend());
         if (integer_pic.find(',') != std::string::npos) {
-            for (int position = static_cast<int>(integer_output.size()) - 3; position > 0;
-                 position -= 3) {
-                integer_output.insert(static_cast<std::size_t>(position), ",");
+            const auto total_digits = static_cast<std::size_t>(std::count(
+                integer_output_is_digit_reversed.begin(), integer_output_is_digit_reversed.end(),
+                true));
+            std::string grouped_reversed;
+            std::size_t digits_seen = 0U;
+            for (std::size_t index = 0U; index < integer_output_reversed.size(); ++index) {
+                grouped_reversed.push_back(integer_output_reversed[index]);
+                if (integer_output_is_digit_reversed[index]) {
+                    ++digits_seen;
+                    if (digits_seen % 3U == 0U && digits_seen < total_digits) {
+                        grouped_reversed.push_back(',');
+                    }
+                }
             }
+            integer_output.assign(grouped_reversed.rbegin(), grouped_reversed.rend());
         }
 
         std::string rendered = integer_output;

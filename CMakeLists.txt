@@ -1431,4 +1431,17 @@ Print UBound(arr, 2)]=]
             LABELS "integration;mp-0002;statements;array"
             PASS_REGULAR_EXPRESSION "1 6 2.*1 9 4.*2"
     )
+
+    add_test(
+        NAME TC-MP0002-format-sections-cli
+        COMMAND wfc --eval [=[Print Format(1234.5, "0.00;(0.00)") & " " & Format(-1234.5, "0.00;(0.00)")
+Print Format(-1234567, "$#,##0;($#,##0)") & " " & Format(1234567, "$#,##0;($#,##0)")
+Print Format(0, "0;-0;0 Zero")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-format-sections-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "1234.50 \\(1234.50\\).*\\(\\$1,234,567\\) \\$1,234,567.*0 Zero"
+    )
 endif()

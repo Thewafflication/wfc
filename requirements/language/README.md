@@ -282,3 +282,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   (`Dim arr(,)`), dimension-count locking, `ReDim Preserve` restricted to
   the last dimension, and an `Erase` bug fix so a dynamic multi-dimensional
   array's per-dimension bounds are cleared along with its elements.
+- [REQ-0220 — Format multi-section custom numeric pictures](req-0220-format-multisection-custom-picture.md)
+  splits a custom picture on `;` into up to three positive/negative/zero
+  sections, and fixes two `REQ-0218` bugs its own testing found: overflow
+  digits landing past a leading literal instead of next to the
+  placeholder, and comma grouping miscounted by a trailing literal.

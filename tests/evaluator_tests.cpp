@@ -337,6 +337,35 @@ int main() {
     expect_success("Print Format(1234567, \"#,##0\")", "1,234,567");
     expect_success("Print Format(3.5, \"0\")", "4");
     expect_success("Print Format$(42, \"Fixed\")", "42.00");
+    // Multi-section custom numeric pictures (REQ-0220): up to three
+    // ';'-separated sections -- positive;negative;zero -- select which
+    // section renders a given value. A negative value rendered through
+    // its own dedicated section uses its magnitude with no automatic '-'
+    // (the section's own literal characters supply any sign).
+    expect_success(
+        "Print Format(1234.5, \"0.00;(0.00)\") & \" \" & Format(-1234.5, \"0.00;(0.00)\")",
+        "1234.50 (1234.50)");
+    expect_success(
+        "Print Format(-5, \"0;-0\") & \" \" & Format(5, \"0;-0\") & \" \" & "
+        "Format(0, \"0;-0;0 Zero\")",
+        "-5 5 0 Zero");
+    expect_success("Print Format(0, \"0.00;(0.00)\")", "0.00");
+    expect_success(
+        "Print Format(-1234567, \"$#,##0;($#,##0)\") & \" \" & "
+        "Format(1234567, \"$#,##0;($#,##0)\")",
+        "($1,234,567) $1,234,567");
+    // A picture with a literal before its leftmost digit placeholder,
+    // combined with more digits than placeholders (a regression this
+    // increment's own manual testing found and fixed): overflow digits
+    // are inserted immediately next to the placeholder, not shoved past
+    // the leading literal.
+    expect_success("Print Format(1234, \"(0)\")", "(1234)");
+    // Comma grouping combined with a literal trailing the last digit
+    // placeholder (a second regression the same testing pass found, in
+    // the `$1,234,567`/`($1,234,567)` case above): the grouping only
+    // counts actual digit positions, not the trailing literal, so it does
+    // not shift the group boundaries.
+    expect_success("Print Format(-7654321, \"$#,##0;($#,##0)\")", "($7,654,321)");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
         "0.7055475 0.533424 0.5795186");
