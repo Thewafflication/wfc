@@ -61,9 +61,8 @@ not add:
   increment (`REQ-0194` documented it as a known gap pending `Single`
   existing at all); implemented later as its own narrower follow-up, see
   `REQ-0194`'s own updated Scope note;
-- calling any intrinsic function without parentheses, which remains deferred
-  with every other function under the evaluator's existing
-  parenthesized-call-only architecture.
+- calling any intrinsic function without parentheses was deferred here;
+  `REQ-0213` later added the zero-argument form.
 
 ## Diagnostics
 

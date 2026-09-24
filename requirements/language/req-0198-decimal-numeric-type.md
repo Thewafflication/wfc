@@ -93,9 +93,8 @@ This requirement does not add:
 - `Format`'s named styles gaining `Decimal`-specific behavior (`Format`
   already accepts a `Decimal` argument by widening through `Double`, the
   same as every other numeric type it accepts);
-- calling any intrinsic function without parentheses, which remains deferred
-  with every other function under the evaluator's existing
-  parenthesized-call-only architecture.
+- calling any intrinsic function without parentheses was deferred here;
+  `REQ-0213` later added the zero-argument form.
 
 ## Verification
 

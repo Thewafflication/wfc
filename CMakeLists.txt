@@ -1326,4 +1326,23 @@ Print TypeName(objs) & " " & CStr(objs(0) Is Nothing)]=]
             LABELS "integration;mp-0002;statements;array;variant;object"
             PASS_REGULAR_EXPRESSION "Long String Boolean Variant\\(\\).*Object\\(\\) True"
     )
+
+    add_test(
+        NAME TC-MP0002-parenless-call-cli
+        COMMAND wfc --eval [=[Function NextId() As Long
+Static counter As Long
+counter = counter + 1
+NextId = counter
+End Function
+Print NextId
+Call NextId
+Print NextId
+Print Rnd]=]
+    )
+    set_tests_properties(
+        TC-MP0002-parenless-call-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures"
+            PASS_REGULAR_EXPRESSION "1.*3.*0\\.7055475"
+    )
 endif()

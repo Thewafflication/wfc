@@ -5787,6 +5787,49 @@ private:
                         }
                     }
                 }
+                // A parenthesis-free, zero-argument call to a known
+                // module-level Function or class-sibling Function/method
+                // (REQ-0213) -- e.g. bare `Print NextId`. Checked only
+                // once every variable/Property-Get possibility above has
+                // found nothing, so a local name always shadows a
+                // same-named procedure, matching ordinary lexical scoping.
+                if (type_character == '\0' && procedures_.contains(*identifier)) {
+                    return parse_procedure_call(*identifier, identifier_offset);
+                }
+                if (type_character == '\0') {
+                    if (auto* const instance = current_instance()) {
+                        if (const auto* const class_def = current_class_def()) {
+                            if (class_def->methods.contains(*identifier)) {
+                                return call_class_method(
+                                    *instance, *class_def, *identifier, identifier_offset,
+                                    /*require_function=*/true);
+                            }
+                        }
+                    }
+                }
+                // A parenthesis-free, zero-argument intrinsic function call
+                // (REQ-0213) -- e.g. bare `Print Rnd`. parse_function_call
+                // itself reports WFC0071 "unsupported function" for any
+                // name it does not recognize, before consuming any input;
+                // that specific, no-input-consumed failure is
+                // indistinguishable from "this was never a function-call
+                // attempt at all", so it falls through to the ordinary
+                // undeclared-variable diagnostic below instead of
+                // surfacing the less helpful "unsupported function"
+                // message for what is more likely a typo'd variable name.
+                {
+                    std::string call_identifier = *identifier;
+                    if (type_character != '\0') {
+                        call_identifier.push_back(type_character);
+                    }
+                    const auto saved_offset = offset_;
+                    auto result = parse_function_call(call_identifier, identifier_offset);
+                    if (result.has_value() || offset_ != saved_offset ||
+                        error_.diagnostic.rfind("WFC0071 ", 0) != 0) {
+                        return result;
+                    }
+                    error_ = wfc::Evaluation{};
+                }
                 set_error("WFC0015", "undeclared variable", identifier_offset);
                 return std::nullopt;
             }
@@ -5889,13 +5932,19 @@ private:
     }
 
     // Parses `(arg, arg, ...)` (already-consumed opening keyword/name), used
-    // by both a module-level procedure call and a `.method(args)` call.
+    // by both a module-level procedure call and a `.method(args)` call. A
+    // missing `(` is treated as a parenthesis-free call with zero
+    // arguments (REQ-0213) -- e.g. `Call NextId`, or the module-level/
+    // sibling-method niladic-call fallback in `parse_primary_base` -- not
+    // an error; the callee's own arity check rejects it with `WFC0072` if
+    // it actually requires one or more arguments. A parenthesis-free call
+    // *with* arguments (`Foo 5, 6`) remains unsupported, avoiding the
+    // classic ambiguity between that form and other statement/expression
+    // shapes; see REQ-0213's Scope.
     [[nodiscard]] std::optional<std::vector<CallArgument>> parse_call_argument_list() {
         skip_horizontal_whitespace();
         if (!consume('(')) {
-            set_error(
-                "WFC0005", "expected opening parenthesis after procedure name", offset_);
-            return std::nullopt;
+            return std::vector<CallArgument>{};
         }
         skip_horizontal_whitespace();
         std::vector<CallArgument> arguments;
@@ -6664,32 +6713,41 @@ private:
             return std::nullopt;
         }
 
-        advance();
-        skip_horizontal_whitespace();
+        // A missing `(` is a parenthesis-free, zero-argument call (REQ-0213)
+        // -- e.g. `Print Rnd` -- reachable only through
+        // parse_primary_base's bare-identifier intrinsic-function fallback,
+        // never through the ordinary `identifier(...)` call site (which
+        // only reaches here once it has already confirmed `(`). The
+        // function's own arity check below rejects this with `WFC0072` if
+        // it actually requires one or more arguments.
         std::vector<Value> arguments;
-        if (!consume(')')) {
-            while (true) {
-                if (!at_end() && current() == ',') {
-                    set_error("WFC0072", "function received an empty argument", offset_);
-                    return std::nullopt;
-                }
-                auto argument = parse_expression();
-                if (!argument.has_value()) {
-                    return std::nullopt;
-                }
-                arguments.push_back(std::move(*argument));
-                skip_horizontal_whitespace();
-                if (consume(')')) {
-                    break;
-                }
-                if (!consume(',')) {
-                    set_error("WFC0005", "expected closing parenthesis", offset_);
-                    return std::nullopt;
-                }
-                skip_horizontal_whitespace();
-                if (consume(')')) {
-                    set_error("WFC0072", "function received an empty argument", offset_ - 1U);
-                    return std::nullopt;
+        if (consume('(')) {
+            skip_horizontal_whitespace();
+            if (!consume(')')) {
+                while (true) {
+                    if (!at_end() && current() == ',') {
+                        set_error("WFC0072", "function received an empty argument", offset_);
+                        return std::nullopt;
+                    }
+                    auto argument = parse_expression();
+                    if (!argument.has_value()) {
+                        return std::nullopt;
+                    }
+                    arguments.push_back(std::move(*argument));
+                    skip_horizontal_whitespace();
+                    if (consume(')')) {
+                        break;
+                    }
+                    if (!consume(',')) {
+                        set_error("WFC0005", "expected closing parenthesis", offset_);
+                        return std::nullopt;
+                    }
+                    skip_horizontal_whitespace();
+                    if (consume(')')) {
+                        set_error(
+                            "WFC0072", "function received an empty argument", offset_ - 1U);
+                        return std::nullopt;
+                    }
                 }
             }
         }

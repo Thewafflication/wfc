@@ -255,3 +255,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `Dim identifier(...) As Variant`/`As Object`, giving array
   elements per-element `Variant`-retyping or `Set`-only `Object` behavior
   matching the corresponding scalar type.
+- [REQ-0213 — Calling a niladic function without parentheses](req-0213-parenless-calls.md)
+  defines a zero-argument, parenthesis-free call to an intrinsic function,
+  a module-level `Function`, or an unqualified sibling class method, plus
+  `Call name` with zero arguments as a statement.

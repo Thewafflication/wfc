@@ -2070,6 +2070,36 @@ int main() {
     expect_program_failure(
         "Dim x As Variant\nx = \"hi\"\nDim y As Long\ny = x",
         "WFC0016");
+    // Parenthesis-free, zero-argument calls (REQ-0213): a bare intrinsic
+    // function, a bare module-level Function, `Call name` (no parens) for
+    // a module-level Sub/Function, and an unqualified bare sibling
+    // Function reference from within another class method. A required-arg
+    // function called bare still reports the ordinary arity mismatch, and
+    // a genuinely undeclared name still reports "undeclared variable", not
+    // "unsupported function".
+    expect_program_success("Print Rnd", "0.7055475");
+    expect_program_success("Print Rnd()", "0.7055475");
+    expect_program_success(
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "NextId = counter\nEnd Function\n"
+        "Print NextId\nCall NextId\nPrint NextId",
+        "1\n3");
+    expect_program_success(
+        "Sub SayHi()\nPrint \"hi\"\nEnd Sub\nCall SayHi",
+        "hi");
+    expect_program_failure("Sub SayHi()\nEnd Sub\nPrint SayHi", "WFC0122");
+    expect_program_failure("Print someUndeclaredName", "WFC0015");
+    expect_program_failure("Print Len", "WFC0072");
+    expect_program_failure("Print Len \"hello\"", "WFC0072");
+    expect_program_success(
+        "Function IsReady() As Boolean\nIsReady = True\nEnd Function\n"
+        "If IsReady Then\nPrint \"ready\"\nEnd If",
+        "ready");
+    expect_classes_success(
+        {{"Counter", "Function Xyz() As Long\nXyz = 5\nEnd Function\n\n"
+                     "Function Doubled() As Long\nDoubled = Xyz\nEnd Function"}},
+        "Dim c As New Counter\nPrint c.Doubled()",
+        "5");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

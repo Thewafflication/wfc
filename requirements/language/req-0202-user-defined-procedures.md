@@ -44,13 +44,13 @@ End Function
   produces via a discarded temporary.
 - Calling a `Function` is an expression: `Name(args)`, usable anywhere an
   expression is (assignment, `Print`, nested in another call, ...).
-  `Call Name(args)` is the only supported way to invoke a `Sub` as a
-  statement, or to invoke a `Function` while discarding its result,
-  matching real VB6's `Call` statement; this evaluator does not support
-  VB6's other, parenthesis-free `Name arg1, arg2` statement-call form (an
-  existing, pre-established scope boundary — see `REQ-0193`/`REQ-0194`'s
-  Scope sections for the same limitation already noted for intrinsic
-  functions).
+  `Call Name(args)` (or, since `REQ-0213`, `Call Name` with zero
+  arguments) is the only supported way to invoke a `Sub` as a statement,
+  or to invoke a `Function` while discarding its result, matching real
+  VB6's `Call` statement; this evaluator still does not support VB6's
+  other, parenthesis-free `Name arg1, arg2` statement-call form (a bare
+  `Name` alone, with no `Call` keyword at all, remains unsupported even
+  for zero arguments — see `REQ-0213`'s Scope).
 - Each call has its own local scope: its parameters and any variables it
   `Dim`s are visible only within that call, and are not visible to (or
   visible from) any other call, including a recursive call to the same
@@ -124,9 +124,9 @@ no class-module layer yet. Accordingly, this requirement does not add:
   values for a dry run with no actual call present, a meaningfully larger
   change than this increment's scope;
 - the parenthesis-free `Name arg1, arg2` statement-call form for a
-  user-defined `Sub` (only `Call Name(args)` is supported), consistent with
-  the pre-existing parenthesized-call-only limitation already noted for
-  every intrinsic function.
+  user-defined `Sub` with one or more arguments, or a bare `Name` with no
+  `Call` keyword at all even with zero arguments (`REQ-0213` added only
+  `Call Name` with zero arguments).
 
 ## Verification
 

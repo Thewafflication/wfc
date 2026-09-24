@@ -53,9 +53,11 @@ non-numeric `Rnd` or `Randomize` argument.
 
 This increment does not implement:
 
-- calling `Rnd` without parentheses (for example, bare `x = Rnd`). This
-  matches the evaluator's existing parenthesized-call-only architecture,
-  which every intrinsic function currently shares;
+- calling `Rnd` without parentheses was originally out of scope here,
+  matching every intrinsic function's parenthesized-call-only
+  architecture at the time; `REQ-0213` later added the zero-argument
+  parenthesis-free form (`x = Rnd`), which covers `Rnd()`'s own default
+  (argument-less) case;
 - reproducing the reference VB6 runtime's specific `Randomize(number)` or
   `Rnd(negative)` sequence for a given seed. A local probe of the reference
   runtime found that `Randomize number` does **not** reproduce the same
