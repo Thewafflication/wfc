@@ -76,10 +76,11 @@ at a high level: declarations (`Dim`/`Const`/`Static`), every numeric type
 plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
 `Do`/`For`/`For Each`), fixed-size (including multi-dimensional) and
 dynamic (`ReDim`/`ReDim Preserve`/`Erase`) arrays, including
-`Variant`/`Object`-element arrays, the core `Strings`/
+`Variant`/`Object`/class-typed-element arrays, the core `Strings`/
 `Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
-`Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters,
-and a zero-argument call without parentheses), and a minimal
+`Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters
+including `Variant`/`Object`-element ones/array return types/a
+zero-argument call without parentheses), and a minimal
 class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
 `New`/`Me`, lifecycle hooks, `Public`/`Private`). It does not claim general
 VB6 compatibility — see the [language requirements
@@ -111,11 +112,16 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim grid(1 To 2, 1 To 3) As Lo
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim arr(2) As Variant`narr(0) = 5`narr(1) = `"hello`"`narr(2) = True`nPrint TypeName(arr(0)) & `" `" & TypeName(arr(1)) & `" `" & TypeName(arr(2)) & `" `" & TypeName(arr)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Dim x As Object`nPrint TypeName(Nothing)`nSet x = Nothing`nPrint CStr(x Is Nothing)"
 
+# Class-typed array elements
+out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Public value As Long" --eval "Dim arr(1) As Counter`nPrint TypeName(arr) & `" `" & CStr(arr(0) Is Nothing)`nDim c As New Counter`nSet arr(0) = c`nPrint CStr(arr(0) Is c)"
+
 # Procedures, with Optional/ParamArray/array parameters/parenless calls
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Factorial(n As Long) As Long`nIf n <= 1 Then`nFactorial = 1`nElse`nFactorial = n * Factorial(n - 1)`nEnd If`nEnd Function`nPrint Factorial(5)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Greet(name As String, Optional greeting As String = `"Hello`") As String`nGreet = greeting & `", `" & name`nEnd Function`nFunction Total(ParamArray nums() As Long) As Long`nDim i As Long`nDim s As Long`nFor i = LBound(nums) To UBound(nums)`ns = s + nums(i)`nNext i`nTotal = s`nEnd Function`nPrint Greet(`"World`") & `" | `" & Total(1, 2, 3, 4)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Sub DoubleAll(nums() As Long)`nDim i As Long`nFor i = LBound(nums) To UBound(nums)`nnums(i) = nums(i) * 2`nNext i`nEnd Sub`nDim arr(2) As Long`narr(0) = 1`narr(1) = 2`narr(2) = 3`nCall DoubleAll(arr)`nPrint arr(0) & `" `" & arr(1) & `" `" & arr(2)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function NextId() As Long`nStatic counter As Long`ncounter = counter + 1`nNextId = counter`nEnd Function`nPrint NextId`nCall NextId`nPrint NextId & `" `" & Rnd"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Sub Fill(nums() As Variant)`nnums(0) = `"a`"`nnums(1) = 5`nEnd Sub`nDim arr(1) As Variant`nCall Fill(arr)`nPrint TypeName(arr(0)) & `" `" & TypeName(arr(1))"
+out/build/windows-x64-debug/Debug/wfc.exe --eval "Function MakeArray() As Long()`nDim result(2) As Long`nresult(0) = 10`nresult(1) = 20`nresult(2) = 30`nMakeArray = result`nEnd Function`nDim x() As Long`nx = MakeArray()`nPrint x(0) & `" `" & x(1) & `" `" & x(2) & `" `" & UBound(x)"
 
 # Class modules: fields, methods, properties, New/Me, lifecycle, Private
 out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Public value As Long`n`nSub Increment()`nvalue = value + 1`nEnd Sub`n`nProperty Get Doubled() As Long`nDoubled = value * 2`nEnd Property" --eval "Dim c As New Counter`nCall c.Increment()`nCall c.Increment()`nPrint c.value & `" `" & c.Doubled & `" `" & TypeName(c)"

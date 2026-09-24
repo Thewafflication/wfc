@@ -761,6 +761,13 @@ struct ArrayValue {
     // still uses it, to seed new slots with `Empty`/`Nothing`).
     bool is_variant_element{false};
     bool is_object_element{false};
+    // `Dim arr(...) As SomeClass` (REQ-0214): non-empty only when
+    // `is_object_element` is also set, naming the specific class every
+    // `Set arr(i) = ...` source must match exactly (`WFC0137` otherwise) --
+    // the array-element analogue of a scalar `As ClassName` variable's
+    // `Scope::object_class_names` entry. Empty means the generic `As
+    // Object` form: any class (or `Nothing`) is accepted.
+    std::string element_class_name;
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
@@ -1302,6 +1309,15 @@ struct ProcedureParameter {
     // an array is a reference-like value in real VB6 and this evaluator
     // has no other way to alias the caller's array.
     bool is_array_parameter{};
+    // REQ-0215: `name() As Variant`/`As Object` -- a Variant-/Object-
+    // element array parameter (REQ-0212's element kinds, extended to
+    // array parameters). Mutually exclusive with each other and with a
+    // fixed `type_index`-checked element type; `type_index` is unused
+    // (left at its default) when either is set, since a Variant/Object
+    // element array carries its element kind on the `ArrayValue` itself,
+    // not via a single fixed type index.
+    bool is_variant_array_parameter{};
+    bool is_object_array_parameter{};
 };
 
 // A `Sub`/`Function` declaration found by the module-level pre-scan
@@ -1323,6 +1339,15 @@ struct ProcedureDef {
     // required class name for `As SomeClass`.
     bool return_is_object{};
     std::string return_class_name;
+    // REQ-0216: a `Function` declared `As Type()` returns an array of
+    // `Type` (`return_type_index` holds the element type, the same
+    // convention `REQ-0211`'s array parameters already use). The return
+    // slot starts as an unallocated dynamic array (`Dim`-style), so the
+    // body can either assign a whole array to its own name or `ReDim` it
+    // directly, both through existing, unmodified array machinery.
+    // `Property Get`, `Variant`/`Object`-element, and multi-dimensional
+    // array return types remain unsupported; see REQ-0216's Scope.
+    bool return_is_array{};
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
@@ -1717,12 +1742,21 @@ private:
                 if (matched_as) {
                     skip_horizontal_whitespace();
                 }
-                const auto type_result = matched_as ? parse_type_keyword() : std::nullopt;
-                if (!matched_as || !type_result.has_value() || type_result->is_variant) {
+                // REQ-0215: `name() As Object` is not one of
+                // parse_type_keyword's own scalars (it only knows the
+                // eight `Dim`-style keywords, `Variant` included), so it
+                // is checked separately first, mirroring the same
+                // separate check a generic `As Object` scalar parameter
+                // already uses.
+                const bool matched_object = matched_as && consume_keyword("object");
+                const auto type_result =
+                    (matched_as && !matched_object) ? parse_type_keyword() : std::nullopt;
+                if (!matched_as || (!matched_object && !type_result.has_value())) {
                     set_error(
                         "WFC0149",
                         "array parameter requires an explicit element type: As Integer, As "
-                        "Long, As Double, As Single, As Currency, As String, or As Boolean",
+                        "Long, As Double, As Single, As Currency, As String, As Boolean, As "
+                        "Object, or As Variant",
                         element_type_offset);
                     return false;
                 }
@@ -1736,8 +1770,14 @@ private:
                         "WFC0149", "array parameters cannot be Optional", modifier_offset);
                     return false;
                 }
-                parameter.type_index = type_result->default_value.index();
                 parameter.is_array_parameter = true;
+                if (matched_object) {
+                    parameter.is_object_array_parameter = true;
+                } else if (type_result->is_variant) {
+                    parameter.is_variant_array_parameter = true;
+                } else {
+                    parameter.type_index = type_result->default_value.index();
+                }
             } else if (type_character != '\0') {
                 if (!validate_type_character(type_character, parameter_name_offset)) {
                     return false;
@@ -2127,6 +2167,11 @@ private:
             definition.return_is_variant = type_result->is_variant;
             definition.return_is_object = type_result->is_object;
             definition.return_class_name = type_result->class_name;
+            const auto array_marker = parse_function_array_return_marker(*type_result, type_offset);
+            if (!array_marker.has_value()) {
+                return false;
+            }
+            definition.return_is_array = *array_marker;
         }
         if (!consume_block_line_end()) {
             return false;
@@ -2302,6 +2347,13 @@ private:
                 definition.return_is_variant = type_result->is_variant;
                 definition.return_is_object = type_result->is_object;
                 definition.return_class_name = type_result->class_name;
+                const auto array_marker =
+                    parse_function_array_return_marker(*type_result, type_offset);
+                if (!array_marker.has_value()) {
+                    offset_ = saved_offset;
+                    return false;
+                }
+                definition.return_is_array = *array_marker;
             }
             if (!consume_block_line_end()) {
                 offset_ = saved_offset;
@@ -2508,6 +2560,36 @@ private:
         }
         offset_ = saved_offset;
         return std::nullopt;
+    }
+
+    // Checks for a trailing `()` immediately after a `Function`'s own
+    // return type (REQ-0216: `As Type()` returns an array of `Type`),
+    // shared by the module-level and class-method Function return-type
+    // parsing sites (not `Property Get`, which does not support an array
+    // return type). Returns `false` with `offset_` unchanged when no `(`
+    // follows (an ordinary scalar return type); returns `nullopt` (a
+    // reported error) for a `Variant`/`Object`/class-typed `type_result`,
+    // or a malformed `(...)` -- an array return type must be a fixed
+    // scalar, matching an array-typed parameter's own restriction
+    // (REQ-0211).
+    [[nodiscard]] std::optional<bool> parse_function_array_return_marker(
+        const ResolvedType& type_result, const std::size_t type_offset) {
+        skip_horizontal_whitespace();
+        if (at_end() || current() != '(') {
+            return false;
+        }
+        if (type_result.is_variant || type_result.is_object) {
+            set_error(
+                "WFC0150", "an array return type must be a fixed scalar type", type_offset);
+            return std::nullopt;
+        }
+        advance();
+        skip_horizontal_whitespace();
+        if (!consume(')')) {
+            set_error("WFC0150", "expected closing parenthesis", offset_);
+            return std::nullopt;
+        }
+        return true;
     }
 
     [[nodiscard]] bool type_character_matches(
@@ -4107,6 +4189,7 @@ private:
         Value element_default;
         bool is_variant = false;
         bool is_object = false;
+        std::string declared_class_name;
         if (type_character != '\0') {
             if (consume_keyword("as")) {
                 set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
@@ -4144,7 +4227,6 @@ private:
             }
         } else {
             skip_horizontal_whitespace();
-            std::string declared_class_name;
             bool eager_new = false;
             if (consume_keyword("long")) {
                 element_default = Integer{};
@@ -4192,7 +4274,7 @@ private:
                 const auto saved_offset = offset_;
                 char class_type_character{};
                 auto class_name = parse_identifier(&class_type_character);
-                if (!is_array && class_name.has_value() && class_type_character == '\0' &&
+                if (class_name.has_value() && class_type_character == '\0' &&
                     class_definitions_.contains(*class_name)) {
                     declared_class_name = std::move(*class_name);
                     element_default = Nothing{};
@@ -4203,7 +4285,8 @@ private:
                         "WFC0012",
                         is_array
                             ? "expected As Integer, As Long, As Double, As Single, As Currency, "
-                              "As String, As Boolean, As Object, or As Variant"
+                              "As String, As Boolean, As Object, As Variant, or a known class "
+                              "name"
                             : "expected As Integer, As Long, As Double, As Single, As Currency, "
                               "As String, As Boolean, As Object, As Variant, or a known class "
                               "name",
@@ -4220,11 +4303,14 @@ private:
                 element_default = std::move(*instance);
             }
 
-            if (!declared_class_name.empty()) {
-                // Neither branch above sets declared_class_name when
-                // is_array is true (array element types are restricted to
-                // the fixed scalar list; see REQ-0201's Scope), so this
-                // variable is always scalar here.
+            if (!declared_class_name.empty() && !is_array) {
+                // An array's declared_class_name (REQ-0214) is threaded
+                // straight into its own ArrayValue.element_class_name
+                // below instead, since `object_class_names` is keyed by
+                // variable name for a whole scalar/object variable's own
+                // Set-target class check, the same reasoning
+                // is_variant/is_object already follow for
+                // variant_variables/object_variables above.
                 current_scope().object_class_names.emplace(*identifier, declared_class_name);
             }
         }
@@ -4236,7 +4322,7 @@ private:
                 initial_value = ArrayValue{
                     /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
                     /*is_allocated=*/false, element_type_index, /*dimensions=*/{}, is_variant,
-                    is_object};
+                    is_object, declared_class_name};
             } else if (!array_dimensions.empty()) {
                 std::size_t total_size = 1U;
                 for (const auto& dimension : array_dimensions) {
@@ -4246,13 +4332,13 @@ private:
                 initial_value = ArrayValue{
                     std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
                     /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                    array_dimensions, is_variant, is_object};
+                    array_dimensions, is_variant, is_object, declared_class_name};
             } else {
                 const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
                 initial_value = ArrayValue{
                     std::vector<Value>(size, std::move(element_default)), array_lower,
                     /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                    /*dimensions=*/{}, is_variant, is_object};
+                    /*dimensions=*/{}, is_variant, is_object, declared_class_name};
             }
         } else {
             initial_value = std::move(element_default);
@@ -4842,8 +4928,8 @@ private:
                 return false;
             }
             return assign_object_reference(
-                array.elements[*flat_offset], /*declared_class_name=*/std::string{},
-                std::move(*value), identifier_offset);
+                array.elements[*flat_offset], array.element_class_name, std::move(*value),
+                identifier_offset);
         }
         offset_ = after_identifier_offset;
 
@@ -6023,6 +6109,11 @@ private:
             if (definition.return_is_object) {
                 return Value{Nothing{}};
             }
+            if (definition.return_is_array) {
+                return Value{ArrayValue{
+                    /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
+                    /*is_allocated=*/false, definition.return_type_index}};
+            }
             return definition.return_is_variant ? Value{Empty{}}
                                                   : zero_value_for_index(definition.return_type_index);
         }
@@ -6067,7 +6158,19 @@ private:
             }
             if (parameter.is_array_parameter) {
                 const auto* array = std::get_if<ArrayValue>(&argument.value);
-                if (array == nullptr || array->element_type_index != parameter.type_index) {
+                // REQ-0215: a Variant-/Object-element array parameter
+                // matches only an argument array of that same element
+                // kind (never a fixed-scalar-typed one, and vice versa);
+                // a fixed-type parameter matches only a fixed-type
+                // argument array with the same element type.
+                const bool element_kind_matches = array != nullptr &&
+                    (parameter.is_variant_array_parameter
+                         ? array->is_variant_element
+                         : parameter.is_object_array_parameter
+                               ? array->is_object_element
+                               : (!array->is_variant_element && !array->is_object_element &&
+                                  array->element_type_index == parameter.type_index));
+                if (!element_kind_matches) {
                     set_error("WFC0016", "argument type mismatch", identifier_offset);
                     return std::nullopt;
                 }
@@ -6122,6 +6225,15 @@ private:
                 initial_return_value = Value{Nothing{}};
             } else if (definition.return_is_variant) {
                 initial_return_value = Value{Empty{}};
+            } else if (definition.return_is_array) {
+                // Starts as an unallocated dynamic array (REQ-0216), the
+                // same as `Dim identifier() As Type`: the body may either
+                // assign a whole array to its own name (`Foo = someArray`)
+                // or `ReDim`/`ReDim Preserve` it directly, both through
+                // existing, unmodified array machinery.
+                initial_return_value = ArrayValue{
+                    /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
+                    /*is_allocated=*/false, definition.return_type_index};
             } else {
                 initial_return_value = zero_value_for_index(definition.return_type_index);
             }
@@ -7415,6 +7527,14 @@ private:
                     return Value{std::string{"Variant()"}};
                 }
                 if (array->is_object_element) {
+                    // A class-typed array element (REQ-0214) renders its
+                    // own class's display name, the same as a live
+                    // instance does; the generic `As Object` form (no
+                    // declared class) renders "Object()".
+                    if (!array->element_class_name.empty()) {
+                        return Value{
+                            class_definitions_.at(array->element_class_name).display_name + "()"};
+                    }
                     return Value{std::string{"Object()"}};
                 }
                 return Value{

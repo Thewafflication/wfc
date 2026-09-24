@@ -49,13 +49,12 @@ class-mismatch checks, reused for an `Object`-element array's element.
 This requirement adds per-element `Variant`/`Object` behavior for an
 array declared `As Variant`/`As Object`. It does not add:
 
-- a class-typed array element (`Dim arr() As SomeClass`) — only the
-  generic `As Object` form is covered, matching `REQ-0200`'s own
-  generic-vs-class-typed distinction for scalars;
+- a class-typed array element (`Dim arr() As SomeClass`) was originally
+  excluded here; `REQ-0214` later added it, reusing this requirement's
+  generic `As Object` element machinery with a class-match check;
 - an array-typed `Sub`/`Function` parameter (`REQ-0211`) declared
-  `nums() As Variant`/`As Object` — `REQ-0211`'s parameter parser still
-  requires a concrete scalar element type, the same restriction
-  `ParamArray` (`REQ-0206`) already has;
+  `nums() As Variant`/`As Object` was originally excluded here too;
+  `REQ-0215` later added both;
 - `Class_Terminate` participating in an `Object`-element array's
   lifetime tracking. A scalar `Object`/`Variant` variable's assignment
   path calls `terminate_if_last_reference` before overwriting; an array

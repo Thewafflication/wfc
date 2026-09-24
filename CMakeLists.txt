@@ -1345,4 +1345,40 @@ Print Rnd]=]
             LABELS "integration;mp-0002;statements;procedures"
             PASS_REGULAR_EXPRESSION "1.*3.*0\\.7055475"
     )
+
+    add_test(
+        NAME TC-MP0002-class-typed-array-cli
+        COMMAND wfc --class Counter [=[Public value As Long]=]
+            --eval [=[Dim arr(1) As Counter
+Print TypeName(arr) & " " & CStr(arr(0) Is Nothing)
+Dim c As New Counter
+Set arr(0) = c
+Print CStr(arr(0) Is c)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-typed-array-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array;classes"
+            PASS_REGULAR_EXPRESSION "Counter\\(\\) True.*True"
+    )
+
+    add_test(
+        NAME TC-MP0002-array-return-cli
+        COMMAND wfc --eval [=[Function MakeArray() As Long()
+Dim result(2) As Long
+result(0) = 10
+result(1) = 20
+result(2) = 30
+MakeArray = result
+End Function
+Dim x() As Long
+x = MakeArray()
+Print x(0) & " " & x(1) & " " & x(2) & " " & UBound(x)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-array-return-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;array"
+            PASS_REGULAR_EXPRESSION "10 20 30 2"
+    )
 endif()

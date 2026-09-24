@@ -259,3 +259,12 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines a zero-argument, parenthesis-free call to an intrinsic function,
   a module-level `Function`, or an unqualified sibling class method, plus
   `Call name` with zero arguments as a statement.
+- [REQ-0214 — Class-typed array elements](req-0214-class-typed-array-elements.md)
+  defines `Dim identifier(...) As SomeClass`, extending `REQ-0212`'s
+  generic `As Object`-element array with a class-match check on `Set`.
+- [REQ-0215 — Variant- and Object-element array parameters](req-0215-variant-object-array-parameters.md)
+  defines `name() As Variant`/`As Object` as an array-typed parameter,
+  extending `REQ-0211` with `REQ-0212`'s element kinds.
+- [REQ-0216 — Array-typed Function return](req-0216-array-return-type.md)
+  defines `Function name(...) As Type()`, whose return slot starts as an
+  unallocated dynamic array the body can assign or `ReDim` directly.

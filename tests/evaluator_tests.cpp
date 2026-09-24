@@ -2100,6 +2100,61 @@ int main() {
                      "Function Doubled() As Long\nDoubled = Xyz\nEnd Function"}},
         "Dim c As New Counter\nPrint c.Doubled()",
         "5");
+    // Class-typed array elements: Dim arr(...) As SomeClass, the
+    // element_class_name-checked counterpart of the generic As Object
+    // form (REQ-0214).
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Dim arr(1) As Counter\nPrint TypeName(arr) & \" \" & CStr(arr(0) Is Nothing)\n"
+        "Dim c As New Counter\nSet arr(0) = c\nPrint CStr(arr(0) Is c)",
+        "Counter() True\nTrue");
+    expect_classes_failure(
+        {{"Counter", "Public value As Long"}, {"Other", "Public v As Long"}},
+        "Dim arr(1) As Counter\nDim o As New Other\nSet arr(0) = o",
+        "WFC0137");
+    expect_classes_failure(
+        {{"Counter", "Public value As Long"}},
+        "Dim arr(1) As Counter\narr(0) = 5",
+        "WFC0108");
+    // Variant-/Object-element array-typed parameters: nums() As Variant/
+    // As Object, extending REQ-0211's array parameters with REQ-0212's
+    // element kinds (REQ-0215).
+    expect_program_success(
+        "Sub Fill(nums() As Variant)\nnums(0) = \"a\"\nnums(1) = 5\nEnd Sub\n"
+        "Dim arr(1) As Variant\nCall Fill(arr)\n"
+        "Print TypeName(arr(0)) & \" \" & TypeName(arr(1))",
+        "String Long");
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Sub Fill(objs() As Object)\nDim c As New Counter\nSet objs(0) = c\nEnd Sub\n"
+        "Dim arr(1) As Object\nCall Fill(arr)\nPrint CStr(arr(0) Is Nothing)",
+        "False");
+    expect_program_failure(
+        "Sub Foo(nums() As Variant)\nEnd Sub\nDim arr(1) As Long\nCall Foo(arr)",
+        "WFC0016");
+    // Array-typed Function return: As Type() (REQ-0216). The return slot
+    // starts as an unallocated dynamic array, so the body may either
+    // assign a whole array to its own name or ReDim it directly.
+    expect_program_success(
+        "Function MakeArray() As Long()\nDim result(2) As Long\n"
+        "result(0) = 10\nresult(1) = 20\nresult(2) = 30\nMakeArray = result\nEnd Function\n"
+        "Dim x() As Long\nx = MakeArray()\n"
+        "Print x(0) & \" \" & x(1) & \" \" & x(2) & \" \" & UBound(x)",
+        "10 20 30 2");
+    expect_program_success(
+        "Function BuildIt(n As Long) As Long()\nReDim BuildIt(n)\nDim i As Long\n"
+        "For i = 0 To n\nBuildIt(i) = i * i\nNext i\nEnd Function\n"
+        "Dim x() As Long\nx = BuildIt(3)\n"
+        "Print x(0) & \" \" & x(1) & \" \" & x(2) & \" \" & x(3)",
+        "0 1 4 9");
+    expect_classes_success(
+        {{"Builder", "Public Function Build() As Long()\nDim result(1) As Long\n"
+                     "result(0) = 7\nresult(1) = 8\nBuild = result\nEnd Function"}},
+        "Dim c As New Builder\nDim x() As Long\nx = c.Build()\nPrint x(0) & \" \" & x(1)",
+        "7 8");
+    expect_program_failure("Function Foo() As Variant()\nEnd Function", "WFC0150");
+    expect_program_failure("Function Foo() As Object()\nEnd Function", "WFC0150");
+    expect_program_failure("Function Foo() As Long(5)\nEnd Function", "WFC0150");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

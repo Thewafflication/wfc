@@ -55,11 +55,12 @@ write-back. It does not add:
 - `Optional` array parameters, or an array-typed `ParamArray` element
   (`ParamArray`'s own elements are always scalar; an array of arrays does
   not exist in this evaluator);
-- passing a `Variant`/`Object`-element array (neither exists yet) or a
-  literal/expression array (no array-valued expression exists other than
-  a bare variable reference) as an array argument;
-- returning an array from a `Function` — only a parameter may be
-  array-typed; a `Function`'s own return type remains scalar or `Variant`.
+- passing a `Variant`/`Object`-element array was originally excluded
+  here (neither existed yet); `REQ-0215` later added both. A literal/
+  expression array remains impossible to pass (no array-valued expression
+  exists other than a bare variable reference);
+- returning an array from a `Function` was originally excluded here;
+  `REQ-0216` later added a fixed-scalar array return type.
 
 ## Verification
 
