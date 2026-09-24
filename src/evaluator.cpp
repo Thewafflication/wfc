@@ -740,15 +740,14 @@ struct ArrayValue {
     bool is_dynamic{false};
     bool is_allocated{true};
     std::size_t element_type_index{};
-    // Present (size >= 2) only for a fixed-size multi-dimensional array
-    // (`Dim arr(b1, b2, ...)`, REQ-0210); empty for an ordinary 1-D array,
-    // which continues to use `lower_bound`/`elements.size()` alone. Each
-    // entry is one dimension's [lower, upper] bound, outermost dimension
-    // first; `elements` is laid out in row-major order (the last dimension
+    // Present (size >= 2) for a multi-dimensional array, fixed-size
+    // (`Dim arr(b1, b2, ...)`, REQ-0210) or dynamic (`ReDim arr(b1, b2,
+    // ...)`, REQ-0219); empty for an ordinary 1-D array, which continues
+    // to use `lower_bound`/`elements.size()` alone. Each entry is one
+    // dimension's [lower, upper] bound, outermost dimension first;
+    // `elements` is laid out in row-major order (the last dimension
     // varies fastest), matching real VB6's `For Each` iteration order over
-    // a multi-dimensional array. Multi-dimensional arrays are fixed-size
-    // only in this evaluator: `ReDim`/`ReDim Preserve` still reject a comma
-    // (`WFC0115`) regardless of this field.
+    // a multi-dimensional array.
     std::vector<std::pair<Integer, Integer>> dimensions{};
     // `Dim arr(...) As Variant`/`As Object` (REQ-0212): an element retypes
     // freely on plain assignment (`is_variant_element`, the per-element
@@ -768,6 +767,20 @@ struct ArrayValue {
     // `Scope::object_class_names` entry. Empty means the generic `As
     // Object` form: any class (or `Nothing`) is accepted.
     std::string element_class_name;
+    // Only meaningful while `is_dynamic` and not yet `is_allocated`
+    // (REQ-0219): the array's dimension count, fixed in advance by a
+    // comma-only declaration (`Dim arr(,) As Type` is 2, `Dim arr(,,) As
+    // Type` is 3, ...), or `0` if the plain `Dim arr()` form left the
+    // count unconstrained until the first `ReDim` decides it. Once
+    // allocated, the array's actual current dimension count
+    // (`dimensions.empty() ? 1 : dimensions.size()`) is authoritative
+    // instead, and every subsequent `ReDim` must match it exactly --
+    // real VB6 never lets a later `ReDim` change how many dimensions an
+    // array has, only their bounds. Appended as the struct's last field
+    // (rather than nearer `dimensions`, which it conceptually belongs
+    // beside) so every existing positional aggregate-init call site that
+    // predates it keeps compiling unchanged.
+    std::size_t dynamic_dimension_count{0};
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
@@ -4140,6 +4153,12 @@ private:
         // REQ-0210); stays empty for the ordinary 1-D forms, which
         // continue to use array_lower/array_upper alone.
         std::vector<std::pair<Integer, Integer>> array_dimensions;
+        // Only meaningful when `is_dynamic_array`: a comma-only
+        // declaration's pre-declared dimension count (REQ-0219), e.g.
+        // `Dim arr(,) As Type` is 2, `Dim arr(,,) As Type` is 3; stays 0
+        // for the plain `Dim arr()` form, which leaves the count
+        // unconstrained until the first `ReDim` decides it.
+        std::size_t dynamic_dimension_count = 0;
         if (!at_end() && current() == '(') {
             is_array = true;
             advance();
@@ -4148,12 +4167,32 @@ private:
                 // `Dim identifier()` with no bound: a dynamic array,
                 // unallocated until its first `ReDim` (REQ-0207). WFC0116
                 // previously rejected this form outright; retired now that
-                // dynamic arrays are supported. Dynamic multi-dimensional
-                // arrays (`Dim arr(,) As Type`) are not supported -- only
-                // this single-empty-bound 1-D form reaches here.
+                // dynamic arrays are supported.
                 is_dynamic_array = true;
                 advance();
                 skip_horizontal_whitespace();
+            } else {
+                // `Dim identifier(,)`, `Dim identifier(,,)`, ... (REQ-0219):
+                // a dynamic array whose dimension count is fixed in advance
+                // (one more than the comma count), still unallocated until
+                // its first `ReDim`. Falls through to the ordinary bound
+                // parsing below when the parenthesized content is not
+                // comma-only (the common case).
+                const auto comma_check_offset = offset_;
+                std::size_t comma_count = 0;
+                while (!at_end() && current() == ',') {
+                    advance();
+                    skip_horizontal_whitespace();
+                    ++comma_count;
+                }
+                if (comma_count > 0 && !at_end() && current() == ')') {
+                    is_dynamic_array = true;
+                    dynamic_dimension_count = comma_count + 1U;
+                    advance();
+                    skip_horizontal_whitespace();
+                } else {
+                    offset_ = comma_check_offset;
+                }
             }
             if (is_dynamic_array) {
                 // No bounds to parse; fall through to the shared `As Type`
@@ -4351,10 +4390,12 @@ private:
         if (is_array) {
             const auto element_type_index = element_default.index();
             if (is_dynamic_array) {
-                initial_value = ArrayValue{
+                ArrayValue array_value{
                     /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
                     /*is_allocated=*/false, element_type_index, /*dimensions=*/{}, is_variant,
                     is_object, declared_class_name};
+                array_value.dynamic_dimension_count = dynamic_dimension_count;
+                initial_value = std::move(array_value);
             } else if (!array_dimensions.empty()) {
                 std::size_t total_size = 1U;
                 for (const auto& dimension : array_dimensions) {
@@ -4401,16 +4442,23 @@ private:
         return true;
     }
 
-    // `ReDim [Preserve] identifier(<bound>)` / `ReDim [Preserve] identifier(
-    // <lower> To <upper>)` (REQ-0207). Unlike `Dim`, `ReDim` is an ordinary
-    // executable statement, not a declaration: it targets a variable
-    // already declared `Dim identifier()` (a dynamic array, `ArrayValue.
-    // is_dynamic`), reallocating it to the new bound. `ReDim` never carries
-    // an `As Type` clause -- the element type is fixed by the original
-    // `Dim` and remembered on the array itself (`element_type_index`).
-    // `Preserve` copies every element whose index survives into the new
-    // range from the old array; without it (or before the array's first
-    // `ReDim`), every slot is reset to the element type's default value.
+    // `ReDim [Preserve] identifier(<bound>, ...)` (REQ-0207, extended to
+    // multiple comma-separated bounds by REQ-0219). Unlike `Dim`, `ReDim`
+    // is an ordinary executable statement, not a declaration: it targets
+    // a variable already declared `Dim identifier()`/`Dim identifier(,
+    // ...)` (a dynamic array, `ArrayValue.is_dynamic`), reallocating it to
+    // the new bounds. `ReDim` never carries an `As Type` clause -- the
+    // element type is fixed by the original `Dim` and remembered on the
+    // array itself (`element_type_index`). The array's *dimension count*,
+    // once fixed (by a comma-only `Dim`, or by an earlier `ReDim`), never
+    // changes again -- only bounds do; every `ReDim` after the first must
+    // name the same number of dimensions. `Preserve` on a multi-
+    // dimensional array may only change the *last* dimension's bounds
+    // (matching real VB6); every other dimension must keep its exact
+    // current bounds. `Preserve` copies every element whose absolute
+    // index survives into the new last-dimension range from the old
+    // array; without it (or before the array's first `ReDim`), every slot
+    // is reset to the element type's default value.
     [[nodiscard]] bool parse_redim_statement() {
         skip_horizontal_whitespace();
         const bool preserve = consume_keyword("preserve");
@@ -4435,47 +4483,54 @@ private:
             set_error("WFC0145", "ReDim requires an array bound", offset_);
             return false;
         }
-        const auto first_offset = offset_;
-        auto first_bound = parse_expression();
-        if (!first_bound.has_value()) {
-            return false;
-        }
-        const auto first_long = coerce_long(*first_bound, first_offset);
-        if (!first_long.has_value()) {
-            return false;
-        }
-        skip_horizontal_whitespace();
-        Integer new_lower = 0;
-        Integer new_upper = 0;
-        if (consume_keyword("to")) {
+        std::vector<std::pair<Integer, Integer>> new_dimensions;
+        while (true) {
+            const auto first_offset = offset_;
+            auto first_bound = parse_expression();
+            if (!first_bound.has_value()) {
+                return false;
+            }
+            const auto first_long = coerce_long(*first_bound, first_offset);
+            if (!first_long.has_value()) {
+                return false;
+            }
             skip_horizontal_whitespace();
-            const auto second_offset = offset_;
-            auto second_bound = parse_expression();
-            if (!second_bound.has_value()) {
+            Integer dimension_lower = 0;
+            Integer dimension_upper = 0;
+            if (consume_keyword("to")) {
+                skip_horizontal_whitespace();
+                const auto second_offset = offset_;
+                auto second_bound = parse_expression();
+                if (!second_bound.has_value()) {
+                    return false;
+                }
+                const auto second_long = coerce_long(*second_bound, second_offset);
+                if (!second_long.has_value()) {
+                    return false;
+                }
+                dimension_lower = *first_long;
+                dimension_upper = *second_long;
+            } else {
+                dimension_lower = 0;
+                dimension_upper = *first_long;
+            }
+            if (dimension_lower > dimension_upper) {
+                set_error(
+                    "WFC0117", "array lower bound must not exceed the upper bound",
+                    identifier_offset);
                 return false;
             }
-            const auto second_long = coerce_long(*second_bound, second_offset);
-            if (!second_long.has_value()) {
-                return false;
+            new_dimensions.emplace_back(dimension_lower, dimension_upper);
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ',') {
+                advance();
+                skip_horizontal_whitespace();
+                continue;
             }
-            new_lower = *first_long;
-            new_upper = *second_long;
-        } else {
-            new_lower = 0;
-            new_upper = *first_long;
-        }
-        skip_horizontal_whitespace();
-        if (!at_end() && current() == ',') {
-            set_error("WFC0115", "multi-dimensional arrays are not supported", offset_);
-            return false;
+            break;
         }
         if (!consume(')')) {
             set_error("WFC0005", "expected closing parenthesis", offset_);
-            return false;
-        }
-        if (new_lower > new_upper) {
-            set_error(
-                "WFC0117", "array lower bound must not exceed the upper bound", identifier_offset);
             return false;
         }
 
@@ -4494,21 +4549,97 @@ private:
         }
         auto& array = std::get<ArrayValue>(*variable.value);
 
-        const auto new_size = static_cast<std::size_t>(new_upper - new_lower) + 1U;
-        std::vector<Value> new_elements(new_size, array_element_default(array.element_type_index));
-        if (preserve && array.is_allocated && !array.elements.empty()) {
-            const Integer old_upper =
-                array.lower_bound + static_cast<Integer>(array.elements.size()) - 1;
-            const Integer overlap_lower = std::max(array.lower_bound, new_lower);
-            const Integer overlap_upper = std::min(old_upper, new_upper);
-            for (Integer index = overlap_lower; index <= overlap_upper; ++index) {
-                new_elements[static_cast<std::size_t>(index - new_lower)] =
-                    array.elements[static_cast<std::size_t>(index - array.lower_bound)];
+        // REQ-0219: a dynamic array's dimension count, once fixed (by a
+        // comma-only `Dim` or an earlier `ReDim`), is authoritative for
+        // every later `ReDim`; only an array that has never been
+        // allocated *and* was declared with the plain `Dim identifier()`
+        // form (no pre-declared count) lets this first `ReDim` decide it.
+        std::size_t required_dimension_count = new_dimensions.size();
+        if (array.is_allocated) {
+            required_dimension_count = array.dimensions.empty() ? 1U : array.dimensions.size();
+        } else if (array.dynamic_dimension_count > 0U) {
+            required_dimension_count = array.dynamic_dimension_count;
+        }
+        if (new_dimensions.size() != required_dimension_count) {
+            set_error(
+                "WFC0115",
+                "ReDim dimension count does not match the array's declared dimension count",
+                identifier_offset);
+            return false;
+        }
+
+        // REQ-0219: `ReDim Preserve` on a multi-dimensional array may only
+        // resize the last dimension; every earlier dimension must keep
+        // its exact current bounds, matching real VB6's own restriction
+        // (a 1-D array has no "earlier dimension" to check, so this loop
+        // never runs for one).
+        if (preserve && array.is_allocated && new_dimensions.size() > 1U) {
+            for (std::size_t dimension = 0; dimension + 1U < new_dimensions.size(); ++dimension) {
+                if (new_dimensions[dimension] != array.dimensions[dimension]) {
+                    set_error(
+                        "WFC0151",
+                        "ReDim Preserve may only change a multi-dimensional array's last "
+                        "dimension",
+                        identifier_offset);
+                    return false;
+                }
             }
         }
+
+        std::size_t total_size = 1U;
+        for (const auto& dimension : new_dimensions) {
+            total_size *= static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+        }
+        std::vector<Value> new_elements(
+            total_size, array_element_default(array.element_type_index));
+
+        if (preserve && array.is_allocated && !array.elements.empty()) {
+            // Every dimension except the last keeps identical bounds
+            // (validated above, or there is only one dimension), so the
+            // "outer" stride is the same in the old and new arrays; only
+            // the last dimension's absolute-index overlap needs
+            // computing -- generalizing the original 1-D-only overlap
+            // logic (which allowed the single dimension's bounds to
+            // shift, not just grow/shrink) to the last dimension of any
+            // dimension count, 1-D included.
+            const std::pair<Integer, Integer> old_last =
+                array.dimensions.empty()
+                    ? std::pair<Integer, Integer>{
+                          array.lower_bound,
+                          array.lower_bound + static_cast<Integer>(array.elements.size()) - 1}
+                    : array.dimensions.back();
+            const auto& new_last = new_dimensions.back();
+            const Integer overlap_lower = std::max(old_last.first, new_last.first);
+            const Integer overlap_upper = std::min(old_last.second, new_last.second);
+            if (overlap_lower <= overlap_upper) {
+                const auto old_last_size =
+                    static_cast<std::size_t>(old_last.second - old_last.first) + 1U;
+                const auto new_last_size =
+                    static_cast<std::size_t>(new_last.second - new_last.first) + 1U;
+                const auto outer_size = array.elements.size() / old_last_size;
+                for (std::size_t outer_index = 0; outer_index < outer_size; ++outer_index) {
+                    for (Integer absolute_index = overlap_lower; absolute_index <= overlap_upper;
+                         ++absolute_index) {
+                        const auto old_flat = outer_index * old_last_size +
+                            static_cast<std::size_t>(absolute_index - old_last.first);
+                        const auto new_flat = outer_index * new_last_size +
+                            static_cast<std::size_t>(absolute_index - new_last.first);
+                        new_elements[new_flat] = array.elements[old_flat];
+                    }
+                }
+            }
+        }
+
         array.elements = std::move(new_elements);
-        array.lower_bound = new_lower;
+        if (new_dimensions.size() == 1U) {
+            array.lower_bound = new_dimensions.front().first;
+            array.dimensions.clear();
+        } else {
+            array.lower_bound = 0;
+            array.dimensions = new_dimensions;
+        }
         array.is_allocated = true;
+        array.dynamic_dimension_count = new_dimensions.size();
         return true;
     }
 
@@ -4548,6 +4679,23 @@ private:
             }
             auto& array = std::get<ArrayValue>(*variable.value);
             if (array.is_dynamic) {
+                // REQ-0219: a multi-dimensional dynamic array's
+                // `dimensions` must be cleared too, not just `elements` --
+                // otherwise a later index read/write would still see the
+                // old (now-stale) per-dimension bounds as "in range" while
+                // `elements` is empty, indexing past the end of an empty
+                // vector. If the array was ever allocated,
+                // `dynamic_dimension_count` is locked in from its
+                // about-to-be-cleared shape first, so a later `ReDim`
+                // still enforces the same dimension count Erase does not
+                // let the array forget, matching real VB6; if it was
+                // never allocated at all (Erase on an untouched `Dim
+                // arr()`/`Dim arr(,)`), any already-pre-declared count is
+                // left exactly as it was.
+                if (array.is_allocated) {
+                    array.dynamic_dimension_count = array_expected_dimension_count(array);
+                }
+                array.dimensions.clear();
                 array.elements.clear();
                 array.lower_bound = 0;
                 array.is_allocated = false;
@@ -4936,8 +5084,7 @@ private:
                 return false;
             }
             advance();  // consume '('
-            const auto dimension_count =
-                array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+            const auto dimension_count = array_expected_dimension_count(array);
             auto indices = parse_index_list(dimension_count);
             if (!indices.has_value()) {
                 return false;
@@ -5151,6 +5298,25 @@ private:
         return parse_assignment(std::move(identifier), type_character);
     }
 
+    // The number of dimensions `array` currently has, or (REQ-0219) will
+    // have once its first `ReDim` allocates it. Once allocated,
+    // `dimensions` (or its absence, for an ordinary 1-D array) is
+    // authoritative; before that, a dynamic array's pre-declared
+    // `dynamic_dimension_count` (from a comma-only `Dim`, e.g. `Dim
+    // arr(,)`) takes precedence when set, so an index-count check against
+    // an as-yet-unallocated multi-dimensional array reports the array's
+    // real expected count instead of always assuming 1-D.
+    [[nodiscard]] static std::size_t array_expected_dimension_count(
+        const ArrayValue& array) noexcept {
+        if (!array.dimensions.empty()) {
+            return array.dimensions.size();
+        }
+        if (!array.is_allocated && array.dynamic_dimension_count > 0U) {
+            return array.dynamic_dimension_count;
+        }
+        return 1U;
+    }
+
     // Parses a comma-separated index-expression list "i1, i2, ..." (the
     // caller has already consumed the opening '('), coercing each to
     // `Long`, and leaves `offset_` just past the matching ')'. Always runs
@@ -5232,8 +5398,7 @@ private:
         const auto variable = find_variable(identifier);
         advance();  // consume '('
         auto& array = std::get<ArrayValue>(*variable.value);
-        const auto dimension_count =
-            array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+        const auto dimension_count = array_expected_dimension_count(array);
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
             return false;
@@ -6771,8 +6936,7 @@ private:
     [[nodiscard]] std::optional<Value> parse_array_index(const Value& array_variable) {
         const auto& array = std::get<ArrayValue>(array_variable);
         advance();  // consume '('
-        const auto dimension_count =
-            array.dimensions.empty() ? std::size_t{1} : array.dimensions.size();
+        const auto dimension_count = array_expected_dimension_count(array);
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
             return std::nullopt;
@@ -7142,19 +7306,24 @@ private:
             if (!execute_) {
                 return Value{Integer{}};
             }
+            if (!array->is_allocated) {
+                // Matches real VB6: LBound/UBound on a dynamic array before
+                // its first ReDim raises the same "subscript out of range"
+                // error an out-of-bounds index does, rather than silently
+                // answering from an empty [0, -1] range. Checked before the
+                // dimension-count range check below, since an unallocated
+                // array's own dimension count may itself only be
+                // provisional (REQ-0219's `dynamic_dimension_count`), not
+                // yet the authoritative shape a dimension argument should
+                // be validated against.
+                set_error("WFC0111", "array subscript out of range", identifier_offset);
+                return std::nullopt;
+            }
             const std::size_t dimension_count =
                 array->dimensions.empty() ? std::size_t{1} : array->dimensions.size();
             if (dimension < 1 || static_cast<std::size_t>(dimension) > dimension_count) {
                 set_error(
                     "WFC0148", "LBound/UBound dimension is out of range", identifier_offset);
-                return std::nullopt;
-            }
-            if (!array->is_allocated) {
-                // Matches real VB6: LBound/UBound on a dynamic array before
-                // its first ReDim raises the same "subscript out of range"
-                // error an out-of-bounds index does, rather than silently
-                // answering from an empty [0, -1] range.
-                set_error("WFC0111", "array subscript out of range", identifier_offset);
                 return std::nullopt;
             }
             if (array->dimensions.empty()) {

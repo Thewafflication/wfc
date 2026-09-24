@@ -74,9 +74,9 @@ a real VB6 project's separate `.cls` files. The evaluator currently covers,
 at a high level: declarations (`Dim`/`Const`/`Static`), every numeric type
 (`Integer`, `Long`, `Single`, `Double`, `Currency`, `Decimal` via `Variant`)
 plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
-`Do`/`For`/`For Each`), fixed-size (including multi-dimensional) and
-dynamic (`ReDim`/`ReDim Preserve`/`Erase`) arrays, including
-`Variant`/`Object`/class-typed-element arrays, the core `Strings`/
+`Do`/`For`/`For Each`), fixed-size and dynamic (`ReDim`/`ReDim Preserve`/
+`Erase`) arrays including multi-dimensional and dynamic multi-dimensional
+forms, `Variant`/`Object`/class-typed-element arrays, the core `Strings`/
 `Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
 `Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters
 including `Variant`/`Object`-element ones/array return types/a

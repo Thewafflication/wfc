@@ -16,6 +16,11 @@ identifier...]` statement, clearing one or more array variables.
   deallocates it entirely, as if it had never been `ReDim`'d: a subsequent
   `LBound`, `UBound`, or indexed read/write reports `WFC0111`, the same as
   before the array's first `ReDim`. A later `ReDim` reallocates it normally.
+  For a dynamic *multi*-dimensional array (`REQ-0219`), `Erase` also clears
+  its per-dimension bounds, not just its elements — the array's dimension
+  *count* stays locked (a later `ReDim` must still supply the same number
+  of dimensions, reported by `WFC0115` otherwise), but each dimension's
+  `[lower, upper]` range is forgotten along with the elements themselves.
 - Each target is looked up and cleared independently and in order; targets
   are separated by commas, matching a `Dim`-style identifier list.
 
@@ -33,9 +38,15 @@ This requirement adds only `Erase` for a variable already holding an
 - `Erase` for anything other than an array — there is no other collection
   or reference-counted type in this evaluator that `Erase` affects in real
   VB6 (a `Variant` holding an array is out of scope alongside every other
-  `Variant`-element-array exclusion `REQ-0201`/`REQ-0207` already list);
-- multi-dimensional array support (tracked separately, not yet
-  implemented).
+  `Variant`-element-array exclusion `REQ-0201`/`REQ-0207` already list).
+
+Multi-dimensional array support was excluded when this requirement was
+first implemented; `REQ-0210` later made `Erase` work unchanged for a
+fixed-size multi-dimensional array (it operates on the flat element list
+regardless of dimension count), and `REQ-0219` made it correctly clear a
+*dynamic* multi-dimensional array's per-dimension bounds too, fixing a bug
+where a stale bound survived `Erase` and let a subsequent index pass its
+bounds check against the now-empty element list.
 
 ## Verification
 

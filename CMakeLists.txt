@@ -1410,4 +1410,25 @@ Print c.Total]=]
             LABELS "integration;mp-0002;statements;procedures;classes"
             PASS_REGULAR_EXPRESSION "2.*1"
     )
+
+    add_test(
+        NAME TC-MP0002-dynamic-multidim-array-cli
+        COMMAND wfc --eval [=[Dim arr() As Long
+ReDim arr(1, 2)
+arr(0, 0) = 1
+arr(1, 2) = 6
+Print arr(0, 0) & " " & arr(1, 2) & " " & UBound(arr, 2)
+ReDim Preserve arr(1, 4)
+arr(1, 4) = 9
+Print arr(0, 0) & " " & arr(1, 4) & " " & UBound(arr, 2)
+Erase arr
+ReDim arr(2, 2)
+Print UBound(arr, 2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-dynamic-multidim-array-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array"
+            PASS_REGULAR_EXPRESSION "1 6 2.*1 9 4.*2"
+    )
 endif()

@@ -554,7 +554,6 @@ int main() {
     expect_program_failure("ReDim arr(5)", "WFC0145");
     expect_program_failure("Dim x As Long\nReDim x(5)", "WFC0145");
     expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0117");
-    expect_program_failure("Dim arr() As Long\nReDim arr(2, 3)", "WFC0115");
     expect_program_success(
         "Dim arr() As Long\nIf True Then\nReDim arr(2)\narr(1) = 7\nEnd If\nPrint arr(1)",
         "7");
@@ -633,7 +632,47 @@ int main() {
     expect_program_success(
         "Dim arr(1, 1) As Long\narr(0, 0) = 9\nErase arr\nPrint arr(0, 0) & \" \" & UBound(arr)",
         "0 1");
-    expect_program_failure("Dim arr() As Long\nReDim arr(2, 3)", "WFC0115");
+    // Dynamic multi-dimensional arrays (REQ-0219): a plain `Dim arr()`
+    // fixes its dimension count on the first ReDim; `Dim arr(,)` (etc.)
+    // pre-declares it; every later ReDim must match that count exactly,
+    // and ReDim Preserve may only resize the last dimension.
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(2, 3)\narr(0, 0) = 1\narr(2, 3) = 9\n"
+        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & UBound(arr) & \" \" & UBound(arr, 2)",
+        "1 9 2 3");
+    expect_program_success(
+        "Dim arr(,) As Long\nReDim arr(1, 1)\narr(1, 1) = 5\nPrint arr(1, 1)",
+        "5");
+    expect_program_failure("Dim arr(,) As Long\nReDim arr(2)", "WFC0115");
+    expect_program_failure(
+        "Dim arr() As Long\nReDim arr(2, 3)\nReDim arr(5)", "WFC0115");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(1, 2)\narr(0, 0) = 1\narr(0, 1) = 2\narr(0, 2) = 3\n"
+        "arr(1, 0) = 4\narr(1, 1) = 5\narr(1, 2) = 6\n"
+        "ReDim Preserve arr(1, 4)\n"
+        "Print arr(0, 0) & \" \" & arr(1, 2) & \" \" & arr(1, 3) & \" \" & UBound(arr, 2)",
+        "1 6 0 4");
+    expect_program_success(
+        "Dim arr() As Long\nReDim arr(1, 3)\narr(0, 0) = 1\narr(1, 3) = 9\n"
+        "ReDim Preserve arr(1, 1)\n"
+        "Print arr(0, 0) & \" \" & UBound(arr, 2)",
+        "1 1");
+    expect_program_failure(
+        "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(3, 3)", "WFC0151");
+    // Erase on a multi-dimensional dynamic array (REQ-0219 regression):
+    // Erase must clear the array's per-dimension bounds along with its
+    // elements, not just its elements. Before this fix, a stale
+    // `dimensions` entry survived Erase and passed a subsequent index's
+    // bounds check against the now-empty `elements` vector, indexing past
+    // the end of an empty std::vector (undefined behavior, observed as a
+    // hung process) instead of correctly reporting WFC0111.
+    expect_program_failure(
+        "Dim arr() As Long\nReDim arr(1, 2)\narr(0, 0) = 1\nErase arr\n"
+        "Print arr(0, 0)",
+        "WFC0111");
+    expect_program_failure(
+        "Dim arr() As Long\nReDim arr(1, 2)\nErase arr\nReDim arr(3)\nPrint arr(0)",
+        "WFC0115");
     // Array-typed Sub/Function parameters: name() As Type, always ByRef
     // (mutations -- including a ReDim inside the callee -- write back to
     // the caller's array, reusing the existing ByRef bare-identifier

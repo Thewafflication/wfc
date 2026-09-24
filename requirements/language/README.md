@@ -243,7 +243,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `For Each identifier In arrayExpression ... Next`, iterating an array's
   elements in order, sharing `Exit For` and `Next`-matching with the
   numeric `For` loop.
-- [REQ-0210 — Multi-dimensional arrays (fixed-size only)](req-0210-multidimensional-arrays.md)
+- [REQ-0210 — Multi-dimensional arrays (fixed-size)](req-0210-multidimensional-arrays.md)
   defines `Dim identifier(bound1, bound2, ...) As Type`, indexed read/write,
   and a dimension-argument form of `LBound`/`UBound`, extending
   `REQ-0201`'s one-dimensional foundation.
@@ -276,3 +276,9 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines `0`/`#` digit placeholders, `,` grouping, `.` decimal point, and
   literal text for any `Format` `Style` not naming a reserved style,
   retiring `WFC0102`.
+- [REQ-0219 — Dynamic multi-dimensional arrays](req-0219-dynamic-multidimensional-arrays.md)
+  combines `REQ-0207`'s `ReDim`/`ReDim Preserve` with `REQ-0210`'s
+  multi-dimensional shape: comma-count dimension pre-declaration
+  (`Dim arr(,)`), dimension-count locking, `ReDim Preserve` restricted to
+  the last dimension, and an `Erase` bug fix so a dynamic multi-dimensional
+  array's per-dimension bounds are cleared along with its elements.

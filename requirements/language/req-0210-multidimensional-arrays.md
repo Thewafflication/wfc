@@ -1,4 +1,4 @@
-# REQ-0210 — Multi-dimensional arrays (fixed-size only)
+# REQ-0210 — Multi-dimensional arrays (fixed-size)
 
 **Status:** Implemented
 **Milestone:** MP-0002 — Core VB/VBA Language Execution
@@ -44,12 +44,11 @@ reusing the existing scalar-assignment diagnostic.
 This requirement adds fixed-size multi-dimensional arrays only. It does
 not add:
 
-- dynamic multi-dimensional arrays: `Dim identifier(,)` (or any bound-less
-  multi-dimensional form) is not a recognized declaration, and `ReDim`/
-  `ReDim Preserve` (`REQ-0207`) continue to reject any comma in their own
-  bound list with `WFC0115`, exactly as before this requirement. A
-  multi-dimensional array's shape is therefore fixed for its entire
-  lifetime, the same as a 1-D fixed-size array;
+- dynamic multi-dimensional arrays — originally excluded here (`Dim
+  identifier(,)` was not a recognized declaration, and `ReDim`/`ReDim
+  Preserve` from `REQ-0207` rejected any comma in their own bound list with
+  `WFC0115`, so a multi-dimensional array's shape was fixed for its entire
+  lifetime); `REQ-0219` later added the dynamic form;
 - three or more dimensions being independently verified against the
   reference runtime — the flattening formula is a standard row-major
   generalization exercised by this requirement's own 2-D and 3-D-shaped

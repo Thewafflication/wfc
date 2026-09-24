@@ -49,9 +49,12 @@ reallocates it, using the same bound-expression grammar, `Long` coercion, and
 dynamic array (undeclared, non-array, or fixed-size). `WFC0111` reports an
 out-of-range index, or `LBound`/`UBound` called on an unallocated dynamic
 array, reusing `REQ-0201`'s existing diagnostic. `WFC0117` reports a `ReDim`
-whose lower bound exceeds its upper bound, and `WFC0115` reports a comma
-inside a `ReDim` bound expression (multi-dimensional, out of scope), both
-reusing `REQ-0201`'s existing declaration-time diagnostics. `WFC0116`
+whose lower bound exceeds its upper bound, reusing `REQ-0201`'s existing
+declaration-time diagnostic. `WFC0115` originally reported any comma inside
+a `ReDim` bound expression (multi-dimensional, out of scope); `REQ-0219`
+repurposes it to instead report a `ReDim` whose dimension count does not
+match the array's already-fixed dimension count, once dynamic
+multi-dimensional arrays exist. `WFC0116`
 ("`Dim identifier()` with no bound is unsupported") is retired: that form is
 now the dynamic-array declaration this requirement adds.
 
@@ -60,10 +63,11 @@ now the dynamic-array declaration this requirement adds.
 This requirement adds only `ReDim`/`ReDim Preserve` for a one-dimensional
 array. It does not add:
 
-- multiple dimensions (`ReDim arr(i, j)`) — a comma inside `(...)` still
-  reports `WFC0115`, even after `REQ-0210` added fixed-size
-  multi-dimensional arrays; a multi-dimensional array's shape is fixed for
-  its entire lifetime in this evaluator, dynamic or not;
+- multiple dimensions (`ReDim arr(i, j)`) — originally excluded here (a
+  comma inside `(...)` unconditionally reported `WFC0115`, even after
+  `REQ-0210` added fixed-size multi-dimensional arrays); `REQ-0219` later
+  added dynamic multi-dimensional arrays, generalizing this requirement's
+  `ReDim`/`ReDim Preserve` machinery to N dimensions;
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or array-typed `Sub`/`Function` parameters (see
   `REQ-0211`) — all three are now covered by their own requirements;
