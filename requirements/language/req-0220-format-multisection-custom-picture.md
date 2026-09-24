@@ -70,9 +70,13 @@ not add:
   renders as an empty string via the same "no placeholders" rule
   `REQ-0218` already establishes, but this exact shape was not
   separately probed;
-- `%`/`E+`/`E-` combined with a custom picture in any section, or a `\`
-  escape character — unchanged from `REQ-0218`'s own exclusions, which
-  apply equally to every section.
+- `%`/`E+`/`E-` combined with a custom picture in any section — unchanged
+  from `REQ-0218`'s own exclusion, which applies equally to every
+  section. (A `\` escape character was excluded here too when this
+  requirement was first implemented; `REQ-0221` later added it, and made
+  this requirement's own `;` section-splitting escape-aware for it in
+  the same increment, since an escaped `\;` must not split a picture
+  into sections.)
 
 ## Verification
 

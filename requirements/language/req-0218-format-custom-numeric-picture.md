@@ -72,7 +72,7 @@ and literal passthrough. It does not add:
   section stays excluded, alongside the existing "no `String` expression"
   exclusion below);
 - a `\` escape character for a literal digit-placeholder/comma/period
-  character;
+  character — originally excluded here; `REQ-0221` later added it;
 - string picture tokens (`@`, `!`, `<`, `>`) — unchanged from `REQ-0193`'s
   own exclusion;
 - applying a picture to a `String` expression — unchanged from

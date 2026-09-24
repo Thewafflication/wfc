@@ -1444,4 +1444,18 @@ Print Format(0, "0;-0;0 Zero")]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "1234.50 \\(1234.50\\).*\\(\\$1,234,567\\) \\$1,234,567.*0 Zero"
     )
+
+    add_test(
+        NAME TC-MP0002-format-escape-cli
+        COMMAND wfc --eval [=[Print Format(5, "\0\0\0")
+Print Format(1234, "0\,000")
+Print Format(5, "0\;0")
+Print Format(5, "0\.0") & " " & Format(5, "\\0")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-format-escape-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "5000.*1,234.*0;5.*0.5 \\\\5"
+    )
 endif()

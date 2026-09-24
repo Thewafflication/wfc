@@ -9475,11 +9475,46 @@ private:
         return rendered;
     }
 
+    // A custom numeric picture section, after expanding every `\`-escaped
+    // pair (REQ-0221): `text` drops the backslashes themselves, and
+    // `forced_literal[i]` is true exactly when `text[i]` came from an
+    // escape (`\0`, `\#`, `\,`, `\.`, `\;`, ...) rather than appearing
+    // unescaped -- so it must be rendered as a plain literal character at
+    // its position even when it is one of this format's own special
+    // characters, never interpreted as a digit placeholder, decimal
+    // point, grouping comma, or section separator. A trailing lone `\`
+    // (nothing left to escape) is kept as a literal backslash character
+    // instead, a disclosed simplification since real VB6 pictures do not
+    // normally end mid-escape.
+    struct EscapedPicture {
+        std::string text;
+        std::vector<bool> forced_literal;
+    };
+
+    [[nodiscard]] static EscapedPicture parse_picture_escapes(const std::string& section) {
+        EscapedPicture result;
+        for (std::size_t index = 0U; index < section.size(); ++index) {
+            if (section[index] == '\\' && index + 1U < section.size()) {
+                result.text.push_back(section[index + 1U]);
+                result.forced_literal.push_back(true);
+                ++index;
+            } else {
+                result.text.push_back(section[index]);
+                result.forced_literal.push_back(false);
+            }
+        }
+        return result;
+    }
+
     // Splits a custom numeric picture `Format` `Style` on `;` into its
     // positive/negative/zero sections (REQ-0220) and renders `value`
     // through whichever section real VB6 selects for it, delegating the
     // actual character-by-character rendering of that one section to
-    // `render_custom_numeric_picture_section`.
+    // `render_custom_numeric_picture_section`. An escaped `\;` (REQ-0221)
+    // is not treated as a section separator -- checked textually here,
+    // ahead of `render_custom_numeric_picture_section`'s own escape
+    // expansion, since a section boundary has to be decided before any
+    // one section's own text is otherwise interpreted.
     //
     // One section (no `;` at all) applies to every value unchanged
     // (REQ-0218's original behavior, including its automatic leading `-`
@@ -9501,16 +9536,20 @@ private:
     [[nodiscard]] static std::string render_custom_numeric_picture(
         const double value, const std::string& picture) {
         std::vector<std::string> sections;
-        std::string::size_type section_start = 0U;
-        while (true) {
-            const auto semicolon = picture.find(';', section_start);
-            if (semicolon == std::string::npos) {
-                sections.push_back(picture.substr(section_start));
-                break;
+        std::string current_section;
+        for (std::size_t index = 0U; index < picture.size(); ++index) {
+            if (picture[index] == '\\' && index + 1U < picture.size()) {
+                current_section.push_back(picture[index]);
+                current_section.push_back(picture[index + 1U]);
+                ++index;
+            } else if (picture[index] == ';') {
+                sections.push_back(std::move(current_section));
+                current_section.clear();
+            } else {
+                current_section.push_back(picture[index]);
             }
-            sections.push_back(picture.substr(section_start, semicolon - section_start));
-            section_start = semicolon + 1U;
         }
+        sections.push_back(std::move(current_section));
         if (sections.size() == 1U) {
             return render_custom_numeric_picture_section(value, sections.front());
         }
@@ -9524,41 +9563,65 @@ private:
     }
 
     // Renders one section of a VBA "custom numeric picture" `Format`
-    // `Style` (REQ-0218; multi-section dispatch is `REQ-0220`, above):
-    // any `Style` section that does not name one of the reserved named
-    // styles above is treated this way, character by character. `0` is a
-    // digit placeholder that forces a `0` when no digit remains at that
-    // position; `#` is a digit placeholder that shows nothing when no
-    // digit remains; `.` marks the single decimal point, splitting the
-    // picture into an integer and a fraction section; a `,` among the
-    // integer section's digit placeholders (and nowhere else in that
-    // section) enables comma-grouped thousands separators; every other
-    // character is a literal, copied through unchanged at its position.
-    // The fraction section is rounded to its own placeholder count using
-    // the same nearest-even rounding `to_chars`'s fixed format already
-    // gives `Fixed`/`Standard`, and a trailing run of `#`-placeholder
-    // digits that rounded to `0` is trimmed. A negative `value` gets a
-    // leading `-` unless the entire rendered magnitude is zero, matching
+    // `Style` (REQ-0218; multi-section dispatch is `REQ-0220`, above; `\`
+    // escapes are `REQ-0221`, below): any `Style` section that does not
+    // name one of the reserved named styles above is treated this way,
+    // character by character. `0` is a digit placeholder that forces a
+    // `0` when no digit remains at that position; `#` is a digit
+    // placeholder that shows nothing when no digit remains; `.` marks the
+    // single decimal point, splitting the picture into an integer and a
+    // fraction section; a `,` among the integer section's digit
+    // placeholders (and nowhere else in that section) enables
+    // comma-grouped thousands separators; every other character is a
+    // literal, copied through unchanged at its position -- unless it was
+    // itself `\`-escaped, in which case it is always a literal
+    // (`escaped.forced_literal`, from `parse_picture_escapes`), even if it
+    // would otherwise be one of `0`/`#`/`.`/`,` above. The fraction
+    // section is rounded to its own placeholder count using the same
+    // nearest-even rounding `to_chars`'s fixed format already gives
+    // `Fixed`/`Standard`, and a trailing run of `#`-placeholder digits
+    // that rounded to `0` is trimmed. A negative `value` gets a leading
+    // `-` unless the entire rendered magnitude is zero, matching
     // `Fixed`/`Standard`'s own convention (a multi-section picture's
     // negative section is only ever called with a non-negative magnitude
     // by the dispatcher above, so this never fires for it). A second
-    // literal `.` (if any) is treated as an ordinary literal character
-    // within the fraction section, not a second decimal point.
+    // *unescaped* literal `.` (if any) is treated as an ordinary literal
+    // character within the fraction section, not a second decimal point.
     [[nodiscard]] static std::string render_custom_numeric_picture_section(
         const double value, const std::string& picture) {
         const bool negative = value < 0.0;
         const double magnitude = std::fabs(value);
 
-        const auto dot_position = picture.find('.');
-        const std::string integer_pic =
-            dot_position == std::string::npos ? picture : picture.substr(0, dot_position);
-        const std::string fraction_pic = dot_position == std::string::npos
-                                              ? std::string{}
-                                              : picture.substr(dot_position + 1U);
+        // REQ-0221: expand every `\`-escaped pair first, so a placeholder/
+        // decimal-point/grouping-comma character that was actually
+        // written as `\0`/`\#`/`\,`/`\.` etc. is unambiguously a literal
+        // at every check below, keyed by index into `escaped.text`
+        // alongside `escaped.forced_literal` rather than by the character
+        // value alone.
+        const EscapedPicture escaped = parse_picture_escapes(picture);
+        std::size_t dot_position = escaped.text.size();
+        for (std::size_t index = 0U; index < escaped.text.size(); ++index) {
+            if (escaped.text[index] == '.' && !escaped.forced_literal[index]) {
+                dot_position = index;
+                break;
+            }
+        }
+        const bool has_dot = dot_position < escaped.text.size();
+        const std::string integer_pic = escaped.text.substr(0, dot_position);
+        const std::vector<bool> integer_pic_forced(
+            escaped.forced_literal.begin(), escaped.forced_literal.begin() + dot_position);
+        const std::string fraction_pic =
+            has_dot ? escaped.text.substr(dot_position + 1U) : std::string{};
+        const std::vector<bool> fraction_pic_forced =
+            has_dot ? std::vector<bool>(
+                          escaped.forced_literal.begin() + static_cast<std::ptrdiff_t>(dot_position) + 1,
+                          escaped.forced_literal.end())
+                    : std::vector<bool>{};
 
         std::size_t fraction_digit_count = 0U;
-        for (const char character : fraction_pic) {
-            if (character == '0' || character == '#') {
+        for (std::size_t index = 0U; index < fraction_pic.size(); ++index) {
+            if ((fraction_pic[index] == '0' || fraction_pic[index] == '#') &&
+                !fraction_pic_forced[index]) {
                 ++fraction_digit_count;
             }
         }
@@ -9582,8 +9645,9 @@ private:
         std::string fraction_output;
         std::vector<bool> fraction_is_trimmable_zero;
         std::size_t fraction_digit_index = 0U;
-        for (const char character : fraction_pic) {
-            if (character == '0' || character == '#') {
+        for (std::size_t index = 0U; index < fraction_pic.size(); ++index) {
+            const char character = fraction_pic[index];
+            if ((character == '0' || character == '#') && !fraction_pic_forced[index]) {
                 const char digit = fraction_digit_index < fraction_digits.size()
                                         ? fraction_digits[fraction_digit_index]
                                         : '0';
@@ -9600,14 +9664,21 @@ private:
             fraction_is_trimmable_zero.pop_back();
         }
 
-        // Integer section: right to left, one placeholder per digit;
-        // commas are grouping instructions (stripped before matching), not
-        // literal output positions.
+        // Integer section: right to left, one placeholder per digit; an
+        // unescaped comma is a grouping instruction (stripped before
+        // matching, not a literal output position) -- an escaped `\,`
+        // keeps its own forced-literal marker instead, so it survives
+        // into `integer_pic_digits_only` as an ordinary literal character.
         std::string integer_pic_digits_only;
-        for (const char character : integer_pic) {
-            if (character != ',') {
-                integer_pic_digits_only.push_back(character);
+        std::vector<bool> integer_pic_digits_only_forced;
+        bool has_unescaped_comma = false;
+        for (std::size_t index = 0U; index < integer_pic.size(); ++index) {
+            if (integer_pic[index] == ',' && !integer_pic_forced[index]) {
+                has_unescaped_comma = true;
+                continue;
             }
+            integer_pic_digits_only.push_back(integer_pic[index]);
+            integer_pic_digits_only_forced.push_back(integer_pic_forced[index]);
         }
         std::string integer_output_reversed;
         // Parallel to `integer_output_reversed`: true at every position
@@ -9633,16 +9704,16 @@ private:
         // behavior.
         std::size_t leftmost_placeholder_point = 0U;
         bool seen_placeholder = false;
-        for (auto pic_iterator = integer_pic_digits_only.rbegin();
-             pic_iterator != integer_pic_digits_only.rend(); ++pic_iterator) {
-            const char character = *pic_iterator;
-            if (character == '0') {
+        for (std::size_t reverse_index = integer_pic_digits_only.size(); reverse_index-- > 0;) {
+            const char character = integer_pic_digits_only[reverse_index];
+            const bool forced = integer_pic_digits_only_forced[reverse_index];
+            if (character == '0' && !forced) {
                 integer_output_reversed.push_back(
                     digit_source_index > 0U ? integer_digits[--digit_source_index] : '0');
                 integer_output_is_digit_reversed.push_back(true);
                 leftmost_placeholder_point = integer_output_reversed.size();
                 seen_placeholder = true;
-            } else if (character == '#') {
+            } else if (character == '#' && !forced) {
                 if (digit_source_index > 0U) {
                     integer_output_reversed.push_back(integer_digits[--digit_source_index]);
                     integer_output_is_digit_reversed.push_back(true);
@@ -9668,7 +9739,7 @@ private:
                 overflow_digits.size(), true);
         }
         std::string integer_output(integer_output_reversed.rbegin(), integer_output_reversed.rend());
-        if (integer_pic.find(',') != std::string::npos) {
+        if (has_unescaped_comma) {
             const auto total_digits = static_cast<std::size_t>(std::count(
                 integer_output_is_digit_reversed.begin(), integer_output_is_digit_reversed.end(),
                 true));
@@ -9687,7 +9758,7 @@ private:
         }
 
         std::string rendered = integer_output;
-        if (dot_position != std::string::npos) {
+        if (has_dot) {
             rendered += "." + fraction_output;
         }
         const bool all_zero =

@@ -366,6 +366,19 @@ int main() {
     // counts actual digit positions, not the trailing literal, so it does
     // not shift the group boundaries.
     expect_success("Print Format(-7654321, \"$#,##0;($#,##0)\")", "($7,654,321)");
+    // `\`-escaped picture characters (REQ-0221): the character right after
+    // a `\` is always a literal, even when it would otherwise be a digit
+    // placeholder, decimal point, grouping comma, or section separator.
+    // An escaped `0`/`#`/`,`/`.` never participates in placeholder/
+    // grouping/decimal-point logic; an escaped `;` does not split a
+    // custom picture into sections.
+    expect_success("Print Format(5, \"\\0\\0\\0\")", "5000");
+    expect_success("Print Format(1234, \"0\\,000\")", "1,234");
+    expect_success("Print Format(5, \"0\\;0\")", "0;5");
+    expect_success("Print Format(5, \"0\\.0\")", "0.5");
+    expect_success("Print Format(5, \"\\\\0\")", "\\5");
+    expect_success(
+        "Print Format(5, \"0\\;0;(0)\") & \" \" & Format(-5, \"0\\;0;(0)\")", "0;5 (5)");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
         "0.7055475 0.533424 0.5795186");

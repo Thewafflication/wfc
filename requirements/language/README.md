@@ -287,3 +287,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   sections, and fixes two `REQ-0218` bugs its own testing found: overflow
   digits landing past a leading literal instead of next to the
   placeholder, and comma grouping miscounted by a trailing literal.
+- [REQ-0221 — Format custom picture `\` escape character](req-0221-format-picture-escape-character.md)
+  makes the character right after a `\` always a literal, including
+  `\;` not splitting a `REQ-0220` picture into sections and `\\`
+  rendering as one literal backslash.
