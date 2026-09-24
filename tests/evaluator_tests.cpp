@@ -2160,6 +2160,39 @@ int main() {
     expect_program_failure("Function Foo() As Variant()\nEnd Function", "WFC0150");
     expect_program_failure("Function Foo() As Object()\nEnd Function", "WFC0150");
     expect_program_failure("Function Foo() As Long(5)\nEnd Function", "WFC0150");
+    // Remaining parenthesis-free call forms (REQ-0217): a bare `Name`
+    // statement with no `Call` keyword (zero arguments), and `obj.Method`/
+    // `Call obj.Method` (dotted access) with no parentheses.
+    expect_program_success(
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "NextId = counter\nEnd Function\nNextId\nPrint NextId",
+        "2");
+    expect_program_success(
+        "Sub SayHi()\nPrint \"hi\"\nEnd Sub\nSayHi",
+        "hi");
+    expect_program_success(
+        "Dim x As Long\nx = 5\nPrint x",
+        "5");
+    expect_classes_success(
+        {{"Counter", "Private n As Long\n\n"
+                     "Sub Increment()\nn = n + 1\nEnd Sub\n\n"
+                     "Property Get Total() As Long\nTotal = n\nEnd Property"}},
+        "Dim c As New Counter\nc.Increment\nPrint c.Total\nCall c.Increment\nPrint c.Total",
+        "1\n2");
+    expect_classes_success(
+        {{"Counter", "Public value As Long"}},
+        "Dim c As New Counter\nc.value = 10\nPrint c.value",
+        "10");
+    expect_classes_success(
+        {{"Store", "Private a As Long\n\n"
+                   "Property Get Item(i As Long) As Long\nItem = a\nEnd Property\n\n"
+                   "Property Let Item(i As Long, v As Long)\na = v\nEnd Property"}},
+        "Dim s As New Store\ns.Item(0) = 5\nPrint s.Item(0)",
+        "5");
+    expect_classes_failure(
+        {{"Counter", "Public value As Long\n\nSub Add(n As Long)\nvalue = value + n\nEnd Sub"}},
+        "Dim c As New Counter\nc.Add\nPrint c.value",
+        "WFC0072");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

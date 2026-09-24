@@ -1381,4 +1381,33 @@ Print x(0) & " " & x(1) & " " & x(2) & " " & UBound(x)]=]
             LABELS "integration;mp-0002;statements;procedures;array"
             PASS_REGULAR_EXPRESSION "10 20 30 2"
     )
+
+    add_test(
+        NAME TC-MP0002-bare-call-cli
+        COMMAND wfc --class Counter [=[Private n As Long
+
+Sub Increment()
+n = n + 1
+End Sub
+
+Property Get Total() As Long
+Total = n
+End Property]=]
+            --eval [=[Function NextId() As Long
+Static counter As Long
+counter = counter + 1
+NextId = counter
+End Function
+NextId
+Print NextId
+Dim c As New Counter
+c.Increment
+Print c.Total]=]
+    )
+    set_tests_properties(
+        TC-MP0002-bare-call-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;classes"
+            PASS_REGULAR_EXPRESSION "2.*1"
+    )
 endif()

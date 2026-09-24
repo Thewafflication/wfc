@@ -2866,11 +2866,43 @@ private:
         if (has_let) {
             skip_horizontal_whitespace();
         }
+        const auto identifier_offset = offset_;
         char type_character{};
         auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value()) {
             set_error("WFC0010", "expected statement", statement_offset);
             return false;
+        }
+        // A bare `Name` statement (no `Call`, zero arguments; REQ-0217)
+        // invokes a module-level or class-sibling Sub/Function, discarding
+        // any Function result -- checked only when `Name` is not a
+        // variable and nothing else follows it on this statement (no `=`,
+        // no `(`, no argument list), so this never competes with an
+        // ordinary assignment or array-element write. A bare `Name arg1,
+        // arg2` (with arguments) remains unsupported, avoiding the classic
+        // ambiguity that form has with other statement shapes; see
+        // REQ-0217's Scope.
+        if (!has_let && type_character == '\0' && find_variable(*identifier).value == nullptr) {
+            const auto saved_offset = offset_;
+            skip_horizontal_whitespace();
+            const bool bare_statement_end = at_end() || current() == '\r' || current() == '\n' ||
+                current() == ':' || current() == '\'';
+            offset_ = saved_offset;
+            if (bare_statement_end) {
+                if (procedures_.contains(*identifier)) {
+                    const auto result = call_procedure(*identifier, identifier_offset, false);
+                    return result.has_value();
+                }
+                if (auto* const instance = current_instance()) {
+                    if (const auto* const class_def = current_class_def()) {
+                        if (class_def->methods.contains(*identifier)) {
+                            const auto result = call_class_method(
+                                *instance, *class_def, *identifier, identifier_offset, false);
+                            return result.has_value();
+                        }
+                    }
+                }
+            }
         }
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
@@ -5086,6 +5118,31 @@ private:
                     const auto identifier_offset = saved_offset - identifier.size();
                     const auto base = *variable.value;
                     advance();
+                    // `obj.Method` with no `Call` and no parentheses (zero
+                    // arguments; REQ-0217): checked only when nothing else
+                    // follows the bare member name on this statement (no
+                    // `=`, no `(`), so it never competes with `obj.Prop =
+                    // expr` or `obj.Method(args) = ...` (an indexed
+                    // Property Let/Set), both still handled by
+                    // parse_member_assignment below.
+                    if (const auto* const instance_base = std::get_if<ObjectInstance>(&base)) {
+                        const auto peek_offset = offset_;
+                        char peek_type_character{};
+                        auto peek_member_name = parse_identifier(&peek_type_character);
+                        skip_horizontal_whitespace();
+                        const bool bare_statement_end = at_end() || current() == '\r' ||
+                            current() == '\n' || current() == ':' || current() == '\'';
+                        const bool is_method = peek_member_name.has_value() &&
+                            peek_type_character == '\0' &&
+                            class_definitions_.at(instance_base->data->class_name)
+                                .methods.contains(*peek_member_name);
+                        offset_ = peek_offset;
+                        if (bare_statement_end && is_method) {
+                            const auto result = parse_member_access_after_dot(
+                                base, identifier_offset, /*require_function=*/false);
+                            return result.has_value();
+                        }
+                    }
                     return parse_member_assignment(base, identifier_offset);
                 }
                 offset_ = saved_offset;
@@ -6582,6 +6639,19 @@ private:
             return invoke_definition(
                 getter_iterator->second, *member_name, {}, member_offset, class_def.source,
                 &instance);
+        }
+        // `obj.Method` / `Call obj.Method` with no parentheses (REQ-0217):
+        // a zero-argument dotted method call, checked after Property Get
+        // (a class cannot declare both a method and a property under the
+        // same name) and before a field, matching the with-parens branch
+        // above's own method-then-property-then-unknown order.
+        // call_class_method's own parse_call_argument_list tolerates the
+        // missing '(' as zero arguments (REQ-0213), rejecting it with
+        // WFC0072 if the method actually requires one or more.
+        const auto method_iterator = class_def.methods.find(*member_name);
+        if (method_iterator != class_def.methods.end()) {
+            return call_class_method(
+                instance, class_def, *member_name, member_offset, require_function);
         }
         const auto field_iterator = instance.fields.variables.find(*member_name);
         if (field_iterator != instance.fields.variables.end()) {

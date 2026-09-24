@@ -54,16 +54,12 @@ does not add:
   shapes (for example, distinguishing `Name (1)` — a call with one
   parenthesized argument — from `Name(1)` — an array index). Every
   argument-taking call still needs its parentheses;
-- a bare `name` (or `name arg1, arg2`) as a full *statement* without the
-  `Call` keyword — VB6's other, still-unsupported parenthesis-free
-  call-statement form (see `REQ-0202`'s Scope, which this requirement
-  narrows but does not close: `Call name` now works with zero arguments,
-  a bare `name` alone still does not);
+- a bare `name` (zero arguments, no `Call` keyword) as a full *statement*
+  was excluded here; `REQ-0217` later added it (`name arg1, arg2`, with
+  arguments, remains excluded there too, for the same ambiguity reason);
 - `obj.Method` (dotted access) without parentheses for a zero-argument
-  method, whether via `Call obj.Method` or in an expression — a
-  dotted method call still requires `()`; only a `Property Get` already
-  supports the bare dotted form (unchanged, pre-existing behavior). Use
-  `obj.Method()` instead.
+  method was excluded here; `REQ-0217` later added it, both as a
+  statement (with or without `Call`) and in an expression.
 
 ## Verification
 

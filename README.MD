@@ -80,7 +80,8 @@ dynamic (`ReDim`/`ReDim Preserve`/`Erase`) arrays, including
 `Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
 `Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters
 including `Variant`/`Object`-element ones/array return types/a
-zero-argument call without parentheses), and a minimal
+zero-argument call without parentheses, including a bare statement or a
+dotted `obj.Method`), and a minimal
 class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
 `New`/`Me`, lifecycle hooks, `Public`/`Private`). It does not claim general
 VB6 compatibility — see the [language requirements
@@ -120,6 +121,7 @@ out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Factorial(n As Long) 
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function Greet(name As String, Optional greeting As String = `"Hello`") As String`nGreet = greeting & `", `" & name`nEnd Function`nFunction Total(ParamArray nums() As Long) As Long`nDim i As Long`nDim s As Long`nFor i = LBound(nums) To UBound(nums)`ns = s + nums(i)`nNext i`nTotal = s`nEnd Function`nPrint Greet(`"World`") & `" | `" & Total(1, 2, 3, 4)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Sub DoubleAll(nums() As Long)`nDim i As Long`nFor i = LBound(nums) To UBound(nums)`nnums(i) = nums(i) * 2`nNext i`nEnd Sub`nDim arr(2) As Long`narr(0) = 1`narr(1) = 2`narr(2) = 3`nCall DoubleAll(arr)`nPrint arr(0) & `" `" & arr(1) & `" `" & arr(2)"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function NextId() As Long`nStatic counter As Long`ncounter = counter + 1`nNextId = counter`nEnd Function`nPrint NextId`nCall NextId`nPrint NextId & `" `" & Rnd"
+out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Private n As Long`n`nSub Increment()`nn = n + 1`nEnd Sub`n`nProperty Get Total() As Long`nTotal = n`nEnd Property" --eval "Dim c As New Counter`nc.Increment`nCall c.Increment`nPrint c.Total"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Sub Fill(nums() As Variant)`nnums(0) = `"a`"`nnums(1) = 5`nEnd Sub`nDim arr(1) As Variant`nCall Fill(arr)`nPrint TypeName(arr(0)) & `" `" & TypeName(arr(1))"
 out/build/windows-x64-debug/Debug/wfc.exe --eval "Function MakeArray() As Long()`nDim result(2) As Long`nresult(0) = 10`nresult(1) = 20`nresult(2) = 30`nMakeArray = result`nEnd Function`nDim x() As Long`nx = MakeArray()`nPrint x(0) & `" `" & x(1) & `" `" & x(2) & `" `" & UBound(x)"
 

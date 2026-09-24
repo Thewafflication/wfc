@@ -268,3 +268,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0216 — Array-typed Function return](req-0216-array-return-type.md)
   defines `Function name(...) As Type()`, whose return slot starts as an
   unallocated dynamic array the body can assign or `ReDim` directly.
+- [REQ-0217 — Parenthesis-free statement and dotted calls](req-0217-parenless-statement-calls.md)
+  defines a bare `name` statement (no `Call`, zero arguments) and
+  `obj.Method` without parentheses, closing the two forms `REQ-0213` left
+  deferred.
