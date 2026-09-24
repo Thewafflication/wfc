@@ -7406,6 +7406,23 @@ private:
             if (lowered_style == "standard") {
                 return Value{render_fixed_style(widened, true)};
             }
+            if (lowered_style == "currency") {
+                // A disclosed, unverified-against-the-reference-runtime
+                // simplification (REQ-0217): real VB6's Currency style
+                // uses the *system locale's* currency symbol and negative-
+                // value convention (commonly parenthesized, e.g.
+                // "($1,234.50)" under a US locale), neither of which this
+                // evaluator has any notion of. This renders a fixed
+                // US-dollar-sign prefix ahead of the same grouped,
+                // two-decimal "Standard" magnitude, with a leading '-' for
+                // a negative value (matching every other numeric style's
+                // own negative-sign convention) rather than parentheses.
+                std::string rendered = render_fixed_style(widened, true);
+                const std::string::size_type dollar_position =
+                    (!rendered.empty() && rendered.front() == '-') ? 1U : 0U;
+                rendered.insert(dollar_position, "$");
+                return Value{std::move(rendered)};
+            }
             if (lowered_style == "percent") {
                 const double scaled = widened * 100.0;
                 if (!std::isfinite(scaled)) {

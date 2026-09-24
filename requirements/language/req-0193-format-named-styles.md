@@ -30,6 +30,7 @@ numeric style applies.
 | `Yes/No` | `Yes` for a nonzero widened value, otherwise `No`. |
 | `True/False` | `True` for a nonzero widened value, otherwise `False`. |
 | `On/Off` | `On` for a nonzero widened value, otherwise `Off`. |
+| `Currency` | `Standard`'s grouped, two-decimal magnitude with a `$` prefix (for example `$1,234.50`); a negative value's `-` sits before the `$` (`-$1,234.50`), not real VB6's locale-dependent convention — see Scope. |
 
 `Fixed`, `Standard`, and `Percent` round to two decimal digits using the same
 nearest-even rounding as `Round`, `Hex`, and `Oct`.
@@ -40,19 +41,27 @@ nearest-even rounding as `Round`, `Hex`, and `Oct`.
 `Expression` that is not a `Long`, `Double`, or `Boolean` when `Style` is
 given. `WFC0009` reports a `Percent` scaling result outside the finite
 `Double` range. `WFC0102` reports a `Style` String that does not name one of
-the eight styles above.
+the nine styles above.
 
 ## Scope
 
-This increment implements only the eight named styles listed above, which
-require no locale table and no distinct `Currency`, `Date`, or `Single` type.
-It does not implement:
+This increment implements the eight named styles listed above that require
+no locale table and no distinct `Currency`, `Date`, or `Single` type, plus
+(added later, once a real `Currency` type existed — `REQ-0196`) `Currency`
+under a fixed, unlocalized rendering convention (see the table above). It
+does not implement:
 
 - custom numeric picture strings (`0`, `#`, `,`, `.`, `%`, `E+`/`E-`, and
   literal/quoted text);
-- the `Currency`, `General Date`, `Long Date`, `Medium Date`, `Short Date`,
-  `Long Time`, `Medium Time`, and `Short Time` named styles, which need a
-  `Currency` or `Date` value type and a locale policy that do not yet exist;
+- the real, locale-dependent `Currency` rendering VB6 actually uses (a
+  system-specific currency symbol and negative-value convention, commonly
+  parenthesized rather than a leading `-`) — this evaluator has no locale
+  system at all, so `Currency` uses a fixed `$`-prefixed, leading-`-`-for-
+  negative convention instead. This is a disclosed, reasoned choice, not
+  independently verified against the reference runtime;
+- the `General Date`, `Long Date`, `Medium Date`, `Short Date`, `Long
+  Time`, `Medium Time`, and `Short Time` named styles, which need a `Date`
+  value type and a locale policy that do not yet exist;
 - string picture tokens (`@`, `!`, `<`, `>`) and the `FirstDayOfWeek`/
   `FirstWeekOfYear` parameters from the type-library signature in `REQ-0071`;
   and
@@ -66,11 +75,13 @@ false result.
 ## Verification
 
 - `tests/evaluator_tests.cpp` covers the one-argument form for every current
-  value type, all eight named styles (including negative, zero, large,
-  fractional, and grouped-thousands inputs), Boolean widening, both wrong-arity
-  forms, non-String `Style`, non-numeric `Expression` with a `Style`, `Percent`
-  overflow, and an unrecognized `Style` name.
-- `TC-MP0002-format-cli` verifies representative styles through `wfc --eval`.
+  value type, all nine named styles (including negative, zero, large,
+  fractional, and grouped-thousands inputs; `Currency`'s negative-value
+  `-` placement and case-insensitive `Style` matching), Boolean widening,
+  both wrong-arity forms, non-String `Style`, non-numeric `Expression`
+  with a `Style`, `Percent` overflow, and an unrecognized `Style` name.
+- `TC-MP0002-format-cli` verifies representative styles, including
+  `Currency`, through `wfc --eval`.
 
 ## Reference
 

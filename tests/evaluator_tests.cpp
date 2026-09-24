@@ -302,6 +302,11 @@ int main() {
         "Print Format(1234.5, \"Standard\") & \" \" & Format(-1234567.891, \"Standard\")",
         "1,234.50 -1,234,567.89");
     expect_success("Print Format(100, \"Standard\")", "100.00");
+    expect_success(
+        "Print Format(1234.5, \"Currency\") & \" \" & Format(-1234.5, \"Currency\")",
+        "$1,234.50 -$1,234.50");
+    expect_success("Print Format(0, \"Currency\") & \" \" & Format(5, \"currency\")",
+                   "$0.00 $5.00");
     expect_success("Print Format(0.5, \"Percent\")", "50.00%");
     expect_success(
         "Print Format(1234.5678, \"Scientific\") & \" \" & Format(0, \"Scientific\") & \" \" & "
