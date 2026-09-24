@@ -63,8 +63,9 @@ This requirement adds the four core picture tokens (`0`, `#`, `.`, `,`)
 and literal passthrough. It does not add:
 
 - `%` or `E+`/`E-` inside a custom picture (scaling/scientific notation
-  combined with a custom digit pattern) — use the existing named
-  `Percent`/`Scientific` styles instead;
+  combined with a custom digit pattern) — originally excluded here
+  (use the existing named `Percent`/`Scientific` styles instead);
+  `REQ-0223` later added `%` scaling, leaving only `E+`/`E-` excluded;
 - multiple `;`-separated sections (`positive;negative;zero;text`) —
   originally excluded here (every picture was treated as a single
   section, applied to every value the same way regardless of sign);

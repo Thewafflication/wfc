@@ -9581,10 +9581,11 @@ private:
 
     // Renders one section of a VBA "custom numeric picture" `Format`
     // `Style` (REQ-0218; multi-section dispatch is `REQ-0220`, above; `\`
-    // escapes are `REQ-0221`, below): any `Style` section that does not
-    // name one of the reserved named styles above is treated this way,
-    // character by character. `0` is a digit placeholder that forces a
-    // `0` when no digit remains at that position; `#` is a digit
+    // escapes are `REQ-0221`, quoted text `REQ-0222`, and an unescaped
+    // `%`'s x100 scaling `REQ-0223`, below): any `Style` section that
+    // does not name one of the reserved named styles above is treated
+    // this way, character by character. `0` is a digit placeholder that
+    // forces a `0` when no digit remains at that position; `#` is a digit
     // placeholder that shows nothing when no digit remains; `.` marks the
     // single decimal point, splitting the picture into an integer and a
     // fraction section; a `,` among the integer section's digit
@@ -9607,7 +9608,6 @@ private:
     [[nodiscard]] static std::string render_custom_numeric_picture_section(
         const double value, const std::string& picture) {
         const bool negative = value < 0.0;
-        const double magnitude = std::fabs(value);
 
         // REQ-0221: expand every `\`-escaped pair first, so a placeholder/
         // decimal-point/grouping-comma character that was actually
@@ -9616,6 +9616,22 @@ private:
         // alongside `escaped.forced_literal` rather than by the character
         // value alone.
         const EscapedPicture escaped = parse_picture_escapes(picture);
+
+        // REQ-0223: an unescaped, unquoted `%` anywhere in the picture
+        // scales the value by 100 before any digit is matched against a
+        // placeholder -- the same scaling the named `Percent` style
+        // already applies -- while the `%` itself needs no special
+        // handling at all to appear in the output: it was never one of
+        // this format's own special characters, so it already passes
+        // through as an ordinary literal at its own position.
+        bool has_percent = false;
+        for (std::size_t index = 0U; index < escaped.text.size(); ++index) {
+            if (escaped.text[index] == '%' && !escaped.forced_literal[index]) {
+                has_percent = true;
+                break;
+            }
+        }
+        const double magnitude = std::fabs(value) * (has_percent ? 100.0 : 1.0);
         std::size_t dot_position = escaped.text.size();
         for (std::size_t index = 0U; index < escaped.text.size(); ++index) {
             if (escaped.text[index] == '.' && !escaped.forced_literal[index]) {

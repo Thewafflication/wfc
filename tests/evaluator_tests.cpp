@@ -391,6 +391,19 @@ int main() {
         "Print Format(5, \"0 \"\"pos\"\";0 \"\"neg\"\"\") & \" \" & "
         "Format(-5, \"0 \"\"pos\"\";0 \"\"neg\"\"\")",
         "5 pos 5 neg");
+    // An unescaped, unquoted `%` in a custom picture (REQ-0223) scales
+    // the value by 100 before matching digits, the same scaling the
+    // named `Percent` style already applies -- the `%` itself needs no
+    // special handling to appear in the output, since it was never one
+    // of this format's own special characters. An escaped `\%` or a
+    // quoted `"%"` is a plain literal `%` with no scaling.
+    expect_success("Print Format(0.5, \"0.00%\") & \" \" & Format(-0.256, \"0.0%\")",
+                   "50.00% -25.6%");
+    expect_success("Print Format(0.5, \"0\\%\") & \" \" & Format(0.5, \"0\"\"%\"\"\")",
+                   "0% 0%");
+    expect_success(
+        "Print Format(1.5, \"0%;(0%)\") & \" \" & Format(-1.5, \"0%;(0%)\")",
+        "150% (150%)");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
         "0.7055475 0.533424 0.5795186");

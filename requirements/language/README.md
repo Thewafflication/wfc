@@ -295,3 +295,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   makes every character between a pair of `"` a literal, VB6's second
   mechanism alongside `REQ-0221`'s `\`, including a quoted `;` not
   splitting a `REQ-0220` picture into sections.
+- [REQ-0223 — Format custom picture `%` scaling](req-0223-format-picture-percent-scaling.md)
+  makes an unescaped, unquoted `%` anywhere in a picture section scale
+  the value by 100 before digit matching, the same scaling the named
+  `Percent` style already applies.
