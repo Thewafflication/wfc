@@ -379,6 +379,18 @@ int main() {
     expect_success("Print Format(5, \"\\\\0\")", "\\5");
     expect_success(
         "Print Format(5, \"0\\;0;(0)\") & \" \" & Format(-5, \"0\\;0;(0)\")", "0;5 (5)");
+    // `"`-quoted literal text (REQ-0222): every character between a pair
+    // of `"` is a plain literal, including one of this picture format's
+    // own special characters -- the quote delimiters themselves never
+    // appear in the output. A `;` inside a quoted run does not split a
+    // custom picture into sections, the same as an escaped `\;`.
+    expect_success("Print Format(1234, \"0 \"\"units\"\"\")", "1234 units");
+    expect_success("Print Format(1234, \"\"\"Total: \"\"0\")", "Total: 1234");
+    expect_success("Print Format(5, \"0\"\";\"\"0\")", "0;5");
+    expect_success(
+        "Print Format(5, \"0 \"\"pos\"\";0 \"\"neg\"\"\") & \" \" & "
+        "Format(-5, \"0 \"\"pos\"\";0 \"\"neg\"\"\")",
+        "5 pos 5 neg");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
         "0.7055475 0.533424 0.5795186");

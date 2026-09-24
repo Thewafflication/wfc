@@ -51,9 +51,9 @@ not add:
   (`REQ-0193`), unchanged;
 - quote-delimited literal text (`"..."`), VB6's other mechanism for
   embedding characters that would otherwise be interpreted specially —
-  every character inside a pair of `"` in a custom picture is still
-  interpreted the same as it would be outside one, since this evaluator
-  has no notion of a quoted literal run at all.
+  originally excluded here (every character inside a pair of `"` in a
+  custom picture was still interpreted the same as it would be outside
+  one); `REQ-0222` later added it.
 
 ## Verification
 

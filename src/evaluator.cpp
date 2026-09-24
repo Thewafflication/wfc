@@ -9476,16 +9476,18 @@ private:
     }
 
     // A custom numeric picture section, after expanding every `\`-escaped
-    // pair (REQ-0221): `text` drops the backslashes themselves, and
-    // `forced_literal[i]` is true exactly when `text[i]` came from an
-    // escape (`\0`, `\#`, `\,`, `\.`, `\;`, ...) rather than appearing
-    // unescaped -- so it must be rendered as a plain literal character at
-    // its position even when it is one of this format's own special
-    // characters, never interpreted as a digit placeholder, decimal
-    // point, grouping comma, or section separator. A trailing lone `\`
-    // (nothing left to escape) is kept as a literal backslash character
-    // instead, a disclosed simplification since real VB6 pictures do not
-    // normally end mid-escape.
+    // pair (REQ-0221) and every `"`-quoted run (REQ-0222): `text` drops
+    // the backslashes and the quote delimiters themselves, and
+    // `forced_literal[i]` is true exactly when `text[i]` came from either
+    // one rather than appearing bare -- so it must be rendered as a plain
+    // literal character at its position even when it is one of this
+    // format's own special characters, never interpreted as a digit
+    // placeholder, decimal point, grouping comma, or section separator. A
+    // trailing lone `\` (nothing left to escape) is kept as a literal
+    // backslash character instead, and an unterminated `"..."` run (no
+    // closing quote before the section ends) makes the rest of the
+    // section literal -- both disclosed simplifications, since real VB6
+    // pictures do not normally end mid-escape or mid-quote.
     struct EscapedPicture {
         std::string text;
         std::vector<bool> forced_literal;
@@ -9493,14 +9495,21 @@ private:
 
     [[nodiscard]] static EscapedPicture parse_picture_escapes(const std::string& section) {
         EscapedPicture result;
+        bool in_quotes = false;
         for (std::size_t index = 0U; index < section.size(); ++index) {
-            if (section[index] == '\\' && index + 1U < section.size()) {
+            if (!in_quotes && section[index] == '\\' && index + 1U < section.size()) {
                 result.text.push_back(section[index + 1U]);
                 result.forced_literal.push_back(true);
                 ++index;
+            } else if (section[index] == '"') {
+                // The quote delimiter itself is never part of the output,
+                // matching real VB6: `"` toggles whether the characters
+                // between a pair of them are forced literal, the same
+                // effect `\` has one character at a time.
+                in_quotes = !in_quotes;
             } else {
                 result.text.push_back(section[index]);
-                result.forced_literal.push_back(false);
+                result.forced_literal.push_back(in_quotes);
             }
         }
         return result;
@@ -9511,10 +9520,14 @@ private:
     // through whichever section real VB6 selects for it, delegating the
     // actual character-by-character rendering of that one section to
     // `render_custom_numeric_picture_section`. An escaped `\;` (REQ-0221)
-    // is not treated as a section separator -- checked textually here,
-    // ahead of `render_custom_numeric_picture_section`'s own escape
+    // or a `;` inside a `"..."` quoted run (REQ-0222) is not treated as a
+    // section separator -- checked textually here, ahead of
+    // `render_custom_numeric_picture_section`'s own escape/quote
     // expansion, since a section boundary has to be decided before any
-    // one section's own text is otherwise interpreted.
+    // one section's own text is otherwise interpreted. A quoted run left
+    // open at the end of a section (no closing `"` before the next `;`,
+    // or the end of the whole picture) swallows that `;` too, matching
+    // `parse_picture_escapes`'s own "unterminated quote" simplification.
     //
     // One section (no `;` at all) applies to every value unchanged
     // (REQ-0218's original behavior, including its automatic leading `-`
@@ -9537,12 +9550,16 @@ private:
         const double value, const std::string& picture) {
         std::vector<std::string> sections;
         std::string current_section;
+        bool in_quotes = false;
         for (std::size_t index = 0U; index < picture.size(); ++index) {
-            if (picture[index] == '\\' && index + 1U < picture.size()) {
+            if (!in_quotes && picture[index] == '\\' && index + 1U < picture.size()) {
                 current_section.push_back(picture[index]);
                 current_section.push_back(picture[index + 1U]);
                 ++index;
-            } else if (picture[index] == ';') {
+            } else if (picture[index] == '"') {
+                in_quotes = !in_quotes;
+                current_section.push_back(picture[index]);
+            } else if (picture[index] == ';' && !in_quotes) {
                 sections.push_back(std::move(current_section));
                 current_section.clear();
             } else {

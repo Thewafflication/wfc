@@ -291,3 +291,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   makes the character right after a `\` always a literal, including
   `\;` not splitting a `REQ-0220` picture into sections and `\\`
   rendering as one literal backslash.
+- [REQ-0222 — Format custom picture quoted literal text](req-0222-format-picture-quoted-text.md)
+  makes every character between a pair of `"` a literal, VB6's second
+  mechanism alongside `REQ-0221`'s `\`, including a quoted `;` not
+  splitting a `REQ-0220` picture into sections.

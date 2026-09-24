@@ -1458,4 +1458,17 @@ Print Format(5, "0\.0") & " " & Format(5, "\\0")]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "5000.*1,234.*0;5.*0.5 \\\\5"
     )
+
+    add_test(
+        NAME TC-MP0002-format-quoted-text-cli
+        COMMAND wfc --eval [=[Print Format(1234, "0 ""units""")
+Print Format(1234, """Total: ""0")
+Print Format(5, "0 ""pos"";0 ""neg""") & " " & Format(-5, "0 ""pos"";0 ""neg""")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-format-quoted-text-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;expressions;vba;conversion"
+            PASS_REGULAR_EXPRESSION "1234 units.*Total: 1234.*5 pos 5 neg"
+    )
 endif()
