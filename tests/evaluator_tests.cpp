@@ -316,6 +316,26 @@ int main() {
         "Print Format(True, \"Yes/No\"): Print Format(0, \"True/False\"): "
         "Print Format(1, \"On/Off\")",
         "Yes\nFalse\nOn");
+    // Custom numeric picture strings (REQ-0218): any Style not naming a
+    // reserved named style is treated as a picture, character by
+    // character -- '0' forces a digit, '#' shows a digit or nothing, '.'
+    // is the single decimal point, ',' among integer-part placeholders
+    // enables thousands grouping, and everything else is literal.
+    expect_success("Print Format(7, \"0000\")", "0007");
+    expect_success("Print Format(1234.5, \"0.00\")", "1234.50");
+    expect_success("Print Format(1234567.891, \"#,##0.00\")", "1,234,567.89");
+    expect_success("Print Format(-42, \"0000\")", "-0042");
+    expect_success("Print Format(1.5, \"0.0#\") & \" \" & Format(1.55, \"0.0#\")", "1.5 1.55");
+    expect_success("Print Format(0, \"0.00\") & \" \" & Format(-0.001, \"0.00\")",
+                   "0.00 0.00");
+    expect_success("Print Format(5, \"###0\")", "5");
+    expect_success("Print Format(1234.5, \"\")", "1234.5");
+    expect_success("Print Format(5, \"Value: 0\")", "Value: 5");
+    expect_success("Print Format(3.14159, \"0.00 units\")", "3.14 units");
+    expect_success("Print Format(True, \"0\")", "-1");
+    expect_success("Print Format(0.5, \".00\")", "0.50");
+    expect_success("Print Format(1234567, \"#,##0\")", "1,234,567");
+    expect_success("Print Format(3.5, \"0\")", "4");
     expect_success("Print Format$(42, \"Fixed\")", "42.00");
     expect_success(
         "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
@@ -1848,7 +1868,6 @@ int main() {
     expect_program_failure("Print Format(1, 2, 3)", "WFC0072");
     expect_program_failure("Print Format(42, 5)", "WFC0073");
     expect_program_failure("Print Format(\"x\", \"Fixed\")", "WFC0073");
-    expect_program_failure("Print Format(42, \"Nope\")", "WFC0102");
     expect_program_failure("Print Format(1e308, \"Percent\")", "WFC0009");
     expect_program_failure("Print Rnd(\"x\")", "WFC0073");
     expect_program_failure("Print Rnd(1, 2)", "WFC0072");

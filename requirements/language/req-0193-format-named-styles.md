@@ -40,8 +40,10 @@ nearest-even rounding as `Round`, `Hex`, and `Oct`.
 `WFC0072` reports wrong arity. `WFC0073` reports a non-String `Style`, or an
 `Expression` that is not a `Long`, `Double`, or `Boolean` when `Style` is
 given. `WFC0009` reports a `Percent` scaling result outside the finite
-`Double` range. `WFC0102` reports a `Style` String that does not name one of
-the nine styles above.
+`Double` range. `WFC0102` originally reported a `Style` String that did not
+name one of the nine styles above; retired by `REQ-0218`, which gives every
+other `Style` string real meaning as a custom numeric picture instead of
+rejecting it.
 
 ## Scope
 
@@ -52,7 +54,10 @@ under a fixed, unlocalized rendering convention (see the table above). It
 does not implement:
 
 - custom numeric picture strings (`0`, `#`, `,`, `.`, `%`, `E+`/`E-`, and
-  literal/quoted text);
+  literal/quoted text) were deferred here; `REQ-0218` later added the core
+  digit-placeholder/grouping/literal forms (`0`, `#`, `,`, `.`, and
+  literal text — not `%`/`E+`/`E-` combined with a custom picture, nor
+  multiple `;`-separated sections);
 - the real, locale-dependent `Currency` rendering VB6 actually uses (a
   system-specific currency symbol and negative-value convention, commonly
   parenthesized rather than a leading `-`) — this evaluator has no locale
@@ -68,9 +73,6 @@ does not implement:
 - applying a named style to a `String` expression, which VBA coerces through
   its general numeric/date parsing rules that this evaluator does not yet
   implement for `Format`.
-
-A `Style` naming one of these deferred forms reports `WFC0102` rather than a
-false result.
 
 ## Verification
 

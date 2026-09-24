@@ -898,13 +898,13 @@ Print label & value# & " " & TypeName(value)]=]
 
     add_test(
         NAME TC-MP0002-format-cli
-        COMMAND wfc --eval [=[Print Format(1234.5, "Standard") & " " & Format(0.5, "Percent") & " " & Format(True, "Yes/No") & " " & Format(-1234.5, "Currency")]=]
+        COMMAND wfc --eval [=[Print Format(1234.5, "Standard") & " " & Format(0.5, "Percent") & " " & Format(True, "Yes/No") & " " & Format(-1234.5, "Currency") & " " & Format(7, "0000") & " " & Format(1234567.891, "#,##0.00")]=]
     )
     set_tests_properties(
         TC-MP0002-format-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "1,234.50 50.00% Yes -\\$1,234.50"
+            PASS_REGULAR_EXPRESSION "1,234.50 50.00% Yes -\\$1,234.50 0007 1,234,567.89"
     )
 
     add_test(

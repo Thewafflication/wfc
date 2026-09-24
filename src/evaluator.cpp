@@ -7449,7 +7449,9 @@ private:
             for (char& character : lowered_style) {
                 character = ascii_lower(character);
             }
-            if (lowered_style == "general number") {
+            // An empty Style behaves exactly like the one-argument form
+            // (REQ-0218), matching real VB6.
+            if (style->empty() || lowered_style == "general number") {
                 if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
                     return Value{std::to_string(*integer)};
                 }
@@ -7478,7 +7480,7 @@ private:
             }
             if (lowered_style == "currency") {
                 // A disclosed, unverified-against-the-reference-runtime
-                // simplification (REQ-0217): real VB6's Currency style
+                // simplification (REQ-0193): real VB6's Currency style
                 // uses the *system locale's* currency symbol and negative-
                 // value convention (commonly parenthesized, e.g.
                 // "($1,234.50)" under a US locale), neither of which this
@@ -7504,11 +7506,12 @@ private:
             if (lowered_style == "scientific") {
                 return Value{render_scientific_style(widened)};
             }
-            set_error(
-                "WFC0102",
-                "Format does not yet support this Style value",
-                identifier_offset);
-            return std::nullopt;
+            // Any Style that names none of the reserved styles above is a
+            // custom numeric picture (REQ-0218), matching real VB6: it is
+            // never rejected outright, only rendered character by
+            // character (retiring the old WFC0102 "unsupported Style"
+            // diagnostic this branch used to report unconditionally).
+            return Value{render_custom_numeric_picture(widened, *style)};
         }
 
         if (is_rnd) {
@@ -9298,6 +9301,133 @@ private:
         }
         std::string rendered = mantissa + "E" + sign + exponent_digits;
         if (negative) {
+            rendered.insert(rendered.begin(), '-');
+        }
+        return rendered;
+    }
+
+    // Renders a VBA "custom numeric picture" `Format` `Style` (REQ-0218):
+    // any `Style` that does not name one of the reserved named styles
+    // above is treated this way, character by character. `0` is a digit
+    // placeholder that forces a `0` when no digit remains at that
+    // position; `#` is a digit placeholder that shows nothing when no
+    // digit remains; `.` marks the single decimal point, splitting the
+    // picture into an integer and a fraction section; a `,` among the
+    // integer section's digit placeholders (and nowhere else in that
+    // section) enables comma-grouped thousands separators; every other
+    // character is a literal, copied through unchanged at its position.
+    // The fraction section is rounded to its own placeholder count using
+    // the same nearest-even rounding `to_chars`'s fixed format already
+    // gives `Fixed`/`Standard`, and a trailing run of `#`-placeholder
+    // digits that rounded to `0` is trimmed. A negative value gets a
+    // leading `-` unless the entire rendered magnitude is zero, matching
+    // `Fixed`/`Standard`'s own convention. A second literal `.` (if any)
+    // is treated as an ordinary literal character within the fraction
+    // section, not a second decimal point.
+    [[nodiscard]] static std::string render_custom_numeric_picture(
+        const double value, const std::string& picture) {
+        const bool negative = value < 0.0;
+        const double magnitude = std::fabs(value);
+
+        const auto dot_position = picture.find('.');
+        const std::string integer_pic =
+            dot_position == std::string::npos ? picture : picture.substr(0, dot_position);
+        const std::string fraction_pic = dot_position == std::string::npos
+                                              ? std::string{}
+                                              : picture.substr(dot_position + 1U);
+
+        std::size_t fraction_digit_count = 0U;
+        for (const char character : fraction_pic) {
+            if (character == '0' || character == '#') {
+                ++fraction_digit_count;
+            }
+        }
+
+        char buffer[400];
+        const auto to_chars_result = std::to_chars(
+            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::fixed,
+            static_cast<int>(fraction_digit_count));
+        const std::string rendered_magnitude(buffer, to_chars_result.ptr);
+        const auto rendered_dot = rendered_magnitude.find('.');
+        const std::string integer_digits = rendered_dot == std::string::npos
+                                                ? rendered_magnitude
+                                                : rendered_magnitude.substr(0, rendered_dot);
+        const std::string fraction_digits = rendered_dot == std::string::npos
+                                                 ? std::string{}
+                                                 : rendered_magnitude.substr(rendered_dot + 1U);
+
+        // Fraction section: left to right, one placeholder per rounded
+        // digit, trimming a trailing run of zero digits that came from an
+        // optional '#' placeholder.
+        std::string fraction_output;
+        std::vector<bool> fraction_is_trimmable_zero;
+        std::size_t fraction_digit_index = 0U;
+        for (const char character : fraction_pic) {
+            if (character == '0' || character == '#') {
+                const char digit = fraction_digit_index < fraction_digits.size()
+                                        ? fraction_digits[fraction_digit_index]
+                                        : '0';
+                ++fraction_digit_index;
+                fraction_output.push_back(digit);
+                fraction_is_trimmable_zero.push_back(character == '#' && digit == '0');
+            } else {
+                fraction_output.push_back(character);
+                fraction_is_trimmable_zero.push_back(false);
+            }
+        }
+        while (!fraction_output.empty() && fraction_is_trimmable_zero.back()) {
+            fraction_output.pop_back();
+            fraction_is_trimmable_zero.pop_back();
+        }
+
+        // Integer section: right to left, one placeholder per digit;
+        // commas are grouping instructions (stripped before matching), not
+        // literal output positions.
+        std::string integer_pic_digits_only;
+        for (const char character : integer_pic) {
+            if (character != ',') {
+                integer_pic_digits_only.push_back(character);
+            }
+        }
+        std::string integer_output_reversed;
+        std::size_t digit_source_index = integer_digits.size();
+        for (auto pic_iterator = integer_pic_digits_only.rbegin();
+             pic_iterator != integer_pic_digits_only.rend(); ++pic_iterator) {
+            const char character = *pic_iterator;
+            if (character == '0') {
+                integer_output_reversed.push_back(
+                    digit_source_index > 0U ? integer_digits[--digit_source_index] : '0');
+            } else if (character == '#') {
+                if (digit_source_index > 0U) {
+                    integer_output_reversed.push_back(integer_digits[--digit_source_index]);
+                }
+            } else {
+                integer_output_reversed.push_back(character);
+            }
+        }
+        while (digit_source_index > 0U) {
+            integer_output_reversed.push_back(integer_digits[--digit_source_index]);
+        }
+        std::string integer_output(integer_output_reversed.rbegin(), integer_output_reversed.rend());
+        if (integer_pic.find(',') != std::string::npos) {
+            for (int position = static_cast<int>(integer_output.size()) - 3; position > 0;
+                 position -= 3) {
+                integer_output.insert(static_cast<std::size_t>(position), ",");
+            }
+        }
+
+        std::string rendered = integer_output;
+        if (dot_position != std::string::npos) {
+            rendered += "." + fraction_output;
+        }
+        const bool all_zero =
+            std::all_of(
+                integer_digits.begin(), integer_digits.end(),
+                [](const char character) { return character == '0'; }) &&
+            std::all_of(
+                fraction_digits.begin(), fraction_digits.end(),
+                [](const char character) { return character == '0'; });
+        if (negative && !all_zero) {
             rendered.insert(rendered.begin(), '-');
         }
         return rendered;

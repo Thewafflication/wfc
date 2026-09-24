@@ -272,3 +272,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   defines a bare `name` statement (no `Call`, zero arguments) and
   `obj.Method` without parentheses, closing the two forms `REQ-0213` left
   deferred.
+- [REQ-0218 — Format custom numeric picture strings](req-0218-format-custom-numeric-picture.md)
+  defines `0`/`#` digit placeholders, `,` grouping, `.` decimal point, and
+  literal text for any `Format` `Style` not naming a reserved style,
+  retiring `WFC0102`.
