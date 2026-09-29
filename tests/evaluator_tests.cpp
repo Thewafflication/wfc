@@ -1374,6 +1374,18 @@ int main() {
     expect_program_success(
         "Dim value As Double\nvalue# = 3\nPrint value# & \" \" & value",
         "3 3");
+    // Inferred-type Const (REQ-0227): with neither a type-declaration
+    // character nor an `As Type` clause, a Const takes its type from the
+    // initializer's own value -- the real-VB6 asymmetry with a bare `Dim`,
+    // which instead defaults to Variant.
+    expect_program_success("Const x = 5\nPrint x & \" \" & TypeName(x)", "5 Long");
+    expect_program_success("Const y = \"hello\"\nPrint y & \" \" & TypeName(y)", "hello String");
+    expect_program_success("Const z = True\nPrint CStr(z) & \" \" & TypeName(z)", "True Boolean");
+    expect_program_success("Const w = 3.14\nPrint w & \" \" & TypeName(w)", "3.14 Double");
+    expect_program_success(
+        "Const x = 5\nConst y = x + 10\nPrint y & \" \" & TypeName(y)", "15 Long");
+    expect_program_failure(
+        "Dim value As Long: value = 1: Const bad = value", "WFC0064");
     expect_program_success(
         "' leading comment\n"
         "Rem another leading comment\n"

@@ -4787,6 +4787,14 @@ private:
             return false;
         }
 
+        // REQ-0227: a `Const` with neither a type-declaration character
+        // nor an `As Type` clause infers its type from the initializer's
+        // own value, the same real-VB6 asymmetry that makes an untyped
+        // `Const` type-inferred while an untyped `Dim` instead defaults
+        // to `Variant` (parse_declaration's own bare-`Dim` branch, above).
+        // `has_explicit_type` stays false in that case, and `expected_type`
+        // is set from the parsed value below instead of checked against it.
+        bool has_explicit_type = type_character != '\0';
         std::size_t expected_type{};
         skip_horizontal_whitespace();
         if (type_character != '\0') {
@@ -4795,15 +4803,8 @@ private:
                 return false;
             }
             expected_type = type_character_index(type_character);
-        } else {
-            if (!consume_keyword("as")) {
-                set_error(
-                    "WFC0012",
-                    "expected As Long, As Double, As Single, As Currency, As String, or As "
-                    "Boolean",
-                    offset_);
-                return false;
-            }
+        } else if (consume_keyword("as")) {
+            has_explicit_type = true;
             skip_horizontal_whitespace();
             if (consume_keyword("long")) {
                 expected_type = Value{Integer{}}.index();
@@ -4841,12 +4842,14 @@ private:
         if (!value.has_value()) {
             return false;
         }
-        if (!coerce_numeric_value(*value, expected_type, identifier_offset)) {
-            return false;
-        }
-        if (value->index() != expected_type) {
-            set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
-            return false;
+        if (has_explicit_type) {
+            if (!coerce_numeric_value(*value, expected_type, identifier_offset)) {
+                return false;
+            }
+            if (value->index() != expected_type) {
+                set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
+                return false;
+            }
         }
 
         current_scope().variables.emplace(*identifier, std::move(*value));

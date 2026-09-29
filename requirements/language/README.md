@@ -313,3 +313,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   (`Dim`/`ReDim` alike, every dimension of a multi-dimensional array),
   leaving an explicit `<lower> To` dimension and a `ParamArray`'s
   always-`0`-based array unaffected.
+- [REQ-0227 — Inferred-type constants](req-0227-inferred-type-constants.md)
+  lets `Const x = 5` infer its type from the initializer instead of
+  requiring `As Type`, the real-VB6 asymmetry with a bare `Dim` (which
+  defaults to `Variant` instead).

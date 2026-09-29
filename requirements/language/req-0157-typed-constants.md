@@ -19,8 +19,9 @@ constants. The initializer type must exactly match the declared type. Constant
 names are case-insensitive, participate in expressions, and cannot be assigned
 after declaration.
 
-This increment excludes inferred types, multiple declarations per statement,
-procedure-local constants, and initializers that reference mutable variables.
+This increment excluded inferred types (`REQ-0227` later added them),
+multiple declarations per statement, and procedure-local constants.
+Initializers that reference mutable variables remain excluded.
 
 ## Diagnostics
 

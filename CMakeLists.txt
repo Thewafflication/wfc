@@ -1545,4 +1545,22 @@ Print LBound(explicitBound) & " " & UBound(explicitBound)]=]
             LABELS "integration;mp-0002;statements;array"
             PASS_REGULAR_EXPRESSION "1 3 10 30.*1 2 1 3.*5 9"
     )
+
+    add_test(
+        NAME TC-MP0002-const-inferred-type-cli
+        COMMAND wfc --eval [=[Const x = 5
+Print x & " " & TypeName(x)
+Const y = "hello"
+Print y & " " & TypeName(y)
+Const w = 3.14
+Print w & " " & TypeName(w)
+Const z = x + 10
+Print z & " " & TypeName(z)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-const-inferred-type-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;constants"
+            PASS_REGULAR_EXPRESSION "5 Long.*hello String.*3.14 Double.*15 Long"
+    )
 endif()
