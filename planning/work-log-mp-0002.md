@@ -1519,12 +1519,13 @@ tests.
   class-typed so far), lazy `As New` auto-instantiation, `Class_Terminate`
   cascading to an instance only reachable through the terminated one's own
   fields (now also true of one reachable only through an array element,
-  `REQ-0212`), `IsMissing` for an omitted `Optional Variant` argument,
-  `Static` arrays/object references, and a `Private` *class* declaration
-  itself (only individual members have visibility, not a whole class) --
-  all deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/
-  `REQ-0206`'s scope, alongside the same exclusions `REQ-0202` already
-  lists for module-level procedures;
+  `REQ-0212`), `Static` arrays/object references, and a `Private` *class*
+  declaration itself (only individual members have visibility, not a
+  whole class) -- all deliberately excluded from `REQ-0203`/`REQ-0204`/
+  `REQ-0205`/`REQ-0206`'s scope, alongside the same exclusions `REQ-0202`
+  already lists for module-level procedures (`IsMissing` for an omitted
+  `Optional Variant` argument, also originally listed here, was closed
+  by `REQ-0224`);
 - `ByVal`/`Optional` array parameters (neither valid in real VB6, so
   neither is implemented -- not a gap, a correct rejection); a
   class-typed array-typed parameter (`REQ-0211`/`REQ-0215` cover a
