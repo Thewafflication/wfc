@@ -1568,6 +1568,42 @@ int main() {
         "Loop While 1 \\ 0 = 0\n"
         "Print \"done\"",
         "once\ndone");
+    // Unconditional `Do ... Loop` (REQ-0225): no `While`/`Until` on either
+    // the `Do` or the `Loop` line -- repeats forever, ended only by
+    // `Exit Do`/`Exit For`, the same convention `Do While True` already
+    // provides without writing a condition at all.
+    expect_program_success(
+        "Dim index As Long\n"
+        "Do\n"
+        "  index = index + 1\n"
+        "  If index = 3 Then\n"
+        "    Exit Do\n"
+        "    index = 99\n"
+        "  End If\n"
+        "  Print index\n"
+        "Loop\n"
+        "Print index",
+        "1\n2\n3");
+    expect_program_success(
+        "Dim outer As Long\n"
+        "Dim inner As Long\n"
+        "Do\n"
+        "  outer = outer + 1\n"
+        "  For inner = 1 To 5\n"
+        "    Exit Do\n"
+        "  Next inner\n"
+        "  outer = 99\n"
+        "Loop\n"
+        "Print outer",
+        "1");
+    expect_program_success(
+        "If False Then\n"
+        "  Do\n"
+        "    Print \"unreachable\"\n"
+        "  Loop\n"
+        "End If\n"
+        "Print \"after\"",
+        "after");
     expect_program_success(
         "Dim outer As Long\n"
         "Dim inner As Long\n"
@@ -2084,7 +2120,7 @@ int main() {
     expect_program_failure("Loop", "WFC0038");
     expect_program_failure("Do Until True\nDim local As Long\nLoop", "WFC0039");
     expect_program_failure("Do While False: Print \"no\": Loop", "WFC0004");
-    expect_program_failure("Do\nPrint \"no\"\nLoop", "WFC0040");
+    expect_program_failure("Do\nPrint \"no\"\nLoop Forever", "WFC0040");
     expect_program_failure("Do\nPrint \"no\"\nLoop While 1", "WFC0035");
     expect_program_failure("Exit Nope", "WFC0041");
     expect_program_failure("Exit Do", "WFC0042");

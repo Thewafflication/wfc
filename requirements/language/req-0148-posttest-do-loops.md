@@ -24,8 +24,9 @@ while its condition is `True`; `Loop Until` repeats while its condition is
 enclosing branch is not selected, the body and condition are parsed and
 type-checked once without output, mutation, or arithmetic runtime failures.
 
-This increment excludes unconditional `Do...Loop`, `Exit Do`, and declarations
-inside loop bodies.
+This increment excluded unconditional `Do...Loop` and `Exit Do`; `REQ-0150`
+later added `Exit Do`, and `REQ-0225` later added the unconditional form.
+Declarations inside loop bodies remain excluded.
 
 ## Diagnostics
 

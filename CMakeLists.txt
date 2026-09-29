@@ -1507,4 +1507,23 @@ Print T2()]=]
             LABELS "integration;mp-0002;statements;procedures;information"
             PASS_REGULAR_EXPRESSION "missing.*have 5.*False"
     )
+
+    add_test(
+        NAME TC-MP0002-unconditional-do-loop-cli
+        COMMAND wfc --eval [=[Dim index As Long
+Do
+index = index + 1
+If index = 3 Then
+Exit Do
+End If
+Print index
+Loop
+Print index]=]
+    )
+    set_tests_properties(
+        TC-MP0002-unconditional-do-loop-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;loops"
+            PASS_REGULAR_EXPRESSION "1.*2.*3"
+    )
 endif()

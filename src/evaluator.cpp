@@ -3412,37 +3412,63 @@ private:
 
             skip_horizontal_whitespace();
             bool until{};
+            bool has_condition = true;
             if (consume_keyword("while")) {
                 until = false;
             } else if (consume_keyword("until")) {
                 until = true;
+            } else if (at_end() || current() == '\r' || current() == '\n' ||
+                       current() == ':' || current() == '\'') {
+                // REQ-0225: an unconditional `Do ... Loop` (no `While`/
+                // `Until` on either the `Do` or the `Loop` line) repeats
+                // forever, relying entirely on `Exit Do`/`Exit For` to end
+                // it -- the same convention `Do While True` already lets a
+                // caller express, just without writing a condition at all.
+                has_condition = false;
             } else {
                 execute_ = enclosing_execution;
                 set_error("WFC0040", "expected While or Until after Loop", offset_);
                 return false;
             }
 
-            skip_horizontal_whitespace();
-            const auto condition_offset = offset_;
-            auto condition = parse_expression();
-            if (!condition.has_value()) {
-                execute_ = enclosing_execution;
-                return false;
-            }
-            const auto boolean = coerce_condition_boolean(
-                *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
-            if (!boolean.has_value()) {
-                execute_ = enclosing_execution;
-                return false;
-            }
-            continuation_offset = offset_;
-            if (exit_do_requested) {
-                exit_do_requested_ = false;
-                continue_loop = false;
-            } else if (exit_for_requested) {
-                continue_loop = false;
+            if (has_condition) {
+                skip_horizontal_whitespace();
+                const auto condition_offset = offset_;
+                auto condition = parse_expression();
+                if (!condition.has_value()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                const auto boolean = coerce_condition_boolean(
+                    *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+                if (!boolean.has_value()) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                continuation_offset = offset_;
+                if (exit_do_requested) {
+                    exit_do_requested_ = false;
+                    continue_loop = false;
+                } else if (exit_for_requested) {
+                    continue_loop = false;
+                } else {
+                    continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+                }
             } else {
-                continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+                continuation_offset = offset_;
+                if (exit_do_requested) {
+                    exit_do_requested_ = false;
+                    continue_loop = false;
+                } else if (exit_for_requested) {
+                    continue_loop = false;
+                } else {
+                    // No condition ever ends this loop on its own; only
+                    // `enclosing_execution` (a dead branch parses the body
+                    // once, no repeat -- matching every other loop kind's
+                    // own dry-run behavior) or `Exit Do`/`Exit For` above
+                    // can stop it.
+                    continue_loop = enclosing_execution;
+                }
             }
         } while (continue_loop);
 

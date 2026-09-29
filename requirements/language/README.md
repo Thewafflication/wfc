@@ -304,3 +304,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   parameter the caller omitted, the one case real VB6 itself
   distinguishes; every other case (required, non-`Variant`, or
   defaulted) stays the existing constant `False`.
+- [REQ-0225 — Unconditional Do...Loop](req-0225-unconditional-do-loop.md)
+  lets `Do`/`Loop` carry no `While`/`Until` condition at all, repeating
+  forever until `Exit Do`/`Exit For`, the same as `Do While True` but
+  with no condition written.
