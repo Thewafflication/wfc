@@ -1699,6 +1699,31 @@ writing formal tests.
 
 **Remaining next increments:**
 
+- comma-separated `Next` variables (`Next j, i` closing two nested `For`/
+  `For Each` loops with one `Next`) -- attempted and reverted (owner:
+  "keep working"): the closing-name matching itself works (a
+  `pending_next_variable_` member, checked at the top of `parse_for_body`
+  before scanning for a literal `Next`, correctly hands the outer loop's
+  own name across the call boundary, once also reset on each iteration
+  retry of the *same* loop to stop it leaking into that loop's own next
+  re-parse). What breaks is more fundamental: this evaluator requires
+  every statement to be followed by its own terminator, consumed by a
+  generic "parse a statement, then consume its terminator" wrapper used
+  pervasively (module body, procedure/class-method bodies, every
+  If/Do/While/For/Select Case body). `Next j, i` is textually one line
+  with one trailing terminator, but conceptually closes *two* statements
+  (the inner loop, then the outer one) -- the inner loop's own wrapper
+  correctly consumes that one terminator, leaving the outer loop's own
+  *separate* required terminator-consumption step with nothing left to
+  consume once real code follows on the next line (confirmed by a
+  minimal repro: `Next j, i` at the very end of the program "worked" only
+  because `consume_statement_end()`'s own `at_end()` check tolerates
+  being satisfied twice, masking the bug until a real statement follows).
+  Fixing this correctly needs a "did a nested statement already consume
+  the shared terminator" signal threaded through every one of those
+  wrapper call sites, not just the `For`-loop-specific code touched so
+  far -- a materially larger, cross-cutting change than the rest of this
+  feature, reverted rather than shipped incomplete;
 - class inheritance, interfaces (`Implements`), `CreateObject`/
   `GetObject`/COM interop, array-of-class/array-of-`Object` elements
   (a class-typed/`Object`-typed *scalar* parameter is now covered,
