@@ -3007,7 +3007,24 @@ private:
             option_compare_set_ = true;
             return true;
         }
-        set_error("WFC0065", "expected Explicit or Compare after Option", offset_);
+        if (consume_keyword("base")) {
+            if (option_base_set_) {
+                set_error("WFC0152", "duplicate Option Base", statement_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume('0')) {
+                option_base_one_ = false;
+            } else if (consume('1')) {
+                option_base_one_ = true;
+            } else {
+                set_error("WFC0153", "expected 0 or 1 after Option Base", offset_);
+                return false;
+            }
+            option_base_set_ = true;
+            return true;
+        }
+        set_error("WFC0065", "expected Explicit, Compare, or Base after Option", offset_);
         return false;
     }
 
@@ -4261,7 +4278,11 @@ private:
                         dimension_lower = *first_long;
                         dimension_upper = *second_long;
                     } else {
-                        dimension_lower = 0;
+                        // REQ-0226: a bound-less dimension (`Dim arr(n)`,
+                        // no `<lower> To`) takes its lower bound from
+                        // `Option Base` -- `0` unless `Option Base 1` was
+                        // declared for this module.
+                        dimension_lower = option_base_one_ ? 1 : 0;
                         dimension_upper = *first_long;
                     }
                     if (dimension_lower > dimension_upper) {
@@ -4547,7 +4568,8 @@ private:
                 dimension_lower = *first_long;
                 dimension_upper = *second_long;
             } else {
-                dimension_lower = 0;
+                // REQ-0226: matches Dim's own bound-less-dimension rule.
+                dimension_lower = option_base_one_ ? 1 : 0;
                 dimension_upper = *first_long;
             }
             if (dimension_lower > dimension_upper) {
@@ -10711,6 +10733,15 @@ private:
     bool option_explicit_{};
     bool option_compare_set_{};
     bool option_compare_text_{};
+    // REQ-0226: `Option Base 1` (default `0`, matching VB6's own
+    // undeclared default). Only ever changes the lower bound a *bound-
+    // less* dimension gets (`Dim arr(n)` meaning `<base> To n`); a
+    // `<lower> To <upper>` dimension always uses its own explicit
+    // `<lower>` regardless of this setting, and a `ParamArray`'s array is
+    // always `0`-based no matter what `Option Base` says (a real,
+    // documented VB6 exception, not an oversight).
+    bool option_base_set_{};
+    bool option_base_one_{};
     std::size_t do_depth_{};
     bool exit_do_requested_{};
     std::size_t for_depth_{};

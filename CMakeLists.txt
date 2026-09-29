@@ -1526,4 +1526,23 @@ Print index]=]
             LABELS "integration;mp-0002;statements;loops"
             PASS_REGULAR_EXPRESSION "1.*2.*3"
     )
+
+    add_test(
+        NAME TC-MP0002-option-base-cli
+        COMMAND wfc --eval [=[Option Base 1
+Dim arr(3) As Long
+arr(1) = 10
+arr(3) = 30
+Print LBound(arr) & " " & UBound(arr) & " " & arr(1) & " " & arr(3)
+Dim m(2, 3) As Long
+Print LBound(m) & " " & UBound(m) & " " & LBound(m, 2) & " " & UBound(m, 2)
+Dim explicitBound(5 To 9) As Long
+Print LBound(explicitBound) & " " & UBound(explicitBound)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-option-base-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;array"
+            PASS_REGULAR_EXPRESSION "1 3 10 30.*1 2 1 3.*5 9"
+    )
 endif()

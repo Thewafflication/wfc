@@ -61,8 +61,9 @@ pre-declaration, dimension-count locking, and `ReDim`/`ReDim Preserve`/
 - `ReDim` as an *implicit* first declaration — `REQ-0207`'s existing
   exclusion (a prior `Dim identifier()` or `Dim identifier(,...)` is still
   required) is unchanged;
-- `Option Base 1`, or any bound-less dimension meaning anything other than
-  `0 To <bound>` — unchanged from `REQ-0201`/`REQ-0210`;
+- `Option Base 1` — unchanged from `REQ-0201`/`REQ-0210` at the time this
+  requirement was written; `REQ-0226` later added it for `ReDim`'s own
+  bound-less shorthand too, the same as `Dim`'s;
 - a dynamic multi-dimensional array as a class field — this evaluator has
   no array-typed class fields at all yet (`REQ-0203`'s Scope);
 - verifying `ReDim Preserve`'s last-dimension-only restriction, or the

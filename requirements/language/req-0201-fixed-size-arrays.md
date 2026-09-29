@@ -70,8 +70,9 @@ subset. It does not add:
 - `Erase` (see `REQ-0208`), `For Each` iteration over an array (see
   `REQ-0209`), or passing an array as a function argument to a
   user-defined procedure (see `REQ-0211`);
-- `Option Base 1` (or any `Option Base` statement) — a bound-less `Dim
-  identifier(n)` always means `0 To n`, matching VB6's un-declared default;
+- `Option Base 1` (or any `Option Base` statement) — originally excluded
+  here (a bound-less `Dim identifier(n)` always meant `0 To n`,
+  matching VB6's un-declared default); `REQ-0226` later added it;
 - `Variant`- or `Object`-element arrays — an array's per-element retyping
   would need the same tracking `Variant`'s scalar retyping uses, but at
   element granularity, which this increment does not add (see `REQ-0212`,

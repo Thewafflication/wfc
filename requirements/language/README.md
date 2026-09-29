@@ -308,3 +308,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   lets `Do`/`Loop` carry no `While`/`Until` condition at all, repeating
   forever until `Exit Do`/`Exit For`, the same as `Do While True` but
   with no condition written.
+- [REQ-0226 — Option Base](req-0226-option-base.md) makes `Option Base
+  1` change a bound-less array dimension's lower bound from `0` to `1`
+  (`Dim`/`ReDim` alike, every dimension of a multi-dimensional array),
+  leaving an explicit `<lower> To` dimension and a `ParamArray`'s
+  always-`0`-based array unaffected.

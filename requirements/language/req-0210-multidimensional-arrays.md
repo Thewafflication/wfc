@@ -58,8 +58,10 @@ not add:
   same as a 1-D one. A multi-dimensional array *can* be passed to an
   array-typed parameter (`REQ-0211`), since that parameter form is
   dimension-count-agnostic;
-- `Option Base 1` — a bound-less dimension in any position still means
-  `0 To <bound>`, matching `REQ-0201`'s existing 1-D rule.
+- `Option Base 1` — originally excluded here (a bound-less dimension in
+  any position always meant `0 To <bound>`, matching `REQ-0201`'s
+  existing 1-D rule); `REQ-0226` later added it, applying to every
+  dimension the same way.
 
 ## Verification
 

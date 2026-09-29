@@ -1827,6 +1827,37 @@ int main() {
         "WFC0068");
     expect_program_failure("Option Compare Text\nOption Compare Binary", "WFC0069");
     expect_program_failure("Option Compare Database", "WFC0070");
+    // Option Base (REQ-0226): a bound-less dimension (`Dim arr(n)`, and
+    // the same for ReDim) takes its lower bound from Option Base -- 0
+    // unless Option Base 1 was declared -- while an explicit `<lower> To`
+    // dimension and a ParamArray's own array (always 0-based) are both
+    // unaffected.
+    expect_program_success(
+        "Option Base 1\nDim arr(3) As Long\narr(1) = 10\narr(3) = 30\n"
+        "Print LBound(arr) & \" \" & UBound(arr) & \" \" & arr(1) & \" \" & arr(3)",
+        "1 3 10 30");
+    expect_program_success(
+        "Option Base 1\nDim m(2, 3) As Long\n"
+        "Print LBound(m) & \" \" & UBound(m) & \" \" & LBound(m, 2) & \" \" & UBound(m, 2)",
+        "1 2 1 3");
+    expect_program_success(
+        "Option Base 1\nDim explicitBound(5 To 9) As Long\n"
+        "Print LBound(explicitBound) & \" \" & UBound(explicitBound)",
+        "5 9");
+    expect_program_success(
+        "Option Base 1\n"
+        "Function Total(ParamArray nums() As Long) As Long\nTotal = LBound(nums)\nEnd Function\n"
+        "Print Total(1, 2, 3)",
+        "0");
+    expect_program_success(
+        "Option Base 1\nDim arr() As Long\nReDim arr(4)\n"
+        "Print LBound(arr) & \" \" & UBound(arr)",
+        "1 4");
+    expect_program_success(
+        "Dim arr(3) As Long\nPrint LBound(arr) & \" \" & UBound(arr)",
+        "0 3");
+    expect_program_failure("Option Base 1\nOption Base 0", "WFC0152");
+    expect_program_failure("Option Base 2", "WFC0153");
     expect_program_failure("Dim vbTextCompare As Long", "WFC0017");
     expect_program_failure("Dim vbTrue As Long", "WFC0017");
     expect_program_failure("Dim vbReadOnly As Long", "WFC0017");
