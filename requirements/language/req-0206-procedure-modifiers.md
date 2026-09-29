@@ -15,8 +15,9 @@ both module-level procedures (`REQ-0202`) and class members (`REQ-0203`):
   below). Omitting a trailing `Optional` argument at the call site binds
   `default` (a constant expression, evaluated once at scan time) if
   written, or the type's own zero value otherwise (`Empty` for an implicit
-  or explicit `Variant` parameter). `IsMissing` is not made meaningful by
-  this requirement — see Scope.
+  or explicit `Variant` parameter). `IsMissing` was not made meaningful by
+  this requirement; `REQ-0224` later added it for the one case real VB6
+  itself distinguishes — see Scope.
 - **`ParamArray` parameters.** `ParamArray name() As Type` — always the
   last parameter, always effectively `ByVal` — collects every remaining
   call argument, from its own position onward (including zero of them),
@@ -76,15 +77,15 @@ This is a procedure-system increment, not a class-specific one, but it
 does not extend either system beyond what real VB6 source most commonly
 uses:
 
-- `IsMissing` remains hardcoded `False` (`REQ-0176`'s existing scope
-  boundary) — it is not made meaningful for an omitted `Optional Variant`
-  parameter with no default. Real VB6's own `IsMissing` only ever
-  distinguishes this one specific case (a non-`Variant` `Optional`
+- `IsMissing` remained hardcoded `False` here (`REQ-0176`'s existing
+  scope boundary) — not made meaningful for an omitted `Optional
+  Variant` parameter with no default. Real VB6's own `IsMissing` only
+  ever distinguishes this one specific case (a non-`Variant` `Optional`
   parameter, or one with an explicit default, always reports `False` for
-  `IsMissing` even when omitted); implementing it would need tracking a
-  "this call omitted this specific argument" bit per parameter per call,
-  entirely separate from the value the parameter was bound to, for a
-  narrow, rarely-relied-on piece of introspection;
+  `IsMissing` even when omitted); `REQ-0224` later added it, tracking a
+  "this call omitted this specific argument" bit per parameter per call
+  (`Scope::missing_parameter_names`), entirely separate from the value
+  the parameter was bound to;
 - `Static` arrays and `Static` object references — only a scalar/`Variant`
   `Static` local is supported, matching a fixed-type `Dim` local's own
   existing scope boundary one level further (arrays and object references

@@ -1484,4 +1484,27 @@ Print Format(1.5, "0%;(0%)") & " " & Format(-1.5, "0%;(0%)")]=]
             LABELS "integration;mp-0002;expressions;vba;conversion"
             PASS_REGULAR_EXPRESSION "50.00% -25.6%.*0% 0%.*150% \\(150%\\)"
     )
+
+    add_test(
+        NAME TC-MP0002-ismissing-cli
+        COMMAND wfc --eval [=[Function Test(Optional x As Variant) As String
+If IsMissing(x) Then
+Test = "missing"
+Else
+Test = "have " & x
+End If
+End Function
+Print Test()
+Print Test(5)
+Function T2(Optional y As Long) As String
+T2 = CStr(IsMissing(y))
+End Function
+Print T2()]=]
+    )
+    set_tests_properties(
+        TC-MP0002-ismissing-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;information"
+            PASS_REGULAR_EXPRESSION "missing.*have 5.*False"
+    )
 endif()

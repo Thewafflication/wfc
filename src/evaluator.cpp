@@ -1274,6 +1274,16 @@ struct Scope {
     // one's final value back into the owning ProcedureDef's persistent
     // `statics` scope just before this frame is discarded.
     std::unordered_set<std::string> static_variable_names;
+    // REQ-0224: names of this call's own Optional Variant parameters,
+    // with no explicit default, that the caller did not supply an
+    // argument for (bound to Empty instead). Real VB6's `IsMissing` is
+    // documented specifically for this one case: a required parameter, a
+    // non-Variant Optional parameter, and a Variant Optional parameter
+    // that *does* have an explicit default (the default counts as
+    // supplied) all bind a real value indistinguishable from a
+    // caller-supplied one, so `IsMissing` on those stays the constant
+    // `False` this evaluator already answered before this requirement.
+    std::unordered_set<std::string> missing_parameter_names;
 };
 
 // The result of looking a variable name up across the (at most two) scopes
@@ -6360,6 +6370,20 @@ private:
             if (index < arguments.size()) {
                 argument_ptr = &arguments[index];
             } else {
+                // REQ-0224: only an omitted Optional Variant argument
+                // with no explicit default is a candidate for IsMissing
+                // -- recorded by name now, while it is still known which
+                // parameters were actually supplied, since the frame
+                // this scope belongs to is the only place IsMissing can
+                // later check it from. A Variant Optional parameter that
+                // *does* have an explicit default (`Optional x As
+                // Variant = 5`) reports IsMissing = False even when
+                // omitted in real VB6, matching REQ-0206's own
+                // documented fact: the default value counts as having
+                // been supplied.
+                if (parameter.is_optional && parameter.is_variant && !parameter.has_default) {
+                    frame.missing_parameter_names.insert(parameter.name);
+                }
                 synthesized_argument.value = parameter.has_default
                     ? parameter.default_value
                     : (parameter.is_variant ? Value{Empty{}}
@@ -7028,7 +7052,7 @@ private:
         const bool is_isempty = identifier == "isempty";
         const bool is_iserror = identifier == "iserror";
         const bool is_ismissing = identifier == "ismissing";
-        const bool is_constant_false_predicate = is_iserror || is_ismissing;
+        const bool is_constant_false_predicate = is_iserror;
         const bool is_lbound = identifier == "lbound";
         const bool is_ubound = identifier == "ubound";
         const bool is_qbcolor = identifier == "qbcolor";
@@ -7046,7 +7070,7 @@ private:
             !is_constant_false_predicate && !is_qbcolor && !is_rgb && !is_strconv &&
             !is_round && !is_cdbl && !is_csng && !is_ccur && !is_cvar && !is_macid &&
             !is_error_message && !is_float_math && !is_format && !is_rnd &&
-            !is_isnull && !is_isempty && !is_cdec &&
+            !is_isnull && !is_isempty && !is_cdec && !is_ismissing &&
             !is_isarray && !is_isobject && !is_lbound && !is_ubound) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
@@ -7057,6 +7081,72 @@ private:
                 "constant initializer cannot call a function",
                 identifier_offset);
             return std::nullopt;
+        }
+
+        // `IsMissing(paramName)` (REQ-0224) takes its own parameter's bare
+        // *name*, not an evaluated expression -- unlike every other
+        // intrinsic function's arguments, parsed generically below. An
+        // omitted Optional Variant argument is bound to a real (default)
+        // value indistinguishable from a caller-supplied one by the time
+        // it would reach the generic `parse_expression()` loop, so the
+        // only way to answer correctly is to look the name up directly
+        // against `missing_parameter_names`, recorded by `invoke_definition`
+        // at the moment the omission was still known. A parameter that
+        // is not Optional/Variant, or an identifier that does not name a
+        // parameter of the current procedure at all (including at module
+        // level), answers `False` -- matching this evaluator's existing
+        // constant-`False` stub for every case except the one this
+        // requirement now gives a real answer for.
+        if (is_ismissing) {
+            skip_horizontal_whitespace();
+            if (!consume('(')) {
+                set_error(
+                    "WFC0072", "function received the wrong number of arguments",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ')') {
+                set_error(
+                    "WFC0072", "function received the wrong number of arguments", offset_);
+                return std::nullopt;
+            }
+            const auto parameter_offset = offset_;
+            char type_character{};
+            auto parameter_name = parse_identifier(&type_character);
+            if (!parameter_name.has_value() || type_character != '\0') {
+                set_error("WFC0011", "IsMissing requires a parameter name", parameter_offset);
+                return std::nullopt;
+            }
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ',') {
+                set_error(
+                    "WFC0072", "function received the wrong number of arguments", offset_);
+                return std::nullopt;
+            }
+            if (!consume(')')) {
+                set_error("WFC0005", "expected closing parenthesis", offset_);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{false};
+            }
+            // Membership in `missing_parameter_names` already implies
+            // Optional/Variant/no-default (see where it is populated
+            // above); confirming the name is at least a real parameter
+            // of the current procedure first (rather than checking the
+            // set directly) keeps `IsMissing(someUnrelatedName)` a plain
+            // False instead of an accidental True from a stale name.
+            bool is_missing = false;
+            if (in_procedure() && current_procedure_def_ != nullptr) {
+                for (const auto& parameter : current_procedure_def_->parameters) {
+                    if (parameter.name == *parameter_name) {
+                        is_missing = current_scope().missing_parameter_names.contains(*parameter_name);
+                        break;
+                    }
+                }
+            }
+            return Value{is_missing};
         }
 
         // A missing `(` is a parenthesis-free, zero-argument call (REQ-0213)
@@ -7253,9 +7343,12 @@ private:
         }
 
         if (is_constant_false_predicate) {
-            // IsError/IsMissing remain constant False: `CVErr`/error-value
-            // Variants and omitted-argument detection remain outside this
-            // evaluator's scope. IsNull/IsEmpty/IsArray/IsObject are handled
+            // IsError remains constant False: `CVErr`/error-value Variants
+            // remain outside this evaluator's scope (REQ-0206's Scope).
+            // `IsMissing` (REQ-0224) is handled separately above, before
+            // this dispatch's generic argument-evaluation loop, since it
+            // needs its argument's bare name rather than an evaluated
+            // value. IsNull/IsEmpty/IsArray/IsObject are handled
             // separately below since Null, Empty, arrays, and object
             // references are all real, inspectable Value states.
             return Value{false};

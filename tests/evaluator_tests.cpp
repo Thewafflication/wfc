@@ -1111,6 +1111,38 @@ int main() {
         "Sub Foo(Optional a As Long, b As Long)\nEnd Sub", "WFC0140");
     expect_program_failure(
         "Sub Foo(Optional a As Long = \"text\")\nEnd Sub", "WFC0016");
+    // IsMissing for an omitted Optional Variant argument (REQ-0224): real
+    // only for that one case (a required parameter, a non-Variant
+    // Optional parameter, or a name that isn't a parameter of the
+    // current procedure at all -- including at module level -- all stay
+    // the constant False this evaluator already answered before this
+    // requirement).
+    expect_program_success(
+        "Function Test(Optional x As Variant) As String\n"
+        "If IsMissing(x) Then\nTest = \"missing\"\nElse\nTest = \"have \" & x\nEnd If\n"
+        "End Function\n"
+        "Print Test()\nPrint Test(5)\nPrint Test(\"hi\")",
+        "missing\nhave 5\nhave hi");
+    expect_program_success(
+        "Function T2(Optional x As Long) As String\nT2 = CStr(IsMissing(x))\nEnd Function\n"
+        "Print T2()\nPrint T2(5)",
+        "False\nFalse");
+    expect_program_success(
+        "Function T3(y As Variant) As String\nT3 = CStr(IsMissing(y))\nEnd Function\n"
+        "Print T3(5)",
+        "False");
+    expect_program_success("Dim v As Variant\nPrint IsMissing(v)", "False");
+    expect_program_failure(
+        "Function T4(Optional x As Variant) As String\nT4 = CStr(IsMissing(x, x))\nEnd Function\n"
+        "Print T4()",
+        "WFC0072");
+    // A Variant Optional parameter *with* an explicit default reports
+    // IsMissing = False even when omitted -- real VB6 treats the default
+    // as having been supplied, matching REQ-0206's own documented fact.
+    expect_program_success(
+        "Function T5(Optional x As Variant = 5) As String\nT5 = CStr(IsMissing(x))\n"
+        "End Function\nPrint T5()\nPrint T5(9)",
+        "False\nFalse");
     expect_program_success(
         "Function Total(ParamArray nums() As Long) As Long\n"
         "Dim i As Long\nDim s As Long\ns = 0\n"
@@ -1263,7 +1295,7 @@ int main() {
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
     expect_program_success(
-        "Print IsEmpty(1): Print IsError(True): Print IsMissing(7)",
+        "Dim v As Variant\nPrint IsEmpty(1): Print IsError(True): Print IsMissing(v)",
         "False\nFalse\nFalse");
     expect_success("Print RGB(255, 0, 0) & \" \" & RGB(0, 0, 255)", "255 16711680");
     expect_success("Print RGB(300, 128, 0)", "33023");
@@ -1941,7 +1973,7 @@ int main() {
     expect_program_failure("Print IsError()", "WFC0072");
     expect_program_failure("Print IsError(1, 2)", "WFC0072");
     expect_program_failure("Print IsMissing()", "WFC0072");
-    expect_program_failure("Print IsMissing(1, 2)", "WFC0072");
+    expect_program_failure("Print IsMissing(1, 2)", "WFC0011");
     expect_program_failure("Print Error(1.5)", "WFC0073");
     expect_program_failure("Print Error(-1)", "WFC0101");
     expect_program_failure("Print Error(65536)", "WFC0101");

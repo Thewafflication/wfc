@@ -299,3 +299,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   makes an unescaped, unquoted `%` anywhere in a picture section scale
   the value by 100 before digit matching, the same scaling the named
   `Percent` style already applies.
+- [REQ-0224 — IsMissing for an omitted Optional Variant argument](req-0224-ismissing-optional-variant.md)
+  makes `IsMissing` return `True` for a no-default `Optional Variant`
+  parameter the caller omitted, the one case real VB6 itself
+  distinguishes; every other case (required, non-`Variant`, or
+  defaulted) stays the existing constant `False`.
