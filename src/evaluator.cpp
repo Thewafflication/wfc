@@ -1306,11 +1306,16 @@ struct ProcedureParameter {
     std::size_t type_index{};
     bool is_variant{};
     bool by_val{};
-    // Only meaningful for a Property Set member's single parameter: it
-    // accepts an object reference (Nothing or an ObjectInstance) rather
-    // than a fixed scalar type, since this evaluator's parameter type
-    // keywords (see parse_type_keyword) do not otherwise include Object.
+    // `As Object` or `As SomeClassName` (REQ-0228, generalizing what was
+    // previously only accepted for a `Property Set` member's own single
+    // parameter): accepts an object reference (`Nothing` or an
+    // `ObjectInstance`) rather than a fixed scalar type. `class_name` is
+    // empty for the generic `As Object` form (any class, or `Nothing`,
+    // accepted) or the required class name for `As SomeClassName` (a
+    // `Set`-source class mismatch reports `WFC0137`, the same diagnostic
+    // a class-typed field/return already reports for the same case).
     bool is_object_reference{};
+    std::string class_name;
     // REQ-0206: `Optional [name [As Type] [= default]]`. An omitted
     // trailing argument at the call site binds `default_value` (if
     // `has_default`) or the type's own zero value otherwise. Every
@@ -1647,8 +1652,7 @@ private:
     // Parses `(` [`ByVal`|`ByRef`] name [`As` Type] {`,` ...} `)` into
     // `definition.parameters`, used by `scan_procedures` for both `Sub` and
     // `Function` declarations.
-    [[nodiscard]] bool scan_procedure_parameters(
-        ProcedureDef& definition, const bool allow_object_parameter = false) {
+    [[nodiscard]] bool scan_procedure_parameters(ProcedureDef& definition) {
         skip_horizontal_whitespace();
         if (!consume('(')) {
             set_error(
@@ -1809,23 +1813,27 @@ private:
             } else if (consume_keyword("as")) {
                 skip_horizontal_whitespace();
                 const auto type_offset = offset_;
-                if (allow_object_parameter && consume_keyword("object")) {
+                // REQ-0228: `As Object`/`As SomeClassName` are now accepted
+                // for any Sub/Function/Property parameter (not just
+                // Property Set's own single value parameter, previously
+                // the only caller that allowed `As Object` here), via the
+                // same resolver a class-typed field/return type already
+                // uses.
+                const auto type_result = parse_scalar_object_or_class_type();
+                if (!type_result.has_value()) {
+                    set_error(
+                        "WFC0012",
+                        "expected As Integer, As Long, As Double, As Single, As Currency, As "
+                        "String, As Boolean, As Object, or As Variant",
+                        type_offset);
+                    return false;
+                }
+                if (type_result->is_object) {
                     parameter.is_object_reference = true;
-                    parameter.type_index = Value{Nothing{}}.index();
+                    parameter.type_index = type_result->type_index;
+                    parameter.class_name = std::move(type_result->class_name);
                 } else {
-                    const auto type_result = parse_type_keyword();
-                    if (!type_result.has_value()) {
-                        set_error(
-                            "WFC0012",
-                            allow_object_parameter
-                                ? "expected As Integer, As Long, As Double, As Single, As "
-                                  "Currency, As String, As Boolean, As Object, or As Variant"
-                                : "expected As Integer, As Long, As Double, As Single, As "
-                                  "Currency, As String, As Boolean, or As Variant",
-                            type_offset);
-                        return false;
-                    }
-                    parameter.type_index = type_result->default_value.index();
+                    parameter.type_index = type_result->type_index;
                     parameter.is_variant = type_result->is_variant;
                 }
             } else {
@@ -2073,8 +2081,7 @@ private:
         ProcedureDef definition;
         definition.is_function = accessor == Accessor::get;
         definition.is_private = is_private;
-        if (!scan_procedure_parameters(
-                definition, /*allow_object_parameter=*/accessor == Accessor::set)) {
+        if (!scan_procedure_parameters(definition)) {
             return false;
         }
         if (accessor == Accessor::get) {
@@ -6244,6 +6251,13 @@ private:
         if (type_index == Value{std::string{}}.index()) {
             return Value{std::string{}};
         }
+        // REQ-0228: an omitted Optional object-reference parameter with no
+        // explicit `= Nothing` default (`parameter.has_default` false)
+        // reaches here via `parameter.type_index` -- `Nothing` is that
+        // type's own zero value, not the `Boolean` fallback below.
+        if (type_index == Value{Nothing{}}.index()) {
+            return Value{Nothing{}};
+        }
         return Value{false};
     }
 
@@ -6446,11 +6460,33 @@ private:
                 if (!std::holds_alternative<Nothing>(argument.value) &&
                     !std::holds_alternative<ObjectInstance>(argument.value)) {
                     set_error(
-                        "WFC0106", "Property Set requires an object reference", identifier_offset);
+                        "WFC0106", "Object parameter requires an object reference",
+                        identifier_offset);
+                    return std::nullopt;
+                }
+                // REQ-0228: a specific-class parameter (`As SomeClassName`,
+                // `class_name` non-empty) requires the argument to match
+                // exactly, the same check a class-typed field/return
+                // already applies at its own assignment point. Threading
+                // `class_name` into the callee's own `object_class_names`
+                // (mirroring a class-typed field/return's identical
+                // bookkeeping) means a `Set param = ...` inside the body is
+                // then class-checked by the existing, unmodified Set
+                // machinery too -- no separate enforcement needed there.
+                if (!parameter.class_name.empty() &&
+                    std::holds_alternative<ObjectInstance>(argument.value) &&
+                    std::get<ObjectInstance>(argument.value).data->class_name !=
+                        parameter.class_name) {
+                    set_error(
+                        "WFC0137", "argument does not match the parameter's declared class",
+                        identifier_offset);
                     return std::nullopt;
                 }
                 frame.variables.emplace(parameter.name, std::move(argument.value));
                 frame.object_variables.insert(parameter.name);
+                if (!parameter.class_name.empty()) {
+                    frame.object_class_names.emplace(parameter.name, parameter.class_name);
+                }
                 continue;
             }
             if (parameter.is_array_parameter) {
@@ -6600,10 +6636,23 @@ private:
         // ParamArray's own collected elements (beyond that point) are
         // always ByVal, with no corresponding `parameters` entry per
         // argument to look up in the first place.
+        bool write_back_ok = true;
         for (std::size_t index = 0U; index < std::min(arguments.size(), fixed_and_optional_count);
              ++index) {
             const auto& parameter = parameters[index];
             if (!parameter.by_val && arguments[index].byref_target != nullptr) {
+                // REQ-0228: an object-typed ByRef parameter makes this
+                // write-back reachable for an ObjectInstance for the first
+                // time -- terminate the caller's *old* value first (the
+                // same call `Set` already makes before overwriting a
+                // target elsewhere), so an instance the caller was still
+                // holding here does not silently skip `Class_Terminate`
+                // when this call replaces it. A no-op for every other
+                // value kind, the same as everywhere else this is called.
+                if (!terminate_if_last_reference(*arguments[index].byref_target)) {
+                    write_back_ok = false;
+                    break;
+                }
                 *arguments[index].byref_target = scopes_.back().variables.at(parameter.name);
             }
         }
@@ -6611,7 +6660,7 @@ private:
         // copied out, bumping their use_count, so an instance among them
         // correctly survives this drain rather than being (wrongly) treated
         // as going out of scope here.
-        const bool drained_ok = drain_scope_instances(scopes_.back());
+        const bool drained_ok = write_back_ok && drain_scope_instances(scopes_.back());
         scopes_.pop_back();
         if (!drained_ok) {
             return std::nullopt;

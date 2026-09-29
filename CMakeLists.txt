@@ -1563,4 +1563,32 @@ Print z & " " & TypeName(z)]=]
             LABELS "integration;mp-0002;statements;constants"
             PASS_REGULAR_EXPRESSION "5 Long.*hello String.*3.14 Double.*15 Long"
     )
+
+    add_test(
+        NAME TC-MP0002-class-typed-parameter-cli
+        COMMAND wfc --class Counter [=[Public n As Long
+
+Sub Class_Terminate()
+Print "terminated " & n
+End Sub]=]
+            --eval [=[Sub PrintIt(c As Counter)
+Print c.n
+End Sub
+Dim a As New Counter
+a.n = 5
+Call PrintIt(a)
+Sub Replace(o As Object)
+Set o = New Counter
+o.n = 99
+End Sub
+Call Replace(a)
+Print a.n
+Set a = Nothing]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-typed-parameter-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;classes"
+            PASS_REGULAR_EXPRESSION "5.*terminated 5.*99.*terminated 99"
+    )
 endif()

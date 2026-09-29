@@ -1053,6 +1053,67 @@ int main() {
         "Dim h As New Holder\nDim c As New Counter\nSet h.obj = c\n"
         "Print TypeName(h.obj) & \" \" & h.obj.n",
         "Counter 0");
+    // Class-typed and generic Object Sub/Function/Property parameters
+    // (REQ-0228): generalizes what was previously only accepted for
+    // Property Set's own single value parameter to every parameter of
+    // every Sub/Function/Property, via the same class-name resolver a
+    // class-typed field/return type already uses.
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Sub PrintIt(c As Counter)\nPrint c.n\nEnd Sub\n"
+        "Dim a As New Counter\na.n = 5\nCall PrintIt(a)",
+        "5");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
+        "Sub PrintType(o As Object)\nPrint TypeName(o)\nEnd Sub\n"
+        "Dim a As New Counter\nDim b As New Widget\n"
+        "Call PrintType(a)\nCall PrintType(b)",
+        "Counter\nWidget");
+    expect_classes_failure(
+        {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
+        "Sub PrintIt(c As Counter)\nEnd Sub\nDim b As New Widget\nCall PrintIt(b)",
+        "WFC0137");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"},
+         {"Holder", "Private m As Counter\n\n"
+                    "Property Set C(v As Counter)\nSet m = v\nEnd Property\n\n"
+                    "Property Get C() As Counter\nSet C = m\nEnd Property"}},
+        "Dim h As New Holder\nDim a As New Counter\na.n = 42\nSet h.C = a\nPrint h.C.n",
+        "42");
+    // A ByRef object parameter (the default -- no ByVal written) writes
+    // back to the caller's own variable when the callee reassigns it, and
+    // correctly terminates whichever instance the callee's reassignment
+    // replaced -- a real bug this requirement's own manual testing found:
+    // the write-back previously copied the new value over the caller's
+    // slot with a plain assignment, never checking whether the old value
+    // there was an ObjectInstance about to lose its last reference.
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
+                     "End Sub"}},
+        "Sub Replace(o As Object)\nSet o = New Counter\no.n = 99\nEnd Sub\n"
+        "Dim a As New Counter\na.n = 1\nCall Replace(a)\nPrint a.n\nSet a = Nothing",
+        "terminated 1\n99\nterminated 99");
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
+                     "End Sub"}},
+        "Sub NoOp(o As Object)\nEnd Sub\n"
+        "Dim a As New Counter\na.n = 7\nCall NoOp(a)\nPrint a.n\nSet a = Nothing",
+        "7\nterminated 7");
+    // Optional Object parameter: omitted binds Nothing (not the Boolean
+    // fallback `zero_value_for_index` previously gave every object-typed
+    // index, a second bug this requirement's own testing found), and an
+    // explicit `= Nothing` default behaves the same way.
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Function Describe(Optional o As Object) As String\n"
+        "Describe = CStr(o Is Nothing)\nEnd Function\n"
+        "Dim a As New Counter\nPrint Describe()\nPrint Describe(a)",
+        "True\nFalse");
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Function Describe(Optional o As Object = Nothing) As String\n"
+        "Describe = CStr(o Is Nothing)\nEnd Function\nPrint Describe()",
+        "True");
     expect_classes_success(
         // Holder references Counter before Counter is scanned -- the
         // two-pass scan_classes (register every class name, then scan

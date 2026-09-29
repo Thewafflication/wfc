@@ -317,3 +317,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   lets `Const x = 5` infer its type from the initializer instead of
   requiring `As Type`, the real-VB6 asymmetry with a bare `Dim` (which
   defaults to `Variant` instead).
+- [REQ-0228 — Class-typed and generic Object parameters](req-0228-class-typed-parameters.md)
+  generalizes `As Object`/`As SomeClass`, previously only accepted for
+  `Property Set`'s own value parameter, to every Sub/Function/Property
+  parameter, fixing a `Class_Terminate`-skipped-at-ByRef-write-back bug
+  and an omitted-Optional-Object-binds-`False` bug its own testing found.

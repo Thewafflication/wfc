@@ -69,9 +69,11 @@ scope:
 
 - array-of-class/array-of-`Object` elements — only a scalar field or return
   type may be class-typed/`Object`-typed;
-- a class-typed *parameter* (a method/property parameter still cannot be
-  declared `As SomeClass`, only `As Object` for a `Property Set`'s own
-  value parameter) — parameters were not part of this increment's scope;
+- a class-typed *parameter* — originally excluded here (a method/property
+  parameter could not be declared `As SomeClass`, only `As Object` for a
+  `Property Set`'s own value parameter); `REQ-0228` later generalized
+  `As Object`/`As SomeClass` to every parameter of every Sub/Function/
+  Property;
 - lazy `As New` auto-instantiation, `Class_Terminate` cascading through a
   terminated instance's own fields, class inheritance/interfaces, and
   `CreateObject`/COM interop — all still deferred exactly as `REQ-0203`/
