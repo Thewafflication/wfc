@@ -126,7 +126,10 @@ expression. `WFC0137` reports `Set` assigning an instance whose class does
 not exactly match the target's `As ClassName` declaration (this evaluator
 has no class hierarchy/interfaces, so "match" is always exact identity).
 `WFC0106` (`REQ-0200`'s existing "Invalid use of Nothing") reports member
-access on a `Nothing`-valued reference. Every other diagnostic a class
+access on a `Nothing`-valued reference *during actual execution*;
+`REQ-0229` later corrected a bug where this fired even for a not-taken
+branch's own dry-run parsing, which should never raise a value-dependent
+runtime error. Every other diagnostic a class
 method/property body can raise reuses the identical module-level-procedure
 codes `REQ-0202` already defines (`WFC0072` wrong arity, `WFC0122` a `Sub`
 used in an expression, `WFC0123` call-nesting depth, `WFC0016` argument/

@@ -322,3 +322,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `Property Set`'s own value parameter, to every Sub/Function/Property
   parameter, fixing a `Class_Terminate`-skipped-at-ByRef-write-back bug
   and an omitted-Optional-Object-binds-`False` bug its own testing found.
+- [REQ-0229 — Member access on Nothing inside a not-taken branch](req-0229-nothing-member-access-dry-run.md)
+  stops `.member` access on a `Nothing` reference from raising
+  `WFC0106` during a dead branch's own dry-run parse, matching this
+  evaluator's convention of not raising value-dependent runtime errors
+  for code that will not actually execute.

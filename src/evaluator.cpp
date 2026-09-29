@@ -5032,6 +5032,22 @@ private:
             return false;
         }
         if (std::holds_alternative<Nothing>(base)) {
+            if (!execute_) {
+                // Dry-run parsing of a not-taken branch (REQ-0229): as
+                // parse_member_access_after_dot's identical case explains,
+                // there is no class to resolve `.member` against at all
+                // when `base` is genuinely `Nothing`. Still parses through
+                // the `= expression` that must follow, so the source text
+                // and the RHS's own shape are validated, but assigns
+                // nothing (there is nowhere to assign it to).
+                skip_horizontal_whitespace();
+                if (!consume('=')) {
+                    set_error("WFC0014", "expected assignment operator", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                return parse_expression().has_value();
+            }
             set_error("WFC0106", "Invalid use of Nothing", base_offset);
             return false;
         }
@@ -5227,6 +5243,22 @@ private:
             return false;
         }
         if (std::holds_alternative<Nothing>(base)) {
+            if (!execute_) {
+                // Dry-run parsing of a not-taken branch (REQ-0229): as
+                // parse_member_access_after_dot's identical case explains,
+                // there is no class to resolve `.member` against at all
+                // when `base` is genuinely `Nothing`. Still parses through
+                // the `= expression` that must follow, so the source text
+                // and the RHS's own shape are validated, but assigns
+                // nothing (there is nowhere to assign it to).
+                skip_horizontal_whitespace();
+                if (!consume('=')) {
+                    set_error("WFC0014", "expected assignment operator", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                return parse_expression().has_value();
+            }
             set_error("WFC0106", "Invalid use of Nothing", base_offset);
             return false;
         }
@@ -6878,6 +6910,28 @@ private:
             return std::nullopt;
         }
         if (std::holds_alternative<Nothing>(base)) {
+            if (!execute_) {
+                // Dry-run parsing of a not-taken branch (REQ-0229): `base`
+                // really is `Nothing` here, so unlike every dispatch
+                // branch below (which always has a live instance's own
+                // class to resolve against, dry-run or not), there is
+                // nothing at all to resolve `.member` against. Still
+                // parses through an optional `(args)` list, so the source
+                // text and each argument's own shape are validated the
+                // same as they would be for a live instance, but returns
+                // a placeholder `Long` rather than erroring -- matching
+                // this evaluator's established convention of not raising
+                // a value-dependent runtime error for code that will not
+                // actually execute, the same as an arithmetic overflow or
+                // division by zero in a dead branch.
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '(') {
+                    if (!parse_call_argument_list().has_value()) {
+                        return std::nullopt;
+                    }
+                }
+                return Value{Integer{}};
+            }
             set_error("WFC0106", "Invalid use of Nothing", base_offset);
             return std::nullopt;
         }

@@ -1114,6 +1114,33 @@ int main() {
         "Function Describe(Optional o As Object = Nothing) As String\n"
         "Describe = CStr(o Is Nothing)\nEnd Function\nPrint Describe()",
         "True");
+    // Member access on Nothing inside a not-taken If/Else branch
+    // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
+    // Then ... Else <access o.Member> End If` must not raise "Invalid
+    // use of Nothing" for the dead Else branch -- matching this
+    // evaluator's established dry-run convention of not raising a
+    // value-dependent runtime error for code that will not execute (the
+    // same as arithmetic overflow or division by zero in a dead branch).
+    // Covers a field read, a Property Let write, a Property Set write,
+    // and a method call with arguments (all through the dead branch).
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Dim o As Object\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\n"
+        "Print \"have \" & o.n\nEnd If",
+        "nothing");
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nProperty Let P(v As Long)\nn = v\nEnd Property"}},
+        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\no.P = 5\nEnd If",
+        "nothing");
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nProperty Set S(v As Object)\nEnd Property"}},
+        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\nSet o.S = o\nEnd If",
+        "nothing");
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nSub Bump(amount As Long)\nn = n + amount\nEnd Sub"}},
+        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\n"
+        "Call o.Bump(1 + 2)\nEnd If",
+        "nothing");
     expect_classes_success(
         // Holder references Counter before Counter is scanned -- the
         // two-pass scan_classes (register every class name, then scan

@@ -1591,4 +1591,39 @@ Set a = Nothing]=]
             LABELS "integration;mp-0002;statements;procedures;classes"
             PASS_REGULAR_EXPRESSION "5.*terminated 5.*99.*terminated 99"
     )
+
+    add_test(
+        NAME TC-MP0002-nothing-dead-branch-cli
+        COMMAND wfc --class Counter [=[Public n As Long
+
+Property Let P(v As Long)
+n = v
+End Property
+
+Sub Bump(amount As Long)
+n = n + amount
+End Sub]=]
+            --eval [=[Dim o As Counter
+If o Is Nothing Then
+Print "nothing1"
+Else
+Print "have " & o.n
+End If
+If o Is Nothing Then
+Print "nothing2"
+Else
+o.P = 5
+End If
+If o Is Nothing Then
+Print "nothing3"
+Else
+Call o.Bump(1 + 2)
+End If]=]
+    )
+    set_tests_properties(
+        TC-MP0002-nothing-dead-branch-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;object;classes"
+            PASS_REGULAR_EXPRESSION "nothing1.*nothing2.*nothing3"
+    )
 endif()
