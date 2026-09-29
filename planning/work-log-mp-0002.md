@@ -176,6 +176,7 @@ a specific requirement.
 | 2026-09-24 #104 | Construction | Add `Format` custom picture `\` escape character under new `REQ-0221` (owner: "keep working until we are out of credits" -- picked from `REQ-0218`'s own "Remaining next increments" bullet). The character right after a `\` is now always a literal -- `\0`/`\#` never a digit placeholder, `\,` never the grouping-enable comma, `\.` never the decimal-point separator, `\;` never a `REQ-0220` section separator, and `\\` a single literal backslash -- implemented by expanding every escaped pair ahead of time into a parallel `(text, forced_literal)` representation (a new `EscapedPicture`/`parse_picture_escapes` pair) and threading `forced_literal` by index through the existing digit-placeholder/decimal-point/comma-grouping checks, which previously only ever looked at the character value itself. `REQ-0220`'s own `;` section-splitting also became escape-aware in the same change (a manual scan that copies an escaped pair through untouched instead of testing its second character as a separator), since a picture with an escaped `\;` must not be split there even though section-splitting runs before a section's own escapes are expanded. Manually verified every escape shape (`\0\0\0` with no unescaped placeholder at all, `\,` combined with real placeholders on both sides, `\;` alone and combined with a real section separator later in the same picture, `\.`, and the self-referential `\\` case) via `wfc --eval` before writing formal tests -- the `\\` case needed care to reason through by hand rather than trust ad hoc shell quoting, since Bash/Windows argv backslash handling made a literal repro unreliable; the C++ unit test (exact byte control via `\\` in a C++ string literal) was the actual verification instrument for that one case. Also updated `REQ-0218`/`REQ-0220`'s Scope sections to point at this requirement instead of listing the escape character as excluded; unit + CLI tests, requirement doc | Commit `e278494` |
 | 2026-09-24 #105 | Construction | Add `Format` custom picture `"..."` quoted literal text under new `REQ-0222` (owner: "keep working until we are out of credits" -- picked from `REQ-0221`'s own Scope, which had just excluded it as "VB6's other mechanism" for the same job). Every character between a pair of `"` in a custom picture is now a plain literal, VB6's second literal-text mechanism alongside the `\` escape character, and the quote delimiters themselves never appear in the output. Implemented by extending `REQ-0221`'s `parse_picture_escapes` to also track a quote-toggle state, marking every character inside a `"..."` run `forced_literal` the same way an escaped `\X` pair already is (reusing the exact same downstream `forced_literal`-aware rendering logic with no further changes needed there), and by making the `;` section-splitting loop quote-aware the same way it is already backslash-aware, so a `;` inside a quoted run does not split the picture into `REQ-0220` sections. An unterminated quoted run (no closing `"` before the section ends) makes the rest of that section literal too, a disclosed simplification mirroring the escape character's own "trailing lone `\`" one. Manually verified quoted text before and after a digit placeholder, a quoted `;` not splitting a picture (confirmed it renders identically to the already-tested `\;` case), and quoted text combined with a real unquoted section separator selecting between a positive and negative rendering, via `wfc --eval` before writing formal tests -- since a `Style` argument is itself a VB6 string literal, every test needed VB6's own doubled-quote (`""`) escaping at the *language* level before this requirement's own picture-level `"..."` delimiting ever saw the resulting string value, which was straightforward to construct correctly once reasoned through explicitly. Also updated `REQ-0221`'s Scope to point at this requirement instead of listing quoted text as excluded; unit + CLI tests, requirement doc | Commit `25e6c63` |
 | 2026-09-24 #106 | Construction | Add `Format` custom picture `%` scaling under new `REQ-0223` (owner: "keep working until we are out of credits" -- picked from `REQ-0218`'s original Scope, which had deferred both `%` and `E+`/`E-` together). An unescaped, unquoted `%` anywhere in a custom picture *section* now scales the value by 100 before any digit is matched against a placeholder -- the same scaling the named `Percent` style (`REQ-0193`) already applies -- checked after `REQ-0220`'s section split and `REQ-0221`/`REQ-0222`'s escape/quote expansion, so an escaped `\%` or a quoted `"%"` is a plain literal with no scaling, and a two-section picture can scale one section without scaling the other. The `%` character itself needed no new rendering logic at all: it was never one of this format's own special characters (`0`/`#`/`.`/`,`/`\`/`"`/`;`), so it already passed through as an ordinary literal at its own position once the underlying value was scaled -- the entire feature is "detect an unescaped `%`'s presence, then scale," with no change to how it displays. Manually verified scaling for a positive and negative value, an escaped `\%` and a quoted `"%"` both suppressing scaling, and a two-section picture scaling only its selected section, via `wfc --eval` before writing formal tests. Updated `REQ-0218`'s Scope to note `%` is no longer excluded, leaving only `E+`/`E-` scientific notation combined with a custom picture (a materially larger feature, deliberately left for a later pass) under that same bullet; unit + CLI tests, requirement doc | Commit `66a5114` |
+| 2026-09-28 #107 | Construction | Add `IsMissing` for an omitted `Optional Variant` argument under new `REQ-0224` (owner: "keep working" -- picked from `REQ-0206`'s own Scope, which had left `IsMissing` hardcoded `False` but explicitly named this one case real VB6 itself distinguishes). `IsMissing(paramName)` now returns `True` only when `paramName` names a no-default `Optional Variant` parameter of the *current* procedure that the caller did not supply -- a required parameter, a non-`Variant` `Optional` parameter, a *defaulted* `Variant` `Optional` parameter (the default counts as supplied in real VB6), and any name that isn't a parameter of the current procedure at all (including at module level) all still answer the pre-existing constant `False`. The implementation needed its own argument-parsing special case, distinct from the generic `parse_expression()`-per-argument loop every other intrinsic function shares: by the time an omitted Optional argument's synthesized default value would reach that generic loop, it is a real `Value` indistinguishable from a caller-supplied one, so the only way to answer correctly is to check the argument's own *name* directly -- requiring a bare-identifier grammar for `IsMissing`'s one argument instead. `invoke_definition` now records each call's own omitted no-default Variant Optional parameter names into a new `Scope::missing_parameter_names` set at the exact moment the omission is still known (right where it already decides whether to bind a real argument or synthesize the default), and the new special-cased parsing branch looks a bare identifier up first against the current procedure's own parameter list (never accidentally matching an unrelated same-named local) before checking that set. Two of this evaluator's own three pre-existing `IsMissing` tests needed updating, not as a regression fix but because they asserted the *old* stubbed constant-`False` behavior for genuinely invalid syntax (`IsMissing(7)`, a non-identifier argument) that real `IsMissing` was never actually valid for; the two arity tests (`IsMissing()`, `IsMissing(1, 2)`) mostly still passed unchanged, except `IsMissing(1, 2)`'s own diagnostic correctly became `WFC0011` (invalid argument) rather than `WFC0072` (wrong count), since `1` was never a valid parameter reference regardless of how many arguments followed it. Manually verified the omitted/supplied cases, the non-Variant-Optional-stays-False case, and -- reasoning carefully from `REQ-0206`'s own prior documentation of the exact real-VB6 nuance rather than assuming -- the defaulted-Variant-Optional-still-False case, via `wfc --eval` before writing formal tests; unit + CLI tests, requirement doc | Commit `b04f630` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -431,6 +432,8 @@ identified in `planning/reference-environment.md`.
 | 2026-09-24 | `wfc --eval`, manually verifying quoted text before/after a placeholder, a quoted `;` not splitting a picture, and quoted text combined with a real section separator | All matched the expected literal/section-selection rendering | Manual verification, pre-formal-test |
 | 2026-09-24 | `ctest --preset windows-x64-debug` (post `66a5114` Format `%` scaling) | Pass (100/100; expanded unit coverage, one new CLI test) | Local x64 CTest run |
 | 2026-09-24 | `wfc --eval`, manually verifying `%` scaling for a positive/negative value, escaped `\%`/quoted `"%"` suppressing scaling, and per-section scaling in a two-section picture | All matched the expected scaled/literal rendering | Manual verification, pre-formal-test |
+| 2026-09-28 | `ctest --preset windows-x64-debug` (post `b04f630` IsMissing) | Pass (101/101; expanded unit coverage, one new CLI test, two stale IsMissing tests updated to match corrected behavior) | Local x64 CTest run |
+| 2026-09-28 | `wfc --eval`, manually verifying an omitted/supplied `Optional Variant`, an omitted non-`Variant` `Optional` (stays False), and an omitted *defaulted* `Variant` `Optional` (stays False) | All matched real VB6's documented behavior for each case | Manual verification, pre-formal-test |
 
 ## Decisions and Scope Changes
 
@@ -486,6 +489,8 @@ identified in `planning/reference-environment.md`.
 | Expand every `\`-escaped pair into a parallel `(text, forced_literal)` representation up front, rather than teaching each existing check (digit placeholder, decimal point, grouping comma, section separator) to look one character back for an escaping `\` itself | A single up-front expansion pass keeps every downstream check a simple by-index `!forced_literal[i]` test, with no risk of one check's own "was the previous character a `\`" logic drifting out of sync with another's -- especially important once `REQ-0220`'s own `;` section-splitting also had to become escape-aware in the same change | Verified every escape shape (`\0`, `\,`, `\.`, `\;`, `\\`, and `\;` combined with a real, later, unescaped section separator) renders correctly with this one shared mechanism | `REQ-0221` |
 | Give `"..."` quoted literal text no special interaction with `\` at all (a `\` inside a quoted run is just an ordinary literal character, not an escape) | Real VB6's own documentation does not describe the two mechanisms interacting, and the two features already serve the identical purpose (forcing a literal); inventing an interaction rule with no reference to verify it against would be a guess dressed up as a decision | Disclosed as an unverified simplification in `REQ-0222`'s Scope, rather than silently picked without a note | `REQ-0222` |
 | Detect `%` scaling as a simple presence flag on the whole section (scale by 100 exactly once if any unescaped `%` appears anywhere in it), rather than tracking how many `%` characters appear or where | Real VB6 treats `%` as a per-section flag, not a per-occurrence multiplier -- a picture with two `%` characters still only scales by 100 once, matching the named `Percent` style's own single, fixed scaling factor | Verified a picture combining `%` with other characters (`"0%"`, `"0.00%"`) scales exactly once regardless of digit-placeholder count or picture length | `REQ-0223` |
+| Give `IsMissing` its own bare-identifier argument grammar, parsed before the shared generic `parse_expression()`-per-argument loop every other intrinsic function uses, rather than trying to recover the parameter's name from an already-evaluated argument `Value` | An omitted Optional argument is synthesized into a real, ordinary `Value` (the default) before the generic loop would ever see it -- indistinguishable from a caller-supplied value of the same type -- so there is no way to answer correctly without the argument's own name, which only a dedicated identifier-level parse (instead of expression evaluation) can preserve | Verified `IsMissing(x)` still resolves correctly inside a `Function`/`Sub` body alongside every other unrelated intrinsic call on the same line, confirming the special-cased branch does not disturb the shared dispatch's normal argument handling for any other function | `REQ-0224` |
+| Exclude a *defaulted* `Optional Variant` parameter (`Optional x As Variant = 5`) from `IsMissing`'s `True` case, even though it is still both Optional and Variant | `REQ-0206`'s own Scope section, written when `IsMissing` was first deferred, already documented this exact real-VB6 nuance (the default counts as supplied); implementing `IsMissing` without checking `has_default` too would have silently contradicted that requirement's own prior research | Added a dedicated regression test for the defaulted case (`Optional x As Variant = 5`), both omitted and supplied, confirming both answer `False` | `REQ-0224` |
 | Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
@@ -556,6 +561,7 @@ identified in `planning/reference-environment.md`.
 | Tests at current checkpoint | 98 | Local x64 CTest after `e278494` |
 | Tests at current checkpoint | 99 | Local x64 CTest after `25e6c63` |
 | Tests at current checkpoint | 100 | Local x64 CTest after `66a5114` |
+| Tests at current checkpoint | 101 | Local x64 CTest after `b04f630` |
 
 ## Resource Usage
 
@@ -659,6 +665,7 @@ when the session completes.
 | Format custom picture `\` escape character (increment #104) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Format custom picture quoted literal text (increment #105) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Format custom picture `%` scaling (increment #106) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| IsMissing for omitted Optional Variant argument (increment #107) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -1472,6 +1479,38 @@ scaling in a two-section picture, via `wfc --eval` before writing formal
 tests. Updated `REQ-0218`'s Scope to note `%` is no longer excluded,
 leaving only `E+`/`E-` (a materially larger feature) under that bullet.
 
+**IsMissing for an omitted Optional Variant argument (increment #107,
+`REQ-0224`):** picked from `REQ-0206`'s own Scope, which had left
+`IsMissing` hardcoded `False` but explicitly documented the one case
+real VB6 itself distinguishes -- an `Optional Variant` parameter with no
+explicit default, omitted by the caller. `IsMissing(paramName)` now
+returns `True` in exactly that case; a required parameter, a
+non-`Variant` `Optional`, a *defaulted* `Variant` `Optional` (the
+default counts as supplied in real VB6), and any name that is not a
+parameter of the current procedure at all still answer the pre-existing
+constant `False`. Implementing this needed a dedicated argument-parsing
+branch, apart from the generic `parse_expression()`-per-argument loop
+every other intrinsic function shares: an omitted Optional argument is
+synthesized into a real value (the default) before that generic loop
+would ever see it, indistinguishable from a caller-supplied one, so the
+only way to answer correctly is to check the argument's own *name*
+directly, which only a bare-identifier parse (not expression
+evaluation) preserves. `invoke_definition` now records each call's own
+omitted no-default Variant Optional parameter names into a new
+`Scope::missing_parameter_names` set at the exact point the omission is
+still known. Two of this evaluator's own three pre-existing `IsMissing`
+tests needed updating -- not a regression, but because they asserted
+the *old* stubbed behavior for syntax (`IsMissing(7)`, a non-identifier
+argument) that real `IsMissing` was never actually valid for; one
+arity test's own diagnostic correctly changed from `WFC0072` to
+`WFC0011` for the same reason (`IsMissing(1, 2)`'s first argument was
+never a valid parameter reference, independent of how many followed
+it). Manually verified the omitted/supplied case, the non-Variant-
+Optional-stays-False case, and -- reasoning from `REQ-0206`'s own prior
+documented nuance rather than assuming -- the defaulted-Variant-
+Optional-still-False case, via `wfc --eval` before writing formal
+tests.
+
 **Remaining next increments:**
 
 - class inheritance, interfaces (`Implements`), `CreateObject`/
@@ -1499,10 +1538,16 @@ leaving only `E+`/`E-` (a materially larger feature) under that bullet.
 - `ReDim` as an implicit first declaration (real VB6 allows `ReDim x(5)`
   with no prior `Dim` at procedure scope) -- this evaluator's `ReDim`
   always requires a prior `Dim identifier()` (`REQ-0207`'s Scope);
-- late binding and `CVErr`/error-value Variants (`IsError`/`IsMissing` stay
-  hardcoded `False` -- `REQ-0206` added `Optional`/`ParamArray`/`Static`/
-  `Public`/`Private` for `Sub`/`Function` declarations, originally deferred
-  here, but deliberately left `IsMissing` unimplemented; see its Scope);
+- late binding and `CVErr`/error-value Variants (`IsError` stays
+  hardcoded `False`; `IsMissing` now returns a real answer for an
+  omitted no-default `Optional Variant` argument, `REQ-0224` -- every
+  other case, and `IsError`/`CVErr` entirely, remain excluded). `CVErr`
+  in particular was scoped out deliberately, not merely deferred: it
+  would add a wholly new `Value` alternative that every one of this
+  evaluator's ~27 unchecked `std::get<T>` call sites (arithmetic,
+  comparison, rendering) would need auditing against, a materially
+  larger and riskier change than its one-line backlog description
+  suggested;
 - `Format`'s `E+`/`E-` scientific notation combined with a custom
   picture, a fourth (text) custom-picture section, and the `Date`/`Time`
   named styles listed in `REQ-0193`'s Scope (`Currency`, the core
