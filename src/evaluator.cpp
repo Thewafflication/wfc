@@ -1230,7 +1230,7 @@ enum class NumericCategory {
            identifier == "print" || identifier == "randomize" || identifier == "redim" ||
            identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
-           identifier == "explicit" || identifier == "err" || identifier == "goto" || identifier == "resume" || identifier == "enum" || identifier == "step" || identifier == "to" ||
+           identifier == "explicit" || identifier == "type" || identifier == "err" || identifier == "goto" || identifier == "resume" || identifier == "enum" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "with" || identifier == "xor" ||
@@ -1449,6 +1449,9 @@ struct ClassDef {
     // completeness (that every interface member actually has a matching
     // `InterfaceName_MemberName` counterpart here) at scan time.
     std::vector<std::string> implements;
+    // REQ-0241: a `Type ... End Type` user-defined type, modeled as a
+    // class whose instances have value semantics.
+    bool is_udt{};
 };
 
 // The storage backing one live `New ClassName` instance. Reuses Scope for
@@ -1586,6 +1589,7 @@ public:
 
     [[nodiscard]] wfc::Evaluation evaluate() {
         scan_enum_names();
+        scan_udt_types();
         if (!scan_classes()) {
             return std::move(error_);
         }
@@ -2378,6 +2382,100 @@ private:
     // class referencing another declared *after* it on the command line
     // would see an unresolved name where a real VB6 project (compiled as a
     // whole) would not.
+    [[nodiscard]] bool is_udt_class(const std::string& class_name) const {
+        const auto found = class_definitions_.find(class_name);
+        return found != class_definitions_.end() && found->second.is_udt;
+    }
+
+    // Deep-copies a UDT instance's fields (nested UDT fields get their own
+    // fresh copies, matching value semantics).
+    [[nodiscard]] std::shared_ptr<InstanceData> clone_udt(const InstanceData& source) {
+        auto copy = std::make_shared<InstanceData>();
+        copy->class_name = source.class_name;
+        copy->fields = source.fields;
+        for (auto& [name, value] : copy->fields.variables) {
+            if (const auto* nested = std::get_if<ObjectInstance>(&value)) {
+                if (is_udt_class(nested->data->class_name)) {
+                    value = Value{ObjectInstance{clone_udt(*nested->data)}};
+                }
+            }
+        }
+        return copy;
+    }
+
+    // `target = source` where both are UDT instances of the same type.
+    [[nodiscard]] bool assign_udt(Value& target, const Value& source, const std::size_t offset) {
+        const auto* destination = std::get_if<ObjectInstance>(&target);
+        const auto* origin = std::get_if<ObjectInstance>(&source);
+        if (destination == nullptr || origin == nullptr ||
+            destination->data->class_name != origin->data->class_name) {
+            set_error("WFC0016", "assignment type mismatch", offset);
+            return false;
+        }
+        if (execute_ && destination->data != origin->data) {
+            destination->data->fields = clone_udt(*origin->data)->fields;
+        }
+        return true;
+    }
+
+    // Finds `[Public|Private] Type Name ... End Type` blocks in the main
+    // source and registers each as a value-semantics class (REQ-0241).
+    void scan_udt_types() {
+        const std::string_view text = source_;
+        std::size_t position = 0;
+        std::string current_name;
+        std::string body;
+        while (position < text.size()) {
+            auto end = text.find('\n', position);
+            if (end == std::string_view::npos) {
+                end = text.size();
+            }
+            std::string line;
+            for (const char c : text.substr(position, end - position)) {
+                if (c == '\'') break;
+                if (c != '\r') line.push_back(c);
+            }
+            position = end + 1;
+            std::size_t i = 0;
+            const auto skip_space = [&] {
+                while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+            };
+            const auto word = [&](const std::string_view w) {
+                if (line.size() - i < w.size()) return false;
+                for (std::size_t k = 0; k < w.size(); ++k)
+                    if (ascii_lower(line[i + k]) != w[k]) return false;
+                if (i + w.size() < line.size() && is_identifier_part(line[i + w.size()])) return false;
+                i += w.size();
+                return true;
+            };
+            skip_space();
+            if (current_name.empty()) {
+                if (word("public") || word("private")) skip_space();
+                if (!word("type")) continue;
+                skip_space();
+                while (i < line.size() && is_identifier_part(line[i])) current_name.push_back(line[i++]);
+                body.clear();
+                continue;
+            }
+            if (word("end")) {
+                skip_space();
+                if (word("type")) {
+                    udt_sources_.push_back(std::move(body));
+                    class_sources_.push_back({current_name, udt_sources_.back()});
+                    udt_names_.push_back(current_name);
+                    current_name.clear();
+                    continue;
+                }
+            }
+            if (i >= line.size()) continue;
+            // Drop a fixed-length `* n` String suffix.
+            if (const auto star = line.find('*', i); star != std::string::npos) {
+                line.resize(star);
+            }
+            body += "Public " + line.substr(i) + "\n";
+        }
+    }
+
     [[nodiscard]] bool scan_classes() {
         for (const auto& class_source : class_sources_) {
             std::string lowered_name;
@@ -2394,6 +2492,11 @@ private:
             class_def.source = class_source.source;
             class_def.display_name = class_source.name;
             class_definitions_.emplace(std::move(lowered_name), std::move(class_def));
+        }
+        for (const auto& udt_name : udt_names_) {
+            std::string lowered;
+            for (const char c : udt_name) lowered.push_back(ascii_lower(c));
+            class_definitions_.at(lowered).is_udt = true;
         }
         for (auto& [lowered_name, class_def] : class_definitions_) {
             const auto saved_source = source_;
@@ -3322,6 +3425,9 @@ private:
             if (consume_keyword("enum")) {
                 return parse_enum_statement(statement_offset);
             }
+            if (consume_keyword("type")) {
+                return parse_type_statement_skip(statement_offset);
+            }
             offset_ = pre_enum_offset;
         }
         if (consume_keyword("case")) {
@@ -3806,6 +3912,26 @@ private:
         offset_ = continuation_offset;
         execute_ = enclosing_execution;
         return true;
+    }
+
+    // `Type Name ... End Type` was registered as a class by scan_udt_types
+    // (REQ-0241); at run time the block is just skipped.
+    [[nodiscard]] bool parse_type_statement_skip(const std::size_t statement_offset) {
+        skip_rest_of_line();
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                set_error("WFC0025", "expected End Type", statement_offset);
+                return false;
+            }
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (consume_keyword("type")) {
+                    return true;
+                }
+            }
+            skip_rest_of_line();
+        }
     }
 
     // `Enum Name` ... `End Enum` (REQ-0237): each member becomes a Long
@@ -5004,6 +5130,7 @@ private:
     }
 
     [[nodiscard]] bool parse_declaration() {
+        udt_array_ = false;
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
         char type_character{};
@@ -5182,6 +5309,13 @@ private:
                     declared_class_name = std::move(*class_name);
                     element_default = Nothing{};
                     is_object = true;
+                    if (is_udt_class(declared_class_name)) {
+                        if (is_array) {
+                            udt_array_ = true;
+                        } else {
+                            eager_new = true;
+                        }
+                    }
                 } else {
                     offset_ = saved_offset;
                     set_error(
@@ -5247,6 +5381,18 @@ private:
             }
         } else {
             initial_value = std::move(element_default);
+        }
+        if (udt_array_) {
+            udt_array_ = false;
+            if (auto* const array = std::get_if<ArrayValue>(&initial_value)) {
+                for (auto& element : array->elements) {
+                    auto instance = instantiate_class(declared_class_name, identifier_offset);
+                    if (!instance.has_value()) {
+                        return false;
+                    }
+                    element = std::move(*instance);
+                }
+            }
         }
 
         const auto [entry, inserted] =
@@ -5668,6 +5814,21 @@ private:
             return false;
         }
         if (variable.scope->object_variables.contains(identifier)) {
+            const auto declared = variable.scope->object_class_names.find(identifier);
+            if (declared != variable.scope->object_class_names.end() &&
+                is_udt_class(declared->second)) {
+                skip_horizontal_whitespace();
+                if (!consume('=')) {
+                    set_error("WFC0014", "expected assignment operator", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                auto source = parse_expression();
+                if (!source.has_value()) {
+                    return false;
+                }
+                return assign_udt(*variable.value, *source, identifier_offset);
+            }
             set_error("WFC0108", "object assignment requires Set", identifier_offset);
             return false;
         }
@@ -6101,6 +6262,21 @@ private:
             offset_ = chain_offset;
         }
         if (instance.fields.object_variables.contains(*member_name)) {
+            const auto declared = instance.fields.object_class_names.find(*member_name);
+            if (declared != instance.fields.object_class_names.end() &&
+                is_udt_class(declared->second)) {
+                skip_horizontal_whitespace();
+                if (!consume('=')) {
+                    set_error("WFC0014", "expected assignment operator", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                auto source = parse_expression();
+                if (!source.has_value()) {
+                    return false;
+                }
+                return assign_udt(field_iterator->second, *source, member_offset);
+            }
             set_error("WFC0108", "object assignment requires Set", member_offset);
             return false;
         }
@@ -6346,8 +6522,37 @@ private:
         // `Set arr(i) = ...` instead (see parse_member_set_assignment's
         // array-element branch).
         if (array.is_object_element) {
-            set_error("WFC0108", "object assignment requires Set", identifier_offset);
-            return false;
+            skip_horizontal_whitespace();
+            const bool member_write = !at_end() && current() == '.';
+            const bool udt_write = !member_write && is_udt_class(array.element_class_name);
+            if (!member_write && !udt_write) {
+                set_error("WFC0108", "object assignment requires Set", identifier_offset);
+                return false;
+            }
+            Value* element = nullptr;
+            if (execute_) {
+                const auto flat_offset = array_flat_offset(array, *indices);
+                if (!flat_offset.has_value()) {
+                    return false;
+                }
+                element = &array.elements[*flat_offset];
+            }
+            Value placeholder{Nothing{}};
+            if (member_write) {
+                advance();
+                return parse_member_assignment(
+                    element != nullptr ? *element : placeholder, identifier_offset);
+            }
+            if (!consume('=')) {
+                set_error("WFC0014", "expected assignment operator", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            auto source = parse_expression();
+            if (!source.has_value()) {
+                return false;
+            }
+            return assign_udt(element != nullptr ? *element : placeholder, *source, identifier_offset);
         }
 
         skip_horizontal_whitespace();
@@ -6812,7 +7017,14 @@ private:
         instance->class_name = class_name;
         for (const auto& [field_name, field_def] : class_iterator->second.fields) {
             Value initial_value;
-            if (field_def.is_object) {
+            if (field_def.is_object && !field_def.class_name.empty() &&
+                is_udt_class(field_def.class_name)) {
+                auto nested = instantiate_class(field_def.class_name, offset);
+                if (!nested.has_value()) {
+                    return std::nullopt;
+                }
+                initial_value = std::move(*nested);
+            } else if (field_def.is_object) {
                 initial_value = Value{Nothing{}};
             } else if (field_def.is_variant) {
                 initial_value = Value{Empty{}};
@@ -7408,6 +7620,13 @@ private:
                         "WFC0137", "argument does not match the parameter's declared class",
                         identifier_offset);
                     return std::nullopt;
+                }
+                if (!parameter.class_name.empty() && is_udt_class(parameter.class_name) &&
+                    (parameter.by_val || argument.byref_target == nullptr)) {
+                    // REQ-0241: a UDT passed ByVal is a private copy.
+                    if (const auto* udt = std::get_if<ObjectInstance>(&argument.value)) {
+                        argument.value = Value{ObjectInstance{clone_udt(*udt->data)}};
+                    }
                 }
                 frame.variables.emplace(parameter.name, std::move(argument.value));
                 frame.object_variables.insert(parameter.name);
@@ -11955,6 +12174,9 @@ private:
     // (moot for a deque, unlike a vector).
     std::deque<InstanceData*> instance_scopes_;
     std::vector<std::string> enum_names_;
+    std::deque<std::string> udt_sources_;
+    std::vector<std::string> udt_names_;
+    bool udt_array_{};
     // REQ-0238 error-handling state.
     Integer err_number_{};
     std::string err_description_;

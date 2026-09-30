@@ -1242,6 +1242,15 @@ int main() {
         "Print \"no\"\n#Else\nPrint \"else\"\n#End If\n#If Not Debug Then\nPrint \"x\n#End If\nPrint \"end\"",
         "debug\nend");
     expect_program_failure("#If True Then\nPrint 1", "WFC0310");
+    // User-defined types (REQ-0241).
+    expect_program_success(
+        "Type Pt\nx As Long\ny As Long\nEnd Type\nType Line2\na As Pt\nb As Pt\nEnd Type\n"
+        "Dim l As Line2\nl.a.x = 5\nl.b = l.a\nl.b.x = 7\nPrint l.a.x & \" \" & l.b.x\n"
+        "Dim arr(2) As Pt\narr(1).x = 4\narr(2) = arr(1)\narr(2).x = 8\n"
+        "Print arr(1).x & arr(0).x & arr(2).x\n"
+        "Sub Bump(ByVal v As Pt)\nv.x = 100\nEnd Sub\nSub BumpR(v As Pt)\nv.x = 200\nEnd Sub\n"
+        "Dim p As Pt\np.x = 1\nCall Bump(p)\nPrint p.x\nCall BumpR(p)\nPrint p.x",
+        "5 7\n408\n1\n200");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

@@ -1225,6 +1225,26 @@ Print "release"
     )
 
     add_test(
+        NAME TC-MP0002-udt-cli
+        COMMAND wfc
+            --eval [=[Type Pt
+x As Long
+End Type
+Dim p As Pt
+Dim q As Pt
+p.x = 3
+q = p
+q.x = 9
+Print p.x & " " & q.x]=]
+    )
+    set_tests_properties(
+        TC-MP0002-udt-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^3 9"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
