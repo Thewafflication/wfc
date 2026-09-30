@@ -2024,12 +2024,12 @@ gaps were closed.
 ## MP-0002 status after increment #139
 
 Measured on the x64 debug build: 129 CTest tests pass (unit suite plus CLI
-and project-fixture integration tests). GitHub Actions x64 and x86 jobs pass
-on every push in this series; the `Debug arm64` job fails at *Configure*
-("Generator Visual Studio 17 2022 could not find any instance of Visual
-Studio") because the `windows-11-arm` runner image now ships Visual Studio
-2026 -- a runner/preset mismatch that predates and is independent of these
-changes (`CMakePresets.json` pins the 2022 generator for the arm64 preset).
+and project-fixture integration tests). GitHub Actions x64, x86 and arm64 all pass (run 36776340747, commit `931ec86`).
+The arm64 job had been failing at *Configure* ("Generator Visual Studio 17
+2022 could not find any instance of Visual Studio") since 2026-09-29, when the
+`windows-11-arm` image moved to Visual Studio 2026; the arm64 preset in
+`CMakePresets.json` now uses the `Visual Studio 18 2026` generator (x86/x64
+stay on `windows-2022` / VS 2022).
 
 **Implemented against the MP-0002 principal-work list:** procedures, module
 state, expressions, statements, arrays, UDTs, variants, strings, errors
