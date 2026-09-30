@@ -182,6 +182,8 @@ a specific requirement.
 | 2026-09-28 #110 | Construction | Add inferred-type constants under new `REQ-0227` (owner: "keep working" -- third and final pick from the same `Explore` subagent's five-candidate report). `Const x = 5`, with neither a type-declaration character nor an `As Type` clause, now infers its type from the initializer expression instead of requiring an explicit declared type to check against -- the real-VB6 asymmetry with a bare `Dim x` (no type at all), which instead already defaults to `Variant` in this evaluator (`parse_declaration`'s own pre-existing rule): an untyped `Const` never becomes `Variant`, it takes on whatever concrete type its initializer expression naturally produces, exactly like `REQ-0157`'s own existing typed-constant form already does for the type it's told to expect. `Const x = 5` is `Long` here, not real VB6's own `Integer` -- this evaluator's unsuffixed-integer-literal-is-`Long` convention is pre-existing and evaluator-wide (`REQ-0199`'s own Scope already discloses it), so an inferred-type constant simply inherits it rather than introducing a new divergence. Implemented by reordering `parse_constant_declaration`: when no explicit type is present, the initializer is parsed *first* and its own value's `Value::index()` becomes the constant's type directly, skipping the `coerce_numeric_value`/type-mismatch check entirely (there is nothing to check it against). The agent's own report flagged this candidate's real risk correctly -- a design decision about which type an inferred integer constant should get -- and resolved it by deferring to this evaluator's own pre-existing, already-disclosed literal-typing convention rather than inventing a new one just for `Const`. Manually verified an inferred `Long`, `String`, `Boolean` (isolated from a pre-existing, unrelated `&`-concatenation-doesn't-accept-Boolean limitation hit along the way), and `Double` constant, an inferred constant's initializer referencing a previously declared inferred constant, and the existing `WFC0064` mutable-variable-reference diagnostic still applying, via `wfc --eval` before writing formal tests; unit + CLI tests, requirement doc | Commit `40cdcbe` |
 | 2026-09-28 #111 | Construction | Add class-typed and generic `Object` `Sub`/`Function`/`Property` parameters under new `REQ-0228` (owner: "keep working" -- with the aggregated backlog and the first `Explore` subagent's five candidates now exhausted, dispatched a second `Explore` subagent to specifically re-scope the remaining class-features backlog cluster into tractable sub-items; it investigated three candidates and ranked "class-typed method/property parameter" first, correctly flagging one real lifetime risk in its own report before any code was written). `As Object`/`As SomeClassName` is now accepted for *any* Sub/Function/Property parameter, generalizing what was previously accepted only for `Property Set`'s own single value parameter -- reusing the exact same `parse_scalar_object_or_class_type` resolver a class-typed field/return type already uses, and threading a specific class's name into the callee's own frame (`Scope::object_class_names`) so a `Set param = ...` inside the body is class-checked by the existing, unmodified `Set` machinery, with no new enforcement code needed there. Manual testing surfaced two real bugs the subagent's own report had anticipated in outline: (1) ByRef write-back (shared by both module-level and method calls through one `invoke_definition`) copied a parameter's final value over the caller's own variable with a plain assignment, never checking whether the value already there was an `ObjectInstance` about to lose its last reference -- unreachable before this requirement (no parameter could hold an `ObjectInstance` at all), immediately reachable once object-typed parameters existed; fixed by calling `terminate_if_last_reference` (the same helper `Set` already calls before overwriting a target) immediately before each ByRef write-back, verified as a safe no-op for the ordinary unchanged-parameter case (the callee's own frame still holds a second reference at that point, so `use_count() != 1` correctly skips termination) as well as the actual bug case (a `Set param = New X` inside the callee correctly terminates the caller's old instance once write-back completes and the caller later drops its own last reference). (2) `zero_value_for_index` (synthesizing a default for an omitted `Optional` argument with no explicit default) had no case for `Nothing`'s own `Value::index()`, silently falling through to `Value{false}` -- an omitted `Optional Object` parameter bound `Boolean False`, not `Nothing`, and then failed the object-reference type check entirely; fixed by adding the missing case, the same way every other synthesized-default type already had one. Along the way, manual testing also hit an unrelated, pre-existing bug -- `If obj Is Nothing Then ... Else <access obj.Member> End If` fails even when the `Then` branch is the one actually taken, because the `Else` branch's own `obj.Member` access is not correctly treated as dead code during dry-run parsing -- confirmed with a plain `Dim o As Object` (no parameters involved at all) to isolate it as unrelated to this requirement, then flagged via `spawn_task` for separate follow-up rather than fixed here, to keep this increment's own diff focused. Manually verified a class-typed parameter reading a field, a generic `Object` parameter accepting two different classes, a class mismatch reporting `WFC0137`, `Property Set` with a specific class-typed parameter, both bug fixes directly, and an `Optional Object` parameter (omitted and explicit `= Nothing`) binding `Nothing`, via `wfc --eval` before writing formal tests; unit + CLI tests, requirement doc | Commit `1b9628c` |
 | 2026-09-28 #112 | Construction | Fix member access on `Nothing` inside a not-taken branch under new `REQ-0229` (owner: "keep working" -- the pre-existing, unrelated bug found while manually testing `REQ-0228`; rather than leave it queued as a `spawn_task` suggestion for a separate session, dismissed that task and fixed it directly here, since this session already had the exact repro and root cause loaded). `If obj Is Nothing Then ... Else <access obj.Member> End If` previously raised `WFC0106` ("Invalid use of Nothing") even for the untaken `Else` branch, because that check ran completely unconditional of `execute_` -- unlike every other value-dependent runtime check this evaluator already suppresses during a dead branch's own dry-run parse (arithmetic overflow, division by zero). Fixed at all three dotted-member-access sites that can reach a `Nothing` base (a field/`Property Get` read, a `Property Let`/field write, a `Property Set` write): when `!execute_`, each now still parses through any required `(args)`/`= expression` syntactically, so the source text and shape stay validated, but returns or assigns a placeholder (`Long` `0` for a read) instead of trying to resolve a member against a class that, for a genuinely `Nothing` base, does not exist at all -- unlike a live instance, which always has one regardless of `execute_`, which is exactly why calling through a live instance in a dead branch already worked correctly before this fix. Deliberately left `CStr(Nothing)`/`Nothing` concatenation's own `WFC0106` untouched: that is a different, always-invalid-regardless-of-live-state type mismatch (closer in kind to the pre-existing `WFC0020` "concatenation requires String or Long" check, which already fires in dead branches too), not a value-dependent runtime check the dry-run convention is meant to suppress. Manually verified all three access shapes (read, `Property Let` write, `Property Set` write) plus a method call with arguments, via `wfc --eval` before writing formal tests; unit + CLI tests, requirement doc | Commit `4e4dc67` |
+| 2026-09-30 #113 | Construction | Attempt comma-separated `Next` variables (`Next j, i` closing two nested `For`/`For Each` loops with one `Next`) under a would-be `REQ-0230`, then revert it (owner: "keep working"). The closing-name handoff across loop levels (a `pending_next_variable_` member, checked at the top of `parse_for_body` before scanning for a literal `Next`, reset on each retry of the *same* loop's own iteration so it cannot leak into that loop's own next re-parse) worked correctly once debugged. What did not: this evaluator requires every statement to be followed by its own terminator, consumed by a generic "parse a statement, then consume its terminator" wrapper used pervasively (module body, procedure/class-method bodies, every `If`/`Do`/`While`/`For`/`Select Case` body); `Next j, i` is one physical line with one terminator but conceptually closes *two* statements, so the inner loop's own wrapper correctly consumes the one terminator, leaving the outer loop's own *separate* required terminator-consumption step with nothing left once real code follows on the next line -- confirmed by a minimal repro that "worked" only when `Next j, i` was the very last line of the program, because `consume_statement_end()`'s own `at_end()` check tolerates being satisfied twice, masking the bug until a real statement follows it. Fixing this correctly needs a "did a nested statement already consume the shared terminator" signal threaded through every one of those wrapper call sites, not the `For`-loop-local change attempted here. Discarded the uncommitted `src/evaluator.cpp` changes via `git checkout --` (confirmed via `git status`/`git diff --stat` that nothing else was uncommitted first) and recorded the specific obstacle in the backlog instead of shipping it incomplete or leaving no trace for a future attempt | Commit `9da00e1` (documentation only; no code committed) |
+| 2026-09-30 #114 | Construction | Fix two `Static Variant` object-lifetime bugs under new `REQ-0230` (reusing the number the reverted attempt above never actually consumed in any committed file; owner: "keep working" -- found while the second `Explore` subagent, back in increment #111, scoped a possible `Static` arrays/object-typed-locals extension and flagged a real lifetime gap in the *existing* `Static Variant` + `Set` combination, independent of that unimplemented extension). A `Static Variant` local can already hold an object reference via `Set` (`REQ-0200`); this exposed two bugs neither behind any unimplemented feature: (1) the end-of-call copy-back that persists a `Static`'s final value (`definition.statics.variables[name] = ...`) overwrote the previous persistent value with a plain assignment, never checking whether it was the last reference to an `ObjectInstance` -- the same class of bug `REQ-0228` fixed for a ByRef parameter's own write-back; fixed by calling `terminate_if_last_reference` on the old persistent value first, mirroring that exact fix. (2) Program-end cleanup only ever drained the module scope, never any procedure's or class member's own persistent `statics` storage, so an instance reachable only through a `Static Variant` at program end never ran `Class_Terminate` at all; fixed by draining every procedure's and every class method's/property accessor's own `statics` alongside the module scope in the same cleanup pass. Manually traced and verified the exact termination ordering across two calls to the same `Sub` (the first call's own instance correctly persists past its own call, only terminating when the *second* call's own copy-back replaces it; the second call's own instance then only terminates at program end) before writing formal tests confirming the same sequence; unit + CLI tests, requirement doc | Commit `60ae221` |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -449,6 +451,10 @@ identified in `planning/reference-environment.md`.
 | 2026-09-28 | `ctest --preset windows-x64-debug` (post `1b9628c` class-typed/Object parameters), run under a `timeout` guard | Pass (105/105; expanded unit coverage, one new CLI test) | Local x64 CTest run |
 | 2026-09-28 | `wfc --eval`, manually verifying a field read, a Property Let write, a Property Set write, and a method call with arguments, each in the untaken Else branch of `obj Is Nothing` | All four now correctly skip the dead branch instead of raising WFC0106 | Manual verification, pre-formal-test |
 | 2026-09-28 | `ctest --preset windows-x64-debug` (post `4e4dc67` Nothing dead-branch fix), run under a `timeout` guard | Pass (106/106; expanded unit coverage, one new CLI test) | Local x64 CTest run |
+| 2026-09-30 | `wfc --eval`, manually reproducing `Next j, i` at the very end of a program vs. followed by a real statement | First case appeared to work (masked by `consume_statement_end()`'s own `at_end()` tolerance); second case failed with `WFC0004`, confirming the shared-terminator structural conflict | Manual verification; led to reverting the attempt rather than a formal test |
+| 2026-09-30 | `ctest --preset windows-x64-debug` (post `git checkout --` revert of the abandoned attempt, confirming a clean return to the last known-good state), run under a `timeout` guard | Pass (106/106; no change, as expected for a pure revert) | Local x64 CTest run |
+| 2026-09-30 | `wfc --eval`, manually verifying a `Static Variant` reassigned via `Set` across two calls (correct termination ordering: first instance survives its own call, terminates only when the second call's copy-back replaces it) | Matched the intended fix exactly | Manual verification, pre-formal-test |
+| 2026-09-30 | `ctest --preset windows-x64-debug` (post `60ae221` Static Variant object-lifetime fixes), run under a `timeout` guard | Pass (107/107; expanded unit coverage, one new CLI test) | Local x64 CTest run |
 
 ## Decisions and Scope Changes
 
@@ -516,6 +522,8 @@ identified in `planning/reference-environment.md`.
 | Flag the pre-existing `If obj Is Nothing Then ... Else obj.Member End If` dry-run bug via `spawn_task` for separate follow-up, rather than fixing it inline as part of this increment | The bug is real but entirely unrelated to class-typed parameters (reproduces with a plain `Dim o As Object`, no parameters at all) -- fixing it would have widened this increment's diff into unrelated dry-run/If-statement territory instead of keeping the parameter feature's own diff reviewable on its own | Confirmed via manual repro with `Dim o As Object` (isolating it from parameters entirely) before flagging, so the follow-up task states a verified, reproducible bug rather than a hunch | `REQ-0228` |
 | Dismiss the just-created `spawn_task` for the Nothing-dead-branch bug and fix it directly in this same session instead, rather than leaving it for a separately-dispatched session to pick up | This session already had the exact repro, root cause, and all four call sites loaded in context; a fresh session would have to re-derive all of that from scratch, making the flag-and-defer path strictly more expensive once the fix was already well-understood | Verified the fix, wrote its own requirement doc, and committed it separately from `REQ-0228`'s own commit (matching the two-part pattern this log already uses for "found and fixed a bug" narratives) | `REQ-0229` |
 | Leave `CStr(Nothing)`/`Nothing` concatenation's own `WFC0106` unconditional (not suppressed in a dead branch), while fixing the *member-access* `WFC0106` sites to suppress it | The two are different in kind: member access on `Nothing` fails only because of runtime *state* (the reference happens to be unset), matching arithmetic overflow's own "value-dependent" category this evaluator already suppresses in dead code; `CStr(anyObjectReference)`/`Nothing &` are *always* invalid regardless of live state, closer to the pre-existing `WFC0020` "wrong operand type" category, which already fires in dead branches too | Deliberately left both sites unedited and said so explicitly in `REQ-0229`'s own Scope, rather than changing behavior with no test covering the decision | `REQ-0229` |
+| Revert the comma-separated `Next` attempt entirely, rather than shipping a partial version scoped to "exactly two loops, `WFC0154` beyond that" | The two-loop restriction only avoided the *comma-count* problem (a third name in one list); it did nothing about the deeper shared-terminator problem, which breaks the *two*-loop case too as soon as a real statement follows the `Next` line -- there was no smaller, honest subset left to ship once that was found, only a broken one or a fully-fixed one | Confirmed the break with a minimal repro (a real statement after `Next j, i`) before deciding to revert, rather than reverting on the first sign of trouble | `REQ-0230` (attempted, reverted) |
+| Reuse the requirement number the reverted `Next`-comma-list attempt never actually consumed in any committed file, rather than skip it | The attempt's own in-progress code comments referenced "REQ-0230," but nothing referencing that number was ever committed (confirmed via `grep` across the work log and requirements folder before reusing it) -- reusing it keeps the numbering sequential instead of leaving a permanent gap for work that was never shipped under that name | Verified via `grep -rn "REQ-0230"` returning nothing prior to writing this fix's own doc | `REQ-0230` |
 | Implement the distinct 16-bit `Integer` type next (owner said "keep working on P2" — MP-0002 — confirmed via a clarifying question since "P2" was ambiguous); chosen from the work log's own "Remaining next increments" list, which named it first | Owner request, disambiguated via `AskUserQuestion` | Continues the established per-type-increment pattern (`Single`, `Currency`, `Decimal`) for the one remaining VB6 intrinsic numeric type | `REQ-0199` |
 | Give `Integer` its own C++ type alias (`Int16` = `std::int16_t`) rather than reusing the existing `Integer` alias (which is actually `std::int32_t`, VB6's `Long`) | The existing `Integer` C++ alias name predates this type and already means "Long" throughout the codebase; renaming it now would touch hundreds of call sites for no behavioral benefit | A one-time naming collision between VB6's `Integer` and this codebase's pre-existing `Integer` alias, documented at both declarations, is less disruptive than a global rename | `REQ-0199` |
 | Do not add `Integer`-widening to the fixed-type `Long`-target assignment path (`Dim x As Long: x = someInteger` still fails `WFC0016`) | Discovered mid-implementation: assignment to a `Long`-typed variable has never coerced from *any* other numeric type in this evaluator (confirmed for `Currency`/`Single`/`Double` sources too, via direct probing) — a pre-existing, evaluator-wide scope boundary, not specific to `Integer` | Keeps `Integer`'s behavior consistent with every other type's existing relationship to `Long`-typed assignment targets, rather than special-casing `Integer` alone | `REQ-0199` |
@@ -592,6 +600,7 @@ identified in `planning/reference-environment.md`.
 | Tests at current checkpoint | 104 | Local x64 CTest after `40cdcbe` |
 | Tests at current checkpoint | 105 | Local x64 CTest after `1b9628c` |
 | Tests at current checkpoint | 106 | Local x64 CTest after `4e4dc67` |
+| Tests at current checkpoint | 107 | Local x64 CTest after `60ae221` |
 
 ## Resource Usage
 
@@ -701,6 +710,8 @@ when the session completes.
 | Inferred-type constants (increment #110) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Class-typed and generic Object parameters (increment #111) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 | Member access on Nothing dead-branch fix (increment #112) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Comma-separated Next attempt and revert (increment #113) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
+| Static Variant object-lifetime fixes (increment #114) | Not reported | Not reported | Live goal telemetry unavailable; no estimate recorded |
 
 ## Preservation and Handoff
 
@@ -1697,6 +1708,66 @@ dry-run convention is meant to suppress. Manually verified all three
 access shapes plus a method call with arguments, via `wfc --eval` before
 writing formal tests.
 
+**Comma-separated Next variables, attempted and reverted (increment
+#113, would-be `REQ-0230`):** `Next j, i`, closing two nested `For`/`For
+Each` loops with one `Next` (owner: "keep working"). The closing-name
+handoff worked once debugged: a `pending_next_variable_` member,
+checked at the top of `parse_for_body` before scanning for a literal
+`Next`, correctly carries the outer loop's own name across the call
+boundary -- but only once also reset on every retry of the *same*
+loop's own iteration, since this interpreter re-parses a loop's body
+from scratch on every iteration and an earlier iteration's own pending
+name would otherwise still be sitting there, unconsumed, at the top of
+the next iteration's fresh parse, looking exactly like a real match and
+mismatching against that loop's own identifier. What could not be
+fixed within this attempt's own scope: this evaluator requires every
+statement to be followed by its own terminator, consumed by a generic
+"parse a statement, then consume its terminator" wrapper used
+pervasively across the module body, every procedure/class-method body,
+and every `If`/`Do`/`While`/`For`/`Select Case` body. `Next j, i` is one
+physical line with one terminator but conceptually closes *two*
+statements (the inner loop, then the outer one); the inner loop's own
+wrapper correctly consumes that one terminator, leaving the outer
+loop's own *separate* required terminator-consumption step with
+nothing left once real code follows on the next line. This was masked
+at first by a misleading successful repro: placing `Next j, i` as the
+very last line of the program "worked" only because
+`consume_statement_end()`'s own `at_end()` check tolerates being
+satisfied twice, not because the underlying design was sound -- the
+very next test, with an ordinary `Print` statement following, failed
+with `WFC0004`. Fixing this properly needs a "did a nested statement
+already consume the shared terminator" signal threaded through every
+one of those wrapper call sites, not a `For`-loop-local change. Rather
+than ship a partial version artificially restricted to exactly two
+loops (which would still break as soon as real code followed the
+`Next` line, since the shared-terminator problem is not a comma-count
+problem), reverted the entire uncommitted `src/evaluator.cpp` change
+via `git checkout --` (after confirming via `git status`/`git diff
+--stat` that nothing else was uncommitted) and recorded the specific
+obstacle in the backlog instead, so a future attempt starts from the
+real difficulty rather than rediscovering it.
+
+**Static Variant object-lifetime fixes (increment #114, `REQ-0230`,
+reusing the number the reverted attempt above never actually
+committed):** found while the second `Explore` subagent, back in
+increment #111, scoped a possible `Static` arrays/object-typed-locals
+extension and flagged a real lifetime gap in the *existing* `Static
+Variant` + `Set` combination -- independent of that unimplemented
+extension, and already reachable today. Two bugs, both fixed: the
+end-of-call copy-back that persists a `Static`'s final value
+overwrote the previous persistent value with a plain assignment, never
+checking whether it was the last reference to an `ObjectInstance` (the
+same class of bug `REQ-0228` fixed for a ByRef parameter's own
+write-back) -- fixed by calling `terminate_if_last_reference` on the
+old persistent value first. And program-end cleanup only ever drained
+the module scope, never any procedure's or class member's own
+persistent `statics` storage, so an instance reachable only through a
+`Static Variant` at program end never ran `Class_Terminate` at all --
+fixed by draining every procedure's and every class method's/property
+accessor's own `statics` alongside the module scope. Manually traced
+and verified the exact termination ordering across two calls to the
+same `Sub` before writing formal tests confirming the same sequence.
+
 **Remaining next increments:**
 
 - comma-separated `Next` variables (`Next j, i` closing two nested `For`/
@@ -1731,12 +1802,15 @@ writing formal tests.
   own Scope), lazy `As New` auto-instantiation, `Class_Terminate`
   cascading to an instance only reachable through the terminated one's own
   fields (now also true of one reachable only through an array element,
-  `REQ-0212`), `Static` arrays/object references (a real, deeper
-  `Class_Terminate`-lifetime gap than `Static` itself, found while
-  scoping `REQ-0228`, not merely deferred), and a `Private` *class*
-  declaration itself (not a real gap: this evaluator has no per-module
-  visibility concept at all for a whole class to be private *from*,
-  the same situation module-level `Private`/`Public` is already in) --
+  `REQ-0212`), `Static` arrays and `Static` object-*typed* (`As
+  SomeClass`) locals -- only a scalar/`Variant` `Static` is supported
+  (the two `Class_Terminate`-lifetime bugs a `Static Variant` holding an
+  object reference already had, found while scoping this exact item,
+  were unrelated to the missing array/typed-object forms and are now
+  fixed, `REQ-0230`) -- and a `Private` *class* declaration itself (not
+  a real gap: this evaluator has no per-module visibility concept at
+  all for a whole class to be private *from*, the same situation
+  module-level `Private`/`Public` is already in) --
   all deliberately excluded from `REQ-0203`/`REQ-0204`/`REQ-0205`/
   `REQ-0206`'s scope, alongside the same exclusions `REQ-0202`
   already lists for module-level procedures (`IsMissing` for an omitted
