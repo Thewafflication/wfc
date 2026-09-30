@@ -17,11 +17,13 @@ target_sources(
     wfc_frontend
     PRIVATE
         src/evaluator.cpp
+        src/project.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
         FILES
             include/wfc/evaluator.hpp
+            include/wfc/project.hpp
             include/wfc/version.hpp
 )
 target_compile_features(wfc_frontend PUBLIC cxx_std_20)
@@ -1349,6 +1351,17 @@ Print "never"]=]
         PROPERTIES
             LABELS "integration;mp-0002;statements"
             PASS_REGULAR_EXPRESSION "^1.*2.*2.*4.*3"
+    )
+
+    add_test(
+        NAME TC-MP0002-vbp-project-cli
+        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/project/Hello.vbp"
+    )
+    set_tests_properties(
+        TC-MP0002-vbp-project-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;project"
+            PASS_REGULAR_EXPRESSION "Hello, WFC"
     )
 
     add_test(

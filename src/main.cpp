@@ -1,6 +1,8 @@
 #include "wfc/evaluator.hpp"
+#include "wfc/project.hpp"
 #include "wfc/version.hpp"
 
+#include <filesystem>
 #include <iostream>
 #include <string_view>
 #include <vector>
@@ -10,6 +12,7 @@ namespace {
 void print_usage() {
     std::cerr << "usage: wfc --eval <VB source>\n"
               << "       wfc [--class <Name> <class source>]... --eval <VB source>\n"
+              << "       wfc <project.vbp | module.bas [class.cls]...>\n"
               << "       wfc --version\n";
 }
 
@@ -18,6 +21,33 @@ void print_usage() {
 int main(const int argument_count, const char* const arguments[]) {
     if (argument_count == 2 && std::string_view(arguments[1]) == "--version") {
         std::cout << "wfc " << wfc::version << '\n';
+        return 0;
+    }
+
+    // `wfc file.vbp` / `wfc a.bas b.cls ...` loads real VB6 project files.
+    if (argument_count >= 2 && std::string_view(arguments[1]).rfind("--", 0) != 0) {
+        std::vector<std::filesystem::path> files;
+        for (int i = 1; i < argument_count; ++i) {
+            files.emplace_back(arguments[i]);
+        }
+        const auto project = wfc::load_project(files);
+        if (!project.ok) {
+            std::cerr << project.error << '\n';
+            return 2;
+        }
+        std::vector<wfc::ClassModuleSource> project_classes;
+        for (std::size_t i = 0; i < project.class_names.size(); ++i) {
+            project_classes.push_back(
+                wfc::ClassModuleSource{project.class_names[i], project.class_sources[i]});
+        }
+        const auto result = project_classes.empty()
+            ? wfc::evaluate_program(project.module_source)
+            : wfc::evaluate_program(project.module_source, project_classes);
+        if (!result.success) {
+            std::cerr << result.diagnostic << '\n';
+            return 1;
+        }
+        std::cout << result.output << '\n';
         return 0;
     }
 

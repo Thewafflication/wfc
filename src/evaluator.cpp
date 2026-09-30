@@ -2531,6 +2531,12 @@ private:
                 continue;
             }
 
+            if (consume_keyword("option")) {
+                // `Option Explicit` (and friends) at the top of a class
+                // module file; accepted and ignored.
+                skip_rest_of_line();
+                continue;
+            }
             bool is_private = false;
             bool has_visibility_keyword = false;
             if (consume_keyword("private")) {
