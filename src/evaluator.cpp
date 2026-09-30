@@ -4940,31 +4940,31 @@ private:
                           : std::fwrite(data, 1, size, file->handle) == size;
         };
         bool ok = true;
-        if (auto* v = std::get_if<Integer>(&target)) {
-            std::int32_t x = *v; ok = transfer(&x, 4); if (is_get) *v = x;
-        } else if (auto* v = std::get_if<Int16>(&target)) {
-            std::int16_t x = *v; ok = transfer(&x, 2); if (is_get) *v = x;
-        } else if (auto* v = std::get_if<Byte>(&target)) {
-            std::uint8_t x = *v; ok = transfer(&x, 1); if (is_get) *v = x;
-        } else if (auto* v = std::get_if<float>(&target)) {
-            float x = *v; ok = transfer(&x, 4); if (is_get) *v = x;
-        } else if (auto* v = std::get_if<double>(&target)) {
-            double x = *v; ok = transfer(&x, 8); if (is_get) *v = x;
-        } else if (auto* v = std::get_if<Currency>(&target)) {
-            std::int64_t x = v->scaled; ok = transfer(&x, 8); if (is_get) v->scaled = x;
-        } else if (auto* v = std::get_if<DateValue>(&target)) {
-            double x = v->serial; ok = transfer(&x, 8); if (is_get) v->serial = x;
-        } else if (auto* v = std::get_if<bool>(&target)) {
-            std::int16_t x = *v ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v = x != 0;
-        } else if (auto* v = std::get_if<std::string>(&target)) {
+        if (auto* v1 = std::get_if<Integer>(&target)) {
+            std::int32_t x = *v1; ok = transfer(&x, 4); if (is_get) *v1 = x;
+        } else if (auto* v2 = std::get_if<Int16>(&target)) {
+            std::int16_t x = *v2; ok = transfer(&x, 2); if (is_get) *v2 = x;
+        } else if (auto* v3 = std::get_if<Byte>(&target)) {
+            std::uint8_t x = *v3; ok = transfer(&x, 1); if (is_get) *v3 = x;
+        } else if (auto* v4 = std::get_if<float>(&target)) {
+            float x = *v4; ok = transfer(&x, 4); if (is_get) *v4 = x;
+        } else if (auto* v5 = std::get_if<double>(&target)) {
+            double x = *v5; ok = transfer(&x, 8); if (is_get) *v5 = x;
+        } else if (auto* v6 = std::get_if<Currency>(&target)) {
+            std::int64_t x = v6->scaled; ok = transfer(&x, 8); if (is_get) v6->scaled = x;
+        } else if (auto* v7 = std::get_if<DateValue>(&target)) {
+            double x = v7->serial; ok = transfer(&x, 8); if (is_get) v7->serial = x;
+        } else if (auto* v8 = std::get_if<bool>(&target)) {
+            std::int16_t x = *v8 ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v8 = x != 0;
+        } else if (auto* v9 = std::get_if<std::string>(&target)) {
             const bool fixed = variable.scope->fixed_string_lengths.contains(*name);
             if (file->mode == 5 && !fixed) {
-                std::uint16_t length = static_cast<std::uint16_t>(v->size());
+                std::uint16_t length = static_cast<std::uint16_t>(v9->size());
                 ok = transfer(&length, 2);
-                if (is_get && ok) v->assign(length, '\0');
+                if (is_get && ok) v9->assign(length, '\0');
             }
-            if (ok && !v->empty()) {
-                ok = transfer(v->data(), v->size());
+            if (ok && !v9->empty()) {
+                ok = transfer(v9->data(), v9->size());
             }
         } else {
             return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
