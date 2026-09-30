@@ -1625,6 +1625,7 @@ Public Property Get Count() As Long
 Count = n
 End Property
 Public Function Item(Index As Variant) As Variant
+Attribute Item.VB_UserMemId = 0
 Dim nd As WfcCollectionNode
 Set nd = Locate(Index)
 If IsObject(nd.Value) Then
@@ -1908,6 +1909,9 @@ struct ClassDef {
     // REQ-0241: a `Type ... End Type` user-defined type, modeled as a
     // class whose instances have value semantics.
     bool is_udt{};
+    // REQ-0257: lowercased name of the member marked
+    // `Attribute Name.VB_UserMemId = 0` (the class's default member).
+    std::string default_member;
 };
 
 // The storage backing one live `New ClassName` instance. Reuses Scope for
@@ -3003,6 +3007,30 @@ private:
         }
     }
 
+    // REQ-0257: finds `Attribute Name.VB_UserMemId = 0` in a class source.
+    static void scan_default_member(ClassDef& class_def) {
+        const std::string_view text = class_def.source;
+        std::size_t position = 0;
+        while (position < text.size()) {
+            auto end = text.find('\n', position);
+            if (end == std::string_view::npos) end = text.size();
+            std::string line;
+            for (const char c : text.substr(position, end - position)) {
+                if (c != ' ' && c != '\t' && c != '\r') line.push_back(ascii_lower(c));
+            }
+            position = end + 1;
+            constexpr std::string_view prefix = "attribute";
+            constexpr std::string_view suffix = ".vb_usermemid=0";
+            if (line.size() > prefix.size() + suffix.size() &&
+                line.compare(0, prefix.size(), prefix) == 0 &&
+                line.compare(line.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                class_def.default_member = line.substr(
+                    prefix.size(), line.size() - prefix.size() - suffix.size());
+                return;
+            }
+        }
+    }
+
     [[nodiscard]] bool scan_classes() {
         for (const auto& class_source : class_sources_) {
             std::string lowered_name;
@@ -3036,6 +3064,7 @@ private:
             if (!scanned_ok) {
                 return false;
             }
+            scan_default_member(class_def);
         }
         return true;
     }
@@ -4203,6 +4232,10 @@ private:
             return *handled;
         }
         if (consume_keyword("doevents")) {
+            return true;
+        }
+        if (consume_keyword("attribute")) {
+            skip_comment();  // `Attribute X.VB_... = ...` lines inside bodies
             return true;
         }
         {
@@ -9841,16 +9874,29 @@ private:
                     return parse_array_index(*array_variable.value);
                 }
                 if (array_variable.value != nullptr && type_character == '\0') {
-                    // REQ-0253: a Collection's default member, `c(1)` / `c("key")`.
+                    // REQ-0253/0257: a class's default member, `obj(1)`.
                     if (const auto* holder = std::get_if<ObjectInstance>(array_variable.value)) {
                         const auto class_iterator =
                             class_definitions_.find(holder->data->class_name);
                         if (class_iterator != class_definitions_.end() &&
-                            class_iterator->second.methods.contains("item") &&
-                            class_iterator->second.methods.contains("wfcitems")) {
-                            return call_class_method(
-                                *holder->data, class_iterator->second, "item", identifier_offset,
-                                /*require_function=*/true);
+                            !class_iterator->second.default_member.empty()) {
+                            const auto& class_def = class_iterator->second;
+                            const auto& member = class_def.default_member;
+                            if (class_def.methods.contains(member)) {
+                                return call_class_method(
+                                    *holder->data, class_def, member, identifier_offset,
+                                    /*require_function=*/true);
+                            }
+                            const auto getter = class_def.property_get.find(member);
+                            if (getter != class_def.property_get.end()) {
+                                auto arguments = parse_call_argument_list();
+                                if (!arguments.has_value()) {
+                                    return std::nullopt;
+                                }
+                                return invoke_definition(
+                                    getter->second, member, std::move(*arguments),
+                                    identifier_offset, class_def.source, holder->data.get());
+                            }
                         }
                     }
                 }

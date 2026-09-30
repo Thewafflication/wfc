@@ -58,7 +58,9 @@ namespace {
             blank = true;
             in_begin_block = true;
         } else if (lower.rfind("attribute ", 0) == 0) {
-            blank = true;
+            // Keep `Attribute X.VB_UserMemId = 0`: the evaluator reads it as
+            // the class's default member.
+            blank = lower.find("vb_usermemid") == std::string::npos;
             if (lower.rfind("attribute vb_name", 0) == 0) {
                 const auto first = body.find('"');
                 const auto last = body.rfind('"');

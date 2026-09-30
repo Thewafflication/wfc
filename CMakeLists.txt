@@ -1477,6 +1477,23 @@ Print name]=]
     )
 
     add_test(
+        NAME TC-MP0002-default-member-cli
+        COMMAND wfc
+            --class Lst [=[Public Function Item(i As Long) As Long
+Attribute Item.VB_UserMemId = 0
+Item = i * 2
+End Function]=]
+            --eval [=[Dim l As New Lst
+Print l(21)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-default-member-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^42"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

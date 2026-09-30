@@ -1384,6 +1384,13 @@ int main() {
             "Dim r As Long\nGet #2, 3, r\nPrint r\nClose\nKill \"" + path + "\"",
             "17\n123456 2.5 hello 18\n20");
     }
+    // Default members (REQ-0257).
+    expect_classes_success(
+        {{"Lst", "Private a As Long\nPrivate b As Long\nPublic Function Item(i As Long) As Long\n"
+                 "Attribute Item.VB_UserMemId = 0\nIf i = 1 Then Item = a Else Item = b\nEnd Function\n"
+                 "Public Sub Init()\na = 10: b = 20\nEnd Sub"}},
+        "Dim l As New Lst\nl.Init\nPrint l(1) + l(2)",
+        "30");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

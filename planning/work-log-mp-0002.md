@@ -224,6 +224,7 @@ a specific requirement.
 | 2026-09-30 #139 | Construction | Accept `Decimal` in declarations with implicit numeric conversion on assignment under `REQ-0254`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #140 | Construction | Add the `Name old As new` and `ChDir` statements under `REQ-0255`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #141 | Construction | Add `Open For Binary|Random`, `Get`/`Put`/`Seek` and `Seek()` for scalar and String variables under `REQ-0256`; unit test. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #142 | Construction | Add `Attribute X.VB_UserMemId = 0` default members (`obj(i)`) for methods and indexed `Property Get`, keep the attribute in the `.cls` loader, and use it for `Collection.Item` under `REQ-0257`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
