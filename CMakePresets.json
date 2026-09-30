@@ -29,7 +29,7 @@
     {
       "name": "windows-arm64-debug",
       "displayName": "Windows ARM64 Debug",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": "ARM64",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
