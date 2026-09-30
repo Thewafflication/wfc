@@ -7554,6 +7554,19 @@ private:
             }
         }
 
+        if (array.is_object_element && is_udt_class(array.element_class_name)) {
+            // REQ-0241/0253: every slot of a UDT array owns its own instance.
+            for (auto& slot : new_elements) {
+                if (std::holds_alternative<Nothing>(slot)) {
+                    auto instance = instantiate_class(array.element_class_name, identifier_offset);
+                    if (!instance.has_value()) {
+                        return false;
+                    }
+                    slot = std::move(*instance);
+                }
+            }
+        }
+
         array.elements = std::move(new_elements);
         if (new_dimensions.size() == 1U) {
             array.lower_bound = new_dimensions.front().first;
@@ -9550,6 +9563,20 @@ private:
                         return std::nullopt;
                     }
                     return parse_array_index(*array_variable.value);
+                }
+                if (array_variable.value != nullptr && type_character == '\0') {
+                    // REQ-0253: a Collection's default member, `c(1)` / `c("key")`.
+                    if (const auto* holder = std::get_if<ObjectInstance>(array_variable.value)) {
+                        const auto class_iterator =
+                            class_definitions_.find(holder->data->class_name);
+                        if (class_iterator != class_definitions_.end() &&
+                            class_iterator->second.methods.contains("item") &&
+                            class_iterator->second.methods.contains("wfcitems")) {
+                            return call_class_method(
+                                *holder->data, class_iterator->second, "item", identifier_offset,
+                                /*require_function=*/true);
+                        }
+                    }
                 }
                 if (type_character == '\0' && procedures_.contains(*identifier)) {
                     return parse_procedure_call(*identifier, identifier_offset);

@@ -1349,6 +1349,12 @@ int main() {
         "Function Nm(c As Long) As String\nSelect Case c\nCase 1: Nm = \"one\"\nCase Else: Nm = \"many\"\nEnd Select\nEnd Function\n"
         "Print Nm(1) & Nm(2)",
         "25\n1\n2\n4\n5\nonemany");
+    // Collection default member and UDT ReDim (REQ-0253).
+    expect_program_success(
+        "Dim c As New Collection\nc.Add 5\nc.Add \"v\", \"k\"\nPrint c(1) & c(\"k\") & c.Count\n"
+        "Type Pt\nx As Long\nEnd Type\nDim a() As Pt\nReDim a(1 To 2)\na(2).x = 4\nReDim Preserve a(1 To 3)\n"
+        "a(3).x = 9\nPrint a(2).x & a(3).x & a(1).x",
+        "5v2\n490");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

@@ -1423,6 +1423,20 @@ Next j]=]
     )
 
     add_test(
+        NAME TC-MP0002-collection-default-cli
+        COMMAND wfc
+            --eval [=[Dim c As New Collection
+c.Add 5
+Print c(1)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-collection-default-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^5"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

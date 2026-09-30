@@ -358,6 +358,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0249 — Loading `.vbp`/`.bas`/`.cls` files](req-0249-project-loading.md)
 - [REQ-0250 — `TypeOf`, `Error`, `LSet`/`RSet`](req-0250-typeof-error-lset.md)
 - [REQ-0251 — Class array fields](req-0251-class-array-fields.md)
+- [REQ-0253 — `Collection` default member; UDT `ReDim`](req-0253-collection-default-and-udt-redim.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.
