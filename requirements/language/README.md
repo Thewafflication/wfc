@@ -327,3 +327,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `WFC0106` during a dead branch's own dry-run parse, matching this
   evaluator's convention of not raising value-dependent runtime errors
   for code that will not actually execute.
+- [REQ-0230 — Static Variant object-lifetime fixes](req-0230-static-object-lifetime.md)
+  fixes `Class_Terminate` never running for an instance reachable only
+  through a `Static Variant`, both when a call's own body replaces it
+  and when the program ends with it still held.

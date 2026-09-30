@@ -86,11 +86,15 @@ uses:
   "this call omitted this specific argument" bit per parameter per call
   (`Scope::missing_parameter_names`), entirely separate from the value
   the parameter was bound to;
-- `Static` arrays and `Static` object references — only a scalar/`Variant`
-  `Static` local is supported, matching a fixed-type `Dim` local's own
-  existing scope boundary one level further (arrays and object references
-  would each need their own persistent-storage treatment beyond a plain
-  `Scope` slot);
+- `Static` arrays and `Static` object-*typed* (`As SomeClass`) locals —
+  only a scalar/`Variant` `Static` local is supported, matching a
+  fixed-type `Dim` local's own existing scope boundary one level further
+  (arrays and object-typed locals would each need their own
+  persistent-storage treatment beyond a plain `Scope` slot). A `Static
+  Variant` holding an object reference via `Set` was already possible
+  within this scope, though; `REQ-0230` later fixed two `Class_Terminate`
+  lifetime bugs that combination had, found while scoping this exact
+  exclusion for a possible future extension;
 - a default value that is itself an expression referencing another
   parameter, a class field, or anything other than a literal/constant
   — `Optional`'s default is parsed the same way a `Const`'s initializer is

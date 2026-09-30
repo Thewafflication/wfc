@@ -1253,6 +1253,26 @@ int main() {
         "Print NextId()\nPrint NextId()\nPrint NextId()",
         "1\n2\n3");
     expect_program_failure("Static x As Long", "WFC0144");
+    // Static Variant object-lifetime fixes (REQ-0230): a Static Variant
+    // local can already hold an object reference via Set (REQ-0200); the
+    // persistent copy-back at the end of each call must terminate
+    // whatever instance it is about to overwrite if that call's own body
+    // replaced it (the same class of bug REQ-0228 fixed for a ByRef
+    // parameter's own write-back), and any instance still reachable only
+    // through a Static when the program ends must be terminated too
+    // (this evaluator previously drained only the module scope at
+    // program end, never any procedure's/class-member's own statics).
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
+                     "End Sub"}},
+        "Sub Track(mark As Long)\nStatic v As Variant\nSet v = New Counter\nv.n = mark\n"
+        "Print \"set \" & mark\nEnd Sub\nCall Track(1)\nCall Track(2)",
+        "set 1\nset 2\nterminated 1\nterminated 2");
+    expect_classes_success(
+        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
+                     "End Sub"}},
+        "Sub Track()\nStatic v As Variant\nSet v = New Counter\nv.n = 9\nEnd Sub\nCall Track()",
+        "terminated 9");
     expect_classes_success(
         {{"Foo", "Dim secret As Long\n\n"
                  "Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"

@@ -1546,6 +1546,39 @@ public:
         if (!drain_scope_instances(module_scope())) {
             return std::move(error_);
         }
+        // REQ-0230: a `Static` Variant local (REQ-0206) can already hold an
+        // object reference via `Set` (REQ-0200), persisted on its own
+        // procedure's/class-member's `ProcedureDef::statics` -- storage
+        // this evaluator never previously drained at all, unlike the
+        // module scope just above, so `Class_Terminate` would never run
+        // for an instance only ever reachable through one at program end.
+        for (auto& [name, definition] : procedures_) {
+            if (!drain_scope_instances(definition.statics)) {
+                return std::move(error_);
+            }
+        }
+        for (auto& [class_name, class_def] : class_definitions_) {
+            for (auto& [member_name, definition] : class_def.methods) {
+                if (!drain_scope_instances(definition.statics)) {
+                    return std::move(error_);
+                }
+            }
+            for (auto& [member_name, definition] : class_def.property_get) {
+                if (!drain_scope_instances(definition.statics)) {
+                    return std::move(error_);
+                }
+            }
+            for (auto& [member_name, definition] : class_def.property_let) {
+                if (!drain_scope_instances(definition.statics)) {
+                    return std::move(error_);
+                }
+            }
+            for (auto& [member_name, definition] : class_def.property_set) {
+                if (!drain_scope_instances(definition.statics)) {
+                    return std::move(error_);
+                }
+            }
+        }
 
         wfc::Evaluation result;
         result.success = true;
@@ -6651,13 +6684,28 @@ private:
         // once an error is fatal to the whole program anyway, whether a
         // Static happened to get one more write makes no observable
         // difference, so this simply is not reached for a failed call.
+        bool statics_copy_back_ok = true;
         if (ran_ok) {
             for (const auto& name : scopes_.back().static_variable_names) {
-                definition.statics.variables[name] = scopes_.back().variables.at(name);
+                // REQ-0230: the persistent slot being overwritten here may
+                // itself be the *last* reference to an ObjectInstance (a
+                // `Static` Variant can already hold one via `Set`, REQ-0200)
+                // -- for example after `Set v = New C` replaced the frame's
+                // own copy mid-call, leaving only this persistent slot
+                // holding the original instance. A plain assignment would
+                // silently drop that last reference without ever running
+                // `Class_Terminate`, the same class of bug REQ-0228 fixed
+                // for a ByRef parameter's own write-back.
+                auto& persistent = definition.statics.variables[name];
+                if (!terminate_if_last_reference(persistent)) {
+                    statics_copy_back_ok = false;
+                    break;
+                }
+                persistent = scopes_.back().variables.at(name);
             }
         }
 
-        if (!ran_ok) {
+        if (!ran_ok || !statics_copy_back_ok) {
             scopes_.pop_back();
             return std::nullopt;
         }

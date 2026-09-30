@@ -1626,4 +1626,27 @@ End If]=]
             LABELS "integration;mp-0002;statements;object;classes"
             PASS_REGULAR_EXPRESSION "nothing1.*nothing2.*nothing3"
     )
+
+    add_test(
+        NAME TC-MP0002-static-object-lifetime-cli
+        COMMAND wfc --class Counter [=[Public n As Long
+
+Sub Class_Terminate()
+Print "terminated " & n
+End Sub]=]
+            --eval [=[Sub Track(mark As Long)
+Static v As Variant
+Set v = New Counter
+v.n = mark
+Print "set " & mark
+End Sub
+Call Track(1)
+Call Track(2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-static-object-lifetime-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;object;classes"
+            PASS_REGULAR_EXPRESSION "set 1.*set 2.*terminated 1.*terminated 2"
+    )
 endif()
