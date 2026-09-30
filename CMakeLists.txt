@@ -1365,6 +1365,21 @@ Print "never"]=]
     )
 
     add_test(
+        NAME TC-MP0002-typeof-error-lset-cli
+        COMMAND wfc
+            --eval [=[Dim s As String
+s = "ab  "
+RSet s = "x"
+Print "[" & s & "]"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-typeof-error-lset-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^\\[   x\\]"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

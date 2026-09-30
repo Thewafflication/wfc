@@ -1324,6 +1324,14 @@ int main() {
         "Sub U()\nDim k As Long\nk = 2\nOn k GoTo a, b\na:\nPrint \"a\"\nb:\nPrint \"b\"\nEnd Sub\nCall U\n"
         "Print \"end\"\nEnd\nPrint \"never\"",
         "1a2334\n11\n12\n21\n22\nabcd|4\n6\nsub\nx\nb\nend");
+    // TypeOf, Error, LSet/RSet, Erl, Command (REQ-0250).
+    expect_classes_success(
+        {{"A", "Public x As Long"}, {"B", "Public y As Long"}},
+        "Dim o As Object\nSet o = New A\nPrint TypeOf o Is A\nPrint TypeOf o Is B\n"
+        "Set o = Nothing\nPrint TypeOf o Is A\nOn Error Resume Next\nError 11\n"
+        "Print Err.Number & \" \" & Err.Description & \" \" & Erl\n"
+        "Dim s As String\ns = \"ab  \"\nRSet s = \"x\"\nPrint \"[\" & s & \"]\"\nLSet s = \"yz\"\nPrint \"[\" & s & \"]\"",
+        "True\nFalse\nFalse\n11 Division by zero 0\n[   x]\n[yz  ]");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

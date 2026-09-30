@@ -1563,7 +1563,7 @@ struct DateParts {
            identifier == "print" || identifier == "randomize" || identifier == "redim" ||
            identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
-           identifier == "explicit" || identifier == "type" || identifier == "err" || identifier == "goto" || identifier == "resume" || identifier == "enum" || identifier == "step" || identifier == "to" ||
+           identifier == "explicit" || identifier == "typeof" || identifier == "erl" || identifier == "type" || identifier == "err" || identifier == "goto" || identifier == "resume" || identifier == "enum" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "with" || identifier == "xor" ||
@@ -3758,6 +3758,73 @@ private:
                 set_error("WFC0998", "program ended", statement_offset);
                 return false;
             }
+            return true;
+        }
+        if (consume_keyword("error")) {
+            skip_horizontal_whitespace();
+            if (at_statement_end()) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            const auto number_offset = offset_;
+            auto number = parse_expression();
+            if (!number.has_value()) {
+                return false;
+            }
+            if (!coerce_numeric_value(*number, Value{Integer{}}.index(), number_offset) ||
+                !std::holds_alternative<Integer>(*number)) {
+                set_error("WFC0073", "Error requires a Long number", number_offset);
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            const Integer raised = std::get<Integer>(*number);
+            if (raised < 1 || raised > 65535) {
+                return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+            }
+            return raise_runtime(raised, vb_error_description(raised), statement_offset);
+        }
+        if (consume_keyword("lset") || consume_keyword("rset")) {
+            const bool right = ascii_lower(source_[start + 0]) == 'r';
+            skip_horizontal_whitespace();
+            const auto variable_offset = offset_;
+            auto name = parse_identifier();
+            if (!name.has_value()) {
+                set_error("WFC0011", "expected variable name", variable_offset);
+                return false;
+            }
+            const auto variable = find_variable(*name);
+            if (variable.value == nullptr) {
+                set_error("WFC0015", "undeclared variable", variable_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume('=')) {
+                set_error("WFC0014", "expected assignment operator", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            auto value = parse_expression();
+            if (!value.has_value()) {
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            auto* const target = std::get_if<std::string>(variable.value);
+            const auto* text = std::get_if<std::string>(&*value);
+            if (target == nullptr || text == nullptr) {
+                set_error("WFC0016", "LSet/RSet require String operands", variable_offset);
+                return false;
+            }
+            const std::size_t width = target->size();
+            std::string aligned = text->substr(0, width);
+            if (aligned.size() < width) {
+                const std::string padding(width - aligned.size(), ' ');
+                aligned = right ? padding + aligned : aligned + padding;
+            }
+            *target = std::move(aligned);
             return true;
         }
         if (consume_keyword("return")) {
@@ -9222,6 +9289,46 @@ private:
             }
         }
         {
+            // REQ-0250: `TypeOf obj Is ClassName` and `Erl`.
+            const auto typeof_offset = offset_;
+            if (consume_keyword("typeof")) {
+                skip_horizontal_whitespace();
+                auto operand = parse_concatenation();
+                if (!operand.has_value()) {
+                    return std::nullopt;
+                }
+                skip_horizontal_whitespace();
+                if (!consume_keyword("is")) {
+                    set_error("WFC0010", "expected Is after TypeOf operand", offset_);
+                    return std::nullopt;
+                }
+                skip_horizontal_whitespace();
+                const auto class_offset = offset_;
+                auto class_name = parse_identifier();
+                if (!class_name.has_value()) {
+                    set_error("WFC0011", "expected class name after Is", class_offset);
+                    return std::nullopt;
+                }
+                if (*class_name != "object" && !class_definitions_.contains(*class_name)) {
+                    set_error("WFC0134", "unknown class name", class_offset);
+                    return std::nullopt;
+                }
+                if (!is_object_reference(*operand)) {
+                    set_error("WFC0107", "TypeOf requires an object operand", typeof_offset);
+                    return std::nullopt;
+                }
+                const auto* instance = std::get_if<ObjectInstance>(&*operand);
+                if (instance == nullptr || !execute_) {
+                    return Value{false};
+                }
+                return Value{*class_name == "object" ||
+                             class_satisfies(instance->data->class_name, *class_name)};
+            }
+            if (consume_keyword("erl")) {
+                return Value{Integer{0}};
+            }
+        }
+        {
             const auto err_start = offset_;
             if (consume_keyword("err")) {
                 if (consume('.')) {
@@ -10433,7 +10540,8 @@ private:
     [[nodiscard]] static bool is_misc_function_name(const std::string_view name) {
         static const std::unordered_set<std::string> names{
             "pmt", "fv", "pv", "nper", "ipmt", "ppmt", "npv", "irr", "sln", "syd", "ddb",
-            "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents"};
+            "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
+            "command$"};
         return names.contains(std::string(name));
     }
 
@@ -10474,6 +10582,10 @@ private:
         if (name == "doevents") {
             if (!arity(0, 0)) return std::nullopt;
             return Value{Integer{}};
+        }
+        if (name == "command" || name == "command$") {
+            if (!arity(0, 0)) return std::nullopt;
+            return Value{std::string{}};
         }
         // pmt/fv/pv/nper share (rate, x, y[, z[, type]]).
         const auto fv_of = [](const double r, const double n, const double pmt, const double pv, const double type) {
