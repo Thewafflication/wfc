@@ -4067,6 +4067,31 @@ private:
         int mode{};  // 1 = Input, 2 = Output, 3 = Append
     };
 
+    [[nodiscard]] static std::FILE* open_file(const std::string& path, const char* mode) {
+#ifdef _WIN32
+        std::FILE* handle = nullptr;
+        return fopen_s(&handle, path.c_str(), mode) == 0 ? handle : nullptr;
+#else
+        return std::fopen(path.c_str(), mode);
+#endif
+    }
+
+    [[nodiscard]] static std::string environment_variable(const std::string& name) {
+#ifdef _WIN32
+        char* buffer = nullptr;
+        std::size_t length = 0;
+        std::string result;
+        if (_dupenv_s(&buffer, &length, name.c_str()) == 0 && buffer != nullptr) {
+            result = buffer;
+            std::free(buffer);
+        }
+        return result;
+#else
+        const char* found = std::getenv(name.c_str());
+        return found != nullptr ? found : "";
+#endif
+    }
+
     [[nodiscard]] bool raise_runtime(
         const Integer number, const std::string& description, const std::size_t offset) {
         err_number_ = number;
@@ -4333,8 +4358,8 @@ private:
             if (files_.contains(number)) {
                 return raise_runtime(55, "File already open", statement_offset);
             }
-            std::FILE* handle = std::fopen(
-                path_text->c_str(), mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
+            std::FILE* handle = open_file(
+                *path_text, mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
             if (handle == nullptr) {
                 return raise_runtime(mode == 1 ? 53 : 76, mode == 1 ? "File not found" : "Path not found", statement_offset);
             }
@@ -4659,8 +4684,7 @@ private:
             if (!arity(1, 1)) return std::nullopt;
             if (!execute_) return Value{std::string{}};
             if (const auto* variable = std::get_if<std::string>(&arguments[0])) {
-                const char* found = std::getenv(variable->c_str());
-                return Value{std::string(found != nullptr ? found : "")};
+                return Value{environment_variable(*variable)};
             }
             set_error("WFC0073", "Environ requires a String name", offset);
             return std::nullopt;
