@@ -200,6 +200,7 @@ a specific requirement.
 | 2026-09-30 #128 | Construction | Add sequential file I/O (`Open`/`Close`/`Print #`/`Write #`/`Input #`/`Line Input #`, `EOF`/`LOF`/`FreeFile`/`Input()`), `Print` item lists with `;`/`,`/`Spc`/`Tab`, `Kill`/`MkDir`/`RmDir`/`FileCopy`/`Dir`/`FileLen`/`CurDir`/`Environ` under `REQ-0245`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #129 | Construction | Wrap `fopen`/`getenv` in `fopen_s`/`_dupenv_s` on Windows so the MSVC `/WX` build does not fail on C4996 (follow-up to `REQ-0245`). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #130 | Construction | Add `Mid` statement, financial functions, `FormatNumber`/`FormatCurrency`/`FormatPercent`, `Partition`, `DoEvents`, `Debug.Print` under `REQ-0246`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #131 | Construction | Add the `Byte` value type (declarations, range-checked coercion, `CByte`, `TypeName`/`VarType`, bitwise ops; arithmetic widens to Long) under `REQ-0247`; update the test that asserted `As Byte` was rejected; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

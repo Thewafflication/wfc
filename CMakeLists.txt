@@ -1316,6 +1316,21 @@ Print s & " " & FormatNumber(1234.567, 2)]=]
     )
 
     add_test(
+        NAME TC-MP0002-byte-cli
+        COMMAND wfc
+            --eval [=[Dim b As Byte
+b = 250
+b = b + 5
+Print b & " " & TypeName(b)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-byte-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^255 Byte"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

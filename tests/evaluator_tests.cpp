@@ -1305,6 +1305,13 @@ int main() {
         "Print FormatNumber(1234.567, 2) & \" \" & FormatCurrency(-1234.5) & \" \" & FormatPercent(0.256, 1)\n"
         "Print Partition(25, 0, 100, 10)\nDebug.Print \"quiet\"\nDoEvents",
         "aXYdef\n-877.57\n1257.79\n100 180\n1,234.57 ($1,234.50) 25.6%\n 20: 29");
+    // Byte type (REQ-0247).
+    expect_program_success(
+        "Dim b As Byte\nb = 250\nb = b + 5\nPrint b & \" \" & TypeName(b) & VarType(b)\n"
+        "Dim c As Byte\nc = CByte(7)\nPrint c * 3 & \" \" & (c And 5) & \" \" & (Not c) & \" \" & -c\n"
+        "Dim a(2) As Byte\na(1) = 200\nPrint a(1) + a(0) & \" \" & Hex(a(1))\nDim v As Variant\nv = c\nPrint TypeName(v)",
+        "255 Byte17\n21 5 248 -7\n200 C8\nByte");
+    expect_program_failure("Dim b As Byte\nb = 255\nb = b + 1", "WFC0009");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
@@ -2139,7 +2146,7 @@ int main() {
         "End If",
         "fallback");
     expect_program_failure("Dim 1 As Long", "WFC0011");
-    expect_program_failure("Dim value As Byte", "WFC0012");
+    expect_program_failure("Dim value As Mystery", "WFC0012");
     expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
     expect_program_failure("Dim value As Long: value 1", "WFC0014");
     expect_program_failure("missing = 1", "WFC0015");

@@ -36,6 +36,7 @@ using Integer = std::int32_t;
 // codebase's C++ alias and VB6's own type name that predates this type's
 // introduction. `Int16` is VB6's `Integer`.
 using Int16 = std::int16_t;
+using Byte = std::uint8_t;  // REQ-0247
 
 // A Currency value is VB6/COM's fixed-point CURRENCY representation: a
 // signed 64-bit integer scaled by 10000 (four decimal digits). The scale was
@@ -727,7 +728,7 @@ struct DateValue {
 
 using Value = std::variant<
     Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
-    ArrayValue, ObjectInstance, DateValue>;
+    ArrayValue, ObjectInstance, DateValue, Byte>;
 
 // A fixed-size or dynamic, one-dimensional or (fixed-size only) multi-
 // dimensional array (`Dim arr(n)`, `Dim arr(lo To hi) As Type`, `Dim
@@ -838,6 +839,9 @@ struct ArrayValue {
     if (type_index == Value{DateValue{}}.index()) {
         return Value{DateValue{}};
     }
+    if (type_index == Value{Byte{}}.index()) {
+        return Value{Byte{}};
+    }
     if (type_index == Value{Empty{}}.index()) {
         return Value{Empty{}};
     }
@@ -896,6 +900,7 @@ struct NumericStringResult {
 [[nodiscard]] inline bool is_number(const Value& value) noexcept {
     return std::holds_alternative<Integer>(value) ||
            std::holds_alternative<Int16>(value) ||
+           std::holds_alternative<Byte>(value) ||
            std::holds_alternative<Currency>(value) ||
            std::holds_alternative<float>(value) ||
            std::holds_alternative<Decimal>(value) ||
@@ -922,6 +927,9 @@ struct NumericStringResult {
     if (const auto* short_integer = std::get_if<Int16>(&value)) {
         return static_cast<double>(*short_integer);
     }
+    if (const auto* byte = std::get_if<Byte>(&value)) {
+        return static_cast<double>(*byte);
+    }
     if (const auto* single = std::get_if<float>(&value)) {
         return static_cast<double>(*single);
     }
@@ -945,6 +953,9 @@ struct NumericStringResult {
     if (const auto* short_integer = std::get_if<Int16>(&value)) {
         return static_cast<float>(*short_integer);
     }
+    if (const auto* byte = std::get_if<Byte>(&value)) {
+        return static_cast<float>(*byte);
+    }
     if (std::holds_alternative<Currency>(value)) {
         return static_cast<float>(as_double(value));
     }
@@ -960,6 +971,9 @@ struct NumericStringResult {
     }
     if (const auto* short_integer = std::get_if<Int16>(&value)) {
         return static_cast<std::int64_t>(*short_integer) * 10000;
+    }
+    if (const auto* byte = std::get_if<Byte>(&value)) {
+        return static_cast<std::int64_t>(*byte) * 10000;
     }
     return std::get<Currency>(value).scaled;
 }
@@ -996,7 +1010,7 @@ enum class NumericCategory {
     if (std::holds_alternative<Currency>(value)) {
         return NumericCategory::currency;
     }
-    if (std::holds_alternative<Int16>(value)) {
+    if (std::holds_alternative<Int16>(value) || std::holds_alternative<Byte>(value)) {
         return NumericCategory::int16;
     }
     return NumericCategory::integer;
@@ -1021,6 +1035,9 @@ enum class NumericCategory {
     if (std::holds_alternative<Currency>(element)) {
         return "Currency";
     }
+    if (std::holds_alternative<Byte>(element)) {
+        return "Byte";
+    }
     if (std::holds_alternative<bool>(element)) {
         return "Boolean";
     }
@@ -1043,6 +1060,9 @@ enum class NumericCategory {
     }
     if (std::holds_alternative<Currency>(element)) {
         return 6;
+    }
+    if (std::holds_alternative<Byte>(element)) {
+        return 17;
     }
     if (std::holds_alternative<bool>(element)) {
         return 11;
@@ -3262,6 +3282,9 @@ private:
         if (consume_keyword("date")) {
             return TypeKeywordResult{Value{DateValue{}}, false};
         }
+        if (consume_keyword("byte")) {
+            return TypeKeywordResult{Value{Byte{}}, false};
+        }
         if (consume_keyword("string")) {
             return TypeKeywordResult{Value{std::string{}}, false};
         }
@@ -3372,6 +3395,27 @@ private:
         const std::size_t offset) {
         if (value.index() == target_index) {
             return true;
+        }
+        // REQ-0247: Byte target (range-checked) and Byte source (widens).
+        if (target_index == Value{Byte{}}.index()) {
+            double source_value{};
+            if (std::holds_alternative<Decimal>(value) || !is_number(value)) {
+                return true;  // caller reports the type mismatch
+            }
+            source_value = std::nearbyint(as_double(value));
+            if (!(source_value >= 0.0 && source_value <= 255.0)) {
+                set_error("WFC0009", "integer overflow", offset);
+                return false;
+            }
+            value = static_cast<Byte>(source_value);
+            return true;
+        }
+        if (const auto* byte_source = std::get_if<Byte>(&value)) {
+            value = static_cast<Integer>(*byte_source);
+            if (target_index == Value{Integer{}}.index()) {
+                return true;
+            }
+            return coerce_numeric_value(value, target_index, offset);
         }
         // REQ-0242: Date <-> numeric/String implicit conversions.
         if (target_index == Value{DateValue{}}.index()) {
@@ -6745,6 +6789,8 @@ private:
                 element_default = 0.0f;
             } else if (consume_keyword("date")) {
                 element_default = DateValue{};
+            } else if (consume_keyword("byte")) {
+                element_default = Byte{};
             } else if (consume_keyword("currency")) {
                 element_default = Currency{};
             } else if (consume_keyword("string")) {
@@ -7216,6 +7262,8 @@ private:
                 expected_type = Value{0.0f}.index();
             } else if (consume_keyword("date")) {
                 expected_type = Value{DateValue{}}.index();
+            } else if (consume_keyword("byte")) {
+                expected_type = Value{Byte{}}.index();
             } else if (consume_keyword("currency")) {
                 expected_type = Value{Currency{}}.index();
             } else if (consume_keyword("string")) {
@@ -8222,6 +8270,9 @@ private:
         if (const auto* short_integer = std::get_if<Int16>(&*value)) {
             return Value{static_cast<Int16>(~*short_integer)};
         }
+        if (const auto* byte = std::get_if<Byte>(&*value)) {
+            return Value{static_cast<Byte>(~*byte)};
+        }
         const auto operand = coerce_ternary_operand(*value, operator_offset);
         if (!operand.has_value()) {
             return std::nullopt;
@@ -8598,6 +8649,9 @@ private:
                     return std::nullopt;
                 }
                 return Value{static_cast<Int16>(-*short_integer)};
+            }
+            if (const auto* byte = std::get_if<Byte>(&*value)) {
+                return Value{static_cast<Integer>(-static_cast<Integer>(*byte))};
             }
             const auto* integer = require_integer(*value, operator_offset);
             if (integer == nullptr) {
@@ -9143,6 +9197,9 @@ private:
         }
         if (type_index == Value{DateValue{}}.index()) {
             return Value{DateValue{}};
+        }
+        if (type_index == Value{Byte{}}.index()) {
+            return Value{Byte{}};
         }
         // REQ-0228: an omitted Optional object-reference parameter with no
         // explicit `= Nothing` default (`parameter.has_default` false)
@@ -10648,6 +10705,19 @@ private:
     [[nodiscard]] std::optional<Value> parse_function_call(
         const std::string_view identifier,
         const std::size_t identifier_offset) {
+        auto result = parse_function_call_impl(identifier, identifier_offset);
+        // REQ-0247: CByte's range-checked Long result is a Byte.
+        if (identifier == "cbyte" && result.has_value()) {
+            if (const auto* number = std::get_if<Integer>(&*result)) {
+                return Value{static_cast<Byte>(*number)};
+            }
+        }
+        return result;
+    }
+
+    [[nodiscard]] std::optional<Value> parse_function_call_impl(
+        const std::string_view identifier,
+        const std::size_t identifier_offset) {
         const bool is_len = identifier == "len" || identifier == "lenb";
         const bool is_lower = identifier == "lcase" || identifier == "lcase$";
         const bool is_upper = identifier == "ucase" || identifier == "ucase$";
@@ -10866,6 +10936,15 @@ private:
         }
         if (is_misc_fn) {
             return evaluate_misc_function(identifier, arguments, identifier_offset);
+        }
+        // REQ-0247: functions other than the type probes see a Byte as a Long.
+        if (!is_typename && !is_vartype && !is_cvar && !is_iif && !is_choose && !is_switch &&
+            !is_isnumeric && !is_isarray && !is_isobject && !is_isnull && !is_isempty) {
+            for (auto& argument : arguments) {
+                if (const auto* byte = std::get_if<Byte>(&argument)) {
+                    argument = Value{static_cast<Integer>(*byte)};
+                }
+            }
         }
         // REQ-0242: numeric conversions/functions see a Date as its serial.
         if (!arguments.empty() && std::holds_alternative<DateValue>(arguments[0]) &&
@@ -11682,6 +11761,9 @@ private:
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{std::string{"Currency"}};
             }
+            if (std::holds_alternative<Byte>(arguments[0])) {
+                return Value{std::string{"Byte"}};
+            }
             if (std::holds_alternative<DateValue>(arguments[0])) {
                 return Value{std::string{"Date"}};
             }
@@ -11754,6 +11836,9 @@ private:
             }
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{Integer{6}};
+            }
+            if (std::holds_alternative<Byte>(arguments[0])) {
+                return Value{Integer{17}};
             }
             if (std::holds_alternative<DateValue>(arguments[0])) {
                 return Value{Integer{7}};
@@ -13857,6 +13942,7 @@ private:
             const auto integer_of = [](const Value& v) -> std::optional<std::int32_t> {
                 if (const auto* i = std::get_if<Integer>(&v)) return *i;
                 if (const auto* i = std::get_if<Int16>(&v)) return static_cast<std::int32_t>(*i);
+                if (const auto* i = std::get_if<Byte>(&v)) return static_cast<std::int32_t>(*i);
                 return std::nullopt;
             };
             const auto li = integer_of(left);
@@ -13873,6 +13959,9 @@ private:
                 case 'X': r = a ^ b; break;
                 case 'E': r = ~(a ^ b); break;
                 default: r = ~a | b; break;
+                }
+                if (std::holds_alternative<Byte>(left) && std::holds_alternative<Byte>(right)) {
+                    return Value{static_cast<Byte>(r)};
                 }
                 if (std::holds_alternative<Int16>(left) && std::holds_alternative<Int16>(right)) {
                     return Value{static_cast<Int16>(r)};
@@ -14079,11 +14168,21 @@ private:
     // still promotes to Double, matching the pre-existing rule). Currency
     // computes with exact scaled-int64 arithmetic rather than floating
     // point, preserving its whole point: exact decimal money math.
+    // REQ-0247: Byte participates in arithmetic as a Long.
+    [[nodiscard]] static Value widen_byte(const Value& value) {
+        if (const auto* byte = std::get_if<Byte>(&value)) {
+            return Value{static_cast<Integer>(*byte)};
+        }
+        return value;
+    }
+
     [[nodiscard]] std::optional<Value> numeric_binary(
-        const Value& left,
-        const Value& right,
+        const Value& left_in,
+        const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        const Value left = widen_byte(left_in);
+        const Value right = widen_byte(right_in);
         if (operation == '+' && std::holds_alternative<std::string>(left) &&
             std::holds_alternative<std::string>(right)) {
             return Value{std::get<std::string>(left) + std::get<std::string>(right)};
@@ -14411,10 +14510,12 @@ private:
     }
 
     [[nodiscard]] std::optional<Value> integer_binary(
-        const Value& left,
-        const Value& right,
+        const Value& left_in,
+        const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        const Value left = widen_byte(left_in);
+        const Value right = widen_byte(right_in);
         const auto left_coerced = coerce_long(left, operator_offset);
         if (!left_coerced.has_value()) {
             return std::nullopt;
@@ -14513,6 +14614,9 @@ private:
         }
         if (const auto* short_integer = std::get_if<Int16>(&value)) {
             return std::to_string(*short_integer);
+        }
+        if (const auto* byte = std::get_if<Byte>(&value)) {
+            return std::to_string(static_cast<unsigned>(*byte));
         }
         if (const auto* number = std::get_if<double>(&value)) {
             char buffer[32];
