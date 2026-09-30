@@ -370,6 +370,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0262 — Remaining VBA members without a host UI](req-0262-vba-interaction-members.md)
 - [REQ-0264 — `Format` of String values](req-0264-string-format.md)
 - [REQ-0265 — Implicit declaration](req-0265-implicit-declaration.md)
+- [REQ-0266 — `Declare` statements](req-0266-declare-statements.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

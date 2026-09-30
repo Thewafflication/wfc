@@ -1603,6 +1603,21 @@ Print x + 1]=]
     )
 
     add_test(
+        NAME TC-MP0002-declare-cli
+        COMMAND wfc
+            --eval [=[Declare Function F Lib "x" () As Long
+On Error Resume Next
+Print F()
+Print Err.Number]=]
+    )
+    set_tests_properties(
+        TC-MP0002-declare-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "453"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

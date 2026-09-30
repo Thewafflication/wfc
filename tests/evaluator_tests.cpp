@@ -1438,6 +1438,12 @@ int main() {
         "x = 5\ny$ = \"s\"\nPrint x + 1 & y$\nPrint IsEmpty(neverSet)\nSub S()\nz = 3\nPrint z\nEnd Sub\nCall S",
         "6s\nTrue\n3");
     expect_program_failure("Option Explicit\nx = 5", "WFC0015");
+    // Declare statements (REQ-0266).
+    expect_program_success(
+        "Private Declare Function GetTickCount Lib \"kernel32\" () As Long\n"
+        "Public Declare PtrSafe Sub Sleep Lib \"kernel32\" (ByVal ms As Long)\nOn Error Resume Next\n"
+        "Dim t As Long\nt = GetTickCount()\nPrint Err.Number\nSleep 10\nPrint Err.Number & \" \" & Err.Description",
+        "453\n453 Specified DLL function not found");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

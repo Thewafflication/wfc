@@ -1845,6 +1845,8 @@ struct ProcedureDef {
     // `Property Get`, `Variant`/`Object`-element, and multi-dimensional
     // array return types remain unsupported; see REQ-0216's Scope.
     bool return_is_array{};
+    // REQ-0266: a `Declare` d external routine; calling it raises error 453.
+    bool is_external{};
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
@@ -3206,12 +3208,37 @@ private:
                 skip_horizontal_whitespace();
             }
             bool is_function = false;
+            bool is_declare = false;
+            if (consume_keyword("declare")) {
+                is_declare = true;
+                skip_horizontal_whitespace();
+                static_cast<void>(consume_keyword("ptrsafe"));
+                skip_horizontal_whitespace();
+            }
             if (consume_keyword("sub")) {
                 is_function = false;
             } else if (consume_keyword("function")) {
                 is_function = true;
             } else {
                 offset_ = pre_modifier_offset;
+                skip_rest_of_line();
+                continue;
+            }
+            if (is_declare) {
+                // REQ-0266: `Declare Function|Sub Name Lib "dll" ...` has no
+                // body; register the name so a call reports error 453.
+                skip_horizontal_whitespace();
+                char declare_type_character{};
+                auto declared = parse_identifier(&declare_type_character);
+                if (declared.has_value() && !is_reserved_identifier(*declared) &&
+                    !procedures_.contains(*declared)) {
+                    ProcedureDef external;
+                    external.is_function = is_function;
+                    external.is_external = true;
+                    external.return_type_index = Value{Integer{}}.index();
+                    external.return_is_variant = true;
+                    procedures_.emplace(*declared, std::move(external));
+                }
                 skip_rest_of_line();
                 continue;
             }
@@ -4439,6 +4466,16 @@ private:
                 files_.clear();
             }
             return true;
+        }
+        {
+            const auto before_declare = offset_;
+            static_cast<void>(consume_keyword("public") || consume_keyword("private"));
+            skip_horizontal_whitespace();
+            if (consume_keyword("declare")) {
+                skip_comment();  // handled by scan_procedures
+                return true;
+            }
+            offset_ = before_declare;
         }
         if (consume_keyword("attribute")) {
             skip_comment();  // `Attribute X.VB_... = ...` lines inside bodies
@@ -10459,6 +10496,13 @@ private:
         // range rather than a fixed number; a trailing ParamArray removes
         // the upper bound entirely (every argument from its position
         // onward is collected into it, including zero of them).
+        if (definition.is_external) {
+            if (!execute_) {
+                return definition.is_function ? Value{Empty{}} : Value{Empty{}};
+            }
+            static_cast<void>(raise_runtime(453, "Specified DLL function not found", identifier_offset));
+            return std::nullopt;
+        }
         const auto& parameters = definition.parameters;
         const bool has_param_array = !parameters.empty() && parameters.back().is_param_array;
         const std::size_t fixed_and_optional_count =

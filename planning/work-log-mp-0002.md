@@ -234,6 +234,7 @@ a specific requirement.
 | 2026-09-30 #149 | Construction | Add `CallByName` (method/get/let/set dispatch, function and statement forms) as an addendum to `REQ-0262`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #150 | Construction | Add string formats (`@`, `&`, `<`, `>`, `!`) to `Format` under `REQ-0264`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #151 | Construction | Declare variables implicitly on assignment, and read undeclared names as Empty, unless `Option Explicit` is present anywhere in the program, under `REQ-0265`; negative tests now use `Option Explicit`. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #152 | Construction | Accept `Declare Function|Sub` (calls raise error 453) under `REQ-0266`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
