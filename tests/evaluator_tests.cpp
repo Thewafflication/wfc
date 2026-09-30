@@ -2542,7 +2542,7 @@ int main() {
     expect_program_failure("Print Format()", "WFC0072");
     expect_program_failure("Print Format(1, 2, 3)", "WFC0072");
     expect_program_failure("Print Format(42, 5)", "WFC0073");
-    expect_program_failure("Print Format(\"x\", \"Fixed\")", "WFC0073");
+    expect_program_success("Print Format(\"x\", \"Fixed\")", "x");
     expect_program_failure("Print Format(1e308, \"Percent\")", "WFC0009");
     expect_program_failure("Print Rnd(\"x\")", "WFC0073");
     expect_program_failure("Print Rnd(1, 2)", "WFC0072");
