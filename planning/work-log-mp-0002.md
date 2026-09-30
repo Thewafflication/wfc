@@ -192,6 +192,7 @@ a specific requirement.
 | 2026-09-30 #120 | Construction | Add `Enum ... End Enum` under `REQ-0237` (members as Long module constants; Enum names accepted as Long types via pre-scan); unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #121 | Construction | Add `On Error`/`Resume`/`GoTo`/labels and `Err` object under `REQ-0238` (statement-level recovery wrapper, jump sentinel caught by frame body loops); single-line `If` now accepts `Exit`/`GoTo`/`Resume`/`Err.Raise`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #122 | Construction | Add `Array`, `Split`, `Join`, `Filter` intrinsics under `REQ-0239` (String/Variant array results); unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #123 | Construction | Add `#Const`/`#If`/`#ElseIf`/`#Else`/`#End If` under `REQ-0240` as an offset-preserving source preprocessor for the main program and class modules; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

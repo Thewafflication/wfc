@@ -12007,17 +12007,300 @@ private:
     wfc::Evaluation error_;
 };
 
+
+// REQ-0240: conditional compilation. Returns `source` with every
+// `#If/#ElseIf/#Else/#End If/#Const` directive line, and every line inside
+// an inactive branch, blanked to spaces (line breaks kept, so byte offsets
+// are unchanged). `error`/`error_offset` are set on malformed directives.
+class ConditionalPreprocessor final {
+public:
+    [[nodiscard]] std::optional<std::string> run(
+        const std::string_view source, std::string& error, std::size_t& error_offset) {
+        std::string out(source);
+        struct Frame {
+            bool parent_active{};
+            bool taken{};
+            bool active{};
+        };
+        std::vector<Frame> stack;
+        const auto active_now = [&] { return stack.empty() || stack.back().active; };
+        std::size_t position = 0;
+        while (position < out.size()) {
+            std::size_t line_end = out.find('\n', position);
+            if (line_end == std::string::npos) {
+                line_end = out.size();
+            }
+            std::size_t i = position;
+            while (i < line_end && (out[i] == ' ' || out[i] == '\t')) ++i;
+            const bool directive = i < line_end && out[i] == '#' &&
+                i + 1 < line_end && std::isalpha(static_cast<unsigned char>(out[i + 1])) != 0;
+            if (directive) {
+                std::string text = out.substr(i + 1, line_end - i - 1);
+                if (!text.empty() && text.back() == '\r') text.pop_back();
+                if (const auto c = text.find('\''); c != std::string::npos) text.resize(c);
+                std::string lower;
+                for (const char ch : text) lower.push_back(ascii_lower(ch));
+                const auto starts = [&](const std::string_view w) {
+                    return lower.compare(0, w.size(), w) == 0 &&
+                        (lower.size() == w.size() || !is_identifier_part(lower[w.size()]));
+                };
+                const auto condition_of = [&](std::size_t skip) -> std::optional<bool> {
+                    std::string expr = text.substr(skip);
+                    std::string lexpr = lower.substr(skip);
+                    const auto then = lexpr.rfind("then");
+                    if (then == std::string::npos) {
+                        error = "expected Then";
+                        error_offset = position;
+                        return std::nullopt;
+                    }
+                    expr.resize(then);
+                    const auto value = evaluate_expression(expr, error);
+                    if (!value.has_value()) {
+                        error_offset = position;
+                        return std::nullopt;
+                    }
+                    return *value != 0;
+                };
+                if (starts("if")) {
+                    const bool parent = active_now();
+                    const auto condition = parent ? condition_of(2) : std::optional<bool>{false};
+                    if (!condition.has_value()) return std::nullopt;
+                    stack.push_back({parent, *condition, parent && *condition});
+                } else if (starts("elseif")) {
+                    if (stack.empty()) { error = "#ElseIf without #If"; error_offset = position; return std::nullopt; }
+                    auto& frame = stack.back();
+                    if (frame.parent_active && !frame.taken) {
+                        const auto condition = condition_of(6);
+                        if (!condition.has_value()) return std::nullopt;
+                        frame.active = *condition;
+                        frame.taken = *condition;
+                    } else {
+                        frame.active = false;
+                    }
+                } else if (starts("else")) {
+                    if (stack.empty()) { error = "#Else without #If"; error_offset = position; return std::nullopt; }
+                    auto& frame = stack.back();
+                    frame.active = frame.parent_active && !frame.taken;
+                    frame.taken = true;
+                } else if (starts("end")) {
+                    if (stack.empty()) { error = "#End If without #If"; error_offset = position; return std::nullopt; }
+                    stack.pop_back();
+                } else if (starts("const")) {
+                    if (active_now()) {
+                        const auto equals = text.find('=', 5);
+                        if (equals == std::string::npos) {
+                            error = "expected = in #Const"; error_offset = position; return std::nullopt;
+                        }
+                        std::string name;
+                        for (std::size_t k = 5; k < equals; ++k) {
+                            if (text[k] != ' ' && text[k] != '\t') name.push_back(ascii_lower(text[k]));
+                        }
+                        const auto value = evaluate_expression(text.substr(equals + 1), error);
+                        if (!value.has_value() || name.empty()) {
+                            if (name.empty()) error = "expected #Const name";
+                            error_offset = position;
+                            return std::nullopt;
+                        }
+                        constants_[name] = *value;
+                    }
+                } else {
+                    error = "unknown conditional compilation directive";
+                    error_offset = position;
+                    return std::nullopt;
+                }
+                for (std::size_t k = position; k < line_end; ++k) {
+                    if (out[k] != '\r') out[k] = ' ';
+                }
+            } else if (!active_now()) {
+                for (std::size_t k = position; k < line_end; ++k) {
+                    if (out[k] != '\r') out[k] = ' ';
+                }
+            }
+            position = line_end + 1;
+        }
+        if (!stack.empty()) {
+            error = "missing #End If";
+            error_offset = out.size();
+            return std::nullopt;
+        }
+        return out;
+    }
+
+private:
+    std::unordered_map<std::string, long long> constants_{
+        {"win32", -1}, {"win16", 0}, {"mac", 0}, {"vba6", -1}, {"vba7", -1}, {"vbaver", 6}};
+
+    // Recursive-descent evaluation over: Or/Xor < And < Not < comparison <
+    // + - < * / Mod < unary minus < primary.
+    struct Parser {
+        ConditionalPreprocessor& owner;
+        std::string text;
+        std::size_t i{};
+        std::string& error;
+        void ws() { while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) ++i; }
+        bool word(const std::string_view w) {
+            ws();
+            if (text.size() - i < w.size()) return false;
+            for (std::size_t k = 0; k < w.size(); ++k)
+                if (ascii_lower(text[i + k]) != w[k]) return false;
+            if (i + w.size() < text.size() && is_identifier_part(text[i + w.size()])) return false;
+            i += w.size();
+            return true;
+        }
+        std::optional<long long> or_expr() {
+            auto left = and_expr();
+            while (left) {
+                if (word("or")) { auto r = and_expr(); if (!r) return r; left = *left | *r; }
+                else if (word("xor")) { auto r = and_expr(); if (!r) return r; left = *left ^ *r; }
+                else break;
+            }
+            return left;
+        }
+        std::optional<long long> and_expr() {
+            auto left = not_expr();
+            while (left && word("and")) {
+                auto r = not_expr(); if (!r) return r; left = *left & *r;
+            }
+            return left;
+        }
+        std::optional<long long> not_expr() {
+            if (word("not")) { auto r = not_expr(); if (!r) return r; return ~*r; }
+            return cmp_expr();
+        }
+        std::optional<long long> cmp_expr() {
+            auto left = add_expr();
+            if (!left) return left;
+            ws();
+            const char a = i < text.size() ? text[i] : '\0';
+            const char b = i + 1 < text.size() ? text[i + 1] : '\0';
+            int op = 0;  // 1 = 2 <> 3 < 4 > 5 <= 6 >=
+            if (a == '<' && b == '>') { op = 2; i += 2; }
+            else if (a == '<' && b == '=') { op = 5; i += 2; }
+            else if (a == '>' && b == '=') { op = 6; i += 2; }
+            else if (a == '=') { op = 1; ++i; }
+            else if (a == '<') { op = 3; ++i; }
+            else if (a == '>') { op = 4; ++i; }
+            if (op == 0) return left;
+            auto right = add_expr();
+            if (!right) return right;
+            const long long l = *left, r = *right;
+            const bool result = op == 1 ? l == r : op == 2 ? l != r : op == 3 ? l < r
+                              : op == 4 ? l > r : op == 5 ? l <= r : l >= r;
+            return result ? -1 : 0;
+        }
+        std::optional<long long> add_expr() {
+            auto left = mul_expr();
+            while (left) {
+                ws();
+                if (i < text.size() && (text[i] == '+' || text[i] == '-')) {
+                    const char op = text[i++];
+                    auto r = mul_expr(); if (!r) return r;
+                    left = op == '+' ? *left + *r : *left - *r;
+                } else break;
+            }
+            return left;
+        }
+        std::optional<long long> mul_expr() {
+            auto left = unary();
+            while (left) {
+                ws();
+                if (i < text.size() && text[i] == '*') {
+                    ++i; auto r = unary(); if (!r) return r; left = *left * *r;
+                } else if (word("mod")) {
+                    auto r = unary(); if (!r) return r;
+                    if (*r == 0) { error = "division by zero"; return std::nullopt; }
+                    left = *left % *r;
+                } else break;
+            }
+            return left;
+        }
+        std::optional<long long> unary() {
+            ws();
+            if (i < text.size() && text[i] == '-') { ++i; auto r = unary(); if (!r) return r; return -*r; }
+            return primary();
+        }
+        std::optional<long long> primary() {
+            ws();
+            if (i >= text.size()) { error = "expected expression"; return std::nullopt; }
+            if (text[i] == '(') {
+                ++i; auto r = or_expr(); if (!r) return r; ws();
+                if (i >= text.size() || text[i] != ')') { error = "expected closing parenthesis"; return std::nullopt; }
+                ++i; return r;
+            }
+            if (std::isdigit(static_cast<unsigned char>(text[i])) != 0) {
+                long long v = 0;
+                while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i])) != 0)
+                    v = v * 10 + (text[i++] - '0');
+                return v;
+            }
+            if (is_identifier_start(text[i])) {
+                std::string name;
+                while (i < text.size() && is_identifier_part(text[i])) name.push_back(ascii_lower(text[i++]));
+                if (name == "true") return -1;
+                if (name == "false") return 0;
+                const auto it = owner.constants_.find(name);
+                return it == owner.constants_.end() ? 0 : it->second;
+            }
+            error = "expected expression";
+            return std::nullopt;
+        }
+    };
+
+    std::optional<long long> evaluate_expression(const std::string& text, std::string& error) {
+        Parser parser{*this, text, 0, error};
+        auto value = parser.or_expr();
+        if (!value) return value;
+        parser.ws();
+        if (parser.i != text.size()) {
+            error = "unexpected text in conditional expression";
+            return std::nullopt;
+        }
+        return value;
+    }
+};
+
+[[nodiscard]] wfc::Evaluation failure_for_directive(
+    const std::string& message, const std::size_t offset) {
+    return failure("WFC0310", message, offset);
+}
+
 }  // namespace
 
 namespace wfc {
 
 Evaluation evaluate_program(const std::string_view source) {
-    return Interpreter(source).evaluate();
+    std::string error;
+    std::size_t error_offset{};
+    const auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
+    if (!processed.has_value()) {
+        return failure_for_directive(error, error_offset);
+    }
+    return Interpreter(*processed).evaluate();
 }
 
 Evaluation evaluate_program(
     const std::string_view source, const std::vector<ClassModuleSource>& classes) {
-    return Interpreter(source, classes).evaluate();
+    std::string error;
+    std::size_t error_offset{};
+    const auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
+    if (!processed.has_value()) {
+        return failure_for_directive(error, error_offset);
+    }
+    std::vector<std::string> processed_classes;
+    processed_classes.reserve(classes.size());
+    for (const auto& module : classes) {
+        auto text = ConditionalPreprocessor{}.run(module.source, error, error_offset);
+        if (!text.has_value()) {
+            return failure_for_directive(error, error_offset);
+        }
+        processed_classes.push_back(std::move(*text));
+    }
+    std::vector<ClassModuleSource> rewritten;
+    rewritten.reserve(classes.size());
+    for (std::size_t index = 0; index < classes.size(); ++index) {
+        rewritten.push_back({classes[index].name, processed_classes[index]});
+    }
+    return Interpreter(*processed, rewritten).evaluate();
 }
 
 Evaluation evaluate_print_statement(const std::string_view source) {

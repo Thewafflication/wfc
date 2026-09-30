@@ -1236,6 +1236,12 @@ int main() {
         "Print UBound(Split(\"\"))\nDim f() As String\nf = Filter(a, \"b\")\n"
         "Print Join(f, \",\") & UBound(Filter(a, \"b\", False))",
         "3 c|a-b--c\n21+x+3\n-1\nb2");
+    // Conditional compilation (REQ-0240).
+    expect_program_success(
+        "#Const Debug = True\n#If Debug And Win32 Then\nPrint \"debug\"\n#ElseIf 1 = 1 Then\n"
+        "Print \"no\"\n#Else\nPrint \"else\"\n#End If\n#If Not Debug Then\nPrint \"x\n#End If\nPrint \"end\"",
+        "debug\nend");
+    expect_program_failure("#If True Then\nPrint 1", "WFC0310");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

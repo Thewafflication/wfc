@@ -1208,6 +1208,23 @@ Print UBound(a) & " " & Join(a, "-")]=]
     )
 
     add_test(
+        NAME TC-MP0002-conditional-compilation-cli
+        COMMAND wfc
+            --eval [=[#Const Debug = True
+#If Debug Then
+Print "debug"
+#Else
+Print "release"
+#End If]=]
+    )
+    set_tests_properties(
+        TC-MP0002-conditional-compilation-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^debug"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
