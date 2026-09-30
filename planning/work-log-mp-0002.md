@@ -76,7 +76,8 @@ a specific requirement.
   (`REQ-0246`), `Byte` (`REQ-0247`), multi-declarators/`End`/`GoSub`/fixed
   strings (`REQ-0248`), `.vbp`/`.bas`/`.cls` loading (`REQ-0249`),
   `TypeOf`/`Error`/`LSet` (`REQ-0250`), class array fields (`REQ-0251`),
-  loop-local `GoTo` (`REQ-0252`).
+  loop-local `GoTo` (`REQ-0252`), `Collection` default member and UDT
+  `ReDim` (`REQ-0253`), `Decimal` declarations (`REQ-0254`).
 
 ## Work Performed
 
@@ -2019,7 +2020,7 @@ underlying evaluator logic (`src/evaluator.cpp`, the `valid_arity` dispatch
 starting near line 2115) needed no changes; only test and requirement-record
 gaps were closed.
 
-## MP-0002 status after increment #137
+## MP-0002 status after increment #139
 
 Measured on the x64 debug build: 129 CTest tests pass (unit suite plus CLI
 and project-fixture integration tests). GitHub Actions x64 and x86 jobs pass
@@ -2033,17 +2034,16 @@ changes (`CMakePresets.json` pins the 2022 generator for the arm64 preset).
 state, expressions, statements, arrays, UDTs, variants, strings, errors
 (`On Error`/`Resume`/`Err`/`GoTo`/`GoSub`), conditional compilation, the core
 value types (`Boolean`, `Byte`, `Integer`, `Long`, `Single`, `Double`,
-`Currency`, `Decimal` via `CDec`, `Date`, `String`, `Variant`, `Object`),
+`Currency`, `Decimal`, `Date`, `String`, `Variant`, `Object`),
 file I/O (sequential), `Date`/`Time`, financial and formatting functions,
 `.vbp`/`.bas`/`.cls` loading, and the minimal class-module foundation
 (including `Implements`, array fields, `TypeOf`, `Collection`).
 
 **Known remaining gaps** (each documented in its requirement's Scope):
 binary/random file modes and `Get`/`Put`/`Seek`; `CVErr`/`IsError`;
-`Decimal` as a declared type; `ReDim` of UDT/class-typed arrays beyond
-fixed declarations; `Format` tokens `c`/`w`/`ww`/`q`/`y`, `Rate`/`MIRR`;
+`Format` tokens `c`/`w`/`ww`/`q`/`y`, `Rate`/`MIRR`;
 module-qualified names and module-private scoping across multiple standard
-modules; default members (`c(1)`), class inheritance, events/`WithEvents`,
+modules; default members in user classes (`Collection`'s `c(1)` works), class inheritance, events/`WithEvents`,
 `CreateObject`/`GetObject`, and COM interop (MP-0003); visual items in
 `.vbp` files (MP-0004); `Declare` statements and `SendKeys`/`Shell`/`MsgBox`/
 `InputBox`. The deterministic VB6 reference-probe corpus beyond the existing
