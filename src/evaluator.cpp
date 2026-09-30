@@ -12,6 +12,7 @@
 #include <ctime>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -7248,6 +7249,12 @@ private:
         if (!value.has_value()) {
             return std::nullopt;
         }
+        if (const auto* integer = std::get_if<Integer>(&*value)) {
+            return Value{static_cast<Integer>(~*integer)};
+        }
+        if (const auto* short_integer = std::get_if<Int16>(&*value)) {
+            return Value{static_cast<Int16>(~*short_integer)};
+        }
         const auto operand = coerce_ternary_operand(*value, operator_offset);
         if (!operand.has_value()) {
             return std::nullopt;
@@ -7256,6 +7263,61 @@ private:
             return Value{Null{}};
         }
         return Value{!operand->value};
+    }
+
+    // VB `Like`: ? any char, * any run, # digit, [list]/[!list] with ranges.
+    [[nodiscard]] static bool like_match(
+        const std::string& text, const std::string& pattern, const bool fold) {
+        const auto same = [&](const char a, const char b) {
+            return fold ? ascii_lower(a) == ascii_lower(b) : a == b;
+        };
+        std::function<bool(std::size_t, std::size_t)> match = [&](std::size_t t, std::size_t p) {
+            while (p < pattern.size()) {
+                const char c = pattern[p];
+                if (c == '*') {
+                    while (p < pattern.size() && pattern[p] == '*') ++p;
+                    if (p == pattern.size()) return true;
+                    for (std::size_t k = t; k <= text.size(); ++k) {
+                        if (match(k, p)) return true;
+                    }
+                    return false;
+                }
+                if (t >= text.size()) return false;
+                if (c == '?') {
+                    ++t; ++p;
+                } else if (c == '#') {
+                    if (std::isdigit(static_cast<unsigned char>(text[t])) == 0) return false;
+                    ++t; ++p;
+                } else if (c == '[') {
+                    const auto close = pattern.find(']', p + 2);
+                    if (close == std::string::npos) return false;
+                    std::size_t q = p + 1;
+                    bool negate = false;
+                    if (q < close && pattern[q] == '!') { negate = true; ++q; }
+                    bool hit = false;
+                    while (q < close) {
+                        if (q + 2 < close && pattern[q + 1] == '-') {
+                            const char lo = fold ? ascii_lower(pattern[q]) : pattern[q];
+                            const char hi = fold ? ascii_lower(pattern[q + 2]) : pattern[q + 2];
+                            const char ch = fold ? ascii_lower(text[t]) : text[t];
+                            if (ch >= lo && ch <= hi) hit = true;
+                            q += 3;
+                        } else {
+                            if (same(pattern[q], text[t])) hit = true;
+                            ++q;
+                        }
+                    }
+                    if (hit == negate) return false;
+                    ++t;
+                    p = close + 1;
+                } else {
+                    if (!same(c, text[t])) return false;
+                    ++t; ++p;
+                }
+            }
+            return t == text.size();
+        };
+        return match(0, 0);
     }
 
     [[nodiscard]] std::optional<Value> parse_comparison() {
@@ -7285,6 +7347,20 @@ private:
                 return std::nullopt;
             }
             return Value{*left == *right};
+        }
+        if (consume_keyword("like")) {
+            skip_horizontal_whitespace();
+            auto pattern = parse_concatenation();
+            if (!pattern.has_value()) {
+                return std::nullopt;
+            }
+            const auto* text = std::get_if<std::string>(&*left);
+            const auto* mask = std::get_if<std::string>(&*pattern);
+            if (text == nullptr || mask == nullptr) {
+                set_error("WFC0018", "Like requires String operands", operator_offset);
+                return std::nullopt;
+            }
+            return Value{execute_ ? like_match(*text, *mask, option_compare_text_) : false};
         }
         std::string_view operation;
         if (consume('=')) {
@@ -7343,8 +7419,7 @@ private:
                              (right_null ? std::string{} : render(*right))};
                 continue;
             }
-            if (std::holds_alternative<bool>(*left) || std::holds_alternative<bool>(*right) ||
-                is_object_reference(*left) || is_object_reference(*right) ||
+            if (is_object_reference(*left) || is_object_reference(*right) ||
                 std::holds_alternative<ArrayValue>(*left) ||
                 std::holds_alternative<ArrayValue>(*right)) {
                 set_error(
@@ -7385,7 +7460,7 @@ private:
         }
     }
 
-    [[nodiscard]] std::optional<Value> parse_multiplicative() {
+    [[nodiscard]] std::optional<Value> parse_star_slash() {
         auto left = parse_unary();
         if (!left.has_value()) {
             return std::nullopt;
@@ -7400,12 +7475,6 @@ private:
                 operation = '*';
             } else if (consume('/')) {
                 operation = '/';
-            } else if (consume('\\')) {
-                operation = '\\';
-                integer_only = true;
-            } else if (consume_keyword("mod")) {
-                operation = '%';
-                integer_only = true;
             } else {
                 return left;
             }
@@ -7418,6 +7487,53 @@ private:
             left = integer_only
                 ? integer_binary(*left, *right, operation, operator_offset)
                 : numeric_binary(*left, *right, operation, operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    // REQ-0244: VB precedence is `* /` > `\` > `Mod` > `+ -`.
+    [[nodiscard]] std::optional<Value> parse_integer_division() {
+        auto left = parse_star_slash();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume('\\')) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_star_slash();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = integer_binary(*left, *right, '\\', operator_offset);
+            if (!left.has_value()) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> parse_multiplicative() {
+        auto left = parse_integer_division();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume_keyword("mod")) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            auto right = parse_integer_division();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            left = integer_binary(*left, *right, '%', operator_offset);
             if (!left.has_value()) {
                 return std::nullopt;
             }
@@ -7457,7 +7573,17 @@ private:
                 (std::isdigit(static_cast<unsigned char>(current())) != 0 ||
                  (current() == '.' &&
                   std::isdigit(static_cast<unsigned char>(peek(1))) != 0))) {
-                return parse_negative_number();
+                // `-2 ^ 2` is -(2 ^ 2): only a bare literal takes the
+                // negative-literal path.
+                const auto literal_start = offset_;
+                const bool parsed_literal = parse_number().has_value();
+                skip_horizontal_whitespace();
+                const bool followed_by_power = parsed_literal && !at_end() && current() == '^';
+                offset_ = literal_start;
+                error_ = wfc::Evaluation{};
+                if (!followed_by_power) {
+                    return parse_negative_number();
+                }
             }
 
             auto value = parse_unary();
@@ -7519,7 +7645,68 @@ private:
             }
             return Value{static_cast<Integer>(-*integer)};
         }
-        return parse_primary();
+        return parse_power();
+    }
+
+    // REQ-0244: `a ^ b` (left-associative, binds tighter than unary minus).
+    [[nodiscard]] std::optional<Value> parse_power() {
+        auto left = parse_primary();
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operator_offset = offset_;
+            if (!consume('^')) {
+                return left;
+            }
+            skip_horizontal_whitespace();
+            bool negate = false;
+            if (consume('-')) {
+                negate = true;
+                skip_horizontal_whitespace();
+            } else {
+                static_cast<void>(consume('+'));
+                skip_horizontal_whitespace();
+            }
+            auto right = parse_primary();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            if (std::holds_alternative<Null>(*left) || std::holds_alternative<Null>(*right)) {
+                left = Value{Null{}};
+                continue;
+            }
+            const auto operand = [](const Value& v) -> std::optional<double> {
+                if (std::holds_alternative<Empty>(v)) return 0.0;
+                if (is_number(v) && !std::holds_alternative<Decimal>(v)) return as_double(v);
+                if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
+                return std::nullopt;
+            };
+            const auto base = operand(*left);
+            auto exponent = operand(*right);
+            if (!base.has_value() || !exponent.has_value()) {
+                set_error("WFC0007", "operator requires numeric operands", operator_offset);
+                return std::nullopt;
+            }
+            if (negate) {
+                exponent = -*exponent;
+            }
+            if (!execute_) {
+                left = Value{0.0};
+                continue;
+            }
+            if (*base == 0.0 && *exponent < 0.0) {
+                set_error("WFC0008", "division by zero", operator_offset);
+                return std::nullopt;
+            }
+            const double result = std::pow(*base, *exponent);
+            if (!std::isfinite(result)) {
+                set_error("WFC0009", "numeric overflow", operator_offset);
+                return std::nullopt;
+            }
+            left = Value{result};
+        }
     }
 
     // A class instantiation, either from `New ClassName` or (eagerly, a
@@ -7655,6 +7842,40 @@ private:
 
         if (current() == '"') {
             return parse_string();
+        }
+        if (current() == '&' && (ascii_lower(peek(1)) == 'h' || ascii_lower(peek(1)) == 'o')) {
+            // REQ-0244: `&HFF` / `&O17` (optionally `&`-suffixed for Long).
+            const bool hex = ascii_lower(peek(1)) == 'h';
+            const auto literal_offset = offset_;
+            offset_ += 2;
+            std::uint64_t magnitude = 0;
+            std::size_t digits = 0;
+            while (!at_end()) {
+                const char c = ascii_lower(current());
+                int digit = -1;
+                if (c >= '0' && c <= '9') digit = c - '0';
+                else if (hex && c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+                if (digit < 0 || (!hex && digit > 7)) break;
+                magnitude = magnitude * (hex ? 16U : 8U) + static_cast<std::uint64_t>(digit);
+                if (magnitude > 0xFFFFFFFFULL) {
+                    set_error("WFC0006", "integer literal out of range", literal_offset);
+                    return std::nullopt;
+                }
+                ++digits;
+                advance();
+            }
+            if (digits == 0) {
+                set_error("WFC0006", "invalid numeric literal", literal_offset);
+                return std::nullopt;
+            }
+            const bool long_suffix = !at_end() && current() == '&';
+            if (long_suffix) {
+                advance();
+            }
+            if (!long_suffix && magnitude <= 0xFFFFULL) {
+                return Value{static_cast<Int16>(static_cast<std::uint16_t>(magnitude))};
+            }
+            return Value{static_cast<Integer>(static_cast<std::uint32_t>(magnitude))};
         }
         if (current() == '#') {
             // REQ-0242: a Date literal `#m/d/yyyy h:mm:ss AM#`.
@@ -12389,6 +12610,34 @@ private:
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
+        // REQ-0244: And/Or/Xor/Eqv/Imp on integer operands are bitwise.
+        {
+            const auto integer_of = [](const Value& v) -> std::optional<std::int32_t> {
+                if (const auto* i = std::get_if<Integer>(&v)) return *i;
+                if (const auto* i = std::get_if<Int16>(&v)) return static_cast<std::int32_t>(*i);
+                return std::nullopt;
+            };
+            const auto li = integer_of(left);
+            const auto ri = integer_of(right);
+            const bool lb = std::holds_alternative<bool>(left);
+            const bool rb = std::holds_alternative<bool>(right);
+            if ((li || ri) && (li || lb) && (ri || rb)) {
+                const std::int32_t a = li ? *li : (std::get<bool>(left) ? -1 : 0);
+                const std::int32_t b = ri ? *ri : (std::get<bool>(right) ? -1 : 0);
+                std::int32_t r{};
+                switch (operation) {
+                case 'A': r = a & b; break;
+                case 'O': r = a | b; break;
+                case 'X': r = a ^ b; break;
+                case 'E': r = ~(a ^ b); break;
+                default: r = ~a | b; break;
+                }
+                if (std::holds_alternative<Int16>(left) && std::holds_alternative<Int16>(right)) {
+                    return Value{static_cast<Int16>(r)};
+                }
+                return Value{static_cast<Integer>(r)};
+            }
+        }
         const auto left_operand = coerce_ternary_operand(left, operator_offset);
         if (!left_operand.has_value()) {
             return std::nullopt;
@@ -12593,6 +12842,10 @@ private:
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
+        if (operation == '+' && std::holds_alternative<std::string>(left) &&
+            std::holds_alternative<std::string>(right)) {
+            return Value{std::get<std::string>(left) + std::get<std::string>(right)};
+        }
         if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
             return Value{Null{}};
         }

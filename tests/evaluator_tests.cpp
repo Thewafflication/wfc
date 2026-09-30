@@ -1275,6 +1275,13 @@ int main() {
         "Function F() As Long\nDim i As Long\nDo While i < 5\nF = 3\nExit Function\nLoop\n"
         "End Function\nPrint F()",
         "3");
+    // Operators and literals (REQ-0244).
+    expect_program_success(
+        "Print 2 ^ 3 ^ 2\nPrint -2 ^ 2\nPrint 7 \\ 2 * 2\nPrint 10 Mod 4 + 1\nPrint 6 And 3\n"
+        "Print 6 Or 1\nPrint 5 Xor 1\nPrint Not 5\nPrint &HFF\nPrint &HFFFF\nPrint &H10000\n"
+        "Print \"ab\" + \"cd\"\nPrint \"a\" & True & 1\nPrint \"abc\" Like \"a*\"\n"
+        "Print \"a5\" Like \"[a-c]#\"\nPrint \"x\" Like \"[!a-c]\"",
+        "64\n-4\n1\n3\n2\n7\n4\n-6\n255\n-1\n65536\nabcd\naTrue1\nTrue\nTrue\nTrue");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
@@ -1614,7 +1621,7 @@ int main() {
     expect_failure("Print -2147483649", "WFC0006");
     expect_failure("Print 1.5&", "WFC0006");
     expect_failure("Print 1e3&", "WFC0006");
-    expect_failure("Print \"one\" + \"two\"", "WFC0007");
+    expect_failure("Print 1 + \"two\"", "WFC0007");
     expect_failure("Print 1 \\ 0", "WFC0008");
     expect_failure("Print 2147483647 + 1", "WFC0009");
 
@@ -2437,8 +2444,8 @@ int main() {
     expect_program_failure("Print Sqr(\"x\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
     expect_program_failure("Print True < False", "WFC0018");
-    expect_program_failure("Print 1 And 2", "WFC0019");
-    expect_program_failure("Print True & \" value\"", "WFC0020");
+    expect_program_failure("Print \"a\" And \"b\"", "WFC0019");
+    expect_program_failure("Print Nothing & \" value\"", "WFC0020");
     expect_program_failure("If 1 Then Print \"no\"", "WFC0021");
     expect_program_failure("If True Print \"no\"", "WFC0022");
     expect_program_failure("If True Then", "WFC0023");

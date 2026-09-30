@@ -350,6 +350,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0241 — User-defined types](req-0241-user-defined-types.md)
 - [REQ-0242 — `Date` type and date/time functions](req-0242-date-type.md)
 - [REQ-0243 — `Collection` and bare-argument calls](req-0243-collection.md)
+- [REQ-0244 — Operators and literals](req-0244-operators-and-literals.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

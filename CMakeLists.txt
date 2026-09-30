@@ -1275,6 +1275,18 @@ Print c.Count & " " & c.Item("b")]=]
     )
 
     add_test(
+        NAME TC-MP0002-operators-cli
+        COMMAND wfc
+            --eval [=[Print 2 ^ 3 & " " & (6 And 3) & " " & &HFF]=]
+    )
+    set_tests_properties(
+        TC-MP0002-operators-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^8 2 255"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
