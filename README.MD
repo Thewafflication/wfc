@@ -48,8 +48,10 @@ runtime binary, export layout, compiler helpers, and language services.
 
 ## Build the Current Development Slice
 
-Prerequisites are Visual Studio 2022 with the Desktop development with C++
-workload and CMake 3.28 or newer. Initialize the controlled dependencies after
+Prerequisites are Visual Studio 2022 (Visual Studio 2026 for the ARM64
+preset, whose generator is `Visual Studio 18 2026`) with the Desktop
+development with C++ workload and CMake 3.28 or newer (4.2 or newer for the
+ARM64 preset). Initialize the controlled dependencies after
 cloning:
 
 ```powershell
@@ -69,26 +71,30 @@ ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
 `wfc --eval <source>` runs a standalone module; `wfc --class <Name> <source>`
-(repeatable) supplies one or more class modules alongside it, standing in for
-a real VB6 project's separate `.cls` files. The evaluator currently covers,
-at a high level: declarations (`Dim`/`Const`/`Static`), every numeric type
-(`Integer`, `Long`, `Single`, `Double`, `Currency`, `Decimal` via `Variant`)
-plus `String`/`Boolean`/`Variant`, control flow (`If`/`Select Case`/`While`/
-`Do`/`For`/`For Each`), fixed-size and dynamic (`ReDim`/`ReDim Preserve`/
-`Erase`) arrays including multi-dimensional and dynamic multi-dimensional
-forms, `Variant`/`Object`/class-typed-element arrays, the core `Strings`/
-`Conversion`/`Information`/`Math` intrinsic library, user-defined `Sub`/
-`Function` procedures (`Optional`/`ParamArray`/`Static`/array parameters
-including `Variant`/`Object`-element ones/array return types/a
-zero-argument call without parentheses, including a bare statement or a
-dotted `obj.Method`), and a minimal
-class-module foundation (fields, methods, `Property Get`/`Let`/`Set`,
-`New`/`Me`, lifecycle hooks, `Public`/`Private`). It does not claim general
-VB6 compatibility — see the [language requirements
-index](requirements/language/README.md) for exactly what is specified and
-implemented, `REQ`-numbered and cross-referenced to its diagnostics and
-scope boundary, and [`planning/work-log-mp-0002.md`](planning/work-log-mp-0002.md)
-for the chronological build-out.
+(repeatable) supplies one or more class modules alongside it. `wfc
+project.vbp` (or `wfc a.bas b.bas c.cls`) loads real VB6 project files: the
+`.vbp`'s `Module=`/`Class=` entries are read, standard modules are
+concatenated, class modules are registered by their `VB_Name`, and `Sub Main`
+is run as the startup routine. The evaluator currently covers, at a high
+level: declarations (`Dim`/`Const`/`Static`/`Public`/`Private`, multi-variable
+forms, implicit declaration without `Option Explicit`), the value types
+`Boolean`, `Byte`, `Integer`, `Long`, `Single`, `Double`, `Currency`,
+`Decimal`, `Date`, `String`, `Variant`, `Object`, fixed-length strings,
+`Enum` and `Type` (value-semantics user-defined types), control flow (`If`/
+`Select Case`/`While`/`Do`/`For`/`For Each`/`With`/`GoTo`/`GoSub`/`On
+Error`/`Resume`/`End`), arrays (fixed, dynamic, multi-dimensional, class and
+UDT elements), conditional compilation (`#If`), line continuation, the
+`Strings`/`Conversion`/`Information`/`Math`/`DateTime`/`Financial`/
+`FileSystem`/`Interaction` libraries (including `Split`/`Join`/`Format`,
+sequential/binary/random file I/O, `CVErr`), a built-in `Collection`, and
+class modules (fields, array fields, methods, properties, `Const`/`Enum`,
+`New`/`Me`, `Implements`, default members, lifecycle hooks,
+`Public`/`Private`/`Friend`). It does not claim general VB6 compatibility —
+see the [language requirements index](requirements/language/README.md) for
+exactly what is specified and implemented, `REQ`-numbered and cross-referenced
+to its diagnostics and scope boundary, and
+[`planning/work-log-mp-0002.md`](planning/work-log-mp-0002.md) for the
+chronological build-out and the remaining gaps.
 
 A representative sample (the exhaustive, always-current set of runnable
 examples is the `TC-MP0002-*-cli` integration tests in `CMakeLists.txt`):
