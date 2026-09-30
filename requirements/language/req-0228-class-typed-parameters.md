@@ -77,10 +77,11 @@ for any Sub/Function/Property. It does not add:
   array-parameter mechanism this requirement does not touch;
 - array-of-class/array-of-`Object` *elements* in general — unchanged
   from `REQ-0205`'s own Scope;
-- lazy `As New` auto-instantiation, `Class_Terminate` cascading through
-  a terminated instance's own fields, class inheritance/interfaces, and
-  `CreateObject`/COM interop — all still deferred exactly as `REQ-0203`/
-  `REQ-0204`/`REQ-0205` already recorded;
+- lazy `As New` auto-instantiation, class inheritance, and
+  `CreateObject`/COM interop — still deferred exactly as `REQ-0203`/
+  `REQ-0204`/`REQ-0205` already recorded (`Class_Terminate` cascading
+  through a terminated instance's own fields was closed by `REQ-0234`;
+  interfaces were closed by `REQ-0233`);
 - verifying real VB6's own exact behavior for `IsMissing` on an omitted
   object-typed `Optional` parameter — `REQ-0224` already scoped
   `IsMissing`'s real (non-`False`) answer to an `Optional Variant`

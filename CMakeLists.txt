@@ -1721,4 +1721,40 @@ Print a.Area]=]
             LABELS "integration;mp-0002;statements;classes;object"
             PASS_REGULAR_EXPRESSION "Circle with radius 5.*Square with side 3.*25"
     )
+
+    add_test(
+        NAME TC-MP0002-class-terminate-cascade-cli
+        COMMAND wfc
+            --class Deepest [=[Sub Class_Terminate()
+Print "deepest terminated"
+End Sub]=]
+            --class Middle [=[Public d As Deepest
+
+Sub Class_Terminate()
+Print "middle terminated"
+End Sub]=]
+            --class Top [=[Public m As Middle
+
+Sub Class_Terminate()
+Print "top terminated"
+End Sub]=]
+            --eval [=[Sub MakeIt()
+Dim t As New Top
+Dim mm As New Middle
+Dim dd As New Deepest
+Set mm.d = dd
+Set dd = Nothing
+Set t.m = mm
+Set mm = Nothing
+Print "leaving"
+End Sub
+Call MakeIt()
+Print "after"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-terminate-cascade-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "leaving.*top terminated.*middle terminated.*deepest terminated.*after"
+    )
 endif()

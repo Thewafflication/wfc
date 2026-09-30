@@ -63,12 +63,16 @@ reference-counted object lifetime, not a full implementation of it:
   (for example, `Call (New Foo).Method()`, where the instance is used and
   discarded within a single expression) does not get `Class_Terminate`
   called at all;
-- it does not cascade: when an instance A is terminated/dropped and A
-  itself was the last reference to another instance B (for example, held in
-  one of A's own `Variant` fields), B's `Class_Terminate` is not
-  automatically invoked. B is still correctly freed (no leak) through
-  ordinary C++ reference-counted destruction once A's own storage is
-  destroyed — only the *notification* does not propagate;
+- it did not originally cascade: when an instance A was terminated/dropped
+  and A itself was the last reference to another instance B (for example,
+  held in one of A's own fields), B's `Class_Terminate` was not
+  automatically invoked — B was still correctly freed (no leak) through
+  ordinary C++ reference-counted destruction once A's own storage was
+  destroyed, only the *notification* did not propagate. `REQ-0234` later
+  closed this: draining A's own fields (the same way a call frame's own
+  locals are drained) immediately follows invoking A's `Class_Terminate`,
+  so B's `Class_Terminate` now runs too, recursively, if B has become
+  unreachable except through A;
 - when two variables in the *same* call frame or module scope alias the
   same instance (for example, `Dim a As New Foo` then `Set b = a`),
   `Class_Terminate` still fires exactly once, at whichever alias happens to

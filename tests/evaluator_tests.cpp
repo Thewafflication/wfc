@@ -1159,6 +1159,43 @@ int main() {
         "Dim s As IShape\nDim a As IArea\nDim c As New Circle\nc.Radius = 4\n"
         "Set s = c\nSet a = c\nCall s.Draw()\nPrint a.Area",
         "drawing\n16");
+    // Class_Terminate field-cascading (REQ-0234): when an instance becomes
+    // the last reference and terminates, any of its own fields that were
+    // themselves only reachable through that dying instance must have
+    // their own Class_Terminate run too -- previously only the top-level
+    // ObjectInstance being overwritten/dropped was ever checked; a field
+    // holding the last reference to another instance silently lost it (via
+    // plain C++ shared_ptr refcounting) with no Class_Terminate call at
+    // all. Cascading happens regardless of whether the dying instance's
+    // own class declares Class_Terminate, and regardless of whether the
+    // field is still referenced elsewhere (it correctly does NOT terminate
+    // early when a second reference to the field's instance survives).
+    expect_classes_success(
+        {{"Inner", "Public tag As Long\n\nSub Class_Terminate()\n"
+                   "Print \"inner terminated \" & tag\nEnd Sub"},
+         {"Outer", "Public i As Inner\n\nSub Class_Terminate()\n"
+                   "Print \"outer terminated\"\nEnd Sub"}},
+        "Sub MakeIt()\nDim o As New Outer\nDim n As New Inner\nn.tag = 7\n"
+        "Set o.i = n\nPrint \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint \"after\"",
+        "leaving\nouter terminated\ninner terminated 7\nafter");
+    expect_classes_success(
+        {{"Inner", "Public tag As Long\n\nSub Class_Terminate()\n"
+                   "Print \"inner terminated \" & tag\nEnd Sub"},
+         {"Outer", "Public i As Inner"}},
+        "Sub MakeIt()\nDim o As New Outer\nDim n As New Inner\nn.tag = 9\n"
+        "Set o.i = n\nSet n = Nothing\nPrint \"leaving\"\nEnd Sub\n"
+        "Call MakeIt()\nPrint \"after\"",
+        "leaving\ninner terminated 9\nafter");
+    expect_classes_success(
+        {{"Deepest", "Sub Class_Terminate()\nPrint \"deepest terminated\"\nEnd Sub"},
+         {"Middle", "Public d As Deepest\n\nSub Class_Terminate()\n"
+                    "Print \"middle terminated\"\nEnd Sub"},
+         {"Top", "Public m As Middle\n\nSub Class_Terminate()\n"
+                 "Print \"top terminated\"\nEnd Sub"}},
+        "Sub MakeIt()\nDim t As New Top\nDim mm As New Middle\nDim dd As New Deepest\n"
+        "Set mm.d = dd\nSet dd = Nothing\nSet t.m = mm\nSet mm = Nothing\n"
+        "Print \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint \"after\"",
+        "leaving\ntop terminated\nmiddle terminated\ndeepest terminated\nafter");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

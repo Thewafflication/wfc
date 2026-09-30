@@ -7060,17 +7060,26 @@ private:
     }
 
     // If `value` currently holds the *only* remaining reference to a live
-    // instance (`use_count() == 1`) whose class declares `Class_Terminate`,
-    // invokes it now, before `value` is itself overwritten or destroyed by
-    // the caller. Returns false only when the invoked Class_Terminate body
-    // itself raised an error (propagated as this statement's own failure).
+    // instance (`use_count() == 1`), invokes its class's `Class_Terminate`
+    // now, if declared, before `value` is itself overwritten or destroyed by
+    // the caller, then cascades the same check into the instance's own
+    // fields (REQ-0234): a field that was itself only reachable through this
+    // now-dying instance must have its own `Class_Terminate` run too, the
+    // same way a real VB6 instance's fields are released, and possibly
+    // cascade further, once the instance holding them is freed. Cascading
+    // happens whether or not this instance itself declares `Class_Terminate`
+    // -- an instance's fields go out of scope along with it regardless.
+    // Returns false only when an invoked Class_Terminate body (this
+    // instance's own, or a cascaded field's) itself raised an error
+    // (propagated as this statement's own failure).
     //
     // Deliberately called only from well-defined, non-reentrant-hazardous
     // points -- Set's overwrite, a Variant's plain-`=` overwrite, and (via
-    // drain_scope_instances) a call frame's locals at the end of a call and
-    // the module scope at the end of the program -- never from a C++
-    // destructor. Hooking ~InstanceData itself was considered and rejected:
-    // an instance's last shared_ptr reference can be dropped from *inside*
+    // drain_scope_instances) a call frame's locals at the end of a call, the
+    // module scope at the end of the program, and (recursively, here) a
+    // terminating instance's own fields -- never from a C++ destructor.
+    // Hooking ~InstanceData itself was considered and rejected: an
+    // instance's last shared_ptr reference can be dropped from *inside*
     // another container's own teardown (a Scope's `variables` map
     // destroying its Values as part of `scopes_.pop_back()`, or the
     // Interpreter's own member destruction at the very end of the program),
@@ -7078,25 +7087,29 @@ private:
     // (`scopes_.push_back` for the call frame, mid-`pop_back` of that same
     // deque) from within that teardown is undefined behavior. Calling from
     // these explicit points instead means Class_Terminate always runs while
-    // the interpreter is fully alive and not mid-teardown of anything.
+    // the interpreter is fully alive and not mid-teardown of anything; the
+    // field cascade below runs from this same well-defined point, while the
+    // dying instance's own shared_ptr is still alive and its `fields` Scope
+    // still populated, rather than waiting for ~InstanceData to reach them.
     [[nodiscard]] bool terminate_if_last_reference(Value& value) {
         const auto* const instance_value = std::get_if<ObjectInstance>(&value);
         if (instance_value == nullptr || instance_value->data.use_count() != 1) {
             return true;
         }
-        const auto class_iterator = class_definitions_.find(instance_value->data->class_name);
-        if (class_iterator == class_definitions_.end()) {
-            return true;
-        }
-        const auto terminate_iterator = class_iterator->second.methods.find("class_terminate");
-        if (terminate_iterator == class_iterator->second.methods.end()) {
-            return true;
-        }
         InstanceData* const instance = instance_value->data.get();
-        return invoke_definition(
-                   terminate_iterator->second, "class_terminate", {}, 0,
-                   class_iterator->second.source, instance)
-            .has_value();
+        const auto class_iterator = class_definitions_.find(instance->class_name);
+        if (class_iterator != class_definitions_.end()) {
+            const auto terminate_iterator = class_iterator->second.methods.find("class_terminate");
+            if (terminate_iterator != class_iterator->second.methods.end()) {
+                if (!invoke_definition(
+                        terminate_iterator->second, "class_terminate", {}, 0,
+                        class_iterator->second.source, instance)
+                        .has_value()) {
+                    return false;
+                }
+            }
+        }
+        return drain_scope_instances(instance->fields);
     }
 
     // Drains every ObjectInstance-holding variable in `scope` (a call

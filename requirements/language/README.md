@@ -340,3 +340,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   to accept any implementing class, and dispatches `.member` calls
   through an interface-typed reference to the implementing class's own
   `InterfaceName_MemberName`, including through a `Private` one.
+- [REQ-0234 — `Class_Terminate` field-cascading](req-0234-class-terminate-field-cascading.md)
+  makes a dying instance's own `Class_Terminate`-invoking drain cascade
+  into its fields, so a field holding the last reference to another
+  instance has its own `Class_Terminate` run too, recursively.

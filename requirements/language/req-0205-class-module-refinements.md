@@ -74,10 +74,12 @@ scope:
   `Property Set`'s own value parameter); `REQ-0228` later generalized
   `As Object`/`As SomeClass` to every parameter of every Sub/Function/
   Property;
-- lazy `As New` auto-instantiation, `Class_Terminate` cascading through a
-  terminated instance's own fields, class inheritance/interfaces, and
-  `CreateObject`/COM interop — all still deferred exactly as `REQ-0203`/
-  `REQ-0204` originally recorded;
+- lazy `As New` auto-instantiation, class inheritance, and
+  `CreateObject`/COM interop — still deferred exactly as `REQ-0203`/
+  `REQ-0204` originally recorded (`Class_Terminate` cascading through a
+  terminated instance's own fields, also originally listed here, was
+  closed by `REQ-0234`; interfaces, also originally listed here, was
+  closed by `REQ-0233`);
 - `Optional`/`ParamArray`/`Static`/visibility modifiers on a class member —
   a separate, larger procedure-system increment (see `REQ-0206`).
 
