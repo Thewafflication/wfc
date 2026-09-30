@@ -9,10 +9,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <cstring>
 #include <deque>
+#include <filesystem>
 #include <functional>
+#include <map>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -1907,6 +1910,16 @@ struct CallArgument {
 
 class Interpreter final {
 public:
+    ~Interpreter() {
+        for (auto& [number, file] : files_) {
+            if (file.handle != nullptr) {
+                std::fclose(file.handle);
+            }
+        }
+    }
+    Interpreter(const Interpreter&) = delete;
+    Interpreter& operator=(const Interpreter&) = delete;
+
     explicit Interpreter(const std::string_view source, const bool allow_identifiers = true)
         : source_(source), allow_identifiers_(allow_identifiers) {}
 
@@ -3862,6 +3875,9 @@ private:
         if (const auto handled = parse_error_handling_statement(statement_offset)) {
             return *handled;
         }
+        if (const auto handled = parse_file_statement(statement_offset)) {
+            return *handled;
+        }
         if (consume_keyword("option")) {
             return parse_option_statement(statement_offset);
         }
@@ -4044,19 +4060,828 @@ private:
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
 
-    [[nodiscard]] bool parse_print_statement() {
+    // ---- File I/O (REQ-0245) ---------------------------------------------
+
+    struct OpenFile {
+        std::FILE* handle{};
+        int mode{};  // 1 = Input, 2 = Output, 3 = Append
+    };
+
+    [[nodiscard]] bool raise_runtime(
+        const Integer number, const std::string& description, const std::size_t offset) {
+        err_number_ = number;
+        err_description_ = description;
+        set_error("WFC0300", description, offset);
+        return false;
+    }
+
+    [[nodiscard]] OpenFile* find_open_file(const Integer number, const std::size_t offset) {
+        const auto found = files_.find(number);
+        if (found == files_.end()) {
+            static_cast<void>(raise_runtime(52, "Bad file name or number", offset));
+            return nullptr;
+        }
+        return &found->second;
+    }
+
+    [[nodiscard]] bool write_to_file(
+        const Integer number, const std::string& text, const std::size_t offset) {
+        auto* const file = find_open_file(number, offset);
+        if (file == nullptr) {
+            return false;
+        }
+        if (file->mode == 1) {
+            return raise_runtime(54, "Bad file mode", offset);
+        }
+        if (!text.empty() && std::fwrite(text.data(), 1, text.size(), file->handle) != text.size()) {
+            return raise_runtime(57, "Device I/O error", offset);
+        }
+        return true;
+    }
+
+    // Reads one line (without the terminator) into `line`; false at EOF.
+    [[nodiscard]] static bool read_file_line(std::FILE* handle, std::string& line) {
+        line.clear();
+        int c = std::fgetc(handle);
+        if (c == EOF) {
+            return false;
+        }
+        while (c != EOF && c != '\n') {
+            if (c == '\r') {
+                const int next = std::fgetc(handle);
+                if (next != '\n' && next != EOF) {
+                    std::ungetc(next, handle);
+                }
+                break;
+            }
+            line.push_back(static_cast<char>(c));
+            c = std::fgetc(handle);
+        }
+        return true;
+    }
+
+    [[nodiscard]] static bool file_at_eof(std::FILE* handle) {
+        const int c = std::fgetc(handle);
+        if (c == EOF) {
+            return true;
+        }
+        std::ungetc(c, handle);
+        return false;
+    }
+
+    // Reads one `Input #` field: a quoted string or a run up to ',' / newline.
+    [[nodiscard]] static bool read_input_field(std::FILE* handle, std::string& token, bool& quoted) {
+        token.clear();
+        quoted = false;
+        int c = std::fgetc(handle);
+        while (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            c = std::fgetc(handle);
+        }
+        if (c == EOF) {
+            return false;
+        }
+        if (c == '"') {
+            quoted = true;
+            c = std::fgetc(handle);
+            while (c != EOF && c != '"') {
+                token.push_back(static_cast<char>(c));
+                c = std::fgetc(handle);
+            }
+            c = std::fgetc(handle);
+            while (c == ' ' || c == '\t') c = std::fgetc(handle);
+            if (c != ',' && c != '\n' && c != '\r' && c != EOF) std::ungetc(c, handle);
+            return true;
+        }
+        while (c != EOF && c != ',' && c != '\n' && c != '\r') {
+            token.push_back(static_cast<char>(c));
+            c = std::fgetc(handle);
+        }
+        if (c == '\r') {
+            const int next = std::fgetc(handle);
+            if (next != '\n' && next != EOF) std::ungetc(next, handle);
+        }
+        while (!token.empty() && (token.back() == ' ' || token.back() == '\t')) token.pop_back();
+        return true;
+    }
+
+    [[nodiscard]] bool store_input_token(
+        Value& target, const bool is_variant, const std::string& token, const bool quoted,
+        const std::size_t offset) {
+        if (is_variant) {
+            if (!quoted) {
+                const auto number = parse_numeric_string(token);
+                if (number.status == NumericStringStatus::valid) {
+                    target = std::floor(number.value) == number.value &&
+                                     std::fabs(number.value) < 2147483648.0
+                                 ? Value{static_cast<Integer>(number.value)}
+                                 : Value{number.value};
+                    return true;
+                }
+            }
+            target = token;
+            return true;
+        }
+        if (std::holds_alternative<std::string>(target)) {
+            target = token;
+            return true;
+        }
+        if (std::holds_alternative<bool>(target)) {
+            std::string lowered;
+            for (const char ch : token) lowered.push_back(ascii_lower(ch));
+            target = lowered == "#true#" || lowered == "true";
+            return true;
+        }
+        if (std::holds_alternative<DateValue>(target)) {
+            std::string inner = token;
+            if (inner.size() >= 2 && inner.front() == '#' && inner.back() == '#') {
+                inner = inner.substr(1, inner.size() - 2);
+            }
+            const auto parsed = parse_date_text(inner);
+            target = DateValue{parsed.value_or(0.0)};
+            return true;
+        }
+        const auto number = parse_numeric_string(token.empty() ? "0" : token);
+        if (number.status != NumericStringStatus::valid) {
+            return raise_runtime(13, "Type mismatch", offset);
+        }
+        Value converted{number.value};
+        if (std::holds_alternative<Integer>(target)) {
+            const double rounded = std::nearbyint(number.value);
+            if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+                return raise_runtime(6, "Overflow", offset);
+            }
+            converted = static_cast<Integer>(rounded);
+        } else if (!coerce_numeric_value(converted, target.index(), offset)) {
+            return false;
+        }
+        if (converted.index() != target.index()) {
+            return raise_runtime(13, "Type mismatch", offset);
+        }
+        target = std::move(converted);
+        return true;
+    }
+
+    [[nodiscard]] std::string write_item_text(const Value& value) {
+        if (const auto* text = std::get_if<std::string>(&value)) {
+            return "\"" + *text + "\"";
+        }
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            return *flag ? "#TRUE#" : "#FALSE#";
+        }
+        if (std::holds_alternative<Null>(value)) {
+            return "#NULL#";
+        }
+        if (std::holds_alternative<Empty>(value)) {
+            return "";
+        }
+        if (const auto* date = std::get_if<DateValue>(&value)) {
+            const auto parts = split_date(date->serial);
+            char buffer[64];
+            std::snprintf(
+                buffer, sizeof(buffer), "#%04lld-%02lld-%02lld %02lld:%02lld:%02lld#",
+                static_cast<long long>(parts.year), static_cast<long long>(parts.month),
+                static_cast<long long>(parts.day), static_cast<long long>(parts.hour),
+                static_cast<long long>(parts.minute), static_cast<long long>(parts.second));
+            return buffer;
+        }
+        return render(value);
+    }
+
+    [[nodiscard]] bool parse_hash_file_number(Integer& number) {
         skip_horizontal_whitespace();
+        static_cast<void>(consume('#'));
+        skip_horizontal_whitespace();
+        const auto offset = offset_;
         auto value = parse_expression();
         if (!value.has_value()) {
             return false;
         }
-        if (execute_) {
-            if (has_output_line_) {
-                output_.push_back('\n');
-            }
-            output_ += render(*value);
-            has_output_line_ = true;
+        if (!coerce_numeric_value(*value, Value{Integer{}}.index(), offset) ||
+            !std::holds_alternative<Integer>(*value)) {
+            set_error("WFC0073", "file number must be a Long", offset);
+            return false;
         }
+        number = std::get<Integer>(*value);
+        return true;
+    }
+
+    [[nodiscard]] std::optional<bool> parse_file_statement(const std::size_t statement_offset) {
+        const auto start = offset_;
+        if (consume_keyword("open")) {
+            skip_horizontal_whitespace();
+            auto path = parse_expression();
+            if (!path.has_value()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            int mode = 0;
+            if (consume_keyword("for")) {
+                skip_horizontal_whitespace();
+                if (consume_keyword("input")) mode = 1;
+                else if (consume_keyword("output")) mode = 2;
+                else if (consume_keyword("append")) mode = 3;
+                else {
+                    set_error("WFC0321", "unsupported Open mode", offset_);
+                    return false;
+                }
+            } else {
+                set_error("WFC0321", "expected For after Open path", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("access")) {
+                skip_horizontal_whitespace();
+                static_cast<void>(consume_keyword("read"));
+                skip_horizontal_whitespace();
+                static_cast<void>(consume_keyword("write"));
+                skip_horizontal_whitespace();
+            }
+            if (consume_keyword("shared") || consume_keyword("lock")) {
+                skip_horizontal_whitespace();
+                static_cast<void>(consume_keyword("read") || consume_keyword("write"));
+                skip_horizontal_whitespace();
+                static_cast<void>(consume_keyword("write"));
+                skip_horizontal_whitespace();
+            }
+            if (!consume_keyword("as")) {
+                set_error("WFC0147", "expected As in Open statement", offset_);
+                return false;
+            }
+            Integer number{};
+            if (!parse_hash_file_number(number)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume_keyword("len")) {
+                skip_horizontal_whitespace();
+                static_cast<void>(consume('='));
+                if (!parse_expression().has_value()) {
+                    return false;
+                }
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto* path_text = std::get_if<std::string>(&*path);
+            if (path_text == nullptr) {
+                set_error("WFC0073", "Open requires a String path", statement_offset);
+                return false;
+            }
+            if (number < 1 || number > 511) {
+                return raise_runtime(52, "Bad file name or number", statement_offset);
+            }
+            if (files_.contains(number)) {
+                return raise_runtime(55, "File already open", statement_offset);
+            }
+            std::FILE* handle = std::fopen(
+                path_text->c_str(), mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
+            if (handle == nullptr) {
+                return raise_runtime(mode == 1 ? 53 : 76, mode == 1 ? "File not found" : "Path not found", statement_offset);
+            }
+            files_[number] = OpenFile{handle, mode};
+            return true;
+        }
+        if (consume_keyword("close")) {
+            skip_horizontal_whitespace();
+            std::vector<Integer> numbers;
+            while (!at_statement_end()) {
+                Integer number{};
+                if (!parse_hash_file_number(number)) {
+                    return false;
+                }
+                numbers.push_back(number);
+                skip_horizontal_whitespace();
+                if (!consume(',')) {
+                    break;
+                }
+            }
+            if (!execute_) {
+                return true;
+            }
+            if (numbers.empty()) {
+                for (auto& [n, file] : files_) std::fclose(file.handle);
+                files_.clear();
+                return true;
+            }
+            for (const auto number : numbers) {
+                const auto found = files_.find(number);
+                if (found != files_.end()) {
+                    std::fclose(found->second.handle);
+                    files_.erase(found);
+                }
+            }
+            return true;
+        }
+        if (consume_keyword("write")) {
+            skip_horizontal_whitespace();
+            if (at_end() || current() != '#') {
+                offset_ = start;
+                return std::nullopt;
+            }
+            Integer number{};
+            if (!parse_hash_file_number(number)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            std::string line;
+            if (consume(',')) {
+                bool first = true;
+                while (true) {
+                    skip_horizontal_whitespace();
+                    if (at_statement_end()) break;
+                    auto value = parse_expression();
+                    if (!value.has_value()) {
+                        return false;
+                    }
+                    if (execute_) {
+                        if (!first) line += ",";
+                        line += write_item_text(*value);
+                    }
+                    first = false;
+                    skip_horizontal_whitespace();
+                    if (!consume(',') && !consume(';')) break;
+                }
+            }
+            return execute_ ? write_to_file(number, line + "\r\n", statement_offset) : true;
+        }
+        if (consume_keyword("line")) {
+            skip_horizontal_whitespace();
+            if (!consume_keyword("input")) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            Integer number{};
+            if (!parse_hash_file_number(number)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume(',')) {
+                set_error("WFC0014", "expected comma after file number", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            const auto variable_offset = offset_;
+            char type_character{};
+            auto name = parse_identifier(&type_character);
+            if (!name.has_value()) {
+                set_error("WFC0011", "expected variable name", variable_offset);
+                return false;
+            }
+            const auto variable = find_variable(*name);
+            if (variable.value == nullptr) {
+                set_error("WFC0015", "undeclared variable", variable_offset);
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            auto* const file = find_open_file(number, statement_offset);
+            if (file == nullptr) {
+                return false;
+            }
+            if (file->mode != 1) {
+                return raise_runtime(54, "Bad file mode", statement_offset);
+            }
+            std::string line;
+            if (!read_file_line(file->handle, line)) {
+                return raise_runtime(62, "Input past end of file", statement_offset);
+            }
+            if (!std::holds_alternative<std::string>(*variable.value) &&
+                !variable.scope->variant_variables.contains(*name)) {
+                set_error("WFC0016", "Line Input requires a String or Variant variable", variable_offset);
+                return false;
+            }
+            *variable.value = std::move(line);
+            return true;
+        }
+        if (consume_keyword("input")) {
+            skip_horizontal_whitespace();
+            if (at_end() || current() != '#') {
+                offset_ = start;
+                return std::nullopt;
+            }
+            Integer number{};
+            if (!parse_hash_file_number(number)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume(',')) {
+                set_error("WFC0014", "expected comma after file number", offset_);
+                return false;
+            }
+            while (true) {
+                skip_horizontal_whitespace();
+                const auto variable_offset = offset_;
+                char type_character{};
+                auto name = parse_identifier(&type_character);
+                if (!name.has_value()) {
+                    set_error("WFC0011", "expected variable name", variable_offset);
+                    return false;
+                }
+                const auto variable = find_variable(*name);
+                if (variable.value == nullptr) {
+                    set_error("WFC0015", "undeclared variable", variable_offset);
+                    return false;
+                }
+                if (execute_) {
+                    auto* const file = find_open_file(number, statement_offset);
+                    if (file == nullptr) {
+                        return false;
+                    }
+                    if (file->mode != 1) {
+                        return raise_runtime(54, "Bad file mode", statement_offset);
+                    }
+                    std::string token;
+                    bool quoted{};
+                    if (!read_input_field(file->handle, token, quoted)) {
+                        return raise_runtime(62, "Input past end of file", statement_offset);
+                    }
+                    if (!store_input_token(
+                            *variable.value, variable.scope->variant_variables.contains(*name),
+                            token, quoted, variable_offset)) {
+                        return false;
+                    }
+                }
+                skip_horizontal_whitespace();
+                if (!consume(',')) {
+                    return true;
+                }
+            }
+        }
+        if (consume_keyword("kill") || consume_keyword("mkdir") || consume_keyword("rmdir")) {
+            const std::string_view word = source_.substr(start, offset_ - start);
+            char first = ascii_lower(word.front());
+            skip_horizontal_whitespace();
+            auto path = parse_expression();
+            if (!path.has_value()) {
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto* text = std::get_if<std::string>(&*path);
+            if (text == nullptr) {
+                set_error("WFC0073", "path must be a String", statement_offset);
+                return false;
+            }
+            std::error_code ec;
+            const std::filesystem::path target(*text);
+            if (first == 'k') {
+                if (!std::filesystem::is_regular_file(target, ec)) {
+                    return raise_runtime(53, "File not found", statement_offset);
+                }
+                std::filesystem::remove(target, ec);
+            } else if (first == 'm') {
+                if (!std::filesystem::create_directory(target, ec) || ec) {
+                    return raise_runtime(75, "Path/File access error", statement_offset);
+                }
+            } else {
+                if (!std::filesystem::is_directory(target, ec)) {
+                    return raise_runtime(76, "Path not found", statement_offset);
+                }
+                std::filesystem::remove(target, ec);
+                if (ec) {
+                    return raise_runtime(75, "Path/File access error", statement_offset);
+                }
+            }
+            return true;
+        }
+        if (consume_keyword("filecopy")) {
+            skip_horizontal_whitespace();
+            auto from = parse_expression();
+            if (!from.has_value()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume(',')) {
+                set_error("WFC0014", "expected comma in FileCopy", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            auto to = parse_expression();
+            if (!to.has_value()) {
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto* source_text = std::get_if<std::string>(&*from);
+            const auto* target_text = std::get_if<std::string>(&*to);
+            if (source_text == nullptr || target_text == nullptr) {
+                set_error("WFC0073", "FileCopy requires String paths", statement_offset);
+                return false;
+            }
+            std::error_code ec;
+            std::filesystem::copy_file(
+                *source_text, *target_text, std::filesystem::copy_options::overwrite_existing, ec);
+            if (ec) {
+                return raise_runtime(53, "File not found", statement_offset);
+            }
+            return true;
+        }
+        offset_ = start;
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static bool is_file_function_name(const std::string_view name) {
+        return name == "eof" || name == "lof" || name == "freefile" || name == "dir" ||
+               name == "dir$" || name == "curdir" || name == "curdir$" || name == "filelen" ||
+               name == "input" || name == "input$" || name == "environ" || name == "environ$" ||
+               name == "loc";
+    }
+
+    [[nodiscard]] std::optional<Value> evaluate_file_function(
+        const std::string_view name, std::vector<Value>& arguments, const std::size_t offset) {
+        const auto count = arguments.size();
+        const auto arity = [&](const std::size_t low, const std::size_t high) {
+            if (count < low || count > high) {
+                set_error("WFC0072", "function received the wrong number of arguments", offset);
+                return false;
+            }
+            return true;
+        };
+        const auto long_at = [&](const std::size_t index) -> std::optional<Integer> {
+            if (const auto* i = std::get_if<Integer>(&arguments[index])) return *i;
+            if (const auto* i = std::get_if<Int16>(&arguments[index])) return static_cast<Integer>(*i);
+            return std::nullopt;
+        };
+        if (name == "freefile") {
+            if (!arity(0, 1)) return std::nullopt;
+            if (!execute_) return Value{Integer{}};
+            for (Integer n = 1; n <= 255; ++n) {
+                if (!files_.contains(n)) return Value{n};
+            }
+            return Value{Integer{}};
+        }
+        if (name == "eof" || name == "lof" || name == "loc") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto number = long_at(0);
+            if (!number) {
+                set_error("WFC0073", "file number must be a Long", offset);
+                return std::nullopt;
+            }
+            if (!execute_) return Value{name == "eof" ? Value{false} : Value{Integer{}}};
+            auto* const file = find_open_file(*number, offset);
+            if (file == nullptr) return std::nullopt;
+            if (name == "eof") {
+                return Value{file->mode == 1 ? file_at_eof(file->handle) : true};
+            }
+            std::fflush(file->handle);
+            const long position = std::ftell(file->handle);
+            if (name == "loc") return Value{static_cast<Integer>(position < 0 ? 0 : position)};
+            std::fseek(file->handle, 0, SEEK_END);
+            const long size = std::ftell(file->handle);
+            std::fseek(file->handle, position, SEEK_SET);
+            return Value{static_cast<Integer>(size < 0 ? 0 : size)};
+        }
+        if (name == "curdir" || name == "curdir$") {
+            if (!arity(0, 1)) return std::nullopt;
+            std::error_code ec;
+            return Value{execute_ ? std::filesystem::current_path(ec).string() : std::string{}};
+        }
+        if (name == "filelen") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto* path = std::get_if<std::string>(&arguments[0]);
+            if (path == nullptr) {
+                set_error("WFC0073", "FileLen requires a String path", offset);
+                return std::nullopt;
+            }
+            if (!execute_) return Value{Integer{}};
+            std::error_code ec;
+            const auto size = std::filesystem::file_size(*path, ec);
+            if (ec) {
+                static_cast<void>(raise_runtime(53, "File not found", offset));
+                return std::nullopt;
+            }
+            return Value{static_cast<Integer>(size)};
+        }
+        if (name == "environ" || name == "environ$") {
+            if (!arity(1, 1)) return std::nullopt;
+            if (!execute_) return Value{std::string{}};
+            if (const auto* variable = std::get_if<std::string>(&arguments[0])) {
+                const char* found = std::getenv(variable->c_str());
+                return Value{std::string(found != nullptr ? found : "")};
+            }
+            set_error("WFC0073", "Environ requires a String name", offset);
+            return std::nullopt;
+        }
+        if (name == "dir" || name == "dir$") {
+            if (!arity(0, 2)) return std::nullopt;
+            if (!execute_) return Value{std::string{}};
+            if (count >= 1U) {
+                const auto* pattern = std::get_if<std::string>(&arguments[0]);
+                if (pattern == nullptr) {
+                    set_error("WFC0073", "Dir requires a String pattern", offset);
+                    return std::nullopt;
+                }
+                dir_matches_.clear();
+                dir_index_ = 0;
+                std::error_code ec;
+                std::filesystem::path full(*pattern);
+                const auto directory = full.has_parent_path() ? full.parent_path() : std::filesystem::path(".");
+                const std::string mask = full.filename().string();
+                if (mask.find_first_of("*?") == std::string::npos) {
+                    if (std::filesystem::exists(full, ec)) {
+                        dir_matches_.push_back(full.filename().string());
+                    }
+                } else {
+                    for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
+                        const std::string entry_name = entry.path().filename().string();
+                        if (like_match(entry_name, mask, true)) {
+                            dir_matches_.push_back(entry_name);
+                        }
+                    }
+                    std::sort(dir_matches_.begin(), dir_matches_.end());
+                }
+            }
+            if (dir_index_ < dir_matches_.size()) {
+                return Value{dir_matches_[dir_index_++]};
+            }
+            return Value{std::string{}};
+        }
+        if (name == "input" || name == "input$") {
+            if (!arity(2, 2)) return std::nullopt;
+            const auto length = long_at(0);
+            const auto number = long_at(1);
+            if (!length || !number) {
+                set_error("WFC0073", "Input requires Long arguments", offset);
+                return std::nullopt;
+            }
+            if (!execute_) return Value{std::string{}};
+            auto* const file = find_open_file(*number, offset);
+            if (file == nullptr) return std::nullopt;
+            if (file->mode != 1) {
+                static_cast<void>(raise_runtime(54, "Bad file mode", offset));
+                return std::nullopt;
+            }
+            std::string text;
+            for (Integer i = 0; i < *length; ++i) {
+                const int c = std::fgetc(file->handle);
+                if (c == EOF) {
+                    static_cast<void>(raise_runtime(62, "Input past end of file", offset));
+                    return std::nullopt;
+                }
+                text.push_back(static_cast<char>(c));
+            }
+            return Value{std::move(text)};
+        }
+        set_error("WFC0071", "unsupported function", offset);
+        return std::nullopt;
+    }
+
+    // Consumes `#n,` (file number) when present; `file_number` < 0 means
+    // "standard output". A `#` followed by digits and a comma is a file
+    // number, anything else (`Print #1/1/2000#`) is an expression.
+    [[nodiscard]] bool parse_file_number_prefix(Integer& file_number, bool& found) {
+        found = false;
+        file_number = -1;
+        skip_horizontal_whitespace();
+        if (at_end() || current() != '#') {
+            return true;
+        }
+        std::size_t look = offset_ + 1;
+        while (look < source_.size() && is_identifier_part(source_[look])) {
+            ++look;
+        }
+        std::size_t after = look;
+        while (after < source_.size() && (source_[after] == ' ' || source_[after] == '\t')) ++after;
+        if (look == offset_ + 1 || after >= source_.size() ||
+            (source_[after] != ',' && source_[after] != '\r' && source_[after] != '\n' &&
+             source_[after] != ':')) {
+            return true;
+        }
+        advance();
+        const auto number_offset = offset_;
+        auto number = parse_expression();
+        if (!number.has_value()) {
+            return false;
+        }
+        if (!coerce_numeric_value(*number, Value{Integer{}}.index(), number_offset) ||
+            !std::holds_alternative<Integer>(*number)) {
+            set_error("WFC0073", "file number must be a Long", number_offset);
+            return false;
+        }
+        file_number = std::get<Integer>(*number);
+        found = true;
+        skip_horizontal_whitespace();
+        static_cast<void>(consume(','));
+        return true;
+    }
+
+    [[nodiscard]] bool at_statement_end() const noexcept {
+        return at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+               current() == '\'';
+    }
+
+    // `Print [#n,] item [; | , item ...] [;]` -- `;` joins, `,` advances to
+    // the next 14-column zone, a trailing separator suppresses the newline,
+    // `Spc(n)` and `Tab(n)` pad (REQ-0245).
+    [[nodiscard]] bool parse_print_statement() {
+        if (!allow_identifiers_) {
+            // The expression-only `Print <expression>` entry point keeps its
+            // original single-expression grammar.
+            skip_horizontal_whitespace();
+            auto value = parse_expression();
+            if (!value.has_value()) {
+                return false;
+            }
+            if (execute_) {
+                if (has_output_line_) {
+                    output_.push_back('\n');
+                }
+                output_ += render(*value);
+                has_output_line_ = true;
+            }
+            return true;
+        }
+        Integer file_number{};
+        bool to_file{};
+        if (!parse_file_number_prefix(file_number, to_file)) {
+            return false;
+        }
+        std::string text;
+        bool newline = true;
+        while (true) {
+            skip_horizontal_whitespace();
+            if (at_statement_end()) {
+                break;
+            }
+            {
+                const auto before_else = offset_;
+                if (consume_keyword("else")) {
+                    offset_ = before_else;
+                    break;
+                }
+            }
+            if (current() == ';') {
+                advance();
+                newline = false;
+                continue;
+            }
+            if (current() == ',') {
+                advance();
+                text.append(14U - text.size() % 14U, ' ');
+                newline = false;
+                continue;
+            }
+            const auto save = offset_;
+            const bool is_spc = consume_keyword("spc");
+            const bool is_tab = !is_spc && consume_keyword("tab");
+            if (is_spc || is_tab) {
+                skip_horizontal_whitespace();
+                if (consume('(')) {
+                    skip_horizontal_whitespace();
+                    auto amount = parse_expression();
+                    if (!amount.has_value()) {
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    if (!consume(')')) {
+                        set_error("WFC0005", "expected closing parenthesis", offset_);
+                        return false;
+                    }
+                    const auto* count = std::get_if<Integer>(&*amount);
+                    if (count == nullptr) {
+                        set_error("WFC0073", "Spc/Tab requires a Long argument", offset_);
+                        return false;
+                    }
+                    if (execute_ && *count > 0) {
+                        if (is_spc) {
+                            text.append(static_cast<std::size_t>(*count), ' ');
+                        } else if (static_cast<std::size_t>(*count - 1) > text.size()) {
+                            text.append(static_cast<std::size_t>(*count - 1) - text.size(), ' ');
+                        }
+                    }
+                    newline = true;
+                    continue;
+                }
+                offset_ = save;
+            }
+            auto value = parse_expression();
+            if (!value.has_value()) {
+                return false;
+            }
+            if (execute_) {
+                if (std::holds_alternative<Null>(*value)) {
+                    text += "Null";
+                } else {
+                    text += render(*value);
+                }
+            }
+            newline = true;
+        }
+        if (!execute_) {
+            return true;
+        }
+        if (to_file) {
+            return write_to_file(file_number, newline ? text + "\r\n" : text, offset_);
+        }
+        if (has_output_line_ && !output_line_open_) {
+            output_.push_back('\n');
+        }
+        output_ += text;
+        has_output_line_ = true;
+        output_line_open_ = !newline;
         return true;
     }
 
@@ -7880,6 +8705,25 @@ private:
         if (current() == '#') {
             // REQ-0242: a Date literal `#m/d/yyyy h:mm:ss AM#`.
             const auto literal_offset = offset_;
+            {
+                // `#3` in an argument list (`Input(5, #1)`) is a file number.
+                std::size_t look = offset_ + 1;
+                while (look < source_.size() &&
+                       std::isdigit(static_cast<unsigned char>(source_[look])) != 0) {
+                    ++look;
+                }
+                std::size_t after = look;
+                while (after < source_.size() && (source_[after] == ' ' || source_[after] == '\t')) ++after;
+                if (look > offset_ + 1 &&
+                    (after >= source_.size() || source_[after] == ')' || source_[after] == ',')) {
+                    Integer file_number = 0;
+                    for (std::size_t k = offset_ + 1; k < look; ++k) {
+                        file_number = file_number * 10 + (source_[k] - '0');
+                    }
+                    offset_ = look;
+                    return Value{file_number};
+                }
+            }
             advance();
             const auto text_start = offset_;
             while (!at_end() && current() != '#' && current() != '\r' && current() != '\n') {
@@ -9493,6 +10337,7 @@ private:
         const bool is_join = identifier == "join";
         const bool is_filter = identifier == "filter";
         const bool is_date_fn = is_date_function_name(identifier);
+        const bool is_file_fn = is_file_function_name(identifier);
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -9505,7 +10350,7 @@ private:
             !is_error_message && !is_float_math && !is_format && !is_rnd &&
             !is_isnull && !is_isempty && !is_cdec && !is_ismissing &&
             !is_isarray && !is_isobject && !is_lbound && !is_ubound &&
-            !is_array_fn && !is_split && !is_join && !is_filter && !is_date_fn) {
+            !is_array_fn && !is_split && !is_join && !is_filter && !is_date_fn && !is_file_fn) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -9624,6 +10469,9 @@ private:
 
         if (is_date_fn) {
             return evaluate_date_function(identifier, arguments, identifier_offset);
+        }
+        if (is_file_fn) {
+            return evaluate_file_function(identifier, arguments, identifier_offset);
         }
         // REQ-0242: numeric conversions/functions see a Date as its serial.
         if (!arguments.empty() && std::holds_alternative<DateValue>(arguments[0]) &&
@@ -13383,6 +14231,10 @@ private:
     const ProcedureDef* current_procedure_def_{};
     std::string output_;
     bool has_output_line_{};
+    bool output_line_open_{};
+    std::map<Integer, OpenFile> files_;
+    std::vector<std::string> dir_matches_;
+    std::size_t dir_index_{};
     bool execute_{true};
     bool allow_declarations_{true};
     bool constant_expression_{};

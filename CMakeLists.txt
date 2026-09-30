@@ -1287,6 +1287,20 @@ Print c.Count & " " & c.Item("b")]=]
     )
 
     add_test(
+        NAME TC-MP0002-file-io-cli
+        COMMAND wfc
+            --eval [=[Print "a"; "b", "c"
+Print "x";
+Print "y"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-file-io-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^ab            c.*xy"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

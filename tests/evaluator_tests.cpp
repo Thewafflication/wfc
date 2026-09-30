@@ -1,7 +1,9 @@
 #include "wfc/evaluator.hpp"
 
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -1282,6 +1284,19 @@ int main() {
         "Print \"ab\" + \"cd\"\nPrint \"a\" & True & 1\nPrint \"abc\" Like \"a*\"\n"
         "Print \"a5\" Like \"[a-c]#\"\nPrint \"x\" Like \"[!a-c]\"",
         "64\n-4\n1\n3\n2\n7\n4\n-6\n255\n-1\n65536\nabcd\naTrue1\nTrue\nTrue\nTrue");
+    // File I/O and Print lists (REQ-0245).
+    {
+        const std::string path =
+            (std::filesystem::temp_directory_path() / "wfc_fileio_test.txt").string();
+        expect_program_success(
+            "Dim f As Long\nf = FreeFile\nOpen \"" + path + "\" For Output As #f\n"
+            "Print #f, \"hello\"; \" world\"\nWrite #f, \"q\", 5, True\nClose #f\n"
+            "Open \"" + path + "\" For Input As #1\nDim l As String\nLine Input #1, l\nPrint l\n"
+            "Dim s As String\nDim n As Long\nDim b As Boolean\nInput #1, s, n, b\n"
+            "Print s & n & CStr(b)\nPrint EOF(1)\nClose #1\nKill \"" + path + "\"\n"
+            "Print \"a\"; \"b\", \"c\"\nPrint \"x\";\nPrint \"y\"",
+            "hello world\nq5True\nTrue\nab            c\nxy");
+    }
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
