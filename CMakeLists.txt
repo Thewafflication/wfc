@@ -1590,6 +1590,19 @@ Print CallByName(o, "x", 2)]=]
     )
 
     add_test(
+        NAME TC-MP0002-implicit-declaration-cli
+        COMMAND wfc
+            --eval [=[x = 5
+Print x + 1]=]
+    )
+    set_tests_properties(
+        TC-MP0002-implicit-declaration-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^6"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

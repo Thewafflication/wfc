@@ -2025,6 +2025,35 @@ public:
 
     // REQ-0237: collects `[Public|Private] Enum Name` type names up front so
     // `As Name` resolves even in procedures scanned before the Enum runs.
+    [[nodiscard]] static bool in_with_identifier(const std::string& name) {
+        return name.starts_with("with.");
+    }
+
+    // REQ-0265: `Option Explicit` anywhere in the program (main source or a
+    // class module) makes undeclared names an error everywhere.
+    void scan_option_explicit() {
+        const auto mentions = [](const std::string_view text) {
+            std::size_t position = 0;
+            while (position < text.size()) {
+                auto end = text.find('\n', position);
+                if (end == std::string_view::npos) end = text.size();
+                std::string line;
+                for (const char c : text.substr(position, end - position)) {
+                    if (c != ' ' && c != '\t' && c != '\r') line.push_back(ascii_lower(c));
+                }
+                position = end + 1;
+                if (line == "optionexplicit" || line.rfind("optionexplicit'", 0) == 0) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        strict_declarations_ = mentions(source_);
+        for (const auto& module : class_sources_) {
+            strict_declarations_ = strict_declarations_ || mentions(module.source);
+        }
+    }
+
     void scan_module_names() {
         const std::string_view text = source_;
         std::size_t position = 0;
@@ -2102,6 +2131,7 @@ public:
     }
 
     [[nodiscard]] wfc::Evaluation evaluate() {
+        scan_option_explicit();
         scan_module_names();
         scan_enum_names();
         scan_udt_types();
@@ -8263,6 +8293,22 @@ private:
                     }
                 }
             }
+            if (!strict_declarations_ && !in_with_identifier(identifier) &&
+                !procedures_.contains(identifier)) {
+                // REQ-0265: without Option Explicit an assignment declares
+                // the variable implicitly (a Variant, or the suffix's type).
+                Value initial = Value{Empty{}};
+                bool variant = true;
+                if (type_character != '\0') {
+                    initial = zero_value_for_index(type_character_index(type_character));
+                    variant = false;
+                }
+                current_scope().variables.emplace(identifier, std::move(initial));
+                if (variant) {
+                    current_scope().variant_variables.insert(identifier);
+                }
+                return parse_assignment(std::move(identifier), type_character);
+            }
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return false;
         }
@@ -10204,6 +10250,10 @@ private:
                         return result;
                     }
                     error_ = wfc::Evaluation{};
+                }
+                if (!strict_declarations_ && type_character == '\0' && !constant_expression_ &&
+                    !in_with_identifier(*identifier)) {
+                    return Value{Empty{}};  // REQ-0265: an undeclared name reads as Empty
                 }
                 set_error("WFC0015", "undeclared variable", identifier_offset);
                 return std::nullopt;
@@ -16112,6 +16162,7 @@ private:
     bool output_line_open_{};
     bool discard_print_{};
     bool pending_next_comma_{};
+    bool strict_declarations_{};
     std::map<std::string, std::string> settings_;
     std::unordered_set<std::string> module_names_;
     bool end_requested_{};

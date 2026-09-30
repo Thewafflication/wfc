@@ -1433,6 +1433,11 @@ int main() {
         "Print Format(\"abc\", \">\") & \"|\" & Format(\"ABC\", \"<\") & \"|\" & Format(\"abc\", \"@@@@@\") & \"|\" & "
         "Format(\"abc\", \"!@@@@@\") & \"|\" & Format(\"5551234\", \"(&&&) &&&-&&&&\")",
         "ABC|abc|  abc|abc  |() 555-1234");
+    // Implicit declaration (REQ-0265).
+    expect_program_success(
+        "x = 5\ny$ = \"s\"\nPrint x + 1 & y$\nPrint IsEmpty(neverSet)\nSub S()\nz = 3\nPrint z\nEnd Sub\nCall S",
+        "6s\nTrue\n3");
+    expect_program_failure("Option Explicit\nx = 5", "WFC0015");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
@@ -2270,8 +2275,8 @@ int main() {
     expect_program_failure("Dim value As Mystery", "WFC0012");
     expect_program_failure("Dim value As Long: Dim VALUE As Long", "WFC0013");
     expect_program_failure("Dim value As Long: value 1", "WFC0014");
-    expect_program_failure("missing = 1", "WFC0015");
-    expect_program_failure("Print missing", "WFC0015");
+    expect_program_failure("Option Explicit\nmissing = 1", "WFC0015");
+    expect_program_failure("Option Explicit\nPrint missing", "WFC0015");
     expect_program_failure("Dim value As Long: value = \"wrong\"", "WFC0016");
     expect_program_failure("Dim value As Double: value = \"wrong\"", "WFC0016");
     expect_program_failure("Const value As Double = \"wrong\"", "WFC0016");
@@ -2787,7 +2792,7 @@ int main() {
         "Sub SayHi()\nPrint \"hi\"\nEnd Sub\nCall SayHi",
         "hi");
     expect_program_failure("Sub SayHi()\nEnd Sub\nPrint SayHi", "WFC0122");
-    expect_program_failure("Print someUndeclaredName", "WFC0015");
+    expect_program_failure("Option Explicit\nPrint someUndeclaredName", "WFC0015");
     expect_program_failure("Print Len", "WFC0072");
     expect_program_failure("Print Len \"hello\"", "WFC0072");
     expect_program_success(
