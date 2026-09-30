@@ -1451,6 +1451,20 @@ Print d + CDec(0.2)]=]
     )
 
     add_test(
+        NAME TC-MP0002-name-chdir-cli
+        COMMAND wfc
+            --eval [=[Dim name As String
+name = "v"
+Print name]=]
+    )
+    set_tests_properties(
+        TC-MP0002-name-chdir-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^v"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

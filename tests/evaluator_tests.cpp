@@ -1360,6 +1360,17 @@ int main() {
         "Dim d As Decimal\nd = 0.1\nDim e As Decimal\ne = CDec(0.2)\nPrint d + e\nPrint d * 3\n"
         "Dim a(1) As Decimal\na(0) = 5\nPrint TypeName(a(0)) & a(0) + 1",
         "0.3\n0.3\nDecimal6");
+    // Name and ChDir (REQ-0255).
+    {
+        const auto base = std::filesystem::temp_directory_path();
+        const std::string from = (base / "wfc_name_a.txt").string();
+        const std::string to = (base / "wfc_name_b.txt").string();
+        expect_program_success(
+            "Open \"" + from + "\" For Output As #1\nPrint #1, \"x\"\nClose #1\n"
+            "Name \"" + from + "\" As \"" + to + "\"\nDim name As String\nname = \"v\"\n"
+            "Print Dir(\"" + to + "\") <> \"\"\nPrint name\nKill \"" + to + "\"",
+            "True\nv");
+    }
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

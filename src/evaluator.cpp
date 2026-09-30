@@ -5040,6 +5040,60 @@ private:
             }
             return true;
         }
+        if (consume_keyword("name") || consume_keyword("chdir")) {
+            const bool is_name = ascii_lower(source_[start + 0]) == 'n';
+            skip_horizontal_whitespace();
+            if (is_name && (at_statement_end() || current() == '=' || current() == '(' ||
+                            current() == '.' || current() == ',')) {
+                offset_ = start;  // an ordinary variable called Name
+                return std::nullopt;
+            }
+            auto first = parse_expression();
+            if (!first.has_value()) {
+                return false;
+            }
+            std::optional<Value> second;
+            if (is_name) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("as")) {
+                    set_error("WFC0147", "expected As in Name statement", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                second = parse_expression();
+                if (!second.has_value()) {
+                    return false;
+                }
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto* from_text = std::get_if<std::string>(&*first);
+            const auto* to_text = second ? std::get_if<std::string>(&*second) : nullptr;
+            if (from_text == nullptr || (is_name && to_text == nullptr)) {
+                set_error("WFC0073", "path must be a String", statement_offset);
+                return false;
+            }
+            std::error_code ec;
+            if (is_name) {
+                if (!std::filesystem::exists(*from_text, ec)) {
+                    return raise_runtime(53, "File not found", statement_offset);
+                }
+                if (std::filesystem::exists(*to_text, ec)) {
+                    return raise_runtime(58, "File already exists", statement_offset);
+                }
+                std::filesystem::rename(*from_text, *to_text, ec);
+                if (ec) {
+                    return raise_runtime(75, "Path/File access error", statement_offset);
+                }
+            } else {
+                std::filesystem::current_path(*from_text, ec);
+                if (ec) {
+                    return raise_runtime(76, "Path not found", statement_offset);
+                }
+            }
+            return true;
+        }
         if (consume_keyword("filecopy")) {
             skip_horizontal_whitespace();
             auto from = parse_expression();
