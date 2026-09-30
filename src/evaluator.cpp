@@ -1733,6 +1733,10 @@ struct Scope {
     bool in_error_handler{};
     std::size_t error_resume_next{};
     std::size_t error_retry{};
+    // REQ-0248: return offsets of active `GoSub` calls in this frame.
+    std::vector<std::size_t> gosub_stack;
+    // REQ-0248: `Dim s As String * n` -- name -> fixed length.
+    std::unordered_map<std::string, std::size_t> fixed_string_lengths;
 };
 
 // The result of looking a variable name up across the (at most two) scopes
@@ -2058,6 +2062,10 @@ public:
                     skip_program_leading_trivia();
                     continue;
                 }
+                if (end_requested_) {
+                    error_ = wfc::Evaluation{};
+                    break;
+                }
                 return std::move(error_);
             }
             if (!consume_statement_end()) {
@@ -2300,15 +2308,22 @@ private:
                     skip_horizontal_whitespace();
                 }
                 const auto type_result = matched_as ? parse_type_keyword() : std::nullopt;
-                if (!matched_as || !type_result.has_value() || type_result->is_variant) {
+                if (matched_as && !type_result.has_value()) {
                     set_error(
                         "WFC0141",
-                        "ParamArray requires an explicit element type: As Integer, As Long, "
-                        "As Double, As Single, As Currency, As String, or As Boolean",
+                        "ParamArray requires an element type: As Integer, As Long, "
+                        "As Double, As Single, As Currency, As String, As Boolean, or As Variant",
                         element_type_offset);
                     return false;
                 }
-                parameter.type_index = type_result->default_value.index();
+                if (!matched_as || type_result->is_variant) {
+                    // REQ-0248: an untyped / `As Variant` ParamArray is a
+                    // Variant array.
+                    parameter.is_variant = true;
+                    parameter.type_index = Value{Empty{}}.index();
+                } else {
+                    parameter.type_index = type_result->default_value.index();
+                }
                 parameter.is_param_array = true;
             } else if (type_character == '\0' && !at_end() && current() == '(') {
                 // A plain (non-ParamArray) array parameter, `name() As
@@ -3116,6 +3131,9 @@ private:
 
     [[nodiscard]] bool consume_statement_end() {
         skip_horizontal_whitespace();
+        if (pending_next_comma_ && !at_end() && current() == ',') {
+            return true;  // `Next j, i`: the enclosing For consumes `, i`.
+        }
         if (!at_end() && current() == '\'') {
             skip_comment();
         }
@@ -3723,11 +3741,119 @@ private:
     [[nodiscard]] std::optional<bool> parse_error_handling_statement(
         const std::size_t statement_offset, const bool allow_label = true) {
         const auto start = offset_;
+        if (consume_keyword("end") || consume_keyword("stop")) {
+            skip_horizontal_whitespace();
+            if (!at_statement_end()) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            if (execute_) {
+                end_requested_ = true;
+                set_error("WFC0998", "program ended", statement_offset);
+                return false;
+            }
+            return true;
+        }
+        if (consume_keyword("return")) {
+            skip_horizontal_whitespace();
+            if (!at_statement_end()) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return true;
+            }
+            Scope& frame = scopes_.back();
+            if (frame.gosub_stack.empty()) {
+                return raise_runtime(3, "Return without GoSub", statement_offset);
+            }
+            jump_pending_ = true;
+            jump_target_ = frame.gosub_stack.back();
+            frame.gosub_stack.pop_back();
+            set_error("WFC0999", "internal jump", statement_offset);
+            return false;
+        }
+        if (consume_keyword("gosub")) {
+            skip_horizontal_whitespace();
+            const auto label_offset = offset_;
+            auto label = parse_identifier();
+            if (!label.has_value()) {
+                set_error("WFC0011", "expected label after GoSub", label_offset);
+                return false;
+            }
+            if (!execute_) {
+                return true;
+            }
+            const auto target = find_label(*label);
+            if (target == std::string::npos) {
+                set_error("WFC0301", "label not defined", label_offset);
+                return false;
+            }
+            skip_to_statement_end();
+            scopes_.back().gosub_stack.push_back(offset_);
+            jump_pending_ = true;
+            jump_target_ = target;
+            set_error("WFC0999", "internal jump", statement_offset);
+            return false;
+        }
         if (consume_keyword("on")) {
             skip_horizontal_whitespace();
             if (!consume_keyword("error")) {
-                offset_ = start;
-                return std::nullopt;
+                // `On expr GoTo|GoSub label1, label2, ...`
+                auto selector = parse_expression();
+                if (!selector.has_value()) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                const bool is_gosub = consume_keyword("gosub");
+                if (!is_gosub && !consume_keyword("goto")) {
+                    set_error("WFC0010", "expected GoTo or GoSub", offset_);
+                    return false;
+                }
+                if (!coerce_numeric_value(*selector, Value{Integer{}}.index(), statement_offset) ||
+                    !std::holds_alternative<Integer>(*selector)) {
+                    set_error("WFC0073", "On ... GoTo selector must be numeric", statement_offset);
+                    return false;
+                }
+                const Integer choice = std::get<Integer>(*selector);
+                std::vector<std::pair<std::string, std::size_t>> labels;
+                while (true) {
+                    skip_horizontal_whitespace();
+                    const auto label_offset = offset_;
+                    auto label = parse_identifier();
+                    if (!label.has_value()) {
+                        set_error("WFC0011", "expected label", label_offset);
+                        return false;
+                    }
+                    labels.emplace_back(std::move(*label), label_offset);
+                    skip_horizontal_whitespace();
+                    if (!consume(',')) {
+                        break;
+                    }
+                }
+                if (!execute_) {
+                    return true;
+                }
+                if (choice < 0 || choice > 255) {
+                    return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+                }
+                if (choice == 0 || static_cast<std::size_t>(choice) > labels.size()) {
+                    return true;
+                }
+                const auto& chosen = labels[static_cast<std::size_t>(choice) - 1U];
+                const auto target = find_label(chosen.first);
+                if (target == std::string::npos) {
+                    set_error("WFC0301", "label not defined", chosen.second);
+                    return false;
+                }
+                if (is_gosub) {
+                    skip_to_statement_end();
+                    scopes_.back().gosub_stack.push_back(offset_);
+                }
+                jump_pending_ = true;
+                jump_target_ = target;
+                set_error("WFC0999", "internal jump", statement_offset);
+                return false;
             }
             skip_horizontal_whitespace();
             Scope& frame = scopes_.back();
@@ -4012,6 +4138,39 @@ private:
         }
         if (consume_keyword("sub") || consume_keyword("function")) {
             return parse_procedure_declaration_skip(statement_offset);
+        }
+        {
+            // REQ-0248: module-level `Public|Private|Global [Const] name ...`
+            // declares a module variable/constant (visibility is not
+            // enforced: this evaluator has a single standard module).
+            const auto pre_visibility_offset = offset_;
+            if (consume_keyword("public") || consume_keyword("private") ||
+                consume_keyword("global")) {
+                skip_horizontal_whitespace();
+                if (consume_keyword("const")) {
+                    return parse_constant_declaration();
+                }
+                if (!at_end() && is_identifier_start(current())) {
+                    const auto probe = offset_;
+                    char probe_type_character{};
+                    const auto word = parse_identifier(&probe_type_character);
+                    offset_ = probe;
+                    if (word.has_value() && *word != "sub" && *word != "function" &&
+                        *word != "property" && *word != "declare" && *word != "static" &&
+                        *word != "enum" && *word != "type" && *word != "event" &&
+                        *word != "sub" && procedures_.find(*word) == procedures_.end()) {
+                        if (!allow_declarations_) {
+                            set_error(
+                                "WFC0027",
+                                "declarations are not supported in conditional blocks",
+                                statement_offset);
+                            return false;
+                        }
+                        return parse_declaration();
+                    }
+                }
+                offset_ = pre_visibility_offset;
+            }
         }
         {
             // `Public`/`Private Sub|Function Name(...)` -- the modifier is
@@ -5944,7 +6103,29 @@ private:
     [[nodiscard]] bool parse_for_body(
         const std::string_view identifier,
         std::size_t& continuation_offset) {
+        pending_next_comma_ = false;
         while (true) {
+            if (pending_next_comma_) {
+                // REQ-0248: the nested loop's `Next j, i` left `, i` for us.
+                skip_horizontal_whitespace();
+                if (consume(',')) {
+                    pending_next_comma_ = false;
+                    skip_horizontal_whitespace();
+                    const auto name_offset = offset_;
+                    char name_type_character{};
+                    auto name = parse_identifier(&name_type_character);
+                    if (!name.has_value() || *name != identifier) {
+                        set_error("WFC0049", "Next variable does not match For", name_offset);
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    if (!at_end() && current() == ',') {
+                        pending_next_comma_ = true;
+                    }
+                    continuation_offset = offset_;
+                    return true;
+                }
+            }
             skip_program_leading_trivia();
             if (at_end()) {
                 set_error("WFC0046", "expected Next", offset_);
@@ -5966,6 +6147,10 @@ private:
                             *variable.value, next_type_character, next_identifier_offset)) {
                         return false;
                     }
+                }
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == ',') {
+                    pending_next_comma_ = true;
                 }
                 continuation_offset = offset_;
                 return true;
@@ -6394,6 +6579,19 @@ private:
     // the same persistent-storage treatment `ArrayValue`/`ObjectInstance`
     // do not yet have outside a Scope's ordinary variables map).
     [[nodiscard]] bool parse_static_declaration(const std::size_t statement_offset) {
+        while (true) {
+            if (!parse_single_static_declaration(statement_offset)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (at_end() || current() != ',') {
+                return true;
+            }
+            advance();
+        }
+    }
+
+    [[nodiscard]] bool parse_single_static_declaration(const std::size_t statement_offset) {
         if (current_procedure_def_ == nullptr) {
             set_error(
                 "WFC0144", "Static is only valid inside a Sub, Function, or Property",
@@ -6650,8 +6848,23 @@ private:
         return dimensions;
     }
 
+    // REQ-0248: `Dim a As Long, b As String` -- one declarator at a time.
     [[nodiscard]] bool parse_declaration() {
+        while (true) {
+            if (!parse_single_declaration()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (at_end() || current() != ',') {
+                return true;
+            }
+            advance();
+        }
+    }
+
+    [[nodiscard]] bool parse_single_declaration() {
         udt_array_ = false;
+        fixed_string_length_ = 0;
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
         char type_character{};
@@ -6765,7 +6978,7 @@ private:
             // Arrays require an explicit element type in this evaluator
             // (Variant-element arrays are outside the current array scope).
             if (!is_array && (at_end() || current() == '\r' || current() == '\n' ||
-                current() == ':' || current() == '\'')) {
+                current() == ':' || current() == '\'' || current() == ',')) {
                 element_default = Empty{};
                 is_variant = true;
             } else {
@@ -6795,6 +7008,23 @@ private:
                 element_default = Currency{};
             } else if (consume_keyword("string")) {
                 element_default = std::string{};
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '*') {
+                    advance();
+                    skip_horizontal_whitespace();
+                    const auto length_offset = offset_;
+                    auto length = parse_expression();
+                    if (!length.has_value()) {
+                        return false;
+                    }
+                    const auto* size = std::get_if<Integer>(&*length);
+                    if (size == nullptr || *size < 1 || *size > 65526) {
+                        set_error("WFC0012", "fixed String length must be 1 to 65526", length_offset);
+                        return false;
+                    }
+                    fixed_string_length_ = static_cast<std::size_t>(*size);
+                    element_default = std::string(fixed_string_length_, ' ');
+                }
             } else if (consume_keyword("boolean")) {
                 element_default = false;
             } else if (consume_keyword("object")) {
@@ -6926,6 +7156,9 @@ private:
         if (!inserted) {
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
+        }
+        if (fixed_string_length_ != 0U && !is_array) {
+            current_scope().fixed_string_lengths[*identifier] = fixed_string_length_;
         }
         // A Variant/Object-*element* array (REQ-0212) does not itself go in
         // variant_variables/object_variables: those sets govern a whole
@@ -7213,6 +7446,19 @@ private:
     }
 
     [[nodiscard]] bool parse_constant_declaration() {
+        while (true) {
+            if (!parse_single_constant_declaration()) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (at_end() || current() != ',') {
+                return true;
+            }
+            advance();
+        }
+    }
+
+    [[nodiscard]] bool parse_single_constant_declaration() {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
         char type_character{};
@@ -7392,6 +7638,12 @@ private:
             return false;
         }
         if (execute_) {
+            if (const auto fixed = variable.scope->fixed_string_lengths.find(identifier);
+                fixed != variable.scope->fixed_string_lengths.end()) {
+                if (auto* text = std::get_if<std::string>(&*value)) {
+                    text->resize(fixed->second, ' ');
+                }
+            }
             *variable.value = std::move(*value);
         }
         return true;
@@ -9514,21 +9766,23 @@ private:
             for (std::size_t index = fixed_and_optional_count; index < arguments.size();
                  ++index) {
                 Value element_value = std::move(arguments[index].value);
-                if (!coerce_numeric_value(
-                        element_value, param_array_parameter.type_index, identifier_offset)) {
-                    return std::nullopt;
-                }
-                if (element_value.index() != param_array_parameter.type_index) {
-                    set_error("WFC0016", "argument type mismatch", identifier_offset);
-                    return std::nullopt;
+                if (!param_array_parameter.is_variant) {
+                    if (!coerce_numeric_value(
+                            element_value, param_array_parameter.type_index, identifier_offset)) {
+                        return std::nullopt;
+                    }
+                    if (element_value.index() != param_array_parameter.type_index) {
+                        set_error("WFC0016", "argument type mismatch", identifier_offset);
+                        return std::nullopt;
+                    }
                 }
                 elements.push_back(std::move(element_value));
             }
-            frame.variables.emplace(
-                param_array_parameter.name,
-                Value{ArrayValue{
-                    std::move(elements), 0, /*is_dynamic=*/false, /*is_allocated=*/true,
-                    param_array_parameter.type_index}});
+            ArrayValue param_array{
+                std::move(elements), 0, /*is_dynamic=*/false, /*is_allocated=*/true,
+                param_array_parameter.type_index};
+            param_array.is_variant_element = param_array_parameter.is_variant;
+            frame.variables.emplace(param_array_parameter.name, Value{std::move(param_array)});
         }
         if (definition.is_function) {
             frame.is_function_frame = true;
@@ -14709,6 +14963,7 @@ private:
     std::vector<std::string> udt_names_;
     bool bare_call_arguments_{};
     bool udt_array_{};
+    std::size_t fixed_string_length_{};
     // REQ-0238 error-handling state.
     Integer err_number_{};
     std::string err_description_;
@@ -14731,6 +14986,8 @@ private:
     bool has_output_line_{};
     bool output_line_open_{};
     bool discard_print_{};
+    bool pending_next_comma_{};
+    bool end_requested_{};
     std::map<Integer, OpenFile> files_;
     std::vector<std::string> dir_matches_;
     std::size_t dir_index_{};

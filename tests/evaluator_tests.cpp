@@ -1312,6 +1312,18 @@ int main() {
         "Dim a(2) As Byte\na(1) = 200\nPrint a(1) + a(0) & \" \" & Hex(a(1))\nDim v As Variant\nv = c\nPrint TypeName(v)",
         "255 Byte17\n21 5 248 -7\n200 C8\nByte");
     expect_program_failure("Dim b As Byte\nb = 255\nb = b + 1", "WFC0009");
+    // Declaration forms and program flow (REQ-0248).
+    expect_program_success(
+        "Public x As Long, z As Long\nPrivate y As String\nGlobal g As Long\nx = 1: y = \"a\": z = 2: g = 3\n"
+        "Public Const K = 3, L = 4\nPrint x & y & z & g & K & L\nDim i As Long, j As Long\n"
+        "For i = 1 To 2\nFor j = 1 To 2\nPrint i & j\nNext j, i\n"
+        "Dim s As String * 4\ns = \"abcdefg\"\nPrint s & \"|\" & Len(s)\n"
+        "Function F(ParamArray a()) As Long\nDim n As Long, t As Long\nFor n = 0 To UBound(a)\nt = t + a(n)\nNext n\nF = t\nEnd Function\n"
+        "Print F(1, 2, 3)\n"
+        "Sub T()\nGoSub foo\nPrint \"x\"\nExit Sub\nfoo:\nPrint \"sub\"\nReturn\nEnd Sub\nCall T\n"
+        "Sub U()\nDim k As Long\nk = 2\nOn k GoTo a, b\na:\nPrint \"a\"\nb:\nPrint \"b\"\nEnd Sub\nCall U\n"
+        "Print \"end\"\nEnd\nPrint \"never\"",
+        "1a2334\n11\n12\n21\n22\nabcd|4\n6\nsub\nx\nb\nend");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

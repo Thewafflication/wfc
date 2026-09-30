@@ -354,6 +354,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0245 — File I/O and Print lists](req-0245-file-io.md)
 - [REQ-0246 — Mid statement, financial, FormatNumber, Partition](req-0246-misc-intrinsics.md)
 - [REQ-0247 — `Byte` type](req-0247-byte-type.md)
+- [REQ-0248 — Declaration forms and program flow](req-0248-declarations-and-flow.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

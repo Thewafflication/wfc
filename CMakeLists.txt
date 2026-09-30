@@ -1331,6 +1331,27 @@ Print b & " " & TypeName(b)]=]
     )
 
     add_test(
+        NAME TC-MP0002-flow-and-declarations-cli
+        COMMAND wfc
+            --eval [=[Public x As Long, z As Long
+x = 1: z = 2
+Dim i As Long, j As Long
+For i = 1 To 2
+For j = 1 To 2
+Print i * j
+Next j, i
+Print x + z
+End
+Print "never"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-flow-and-declarations-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^1.*2.*2.*4.*3"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
