@@ -1412,6 +1412,15 @@ int main() {
     // absurd Space/String counts are error 7, not a multi-GB allocation.
     expect_program_failure("On Error GoTo 0\nResume", "WFC0300");
     expect_program_failure("Print Len(Space(2147483647))", "WFC0300");
+    // Interaction and remaining VBA members (REQ-0262).
+    expect_program_success(
+        "SaveSetting \"app\", \"sec\", \"key\", \"val\"\n"
+        "Print GetSetting(\"app\", \"sec\", \"key\") & GetSetting(\"app\", \"sec\", \"nokey\", \"dflt\")\n"
+        "DeleteSetting \"app\", \"sec\", \"key\"\nPrint GetSetting(\"app\", \"sec\", \"key\", \"gone\")\n"
+        "MsgBox \"hi\"\nPrint MsgBox(\"x\", 1) & \"|\" & InputBox(\"p\", \"t\", \"def\")\n"
+        "Print Round(Rate(48, -200, 8000), 5)\nPrint CVDate(\"1/2/2000\")\nOn Error Resume Next\n"
+        "Dim o As Object\nSet o = CreateObject(\"x.y\")\nPrint Err.Number",
+        "valdflt\ngone\n1|def\n0.0077\n1/2/2000\n429");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

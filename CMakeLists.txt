@@ -1551,6 +1551,18 @@ Print s]=]
     )
 
     add_test(
+        NAME TC-MP0002-vba-members-cli
+        COMMAND wfc
+            --eval [=[Print MsgBox("x") & InputBox("p", "t", "d")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-vba-members-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^1d"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

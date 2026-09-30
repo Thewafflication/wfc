@@ -4322,6 +4322,63 @@ private:
         if (consume_keyword("doevents")) {
             return true;
         }
+        if (consume_keyword("beep")) {
+            return true;
+        }
+        if (consume_keyword("msgbox")) {
+            // The statement form evaluates and ignores its arguments.
+            skip_horizontal_whitespace();
+            while (!at_statement_end()) {
+                if (!parse_expression().has_value()) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!consume(',')) break;
+                skip_horizontal_whitespace();
+            }
+            return true;
+        }
+        if (consume_keyword("savesetting") || consume_keyword("deletesetting") ||
+            consume_keyword("setattr") || consume_keyword("chdrive")) {
+            const std::string_view word = source_.substr(statement_offset, 4);
+            const bool is_save = ascii_lower(word[0]) == 's' && ascii_lower(word[1]) == 'a';
+            std::vector<Value> values;
+            skip_horizontal_whitespace();
+            while (!at_statement_end()) {
+                auto value = parse_expression();
+                if (!value.has_value()) {
+                    return false;
+                }
+                values.push_back(std::move(*value));
+                skip_horizontal_whitespace();
+                if (!consume(',')) break;
+                skip_horizontal_whitespace();
+            }
+            if (execute_ && values.size() >= 3U) {
+                std::string key;
+                bool strings = true;
+                for (std::size_t i = 0; i < 3U; ++i) {
+                    const auto* part = std::get_if<std::string>(&values[i]);
+                    strings = strings && part != nullptr;
+                    if (part != nullptr) key += *part + "\x01";
+                }
+                if (strings && is_save && values.size() == 4U) {
+                    if (const auto* text = std::get_if<std::string>(&values[3])) {
+                        settings_[key] = *text;
+                    }
+                } else if (strings && ascii_lower(word[0]) == 'd') {
+                    settings_.erase(key);
+                }
+            }
+            return true;
+        }
+        if (consume_keyword("reset")) {
+            if (execute_) {
+                for (auto& [number, file] : files_) std::fclose(file.handle);
+                files_.clear();
+            }
+            return true;
+        }
         if (consume_keyword("attribute")) {
             skip_comment();  // `Attribute X.VB_... = ...` lines inside bodies
             return true;
@@ -11170,7 +11227,8 @@ private:
         static const std::unordered_set<std::string> names{
             "pmt", "fv", "pv", "nper", "ipmt", "ppmt", "npv", "irr", "sln", "syd", "ddb",
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
-            "command$", "cverr"};
+            "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
+            "getobject", "getsetting", "fileattr", "filedatetime", "getattr"};
         return names.contains(std::string(name));
     }
 
@@ -11211,6 +11269,130 @@ private:
         if (name == "doevents") {
             if (!arity(0, 0)) return std::nullopt;
             return Value{Integer{}};
+        }
+        if (name == "msgbox") {
+            if (!arity(1, 5)) return std::nullopt;
+            return Value{Integer{1}};  // vbOK: there is no UI to show
+        }
+        if (name == "inputbox") {
+            if (!arity(1, 7)) return std::nullopt;
+            const auto* fallback = count >= 3U ? std::get_if<std::string>(&arguments[2]) : nullptr;
+            return Value{fallback != nullptr ? *fallback : std::string{}};
+        }
+        if (name == "createobject" || name == "getobject") {
+            if (!arity(0, 2)) return std::nullopt;
+            if (!execute_) return Value{Nothing{}};
+            static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
+            return std::nullopt;
+        }
+        if (name == "getsetting") {
+            if (!arity(3, 4)) return std::nullopt;
+            std::string key;
+            for (std::size_t i = 0; i < 3U; ++i) {
+                const auto* part = std::get_if<std::string>(&arguments[i]);
+                if (part == nullptr) return bad_type();
+                key += *part + "\x01";
+            }
+            const auto found = settings_.find(key);
+            if (found != settings_.end()) return Value{found->second};
+            const auto* fallback = count == 4U ? std::get_if<std::string>(&arguments[3]) : nullptr;
+            return Value{fallback != nullptr ? *fallback : std::string{}};
+        }
+        if (name == "cvdate") {
+            if (!arity(1, 1)) return std::nullopt;
+            if (const auto* text = std::get_if<std::string>(&arguments[0])) {
+                if (const auto parsed = parse_date_text(*text)) return Value{DateValue{*parsed}};
+                return bad_type();
+            }
+            if (std::holds_alternative<DateValue>(arguments[0])) return arguments[0];
+            const auto number = number_at(0, 0.0);
+            if (!number) return bad_type();
+            return Value{DateValue{*number}};
+        }
+        if (name == "fileattr") {
+            if (!arity(2, 2)) return std::nullopt;
+            const auto file_number = number_at(0, 0.0);
+            const auto kind = number_at(1, 1.0);
+            if (!file_number || !kind) return bad_type();
+            if (!execute_) return Value{Integer{}};
+            auto* const file = find_open_file(static_cast<Integer>(*file_number), offset);
+            if (file == nullptr) return std::nullopt;
+            if (*kind == 2.0) return Value{static_cast<Integer>(*file_number)};
+            constexpr Integer modes[] = {0, 1, 2, 8, 32, 4};
+            return Value{modes[file->mode]};
+        }
+        if (name == "filedatetime" || name == "getattr") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto* path = std::get_if<std::string>(&arguments[0]);
+            if (path == nullptr) return bad_type();
+            if (!execute_) {
+                return name == "getattr" ? Value{Integer{}} : Value{DateValue{}};
+            }
+            std::error_code ec;
+            const std::filesystem::path target(*path);
+            if (!std::filesystem::exists(target, ec)) {
+                static_cast<void>(raise_runtime(53, "File not found", offset));
+                return std::nullopt;
+            }
+            if (name == "getattr") {
+                return Value{std::filesystem::is_directory(target, ec) ? Integer{16} : Integer{0}};
+            }
+            const auto stamp = std::filesystem::last_write_time(target, ec);
+            const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                stamp.time_since_epoch()).count();
+            // file_clock's epoch is implementation-defined; report the wall
+            // clock "now" shifted by the file's age instead.
+            const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+                std::filesystem::file_time_type::clock::now() - stamp).count();
+            static_cast<void>(seconds);
+            return Value{DateValue{current_date_serial() - static_cast<double>(age) / 86400.0}};
+        }
+        if (name == "rate") {
+            if (!arity(3, 6)) return std::nullopt;
+            const auto n = number_at(0, 0.0);
+            const auto payment = number_at(1, 0.0);
+            const auto pv = number_at(2, 0.0);
+            const auto fv = number_at(3, 0.0);
+            const auto type = number_at(4, 0.0);
+            const auto guess = number_at(5, 0.1);
+            if (!n || !payment || !pv || !fv || !type || !guess) return bad_type();
+            if (!execute_) return Value{0.0};
+            double r = *guess;
+            const auto f = [&](const double rate) {
+                if (rate == 0.0) return *pv + *payment * *n + *fv;
+                const double g = std::pow(1.0 + rate, *n);
+                return *pv * g + *payment * (1.0 + rate * *type) * (g - 1.0) / rate + *fv;
+            };
+            for (int i = 0; i < 100; ++i) {
+                const double value = f(r);
+                const double h = 1e-7;
+                const double slope = (f(r + h) - value) / h;
+                if (slope == 0.0 || !std::isfinite(slope)) break;
+                const double next = r - value / slope;
+                if (!std::isfinite(next)) break;
+                if (std::fabs(next - r) < 1e-10) return finite_result(next);
+                r = next;
+            }
+            return invalid_call();
+        }
+        if (name == "mirr") {
+            if (!arity(3, 3)) return std::nullopt;
+            const auto* values = std::get_if<ArrayValue>(&arguments[0]);
+            const auto finance = number_at(1, 0.0);
+            const auto reinvest = number_at(2, 0.0);
+            if (values == nullptr || !finance || !reinvest) return bad_type();
+            if (!execute_) return Value{0.0};
+            double positive = 0.0;
+            double negative = 0.0;
+            const auto n = static_cast<double>(values->elements.size());
+            for (std::size_t i = 0; i < values->elements.size(); ++i) {
+                if (!is_number(values->elements[i])) return bad_type();
+                const double v = as_double(values->elements[i]);
+                if (v > 0.0) positive += v * std::pow(1.0 + *reinvest, n - 1.0 - static_cast<double>(i));
+                if (v < 0.0) negative += v / std::pow(1.0 + *finance, static_cast<double>(i));
+            }
+            if (positive == 0.0 || negative == 0.0) return invalid_call();
+            return finite_result(std::pow(positive / -negative, 1.0 / (n - 1.0)) - 1.0);
         }
         if (name == "cverr") {
             if (!arity(1, 1)) return std::nullopt;
@@ -15748,6 +15930,7 @@ private:
     bool output_line_open_{};
     bool discard_print_{};
     bool pending_next_comma_{};
+    std::map<std::string, std::string> settings_;
     std::unordered_set<std::string> module_names_;
     bool end_requested_{};
     std::map<Integer, OpenFile> files_;
