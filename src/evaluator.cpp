@@ -4185,6 +4185,9 @@ private:
                 }
             }
             if (execute_) {
+                if (!frame.in_error_handler) {
+                    return raise_runtime(20, "Resume without error", statement_offset);
+                }
                 frame.in_error_handler = false;
                 jump_pending_ = true;
                 jump_target_ = target;
@@ -13410,6 +13413,10 @@ private:
                 set_error("WFC0075", "function length cannot be negative", identifier_offset);
                 return std::nullopt;
             }
+            if (*count > 268435456) {
+                static_cast<void>(raise_runtime(7, "Out of memory", identifier_offset));
+                return std::nullopt;
+            }
             return Value{std::string(static_cast<std::size_t>(*count), ' ')};
         }
 
@@ -13429,6 +13436,10 @@ private:
             }
             if (*count < 0) {
                 set_error("WFC0075", "function length cannot be negative", identifier_offset);
+                return std::nullopt;
+            }
+            if (*count > 268435456) {
+                static_cast<void>(raise_runtime(7, "Out of memory", identifier_offset));
                 return std::nullopt;
             }
             char fill{};

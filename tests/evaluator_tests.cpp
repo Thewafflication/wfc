@@ -1408,6 +1408,10 @@ int main() {
         "Dim s As String\ns = \"a\" & _\n    \"b\" & _\n    \"c _\"\nPrint s\nIf 1 = 1 And _\n   2 = 2 Then\nPrint \"ok\"\nEnd If\n"
         "Print \"x\" ' trailing _\nPrint \"y\"",
         "abc _\nok\nx\ny");
+    // Robustness: Resume outside a handler is error 20, not an endless loop;
+    // absurd Space/String counts are error 7, not a multi-GB allocation.
+    expect_program_failure("On Error GoTo 0\nResume", "WFC0300");
+    expect_program_failure("Print Len(Space(2147483647))", "WFC0300");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

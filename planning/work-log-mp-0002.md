@@ -229,6 +229,7 @@ a specific requirement.
 | 2026-09-30 #144 | Construction | Add the error-subtype Variant (`CVErr`, real `IsError`, `TypeName`/`VarType`/rendering) under `REQ-0259`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #145 | Construction | Accept `Const`, `Enum` and `Friend` in class modules (constants installed on every instance) under `REQ-0260`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #146 | Construction | Join ` _` line continuations with an offset-preserving source pass under `REQ-0261`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #147 | Construction | Raise error 20 for `Resume` outside an error handler (was an endless loop) and error 7 for `Space`/`String` counts above 256M; found by a robustness sweep; unit tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
