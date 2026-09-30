@@ -1301,6 +1301,21 @@ Print "y"]=]
     )
 
     add_test(
+        NAME TC-MP0002-misc-intrinsics-cli
+        COMMAND wfc
+            --eval [=[Dim s As String
+s = "abcdef"
+Mid$(s, 2, 2) = "XYZ"
+Print s & " " & FormatNumber(1234.567, 2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-misc-intrinsics-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^aXYdef 1,234.57"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

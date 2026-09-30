@@ -199,6 +199,7 @@ a specific requirement.
 | 2026-09-30 #127 | Construction | Add `^`, bitwise `And`/`Or`/`Xor`/`Eqv`/`Imp`/`Not`, `Like`, `&H`/`&O` literals, string `+`, Boolean `&`, and VB ``/`Mod` precedence under `REQ-0244`; update three tests that asserted the former limits; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #128 | Construction | Add sequential file I/O (`Open`/`Close`/`Print #`/`Write #`/`Input #`/`Line Input #`, `EOF`/`LOF`/`FreeFile`/`Input()`), `Print` item lists with `;`/`,`/`Spc`/`Tab`, `Kill`/`MkDir`/`RmDir`/`FileCopy`/`Dir`/`FileLen`/`CurDir`/`Environ` under `REQ-0245`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #129 | Construction | Wrap `fopen`/`getenv` in `fopen_s`/`_dupenv_s` on Windows so the MSVC `/WX` build does not fail on C4996 (follow-up to `REQ-0245`). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #130 | Construction | Add `Mid` statement, financial functions, `FormatNumber`/`FormatCurrency`/`FormatPercent`, `Partition`, `DoEvents`, `Debug.Print` under `REQ-0246`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

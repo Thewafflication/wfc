@@ -352,6 +352,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0243 — `Collection` and bare-argument calls](req-0243-collection.md)
 - [REQ-0244 — Operators and literals](req-0244-operators-and-literals.md)
 - [REQ-0245 — File I/O and Print lists](req-0245-file-io.md)
+- [REQ-0246 — Mid statement, financial, FormatNumber, Partition](req-0246-misc-intrinsics.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

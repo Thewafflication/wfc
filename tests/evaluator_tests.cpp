@@ -1297,6 +1297,14 @@ int main() {
             "Print \"a\"; \"b\", \"c\"\nPrint \"x\";\nPrint \"y\"",
             "hello world\nq5True\nTrue\nab            c\nxy");
     }
+    // Mid statement, financial, FormatNumber, Partition (REQ-0246).
+    expect_program_success(
+        "Dim s As String\ns = \"abcdef\"\nMid$(s, 2, 2) = \"XYZ\"\nPrint s\n"
+        "Print Round(Pmt(0.1/12, 360, 100000), 2)\nPrint Round(FV(0.05, 10, -100), 2)\n"
+        "Print SLN(1000, 100, 9) & \" \" & SYD(1000, 100, 9, 1)\n"
+        "Print FormatNumber(1234.567, 2) & \" \" & FormatCurrency(-1234.5) & \" \" & FormatPercent(0.256, 1)\n"
+        "Print Partition(25, 0, 100, 10)\nDebug.Print \"quiet\"\nDoEvents",
+        "aXYdef\n-877.57\n1257.79\n100 180\n1,234.57 ($1,234.50) 25.6%\n 20: 29");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
