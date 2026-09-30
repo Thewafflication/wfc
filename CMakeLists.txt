@@ -1245,6 +1245,21 @@ Print p.x & " " & q.x]=]
     )
 
     add_test(
+        NAME TC-MP0002-date-cli
+        COMMAND wfc
+            --eval [=[Dim d As Date
+d = #1/15/2000 3:04:05 PM#
+Print d
+Print DateAdd("m", 1, #1/31/2000#)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-date-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^1/15/2000 3:04:05 PM.*2/29/2000"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

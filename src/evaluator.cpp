@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <ctime>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -709,9 +711,19 @@ struct ObjectInstance {
     }
 };
 
+// A Date value (REQ-0242): an OLE Automation date -- days since
+// 1899-12-30 in the integer part, time of day in the fraction.
+struct DateValue {
+    double serial{};
+
+    [[nodiscard]] friend bool operator==(const DateValue left, const DateValue right) noexcept {
+        return left.serial == right.serial;
+    }
+};
+
 using Value = std::variant<
     Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
-    ArrayValue, ObjectInstance>;
+    ArrayValue, ObjectInstance, DateValue>;
 
 // A fixed-size or dynamic, one-dimensional or (fixed-size only) multi-
 // dimensional array (`Dim arr(n)`, `Dim arr(lo To hi) As Type`, `Dim
@@ -818,6 +830,9 @@ struct ArrayValue {
     }
     if (type_index == Value{Int16{}}.index()) {
         return Value{Int16{}};
+    }
+    if (type_index == Value{DateValue{}}.index()) {
+        return Value{DateValue{}};
     }
     if (type_index == Value{Empty{}}.index()) {
         return Value{Empty{}};
@@ -1029,6 +1044,300 @@ enum class NumericCategory {
         return 11;
     }
     return 8;
+}
+
+
+// ---- Date support (REQ-0242) ----------------------------------------------
+
+[[nodiscard]] inline std::int64_t days_from_civil(
+    std::int64_t year, const std::int64_t month, const std::int64_t day) noexcept {
+    year -= month <= 2 ? 1 : 0;
+    const std::int64_t era = (year >= 0 ? year : year - 399) / 400;
+    const std::int64_t year_of_era = year - era * 400;
+    const std::int64_t day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    const std::int64_t day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    return era * 146097 + day_of_era - 719468;
+}
+
+inline void civil_from_days(
+    std::int64_t days, std::int64_t& year, std::int64_t& month, std::int64_t& day) noexcept {
+    days += 719468;
+    const std::int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+    const std::int64_t day_of_era = days - era * 146097;
+    const std::int64_t year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
+    year = year_of_era + era * 400;
+    const std::int64_t day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    const std::int64_t mp = (5 * day_of_year + 2) / 153;
+    day = day_of_year - (153 * mp + 2) / 5 + 1;
+    month = mp < 10 ? mp + 3 : mp - 9;
+    year += month <= 2 ? 1 : 0;
+}
+
+constexpr std::int64_t kDateEpochOffset = 25569;  // 1970-01-01 as an OLE serial
+
+[[nodiscard]] inline bool is_leap_year(const std::int64_t year) noexcept {
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+[[nodiscard]] inline std::int64_t days_in_month(
+    const std::int64_t year, const std::int64_t month) noexcept {
+    constexpr std::int64_t lengths[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return month == 2 && is_leap_year(year) ? 29 : lengths[month - 1];
+}
+
+// Serial for a (possibly out-of-range, e.g. month 13 / day 0) y-m-d.
+[[nodiscard]] inline double date_serial(
+    std::int64_t year, std::int64_t month, const std::int64_t day) noexcept {
+    year += (month - 1 >= 0 ? (month - 1) / 12 : -((12 - month) / 12));
+    month = ((month - 1) % 12 + 12) % 12 + 1;
+    return static_cast<double>(days_from_civil(year, month, 1) + (day - 1) + kDateEpochOffset);
+}
+
+struct DateParts {
+    std::int64_t year{}, month{}, day{}, hour{}, minute{}, second{}, weekday{};  // weekday: 1 = Sunday
+};
+
+[[nodiscard]] inline DateParts split_date(const double serial) noexcept {
+    double whole = std::floor(serial);
+    std::int64_t seconds = static_cast<std::int64_t>(std::llround((serial - whole) * 86400.0));
+    if (seconds >= 86400) {
+        seconds -= 86400;
+        whole += 1.0;
+    }
+    DateParts parts;
+    const auto days = static_cast<std::int64_t>(whole);
+    civil_from_days(days - kDateEpochOffset, parts.year, parts.month, parts.day);
+    parts.hour = seconds / 3600;
+    parts.minute = seconds % 3600 / 60;
+    parts.second = seconds % 60;
+    parts.weekday = ((days % 7) + 7 + 6) % 7 + 1;
+    return parts;
+}
+
+[[nodiscard]] inline std::string render_time_part(const DateParts& parts) {
+    const auto hour12 = parts.hour % 12 == 0 ? 12 : parts.hour % 12;
+    char buffer[32];
+    std::snprintf(
+        buffer, sizeof(buffer), "%lld:%02lld:%02lld %s", static_cast<long long>(hour12),
+        static_cast<long long>(parts.minute), static_cast<long long>(parts.second),
+        parts.hour < 12 ? "AM" : "PM");
+    return buffer;
+}
+
+[[nodiscard]] inline std::string render_date_part(const DateParts& parts) {
+    return std::to_string(parts.month) + "/" + std::to_string(parts.day) + "/" +
+           std::to_string(parts.year);
+}
+
+// VB6 "General Date" (US locale): date, time, or both.
+[[nodiscard]] inline std::string render_date(const double serial) {
+    const auto parts = split_date(serial);
+    const bool has_time = parts.hour != 0 || parts.minute != 0 || parts.second != 0;
+    const bool has_date = std::floor(serial) != 0.0;
+    if (has_date && has_time) {
+        return render_date_part(parts) + " " + render_time_part(parts);
+    }
+    if (has_time || !has_date) {
+        return render_time_part(parts);
+    }
+    return render_date_part(parts);
+}
+
+// Parses "m/d/yyyy", "yyyy-mm-dd" or "yyyy/m/d" (2-digit years: 00-29 ->
+// 2000s, 30-99 -> 1900s), each optionally followed by "h:mm[:ss][ AM|PM]",
+// or a time alone. Returns the serial, or nullopt when malformed.
+[[nodiscard]] inline std::optional<double> parse_date_text(const std::string_view text) {
+    std::size_t i = 0;
+    const auto skip_space = [&] {
+        while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) ++i;
+    };
+    const auto read_number = [&](std::int64_t& value, std::size_t& digits) {
+        digits = 0;
+        value = 0;
+        while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i])) != 0) {
+            value = value * 10 + (text[i] - '0');
+            ++i;
+            ++digits;
+        }
+        return digits > 0;
+    };
+    skip_space();
+    double result = 0.0;
+    bool have_date = false;
+    const auto start = i;
+    std::int64_t a{}, b{}, c{};
+    std::size_t da{}, db{}, dc{};
+    if (read_number(a, da) && i < text.size() && (text[i] == '/' || text[i] == '-')) {
+        const char separator = text[i++];
+        if (!read_number(b, db) || i >= text.size() || text[i] != separator) {
+            return std::nullopt;
+        }
+        ++i;
+        if (!read_number(c, dc)) {
+            return std::nullopt;
+        }
+        std::int64_t year{}, month{}, day{};
+        if (da >= 3) {
+            year = a; month = b; day = c;
+        } else {
+            month = a; day = b; year = c;
+            if (dc <= 2) year += year < 30 ? 2000 : 1900;
+        }
+        if (month < 1 || month > 12 || day < 1 || year < 100 || year > 9999 ||
+            day > days_in_month(year, month)) {
+            return std::nullopt;
+        }
+        result = date_serial(year, month, day);
+        have_date = true;
+    } else {
+        i = start;
+    }
+    skip_space();
+    if (i < text.size()) {
+        std::int64_t hour{}, minute{}, second{};
+        std::size_t digits{};
+        if (!read_number(hour, digits) || i >= text.size() || text[i] != ':') {
+            return std::nullopt;
+        }
+        ++i;
+        if (!read_number(minute, digits)) {
+            return std::nullopt;
+        }
+        if (i < text.size() && text[i] == ':') {
+            ++i;
+            if (!read_number(second, digits)) {
+                return std::nullopt;
+            }
+        }
+        skip_space();
+        if (i + 1 < text.size() + 0 && i + 2 <= text.size()) {
+            const char m0 = static_cast<char>(std::tolower(static_cast<unsigned char>(text[i])));
+            const char m1 = static_cast<char>(std::tolower(static_cast<unsigned char>(text[i + 1])));
+            if ((m0 == 'a' || m0 == 'p') && m1 == 'm') {
+                if (hour < 1 || hour > 12) return std::nullopt;
+                hour = hour % 12 + (m0 == 'p' ? 12 : 0);
+                i += 2;
+            }
+        }
+        skip_space();
+        if (i != text.size() || hour > 23 || minute > 59 || second > 59) {
+            return std::nullopt;
+        }
+        result += static_cast<double>(hour * 3600 + minute * 60 + second) / 86400.0;
+    } else if (!have_date) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+
+// Custom/named date format for Format(date, style) (REQ-0242).
+[[nodiscard]] inline std::string format_date_pattern(const double serial, const std::string& style) {
+    static const char* const month_names[] = {"January", "February", "March", "April",
+        "May", "June", "July", "August", "September", "October", "November", "December"};
+    static const char* const day_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
+        "Thursday", "Friday", "Saturday"};
+    const auto parts = split_date(serial);
+    std::string lowered;
+    for (const char c : style) lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    const auto pad2 = [](const std::int64_t v) {
+        char buffer[16];
+        std::snprintf(buffer, sizeof(buffer), "%02lld", static_cast<long long>(v));
+        return std::string(buffer);
+    };
+    if (lowered == "general date" || style.empty()) return render_date(serial);
+    if (lowered == "long date") {
+        return std::string(day_names[parts.weekday - 1]) + ", " + month_names[parts.month - 1] +
+               " " + std::to_string(parts.day) + ", " + std::to_string(parts.year);
+    }
+    if (lowered == "medium date") {
+        return pad2(parts.day) + "-" + std::string(month_names[parts.month - 1]).substr(0, 3) +
+               "-" + pad2(parts.year % 100);
+    }
+    if (lowered == "short date") return render_date_part(parts);
+    if (lowered == "long time") return render_time_part(parts);
+    if (lowered == "medium time") {
+        const auto h12 = parts.hour % 12 == 0 ? 12 : parts.hour % 12;
+        return pad2(h12) + ":" + pad2(parts.minute) + " " + (parts.hour < 12 ? "AM" : "PM");
+    }
+    if (lowered == "short time") return pad2(parts.hour) + ":" + pad2(parts.minute);
+    const auto hour12 = parts.hour % 12 == 0 ? 12 : parts.hour % 12;
+    const bool has_ampm = lowered.find("am/pm") != std::string::npos ||
+                          lowered.find("a/p") != std::string::npos;
+    std::string out;
+    std::size_t i = 0;
+    const auto run_length = [&](const char c) {
+        std::size_t n = 0;
+        while (i + n < lowered.size() && lowered[i + n] == c) ++n;
+        return n;
+    };
+    // Whether a `m` token at lowered[pos] means minutes (follows h, precedes s).
+    const auto is_minute = [&](const std::size_t pos, const std::size_t len) {
+        std::size_t before = pos;
+        while (before > 0 && (lowered[before - 1] == ' ' || lowered[before - 1] == ':')) --before;
+        if (before > 0 && lowered[before - 1] == 'h') return true;
+        std::size_t after = pos + len;
+        while (after < lowered.size() && (lowered[after] == ' ' || lowered[after] == ':')) ++after;
+        return after < lowered.size() && lowered[after] == 's';
+    };
+    while (i < style.size()) {
+        const char c = lowered[i];
+        if (c == '"') {
+            ++i;
+            while (i < style.size() && style[i] != '"') out.push_back(style[i++]);
+            ++i;
+        } else if (c == '\\' && i + 1 < style.size()) {
+            out.push_back(style[i + 1]);
+            i += 2;
+        } else if (c == 'y') {
+            const auto n = run_length('y');
+            out += n >= 3 ? std::to_string(parts.year) : pad2(parts.year % 100);
+            i += n;
+        } else if (c == 'm') {
+            const auto n = run_length('m');
+            if (is_minute(i, n)) {
+                out += n >= 2 ? pad2(parts.minute) : std::to_string(parts.minute);
+            } else if (n == 1) out += std::to_string(parts.month);
+            else if (n == 2) out += pad2(parts.month);
+            else if (n == 3) out += std::string(month_names[parts.month - 1]).substr(0, 3);
+            else out += month_names[parts.month - 1];
+            i += n;
+        } else if (c == 'd') {
+            const auto n = run_length('d');
+            if (n == 1) out += std::to_string(parts.day);
+            else if (n == 2) out += pad2(parts.day);
+            else if (n == 3) out += std::string(day_names[parts.weekday - 1]).substr(0, 3);
+            else out += day_names[parts.weekday - 1];
+            i += n;
+        } else if (c == 'h') {
+            const auto n = run_length('h');
+            const auto h = has_ampm ? hour12 : parts.hour;
+            out += n >= 2 ? pad2(h) : std::to_string(h);
+            i += n;
+        } else if (c == 'n') {
+            const auto n = run_length('n');
+            out += n >= 2 ? pad2(parts.minute) : std::to_string(parts.minute);
+            i += n;
+        } else if (c == 's') {
+            const auto n = run_length('s');
+            out += n >= 2 ? pad2(parts.second) : std::to_string(parts.second);
+            i += n;
+        } else if (lowered.compare(i, 5, "am/pm") == 0) {
+            out += parts.hour < 12 ? (style[i] == 'a' ? "am" : "AM") : (style[i] == 'a' ? "pm" : "PM");
+            i += 5;
+        } else if (lowered.compare(i, 3, "a/p") == 0) {
+            out += parts.hour < 12 ? (style[i] == 'a' ? "a" : "A") : (style[i] == 'a' ? "p" : "P");
+            i += 3;
+        } else if (lowered.compare(i, 5, "ttttt") == 0) {
+            out += render_time_part(parts);
+            i += 5;
+        } else {
+            out.push_back(style[i]);
+            ++i;
+        }
+    }
+    return out;
 }
 
 // Kleene three-valued logic for the logical operators: nullopt represents
@@ -2799,6 +3108,9 @@ private:
         if (consume_keyword("currency")) {
             return TypeKeywordResult{Value{Currency{}}, false};
         }
+        if (consume_keyword("date")) {
+            return TypeKeywordResult{Value{DateValue{}}, false};
+        }
         if (consume_keyword("string")) {
             return TypeKeywordResult{Value{std::string{}}, false};
         }
@@ -2908,6 +3220,29 @@ private:
         const std::size_t target_index,
         const std::size_t offset) {
         if (value.index() == target_index) {
+            return true;
+        }
+        // REQ-0242: Date <-> numeric/String implicit conversions.
+        if (target_index == Value{DateValue{}}.index()) {
+            if (is_number(value) && !std::holds_alternative<Decimal>(value)) {
+                value = DateValue{as_double(value)};
+            } else if (const auto* text = std::get_if<std::string>(&value)) {
+                if (const auto parsed = parse_date_text(*text)) {
+                    value = DateValue{*parsed};
+                }
+            }
+            return true;
+        }
+        if (const auto* date = std::get_if<DateValue>(&value)) {
+            if (target_index == Value{std::string{}}.index()) {
+                value = render_date(date->serial);
+                return true;
+            }
+            if (target_index != Value{Empty{}}.index() && target_index != Value{Null{}}.index() &&
+                target_index != Value{Nothing{}}.index() && target_index != Value{false}.index()) {
+                value = date->serial;
+                return coerce_numeric_value(value, target_index, offset);
+            }
             return true;
         }
         if (target_index == Value{0.0}.index()) {
@@ -5266,6 +5601,8 @@ private:
                 element_default = 0.0;
             } else if (consume_keyword("single")) {
                 element_default = 0.0f;
+            } else if (consume_keyword("date")) {
+                element_default = DateValue{};
             } else if (consume_keyword("currency")) {
                 element_default = Currency{};
             } else if (consume_keyword("string")) {
@@ -5735,6 +6072,8 @@ private:
                 expected_type = Value{0.0}.index();
             } else if (consume_keyword("single")) {
                 expected_type = Value{0.0f}.index();
+            } else if (consume_keyword("date")) {
+                expected_type = Value{DateValue{}}.index();
             } else if (consume_keyword("currency")) {
                 expected_type = Value{Currency{}}.index();
             } else if (consume_keyword("string")) {
@@ -7128,6 +7467,26 @@ private:
         if (current() == '"') {
             return parse_string();
         }
+        if (current() == '#') {
+            // REQ-0242: a Date literal `#m/d/yyyy h:mm:ss AM#`.
+            const auto literal_offset = offset_;
+            advance();
+            const auto text_start = offset_;
+            while (!at_end() && current() != '#' && current() != '\r' && current() != '\n') {
+                advance();
+            }
+            if (at_end() || current() != '#') {
+                set_error("WFC0006", "unterminated Date literal", literal_offset);
+                return std::nullopt;
+            }
+            const auto parsed = parse_date_text(source_.substr(text_start, offset_ - text_start));
+            advance();
+            if (!parsed.has_value()) {
+                set_error("WFC0006", "invalid Date literal", literal_offset);
+                return std::nullopt;
+            }
+            return Value{DateValue{*parsed}};
+        }
         if (std::isdigit(static_cast<unsigned char>(current())) != 0 ||
             (current() == '.' &&
              std::isdigit(static_cast<unsigned char>(peek(1))) != 0)) {
@@ -7385,6 +7744,9 @@ private:
         }
         if (type_index == Value{std::string{}}.index()) {
             return Value{std::string{}};
+        }
+        if (type_index == Value{DateValue{}}.index()) {
+            return Value{DateValue{}};
         }
         // REQ-0228: an omitted Optional object-reference parameter with no
         // explicit `= Nothing` default (`parameter.has_default` false)
@@ -8334,6 +8696,290 @@ private:
         return array.elements[*flat_offset];
     }
 
+    [[nodiscard]] static bool is_date_function_name(const std::string_view name) {
+        static const std::unordered_set<std::string> names{
+            "now", "date", "date$", "time", "time$", "timer", "year", "month", "day", "hour",
+            "minute", "second", "weekday", "dateserial", "timeserial", "datevalue", "timevalue",
+            "dateadd", "datediff", "datepart", "isdate", "cdate", "monthname", "weekdayname",
+            "formatdatetime"};
+        return names.contains(std::string(name));
+    }
+
+    [[nodiscard]] static double current_date_serial() {
+        const std::time_t now = std::time(nullptr);
+        std::tm local{};
+#ifdef _WIN32
+        localtime_s(&local, &now);
+#else
+        localtime_r(&now, &local);
+#endif
+        return date_serial(local.tm_year + 1900, local.tm_mon + 1, local.tm_mday) +
+               static_cast<double>(local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec) /
+                   86400.0;
+    }
+
+    // REQ-0242: Date/Time intrinsics.
+    [[nodiscard]] std::optional<Value> evaluate_date_function(
+        const std::string_view name, std::vector<Value>& arguments, const std::size_t offset) {
+        const auto count = arguments.size();
+        const auto arity = [&](const std::size_t low, const std::size_t high) {
+            if (count < low || count > high) {
+                set_error("WFC0072", "function received the wrong number of arguments", offset);
+                return false;
+            }
+            return true;
+        };
+        const auto mismatch = [&]() {
+            set_error("WFC0073", "Type mismatch", offset);
+            return std::nullopt;
+        };
+        // Any Date/number/parseable-String argument, as a serial.
+        const auto serial_at = [&](const std::size_t index) -> std::optional<double> {
+            const auto& v = arguments[index];
+            if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
+            if (is_number(v) && !std::holds_alternative<Decimal>(v)) return as_double(v);
+            if (const auto* t = std::get_if<std::string>(&v)) return parse_date_text(*t);
+            return std::nullopt;
+        };
+        const auto long_at = [&](const std::size_t index) -> std::optional<std::int64_t> {
+            const auto& v = arguments[index];
+            if (const auto* i = std::get_if<Integer>(&v)) return *i;
+            if (const auto* i = std::get_if<Int16>(&v)) return *i;
+            if (is_number(v) && !std::holds_alternative<Decimal>(v)) {
+                return static_cast<std::int64_t>(std::nearbyint(as_double(v)));
+            }
+            return std::nullopt;
+        };
+        static const char* const month_names[] = {"January", "February", "March", "April",
+            "May", "June", "July", "August", "September", "October", "November", "December"};
+        static const char* const day_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
+            "Thursday", "Friday", "Saturday"};
+
+        if (name == "now" || name == "date" || name == "date$" || name == "time" ||
+            name == "time$" || name == "timer") {
+            if (!arity(0, 0)) return std::nullopt;
+            if (name == "timer") {
+                if (!execute_) return Value{0.0f};
+                const double now = current_date_serial();
+                return Value{static_cast<float>((now - std::floor(now)) * 86400.0)};
+            }
+            if (!execute_) return name[0] == 'n' ? Value{DateValue{}} : Value{DateValue{}};
+            const double now = current_date_serial();
+            if (name == "now") return Value{DateValue{now}};
+            if (name[0] == 'd') return Value{DateValue{std::floor(now)}};
+            return Value{DateValue{now - std::floor(now)}};
+        }
+        if (name == "year" || name == "month" || name == "day" || name == "hour" ||
+            name == "minute" || name == "second") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto serial = serial_at(0);
+            if (!serial.has_value()) return mismatch();
+            const auto parts = split_date(*serial);
+            const auto value = name == "year" ? parts.year : name == "month" ? parts.month
+                : name == "day" ? parts.day : name == "hour" ? parts.hour
+                : name == "minute" ? parts.minute : parts.second;
+            return Value{static_cast<Integer>(value)};
+        }
+        if (name == "weekday") {
+            if (!arity(1, 2)) return std::nullopt;
+            const auto serial = serial_at(0);
+            const auto first = count == 2U ? long_at(1) : std::optional<std::int64_t>{1};
+            if (!serial.has_value() || !first.has_value()) return mismatch();
+            const std::int64_t first_day = *first == 0 ? 1 : *first;
+            if (first_day < 1 || first_day > 7) {
+                set_error("WFC0101", "Invalid procedure call or argument", offset);
+                return std::nullopt;
+            }
+            return Value{static_cast<Integer>(
+                (split_date(*serial).weekday - first_day + 7) % 7 + 1)};
+        }
+        if (name == "dateserial") {
+            if (!arity(3, 3)) return std::nullopt;
+            const auto y = long_at(0);
+            const auto m = long_at(1);
+            const auto d = long_at(2);
+            if (!y || !m || !d) return mismatch();
+            std::int64_t year = *y;
+            if (year >= 0 && year <= 99) year += year < 30 ? 2000 : 1900;
+            return Value{DateValue{date_serial(year, *m, *d)}};
+        }
+        if (name == "timeserial") {
+            if (!arity(3, 3)) return std::nullopt;
+            const auto h = long_at(0);
+            const auto m = long_at(1);
+            const auto sec = long_at(2);
+            if (!h || !m || !sec) return mismatch();
+            const double total = static_cast<double>(*h * 3600 + *m * 60 + *sec) / 86400.0;
+            return Value{DateValue{total - std::floor(total)}};
+        }
+        if (name == "datevalue" || name == "timevalue") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto serial = serial_at(0);
+            if (!serial.has_value()) return mismatch();
+            return Value{DateValue{name == "datevalue" ? std::floor(*serial)
+                                                       : *serial - std::floor(*serial)}};
+        }
+        if (name == "cdate") {
+            if (!arity(1, 1)) return std::nullopt;
+            if (std::holds_alternative<Null>(arguments[0])) {
+                set_error("WFC0104", "Invalid use of Null", offset);
+                return std::nullopt;
+            }
+            const auto serial = serial_at(0);
+            if (!serial.has_value()) return mismatch();
+            return Value{DateValue{*serial}};
+        }
+        if (name == "isdate") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto& v = arguments[0];
+            return Value{std::holds_alternative<DateValue>(v) ||
+                         (std::holds_alternative<std::string>(v) && serial_at(0).has_value())};
+        }
+        if (name == "monthname") {
+            if (!arity(1, 2)) return std::nullopt;
+            const auto m = long_at(0);
+            if (!m) return mismatch();
+            if (*m < 1 || *m > 12) {
+                set_error("WFC0101", "Invalid procedure call or argument", offset);
+                return std::nullopt;
+            }
+            std::string text = month_names[*m - 1];
+            if (count == 2U && std::holds_alternative<bool>(arguments[1]) &&
+                std::get<bool>(arguments[1])) {
+                text.resize(3);
+            }
+            return Value{std::move(text)};
+        }
+        if (name == "weekdayname") {
+            if (!arity(1, 3)) return std::nullopt;
+            const auto w = long_at(0);
+            const auto first = count == 3U ? long_at(2) : std::optional<std::int64_t>{1};
+            if (!w || !first) return mismatch();
+            const std::int64_t first_day = *first == 0 ? 1 : *first;
+            if (*w < 1 || *w > 7 || first_day < 1 || first_day > 7) {
+                set_error("WFC0101", "Invalid procedure call or argument", offset);
+                return std::nullopt;
+            }
+            std::string text = day_names[(*w - 1 + first_day - 1) % 7];
+            if (count >= 2U && std::holds_alternative<bool>(arguments[1]) &&
+                std::get<bool>(arguments[1])) {
+                text.resize(3);
+            }
+            return Value{std::move(text)};
+        }
+        if (name == "formatdatetime") {
+            if (!arity(1, 2)) return std::nullopt;
+            const auto serial = serial_at(0);
+            const auto style = count == 2U ? long_at(1) : std::optional<std::int64_t>{0};
+            if (!serial || !style) return mismatch();
+            const auto parts = split_date(*serial);
+            char buffer[64];
+            switch (*style) {
+            case 0: return Value{render_date(*serial)};
+            case 1:
+                return Value{std::string(day_names[parts.weekday - 1]) + ", " +
+                             month_names[parts.month - 1] + " " + std::to_string(parts.day) +
+                             ", " + std::to_string(parts.year)};
+            case 2: return Value{render_date_part(parts)};
+            case 3: return Value{render_time_part(parts)};
+            case 4:
+                std::snprintf(buffer, sizeof(buffer), "%02lld:%02lld",
+                              static_cast<long long>(parts.hour),
+                              static_cast<long long>(parts.minute));
+                return Value{std::string(buffer)};
+            default:
+                set_error("WFC0101", "Invalid procedure call or argument", offset);
+                return std::nullopt;
+            }
+        }
+        // DateAdd / DateDiff / DatePart: interval first.
+        if (name == "dateadd" || name == "datediff" || name == "datepart") {
+            if (!(name == "dateadd" ? arity(3, 3) : name == "datediff" ? arity(3, 5) : arity(2, 4))) {
+                return std::nullopt;
+            }
+            const auto* interval_text = std::get_if<std::string>(&arguments[0]);
+            if (interval_text == nullptr) return mismatch();
+            std::string interval;
+            for (const char c : *interval_text) interval.push_back(ascii_lower(c));
+            static const std::unordered_set<std::string> intervals{
+                "yyyy", "q", "m", "y", "d", "w", "ww", "h", "n", "s"};
+            if (!intervals.contains(interval)) {
+                set_error("WFC0101", "Invalid procedure call or argument", offset);
+                return std::nullopt;
+            }
+            if (name == "dateadd") {
+                const auto amount = long_at(1);
+                const auto serial = serial_at(2);
+                if (!amount || !serial) return mismatch();
+                const auto n = *amount;
+                if (interval == "yyyy" || interval == "q" || interval == "m") {
+                    const auto parts = split_date(*serial);
+                    const std::int64_t months = interval == "yyyy" ? n * 12 : interval == "q" ? n * 3 : n;
+                    std::int64_t total = parts.year * 12 + (parts.month - 1) + months;
+                    const std::int64_t year = total >= 0 ? total / 12 : -((11 - total) / 12);
+                    const std::int64_t month = total - year * 12 + 1;
+                    const std::int64_t day = std::min(parts.day, days_in_month(year, month));
+                    const double time_of_day = *serial - std::floor(*serial);
+                    return Value{DateValue{date_serial(year, month, day) + time_of_day}};
+                }
+                double delta = 0.0;
+                if (interval == "d" || interval == "y" || interval == "w") delta = static_cast<double>(n);
+                else if (interval == "ww") delta = static_cast<double>(n * 7);
+                else if (interval == "h") delta = static_cast<double>(n) / 24.0;
+                else if (interval == "n") delta = static_cast<double>(n) / 1440.0;
+                else delta = static_cast<double>(n) / 86400.0;
+                return Value{DateValue{*serial + delta}};
+            }
+            if (name == "datediff") {
+                const auto first = serial_at(1);
+                const auto second = serial_at(2);
+                if (!first || !second) return mismatch();
+                const auto a = split_date(*first);
+                const auto b = split_date(*second);
+                std::int64_t result{};
+                if (interval == "yyyy") result = b.year - a.year;
+                else if (interval == "m") result = (b.year * 12 + b.month) - (a.year * 12 + a.month);
+                else if (interval == "q")
+                    result = (b.year * 4 + (b.month - 1) / 3) - (a.year * 4 + (a.month - 1) / 3);
+                else if (interval == "d" || interval == "y" || interval == "w")
+                    result = static_cast<std::int64_t>(std::floor(*second) - std::floor(*first));
+                else if (interval == "ww") {
+                    const auto sunday = [](const double v) {
+                        return std::floor(v) - static_cast<double>(split_date(v).weekday - 1);
+                    };
+                    result = static_cast<std::int64_t>((sunday(*second) - sunday(*first)) / 7.0);
+                } else if (interval == "h")
+                    result = static_cast<std::int64_t>(std::floor(*second * 24.0 + 1e-9) - std::floor(*first * 24.0 + 1e-9));
+                else if (interval == "n")
+                    result = static_cast<std::int64_t>(std::floor(*second * 1440.0 + 1e-7) - std::floor(*first * 1440.0 + 1e-7));
+                else
+                    result = static_cast<std::int64_t>(std::llround(*second * 86400.0) - std::llround(*first * 86400.0));
+                return Value{static_cast<Integer>(result)};
+            }
+            const auto serial = serial_at(1);
+            if (!serial) return mismatch();
+            const auto parts = split_date(*serial);
+            std::int64_t result{};
+            const auto day_of_year = static_cast<std::int64_t>(
+                std::floor(*serial) - date_serial(parts.year, 1, 1)) + 1;
+            if (interval == "yyyy") result = parts.year;
+            else if (interval == "q") result = (parts.month - 1) / 3 + 1;
+            else if (interval == "m") result = parts.month;
+            else if (interval == "y") result = day_of_year;
+            else if (interval == "d") result = parts.day;
+            else if (interval == "w") result = parts.weekday;
+            else if (interval == "ww") {
+                const auto jan1_weekday = split_date(date_serial(parts.year, 1, 1)).weekday;
+                result = (day_of_year - 1 + jan1_weekday - 1) / 7 + 1;
+            } else if (interval == "h") result = parts.hour;
+            else if (interval == "n") result = parts.minute;
+            else result = parts.second;
+            return Value{static_cast<Integer>(result)};
+        }
+        set_error("WFC0071", "unsupported function", offset);
+        return std::nullopt;
+    }
+
     [[nodiscard]] std::optional<Value> parse_function_call(
         const std::string_view identifier,
         const std::size_t identifier_offset) {
@@ -8415,6 +9061,7 @@ private:
         const bool is_split = identifier == "split";
         const bool is_join = identifier == "join";
         const bool is_filter = identifier == "filter";
+        const bool is_date_fn = is_date_function_name(identifier);
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -8427,7 +9074,7 @@ private:
             !is_error_message && !is_float_math && !is_format && !is_rnd &&
             !is_isnull && !is_isempty && !is_cdec && !is_ismissing &&
             !is_isarray && !is_isobject && !is_lbound && !is_ubound &&
-            !is_array_fn && !is_split && !is_join && !is_filter) {
+            !is_array_fn && !is_split && !is_join && !is_filter && !is_date_fn) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -8544,6 +9191,15 @@ private:
             }
         }
 
+        if (is_date_fn) {
+            return evaluate_date_function(identifier, arguments, identifier_offset);
+        }
+        // REQ-0242: numeric conversions/functions see a Date as its serial.
+        if (!arguments.empty() && std::holds_alternative<DateValue>(arguments[0]) &&
+            (is_cdbl || is_csng || is_clng || is_cint || is_ccur || is_cdec || is_cbyte ||
+             is_int || is_fix || is_round || is_abs || is_sgn)) {
+            arguments[0] = Value{std::get<DateValue>(arguments[0]).serial};
+        }
         bool valid_arity{};
         if (is_array_fn) {
             valid_arity = true;
@@ -9202,6 +9858,10 @@ private:
                 set_error("WFC0073", "Format requires a String Style argument", identifier_offset);
                 return std::nullopt;
             }
+            if (const auto* date_argument = std::get_if<DateValue>(&arguments[0])) {
+                return Value{execute_ ? format_date_pattern(date_argument->serial, *style)
+                                      : std::string{}};
+            }
             if (!is_number(arguments[0]) && !std::holds_alternative<bool>(arguments[0])) {
                 set_error(
                     "WFC0073",
@@ -9349,6 +10009,9 @@ private:
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{std::string{"Currency"}};
             }
+            if (std::holds_alternative<DateValue>(arguments[0])) {
+                return Value{std::string{"Date"}};
+            }
             if (std::holds_alternative<Decimal>(arguments[0])) {
                 return Value{std::string{"Decimal"}};
             }
@@ -9418,6 +10081,9 @@ private:
             }
             if (std::holds_alternative<Currency>(arguments[0])) {
                 return Value{Integer{6}};
+            }
+            if (std::holds_alternative<DateValue>(arguments[0])) {
+                return Value{Integer{7}};
             }
             if (std::holds_alternative<Decimal>(arguments[0])) {
                 return Value{Integer{14}};  // vbDecimal
@@ -11621,6 +12287,21 @@ private:
             }
             return compare(coerced_left, coerced_right, operation, operator_offset);
         }
+        // REQ-0242: a Date compares by serial against a Date or a number.
+        if (std::holds_alternative<DateValue>(left) || std::holds_alternative<DateValue>(right)) {
+            const auto serial_of = [](const Value& v) -> std::optional<double> {
+                if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
+                if (is_number(v)) return as_double(v);
+                return std::nullopt;
+            };
+            const auto l = serial_of(left);
+            const auto r = serial_of(right);
+            if (!l.has_value() || !r.has_value()) {
+                set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
+                return std::nullopt;
+            }
+            return compare(Value{*l}, Value{*r}, operation, operator_offset);
+        }
         // Long and Double operands compare numerically, in either combination;
         // int32 widens to double exactly, so the ordering is precise.
         if (is_number(left) && is_number(right)) {
@@ -11711,6 +12392,44 @@ private:
             const Value coerced_right =
                 std::holds_alternative<Empty>(right) ? Value{Integer{0}} : right;
             return numeric_binary(coerced_left, coerced_right, operation, operator_offset);
+        }
+        if (std::holds_alternative<DateValue>(left) || std::holds_alternative<DateValue>(right)) {
+            // REQ-0242: Date +/- number stays a Date; Date - Date is a
+            // Double day count; everything else computes as Double.
+            const auto* left_date = std::get_if<DateValue>(&left);
+            const auto* right_date = std::get_if<DateValue>(&right);
+            const auto to_double = [](const Value& v) -> std::optional<double> {
+                if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
+                if (is_number(v)) return as_double(v);
+                return std::nullopt;
+            };
+            const auto l = to_double(left);
+            const auto r = to_double(right);
+            if (!l.has_value() || !r.has_value()) {
+                static_cast<void>(require_integer(l.has_value() ? right : left, operator_offset));
+                return std::nullopt;
+            }
+            double result{};
+            switch (operation) {
+            case '+': result = *l + *r; break;
+            case '-': result = *l - *r; break;
+            case '*': result = *l * *r; break;
+            default:
+                if (*r == 0.0) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = *l / *r;
+                break;
+            }
+            if ((operation == '+' && (left_date != nullptr) != (right_date != nullptr)) ||
+                (operation == '-' && left_date != nullptr && right_date == nullptr)) {
+                return Value{DateValue{result}};
+            }
+            if (operation == '+' && left_date != nullptr && right_date != nullptr) {
+                return Value{DateValue{result}};
+            }
+            return Value{result};
         }
         if (operation != '/' &&
             std::holds_alternative<Integer>(left) &&
@@ -12107,6 +12826,9 @@ private:
         }
         if (const auto* decimal = std::get_if<Decimal>(&value)) {
             return render_decimal(*decimal);
+        }
+        if (const auto* date = std::get_if<DateValue>(&value)) {
+            return render_date(date->serial);
         }
         if (const auto* string = std::get_if<std::string>(&value)) {
             return *string;

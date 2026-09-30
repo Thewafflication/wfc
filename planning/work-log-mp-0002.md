@@ -194,6 +194,7 @@ a specific requirement.
 | 2026-09-30 #122 | Construction | Add `Array`, `Split`, `Join`, `Filter` intrinsics under `REQ-0239` (String/Variant array results); unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #123 | Construction | Add `#Const`/`#If`/`#ElseIf`/`#Else`/`#End If` under `REQ-0240` as an offset-preserving source preprocessor for the main program and class modules; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #124 | Construction | Add `Type ... End Type` under `REQ-0241` (UDTs modeled as value-semantics classes: eager instantiation, deep-copy assignment and ByVal passing, nested members); also enables `arr(i).member = v` writes for object-element arrays; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #125 | Construction | Add the `Date` value type, `#...#` literals, Date arithmetic/comparison/conversion, and Now/Date/Time/Timer/Year..Second/Weekday/DateSerial/TimeSerial/DateValue/TimeValue/DateAdd/DateDiff/DatePart/IsDate/CDate/MonthName/WeekdayName/FormatDateTime plus `Format(date, pattern)` under `REQ-0242`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

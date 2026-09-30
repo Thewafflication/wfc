@@ -1251,6 +1251,17 @@ int main() {
         "Sub Bump(ByVal v As Pt)\nv.x = 100\nEnd Sub\nSub BumpR(v As Pt)\nv.x = 200\nEnd Sub\n"
         "Dim p As Pt\np.x = 1\nCall Bump(p)\nPrint p.x\nCall BumpR(p)\nPrint p.x",
         "5 7\n408\n1\n200");
+    // Date type and functions (REQ-0242).
+    expect_program_success(
+        "Dim d As Date\nd = #1/15/2000 3:04:05 PM#\nPrint d\n"
+        "Print Year(d) & \"-\" & Month(d) & \"-\" & Day(d) & \" \" & Hour(d)\n"
+        "Print Weekday(d) & \" \" & WeekdayName(Weekday(d)) & \" \" & MonthName(Month(d), True)\n"
+        "Print DateAdd(\"m\", 1, #1/31/2000#)\nPrint DateDiff(\"d\", #1/1/2000#, #3/1/2000#)\n"
+        "Print DateSerial(2000, 14, 35)\nPrint #3/1/2000# - #1/1/2000#\nPrint d > #1/1/2000#\n"
+        "Print TypeName(d) & VarType(d)\nPrint Format(d, \"yyyy-mm-dd hh:nn:ss\")\n"
+        "Print CStr(IsDate(\"13/45/2000\")) & CStr(IsDate(\"1/1/2000\"))",
+        "1/15/2000 3:04:05 PM\n2000-1-15 15\n7 Saturday Jan\n2/29/2000\n60\n3/7/2001\n60\nTrue\n"
+        "Date7\n2000-01-15 15:04:05\nFalseTrue");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
