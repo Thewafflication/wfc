@@ -1505,6 +1505,20 @@ Print l(21)]=]
     )
 
     add_test(
+        NAME TC-MP0002-cverr-cli
+        COMMAND wfc
+            --eval [=[Dim v As Variant
+v = CVErr(9)
+Print IsError(v)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-cverr-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^True"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

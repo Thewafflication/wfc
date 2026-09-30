@@ -226,6 +226,7 @@ a specific requirement.
 | 2026-09-30 #141 | Construction | Add `Open For Binary|Random`, `Get`/`Put`/`Seek` and `Seek()` for scalar and String variables under `REQ-0256`; unit test. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #142 | Construction | Add `Attribute X.VB_UserMemId = 0` default members (`obj(i)`) for methods and indexed `Property Get`, keep the attribute in the `.cls` loader, and use it for `Collection.Item` under `REQ-0257`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #143 | Construction | Resolve `Module.Name` for standard modules declared with `Attribute VB_Name`, keeping the attribute in the project loader, under `REQ-0258`; two-module project fixture test. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #144 | Construction | Add the error-subtype Variant (`CVErr`, real `IsError`, `TypeName`/`VarType`/rendering) under `REQ-0259`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2044,7 +2045,7 @@ file I/O (sequential), `Date`/`Time`, financial and formatting functions,
 (including `Implements`, array fields, `TypeOf`, `Collection`).
 
 **Known remaining gaps** (each documented in its requirement's Scope):
-`CVErr`/`IsError`; `Get`/`Put` of UDTs, Variants and arrays;
+`Get`/`Put` of UDTs, Variants and arrays;
 `Format` tokens `c`/`w`/`ww`/`q`/`y`, `Rate`/`MIRR`;
 module-qualified names and module-private scoping across multiple standard
 modules; default members in user classes (`Collection`'s `c(1)` works), class inheritance, events/`WithEvents`,

@@ -1391,6 +1391,12 @@ int main() {
                  "Public Sub Init()\na = 10: b = 20\nEnd Sub"}},
         "Dim l As New Lst\nl.Init\nPrint l(1) + l(2)",
         "30");
+    // CVErr and IsError (REQ-0259).
+    expect_program_success(
+        "Function Half(x As Variant) As Variant\nIf x Mod 2 <> 0 Then\nHalf = CVErr(2001)\nElse\nHalf = x / 2\nEnd If\nEnd Function\n"
+        "Dim v As Variant\nv = Half(7)\nPrint IsError(v) & TypeName(v) & VarType(v) & \" \" & CStr(v)\n"
+        "v = Half(8)\nPrint IsError(v) & \" \" & v\nDim e As Variant\ne = CVErr(5)\nPrint e = CVErr(5)",
+        "TrueError10 Error 2001\nFalse 4\nTrue");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

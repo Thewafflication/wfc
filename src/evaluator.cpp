@@ -718,6 +718,15 @@ struct ObjectInstance {
 
 // A Date value (REQ-0242): an OLE Automation date -- days since
 // 1899-12-30 in the integer part, time of day in the fraction.
+// An error-subtype Variant (REQ-0259), produced by `CVErr(n)`.
+struct ErrorValue {
+    std::int32_t code{};
+
+    [[nodiscard]] friend bool operator==(const ErrorValue left, const ErrorValue right) noexcept {
+        return left.code == right.code;
+    }
+};
+
 struct DateValue {
     double serial{};
 
@@ -728,7 +737,7 @@ struct DateValue {
 
 using Value = std::variant<
     Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
-    ArrayValue, ObjectInstance, DateValue, Byte>;
+    ArrayValue, ObjectInstance, DateValue, Byte, ErrorValue>;
 
 // A fixed-size or dynamic, one-dimensional or (fixed-size only) multi-
 // dimensional array (`Dim arr(n)`, `Dim arr(lo To hi) As Type`, `Dim
@@ -11118,7 +11127,7 @@ private:
         static const std::unordered_set<std::string> names{
             "pmt", "fv", "pv", "nper", "ipmt", "ppmt", "npv", "irr", "sln", "syd", "ddb",
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
-            "command$"};
+            "command$", "cverr"};
         return names.contains(std::string(name));
     }
 
@@ -11159,6 +11168,12 @@ private:
         if (name == "doevents") {
             if (!arity(0, 0)) return std::nullopt;
             return Value{Integer{}};
+        }
+        if (name == "cverr") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto number = number_at(0, 0.0);
+            if (!number || *number < 0.0 || *number > 65535.0) return invalid_call();
+            return Value{ErrorValue{static_cast<std::int32_t>(*number)}};
         }
         if (name == "command" || name == "command$") {
             if (!arity(0, 0)) return std::nullopt;
@@ -12205,17 +12220,8 @@ private:
         }
 
         if (is_constant_false_predicate) {
-            // IsError remains constant False: `CVErr`/error-value Variants
-            // remain outside this evaluator's scope (REQ-0206's Scope).
-            // `IsMissing` (REQ-0224) is handled separately above, before
-            // this dispatch's generic argument-evaluation loop, since it
-            // needs its argument's bare name rather than an evaluated
-            // value. IsNull/IsEmpty/IsArray/IsObject are handled
-            // separately below since Null, Empty, arrays, and object
-            // references are all real, inspectable Value states.
-            return Value{false};
+            return Value{execute_ && std::holds_alternative<ErrorValue>(arguments[0])};
         }
-
         if (is_isnull) {
             return Value{execute_ && std::holds_alternative<Null>(arguments[0])};
         }
@@ -12713,6 +12719,9 @@ private:
             if (std::holds_alternative<Byte>(arguments[0])) {
                 return Value{std::string{"Byte"}};
             }
+            if (std::holds_alternative<ErrorValue>(arguments[0])) {
+                return Value{std::string{"Error"}};
+            }
             if (std::holds_alternative<DateValue>(arguments[0])) {
                 return Value{std::string{"Date"}};
             }
@@ -12788,6 +12797,9 @@ private:
             }
             if (std::holds_alternative<Byte>(arguments[0])) {
                 return Value{Integer{17}};
+            }
+            if (std::holds_alternative<ErrorValue>(arguments[0])) {
+                return Value{Integer{10}};
             }
             if (std::holds_alternative<DateValue>(arguments[0])) {
                 return Value{Integer{7}};
@@ -15587,6 +15599,9 @@ private:
         }
         if (const auto* date = std::get_if<DateValue>(&value)) {
             return render_date(date->serial);
+        }
+        if (const auto* error = std::get_if<ErrorValue>(&value)) {
+            return "Error " + std::to_string(error->code);
         }
         if (const auto* string = std::get_if<std::string>(&value)) {
             return *string;
