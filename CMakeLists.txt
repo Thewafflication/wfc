@@ -1177,6 +1177,23 @@ Print Red & " " & Green & " " & c]=]
     )
 
     add_test(
+        NAME TC-MP0002-error-handling-cli
+        COMMAND wfc
+            --eval [=[On Error Resume Next
+Dim x As Long
+x = 1 / 0
+Print Err.Number & " " & Err.Description
+Err.Raise 1000, "s", "boom"
+Print Err.Number]=]
+    )
+    set_tests_properties(
+        TC-MP0002-error-handling-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^11 Division by zero.*1000"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

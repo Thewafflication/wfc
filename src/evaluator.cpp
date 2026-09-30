@@ -1230,7 +1230,7 @@ enum class NumericCategory {
            identifier == "print" || identifier == "randomize" || identifier == "redim" ||
            identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
-           identifier == "explicit" || identifier == "enum" || identifier == "step" || identifier == "to" ||
+           identifier == "explicit" || identifier == "err" || identifier == "goto" || identifier == "resume" || identifier == "enum" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "with" || identifier == "xor" ||
@@ -1285,6 +1285,13 @@ struct Scope {
     // caller-supplied one, so `IsMissing` on those stays the constant
     // `False` this evaluator already answered before this requirement.
     std::unordered_set<std::string> missing_parameter_names;
+    // REQ-0238: this frame's `On Error` state. 0 = none, 1 = Resume Next,
+    // 2 = GoTo label (on_error_label is the label's source offset).
+    int on_error_mode{};
+    std::size_t on_error_label{};
+    bool in_error_handler{};
+    std::size_t error_resume_next{};
+    std::size_t error_retry{};
 };
 
 // The result of looking a variable name up across the (at most two) scopes
@@ -1591,6 +1598,10 @@ public:
         }
         while (!at_end()) {
             if (!parse_statement()) {
+                if (take_pending_jump()) {
+                    skip_program_leading_trivia();
+                    continue;
+                }
                 return std::move(error_);
             }
             if (!consume_statement_end()) {
@@ -2915,9 +2926,363 @@ private:
         return true;
     }
 
+    [[nodiscard]] static std::string vb_error_description(const Integer number) {
+        switch (number) {
+        case 0: return {};
+        case 5: return "Invalid procedure call or argument";
+        case 6: return "Overflow";
+        case 7: return "Out of memory";
+        case 9: return "Subscript out of range";
+        case 11: return "Division by zero";
+        case 13: return "Type mismatch";
+        case 28: return "Out of stack space";
+        case 53: return "File not found";
+        case 70: return "Permission denied";
+        case 76: return "Path not found";
+        case 91: return "Object variable or With block variable not set";
+        case 94: return "Invalid use of Null";
+        default: return "Application-defined or object-defined error";
+        }
+    }
+
+    // The VB error number a failed statement's diagnostic stands for, or 0
+    // when it is not a catchable runtime error (a syntax/semantic error).
+    [[nodiscard]] Integer runtime_error_number() const {
+        const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
+        if (code == "WFC0300") return err_number_;
+        if (code == "WFC0008") return 11;
+        if (code == "WFC0009") return 6;
+        if (code == "WFC0111") return 9;
+        if (code == "WFC0106") return 91;
+        if (code == "WFC0104") return 94;
+        if (code == "WFC0089" || code == "WFC0101") return 5;
+        if (code == "WFC0123") return 28;
+        return 0;
+    }
+
+    // Moves offset_ to the end of the current statement (a ':' or line
+    // break outside a string literal), without consuming it.
+    void skip_to_statement_end() noexcept {
+        bool in_string = false;
+        while (!at_end()) {
+            const char c = current();
+            if (c == '"') {
+                in_string = !in_string;
+            } else if (!in_string && (c == ':' || c == '\r' || c == '\n')) {
+                return;
+            } else if (!in_string && c == '\'') {
+                skip_comment();
+                return;
+            }
+            advance();
+        }
+    }
+
+    // REQ-0238: applies the frame's `On Error` mode to a statement that just
+    // failed with a runtime error. Returns true when the error was absorbed
+    // (Resume Next) or converted into a pending jump to the handler label.
+    [[nodiscard]] bool recover_runtime_error(const std::size_t statement_start) {
+        const Integer number = runtime_error_number();
+        if (number == 0) {
+            return false;
+        }
+        Scope& frame = scopes_.back();
+        if (frame.on_error_mode == 0 || frame.in_error_handler) {
+            return false;
+        }
+        if (std::string_view(error_.diagnostic).substr(0, 7) != "WFC0300") {
+            err_number_ = number;
+            err_description_ = vb_error_description(number);
+        }
+        skip_to_statement_end();
+        frame.error_resume_next = offset_;
+        frame.error_retry = statement_start;
+        error_ = wfc::Evaluation{};
+        if (frame.on_error_mode == 1) {
+            execute_ = true;
+            return true;
+        }
+        frame.in_error_handler = true;
+        jump_pending_ = true;
+        jump_target_ = frame.on_error_label;
+        set_error("WFC0999", "internal jump", statement_start);
+        return false;
+    }
+
     [[nodiscard]] bool parse_statement() {
+        const auto start = offset_;
+        const bool entry_execute = execute_;
+        if (parse_statement_core()) {
+            return true;
+        }
+        if (!entry_execute || jump_pending_) {
+            return false;
+        }
+        // Block statements (If/For/While/Do/Select/With) are not recovered
+        // as a whole: their nested statements recover individually.
+        {
+            const auto saved = offset_;
+            offset_ = start;
+            skip_horizontal_whitespace();
+            const bool is_block = consume_keyword("if") || consume_keyword("for") ||
+                consume_keyword("while") || consume_keyword("do") ||
+                consume_keyword("select") || consume_keyword("with");
+            offset_ = saved;
+            if (is_block) {
+                return false;
+            }
+        }
+        execute_ = entry_execute;
+        return recover_runtime_error(start);
+    }
+
+    // After a statement sequence failed with a pending jump, transfers
+    // control to the jump target. Returns false when no jump is pending.
+    [[nodiscard]] bool take_pending_jump() {
+        if (!jump_pending_) {
+            return false;
+        }
+        jump_pending_ = false;
+        error_ = wfc::Evaluation{};
+        offset_ = jump_target_;
+        execute_ = true;
+        exit_sub_requested_ = false;
+        exit_function_requested_ = false;
+        return true;
+    }
+
+    // Offset of the `label:` line inside the current procedure (or the
+    // whole program at module level), or npos.
+    [[nodiscard]] std::size_t find_label(const std::string& label) const {
+        std::size_t begin = 0;
+        std::size_t end = source_.size();
+        if (in_procedure_body() && current_procedure_def_ != nullptr) {
+            begin = current_procedure_def_->body_start;
+            end = std::min(end, current_procedure_def_->body_end);
+        }
+        std::size_t position = begin;
+        while (position < end) {
+            std::size_t line_end = source_.find('\n', position);
+            if (line_end == std::string_view::npos || line_end > end) {
+                line_end = end;
+            }
+            std::size_t i = position;
+            while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) ++i;
+            std::size_t j = 0;
+            while (j < label.size() && i + j < line_end &&
+                   ascii_lower(source_[i + j]) == label[j]) {
+                ++j;
+            }
+            if (j == label.size() && i + j < line_end && source_[i + j] == ':' &&
+                (i + j + 1 >= line_end || source_[i + j + 1] != '=')) {
+                return i;
+            }
+            position = line_end + 1;
+        }
+        return std::string::npos;
+    }
+
+    [[nodiscard]] bool in_procedure_body() const noexcept { return scopes_.size() > 1U; }
+
+    // `On Error ...`, `Resume ...`, `GoTo label`, `label:` and `Err.Raise`/
+    // `Err.Clear` (REQ-0238). Returns nullopt when the statement is none of
+    // these (offset_ unchanged).
+    [[nodiscard]] std::optional<bool> parse_error_handling_statement(
+        const std::size_t statement_offset, const bool allow_label = true) {
+        const auto start = offset_;
+        if (consume_keyword("on")) {
+            skip_horizontal_whitespace();
+            if (!consume_keyword("error")) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            skip_horizontal_whitespace();
+            Scope& frame = scopes_.back();
+            if (consume_keyword("resume")) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("next")) {
+                    set_error("WFC0010", "expected Next after On Error Resume", offset_);
+                    return false;
+                }
+                if (execute_) {
+                    frame.on_error_mode = 1;
+                    frame.in_error_handler = false;
+                }
+                return true;
+            }
+            if (!consume_keyword("goto")) {
+                set_error("WFC0010", "expected GoTo or Resume after On Error", offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!at_end() && (current() == '0' || current() == '-')) {
+                skip_to_statement_end();
+                if (execute_) {
+                    frame.on_error_mode = 0;
+                    frame.in_error_handler = false;
+                }
+                return true;
+            }
+            const auto label_offset = offset_;
+            auto label = parse_identifier();
+            if (!label.has_value()) {
+                set_error("WFC0011", "expected label after GoTo", label_offset);
+                return false;
+            }
+            if (execute_) {
+                const auto target = find_label(*label);
+                if (target == std::string::npos) {
+                    set_error("WFC0301", "label not defined", label_offset);
+                    return false;
+                }
+                frame.on_error_mode = 2;
+                frame.on_error_label = target;
+                frame.in_error_handler = false;
+            }
+            return true;
+        }
+        if (consume_keyword("resume")) {
+            skip_horizontal_whitespace();
+            Scope& frame = scopes_.back();
+            std::size_t target{};
+            if (consume_keyword("next")) {
+                target = frame.error_resume_next;
+            } else if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+                       current() == '\'') {
+                target = frame.error_retry;
+            } else {
+                const auto label_offset = offset_;
+                auto label = parse_identifier();
+                if (!label.has_value()) {
+                    set_error("WFC0011", "expected label after Resume", label_offset);
+                    return false;
+                }
+                target = execute_ ? find_label(*label) : 0;
+                if (execute_ && target == std::string::npos) {
+                    set_error("WFC0301", "label not defined", label_offset);
+                    return false;
+                }
+            }
+            if (execute_) {
+                frame.in_error_handler = false;
+                jump_pending_ = true;
+                jump_target_ = target;
+                set_error("WFC0999", "internal jump", statement_offset);
+                return false;
+            }
+            return true;
+        }
+        if (consume_keyword("goto")) {
+            skip_horizontal_whitespace();
+            const auto label_offset = offset_;
+            auto label = parse_identifier();
+            if (!label.has_value()) {
+                set_error("WFC0011", "expected label after GoTo", label_offset);
+                return false;
+            }
+            if (execute_) {
+                const auto target = find_label(*label);
+                if (target == std::string::npos) {
+                    set_error("WFC0301", "label not defined", label_offset);
+                    return false;
+                }
+                jump_pending_ = true;
+                jump_target_ = target;
+                set_error("WFC0999", "internal jump", statement_offset);
+                return false;
+            }
+            return true;
+        }
+        if (consume_keyword("err")) {
+            skip_horizontal_whitespace();
+            if (!consume('.')) {
+                offset_ = start;
+                return std::nullopt;
+            }
+            const auto member_offset = offset_;
+            auto member = parse_identifier();
+            if (member == "clear") {
+                if (execute_) {
+                    err_number_ = 0;
+                    err_description_.clear();
+                }
+                return true;
+            }
+            if (member == "raise") {
+                skip_horizontal_whitespace();
+                const bool parenthesized = consume('(');
+                skip_horizontal_whitespace();
+                auto number = parse_expression();
+                if (!number.has_value()) {
+                    return false;
+                }
+                if (!coerce_numeric_value(*number, Value{Integer{}}.index(), member_offset) ||
+                    !std::holds_alternative<Integer>(*number)) {
+                    set_error("WFC0073", "Err.Raise requires a Long number", member_offset);
+                    return false;
+                }
+                std::string description;
+                bool has_description = false;
+                for (int argument = 0; argument < 4; ++argument) {
+                    skip_horizontal_whitespace();
+                    if (!consume(',')) {
+                        break;
+                    }
+                    skip_horizontal_whitespace();
+                    auto value = parse_expression();
+                    if (!value.has_value()) {
+                        return false;
+                    }
+                    if (argument == 1) {
+                        if (const auto* text = std::get_if<std::string>(&*value)) {
+                            description = *text;
+                            has_description = true;
+                        }
+                    }
+                }
+                if (parenthesized) {
+                    skip_horizontal_whitespace();
+                    if (!consume(')')) {
+                        set_error("WFC0005", "expected closing parenthesis", offset_);
+                        return false;
+                    }
+                }
+                if (execute_) {
+                    const Integer raised = std::get<Integer>(*number);
+                    if (raised <= 0 || raised > 65535) {
+                        set_error("WFC0101", "Error number is outside the valid range", member_offset);
+                        return false;
+                    }
+                    err_number_ = raised;
+                    err_description_ = has_description ? description : vb_error_description(raised);
+                    set_error("WFC0300", err_description_, statement_offset);
+                    return false;
+                }
+                return true;
+            }
+            offset_ = start;
+            return std::nullopt;
+        }
+        // `label:` (an identifier immediately followed by ':' that is not `:=`).
+        {
+            auto label = parse_identifier();
+            if (allow_label && label.has_value() && !at_end() && current() == ':' &&
+                !(offset_ + 1 < source_.size() && source_[offset_ + 1] == '=') &&
+                !is_reserved_identifier(*label) && *label != "else") {
+                advance();
+                return true;
+            }
+            offset_ = start;
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] bool parse_statement_core() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
+        if (const auto handled = parse_error_handling_statement(statement_offset)) {
+            return *handled;
+        }
         if (consume_keyword("option")) {
             return parse_option_statement(statement_offset);
         }
@@ -4348,6 +4713,12 @@ private:
         }
         if (consume_keyword("call")) {
             return parse_call_statement();
+        }
+        if (consume_keyword("exit")) {
+            return parse_exit_statement(statement_offset);
+        }
+        if (const auto handled = parse_error_handling_statement(statement_offset, false)) {
+            return *handled;
         }
 
         const bool has_let = consume_keyword("let");
@@ -6571,6 +6942,27 @@ private:
                 return me_value(me_offset);
             }
         }
+        {
+            const auto err_start = offset_;
+            if (consume_keyword("err")) {
+                if (consume('.')) {
+                    const auto member_offset = offset_;
+                    const auto member = parse_identifier();
+                    if (member == "number") {
+                        return Value{err_number_};
+                    }
+                    if (member == "description") {
+                        return Value{err_description_};
+                    }
+                    if (member == "source") {
+                        return Value{std::string{}};
+                    }
+                    set_error("WFC0135", "unknown member", member_offset);
+                    return std::nullopt;
+                }
+                offset_ = err_start;
+            }
+        }
         if (consume_keyword("new")) {
             skip_horizontal_whitespace();
             const auto class_name_offset = offset_;
@@ -6832,6 +7224,9 @@ private:
                 return true;
             }
             if (!parse_statement()) {
+                if (take_pending_jump()) {
+                    continue;
+                }
                 return false;
             }
             if (!consume_statement_end()) {
@@ -11406,6 +11801,11 @@ private:
     // (moot for a deque, unlike a vector).
     std::deque<InstanceData*> instance_scopes_;
     std::vector<std::string> enum_names_;
+    // REQ-0238 error-handling state.
+    Integer err_number_{};
+    std::string err_description_;
+    bool jump_pending_{};
+    std::size_t jump_target_{};
     // REQ-0236 With-block state.
     std::unordered_map<std::string, Value> with_slots_;
     Scope with_scope_;

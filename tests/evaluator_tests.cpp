@@ -1214,6 +1214,20 @@ int main() {
         "Enum Color\nRed\nGreen = 5\nBlue\nEnd Enum\nDim c As Color\nc = Blue\n"
         "Print Red & \" \" & Green & \" \" & c",
         "0 5 6");
+    // Error handling (REQ-0238).
+    expect_program_success(
+        "Sub W2()\nOn Error GoTo h\nDim a As Long\na = 1 / 0\nPrint \"resumed\"\nExit Sub\n"
+        "h:\nPrint \"caught \" & Err.Description\nResume Next\nEnd Sub\n"
+        "Sub Inner()\nDim z As Long\nz = 5 / 0\nEnd Sub\n"
+        "Sub Outer()\nOn Error Resume Next\nInner\nPrint \"outer ok \" & Err.Number\nEnd Sub\n"
+        "Call W2()\nCall Outer()\nDim n As Long\nn = 0\ntop:\nn = n + 1\n"
+        "If n < 3 Then GoTo top\nPrint n",
+        "caught Division by zero\nresumed\nouter ok 11\n3");
+    expect_program_success(
+        "On Error Resume Next\nErr.Raise 1000, \"s\", \"boom\"\n"
+        "Print Err.Number & \" \" & Err.Description\nErr.Clear\nPrint Err.Number",
+        "1000 boom\n0");
+    expect_program_failure("Dim a As Long\na = 1 / 0", "WFC0008");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
