@@ -1355,6 +1355,11 @@ int main() {
         "Type Pt\nx As Long\nEnd Type\nDim a() As Pt\nReDim a(1 To 2)\na(2).x = 4\nReDim Preserve a(1 To 3)\n"
         "a(3).x = 9\nPrint a(2).x & a(3).x & a(1).x",
         "5v2\n490");
+    // Decimal declarations (REQ-0254).
+    expect_program_success(
+        "Dim d As Decimal\nd = 0.1\nDim e As Decimal\ne = CDec(0.2)\nPrint d + e\nPrint d * 3\n"
+        "Dim a(1) As Decimal\na(0) = 5\nPrint TypeName(a(0)) & a(0) + 1",
+        "0.3\n0.3\nDecimal6");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

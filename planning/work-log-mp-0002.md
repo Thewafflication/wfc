@@ -220,6 +220,7 @@ a specific requirement.
 | 2026-09-30 #136 | Construction | Take `GoTo`/`GoSub`/`Resume` jumps whose label lies inside the running `Do`/`While`/`For` body in place; accept `Case x: stmt`; accept a whole-array argument in bare-argument calls; documented as an addendum to `REQ-0248`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit `c6eed2f` |
 | 2026-09-30 #137 | Construction | Make the built-in `Collection` a singly linked list (no cyclic references) so contained objects receive `Class_Terminate`; add a multi-class `Implements`/`Collection` project fixture test (`REQ-0243`, `REQ-0249`). Goal token usage / elapsed time: Not reported | Commit `2a81436` |
 | 2026-09-30 #138 | Construction | Add `c(i)`/`c("key")` for `Collection` and per-slot UDT instances on `ReDim`/`ReDim Preserve` under `REQ-0253`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #139 | Construction | Accept `Decimal` in declarations with implicit numeric conversion on assignment under `REQ-0254`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

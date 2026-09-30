@@ -1437,6 +1437,20 @@ Print c(1)]=]
     )
 
     add_test(
+        NAME TC-MP0002-decimal-type-cli
+        COMMAND wfc
+            --eval [=[Dim d As Decimal
+d = 0.1
+Print d + CDec(0.2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-decimal-type-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^0.3"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

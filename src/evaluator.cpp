@@ -842,6 +842,9 @@ struct ArrayValue {
     if (type_index == Value{Byte{}}.index()) {
         return Value{Byte{}};
     }
+    if (type_index == Value{Decimal{}}.index()) {
+        return Value{Decimal{}};
+    }
     if (type_index == Value{Empty{}}.index()) {
         return Value{Empty{}};
     }
@@ -3342,6 +3345,9 @@ private:
         if (consume_keyword("byte")) {
             return TypeKeywordResult{Value{Byte{}}, false};
         }
+        if (consume_keyword("decimal")) {
+            return TypeKeywordResult{Value{Decimal{}}, false};
+        }
         if (consume_keyword("string")) {
             return TypeKeywordResult{Value{std::string{}}, false};
         }
@@ -3451,6 +3457,42 @@ private:
         const std::size_t target_index,
         const std::size_t offset) {
         if (value.index() == target_index) {
+            return true;
+        }
+        // REQ-0254: Decimal target from any exact or floating numeric.
+        if (target_index == Value{Decimal{}}.index()) {
+            if (!is_number(value)) {
+                return true;  // caller reports the mismatch
+            }
+            Decimal result;
+            if (const auto* integer = std::get_if<Integer>(&value)) {
+                result.negative = *integer < 0;
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(
+                    *integer < 0 ? -static_cast<std::int64_t>(*integer) : *integer));
+            } else if (const auto* short_integer = std::get_if<Int16>(&value)) {
+                result.negative = *short_integer < 0;
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(
+                    *short_integer < 0 ? -static_cast<std::int32_t>(*short_integer)
+                                       : *short_integer));
+            } else if (const auto* byte = std::get_if<Byte>(&value)) {
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(*byte));
+            } else if (const auto* currency = std::get_if<Currency>(&value)) {
+                result.negative = currency->scaled < 0;
+                const auto magnitude = currency->scaled < 0
+                    ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
+                    : static_cast<std::uint64_t>(currency->scaled);
+                result.mantissa.limb[0] = static_cast<std::uint32_t>(magnitude);
+                result.mantissa.limb[1] = static_cast<std::uint32_t>(magnitude >> 32U);
+                result.scale = 4U;
+            } else {
+                const auto converted = decimal_from_double(as_double(value));
+                if (!converted.has_value()) {
+                    set_error("WFC0009", "numeric overflow", offset);
+                    return false;
+                }
+                result = *converted;
+            }
+            value = result;
             return true;
         }
         // REQ-0247: Byte target (range-checked) and Byte source (widens).
@@ -7191,6 +7233,8 @@ private:
                 element_default = DateValue{};
             } else if (consume_keyword("byte")) {
                 element_default = Byte{};
+            } else if (consume_keyword("decimal")) {
+                element_default = Decimal{};
             } else if (consume_keyword("currency")) {
                 element_default = Currency{};
             } else if (consume_keyword("string")) {
@@ -7710,6 +7754,8 @@ private:
                 expected_type = Value{DateValue{}}.index();
             } else if (consume_keyword("byte")) {
                 expected_type = Value{Byte{}}.index();
+            } else if (consume_keyword("decimal")) {
+                expected_type = Value{Decimal{}}.index();
             } else if (consume_keyword("currency")) {
                 expected_type = Value{Currency{}}.index();
             } else if (consume_keyword("string")) {
@@ -9753,6 +9799,9 @@ private:
         }
         if (type_index == Value{Byte{}}.index()) {
             return Value{Byte{}};
+        }
+        if (type_index == Value{Decimal{}}.index()) {
+            return Value{Decimal{}};
         }
         // REQ-0228: an omitted Optional object-reference parameter with no
         // explicit `= Nothing` default (`parameter.has_default` false)
