@@ -12907,6 +12907,75 @@ private:
                 return Value{execute_ ? format_date_pattern(date_argument->serial, *style)
                                       : std::string{}};
             }
+            if (const auto* text_argument = std::get_if<std::string>(&arguments[0])) {
+                // REQ-0264: string formats -- `@`/`&` placeholders, `<`, `>`, `!`.
+                if (!execute_) {
+                    return Value{std::string{}};
+                }
+                std::string fmt = *style;
+                const auto section = fmt.find(';');
+                if (section != std::string::npos) {
+                    fmt = text_argument->empty() && fmt.find(';', section + 1) != std::string::npos
+                              ? fmt.substr(fmt.find(';', section + 1) + 1)
+                              : fmt.substr(0, section);
+                }
+                bool upper = false, lower = false, left_fill = false;
+                std::string mask;
+                for (std::size_t i = 0; i < fmt.size(); ++i) {
+                    const char c = fmt[i];
+                    if (c == '>') upper = true;
+                    else if (c == '<') lower = true;
+                    else if (c == '!') left_fill = true;
+                    else if (c == '\\' && i + 1 < fmt.size()) mask += std::string{'\x01', fmt[++i]};
+                    else if (c == '"') {
+                        while (++i < fmt.size() && fmt[i] != '"') mask += std::string{'\x01', fmt[i]};
+                    } else mask.push_back(c);
+                }
+                std::string source_text = *text_argument;
+                for (char& c : source_text) {
+                    if (upper) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                    if (lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                }
+                std::size_t placeholders = 0;
+                for (std::size_t i = 0; i < mask.size(); ++i) {
+                    if (mask[i] == '\x01') { ++i; continue; }
+                    if (mask[i] == '@' || mask[i] == '&') ++placeholders;
+                }
+                if (placeholders == 0) {
+                    return Value{source_text};
+                }
+                std::string out;
+                // `@` pads with a space, `&` with nothing; characters fill right to left
+                // unless `!` asks for left to right.
+                std::vector<char> chars(source_text.begin(), source_text.end());
+                std::size_t next = left_fill ? 0 : (chars.size() > placeholders ? chars.size() - placeholders : 0);
+                const std::size_t skip = left_fill ? 0 : (placeholders > chars.size() ? placeholders - chars.size() : 0);
+                std::size_t seen = 0;
+                std::string tail;
+                if (left_fill && chars.size() > placeholders) {
+                    tail = source_text.substr(placeholders);
+                }
+                if (!left_fill && chars.size() > placeholders) {
+                    out = source_text.substr(0, chars.size() - placeholders);
+                }
+                for (std::size_t i = 0; i < mask.size(); ++i) {
+                    if (mask[i] == '\x01') { out.push_back(mask[++i]); continue; }
+                    if (mask[i] == '@' || mask[i] == '&') {
+                        const bool pad = !left_fill && seen < skip;
+                        if (pad) {
+                            if (mask[i] == '@') out.push_back(' ');
+                        } else if (next < chars.size()) {
+                            out.push_back(chars[next++]);
+                        } else if (mask[i] == '@') {
+                            out.push_back(' ');
+                        }
+                        ++seen;
+                    } else {
+                        out.push_back(mask[i]);
+                    }
+                }
+                return Value{out + tail};
+            }
             if (!is_number(arguments[0]) && !std::holds_alternative<bool>(arguments[0])) {
                 set_error(
                     "WFC0073",

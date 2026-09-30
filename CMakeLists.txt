@@ -1578,6 +1578,18 @@ Print CallByName(o, "x", 2)]=]
     )
 
     add_test(
+        NAME TC-MP0002-string-format-cli
+        COMMAND wfc
+            --eval [=[Print Format("abc", ">")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-string-format-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^ABC"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

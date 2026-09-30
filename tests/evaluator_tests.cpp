@@ -1428,6 +1428,11 @@ int main() {
         "Dim o As New A\nPrint CallByName(o, \"Add\", 1, 2, 3)\nCallByName o, \"x\", 4, 10\nPrint CallByName(o, \"x\", 2)\n"
         "CallByName o, \"Pp\", 4, 5\nPrint CallByName(o, \"Pp\", 2)\nOn Error Resume Next\nPrint CallByName(o, \"Nope\", 1)\nPrint Err.Number",
         "5\n10\n10\n438");
+    // String Format (REQ-0264).
+    expect_program_success(
+        "Print Format(\"abc\", \">\") & \"|\" & Format(\"ABC\", \"<\") & \"|\" & Format(\"abc\", \"@@@@@\") & \"|\" & "
+        "Format(\"abc\", \"!@@@@@\") & \"|\" & Format(\"5551234\", \"(&&&) &&&-&&&&\")",
+        "ABC|abc|  abc|abc  |() 555-1234");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
