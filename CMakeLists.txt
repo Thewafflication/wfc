@@ -1519,6 +1519,23 @@ Print IsError(v)]=]
     )
 
     add_test(
+        NAME TC-MP0002-class-const-enum-cli
+        COMMAND wfc
+            --class A [=[Private Const MAX = 10
+Public Function M() As Long
+M = MAX * 2
+End Function]=]
+            --eval [=[Dim a As New A
+Print a.M()]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-const-enum-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^20"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

@@ -1397,6 +1397,12 @@ int main() {
         "Dim v As Variant\nv = Half(7)\nPrint IsError(v) & TypeName(v) & VarType(v) & \" \" & CStr(v)\n"
         "v = Half(8)\nPrint IsError(v) & \" \" & v\nDim e As Variant\ne = CVErr(5)\nPrint e = CVErr(5)",
         "TrueError10 Error 2001\nFalse 4\nTrue");
+    // Class-level Const, Enum, Friend (REQ-0260).
+    expect_classes_success(
+        {{"A", "Private Const MAX = 10\nPublic Const NAME = \"n\"\nPublic Enum E\nP = 1\nQ\nEnd Enum\n"
+               "Friend Function M(x As E) As Long\nM = MAX * 2 + Q + x\nEnd Function"}},
+        "Dim a As New A\nPrint a.M(1) & a.NAME",
+        "23n");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

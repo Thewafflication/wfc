@@ -1921,6 +1921,8 @@ struct ClassDef {
     // REQ-0257: lowercased name of the member marked
     // `Attribute Name.VB_UserMemId = 0` (the class's default member).
     std::string default_member;
+    // REQ-0260: `Const` and `Enum` members declared in the class module.
+    std::unordered_map<std::string, Value> constants;
 };
 
 // The storage backing one live `New ClassName` instance. Reuses Scope for
@@ -2051,7 +2053,13 @@ public:
     }
 
     void scan_enum_names() {
-        const std::string_view text = source_;
+        scan_enum_names_in(source_);
+        for (const auto& module : class_sources_) {
+            scan_enum_names_in(module.source);
+        }
+    }
+
+    void scan_enum_names_in(const std::string_view text) {
         std::size_t position = 0;
         while (position < text.size()) {
             auto end = text.find('\n', position);
@@ -2589,13 +2597,41 @@ private:
                 skip_rest_of_line();
                 continue;
             }
+            {
+                // REQ-0260: class-level `[Public|Private|Friend] Const|Enum`.
+                const auto before_constant = offset_;
+                static_cast<void>(
+                    consume_keyword("public") || consume_keyword("private") ||
+                    consume_keyword("friend"));
+                skip_horizontal_whitespace();
+                const bool is_const = consume_keyword("const");
+                const bool is_enum = !is_const && consume_keyword("enum");
+                if (is_const || is_enum) {
+                    scopes_.emplace_back();
+                    const bool parsed_ok =
+                        is_const ? parse_constant_declaration() : parse_enum_statement(line_offset);
+                    Scope captured = std::move(scopes_.back());
+                    scopes_.pop_back();
+                    if (!parsed_ok) {
+                        return false;
+                    }
+                    for (auto& [constant_name, constant_value] : captured.variables) {
+                        class_def.constants[constant_name] = std::move(constant_value);
+                    }
+                    if (!consume_statement_end() && !is_enum) {
+                        return false;
+                    }
+                    continue;
+                }
+                offset_ = before_constant;
+            }
             bool is_private = false;
             bool has_visibility_keyword = false;
             if (consume_keyword("private")) {
                 is_private = true;
                 has_visibility_keyword = true;
                 skip_horizontal_whitespace();
-            } else if (consume_keyword("public")) {
+            } else if (consume_keyword("public") || consume_keyword("friend")) {
                 has_visibility_keyword = true;
                 skip_horizontal_whitespace();
             }
@@ -9574,6 +9610,10 @@ private:
         }
         auto instance = std::make_shared<InstanceData>();
         instance->class_name = class_name;
+        for (const auto& [constant_name, constant_value] : class_iterator->second.constants) {
+            instance->fields.variables.emplace(constant_name, constant_value);
+            instance->fields.constants.insert(constant_name);
+        }
         for (const auto& [field_name, field_def] : class_iterator->second.fields) {
             Value initial_value;
             if (field_def.is_array) {

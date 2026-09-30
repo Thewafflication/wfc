@@ -227,6 +227,7 @@ a specific requirement.
 | 2026-09-30 #142 | Construction | Add `Attribute X.VB_UserMemId = 0` default members (`obj(i)`) for methods and indexed `Property Get`, keep the attribute in the `.cls` loader, and use it for `Collection.Item` under `REQ-0257`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #143 | Construction | Resolve `Module.Name` for standard modules declared with `Attribute VB_Name`, keeping the attribute in the project loader, under `REQ-0258`; two-module project fixture test. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #144 | Construction | Add the error-subtype Variant (`CVErr`, real `IsError`, `TypeName`/`VarType`/rendering) under `REQ-0259`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #145 | Construction | Accept `Const`, `Enum` and `Friend` in class modules (constants installed on every instance) under `REQ-0260`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
