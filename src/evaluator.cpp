@@ -1564,6 +1564,114 @@ struct DateParts {
 // and the module scope -- never an enclosing caller's locals -- matching
 // VB6's own two-level (module/procedure) scoping, which has no nested
 // block scope.
+// REQ-0243: the built-in `Collection`, written in the evaluator's own VB
+// dialect and registered on demand (a doubly linked list of nodes).
+constexpr std::string_view kCollectionNodeSource = R"VB(Public Value As Variant
+Public Key As String
+Public NextNode As WfcCollectionNode
+Public PrevNode As WfcCollectionNode
+)VB";
+
+constexpr std::string_view kCollectionSource = R"VB(Private head As WfcCollectionNode
+Private tail As WfcCollectionNode
+Private n As Long
+Public Sub Add(Item As Variant, Optional Key As String = "", Optional Before As Variant, Optional After As Variant)
+Dim nd As New WfcCollectionNode
+If IsObject(Item) Then
+Set nd.Value = Item
+Else
+nd.Value = Item
+End If
+nd.Key = Key
+If Key <> "" Then
+If Not FindKey(Key) Is Nothing Then Err.Raise 457, , "This key is already associated with an element of this collection"
+End If
+If tail Is Nothing Then
+Set head = nd
+Set tail = nd
+Else
+Set nd.PrevNode = tail
+Set tail.NextNode = nd
+Set tail = nd
+End If
+n = n + 1
+End Sub
+Public Property Get Count() As Long
+Count = n
+End Property
+Public Function Item(Index As Variant) As Variant
+Dim nd As WfcCollectionNode
+Set nd = Locate(Index)
+If IsObject(nd.Value) Then
+Set Item = nd.Value
+Else
+Item = nd.Value
+End If
+End Function
+Public Sub Remove(Index As Variant)
+Dim nd As WfcCollectionNode
+Set nd = Locate(Index)
+If nd.PrevNode Is Nothing Then
+Set head = nd.NextNode
+Else
+Set nd.PrevNode.NextNode = nd.NextNode
+End If
+If nd.NextNode Is Nothing Then
+Set tail = nd.PrevNode
+Else
+Set nd.NextNode.PrevNode = nd.PrevNode
+End If
+n = n - 1
+End Sub
+Private Function FindKey(Key As String) As WfcCollectionNode
+Dim cur As WfcCollectionNode
+Set cur = head
+Do While Not cur Is Nothing
+If LCase(cur.Key) = LCase(Key) Then
+Set FindKey = cur
+Exit Function
+End If
+Set cur = cur.NextNode
+Loop
+Set FindKey = Nothing
+End Function
+Private Function Locate(Index As Variant) As WfcCollectionNode
+Dim cur As WfcCollectionNode
+Dim i As Long
+If VarType(Index) = 8 Then
+Set cur = FindKey(Index)
+If cur Is Nothing Then Err.Raise 5, , "Invalid procedure call or argument"
+Set Locate = cur
+Exit Function
+End If
+If Index < 1 Or Index > n Then Err.Raise 9, , "Subscript out of range"
+Set cur = head
+For i = 2 To Index
+Set cur = cur.NextNode
+Next i
+Set Locate = cur
+End Function
+Public Function WfcItems() As Variant
+Dim r() As Variant
+Dim cur As WfcCollectionNode
+Dim i As Long
+If n > 0 Then
+ReDim r(1 To n)
+Set cur = head
+For i = 1 To n
+If IsObject(cur.Value) Then
+Set r(i) = cur.Value
+Else
+r(i) = cur.Value
+End If
+Set cur = cur.NextNode
+Next i
+End If
+WfcItems = r
+End Function
+)VB";
+
+
 struct Scope {
     std::unordered_map<std::string, Value> variables;
     std::unordered_set<std::string> constants;
@@ -1899,6 +2007,7 @@ public:
     [[nodiscard]] wfc::Evaluation evaluate() {
         scan_enum_names();
         scan_udt_types();
+        scan_builtin_classes();
         if (!scan_classes()) {
             return std::move(error_);
         }
@@ -2785,6 +2894,34 @@ private:
         }
     }
 
+    // REQ-0243: registers the built-in Collection when the program mentions
+    // it and does not define its own class of that name.
+    void scan_builtin_classes() {
+        const auto mentions = [](const std::string_view text) {
+            constexpr std::string_view word = "collection";
+            for (std::size_t i = 0; i + word.size() <= text.size(); ++i) {
+                std::size_t k = 0;
+                while (k < word.size() && ascii_lower(text[i + k]) == word[k]) ++k;
+                if (k == word.size() && (i == 0 || !is_identifier_part(text[i - 1])) &&
+                    (i + k == text.size() || !is_identifier_part(text[i + k]))) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        bool needed = mentions(source_);
+        for (const auto& module : class_sources_) {
+            if (module.name.size() == 10 && mentions(module.name)) {
+                return;  // user-defined Collection
+            }
+            needed = needed || mentions(module.source);
+        }
+        if (needed) {
+            class_sources_.push_back({"WfcCollectionNode", kCollectionNodeSource});
+            class_sources_.push_back({"Collection", kCollectionSource});
+        }
+    }
+
     [[nodiscard]] bool scan_classes() {
         for (const auto& class_source : class_sources_) {
             std::string lowered_name;
@@ -3667,6 +3804,9 @@ private:
                         break;
                     }
                     skip_horizontal_whitespace();
+                    if (!at_end() && (current() == ',' || current() == ')')) {
+                        continue;  // omitted argument
+                    }
                     auto value = parse_expression();
                     if (!value.has_value()) {
                         return false;
@@ -3877,10 +4017,14 @@ private:
             skip_horizontal_whitespace();
             const bool bare_statement_end = at_end() || current() == '\r' || current() == '\n' ||
                 current() == ':' || current() == '\'';
+            const bool arguments_follow = !bare_statement_end && current() != '=' &&
+                current() != '(' && current() != '.';
             offset_ = saved_offset;
-            if (bare_statement_end) {
+            if (bare_statement_end || arguments_follow) {
+                bare_call_arguments_ = arguments_follow;
                 if (procedures_.contains(*identifier)) {
                     const auto result = call_procedure(*identifier, identifier_offset, false);
+                    bare_call_arguments_ = false;
                     return result.has_value();
                 }
                 if (auto* const instance = current_instance()) {
@@ -3888,10 +4032,12 @@ private:
                         if (class_def->methods.contains(*identifier)) {
                             const auto result = call_class_method(
                                 *instance, *class_def, *identifier, identifier_offset, false);
+                            bare_call_arguments_ = false;
                             return result.has_value();
                         }
                     }
                 }
+                bare_call_arguments_ = false;
             }
         }
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
@@ -4492,7 +4638,7 @@ private:
                 execute_ = enclosing_execution;
                 return true;
             }
-            if (exit_for_requested_) {
+            if (exit_for_requested_ || exit_sub_requested_ || exit_function_requested_) {
                 offset_ = continuation_offset;
                 execute_ = false;
                 return true;
@@ -4542,7 +4688,8 @@ private:
                 return false;
             }
             const bool exit_do_requested = exit_do_requested_;
-            const bool exit_for_requested = exit_for_requested_;
+            const bool exit_for_requested =
+                exit_for_requested_ || exit_sub_requested_ || exit_function_requested_;
 
             skip_horizontal_whitespace();
             bool until{};
@@ -4875,7 +5022,29 @@ private:
         if (!collection_value.has_value()) {
             return false;
         }
+        // REQ-0243: For Each over a Collection (or any class exposing a
+        // `WfcItems` method) iterates the array that method returns.
+        if (execute_) {
+            if (const auto* holder = std::get_if<ObjectInstance>(&*collection_value)) {
+                const auto class_iterator = class_definitions_.find(holder->data->class_name);
+                if (class_iterator != class_definitions_.end() &&
+                    class_iterator->second.methods.contains("wfcitems")) {
+                    auto items = call_class_method(
+                        *holder->data, class_iterator->second, "wfcitems", collection_offset,
+                        /*require_function=*/true);
+                    if (!items.has_value()) {
+                        return false;
+                    }
+                    collection_value = std::move(items);
+                }
+            }
+        }
         const auto* array = std::get_if<ArrayValue>(&*collection_value);
+        if (array == nullptr && !execute_ &&
+            std::holds_alternative<ObjectInstance>(*collection_value)) {
+            static const ArrayValue empty_array{};
+            array = &empty_array;
+        }
         if (array == nullptr) {
             set_error("WFC0147", "For Each requires an array", collection_offset);
             return false;
@@ -4888,6 +5057,11 @@ private:
         const auto count = array->elements.size();
         const auto assign_element = [&](const std::size_t index) -> bool {
             Value element_value = array->elements[index];
+            if (variable.scope->object_variables.contains(*identifier) &&
+                is_object_reference(element_value)) {
+                *variable.value = std::move(element_value);
+                return true;
+            }
             if (target_is_variant) {
                 *variable.value = std::move(element_value);
                 return true;
@@ -5830,7 +6004,7 @@ private:
                 dimension_lower = option_base_one_ ? 1 : 0;
                 dimension_upper = *first_long;
             }
-            if (dimension_lower > dimension_upper) {
+            if (execute_ && dimension_lower > dimension_upper) {
                 set_error(
                     "WFC0117", "array lower bound must not exceed the upper bound",
                     identifier_offset);
@@ -6247,7 +6421,7 @@ private:
         const std::string& declared_class_name,
         Value source,
         const std::size_t offset) {
-        if (!std::holds_alternative<Nothing>(source) &&
+        if (execute_ && !std::holds_alternative<Nothing>(source) &&
             !std::holds_alternative<ObjectInstance>(source)) {
             set_error("WFC0106", "Set requires an object reference", offset);
             return false;
@@ -6360,7 +6534,8 @@ private:
         }
         const auto field_iterator = instance.fields.variables.find(*member_name);
         if (field_iterator == instance.fields.variables.end() ||
-            !instance.fields.object_variables.contains(*member_name)) {
+            (!instance.fields.object_variables.contains(*member_name) &&
+             !instance.fields.variant_variables.contains(*member_name))) {
             set_error("WFC0135", "unknown member (no Property Set accessor)", member_offset);
             return false;
         }
@@ -6371,6 +6546,17 @@ private:
             return false;
         }
         skip_horizontal_whitespace();
+        if (!at_end() && current() == '.') {
+            // Chained `Set a.b.c = x`: `a.b` holds the object `c` is set on.
+            const Value& next_base = field_iterator->second;
+            if (!std::holds_alternative<ObjectInstance>(next_base) &&
+                !std::holds_alternative<Nothing>(next_base)) {
+                set_error("WFC0136", "member access requires an object reference", member_offset);
+                return false;
+            }
+            advance();
+            return parse_member_set_assignment(next_base, member_offset);
+        }
         if (!consume('=')) {
             set_error("WFC0014", "expected assignment operator", offset_);
             return false;
@@ -6457,7 +6643,7 @@ private:
         if (type_character == '\0' && !at_end() && current() == '(' &&
             std::holds_alternative<ArrayValue>(*variable.value)) {
             auto& array = std::get<ArrayValue>(*variable.value);
-            if (!array.is_object_element) {
+            if (!array.is_object_element && !array.is_variant_element) {
                 set_error(
                     "WFC0109", "Set requires an Object or Variant target", identifier_offset);
                 return false;
@@ -6729,6 +6915,8 @@ private:
                         skip_horizontal_whitespace();
                         const bool bare_statement_end = at_end() || current() == '\r' ||
                             current() == '\n' || current() == ':' || current() == '\'';
+                        const bool arguments_follow = !bare_statement_end && current() != '=' &&
+                            current() != '(' && current() != '.';
                         const bool is_method = peek_member_name.has_value() &&
                             peek_type_character == '\0' &&
                             (instance_class_def.methods.contains(*peek_member_name) ||
@@ -6736,7 +6924,8 @@ private:
                               instance_class_def.methods.contains(
                                   declared_interface_class + "_" + *peek_member_name)));
                         offset_ = peek_offset;
-                        if (bare_statement_end && is_method) {
+                        if ((bare_statement_end || arguments_follow) && is_method) {
+                            bare_call_arguments_ = arguments_follow;
                             const auto result = parse_member_access_after_dot(
                                 base, identifier_offset, /*require_function=*/false,
                                 declared_interface_class);
@@ -7825,7 +8014,25 @@ private:
     // classic ambiguity between that form and other statement/expression
     // shapes; see REQ-0213's Scope.
     [[nodiscard]] std::optional<std::vector<CallArgument>> parse_call_argument_list() {
+        // REQ-0243: `Name a, b` / `obj.Method a, b` (no parentheses).
+        const bool bare_arguments = bare_call_arguments_;
+        bare_call_arguments_ = false;
         skip_horizontal_whitespace();
+        if (bare_arguments) {
+            std::vector<CallArgument> arguments;
+            while (true) {
+                auto argument = parse_call_argument();
+                if (!argument.has_value()) {
+                    return std::nullopt;
+                }
+                arguments.push_back(std::move(*argument));
+                skip_horizontal_whitespace();
+                if (!consume(',')) {
+                    return arguments;
+                }
+                skip_horizontal_whitespace();
+            }
+        }
         if (!consume('(')) {
             return std::vector<CallArgument>{};
         }
@@ -8109,7 +8316,10 @@ private:
         offset_ = definition.body_start;
         source_ = body_source;
         execute_ = true;
+        const bool enclosing_declaration_permission = allow_declarations_;
+        allow_declarations_ = true;
         const bool ran_ok = run_procedure_body(definition.body_end);
+        allow_declarations_ = enclosing_declaration_permission;
         --procedure_depth_;
         execute_ = enclosing_execution;
         offset_ = saved_offset;
@@ -12898,6 +13108,7 @@ private:
     std::vector<std::string> enum_names_;
     std::deque<std::string> udt_sources_;
     std::vector<std::string> udt_names_;
+    bool bare_call_arguments_{};
     bool udt_array_{};
     // REQ-0238 error-handling state.
     Integer err_number_{};
@@ -12950,6 +13161,7 @@ private:
     float rnd_last_value_{};
     wfc::Evaluation error_;
 };
+
 
 
 // REQ-0240: conditional compilation. Returns `source` with every

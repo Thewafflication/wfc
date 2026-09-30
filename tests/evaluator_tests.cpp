@@ -1262,6 +1262,19 @@ int main() {
         "Print CStr(IsDate(\"13/45/2000\")) & CStr(IsDate(\"1/1/2000\"))",
         "1/15/2000 3:04:05 PM\n2000-1-15 15\n7 Saturday Jan\n2/29/2000\n60\n3/7/2001\n60\nTrue\n"
         "Date7\n2000-01-15 15:04:05\nFalseTrue");
+    // Collection, bare-argument calls, and fixes (REQ-0243).
+    expect_program_success(
+        "Dim c As New Collection\nc.Add 10\nc.Add 20, \"b\"\nDim v As Variant\nDim t As Long\n"
+        "For Each v In c\nt = t + v\nNext\nPrint t & \" \" & c.Count & \" \" & c.Item(\"B\")\n"
+        "c.Remove 1\nPrint c.Count & \" \" & c.Item(1)\nOn Error Resume Next\nPrint c.Item(9)\nPrint Err.Number",
+        "30 2 20\n1 20\n9");
+    expect_program_success(
+        "Sub Show(x As Long, y As Long)\nPrint x & \",\" & y\nEnd Sub\nShow 5, 6",
+        "5,6");
+    expect_program_success(
+        "Function F() As Long\nDim i As Long\nDo While i < 5\nF = 3\nExit Function\nLoop\n"
+        "End Function\nPrint F()",
+        "3");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

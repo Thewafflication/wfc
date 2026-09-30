@@ -1260,6 +1260,21 @@ Print DateAdd("m", 1, #1/31/2000#)]=]
     )
 
     add_test(
+        NAME TC-MP0002-collection-cli
+        COMMAND wfc
+            --eval [=[Dim c As New Collection
+c.Add 10
+c.Add 20, "b"
+Print c.Count & " " & c.Item("b")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-collection-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^2 20"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
