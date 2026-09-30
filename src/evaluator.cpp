@@ -3177,6 +3177,16 @@ private:
         return false;
     }
 
+    // `Case x: statement` -- a colon may end the Case line (REQ-0252).
+    [[nodiscard]] bool consume_case_line_end() {
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ':') {
+            advance();
+            return true;
+        }
+        return consume_block_line_end();
+    }
+
     [[nodiscard]] bool consume_block_line_end() {
         skip_horizontal_whitespace();
         if (!at_end() && current() == '\'') {
@@ -5809,7 +5819,77 @@ private:
         }
     }
 
+    // REQ-0252: offset of the line that closes the innermost loop
+    // (`Loop`/`Next`/`Wend`) enclosing `from`, scanning forward with simple
+    // nesting counts; npos when none is found.
+    [[nodiscard]] std::size_t find_loop_end(const std::size_t from) const {
+        std::size_t position = source_.find('\n', from);
+        if (position == std::string_view::npos) {
+            return std::string_view::npos;
+        }
+        ++position;
+        int depth = 0;
+        while (position < source_.size()) {
+            std::size_t line_end = source_.find('\n', position);
+            if (line_end == std::string_view::npos) {
+                line_end = source_.size();
+            }
+            std::size_t i = position;
+            while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) ++i;
+            const auto word_is = [&](const std::string_view w) {
+                if (line_end - i < w.size()) return false;
+                for (std::size_t k = 0; k < w.size(); ++k) {
+                    if (ascii_lower(source_[i + k]) != w[k]) return false;
+                }
+                return line_end - i == w.size() || !is_identifier_part(source_[i + w.size()]);
+            };
+            if (word_is("do") || word_is("while") || word_is("for")) {
+                ++depth;
+            } else if (word_is("loop") || word_is("wend") || word_is("next")) {
+                if (depth == 0) {
+                    return position;
+                }
+                --depth;
+                if (word_is("next")) {
+                    // `Next j, i` closes several loops at once.
+                    for (std::size_t k = i; k < line_end && source_[k] != '\''; ++k) {
+                        if (source_[k] == ',' && depth > 0) --depth;
+                    }
+                }
+            }
+            position = line_end + 1;
+        }
+        return std::string_view::npos;
+    }
+
+    // A pending `GoTo`/`GoSub`/`Resume` jump whose label lies inside the loop
+    // body currently being parsed is taken in place, keeping the block
+    // context (`GoTo skip` ... `skip:` ... `Next`).
+    [[nodiscard]] bool take_local_jump(
+        const std::size_t body_start, const std::size_t statement_start) {
+        if (!jump_pending_) {
+            return false;
+        }
+        const auto target = jump_target_;
+        bool local = false;
+        if (target >= body_start && target <= statement_start) {
+            local = true;
+        } else if (target > statement_start) {
+            const auto end = find_loop_end(statement_start);
+            local = end != std::string_view::npos && target < end;
+        }
+        if (!local) {
+            return false;
+        }
+        jump_pending_ = false;
+        error_ = wfc::Evaluation{};
+        offset_ = target;
+        execute_ = true;
+        return true;
+    }
+
     [[nodiscard]] bool parse_while_body(std::size_t& continuation_offset) {
+        const auto body_start = offset_;
         while (true) {
             skip_program_leading_trivia();
             if (at_end()) {
@@ -5834,6 +5914,9 @@ private:
             const bool parsed_statement = parse_statement();
             const bool consumed_statement_end = parsed_statement && consume_statement_end();
             allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+                continue;
+            }
             if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
@@ -6023,6 +6106,7 @@ private:
     }
 
     [[nodiscard]] bool parse_do_body(std::size_t& continuation_offset) {
+        const auto body_start = offset_;
         while (true) {
             skip_program_leading_trivia();
             if (at_end()) {
@@ -6047,6 +6131,9 @@ private:
             const bool parsed_statement = parse_statement();
             const bool consumed_statement_end = parsed_statement && consume_statement_end();
             allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+                continue;
+            }
             if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
@@ -6197,6 +6284,7 @@ private:
         const std::string_view identifier,
         std::size_t& continuation_offset) {
         pending_next_comma_ = false;
+        const auto body_start = offset_;
         while (true) {
             if (pending_next_comma_) {
                 // REQ-0248: the nested loop's `Next j, i` left `, i` for us.
@@ -6259,6 +6347,9 @@ private:
             const bool parsed_statement = parse_statement();
             const bool consumed_statement_end = parsed_statement && consume_statement_end();
             allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+                continue;
+            }
             if (!parsed_statement || !consumed_statement_end) {
                 return false;
             }
@@ -6457,7 +6548,7 @@ private:
                     }
                     has_else = true;
                     has_case = true;
-                    if (!consume_block_line_end()) {
+                    if (!consume_case_line_end()) {
                         execute_ = enclosing_execution;
                         return false;
                     }
@@ -6580,7 +6671,7 @@ private:
                     }
                     skip_horizontal_whitespace();
                 }
-                if (!consume_block_line_end()) {
+                if (!consume_case_line_end()) {
                     execute_ = enclosing_execution;
                     return false;
                 }
@@ -9656,7 +9747,8 @@ private:
             auto identifier = parse_identifier(&type_character);
             skip_horizontal_whitespace();
             const bool bare_candidate = type_character == '\0' &&
-                (at_end() || current() == ',' || current() == ')');
+                (at_end() || current() == ',' || current() == ')' || current() == '\r' ||
+                 current() == '\n' || current() == ':' || current() == '\'');
             if (bare_candidate) {
                 const auto variable = find_variable(*identifier);
                 if (variable.value != nullptr) {

@@ -29,3 +29,14 @@ procedure body is not valid VB and is not specially handled.
 ## Verification
 
 `tests/evaluator_tests.cpp`; `TC-MP0002-flow-and-declarations-cli`.
+
+## Addendum (REQ-0252): loop-local `GoTo`, `Case x: stmt`
+
+A `GoTo`/`GoSub`/`Resume` whose label lies inside the `Do`/`While`/`For`
+loop body currently executing is taken in place (the loop context is kept),
+so the common `GoTo skip` ... `skip:` ... `Loop`/`Next` idiom works. Jumps
+to labels outside the loop still unwind to the enclosing procedure level.
+`Case 1: statement` (and `Case Else: statement`) accept a colon after the
+Case list. Jumping into the middle of an `If`/`Select`/`With` block from
+outside it is not supported. Bare calls with arguments accept a whole-array
+argument (`Sort nums`).

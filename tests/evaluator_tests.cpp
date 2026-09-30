@@ -1342,6 +1342,13 @@ int main() {
         "Dim s As New Stack\ns.Push 1\ns.Push 2\nPrint s.Pop() & s.Pop() & s.Count\n"
         "Dim g As New Grid\ng.cells(2, 1) = 5\ng.names(1) = \"x\"\nPrint g.cells(2, 1) & g.names(1) & UBound(g.names)",
         "210\n5x2");
+    // GoTo inside loops and Case with colon (REQ-0252).
+    expect_program_success(
+        "Dim i As Long, total As Long\nDo While i < 10\ni = i + 1\nIf i Mod 2 = 0 Then GoTo skip\ntotal = total + i\n"
+        "skip:\nLoop\nPrint total\nDim j As Long\nFor j = 1 To 5\nIf j = 3 Then GoTo nxt\nPrint j\nnxt:\nNext j\n"
+        "Function Nm(c As Long) As String\nSelect Case c\nCase 1: Nm = \"one\"\nCase Else: Nm = \"many\"\nEnd Select\nEnd Function\n"
+        "Print Nm(1) & Nm(2)",
+        "25\n1\n2\n4\n5\nonemany");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

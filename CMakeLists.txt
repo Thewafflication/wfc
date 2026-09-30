@@ -1395,6 +1395,23 @@ Print g.cells(2) + g.cells(1)]=]
     )
 
     add_test(
+        NAME TC-MP0002-loop-goto-cli
+        COMMAND wfc
+            --eval [=[Dim j As Long
+For j = 1 To 3
+If j = 2 Then GoTo nxt
+Print j
+nxt:
+Next j]=]
+    )
+    set_tests_properties(
+        TC-MP0002-loop-goto-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^1.*3"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

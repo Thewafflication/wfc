@@ -205,6 +205,7 @@ a specific requirement.
 | 2026-09-30 #133 | Construction | Add `wfc project.vbp` / `wfc a.bas b.cls` project loading (module concatenation, class registration, header stripping, `Sub Main` startup) and accept `Option Explicit` in class modules under `REQ-0249`; CLI test with a CRLF fixture project. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #134 | Construction | Add `TypeOf .. Is`, the `Error n` statement, `LSet`/`RSet`, `Erl`, `Command` under `REQ-0250`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #135 | Construction | Add dynamic, fixed, and multi-dimensional array fields in class modules (internal and `obj.field(i)` external access) under `REQ-0251`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #136 | Construction | Take `GoTo`/`GoSub`/`Resume` jumps whose label lies inside the running `Do`/`While`/`For` body in place; accept `Case x: stmt`; accept a whole-array argument in bare-argument calls; documented as an addendum to `REQ-0248`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
