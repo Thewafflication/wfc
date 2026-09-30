@@ -1230,7 +1230,7 @@ enum class NumericCategory {
            identifier == "print" || identifier == "randomize" || identifier == "redim" ||
            identifier == "rem" || identifier == "select" ||
            identifier == "string" || identifier == "then" ||
-           identifier == "explicit" || identifier == "step" || identifier == "to" ||
+           identifier == "explicit" || identifier == "enum" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
            identifier == "while" || identifier == "with" || identifier == "xor" ||
@@ -1532,7 +1532,53 @@ public:
         return {};
     }
 
+    // REQ-0237: collects `[Public|Private] Enum Name` type names up front so
+    // `As Name` resolves even in procedures scanned before the Enum runs.
+    void scan_enum_names() {
+        const std::string_view text = source_;
+        std::size_t position = 0;
+        while (position < text.size()) {
+            auto end = text.find('\n', position);
+            if (end == std::string_view::npos) {
+                end = text.size();
+            }
+            std::string line;
+            for (const char c : text.substr(position, end - position)) {
+                line.push_back(ascii_lower(c));
+            }
+            position = end + 1;
+            std::size_t i = 0;
+            const auto skip_space = [&] {
+                while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+            };
+            const auto word = [&](const std::string_view w) {
+                if (line.compare(i, w.size(), w) == 0 &&
+                    (i + w.size() == line.size() || !is_identifier_part(line[i + w.size()]))) {
+                    i += w.size();
+                    return true;
+                }
+                return false;
+            };
+            skip_space();
+            if (word("public") || word("private")) {
+                skip_space();
+            }
+            if (!word("enum")) {
+                continue;
+            }
+            skip_space();
+            std::string name;
+            while (i < line.size() && is_identifier_part(line[i])) {
+                name.push_back(line[i++]);
+            }
+            if (!name.empty()) {
+                enum_names_.push_back(std::move(name));
+            }
+        }
+    }
+
     [[nodiscard]] wfc::Evaluation evaluate() {
+        scan_enum_names();
         if (!scan_classes()) {
             return std::move(error_);
         }
@@ -2513,8 +2559,23 @@ private:
         return true;
     }
 
-    [[nodiscard]] bool consume_keyword(const std::string_view keyword) noexcept {
+    [[nodiscard]] bool consume_keyword(const std::string_view keyword) {
         const auto start = offset_;
+        if (keyword == "long" && !enum_names_.empty()) {
+            // REQ-0237: an Enum's name is a Long-typed type name.
+            for (const auto& enum_name : enum_names_) {
+                std::size_t i = 0;
+                while (i < enum_name.size() && offset_ + i < source_.size() &&
+                       ascii_lower(source_[offset_ + i]) == enum_name[i]) {
+                    ++i;
+                }
+                if (i == enum_name.size() &&
+                    (offset_ + i == source_.size() || !is_identifier_part(source_[offset_ + i]))) {
+                    offset_ += i;
+                    return true;
+                }
+            }
+        }
         for (const char expected : keyword) {
             if (at_end() || ascii_lower(current()) != expected) {
                 offset_ = start;
@@ -2888,6 +2949,15 @@ private:
         }
         if (consume_keyword("with")) {
             return parse_with_statement(statement_offset);
+        }
+        {
+            const auto pre_enum_offset = offset_;
+            static_cast<void>(consume_keyword("public") || consume_keyword("private"));
+            skip_horizontal_whitespace();
+            if (consume_keyword("enum")) {
+                return parse_enum_statement(statement_offset);
+            }
+            offset_ = pre_enum_offset;
         }
         if (consume_keyword("case")) {
             set_error("WFC0058", "unexpected Case", statement_offset);
@@ -3371,6 +3441,74 @@ private:
         offset_ = continuation_offset;
         execute_ = enclosing_execution;
         return true;
+    }
+
+    // `Enum Name` ... `End Enum` (REQ-0237): each member becomes a Long
+    // module constant; `As Name` is accepted wherever `As Long` is.
+    [[nodiscard]] bool parse_enum_statement(const std::size_t statement_offset) {
+        skip_horizontal_whitespace();
+        char type_character{};
+        const auto name_offset = offset_;
+        auto enum_name = parse_identifier(&type_character);
+        if (!enum_name.has_value()) {
+            set_error("WFC0011", "expected Enum name", name_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+        Integer next_value = 0;
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                set_error("WFC0025", "expected End Enum", statement_offset);
+                return false;
+            }
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("enum")) {
+                    set_error("WFC0025", "expected Enum after End", offset_);
+                    return false;
+                }
+                return true;
+            }
+            const auto member_offset = offset_;
+            auto member = parse_identifier(&type_character);
+            if (!member.has_value() || type_character != '\0' ||
+                is_reserved_identifier(*member)) {
+                set_error("WFC0011", "expected Enum member name", member_offset);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume('=')) {
+                skip_horizontal_whitespace();
+                constant_expression_ = true;
+                auto value = parse_expression();
+                constant_expression_ = false;
+                if (!value.has_value()) {
+                    return false;
+                }
+                if (!coerce_numeric_value(*value, Value{Integer{}}.index(), member_offset) ||
+                    !std::holds_alternative<Integer>(*value)) {
+                    set_error("WFC0016", "Enum member value must be a Long", member_offset);
+                    return false;
+                }
+                next_value = std::get<Integer>(*value);
+            }
+            if (execute_) {
+                if (current_scope().variables.contains(*member)) {
+                    set_error(
+                        "WFC0013", "duplicate variable or constant declaration", member_offset);
+                    return false;
+                }
+                current_scope().variables.emplace(*member, Value{next_value});
+                current_scope().constants.insert(*member);
+            }
+            ++next_value;
+            if (!consume_block_line_end()) {
+                return false;
+            }
+        }
     }
 
     // `With expr ... End With` (REQ-0236): the object is held in a hidden
@@ -11267,6 +11405,7 @@ private:
     // invalidated by an outer call's later, unrelated container growth
     // (moot for a deque, unlike a vector).
     std::deque<InstanceData*> instance_scopes_;
+    std::vector<std::string> enum_names_;
     // REQ-0236 With-block state.
     std::unordered_map<std::string, Value> with_slots_;
     Scope with_scope_;

@@ -1209,6 +1209,11 @@ int main() {
         "Dim c As New Counter\nWith c\n.n = 3\n.m = .n + 4\n.Bump\n"
         "Print .n & \" \" & .m & \" \" & .Dbl()\nEnd With",
         "4 7 8");
+    // Enum (REQ-0237).
+    expect_program_success(
+        "Enum Color\nRed\nGreen = 5\nBlue\nEnd Enum\nDim c As Color\nc = Blue\n"
+        "Print Red & \" \" & Green & \" \" & c",
+        "0 5 6");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

@@ -1158,6 +1158,25 @@ End With]=]
     )
 
     add_test(
+        NAME TC-MP0002-enum-cli
+        COMMAND wfc
+            --eval [=[Enum Color
+Red
+Green = 5
+Blue
+End Enum
+Dim c As Color
+c = Blue
+Print Red & " " & Green & " " & c]=]
+    )
+    set_tests_properties(
+        TC-MP0002-enum-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^0 5 6"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
