@@ -1119,6 +1119,24 @@ Print "after"]=]
     )
 
     add_test(
+        NAME TC-MP0002-chained-field-write-cli
+        COMMAND wfc
+            --class Inner [=[Public tag As Long]=]
+            --class Outer [=[Public i As Inner]=]
+            --eval [=[Dim o As New Outer
+Dim n As New Inner
+Set o.i = n
+o.i.tag = 9
+Print n.tag]=]
+    )
+    set_tests_properties(
+        TC-MP0002-chained-field-write-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "^9"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

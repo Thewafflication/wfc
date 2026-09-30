@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <deque>
 #include <limits>
 #include <memory>
@@ -5486,6 +5487,24 @@ private:
             !member_accessible(class_def, field_def_iterator->second.is_private)) {
             set_error("WFC0142", "member is not accessible outside its class", member_offset);
             return false;
+        }
+        {
+            // Chained write (`o.i.tag = 9`): the field holds the object the
+            // next `.member` is written on, so recurse with it as the base.
+            const auto chain_offset = offset_;
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '.') {
+                const Value& next_base = field_iterator->second;
+                if (!std::holds_alternative<ObjectInstance>(next_base) &&
+                    !std::holds_alternative<Nothing>(next_base)) {
+                    set_error(
+                        "WFC0136", "member access requires an object reference", member_offset);
+                    return false;
+                }
+                ++offset_;
+                return parse_member_assignment(next_base, member_offset);
+            }
+            offset_ = chain_offset;
         }
         if (instance.fields.object_variables.contains(*member_name)) {
             set_error("WFC0108", "object assignment requires Set", member_offset);

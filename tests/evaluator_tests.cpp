@@ -1196,6 +1196,12 @@ int main() {
         "Set mm.d = dd\nSet dd = Nothing\nSet t.m = mm\nSet mm = Nothing\n"
         "Print \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint \"after\"",
         "leaving\ntop terminated\nmiddle terminated\ndeepest terminated\nafter");
+    // Chained field write (REQ-0235): `o.i.tag = 9` writes through an
+    // object-typed field to the referenced instance's own field.
+    expect_classes_success(
+        {{"Inner", "Public tag As Long"}, {"Outer", "Public i As Inner"}},
+        "Dim o As New Outer\nDim n As New Inner\nSet o.i = n\no.i.tag = 9\nPrint n.tag",
+        "9");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
