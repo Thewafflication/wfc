@@ -2014,6 +2014,33 @@ public:
 
     // REQ-0237: collects `[Public|Private] Enum Name` type names up front so
     // `As Name` resolves even in procedures scanned before the Enum runs.
+    void scan_module_names() {
+        const std::string_view text = source_;
+        std::size_t position = 0;
+        while (position < text.size()) {
+            auto end = text.find('\n', position);
+            if (end == std::string_view::npos) end = text.size();
+            std::string line;
+            for (const char c : text.substr(position, end - position)) {
+                if (c != '\r') line.push_back(c);
+            }
+            position = end + 1;
+            std::string lowered;
+            for (const char c : line) lowered.push_back(ascii_lower(c));
+            const auto marker = lowered.find("attribute vb_name");
+            if (marker != 0) continue;
+            const auto first = line.find('"');
+            const auto last = line.rfind('"');
+            if (first != std::string::npos && last > first) {
+                std::string name;
+                for (const char c : line.substr(first + 1, last - first - 1)) {
+                    name.push_back(ascii_lower(c));
+                }
+                module_names_.insert(std::move(name));
+            }
+        }
+    }
+
     void scan_enum_names() {
         const std::string_view text = source_;
         std::size_t position = 0;
@@ -2058,6 +2085,7 @@ public:
     }
 
     [[nodiscard]] wfc::Evaluation evaluate() {
+        scan_module_names();
         scan_enum_names();
         scan_udt_types();
         scan_builtin_classes();
@@ -3298,6 +3326,18 @@ private:
             identifier.push_back(ascii_lower(current()));
             advance();
         } while (!at_end() && is_identifier_part(current()));
+        // REQ-0258: `Module1.Name` -- drop the module qualifier (standard
+        // modules share one namespace), unless a variable shadows it.
+        if (!module_names_.empty() && !at_end() && current() == '.' &&
+            offset_ + 1 < source_.size() && is_identifier_start(source_[offset_ + 1]) &&
+            module_names_.contains(identifier) && find_variable(identifier).value == nullptr) {
+            advance();
+            identifier.clear();
+            do {
+                identifier.push_back(ascii_lower(current()));
+                advance();
+            } while (!at_end() && is_identifier_part(current()));
+        }
         if (type_character != nullptr) {
             *type_character = '\0';
             if (!at_end() && strchr("$%&!#@", current()) != nullptr) {
@@ -15642,6 +15682,7 @@ private:
     bool output_line_open_{};
     bool discard_print_{};
     bool pending_next_comma_{};
+    std::unordered_set<std::string> module_names_;
     bool end_requested_{};
     std::map<Integer, OpenFile> files_;
     std::vector<std::string> dir_matches_;

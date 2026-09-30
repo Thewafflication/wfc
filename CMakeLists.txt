@@ -1494,6 +1494,17 @@ Print l(21)]=]
     )
 
     add_test(
+        NAME TC-MP0002-vbp-modules-cli
+        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/modules/Modules.vbp"
+    )
+    set_tests_properties(
+        TC-MP0002-vbp-modules-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;project"
+            PASS_REGULAR_EXPRESSION "^8"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

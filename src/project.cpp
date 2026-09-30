@@ -36,7 +36,7 @@ namespace {
 }
 
 // Blanks VERSION / BEGIN..END / Attribute lines; returns the VB_Name if any.
-[[nodiscard]] std::string strip_file_header(std::string& text) {
+[[nodiscard]] std::string strip_file_header(std::string& text, const bool keep_vb_name = false) {
     std::string name;
     std::string result;
     std::istringstream stream(text);
@@ -60,7 +60,8 @@ namespace {
         } else if (lower.rfind("attribute ", 0) == 0) {
             // Keep `Attribute X.VB_UserMemId = 0`: the evaluator reads it as
             // the class's default member.
-            blank = lower.find("vb_usermemid") == std::string::npos;
+            blank = lower.find("vb_usermemid") == std::string::npos &&
+                    !(keep_vb_name && lower.rfind("attribute vb_name", 0) == 0);
             if (lower.rfind("attribute vb_name", 0) == 0) {
                 const auto first = body.find('"');
                 const auto last = body.rfind('"');
@@ -171,7 +172,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         if (!read_file(module_path, text)) {
             return fail("cannot read module: " + module_path.string());
         }
-        static_cast<void>(strip_file_header(text));
+        static_cast<void>(strip_file_header(text, /*keep_vb_name=*/true));
         has_main = has_main || declares_sub_main(text);
         project.module_source += text;
         project.module_source += "\n";

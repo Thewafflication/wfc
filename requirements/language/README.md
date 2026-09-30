@@ -363,6 +363,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0255 — `Name` and `ChDir`](req-0255-name-chdir.md)
 - [REQ-0256 — Binary and Random files](req-0256-binary-random-files.md)
 - [REQ-0257 — Class default members](req-0257-default-members.md)
+- [REQ-0258 — Module-qualified names](req-0258-module-qualified-names.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.
