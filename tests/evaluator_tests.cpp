@@ -1371,6 +1371,19 @@ int main() {
             "Print Dir(\"" + to + "\") <> \"\"\nPrint name\nKill \"" + to + "\"",
             "True\nv");
     }
+    // Binary and Random files (REQ-0256).
+    {
+        const std::string path =
+            (std::filesystem::temp_directory_path() / "wfc_binary_test.dat").string();
+        expect_program_success(
+            "Dim a As Long, b As Double, s As String\na = 123456: b = 2.5: s = \"hello\"\n"
+            "Open \"" + path + "\" For Binary As #1\nPut #1, , a\nPut #1, , b\nPut #1, , s\nPrint LOF(1)\n"
+            "Dim a2 As Long, b2 As Double, s2 As String\ns2 = Space(5)\nGet #1, 1, a2\nGet #1, , b2\nGet #1, , s2\n"
+            "Print a2 & \" \" & b2 & \" \" & s2 & \" \" & Seek(1)\nClose #1\n"
+            "Open \"" + path + "\" For Random As #2 Len = 16\nDim n As Long\nn = 10\nPut #2, 1, n\nn = 20\nPut #2, 3, n\n"
+            "Dim r As Long\nGet #2, 3, r\nPrint r\nClose\nKill \"" + path + "\"",
+            "17\n123456 2.5 hello 18\n20");
+    }
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

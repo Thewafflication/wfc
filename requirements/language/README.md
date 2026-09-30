@@ -361,6 +361,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0253 — `Collection` default member; UDT `ReDim`](req-0253-collection-default-and-udt-redim.md)
 - [REQ-0254 — `Decimal` declarations](req-0254-decimal-declarations.md)
 - [REQ-0255 — `Name` and `ChDir`](req-0255-name-chdir.md)
+- [REQ-0256 — Binary and Random files](req-0256-binary-random-files.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

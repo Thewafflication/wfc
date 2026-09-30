@@ -1465,6 +1465,18 @@ Print name]=]
     )
 
     add_test(
+        NAME TC-MP0002-binary-random-cli
+        COMMAND wfc
+            --eval [=[Print 1]=]
+    )
+    set_tests_properties(
+        TC-MP0002-binary-random-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^1"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

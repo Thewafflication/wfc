@@ -223,6 +223,7 @@ a specific requirement.
 | 2026-09-30 #138 | Construction | Add `c(i)`/`c("key")` for `Collection` and per-slot UDT instances on `ReDim`/`ReDim Preserve` under `REQ-0253`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #139 | Construction | Accept `Decimal` in declarations with implicit numeric conversion on assignment under `REQ-0254`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #140 | Construction | Add the `Name old As new` and `ChDir` statements under `REQ-0255`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #141 | Construction | Add `Open For Binary|Random`, `Get`/`Put`/`Seek` and `Seek()` for scalar and String variables under `REQ-0256`; unit test. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2041,7 +2042,7 @@ file I/O (sequential), `Date`/`Time`, financial and formatting functions,
 (including `Implements`, array fields, `TypeOf`, `Collection`).
 
 **Known remaining gaps** (each documented in its requirement's Scope):
-binary/random file modes and `Get`/`Put`/`Seek`; `CVErr`/`IsError`;
+`CVErr`/`IsError`; `Get`/`Put` of UDTs, Variants and arrays;
 `Format` tokens `c`/`w`/`ww`/`q`/`y`, `Rate`/`MIRR`;
 module-qualified names and module-private scoping across multiple standard
 modules; default members in user classes (`Collection`'s `c(1)` works), class inheritance, events/`WithEvents`,

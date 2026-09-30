@@ -4199,6 +4199,9 @@ private:
         if (const auto handled = parse_mid_statement(statement_offset)) {
             return *handled;
         }
+        if (const auto handled = parse_binary_statement(statement_offset)) {
+            return *handled;
+        }
         if (consume_keyword("doevents")) {
             return true;
         }
@@ -4440,7 +4443,8 @@ private:
 
     struct OpenFile {
         std::FILE* handle{};
-        int mode{};  // 1 = Input, 2 = Output, 3 = Append
+        int mode{};  // 1 = Input, 2 = Output, 3 = Append, 4 = Binary, 5 = Random
+        long record_length{128};
     };
 
     [[nodiscard]] static std::FILE* open_file(const std::string& path, const char* mode) {
@@ -4759,6 +4763,150 @@ private:
         return true;
     }
 
+    // Positions a Binary/Random file for `Get`/`Put`/`Seek` (1-based `position`).
+    static void seek_record(OpenFile& file, const long position) {
+        const long unit = file.mode == 5 ? file.record_length : 1;
+        std::fseek(file.handle, (position - 1) * unit, SEEK_SET);
+    }
+
+    // `Get|Put [#]n, [position], variable` and `Seek [#]n, position`.
+    [[nodiscard]] std::optional<bool> parse_binary_statement(const std::size_t statement_offset) {
+        const auto start = offset_;
+        const bool is_get = consume_keyword("get");
+        const bool is_put = !is_get && consume_keyword("put");
+        const bool is_seek = !is_get && !is_put && consume_keyword("seek");
+        if (!is_get && !is_put && !is_seek) {
+            return std::nullopt;
+        }
+        skip_horizontal_whitespace();
+        if (!at_end() && (current() == '=' || current() == '(' || current() == '.')) {
+            offset_ = start;  // a variable named Get/Put/Seek
+            return std::nullopt;
+        }
+        Integer number{};
+        if (!parse_hash_file_number(number)) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume(',')) {
+            set_error("WFC0014", "expected comma after file number", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        std::optional<long> position;
+        if (is_seek || (!at_end() && current() != ',')) {
+            const auto position_offset = offset_;
+            auto value = parse_expression();
+            if (!value.has_value()) {
+                return false;
+            }
+            if (!coerce_numeric_value(*value, Value{Integer{}}.index(), position_offset) ||
+                !std::holds_alternative<Integer>(*value)) {
+                set_error("WFC0073", "file position must be a Long", position_offset);
+                return false;
+            }
+            position = static_cast<long>(std::get<Integer>(*value));
+        }
+        if (is_seek) {
+            if (!execute_) return true;
+            auto* const file = find_open_file(number, statement_offset);
+            if (file == nullptr) return false;
+            if (*position < 1) {
+                return raise_runtime(63, "Bad record number", statement_offset);
+            }
+            seek_record(*file, *position);
+            return true;
+        }
+        skip_horizontal_whitespace();
+        if (!consume(',')) {
+            set_error("WFC0014", "expected comma before variable", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto variable_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value()) {
+            set_error("WFC0011", "expected variable name", variable_offset);
+            return false;
+        }
+        const auto variable = find_variable(*name);
+        if (variable.value == nullptr) {
+            set_error("WFC0015", "undeclared variable", variable_offset);
+            return false;
+        }
+        if (!execute_) {
+            return true;
+        }
+        auto* const file = find_open_file(number, statement_offset);
+        if (file == nullptr) return false;
+        if (file->mode < 4) {
+            return raise_runtime(54, "Bad file mode", statement_offset);
+        }
+        if (position.has_value()) {
+            if (*position < 1) {
+                return raise_runtime(63, "Bad record number", statement_offset);
+            }
+            seek_record(*file, *position);
+        } else {
+            std::fseek(file->handle, std::ftell(file->handle), SEEK_SET);
+        }
+        const long record_start = std::ftell(file->handle);
+        Value& target = *variable.value;
+        const auto transfer = [&](void* data, const std::size_t size) {
+            return is_get ? std::fread(data, 1, size, file->handle) == size
+                          : std::fwrite(data, 1, size, file->handle) == size;
+        };
+        bool ok = true;
+        if (auto* v = std::get_if<Integer>(&target)) {
+            std::int32_t x = *v; ok = transfer(&x, 4); if (is_get) *v = x;
+        } else if (auto* v = std::get_if<Int16>(&target)) {
+            std::int16_t x = *v; ok = transfer(&x, 2); if (is_get) *v = x;
+        } else if (auto* v = std::get_if<Byte>(&target)) {
+            std::uint8_t x = *v; ok = transfer(&x, 1); if (is_get) *v = x;
+        } else if (auto* v = std::get_if<float>(&target)) {
+            float x = *v; ok = transfer(&x, 4); if (is_get) *v = x;
+        } else if (auto* v = std::get_if<double>(&target)) {
+            double x = *v; ok = transfer(&x, 8); if (is_get) *v = x;
+        } else if (auto* v = std::get_if<Currency>(&target)) {
+            std::int64_t x = v->scaled; ok = transfer(&x, 8); if (is_get) v->scaled = x;
+        } else if (auto* v = std::get_if<DateValue>(&target)) {
+            double x = v->serial; ok = transfer(&x, 8); if (is_get) v->serial = x;
+        } else if (auto* v = std::get_if<bool>(&target)) {
+            std::int16_t x = *v ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v = x != 0;
+        } else if (auto* v = std::get_if<std::string>(&target)) {
+            const bool fixed = variable.scope->fixed_string_lengths.contains(*name);
+            if (file->mode == 5 && !fixed) {
+                std::uint16_t length = static_cast<std::uint16_t>(v->size());
+                ok = transfer(&length, 2);
+                if (is_get && ok) v->assign(length, '\0');
+            }
+            if (ok && !v->empty()) {
+                ok = transfer(v->data(), v->size());
+            }
+        } else {
+            return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+        }
+        if (!ok) {
+            if (is_get) {
+                return raise_runtime(62, "Input past end of file", statement_offset);
+            }
+            return raise_runtime(57, "Device I/O error", statement_offset);
+        }
+        if (file->mode == 5) {
+            const long end = record_start + file->record_length;
+            if (!is_get && std::ftell(file->handle) < end) {
+                std::fseek(file->handle, 0, SEEK_END);
+                if (std::ftell(file->handle) < end) {
+                    const std::string padding(static_cast<std::size_t>(end - std::ftell(file->handle)), '\0');
+                    std::fwrite(padding.data(), 1, padding.size(), file->handle);
+                }
+            }
+            std::fseek(file->handle, end, SEEK_SET);
+        }
+        return true;
+    }
+
     [[nodiscard]] std::optional<bool> parse_file_statement(const std::size_t statement_offset) {
         const auto start = offset_;
         if (consume_keyword("open")) {
@@ -4774,6 +4922,8 @@ private:
                 if (consume_keyword("input")) mode = 1;
                 else if (consume_keyword("output")) mode = 2;
                 else if (consume_keyword("append")) mode = 3;
+                else if (consume_keyword("binary")) mode = 4;
+                else if (consume_keyword("random")) mode = 5;
                 else {
                     set_error("WFC0321", "unsupported Open mode", offset_);
                     return false;
@@ -4806,11 +4956,16 @@ private:
                 return false;
             }
             skip_horizontal_whitespace();
+            long record_length = 128;
             if (consume_keyword("len")) {
                 skip_horizontal_whitespace();
                 static_cast<void>(consume('='));
-                if (!parse_expression().has_value()) {
+                auto length = parse_expression();
+                if (!length.has_value()) {
                     return false;
+                }
+                if (const auto* size = std::get_if<Integer>(&*length)) {
+                    record_length = *size;
                 }
             }
             if (!execute_) {
@@ -4827,12 +4982,19 @@ private:
             if (files_.contains(number)) {
                 return raise_runtime(55, "File already open", statement_offset);
             }
-            std::FILE* handle = open_file(
-                *path_text, mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
+            std::FILE* handle = nullptr;
+            if (mode >= 4) {
+                handle = open_file(*path_text, "r+b");
+                if (handle == nullptr) {
+                    handle = open_file(*path_text, "w+b");
+                }
+            } else {
+                handle = open_file(*path_text, mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
+            }
             if (handle == nullptr) {
                 return raise_runtime(mode == 1 ? 53 : 76, mode == 1 ? "File not found" : "Path not found", statement_offset);
             }
-            files_[number] = OpenFile{handle, mode};
+            files_[number] = OpenFile{handle, mode, record_length > 0 ? record_length : 128};
             return true;
         }
         if (consume_keyword("close")) {
@@ -5135,7 +5297,7 @@ private:
         return name == "eof" || name == "lof" || name == "freefile" || name == "dir" ||
                name == "dir$" || name == "curdir" || name == "curdir$" || name == "filelen" ||
                name == "input" || name == "input$" || name == "environ" || name == "environ$" ||
-               name == "loc";
+               name == "loc" || name == "seek";
     }
 
     [[nodiscard]] std::optional<Value> evaluate_file_function(
@@ -5161,6 +5323,20 @@ private:
             }
             return Value{Integer{}};
         }
+        if (name == "seek") {
+            if (!arity(1, 1)) return std::nullopt;
+            const auto number = long_at(0);
+            if (!number) {
+                set_error("WFC0073", "file number must be a Long", offset);
+                return std::nullopt;
+            }
+            if (!execute_) return Value{Integer{}};
+            auto* const file = find_open_file(*number, offset);
+            if (file == nullptr) return std::nullopt;
+            const long position = std::ftell(file->handle);
+            const long unit = file->mode == 5 ? file->record_length : 1;
+            return Value{static_cast<Integer>(position / unit + 1)};
+        }
         if (name == "eof" || name == "lof" || name == "loc") {
             if (!arity(1, 1)) return std::nullopt;
             const auto number = long_at(0);
@@ -5172,7 +5348,7 @@ private:
             auto* const file = find_open_file(*number, offset);
             if (file == nullptr) return std::nullopt;
             if (name == "eof") {
-                return Value{file->mode == 1 ? file_at_eof(file->handle) : true};
+                return Value{file->mode == 1 || file->mode >= 4 ? file_at_eof(file->handle) : true};
             }
             std::fflush(file->handle);
             const long position = std::ftell(file->handle);
