@@ -1228,6 +1228,14 @@ int main() {
         "Print Err.Number & \" \" & Err.Description\nErr.Clear\nPrint Err.Number",
         "1000 boom\n0");
     expect_program_failure("Dim a As Long\na = 1 / 0", "WFC0008");
+    // Array/Split/Join/Filter (REQ-0239).
+    expect_program_success(
+        "Dim a() As String\na = Split(\"a,b,,c\", \",\")\n"
+        "Print UBound(a) & \" \" & a(3) & \"|\" & Join(a, \"-\")\n"
+        "Dim v As Variant\nv = Array(1, \"x\", 3)\nPrint UBound(v) & Join(v, \"+\")\n"
+        "Print UBound(Split(\"\"))\nDim f() As String\nf = Filter(a, \"b\")\n"
+        "Print Join(f, \",\") & UBound(Filter(a, \"b\", False))",
+        "3 c|a-b--c\n21+x+3\n-1\nb2");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

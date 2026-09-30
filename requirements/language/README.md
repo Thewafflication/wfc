@@ -345,6 +345,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0236 — `With` statement](req-0236-with-statement.md)
 - [REQ-0237 — `Enum`](req-0237-enum.md)
 - [REQ-0238 — Error handling and `GoTo`](req-0238-error-handling.md)
+- [REQ-0239 — `Array`/`Split`/`Join`/`Filter`](req-0239-array-split-join-filter.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

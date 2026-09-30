@@ -8192,6 +8192,10 @@ private:
         const bool is_strconv = identifier == "strconv";
         const bool is_format = identifier == "format" || identifier == "format$";
         const bool is_rnd = identifier == "rnd";
+        const bool is_array_fn = identifier == "array";
+        const bool is_split = identifier == "split";
+        const bool is_join = identifier == "join";
+        const bool is_filter = identifier == "filter";
         if (!is_len && !is_lower && !is_upper && !is_left_trim && !is_right_trim &&
             !is_trim && !is_left && !is_right && !is_mid && !is_asc && !is_chr &&
             !is_reverse && !is_space && !is_string && !is_instr && !is_strcomp &&
@@ -8203,7 +8207,8 @@ private:
             !is_round && !is_cdbl && !is_csng && !is_ccur && !is_cvar && !is_macid &&
             !is_error_message && !is_float_math && !is_format && !is_rnd &&
             !is_isnull && !is_isempty && !is_cdec && !is_ismissing &&
-            !is_isarray && !is_isobject && !is_lbound && !is_ubound) {
+            !is_isarray && !is_isobject && !is_lbound && !is_ubound &&
+            !is_array_fn && !is_split && !is_join && !is_filter) {
             set_error("WFC0071", "unsupported function", identifier_offset);
             return std::nullopt;
         }
@@ -8321,7 +8326,13 @@ private:
         }
 
         bool valid_arity{};
-        if (is_error_message || is_rnd) {
+        if (is_array_fn) {
+            valid_arity = true;
+        } else if (is_split || is_filter) {
+            valid_arity = arguments.size() >= (is_split ? 1U : 2U) && arguments.size() <= 4U;
+        } else if (is_join) {
+            valid_arity = arguments.size() == 1U || arguments.size() == 2U;
+        } else if (is_error_message || is_rnd) {
             valid_arity = arguments.size() <= 1U;
         } else if (is_mid) {
             valid_arity = arguments.size() == 2U || arguments.size() == 3U;
@@ -8350,6 +8361,149 @@ private:
                 "function received the wrong number of arguments",
                 identifier_offset);
             return std::nullopt;
+        }
+
+
+        // REQ-0239: Array/Split/Join/Filter.
+        if (is_array_fn) {
+            ArrayValue result{
+                std::move(arguments), /*lower_bound=*/0, /*is_dynamic=*/false,
+                /*is_allocated=*/true, Value{Empty{}}.index()};
+            result.is_variant_element = true;
+            return Value{std::move(result)};
+        }
+        if (is_split || is_join || is_filter) {
+            const auto make_string_array = [](std::vector<std::string> parts) {
+                std::vector<Value> elements;
+                elements.reserve(parts.size());
+                for (auto& part : parts) {
+                    elements.emplace_back(std::move(part));
+                }
+                return Value{ArrayValue{
+                    std::move(elements), /*lower_bound=*/0, /*is_dynamic=*/false,
+                    /*is_allocated=*/true, Value{std::string{}}.index()}};
+            };
+            const auto text_argument = [&](const std::size_t index) -> const std::string* {
+                return std::get_if<std::string>(&arguments[index]);
+            };
+            if (!execute_) {
+                return is_join ? Value{std::string{}} : make_string_array({});
+            }
+            if (is_split) {
+                const auto* text = text_argument(0);
+                std::string delimiter = " ";
+                if (arguments.size() >= 2U) {
+                    const auto* delimiter_argument = text_argument(1);
+                    if (delimiter_argument == nullptr) {
+                        set_error("WFC0073", "Split requires a String delimiter", identifier_offset);
+                        return std::nullopt;
+                    }
+                    delimiter = *delimiter_argument;
+                }
+                Integer limit = -1;
+                if (arguments.size() >= 3U) {
+                    const auto* limit_argument = std::get_if<Integer>(&arguments[2]);
+                    if (limit_argument == nullptr) {
+                        set_error("WFC0073", "Split limit must be Long", identifier_offset);
+                        return std::nullopt;
+                    }
+                    limit = *limit_argument;
+                }
+                if (text == nullptr) {
+                    set_error("WFC0073", "Split requires a String argument", identifier_offset);
+                    return std::nullopt;
+                }
+                if (text->empty() || limit == 0) {
+                    return make_string_array({});
+                }
+                std::vector<std::string> parts;
+                if (delimiter.empty()) {
+                    parts.push_back(*text);
+                } else {
+                    std::size_t position = 0;
+                    while (limit < 0 || static_cast<Integer>(parts.size()) < limit - 1) {
+                        const auto found = text->find(delimiter, position);
+                        if (found == std::string::npos) {
+                            break;
+                        }
+                        parts.push_back(text->substr(position, found - position));
+                        position = found + delimiter.size();
+                    }
+                    parts.push_back(text->substr(position));
+                }
+                return make_string_array(std::move(parts));
+            }
+            const auto* array = std::get_if<ArrayValue>(&arguments[0]);
+            if (array == nullptr || !array->dimensions.empty()) {
+                set_error(
+                    "WFC0073", "function requires a one-dimensional array argument",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            if (is_join) {
+                std::string delimiter = " ";
+                if (arguments.size() == 2U) {
+                    const auto* delimiter_argument = text_argument(1);
+                    if (delimiter_argument == nullptr) {
+                        set_error("WFC0073", "Join requires a String delimiter", identifier_offset);
+                        return std::nullopt;
+                    }
+                    delimiter = *delimiter_argument;
+                }
+                std::string joined;
+                bool first = true;
+                for (const auto& element : array->elements) {
+                    if (std::holds_alternative<Null>(element) || is_object_reference(element) ||
+                        std::holds_alternative<ArrayValue>(element)) {
+                        set_error("WFC0073", "Join element must be a scalar", identifier_offset);
+                        return std::nullopt;
+                    }
+                    if (!first) {
+                        joined += delimiter;
+                    }
+                    first = false;
+                    joined += render(element);
+                }
+                return Value{std::move(joined)};
+            }
+            const auto* match = text_argument(1);
+            if (match == nullptr) {
+                set_error("WFC0073", "Filter requires a String match", identifier_offset);
+                return std::nullopt;
+            }
+            bool include = true;
+            if (arguments.size() >= 3U) {
+                const auto* include_argument = std::get_if<bool>(&arguments[2]);
+                if (include_argument == nullptr) {
+                    set_error("WFC0073", "Filter include must be Boolean", identifier_offset);
+                    return std::nullopt;
+                }
+                include = *include_argument;
+            }
+            bool text_compare = option_compare_text_;
+            if (arguments.size() == 4U) {
+                const auto* compare_argument = std::get_if<Integer>(&arguments[3]);
+                if (compare_argument == nullptr) {
+                    set_error("WFC0073", "Filter compare must be Long", identifier_offset);
+                    return std::nullopt;
+                }
+                text_compare = *compare_argument == 1;
+            }
+            const auto fold = [&](std::string text) {
+                if (text_compare) {
+                    for (auto& c : text) c = ascii_lower(c);
+                }
+                return text;
+            };
+            const std::string needle = fold(*match);
+            std::vector<std::string> kept;
+            for (const auto& element : array->elements) {
+                const std::string text = render(element);
+                if ((fold(text).find(needle) != std::string::npos) == include) {
+                    kept.push_back(text);
+                }
+            }
+            return make_string_array(std::move(kept));
         }
 
         if (is_chr) {

@@ -1194,6 +1194,20 @@ Print Err.Number]=]
     )
 
     add_test(
+        NAME TC-MP0002-array-split-join-cli
+        COMMAND wfc
+            --eval [=[Dim a() As String
+a = Split("a,b,,c", ",")
+Print UBound(a) & " " & Join(a, "-")]=]
+    )
+    set_tests_properties(
+        TC-MP0002-array-split-join-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^3 a-b--c"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
