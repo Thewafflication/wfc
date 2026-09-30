@@ -1,0 +1,6 @@
+Type=Exe
+Module=Main; Main.bas
+Class=Shape; Shape.cls
+Class=Circle; Circle.cls
+Class=Rect; Rect.cls
+Startup="Sub Main"

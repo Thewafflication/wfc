@@ -1412,6 +1412,17 @@ Next j]=]
     )
 
     add_test(
+        NAME TC-MP0002-vbp-shapes-cli
+        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/shapes/Shapes.vbp"
+    )
+    set_tests_properties(
+        TC-MP0002-vbp-shapes-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;project;classes"
+            PASS_REGULAR_EXPRESSION "Circle r=2 area=12.57.*Rect 3x4 area=12.00.*total=24.566.*circle!.*bye rect"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

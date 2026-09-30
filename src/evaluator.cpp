@@ -1593,7 +1593,6 @@ struct DateParts {
 constexpr std::string_view kCollectionNodeSource = R"VB(Public Value As Variant
 Public Key As String
 Public NextNode As WfcCollectionNode
-Public PrevNode As WfcCollectionNode
 )VB";
 
 constexpr std::string_view kCollectionSource = R"VB(Private head As WfcCollectionNode
@@ -1614,7 +1613,6 @@ If tail Is Nothing Then
 Set head = nd
 Set tail = nd
 Else
-Set nd.PrevNode = tail
 Set tail.NextNode = nd
 Set tail = nd
 End If
@@ -1634,17 +1632,22 @@ End If
 End Function
 Public Sub Remove(Index As Variant)
 Dim nd As WfcCollectionNode
+Dim prev As WfcCollectionNode
+Dim cur As WfcCollectionNode
 Set nd = Locate(Index)
-If nd.PrevNode Is Nothing Then
+Set cur = head
+Do While Not cur Is Nothing
+If cur Is nd Then Exit Do
+Set prev = cur
+Set cur = cur.NextNode
+Loop
+If prev Is Nothing Then
 Set head = nd.NextNode
 Else
-Set nd.PrevNode.NextNode = nd.NextNode
+Set prev.NextNode = nd.NextNode
 End If
-If nd.NextNode Is Nothing Then
-Set tail = nd.PrevNode
-Else
-Set nd.NextNode.PrevNode = nd.PrevNode
-End If
+If nd Is tail Then Set tail = prev
+Set nd.NextNode = Nothing
 n = n - 1
 End Sub
 Private Function FindKey(Key As String) As WfcCollectionNode
