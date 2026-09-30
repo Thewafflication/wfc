@@ -335,3 +335,8 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   extends `Static` to a fixed-size array (1-D or multi-dimensional, no
   dynamic form) and a class-typed/generic `Object` local, reusing
   `Dim`'s own array-bound grammar and the existing class-name resolver.
+- [REQ-0233 — `Implements` interfaces](req-0233-interfaces.md) adds
+  `Implements InterfaceName`, widens `Set`/parameter class-match checks
+  to accept any implementing class, and dispatches `.member` calls
+  through an interface-typed reference to the implementing class's own
+  `InterfaceName_MemberName`, including through a `Private` one.

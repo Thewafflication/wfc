@@ -1677,4 +1677,48 @@ Call Fill(1)]=]
             LABELS "integration;mp-0002;statements;procedures;array;classes"
             PASS_REGULAR_EXPRESSION "1.*3.*0 0 0.*0 10 0"
     )
+
+    add_test(
+        NAME TC-MP0002-interfaces-cli
+        COMMAND wfc
+            --class IShape [=[Public Sub Draw()
+End Sub]=]
+            --class IArea [=[Public Property Get Area() As Long
+End Property]=]
+            --class Circle [=[Implements IShape
+Implements IArea
+Public Radius As Long
+
+Private Sub IShape_Draw()
+Print "Circle with radius " & Radius
+End Sub
+
+Private Property Get IArea_Area() As Long
+IArea_Area = Radius * Radius
+End Property]=]
+            --class Square [=[Implements IShape
+Public Side As Long
+
+Private Sub IShape_Draw()
+Print "Square with side " & Side
+End Sub]=]
+            --eval [=[Dim s As IShape
+Dim c As New Circle
+c.Radius = 5
+Set s = c
+Call s.Draw()
+Dim sq As New Square
+sq.Side = 3
+Set s = sq
+Call s.Draw()
+Dim a As IArea
+Set a = c
+Print a.Area]=]
+    )
+    set_tests_properties(
+        TC-MP0002-interfaces-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "Circle with radius 5.*Square with side 3.*25"
+    )
 endif()

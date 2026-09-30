@@ -124,7 +124,9 @@ class. `WFC0135` reports `.member` naming neither a method, a `Property`
 accessor, nor a field. `WFC0136` reports `.member` used on a non-object
 expression. `WFC0137` reports `Set` assigning an instance whose class does
 not exactly match the target's `As ClassName` declaration (this evaluator
-has no class hierarchy/interfaces, so "match" is always exact identity).
+has no class hierarchy, so "match" was always exact identity here;
+`REQ-0233` later widened it to also accept an instance of any class that
+`Implements` the declared interface).
 `WFC0106` (`REQ-0200`'s existing "Invalid use of Nothing") reports member
 access on a `Nothing`-valued reference *during actual execution*;
 `REQ-0229` later corrected a bug where this fired even for a not-taken
@@ -146,10 +148,11 @@ This is a foundation, not a complete VB6 object model. It does not add:
   requirement, unlike VB6's own (also reference-counted) COM object model;
 - `CreateObject`, `GetObject`, or any COM/host interop — this evaluator has
   no host to interop with;
-- class inheritance, interfaces (`Implements`), `TypeOf ... Is ...`, late
-  binding, or a default member (`obj` used bare implying a default
-  property) — this evaluator's class model has no hierarchy at all, which
-  is why `Set`'s class-match check (`WFC0137`) is always exact identity;
+- class inheritance, `TypeOf ... Is ...`, late binding, or a default
+  member (`obj` used bare implying a default property) — this
+  evaluator's class model has no inheritance hierarchy at all;
+  `REQ-0233` later added `Implements` interfaces specifically (a
+  same-level dispatch contract, not a hierarchy), without changing this;
 - lazy auto-instantiation for `Dim x As New ClassName` — this evaluator
   creates the instance eagerly, at the `Dim` statement itself, rather than
   deferring to `x`'s first actual use (a disclosed, deliberate

@@ -1432,6 +1432,15 @@ struct ClassDef {
     std::unordered_map<std::string, ProcedureDef> property_get;
     std::unordered_map<std::string, ProcedureDef> property_let;
     std::unordered_map<std::string, ProcedureDef> property_set;
+    // REQ-0233: lowercased names of every class this one `Implements`.
+    // An interface is just an ordinary class in real VB6 (there is no
+    // separate `Interface` keyword) -- this class must define its own
+    // `InterfaceName_MemberName`-named method/property for each member a
+    // caller reaches through an interface-typed reference (see
+    // `interface_prefixed_member_name`); this evaluator does not verify
+    // completeness (that every interface member actually has a matching
+    // `InterfaceName_MemberName` counterpart here) at scan time.
+    std::vector<std::string> implements;
 };
 
 // The storage backing one live `New ClassName` instance. Reuses Scope for
@@ -1960,6 +1969,24 @@ private:
                 return true;
             }
             const auto line_offset = offset_;
+
+            if (consume_keyword("implements")) {
+                skip_horizontal_whitespace();
+                const auto interface_name_offset = offset_;
+                char interface_type_character{};
+                auto interface_name = parse_identifier(&interface_type_character);
+                if (!interface_name.has_value() || interface_type_character != '\0') {
+                    set_error("WFC0011", "expected interface name after Implements",
+                              interface_name_offset);
+                    return false;
+                }
+                if (!class_definitions_.contains(*interface_name)) {
+                    set_error("WFC0134", "unknown class name", interface_name_offset);
+                    return false;
+                }
+                class_def.implements.push_back(std::move(*interface_name));
+                continue;
+            }
 
             if (consume_keyword("dim")) {
                 if (!scan_class_field_declaration(class_def, /*is_private=*/true)) {
@@ -5094,6 +5121,32 @@ private:
     // and parse_member_set_assignment's plain-field-target branch (a
     // class-typed or `As Object` field with no Property Set accessor,
     // under REQ-0205).
+    // REQ-0233: whether an instance of `actual_class_name` may be used
+    // wherever `declared_class_name` is required -- either directly (the
+    // same class) or because `actual_class_name`'s own class `Implements`
+    // `declared_class_name` (an interface is just an ordinary class in
+    // real VB6; any class it names in an `Implements` statement is one
+    // this check accepts in its place). Shared by every "does this Set
+    // source/argument match the declared class" check, so a class-typed
+    // target/parameter accepts an implementing instance the same way it
+    // already accepts an exact match.
+    [[nodiscard]] bool class_satisfies(
+        const std::string& actual_class_name, const std::string& declared_class_name) const {
+        if (actual_class_name == declared_class_name) {
+            return true;
+        }
+        const auto class_iterator = class_definitions_.find(actual_class_name);
+        if (class_iterator == class_definitions_.end()) {
+            return false;
+        }
+        for (const auto& implemented : class_iterator->second.implements) {
+            if (implemented == declared_class_name) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     [[nodiscard]] bool assign_object_reference(
         Value& target,
         const std::string& declared_class_name,
@@ -5105,7 +5158,8 @@ private:
             return false;
         }
         if (!declared_class_name.empty() && std::holds_alternative<ObjectInstance>(source) &&
-            std::get<ObjectInstance>(source).data->class_name != declared_class_name) {
+            !class_satisfies(
+                std::get<ObjectInstance>(source).data->class_name, declared_class_name)) {
             set_error(
                 "WFC0137", "Set source does not match the target's declared class", offset);
             return false;
@@ -5519,6 +5573,28 @@ private:
                     // Property Let/Set), both still handled by
                     // parse_member_assignment below.
                     if (const auto* const instance_base = std::get_if<ObjectInstance>(&base)) {
+                        // REQ-0233: `obj`'s own declared class, so a
+                        // bare `obj.Method` reaching an interface member
+                        // is recognized here the same way `obj.Method`
+                        // through `parse_primary`'s expression path
+                        // already is -- checked against the
+                        // interface-prefixed name below, not just the
+                        // bare one.
+                        std::string declared_interface_class;
+                        const auto declared_class =
+                            variable.scope->object_class_names.find(identifier);
+                        if (declared_class != variable.scope->object_class_names.end()) {
+                            declared_interface_class = declared_class->second;
+                        }
+                        const auto& instance_class_def =
+                            class_definitions_.at(instance_base->data->class_name);
+                        bool implements_interface = false;
+                        for (const auto& implemented : instance_class_def.implements) {
+                            if (implemented == declared_interface_class) {
+                                implements_interface = true;
+                                break;
+                            }
+                        }
                         const auto peek_offset = offset_;
                         char peek_type_character{};
                         auto peek_member_name = parse_identifier(&peek_type_character);
@@ -5527,12 +5603,15 @@ private:
                             current() == '\n' || current() == ':' || current() == '\'';
                         const bool is_method = peek_member_name.has_value() &&
                             peek_type_character == '\0' &&
-                            class_definitions_.at(instance_base->data->class_name)
-                                .methods.contains(*peek_member_name);
+                            (instance_class_def.methods.contains(*peek_member_name) ||
+                             (implements_interface &&
+                              instance_class_def.methods.contains(
+                                  declared_interface_class + "_" + *peek_member_name)));
                         offset_ = peek_offset;
                         if (bare_statement_end && is_method) {
                             const auto result = parse_member_access_after_dot(
-                                base, identifier_offset, /*require_function=*/false);
+                                base, identifier_offset, /*require_function=*/false,
+                                declared_interface_class);
                             return result.has_value();
                         }
                     }
@@ -6164,17 +6243,49 @@ private:
     // path needing to know about member access itself.
     [[nodiscard]] std::optional<Value> parse_primary() {
         const auto base_offset = offset_;
+        // REQ-0233: if the very next primary is a bare identifier naming a
+        // variable with a specific declared class (REQ-0203/REQ-0228's
+        // `object_class_names`), remember that class name so the *first*
+        // `.member` access immediately following it can dispatch through
+        // that class's own `Implements` list (see
+        // `parse_member_access_after_dot`'s own `via_interface_class`)
+        // when it names an interface the live instance's actual class
+        // implements. A speculative lookahead-then-rewind:
+        // `parse_primary_base` below still does the real parse of
+        // whatever this turns out to be, unaffected by this peek.
+        std::string declared_interface_class;
+        {
+            const auto lookahead_offset = offset_;
+            skip_horizontal_whitespace();
+            char lookahead_type_character{};
+            auto lookahead_identifier = parse_identifier(&lookahead_type_character);
+            if (lookahead_identifier.has_value() && lookahead_type_character == '\0') {
+                const auto variable = find_variable(*lookahead_identifier);
+                if (variable.value != nullptr) {
+                    const auto declared_class =
+                        variable.scope->object_class_names.find(*lookahead_identifier);
+                    if (declared_class != variable.scope->object_class_names.end()) {
+                        declared_interface_class = declared_class->second;
+                    }
+                }
+            }
+            offset_ = lookahead_offset;
+        }
         auto value = parse_primary_base();
         if (!value.has_value()) {
             return std::nullopt;
         }
+        bool is_first_member_access = true;
         while (true) {
             skip_horizontal_whitespace();
             if (at_end() || current() != '.') {
                 return value;
             }
             advance();
-            value = parse_member_access_after_dot(std::move(*value), base_offset);
+            value = parse_member_access_after_dot(
+                std::move(*value), base_offset, /*require_function=*/true,
+                is_first_member_access ? declared_interface_class : std::string{});
+            is_first_member_access = false;
             if (!value.has_value()) {
                 return std::nullopt;
             }
@@ -6653,8 +6764,9 @@ private:
                 // machinery too -- no separate enforcement needed there.
                 if (!parameter.class_name.empty() &&
                     std::holds_alternative<ObjectInstance>(argument.value) &&
-                    std::get<ObjectInstance>(argument.value).data->class_name !=
-                        parameter.class_name) {
+                    !class_satisfies(
+                        std::get<ObjectInstance>(argument.value).data->class_name,
+                        parameter.class_name)) {
                     set_error(
                         "WFC0137", "argument does not match the parameter's declared class",
                         identifier_offset);
@@ -6917,8 +7029,19 @@ private:
     // code executing at module level or inside a *different* class's
     // method may not. `is_private` members of `class_def` are otherwise
     // fully accessible (this check is a no-op for a Public member).
-    [[nodiscard]] bool member_accessible(const ClassDef& class_def, const bool is_private) {
-        return !is_private || current_class_def() == &class_def;
+    // REQ-0233: `bypass_for_interface_dispatch` lets a call reached
+    // through an interface-typed reference (`parse_member_access_after_
+    // dot`'s own `via_interface_class`) reach a `Private`-declared
+    // interface-implementation member -- real VB6 practice, since a
+    // `Private Sub IShape_Draw()` is deliberately hidden from *direct*
+    // access while still being the whole point of implementing the
+    // interface in the first place. Every other caller leaves this
+    // `false`, preserving the existing per-class visibility rule
+    // unchanged.
+    [[nodiscard]] bool member_accessible(
+        const ClassDef& class_def, const bool is_private,
+        const bool bypass_for_interface_dispatch = false) {
+        return !is_private || bypass_for_interface_dispatch || current_class_def() == &class_def;
     }
 
     // The `Me` keyword: a fresh ObjectInstance sharing the current class
@@ -7018,13 +7141,15 @@ private:
         const ClassDef& class_def,
         const std::string& member_name,
         const std::size_t member_offset,
-        const bool require_function) {
+        const bool require_function,
+        const bool bypass_for_interface_dispatch = false) {
         const auto method_iterator = class_def.methods.find(member_name);
         if (method_iterator == class_def.methods.end()) {
             set_error("WFC0135", "unknown member", member_offset);
             return std::nullopt;
         }
-        if (!member_accessible(class_def, method_iterator->second.is_private)) {
+        if (!member_accessible(
+                class_def, method_iterator->second.is_private, bypass_for_interface_dispatch)) {
             set_error("WFC0142", "member is not accessible outside its class", member_offset);
             return std::nullopt;
         }
@@ -7056,7 +7181,8 @@ private:
     // a Property accessor under the same name (see scan_class_body), so
     // this order is unambiguous.
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(
-        const Value base, const std::size_t base_offset, const bool require_function = true) {
+        const Value base, const std::size_t base_offset, const bool require_function = true,
+        const std::string& via_interface_class = {}) {
         if (!std::holds_alternative<Nothing>(base) &&
             !std::holds_alternative<ObjectInstance>(base)) {
             set_error("WFC0136", "member access requires an object reference", base_offset);
@@ -7100,11 +7226,36 @@ private:
         const auto class_iterator = class_definitions_.find(instance.class_name);
         const ClassDef& class_def = class_iterator->second;
 
+        // REQ-0233: dispatch through an interface-typed reference resolves
+        // to the implementing class's own `InterfaceName_MemberName`, not
+        // the bare member name (real VB6's mandatory interface-member
+        // naming convention) -- but only when the live instance's own
+        // class actually `Implements` that interface; a generic `Object`
+        // reference, or one declared as a concrete class the instance
+        // simply is, leaves `member_name` untouched and resolves normally.
+        // REQ-0233: a `Private` interface-implementation method/property
+        // (real VB6 practice -- `Private Sub IShape_Draw()` is the norm,
+        // since it should only ever be reachable through the interface
+        // reference, not directly) is accessible here despite being
+        // `Private`, since reaching it through the interface reference is
+        // exactly the sanctioned way to call it.
+        bool dispatched_via_interface = false;
+        if (!via_interface_class.empty()) {
+            for (const auto& implemented : class_def.implements) {
+                if (implemented == via_interface_class) {
+                    member_name = via_interface_class + "_" + *member_name;
+                    dispatched_via_interface = true;
+                    break;
+                }
+            }
+        }
+
         skip_horizontal_whitespace();
         if (!at_end() && current() == '(') {
             if (class_def.methods.contains(*member_name)) {
                 return call_class_method(
-                    instance, class_def, *member_name, member_offset, require_function);
+                    instance, class_def, *member_name, member_offset, require_function,
+                    dispatched_via_interface);
             }
             // An indexed Property Get (REQ-0205): `obj.Name(args)` reaches
             // the same parenthesized-call shape a method call would, since
@@ -7112,7 +7263,9 @@ private:
             // same name (see scan_class_body's WFC0128 check).
             const auto indexed_getter_iterator = class_def.property_get.find(*member_name);
             if (indexed_getter_iterator != class_def.property_get.end()) {
-                if (!member_accessible(class_def, indexed_getter_iterator->second.is_private)) {
+                if (!member_accessible(
+                        class_def, indexed_getter_iterator->second.is_private,
+                        dispatched_via_interface)) {
                     set_error(
                         "WFC0142", "member is not accessible outside its class", member_offset);
                     return std::nullopt;
@@ -7136,7 +7289,8 @@ private:
         }
         const auto getter_iterator = class_def.property_get.find(*member_name);
         if (getter_iterator != class_def.property_get.end()) {
-            if (!member_accessible(class_def, getter_iterator->second.is_private)) {
+            if (!member_accessible(
+                    class_def, getter_iterator->second.is_private, dispatched_via_interface)) {
                 set_error("WFC0142", "member is not accessible outside its class", member_offset);
                 return std::nullopt;
             }
@@ -7155,7 +7309,8 @@ private:
         const auto method_iterator = class_def.methods.find(*member_name);
         if (method_iterator != class_def.methods.end()) {
             return call_class_method(
-                instance, class_def, *member_name, member_offset, require_function);
+                instance, class_def, *member_name, member_offset, require_function,
+                dispatched_via_interface);
         }
         const auto field_iterator = instance.fields.variables.find(*member_name);
         if (field_iterator != instance.fields.variables.end()) {
@@ -7213,9 +7368,21 @@ private:
                 (std::holds_alternative<Nothing>(*variable.value) ||
                  std::holds_alternative<ObjectInstance>(*variable.value))) {
                 const auto base = *variable.value;
+                // REQ-0233: `Call obj.Method(args)` dispatches through
+                // `obj`'s own declared class the same way an expression's
+                // `obj.Method(args)` does (`parse_primary`'s own
+                // lookahead) -- `obj` is already a resolved variable here,
+                // so its declared class (if any) is read directly instead
+                // of needing a speculative lookahead.
+                std::string declared_interface_class;
+                const auto declared_class = variable.scope->object_class_names.find(*identifier);
+                if (declared_class != variable.scope->object_class_names.end()) {
+                    declared_interface_class = declared_class->second;
+                }
                 advance();
                 const auto result = parse_member_access_after_dot(
-                    base, identifier_offset, /*require_function=*/false);
+                    base, identifier_offset, /*require_function=*/false,
+                    declared_interface_class);
                 return result.has_value();
             }
         }

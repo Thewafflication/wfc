@@ -1114,6 +1114,51 @@ int main() {
         "Function Describe(Optional o As Object = Nothing) As String\n"
         "Describe = CStr(o Is Nothing)\nEnd Function\nPrint Describe()",
         "True");
+    // Implements interfaces (REQ-0233): an interface is just an ordinary
+    // class in real VB6 (no separate keyword); Set/parameter binding
+    // accepts an instance of any class that Implements the declared
+    // interface, and a call through an interface-typed reference
+    // dispatches to the implementing class's own InterfaceName_Member,
+    // even when that member is Private (the sanctioned way to reach it).
+    expect_classes_success(
+        {{"IShape", "Public Sub Draw()\nEnd Sub"},
+         {"Circle", "Implements IShape\nPublic Radius As Long\n\n"
+                    "Private Sub IShape_Draw()\nPrint \"Circle with radius \" & Radius\n"
+                    "End Sub"},
+         {"Square", "Implements IShape\nPublic Side As Long\n\n"
+                    "Private Sub IShape_Draw()\nPrint \"Square with side \" & Side\n"
+                    "End Sub"}},
+        "Dim s As IShape\nDim c As New Circle\nc.Radius = 5\nSet s = c\nCall s.Draw()\n"
+        "Dim sq As New Square\nsq.Side = 3\nSet s = sq\nCall s.Draw()",
+        "Circle with radius 5\nSquare with side 3");
+    expect_classes_success(
+        {{"IShape", "Public Sub Draw()\nEnd Sub"},
+         {"Circle", "Implements IShape\n\nPrivate Sub IShape_Draw()\nPrint \"drawing\"\n"
+                    "End Sub"}},
+        "Sub RenderIt(s As IShape)\nCall s.Draw()\nEnd Sub\n"
+        "Dim c As New Circle\nCall RenderIt(c)",
+        "drawing");
+    expect_classes_failure(
+        {{"IShape", "Public Sub Draw()\nEnd Sub"},
+         {"Circle", "Implements IShape\n\nPrivate Sub IShape_Draw()\nEnd Sub"}},
+        "Dim c As New Circle\nCall c.IShape_Draw()",
+        "WFC0142");
+    expect_classes_failure(
+        {{"IShape", "Public Sub Draw()\nEnd Sub"}, {"Square", "Public n As Long"}},
+        "Dim s As IShape\nDim sq As New Square\nSet s = sq",
+        "WFC0137");
+    expect_classes_failure(
+        {{"Circle", "Implements NoSuchInterface"}}, "Dim c As New Circle", "WFC0134");
+    expect_classes_success(
+        {{"IArea", "Public Property Get Area() As Long\nEnd Property"},
+         {"IShape", "Public Sub Draw()\nEnd Sub"},
+         {"Circle", "Implements IShape\nImplements IArea\nPublic Radius As Long\n\n"
+                    "Private Sub IShape_Draw()\nPrint \"drawing\"\nEnd Sub\n\n"
+                    "Private Property Get IArea_Area() As Long\n"
+                    "IArea_Area = Radius * Radius\nEnd Property"}},
+        "Dim s As IShape\nDim a As IArea\nDim c As New Circle\nc.Radius = 4\n"
+        "Set s = c\nSet a = c\nCall s.Draw()\nPrint a.Area",
+        "drawing\n16");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
