@@ -1421,6 +1421,13 @@ int main() {
         "Print Round(Rate(48, -200, 8000), 5)\nPrint CVDate(\"1/2/2000\")\nOn Error Resume Next\n"
         "Dim o As Object\nSet o = CreateObject(\"x.y\")\nPrint Err.Number",
         "valdflt\ngone\n1|def\n0.0077\n1/2/2000\n429");
+    // CallByName (REQ-0263).
+    expect_classes_success(
+        {{"A", "Public x As Long\nPrivate p As Long\nPublic Function Add(a As Long, b As Long) As Long\nAdd = a + b + x\nEnd Function\n"
+               "Public Property Let Pp(v As Long)\np = v * 2\nEnd Property\nPublic Property Get Pp() As Long\nPp = p\nEnd Property"}},
+        "Dim o As New A\nPrint CallByName(o, \"Add\", 1, 2, 3)\nCallByName o, \"x\", 4, 10\nPrint CallByName(o, \"x\", 2)\n"
+        "CallByName o, \"Pp\", 4, 5\nPrint CallByName(o, \"Pp\", 2)\nOn Error Resume Next\nPrint CallByName(o, \"Nope\", 1)\nPrint Err.Number",
+        "5\n10\n10\n438");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

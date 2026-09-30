@@ -4325,6 +4325,37 @@ private:
         if (consume_keyword("beep")) {
             return true;
         }
+        {
+            const auto before_call = offset_;
+            if (consume_keyword("callbyname")) {
+                skip_horizontal_whitespace();
+                const bool parenthesized = !at_end() && current() == '(';
+                if (parenthesized) advance();
+                std::vector<Value> values;
+                skip_horizontal_whitespace();
+                while (!at_statement_end() && !(parenthesized && current() == ')')) {
+                    auto value = parse_expression();
+                    if (!value.has_value()) {
+                        return false;
+                    }
+                    values.push_back(std::move(*value));
+                    skip_horizontal_whitespace();
+                    if (!consume(',')) break;
+                    skip_horizontal_whitespace();
+                }
+                if (parenthesized && !consume(')')) {
+                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!at_statement_end()) {
+                    offset_ = before_call;  // `CallByName(...).Member` etc. is not a statement
+                    set_error("WFC0010", "expected statement", statement_offset);
+                    return false;
+                }
+                return evaluate_misc_function("callbyname", values, statement_offset).has_value();
+            }
+        }
         if (consume_keyword("msgbox")) {
             // The statement form evaluates and ignores its arguments.
             skip_horizontal_whitespace();
@@ -11228,7 +11259,7 @@ private:
             "pmt", "fv", "pv", "nper", "ipmt", "ppmt", "npv", "irr", "sln", "syd", "ddb",
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
             "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
-            "getobject", "getsetting", "fileattr", "filedatetime", "getattr"};
+            "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname"};
         return names.contains(std::string(name));
     }
 
@@ -11269,6 +11300,88 @@ private:
         if (name == "doevents") {
             if (!arity(0, 0)) return std::nullopt;
             return Value{Integer{}};
+        }
+        if (name == "callbyname") {
+            // CallByName(object, name, callType, args...) -- REQ-0263.
+            if (count < 3U) {
+                set_error("WFC0072", "function received the wrong number of arguments", offset);
+                return std::nullopt;
+            }
+            const auto* holder = std::get_if<ObjectInstance>(&arguments[0]);
+            const auto* member_text = std::get_if<std::string>(&arguments[1]);
+            const auto call_type = number_at(2, 0.0);
+            if (member_text == nullptr || !call_type) return bad_type();
+            if (holder == nullptr) {
+                if (!execute_) return Value{Empty{}};
+                static_cast<void>(raise_runtime(91, "Object variable or With block variable not set", offset));
+                return std::nullopt;
+            }
+            if (!execute_) return Value{Empty{}};
+            std::string member;
+            for (const char c : *member_text) member.push_back(ascii_lower(c));
+            InstanceData& instance = *holder->data;
+            const ClassDef& class_def = class_definitions_.at(instance.class_name);
+            std::vector<CallArgument> call_arguments;
+            for (std::size_t i = 3; i < count; ++i) {
+                call_arguments.push_back(CallArgument{arguments[i], nullptr});
+            }
+            const int kind = static_cast<int>(*call_type);
+            if (kind == 1) {  // vbMethod
+                const auto method = class_def.methods.find(member);
+                if (method == class_def.methods.end()) {
+                    static_cast<void>(raise_runtime(438, "Object doesn't support this property or method", offset));
+                    return std::nullopt;
+                }
+                return invoke_definition(
+                    method->second, member, std::move(call_arguments), offset, class_def.source, &instance);
+            }
+            if (kind == 2) {  // vbGet
+                const auto getter = class_def.property_get.find(member);
+                if (getter != class_def.property_get.end()) {
+                    return invoke_definition(
+                        getter->second, member, std::move(call_arguments), offset, class_def.source, &instance);
+                }
+                const auto field = instance.fields.variables.find(member);
+                if (field != instance.fields.variables.end()) return field->second;
+                const auto method = class_def.methods.find(member);
+                if (method != class_def.methods.end()) {
+                    return invoke_definition(
+                        method->second, member, std::move(call_arguments), offset, class_def.source, &instance);
+                }
+                static_cast<void>(raise_runtime(438, "Object doesn't support this property or method", offset));
+                return std::nullopt;
+            }
+            if ((kind == 4 || kind == 8) && !call_arguments.empty()) {
+                const auto& table = kind == 4 ? class_def.property_let : class_def.property_set;
+                const auto setter = table.find(member);
+                if (setter != table.end()) {
+                    return invoke_definition(
+                        setter->second, member, std::move(call_arguments), offset, class_def.source, &instance);
+                }
+                const auto field = instance.fields.variables.find(member);
+                if (field != instance.fields.variables.end() && call_arguments.size() == 1U) {
+                    if (kind == 8) {
+                        const auto declared = instance.fields.object_class_names.find(member);
+                        if (!assign_object_reference(
+                                field->second,
+                                declared != instance.fields.object_class_names.end() ? declared->second
+                                                                                     : std::string{},
+                                call_arguments[0].value, offset)) {
+                            return std::nullopt;
+                        }
+                    } else {
+                        Value value = call_arguments[0].value;
+                        if (!instance.fields.variant_variables.contains(member) &&
+                            !coerce_numeric_value(value, field->second.index(), offset)) {
+                            return std::nullopt;
+                        }
+                        field->second = std::move(value);
+                    }
+                    return Value{Empty{}};
+                }
+            }
+            static_cast<void>(raise_runtime(438, "Object doesn't support this property or method", offset));
+            return std::nullopt;
         }
         if (name == "msgbox") {
             if (!arity(1, 5)) return std::nullopt;

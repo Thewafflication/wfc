@@ -1563,6 +1563,21 @@ Print s]=]
     )
 
     add_test(
+        NAME TC-MP0002-callbyname-cli
+        COMMAND wfc
+            --class A [=[Public x As Long]=]
+            --eval [=[Dim o As New A
+CallByName o, "x", 4, 7
+Print CallByName(o, "x", 2)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-callbyname-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^7"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]
