@@ -1536,6 +1536,21 @@ Print a.M()]=]
     )
 
     add_test(
+        NAME TC-MP0002-line-continuation-cli
+        COMMAND wfc
+            --eval [=[Dim s As String
+s = "a" & _
+  "b"
+Print s]=]
+    )
+    set_tests_properties(
+        TC-MP0002-line-continuation-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^ab"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

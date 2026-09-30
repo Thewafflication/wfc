@@ -366,6 +366,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0258 — Module-qualified names](req-0258-module-qualified-names.md)
 - [REQ-0259 — `CVErr` and `IsError`](req-0259-cverr-iserror.md)
 - [REQ-0260 — Class-level `Const`, `Enum`, `Friend`](req-0260-class-const-enum-friend.md)
+- [REQ-0261 — Line continuation](req-0261-line-continuation.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

@@ -1403,6 +1403,11 @@ int main() {
                "Friend Function M(x As E) As Long\nM = MAX * 2 + Q + x\nEnd Function"}},
         "Dim a As New A\nPrint a.M(1) & a.NAME",
         "23n");
+    // Line continuation (REQ-0261).
+    expect_program_success(
+        "Dim s As String\ns = \"a\" & _\n    \"b\" & _\n    \"c _\"\nPrint s\nIf 1 = 1 And _\n   2 = 2 Then\nPrint \"ok\"\nEnd If\n"
+        "Print \"x\" ' trailing _\nPrint \"y\"",
+        "abc _\nok\nx\ny");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

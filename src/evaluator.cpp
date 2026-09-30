@@ -15776,6 +15776,46 @@ private:
 
 
 
+// REQ-0261: joins ` _` line continuations by blanking the underscore and the
+// line break (byte offsets are unchanged).
+void join_line_continuations(std::string& text) {
+    std::size_t line_start = 0;
+    while (line_start < text.size()) {
+        std::size_t line_end = text.find('\n', line_start);
+        const bool has_newline = line_end != std::string::npos;
+        if (!has_newline) {
+            line_end = text.size();
+        }
+        std::size_t content_end = line_end;
+        if (content_end > line_start && text[content_end - 1] == '\r') {
+            --content_end;
+        }
+        bool in_string = false;
+        bool in_comment = false;
+        for (std::size_t i = line_start; i < content_end && !in_comment; ++i) {
+            if (text[i] == '"') {
+                in_string = !in_string;
+            } else if (text[i] == '\'' && !in_string) {
+                in_comment = true;
+            }
+        }
+        std::size_t last = content_end;
+        while (last > line_start && (text[last - 1] == ' ' || text[last - 1] == '\t')) {
+            --last;
+        }
+        if (!in_string && !in_comment && has_newline && last > line_start &&
+            text[last - 1] == '_' &&
+            (last - 1 == line_start || text[last - 2] == ' ' || text[last - 2] == '\t')) {
+            text[last - 1] = ' ';
+            text[line_end] = ' ';
+            if (line_end > line_start && text[line_end - 1] == '\r') {
+                text[line_end - 1] = ' ';
+            }
+        }
+        line_start = has_newline ? line_end + 1 : text.size();
+    }
+}
+
 // REQ-0240: conditional compilation. Returns `source` with every
 // `#If/#ElseIf/#Else/#End If/#Const` directive line, and every line inside
 // an inactive branch, blanked to spaces (line breaks kept, so byte offsets
@@ -16039,10 +16079,11 @@ namespace wfc {
 Evaluation evaluate_program(const std::string_view source) {
     std::string error;
     std::size_t error_offset{};
-    const auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
+    auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
     if (!processed.has_value()) {
         return failure_for_directive(error, error_offset);
     }
+    join_line_continuations(*processed);
     return Interpreter(*processed).evaluate();
 }
 
@@ -16050,10 +16091,11 @@ Evaluation evaluate_program(
     const std::string_view source, const std::vector<ClassModuleSource>& classes) {
     std::string error;
     std::size_t error_offset{};
-    const auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
+    auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
     if (!processed.has_value()) {
         return failure_for_directive(error, error_offset);
     }
+    join_line_continuations(*processed);
     std::vector<std::string> processed_classes;
     processed_classes.reserve(classes.size());
     for (const auto& module : classes) {
@@ -16061,6 +16103,7 @@ Evaluation evaluate_program(
         if (!text.has_value()) {
             return failure_for_directive(error, error_offset);
         }
+        join_line_continuations(*text);
         processed_classes.push_back(std::move(*text));
     }
     std::vector<ClassModuleSource> rewritten;
