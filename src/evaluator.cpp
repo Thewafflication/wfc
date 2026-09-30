@@ -4149,8 +4149,45 @@ private:
         }
         skip_horizontal_whitespace();
 
+        // REQ-0231: `Static arr(<bounds>) As Type` -- always fixed-size,
+        // 1-D or multi-dimensional (REQ-0201/REQ-0210's own bound
+        // grammar, reused via `parse_fixed_array_bounds`). Unlike `Dim`,
+        // `Static` has no dynamic (bound-less/comma-only) array form at
+        // all: real VB6 requires a `Static` array's bounds to be fixed at
+        // declaration time, with no `ReDim` counterpart ever possible for
+        // one, so `Static arr()` is rejected outright rather than parsed
+        // as an unallocated dynamic array the way `Dim arr()` is.
+        bool is_array = false;
+        Integer array_lower = 0;
+        Integer array_upper = 0;
+        std::vector<std::pair<Integer, Integer>> array_dimensions;
+        if (!at_end() && current() == '(') {
+            is_array = true;
+            advance();
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ')') {
+                set_error(
+                    "WFC0149",
+                    "a Static array must have fixed bounds (Static arr(n) As Type)", offset_);
+                return false;
+            }
+            auto parsed_dimensions = parse_fixed_array_bounds(identifier_offset);
+            if (!parsed_dimensions.has_value()) {
+                return false;
+            }
+            array_dimensions = std::move(*parsed_dimensions);
+            if (array_dimensions.size() == 1U) {
+                array_lower = array_dimensions.front().first;
+                array_upper = array_dimensions.front().second;
+                array_dimensions.clear();
+            }
+            skip_horizontal_whitespace();
+        }
+
         Value element_default;
         bool is_variant = false;
+        bool is_object = false;
+        std::string declared_class_name;
         if (type_character != '\0') {
             if (consume_keyword("as")) {
                 set_error(
@@ -4180,24 +4217,69 @@ private:
                 set_error(
                     "WFC0012",
                     "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                    "String, As Boolean, or As Variant",
+                    "String, As Boolean, As Object, or As Variant",
                     offset_);
                 return false;
             }
         } else {
             skip_horizontal_whitespace();
             const auto type_offset = offset_;
-            const auto type_result = parse_type_keyword();
+            // REQ-0231: `Static o As Object`/`As SomeClassName`, reusing
+            // the same class-name resolver a class-typed field/return
+            // type/parameter already uses (REQ-0203/REQ-0228), extending
+            // `Static` beyond the fixed-scalar/`Variant` forms it
+            // originally supported alone (REQ-0206's Scope).
+            const auto type_result = parse_scalar_object_or_class_type();
             if (!type_result.has_value()) {
                 set_error(
                     "WFC0012",
                     "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                    "String, As Boolean, or As Variant",
+                    "String, As Boolean, As Object, or As Variant",
                     type_offset);
                 return false;
             }
-            element_default = type_result->default_value;
-            is_variant = type_result->is_variant;
+            if (type_result->is_object) {
+                element_default = Nothing{};
+                is_object = true;
+                declared_class_name = type_result->class_name;
+            } else if (type_result->is_variant) {
+                element_default = Empty{};
+                is_variant = true;
+            } else {
+                element_default = zero_value_for_index(type_result->type_index);
+            }
+        }
+
+        if (is_array && (is_variant || is_object)) {
+            set_error(
+                "WFC0149",
+                "a Static array's element type must be a fixed scalar type, not Variant or "
+                "Object",
+                identifier_offset);
+            return false;
+        }
+
+        Value initial_value;
+        if (is_array) {
+            const auto element_type_index = element_default.index();
+            if (!array_dimensions.empty()) {
+                std::size_t total_size = 1U;
+                for (const auto& dimension : array_dimensions) {
+                    total_size *=
+                        static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                }
+                initial_value = ArrayValue{
+                    std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
+                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
+                    array_dimensions};
+            } else {
+                const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
+                initial_value = ArrayValue{
+                    std::vector<Value>(size, std::move(element_default)), array_lower,
+                    /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index};
+            }
+        } else {
+            initial_value = std::move(element_default);
         }
 
         if (current_scope().variables.contains(*identifier)) {
@@ -4206,17 +4288,97 @@ private:
         }
         auto& statics = current_procedure_def_->statics;
         if (!statics.variables.contains(*identifier)) {
-            statics.variables.emplace(*identifier, std::move(element_default));
+            statics.variables.emplace(*identifier, std::move(initial_value));
             if (is_variant) {
                 statics.variant_variables.insert(*identifier);
+            }
+            if (is_object) {
+                statics.object_variables.insert(*identifier);
+                if (!declared_class_name.empty()) {
+                    statics.object_class_names.emplace(*identifier, declared_class_name);
+                }
             }
         }
         current_scope().variables.emplace(*identifier, statics.variables.at(*identifier));
         if (is_variant) {
             current_scope().variant_variables.insert(*identifier);
         }
+        if (is_object) {
+            current_scope().object_variables.insert(*identifier);
+            if (!declared_class_name.empty()) {
+                current_scope().object_class_names.emplace(*identifier, declared_class_name);
+            }
+        }
         current_scope().static_variable_names.insert(*identifier);
         return true;
+    }
+
+    // Parses a comma-separated list of fixed-size array bounds (`<bound>`
+    // or `<lower> To <upper>`, REQ-0201/REQ-0210), with the opening `(`
+    // already consumed, through and including the closing `)`. Shared by
+    // `Dim`'s own fixed-size array form (`parse_declaration`) and
+    // `Static`'s array form (REQ-0231, `parse_static_declaration`) --
+    // `Static` never has a dynamic (bound-less/comma-only) form at all
+    // (real VB6 requires every `Static` array's bounds to be fixed at
+    // declaration time, with no `ReDim` counterpart), so this covers the
+    // one shape both need, without `parse_declaration`'s own additional
+    // dynamic-array detection ahead of it.
+    [[nodiscard]] std::optional<std::vector<std::pair<Integer, Integer>>>
+    parse_fixed_array_bounds(const std::size_t identifier_offset) {
+        std::vector<std::pair<Integer, Integer>> dimensions;
+        while (true) {
+            const auto first_offset = offset_;
+            auto first_bound = parse_expression();
+            if (!first_bound.has_value()) {
+                return std::nullopt;
+            }
+            const auto first_long = coerce_long(*first_bound, first_offset);
+            if (!first_long.has_value()) {
+                return std::nullopt;
+            }
+            Integer dimension_lower = 0;
+            Integer dimension_upper = 0;
+            skip_horizontal_whitespace();
+            if (consume_keyword("to")) {
+                skip_horizontal_whitespace();
+                const auto second_offset = offset_;
+                auto second_bound = parse_expression();
+                if (!second_bound.has_value()) {
+                    return std::nullopt;
+                }
+                const auto second_long = coerce_long(*second_bound, second_offset);
+                if (!second_long.has_value()) {
+                    return std::nullopt;
+                }
+                dimension_lower = *first_long;
+                dimension_upper = *second_long;
+            } else {
+                // REQ-0226: a bound-less dimension (`<bound>`, no `<lower>
+                // To`) takes its lower bound from `Option Base` -- `0`
+                // unless `Option Base 1` was declared for this module.
+                dimension_lower = option_base_one_ ? 1 : 0;
+                dimension_upper = *first_long;
+            }
+            if (dimension_lower > dimension_upper) {
+                set_error(
+                    "WFC0117", "array lower bound must not exceed the upper bound",
+                    identifier_offset);
+                return std::nullopt;
+            }
+            dimensions.emplace_back(dimension_lower, dimension_upper);
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == ',') {
+                advance();
+                skip_horizontal_whitespace();
+                continue;
+            }
+            break;
+        }
+        if (!consume(')')) {
+            set_error("WFC0005", "expected closing parenthesis", offset_);
+            return std::nullopt;
+        }
+        return dimensions;
     }
 
     [[nodiscard]] bool parse_declaration() {
@@ -4291,60 +4453,11 @@ private:
                 // No bounds to parse; fall through to the shared `As Type`
                 // handling below.
             } else {
-                while (true) {
-                    const auto first_offset = offset_;
-                    auto first_bound = parse_expression();
-                    if (!first_bound.has_value()) {
-                        return false;
-                    }
-                    const auto first_long = coerce_long(*first_bound, first_offset);
-                    if (!first_long.has_value()) {
-                        return false;
-                    }
-                    Integer dimension_lower = 0;
-                    Integer dimension_upper = 0;
-                    skip_horizontal_whitespace();
-                    if (consume_keyword("to")) {
-                        skip_horizontal_whitespace();
-                        const auto second_offset = offset_;
-                        auto second_bound = parse_expression();
-                        if (!second_bound.has_value()) {
-                            return false;
-                        }
-                        const auto second_long = coerce_long(*second_bound, second_offset);
-                        if (!second_long.has_value()) {
-                            return false;
-                        }
-                        dimension_lower = *first_long;
-                        dimension_upper = *second_long;
-                    } else {
-                        // REQ-0226: a bound-less dimension (`Dim arr(n)`,
-                        // no `<lower> To`) takes its lower bound from
-                        // `Option Base` -- `0` unless `Option Base 1` was
-                        // declared for this module.
-                        dimension_lower = option_base_one_ ? 1 : 0;
-                        dimension_upper = *first_long;
-                    }
-                    if (dimension_lower > dimension_upper) {
-                        set_error(
-                            "WFC0117",
-                            "array lower bound must not exceed the upper bound",
-                            identifier_offset);
-                        return false;
-                    }
-                    array_dimensions.emplace_back(dimension_lower, dimension_upper);
-                    skip_horizontal_whitespace();
-                    if (!at_end() && current() == ',') {
-                        advance();
-                        skip_horizontal_whitespace();
-                        continue;
-                    }
-                    break;
-                }
-                if (!consume(')')) {
-                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                auto parsed_dimensions = parse_fixed_array_bounds(identifier_offset);
+                if (!parsed_dimensions.has_value()) {
                     return false;
                 }
+                array_dimensions = std::move(*parsed_dimensions);
                 if (array_dimensions.size() == 1U) {
                     array_lower = array_dimensions.front().first;
                     array_upper = array_dimensions.front().second;

@@ -1649,4 +1649,32 @@ Call Track(2)]=]
             LABELS "integration;mp-0002;statements;procedures;object;classes"
             PASS_REGULAR_EXPRESSION "set 1.*set 2.*terminated 1.*terminated 2"
     )
+
+    add_test(
+        NAME TC-MP0002-static-array-and-class-cli
+        COMMAND wfc --class Counter [=[Public n As Long]=]
+            --eval [=[Sub Track(mark As Long)
+Static v As Counter
+If v Is Nothing Then
+Set v = New Counter
+End If
+v.n = v.n + mark
+Print v.n
+End Sub
+Call Track(1)
+Call Track(2)
+Sub Fill(x As Long)
+Static history(2) As Long
+history(x) = x * 10
+Print history(0) & " " & history(1) & " " & history(2)
+End Sub
+Call Fill(0)
+Call Fill(1)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-static-array-and-class-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;procedures;array;classes"
+            PASS_REGULAR_EXPRESSION "1.*3.*0 0 0.*0 10 0"
+    )
 endif()

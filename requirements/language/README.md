@@ -331,3 +331,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   fixes `Class_Terminate` never running for an instance reachable only
   through a `Static Variant`, both when a call's own body replaces it
   and when the program ends with it still held.
+- [REQ-0231 — Static arrays and class-typed/Object locals](req-0231-static-arrays-and-object-locals.md)
+  extends `Static` to a fixed-size array (1-D or multi-dimensional, no
+  dynamic form) and a class-typed/generic `Object` local, reusing
+  `Dim`'s own array-bound grammar and the existing class-name resolver.

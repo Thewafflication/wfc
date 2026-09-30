@@ -1273,6 +1273,37 @@ int main() {
                      "End Sub"}},
         "Sub Track()\nStatic v As Variant\nSet v = New Counter\nv.n = 9\nEnd Sub\nCall Track()",
         "terminated 9");
+    // Static class-typed/generic Object locals and Static arrays
+    // (REQ-0231): extends Static beyond the fixed-scalar/Variant forms
+    // REQ-0206 originally supported alone. A Static array is always
+    // fixed-size (no dynamic/ReDim form at all, matching real VB6), and
+    // its element type must be a fixed scalar (no Variant/Object
+    // element). The lifetime fixes REQ-0230 already made apply to a
+    // Static class-typed local automatically, with no further code.
+    expect_classes_success(
+        {{"Counter", "Public n As Long"}},
+        "Sub Track(mark As Long)\nStatic v As Counter\nIf v Is Nothing Then\nSet v = New Counter\n"
+        "End If\nv.n = v.n + mark\nPrint v.n\nEnd Sub\n"
+        "Call Track(1)\nCall Track(2)\nCall Track(3)",
+        "1\n3\n6");
+    expect_classes_failure(
+        {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
+        "Sub Track()\nStatic v As Counter\nSet v = New Widget\nEnd Sub\nCall Track()",
+        "WFC0137");
+    expect_program_success(
+        "Sub Track(v As Long)\nStatic history(2) As Long\nStatic count As Long\n"
+        "history(count) = v\ncount = count + 1\n"
+        "Print history(0) & \" \" & history(1) & \" \" & history(2)\nEnd Sub\n"
+        "Call Track(10)\nCall Track(20)\nCall Track(30)",
+        "10 0 0\n10 20 0\n10 20 30");
+    expect_program_success(
+        "Sub Fill()\nStatic grid(1, 1) As Long\ngrid(0, 0) = grid(0, 0) + 1\n"
+        "Print grid(0, 0)\nEnd Sub\nCall Fill()\nCall Fill()",
+        "1\n2");
+    expect_program_failure(
+        "Sub Bad()\nStatic arr() As Long\nEnd Sub\nCall Bad()", "WFC0149");
+    expect_program_failure(
+        "Sub Bad2()\nStatic arr(2) As Variant\nEnd Sub\nCall Bad2()", "WFC0149");
     expect_classes_success(
         {{"Foo", "Dim secret As Long\n\n"
                  "Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
