@@ -1444,6 +1444,14 @@ int main() {
         "Public Declare PtrSafe Sub Sleep Lib \"kernel32\" (ByVal ms As Long)\nOn Error Resume Next\n"
         "Dim t As Long\nt = GetTickCount()\nPrint Err.Number\nSleep 10\nPrint Err.Number & \" \" & Err.Description",
         "453\n453 Specified DLL function not found");
+    // UDT arrays, results and Variant copies (REQ-0267).
+    expect_program_success(
+        "Type Pt\nx As Long\nEnd Type\nSub Fill(a() As Pt)\nDim i As Long\nFor i = LBound(a) To UBound(a)\na(i).x = i * 10\nNext\nEnd Sub\n"
+        "Dim p(1 To 3) As Pt\nFill p\nPrint p(2).x\n"
+        "Function Make(v As Long) As Pt\nDim r As Pt\nr.x = v\nMake = r\nEnd Function\nDim q As Pt\nq = Make(7)\nPrint q.x\n"
+        "Dim c As New Collection\nq.x = 3\nc.Add q\nq.x = 9\nDim r As Pt\nr = c(1)\nPrint r.x\n"
+        "Dim v As Variant\nv = q\nq.x = 5\nPrint v.x & q.x",
+        "20\n7\n3\n95");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

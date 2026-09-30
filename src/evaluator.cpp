@@ -1610,7 +1610,7 @@ Public NextNode As WfcCollectionNode
 constexpr std::string_view kCollectionSource = R"VB(Private head As WfcCollectionNode
 Private tail As WfcCollectionNode
 Private n As Long
-Public Sub Add(Item As Variant, Optional Key As String = "", Optional Before As Variant, Optional After As Variant)
+Public Sub Add(ByVal Item As Variant, Optional Key As String = "", Optional Before As Variant, Optional After As Variant)
 Dim nd As New WfcCollectionNode
 If IsObject(Item) Then
 Set nd.Value = Item
@@ -2445,7 +2445,21 @@ private:
                 // is checked separately first, mirroring the same
                 // separate check a generic `As Object` scalar parameter
                 // already uses.
-                const bool matched_object = matched_as && consume_keyword("object");
+                bool matched_object = matched_as && consume_keyword("object");
+                std::string array_class_name;
+                if (matched_as && !matched_object) {
+                    // REQ-0267: `name() As ClassOrUdt`.
+                    const auto class_probe = offset_;
+                    char class_type_character{};
+                    auto class_name = parse_identifier(&class_type_character);
+                    if (class_name.has_value() && class_type_character == '\0' &&
+                        class_definitions_.contains(*class_name)) {
+                        matched_object = true;
+                        array_class_name = std::move(*class_name);
+                    } else {
+                        offset_ = class_probe;
+                    }
+                }
                 const auto type_result =
                     (matched_as && !matched_object) ? parse_type_keyword() : std::nullopt;
                 if (!matched_as || (!matched_object && !type_result.has_value())) {
@@ -2470,6 +2484,7 @@ private:
                 parameter.is_array_parameter = true;
                 if (matched_object) {
                     parameter.is_object_array_parameter = true;
+                    parameter.class_name = array_class_name;
                 } else if (type_result->is_variant) {
                     parameter.is_variant_array_parameter = true;
                 } else {
@@ -2990,6 +3005,16 @@ private:
     // class referencing another declared *after* it on the command line
     // would see an unresolved name where a real VB6 project (compiled as a
     // whole) would not.
+    // A UDT stored into a Variant (or passed to a Variant parameter) is copied.
+    [[nodiscard]] Value copy_if_udt(Value value) {
+        if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
+            if (is_udt_class(instance->data->class_name)) {
+                return Value{ObjectInstance{clone_udt(*instance->data)}};
+            }
+        }
+        return value;
+    }
+
     [[nodiscard]] bool is_udt_class(const std::string& class_name) const {
         const auto found = class_definitions_.find(class_name);
         return found != class_definitions_.end() && found->second.is_udt;
@@ -8394,7 +8419,7 @@ private:
                 if (!terminate_if_last_reference(*variable.value)) {
                     return false;
                 }
-                *variable.value = std::move(*value);
+                *variable.value = copy_if_udt(std::move(*value));
             }
             return true;
         }
@@ -8862,7 +8887,7 @@ private:
                 if (!terminate_if_last_reference(field_iterator->second)) {
                     return false;
                 }
-                field_iterator->second = std::move(*value);
+                field_iterator->second = copy_if_udt(std::move(*value));
             }
             return true;
         }
@@ -9163,7 +9188,7 @@ private:
         if (!flat_offset.has_value()) {
             return false;
         }
-        array.elements[*flat_offset] = std::move(*value);
+        array.elements[*flat_offset] = copy_if_udt(std::move(*value));
         return true;
     }
 
@@ -10632,7 +10657,9 @@ private:
                     (parameter.is_variant_array_parameter
                          ? array->is_variant_element
                          : parameter.is_object_array_parameter
-                               ? array->is_object_element
+                               ? (array->is_object_element &&
+                                  (parameter.class_name.empty() ||
+                                   array->element_class_name == parameter.class_name))
                                : (!array->is_variant_element && !array->is_object_element &&
                                   array->element_type_index == parameter.type_index));
                 if (!element_kind_matches) {
@@ -10648,7 +10675,7 @@ private:
                 continue;
             }
             if (parameter.is_variant) {
-                frame.variables.emplace(parameter.name, std::move(argument.value));
+                frame.variables.emplace(parameter.name, copy_if_udt(std::move(argument.value)));
                 frame.variant_variables.insert(parameter.name);
                 continue;
             }
@@ -10688,7 +10715,14 @@ private:
         if (definition.is_function) {
             frame.is_function_frame = true;
             Value initial_return_value;
-            if (definition.return_is_object) {
+            if (definition.return_is_object && !definition.return_class_name.empty() &&
+                is_udt_class(definition.return_class_name)) {
+                auto fresh = instantiate_class(definition.return_class_name, identifier_offset);
+                if (!fresh.has_value()) {
+                    return std::nullopt;
+                }
+                initial_return_value = std::move(*fresh);
+            } else if (definition.return_is_object) {
                 initial_return_value = Value{Nothing{}};
             } else if (definition.return_is_variant) {
                 initial_return_value = Value{Empty{}};

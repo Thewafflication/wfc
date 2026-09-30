@@ -1618,6 +1618,26 @@ Print Err.Number]=]
     )
 
     add_test(
+        NAME TC-MP0002-udt-arrays-results-cli
+        COMMAND wfc
+            --eval [=[Type Pt
+x As Long
+End Type
+Dim q As Pt
+q.x = 3
+Dim v As Variant
+v = q
+q.x = 5
+Print v.x & q.x]=]
+    )
+    set_tests_properties(
+        TC-MP0002-udt-arrays-results-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^35"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

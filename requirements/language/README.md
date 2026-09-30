@@ -371,6 +371,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0264 — `Format` of String values](req-0264-string-format.md)
 - [REQ-0265 — Implicit declaration](req-0265-implicit-declaration.md)
 - [REQ-0266 — `Declare` statements](req-0266-declare-statements.md)
+- [REQ-0267 — UDT arrays, results, Variant copies](req-0267-udt-arrays-results.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.
