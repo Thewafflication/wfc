@@ -342,6 +342,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   `InterfaceName_MemberName`, including through a `Private` one.
 - [REQ-0234 — `Class_Terminate` field-cascading](req-0234-class-terminate-field-cascading.md)
 - [REQ-0235 — Chained field write](req-0235-chained-field-write.md)
+- [REQ-0236 — `With` statement](req-0236-with-statement.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

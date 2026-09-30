@@ -1202,6 +1202,13 @@ int main() {
         {{"Inner", "Public tag As Long"}, {"Outer", "Public i As Inner"}},
         "Dim o As New Outer\nDim n As New Inner\nSet o.i = n\no.i.tag = 9\nPrint n.tag",
         "9");
+    // With statement (REQ-0236).
+    expect_classes_success(
+        {{"Counter", "Public n As Long\nPublic m As Long\n\nSub Bump()\nn = n + 1\nEnd Sub\n\n"
+                     "Function Dbl() As Long\nDbl = n * 2\nEnd Function"}},
+        "Dim c As New Counter\nWith c\n.n = 3\n.m = .n + 4\n.Bump\n"
+        "Print .n & \" \" & .m & \" \" & .Dbl()\nEnd With",
+        "4 7 8");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

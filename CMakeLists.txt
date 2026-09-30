@@ -1137,6 +1137,27 @@ Print n.tag]=]
     )
 
     add_test(
+        NAME TC-MP0002-with-statement-cli
+        COMMAND wfc
+            --class Counter [=[Public n As Long
+Sub Bump()
+n = n + 1
+End Sub]=]
+            --eval [=[Dim c As New Counter
+With c
+.n = 3
+.Bump
+Print .n
+End With]=]
+    )
+    set_tests_properties(
+        TC-MP0002-with-statement-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements;classes;object"
+            PASS_REGULAR_EXPRESSION "^4"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

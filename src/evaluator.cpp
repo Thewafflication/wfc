@@ -1233,7 +1233,7 @@ enum class NumericCategory {
            identifier == "explicit" || identifier == "step" || identifier == "to" ||
            identifier == "true" ||
            identifier == "until" || identifier == "wend" ||
-           identifier == "while" || identifier == "xor" ||
+           identifier == "while" || identifier == "with" || identifier == "xor" ||
            vba_constant_value(identifier).has_value() ||
            vba_string_constant(identifier).has_value();
 }
@@ -1502,6 +1502,13 @@ public:
     // an enclosing caller's locals, matching VB6's module/procedure
     // two-level scoping.
     [[nodiscard]] VariableLookup find_variable(const std::string& name) {
+        if (name.starts_with("with.")) {
+            const auto slot = with_slots_.find(name);
+            if (slot != with_slots_.end()) {
+                return {&slot->second, &with_scope_};
+            }
+            return {};
+        }
         if (in_procedure()) {
             auto& local = current_scope();
             const auto entry = local.variables.find(name);
@@ -2523,8 +2530,21 @@ private:
         return true;
     }
 
+    [[nodiscard]] bool at_with_member() const noexcept {
+        return !with_names_.empty() && !at_end() && current() == '.' &&
+            offset_ + 1 < source_.size() && is_identifier_start(source_[offset_ + 1]);
+    }
+
     [[nodiscard]] std::optional<std::string> parse_identifier(
         char* const type_character = nullptr) {
+        // REQ-0236: a leading `.member` inside a With block reads as the
+        // With object's hidden variable followed by the member access.
+        if (at_with_member()) {
+            if (type_character != nullptr) {
+                *type_character = '\0';
+            }
+            return with_names_.back();
+        }
         if (at_end() || !is_identifier_start(current())) {
             return std::nullopt;
         }
@@ -2865,6 +2885,9 @@ private:
         }
         if (consume_keyword("select")) {
             return parse_select_statement();
+        }
+        if (consume_keyword("with")) {
+            return parse_with_statement(statement_offset);
         }
         if (consume_keyword("case")) {
             set_error("WFC0058", "unexpected Case", statement_offset);
@@ -3348,6 +3371,68 @@ private:
         offset_ = continuation_offset;
         execute_ = enclosing_execution;
         return true;
+    }
+
+    // `With expr ... End With` (REQ-0236): the object is held in a hidden
+    // variable named "with.N" (un-spellable in source), and parse_identifier
+    // yields that name for a leading `.member`.
+    [[nodiscard]] bool parse_with_statement(const std::size_t statement_offset) {
+        const bool enclosing_execution = execute_;
+        skip_horizontal_whitespace();
+        const auto expression_offset = offset_;
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        const bool is_object = std::holds_alternative<ObjectInstance>(*value) ||
+            std::holds_alternative<Nothing>(*value);
+        if (enclosing_execution && !is_object) {
+            set_error("WFC0136", "With requires an object reference", expression_offset);
+            return false;
+        }
+        if (!consume_block_line_end()) {
+            return false;
+        }
+        const std::string name = "with." + std::to_string(++with_counter_);
+        with_scope_.object_variables.insert(name);
+        with_slots_[name] = is_object ? std::move(*value) : Value{Nothing{}};
+        with_names_.push_back(name);
+        const auto cleanup = [&] {
+            with_names_.pop_back();
+            with_slots_.erase(name);
+        };
+        while (true) {
+            skip_program_leading_trivia();
+            if (at_end()) {
+                cleanup();
+                set_error("WFC0025", "expected End With", statement_offset);
+                return false;
+            }
+            if (consume_keyword("end")) {
+                skip_horizontal_whitespace();
+                if (!consume_keyword("with")) {
+                    cleanup();
+                    set_error("WFC0025", "expected With after End", offset_);
+                    return false;
+                }
+                cleanup();
+                execute_ = control_exit_requested() ? false : enclosing_execution;
+                return true;
+            }
+            const bool enclosing_declaration_permission = allow_declarations_;
+            allow_declarations_ = false;
+            const bool parsed_statement = parse_statement();
+            const bool consumed_statement_end = parsed_statement && consume_statement_end();
+            allow_declarations_ = enclosing_declaration_permission;
+            if (!parsed_statement || !consumed_statement_end) {
+                cleanup();
+                execute_ = enclosing_execution;
+                return false;
+            }
+            if (control_exit_requested()) {
+                execute_ = false;
+            }
+        }
     }
 
     [[nodiscard]] bool parse_while_body(std::size_t& continuation_offset) {
@@ -6371,7 +6456,7 @@ private:
             }
             return value;
         }
-        if (is_identifier_start(current())) {
+        if (is_identifier_start(current()) || at_with_member()) {
             const auto identifier_offset = offset_;
             char type_character{};
             auto identifier = parse_identifier(&type_character);
@@ -6576,7 +6661,7 @@ private:
     // parses as an ordinary expression with no write-back target.
     [[nodiscard]] std::optional<CallArgument> parse_call_argument() {
         skip_horizontal_whitespace();
-        if (!at_end() && is_identifier_start(current())) {
+        if (!at_end() && (is_identifier_start(current()) || at_with_member())) {
             const auto saved_offset = offset_;
             char type_character{};
             auto identifier = parse_identifier(&type_character);
@@ -11182,6 +11267,11 @@ private:
     // invalidated by an outer call's later, unrelated container growth
     // (moot for a deque, unlike a vector).
     std::deque<InstanceData*> instance_scopes_;
+    // REQ-0236 With-block state.
+    std::unordered_map<std::string, Value> with_slots_;
+    Scope with_scope_;
+    std::vector<std::string> with_names_;
+    std::size_t with_counter_{};
     // REQ-0206: the innermost currently-executing call's own ProcedureDef,
     // so a `Static` statement inside its body can find (and later copy a
     // value back into) that exact definition's persistent `statics` Scope.
