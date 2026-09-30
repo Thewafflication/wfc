@@ -1864,6 +1864,11 @@ struct ClassFieldDef {
     // (lowercased) required class name for `As SomeClass`.
     bool is_object{};
     std::string class_name;
+    // REQ-0251: an array field (`Private items() As Variant`,
+    // `Public grid(1 To 3) As Long`). `dimensions` is empty for a dynamic
+    // (bound-less) array, which starts unallocated until `ReDim`.
+    bool is_array{};
+    std::vector<std::pair<Integer, Integer>> dimensions;
 };
 
 // A class module's declarations, found by `Interpreter::scan_class_body`
@@ -2604,6 +2609,21 @@ private:
         skip_horizontal_whitespace();
         ClassFieldDef field;
         field.is_private = is_private;
+        if (!at_end() && current() == '(') {
+            advance();
+            skip_horizontal_whitespace();
+            field.is_array = true;
+            if (!at_end() && current() == ')') {
+                advance();
+            } else {
+                auto bounds = parse_fixed_array_bounds(name_offset);
+                if (!bounds.has_value()) {
+                    return false;
+                }
+                field.dimensions = std::move(*bounds);
+            }
+            skip_horizontal_whitespace();
+        }
         if (consume_keyword("as")) {
             const auto type_offset = offset_;
             const auto type_result = parse_scalar_object_or_class_type();
@@ -8109,6 +8129,12 @@ private:
             set_error("WFC0142", "member is not accessible outside its class", member_offset);
             return false;
         }
+        if (std::holds_alternative<ArrayValue>(field_iterator->second)) {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '(') {
+                return parse_array_element_assignment_on(field_iterator->second, member_offset);
+            }
+        }
         {
             // Chained write (`o.i.tag = 9`): the field holds the object the
             // next `.member` is written on, so recurse with it as the base.
@@ -8379,8 +8405,15 @@ private:
         const std::string& identifier,
         const std::size_t identifier_offset) {
         const auto variable = find_variable(identifier);
+        return parse_array_element_assignment_on(*variable.value, identifier_offset);
+    }
+
+    // Element assignment against an array held in `slot` (a variable or a
+    // class-instance array field, REQ-0251); positioned at the '('.
+    [[nodiscard]] bool parse_array_element_assignment_on(
+        Value& slot, const std::size_t identifier_offset) {
         advance();  // consume '('
-        auto& array = std::get<ArrayValue>(*variable.value);
+        auto& array = std::get<ArrayValue>(slot);
         const auto dimension_count = array_expected_dimension_count(array);
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
@@ -9078,6 +9111,40 @@ private:
         instance->class_name = class_name;
         for (const auto& [field_name, field_def] : class_iterator->second.fields) {
             Value initial_value;
+            if (field_def.is_array) {
+                Value element_default = field_def.is_variant ? Value{Empty{}}
+                    : field_def.is_object                    ? Value{Nothing{}}
+                                                             : array_element_default(field_def.type_index);
+                const std::size_t element_type_index = element_default.index();
+                ArrayValue array{
+                    /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/field_def.dimensions.empty(),
+                    /*is_allocated=*/!field_def.dimensions.empty(), element_type_index,
+                    field_def.dimensions.size() > 1U ? field_def.dimensions
+                                                     : std::vector<std::pair<Integer, Integer>>{},
+                    field_def.is_variant, field_def.is_object, field_def.class_name};
+                if (!field_def.dimensions.empty()) {
+                    std::size_t total = 1U;
+                    for (const auto& dimension : field_def.dimensions) {
+                        total *= static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                    }
+                    array.lower_bound = field_def.dimensions.front().first;
+                    const bool udt_elements = field_def.is_object &&
+                        !field_def.class_name.empty() && is_udt_class(field_def.class_name);
+                    for (std::size_t i = 0; i < total; ++i) {
+                        if (udt_elements) {
+                            auto nested = instantiate_class(field_def.class_name, offset);
+                            if (!nested.has_value()) {
+                                return std::nullopt;
+                            }
+                            array.elements.push_back(std::move(*nested));
+                        } else {
+                            array.elements.push_back(element_default);
+                        }
+                    }
+                }
+                instance->fields.variables.emplace(field_name, Value{std::move(array)});
+                continue;
+            }
             if (field_def.is_object && !field_def.class_name.empty() &&
                 is_udt_class(field_def.class_name)) {
                 auto nested = instantiate_class(field_def.class_name, offset);
@@ -10356,6 +10423,21 @@ private:
                     indexed_getter_iterator->second, *member_name, std::move(*arguments),
                     member_offset, class_def.source, &instance);
             }
+            {
+                // REQ-0251: `obj.arrayField(i)`.
+                const auto array_field = instance.fields.variables.find(*member_name);
+                if (array_field != instance.fields.variables.end() &&
+                    std::holds_alternative<ArrayValue>(array_field->second)) {
+                    const auto field_def_iterator = class_def.fields.find(*member_name);
+                    if (field_def_iterator != class_def.fields.end() &&
+                        !member_accessible(class_def, field_def_iterator->second.is_private)) {
+                        set_error(
+                            "WFC0142", "member is not accessible outside its class", member_offset);
+                        return std::nullopt;
+                    }
+                    return parse_array_index(array_field->second);
+                }
+            }
             set_error("WFC0135", "unknown member", member_offset);
             return std::nullopt;
         }
@@ -10391,6 +10473,14 @@ private:
                 !member_accessible(class_def, field_def_iterator->second.is_private)) {
                 set_error("WFC0142", "member is not accessible outside its class", member_offset);
                 return std::nullopt;
+            }
+            if (std::holds_alternative<ArrayValue>(field_iterator->second)) {
+                const auto after_name = offset_;
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '(') {
+                    return parse_array_index(field_iterator->second);
+                }
+                offset_ = after_name;
             }
             return field_iterator->second;
         }

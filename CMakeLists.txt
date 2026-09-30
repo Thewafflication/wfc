@@ -1380,6 +1380,21 @@ Print "[" & s & "]"]=]
     )
 
     add_test(
+        NAME TC-MP0002-class-array-fields-cli
+        COMMAND wfc
+            --class Grid [=[Public cells(1 To 2) As Long]=]
+            --eval [=[Dim g As New Grid
+g.cells(2) = 7
+Print g.cells(2) + g.cells(1)]=]
+    )
+    set_tests_properties(
+        TC-MP0002-class-array-fields-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^7"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

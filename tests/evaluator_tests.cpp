@@ -1332,6 +1332,16 @@ int main() {
         "Print Err.Number & \" \" & Err.Description & \" \" & Erl\n"
         "Dim s As String\ns = \"ab  \"\nRSet s = \"x\"\nPrint \"[\" & s & \"]\"\nLSet s = \"yz\"\nPrint \"[\" & s & \"]\"",
         "True\nFalse\nFalse\n11 Division by zero 0\n[   x]\n[yz  ]");
+    // Class array fields (REQ-0251).
+    expect_classes_success(
+        {{"Stack", "Private items() As Long\nPrivate n As Long\nPublic Sub Push(v As Long)\nn = n + 1\n"
+                   "ReDim Preserve items(1 To n)\nitems(n) = v\nEnd Sub\n"
+                   "Public Function Pop() As Long\nPop = items(n)\nn = n - 1\nEnd Function\n"
+                   "Public Property Get Count() As Long\nCount = n\nEnd Property"},
+         {"Grid", "Public cells(1 To 2, 1 To 2) As Long\nPublic names(2) As String"}},
+        "Dim s As New Stack\ns.Push 1\ns.Push 2\nPrint s.Pop() & s.Pop() & s.Count\n"
+        "Dim g As New Grid\ng.cells(2, 1) = 5\ng.names(1) = \"x\"\nPrint g.cells(2, 1) & g.names(1) & UBound(g.names)",
+        "210\n5x2");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

@@ -204,6 +204,7 @@ a specific requirement.
 | 2026-09-30 #132 | Construction | Add `Dim a, b` multi-declarators, module-level `Public`/`Private`/`Global`, comma-separated `Next`, `End`/`Stop`, `GoSub`/`Return`/`On..GoTo|GoSub`, `String * n`, untyped `ParamArray` under `REQ-0248`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #133 | Construction | Add `wfc project.vbp` / `wfc a.bas b.cls` project loading (module concatenation, class registration, header stripping, `Sub Main` startup) and accept `Option Explicit` in class modules under `REQ-0249`; CLI test with a CRLF fixture project. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #134 | Construction | Add `TypeOf .. Is`, the `Error n` statement, `LSet`/`RSet`, `Erl`, `Command` under `REQ-0250`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #135 | Construction | Add dynamic, fixed, and multi-dimensional array fields in class modules (internal and `obj.field(i)` external access) under `REQ-0251`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
