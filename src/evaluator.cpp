@@ -14762,8 +14762,8 @@ private:
         // REQ-0239: Array/Split/Join/Filter.
         if (is_array_fn) {
             ArrayValue result{
-                std::move(arguments), /*lower_bound=*/0, /*is_dynamic=*/false,
-                /*is_allocated=*/true, Value{Empty{}}.index()};
+                std::move(arguments), /*lower_bound=*/option_base_one_ ? 1 : 0,
+                /*is_dynamic=*/false, /*is_allocated=*/true, Value{Empty{}}.index()};
             result.is_variant_element = true;
             return Value{std::move(result)};
         }

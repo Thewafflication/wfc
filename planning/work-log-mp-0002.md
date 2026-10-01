@@ -292,6 +292,7 @@ a specific requirement.
 | 2026-09-30 #207 | Construction | Increment: hidden-module InputB/ObjPtr/StrPtr. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #208 | Construction | Increment: Null in string functions, StrComp Null, numeric strings in Abs/Sgn/..., Chr range error mapped; corpus 61. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #209 | Construction | Increment: date functions return Null for Null, CDate overflow; corpus 62. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #210 | Construction | Increment: Array() lower bound follows Option Base 1; corpus 63. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
