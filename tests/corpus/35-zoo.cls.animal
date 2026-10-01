@@ -1,0 +1,36 @@
+Option Explicit
+Public Enum Kind
+    Dog = 1
+    Cat
+End Enum
+Private mName As String
+Private mKind As Kind
+Private Shared As Long
+Public Property Get Name() As String
+    Name = mName
+End Property
+Public Property Let Name(v As String)
+    mName = v
+End Property
+Public Property Get Species() As Kind
+    Species = mKind
+End Property
+Public Property Let Species(k As Kind)
+    mKind = k
+End Property
+Public Function Speak() As String
+    Select Case mKind
+        Case Dog: Speak = mName & " says Woof"
+        Case Cat: Speak = mName & " says Meow"
+        Case Else: Speak = mName & " is silent"
+    End Select
+End Function
+Public Function Describe() As String
+    Describe = TypeName(Me) & ":" & Me.Name
+End Function
+Private Sub Class_Initialize()
+    Print "init"
+End Sub
+Private Sub Class_Terminate()
+    Print "term " & mName
+End Sub

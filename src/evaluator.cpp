@@ -1957,6 +1957,8 @@ struct ClassFieldDef {
     bool with_events{};
     // `String * n` field: its fixed length (0 for an ordinary String).
     std::size_t fixed_length{};
+    // `Private x As New Cls`: created together with the owning instance.
+    bool auto_new{};
     // REQ-0251: an array field (`Private items() As Variant`,
     // `Public grid(1 To 3) As Long`). `dimensions` is empty for a dynamic
     // (bound-less) array, which starts unallocated until `ReDim`.
@@ -2837,9 +2839,10 @@ private:
             {
                 // REQ-0260: class-level `[Public|Private|Friend] Const|Enum`.
                 const auto before_constant = offset_;
-                static_cast<void>(
-                    consume_keyword("public") || consume_keyword("private") ||
-                    consume_keyword("friend"));
+                const bool constant_is_private = consume_keyword("private");
+                if (!constant_is_private) {
+                    static_cast<void>(consume_keyword("public") || consume_keyword("friend"));
+                }
                 skip_horizontal_whitespace();
                 const bool is_const = consume_keyword("const");
                 const bool is_enum = !is_const && consume_keyword("enum");
@@ -2853,6 +2856,10 @@ private:
                         return false;
                     }
                     for (auto& [constant_name, constant_value] : captured.variables) {
+                        // A Public Enum/Const in a class module is visible program-wide.
+                        if (!constant_is_private) {
+                            global_class_constants_.emplace(constant_name, constant_value);
+                        }
                         class_def.constants[constant_name] = std::move(constant_value);
                     }
                     if (!consume_statement_end() && !is_enum) {
@@ -2970,9 +2977,12 @@ private:
             skip_horizontal_whitespace();
         }
         if (consume_keyword("as")) {
+            skip_horizontal_whitespace();
+            field.auto_new = consume_keyword("new");
+            skip_horizontal_whitespace();
             const auto type_offset = offset_;
             const auto type_result = parse_scalar_object_or_class_type();
-            if (!type_result.has_value()) {
+            if (!type_result.has_value() || (field.auto_new && !type_result->is_object)) {
                 set_error(
                     "WFC0012",
                     "expected As Integer, As Long, As Double, As Single, As Currency, "
@@ -10668,6 +10678,12 @@ private:
                     return std::nullopt;
                 }
                 initial_value = std::move(*nested);
+            } else if (field_def.is_object && field_def.auto_new && !field_def.class_name.empty()) {
+                auto nested = instantiate_class(field_def.class_name, offset);
+                if (!nested.has_value()) {
+                    return std::nullopt;
+                }
+                initial_value = std::move(*nested);
             } else if (field_def.is_object) {
                 initial_value = Value{Nothing{}};
             } else if (field_def.is_variant) {
@@ -11050,6 +11066,10 @@ private:
                     identifier->push_back(type_character);
                 }
                 return parse_function_call(*identifier, identifier_offset);
+            }
+            if (const auto global = global_class_constants_.find(*identifier);
+                global != global_class_constants_.end() && type_character == '\0') {
+                return global->second;
             }
             if (const auto constant = vba_constant_value(*identifier)) {
                 Value value{*constant};
@@ -17354,6 +17374,8 @@ private:
     bool bare_call_arguments_{};
     bool udt_array_{};
     std::size_t fixed_string_length_{};
+    // Public Enum/Const members declared in class modules.
+    std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.
     Integer err_number_{};
     std::string err_description_;

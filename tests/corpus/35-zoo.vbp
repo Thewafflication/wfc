@@ -1,0 +1,4 @@
+Module=Main; 35-zoo.bas
+Class=Animal; 35-zoo.cls.animal
+Class=Zoo; 35-zoo.cls.zoo
+Startup="Sub Main"

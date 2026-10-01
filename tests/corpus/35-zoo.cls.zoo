@@ -1,0 +1,18 @@
+Option Explicit
+Private animals As New Collection
+Public Sub Add(a As Animal)
+    animals.Add a, a.Name
+End Sub
+Public Function Find(n As String) As Animal
+    On Error Resume Next
+    Set Find = animals(n)
+End Function
+Public Property Get Count() As Long
+    Count = animals.Count
+End Property
+Public Sub Chorus()
+    Dim a As Animal
+    For Each a In animals
+        Print a.Speak()
+    Next
+End Sub

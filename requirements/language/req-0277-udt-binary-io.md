@@ -20,3 +20,7 @@ Dynamic-array descriptors and Variant contents are not written.
 ## Verification
 
 Corpus `34-udt-binary-io` and `33-calculator`.
+
+Addendum: a class field may be declared `Private x As New Cls` (created with its
+owner); a `Public Enum`/`Const` in a class module is visible program-wide
+(`a.Species = Dog` from a standard module). Corpus `35-zoo`.

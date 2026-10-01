@@ -1,0 +1,9 @@
+init
+init
+2
+Rex says Woof
+Tom says Meow
+Animal:Tom    True
+True
+term Rex
+term Tom
