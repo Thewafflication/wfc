@@ -986,18 +986,23 @@ int main() {
                      "Sub Bump()\nn = n + 1\nPrint Me.n\nEnd Sub"}},
         "Dim c As New Counter\nCall c.Bump()\nCall c.Bump()",
         "101\n102");
+    // `As New` creates the object on first use (and not at all if unused).
     expect_classes_success(
-        {{"Foo", "Sub Class_Terminate()\nPrint \"terminated\"\nEnd Sub"}},
-        "Dim x As New Foo\nPrint \"before\"\nSet x = Nothing\nPrint \"after\"",
+        {{"Foo", "Sub Class_Initialize()\nPrint \"init\"\nEnd Sub\nSub Touch()\nEnd Sub"}},
+        "Dim x As New Foo\nPrint \"before\"\nx.Touch\nPrint \"after\"",
+        "before\ninit\nafter");
+    expect_classes_success(
+        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"terminated\"\nEnd Sub"}},
+        "Dim x As New Foo\nx.Touch\nPrint \"before\"\nSet x = Nothing\nPrint \"after\"",
         "before\nterminated\nafter");
     expect_classes_success(
-        {{"Foo", "Sub Class_Terminate()\nPrint \"local-terminated\"\nEnd Sub"}},
-        "Sub MakeOne()\nDim x As New Foo\nPrint \"inside\"\nEnd Sub\n"
+        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"local-terminated\"\nEnd Sub"}},
+        "Sub MakeOne()\nDim x As New Foo\nx.Touch\nPrint \"inside\"\nEnd Sub\n"
         "Call MakeOne()\nPrint \"outside\"",
         "inside\nlocal-terminated\noutside");
     expect_classes_success(
-        {{"Foo", "Sub Class_Terminate()\nPrint \"program-end-terminated\"\nEnd Sub"}},
-        "Dim x As New Foo\nPrint \"hi\"",
+        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"program-end-terminated\"\nEnd Sub"}},
+        "Dim x As New Foo\nx.Touch\nPrint \"hi\"",
         "hi\nprogram-end-terminated");
     expect_classes_success(
         {{"Foo", "Public v As Long\n\n"

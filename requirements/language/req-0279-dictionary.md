@@ -49,3 +49,7 @@ Addendum: `ReDim obj.field(...)` resizes a UDT/class array field; assigning a UD
 Addendum: when a program fails, the command line prints the text it had already
 printed (`Evaluation::partial_output`) before the diagnostic; `Evaluation::output` stays
 empty on failure. Test `TC-MP0002-partial-output-cli`.
+
+Addendum: `Dim x As New Cls` (variables, not arrays/UDTs/class fields) creates the object on
+first use, and again on first use after `Set x = Nothing`; an unused variable
+never runs `Class_Initialize`. `x Is Nothing` counts as a use. Corpus `48-lazy-new`.

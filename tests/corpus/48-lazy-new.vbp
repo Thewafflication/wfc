@@ -1,0 +1,3 @@
+Module=Main; 48-lazy-new.bas
+Class=Foo; 48-lazy-new.cls.foo
+Startup="Sub Main"

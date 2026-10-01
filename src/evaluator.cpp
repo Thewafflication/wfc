@@ -1985,6 +1985,9 @@ struct Scope {
     std::unordered_set<std::string> constants;
     std::unordered_set<std::string> variant_variables;
     std::unordered_set<std::string> object_variables;
+    // `Dim x As New Cls` variables: created on first use (and again after
+    // `Set x = Nothing`), as VB6 does.
+    std::unordered_set<std::string> auto_new_variables;
     // Only populated for a variable declared `As ClassName` (as opposed to
     // the generic `As Object`, which accepts an instance of any class):
     // maps the variable's name to the lowercased class name Set must match.
@@ -2286,6 +2289,24 @@ public:
     // an enclosing caller's locals, matching VB6's module/procedure
     // two-level scoping.
     [[nodiscard]] VariableLookup find_variable(const std::string& name) {
+        auto found = find_variable_raw(name);
+        if (found.value != nullptr && execute_ && !found.scope->auto_new_variables.empty() &&
+            found.scope->auto_new_variables.contains(name) &&
+            std::holds_alternative<Nothing>(*found.value)) {
+            const auto declared = found.scope->object_class_names.find(name);
+            if (declared != found.scope->object_class_names.end()) {
+                const auto saved_offset = offset_;
+                auto instance = instantiate_class(declared->second, offset_);
+                offset_ = saved_offset;
+                if (instance.has_value()) {
+                    *found.value = std::move(*instance);
+                }
+            }
+        }
+        return found;
+    }
+
+    [[nodiscard]] VariableLookup find_variable_raw(const std::string& name) {
         if (name.starts_with("with.")) {
             const auto slot = with_slots_.find(name);
             if (slot != with_slots_.end()) {
@@ -8775,6 +8796,7 @@ private:
         } else {
             skip_horizontal_whitespace();
             bool eager_new = false;
+            bool lazy_new = false;
             if (consume_keyword("long")) {
                 element_default = Integer{};
             } else if (consume_keyword("integer")) {
@@ -8834,7 +8856,12 @@ private:
                 }
                 declared_class_name = std::move(*class_name);
                 is_object = true;
-                eager_new = true;
+                if (is_udt_class(declared_class_name) || is_array) {
+                    eager_new = true;
+                } else {
+                    lazy_new = true;
+                    element_default = Nothing{};
+                }
             } else {
                 // A bare identifier here, if it names a known class, is a
                 // fixed `As ClassName` declaration (initialized to
@@ -8882,6 +8909,9 @@ private:
                 element_default = std::move(*instance);
             }
 
+            if (lazy_new && !repeat_in_block) {
+                pending_lazy_new_ = true;
+            }
             if (!declared_class_name.empty() && !is_array) {
                 // An array's declared_class_name (REQ-0214) is threaded
                 // straight into its own ArrayValue.element_class_name
@@ -8949,6 +8979,10 @@ private:
         }
         if (fixed_string_length_ != 0U && !is_array) {
             current_scope().fixed_string_lengths[*identifier] = fixed_string_length_;
+        }
+        if (pending_lazy_new_) {
+            pending_lazy_new_ = false;
+            current_scope().auto_new_variables.insert(*identifier);
         }
         // A Variant/Object-*element* array (REQ-0212) does not itself go in
         // variant_variables/object_variables: those sets govern a whole
@@ -9761,7 +9795,16 @@ private:
             set_error("WFC0011", "expected member name after '.'", offset_);
             return false;
         }
-        const auto variable = find_variable(*identifier);
+        auto variable = find_variable_raw(*identifier);
+        {
+            // `Set a.b = x` / `Set a(i) = x` use `a`'s object, so an auto-new
+            // variable is created first; `Set a = x` replaces it untouched.
+            std::size_t look = offset_;
+            while (look < source_.size() && (source_[look] == ' ' || source_[look] == '\t')) ++look;
+            if (look < source_.size() && (source_[look] == '.' || source_[look] == '(')) {
+                variable = find_variable(*identifier);
+            }
+        }
         if (variable.value == nullptr) {
             // An unqualified `Set Prop = expr` for a sibling Property Set
             // of the class currently executing -- the Set counterpart of
@@ -18080,6 +18123,7 @@ private:
     std::size_t fixed_string_length_{};
     std::optional<Value> app_instance_;
     bool retry_statement_{};
+    bool pending_lazy_new_{};
     // Public Enum/Const members declared in class modules.
     std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.
