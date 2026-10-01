@@ -14201,6 +14201,10 @@ private:
             }
             const auto serial = serial_at(0);
             if (!serial.has_value()) return mismatch();
+            if (*serial < -657435.0 || *serial >= 2958466.0) {
+                set_error("WFC0009", "numeric overflow", offset);  // outside year 100..9999
+                return std::nullopt;
+            }
             return Value{DateValue{*serial}};
         }
         if (name == "isdate") {
@@ -14670,6 +14674,15 @@ private:
             }
         }
         if (is_date_fn) {
+            static const std::set<std::string, std::less<>> null_propagating_dates = {
+                "year", "month", "day", "hour", "minute", "second", "weekday", "dateadd",
+                "datediff", "datepart"};
+            if (execute_ && null_propagating_dates.contains(std::string(identifier)) &&
+                std::any_of(arguments.begin(), arguments.end(), [](const Value& value) {
+                    return std::holds_alternative<Null>(value);
+                })) {
+                return Value{Null{}};
+            }
             return evaluate_date_function(identifier, arguments, identifier_offset);
         }
         if (is_file_fn) {

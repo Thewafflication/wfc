@@ -118,3 +118,6 @@ Addendum: the Variant string functions (`Trim`, `UCase`, `Left`, `Mid`, ...) ret
 for a Null argument and their `$` forms raise error 94; `StrComp` with a Null is Null; math
 routines (`Abs`, `Sgn`, `Int`, `Fix`, `Sqr`, trig, `Exp`, `Log`, `Round`) accept numeric strings;
 out-of-range `Chr` is error 5. Corpus `61-string-edge-cases`.
+
+Addendum: `Year`/`Month`/`Day`/`Hour`/`Minute`/`Second`/`Weekday`/`DateAdd`/`DateDiff`/`DatePart` return Null for a
+Null date; `CDate` outside year 100..9999 is Overflow. Corpus `62-math-date-edges`.
