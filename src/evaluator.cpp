@@ -15714,13 +15714,26 @@ private:
                 if (text->empty() || limit == 0) {
                     return make_string_array({});
                 }
+                bool text_compare = option_compare_text_;
+                if (arguments.size() >= 4U) {
+                    if (const auto* mode = std::get_if<Integer>(&arguments[3])) {
+                        text_compare = *mode == 1 || (*mode == -1 && option_compare_text_);
+                    } else if (const auto* mode16 = std::get_if<Int16>(&arguments[3])) {
+                        text_compare = *mode16 == 1 || (*mode16 == -1 && option_compare_text_);
+                    }
+                }
+                std::string search_text = *text;
+                if (text_compare) {
+                    for (char& character : search_text) character = ascii_lower(character);
+                    for (char& character : delimiter) character = ascii_lower(character);
+                }
                 std::vector<std::string> parts;
                 if (delimiter.empty()) {
                     parts.push_back(*text);
                 } else {
                     std::size_t position = 0;
                     while (limit < 0 || static_cast<Integer>(parts.size()) < limit - 1) {
-                        const auto found = text->find(delimiter, position);
+                        const auto found = search_text.find(delimiter, position);
                         if (found == std::string::npos) {
                             break;
                         }

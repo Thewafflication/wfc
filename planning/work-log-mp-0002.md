@@ -327,6 +327,7 @@ a specific requirement.
 | 2026-09-30 #242 | Construction | Removed the unused 84-static-procedures.cls.cnt. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #243 | Construction | Unknown members reached at run time raise catchable error 438; Open distinguishes Path not found (76), File not found (53) and Permission denied (70); Choose returns Null out of range; ReDim with lower > upper raises error 9. Corpus 85. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #244 | Construction | Without a UI MsgBox returns the default button's result (vbYes for vbYesNo, vbAbort for vbAbortRetryIgnore, ...), honouring vbDefaultButton2/3. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #245 | Construction | Split matches its delimiter case-insensitively under Option Compare Text or vbTextCompare. Corpus 86. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
