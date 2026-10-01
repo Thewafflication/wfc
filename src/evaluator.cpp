@@ -2523,6 +2523,14 @@ public:
     }
 
     [[nodiscard]] wfc::Evaluation evaluate() {
+        auto result = evaluate_program_text();
+        if (!result.success) {
+            result.partial_output = output_;  // what the program printed before it failed
+        }
+        return result;
+    }
+
+    [[nodiscard]] wfc::Evaluation evaluate_program_text() {
         scan_option_explicit();
         scan_deftypes();
         scan_module_names();

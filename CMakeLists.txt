@@ -107,6 +107,18 @@ If total = 42 Then Print "selected" Else Print "wrong"]=]
     )
 
     add_test(
+        NAME TC-MP0002-partial-output-cli
+        COMMAND wfc --eval [=[Print "before the error"
+Print 1 / 0]=]
+    )
+    set_tests_properties(
+        TC-MP0002-partial-output-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;errors"
+            PASS_REGULAR_EXPRESSION "before the error"
+    )
+
+    add_test(
         NAME TC-MP0002-block-conditional-cli
         COMMAND wfc --eval [=[Dim total As Long
 If True Then

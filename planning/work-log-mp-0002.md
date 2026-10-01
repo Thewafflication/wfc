@@ -269,6 +269,7 @@ a specific requirement.
 | 2026-09-30 #184 | Construction | Corpus: 44-algorithms (recursion, 2D Boolean arrays passed ByRef and replaced). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #185 | Construction | Increment: bare Me.Method args calls; corpus 45-bank (events, errors, collections, Currency). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #186 | Construction | Increment: ReDim obj.field(...), value semantics for arrays of UDTs; corpus 46. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #187 | Construction | Increment: Evaluation::partial_output; the CLI prints what the program printed before failing; TC-MP0002-partial-output-cli. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

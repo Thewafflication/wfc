@@ -12,6 +12,9 @@ struct Evaluation final {
     std::string output;
     std::string diagnostic;
     std::size_t error_offset{};
+    // On failure, `output` stays empty; the text printed before the error is
+    // kept here (the command line shows it ahead of the diagnostic).
+    std::string partial_output;
 };
 
 // One named class module source, supplied alongside the standard module

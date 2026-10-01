@@ -45,3 +45,7 @@ Addendum: `Dim b(2)` with no `As` is a Variant array; `EnumName.Member` resolves
 Addendum: `ReDim obj.field(...)` resizes a UDT/class array field; assigning a UDT
 (or an array of UDTs, including one inside a UDT) copies every element
 (value semantics). Corpus `46-nested-udt`.
+
+Addendum: when a program fails, the command line prints the text it had already
+printed (`Evaluation::partial_output`) before the diagnostic; `Evaluation::output` stays
+empty on failure. Test `TC-MP0002-partial-output-cli`.
