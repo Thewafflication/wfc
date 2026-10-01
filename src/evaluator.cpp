@@ -4207,6 +4207,16 @@ private:
     }
 
     [[nodiscard]] bool consume_keyword(const std::string_view keyword) {
+        // Fast reject: most calls are made where some other token starts.
+        if (keyword.front() != 'l' || enum_names_.empty()) {
+            if (offset_ >= source_.size() || ascii_lower(source_[offset_]) != keyword.front()) {
+                return false;
+            }
+        }
+        return consume_keyword_slow(keyword);
+    }
+
+    [[nodiscard]] bool consume_keyword_slow(const std::string_view keyword) {
         const auto start = offset_;
         if (!enum_names_.empty() && keyword == "long") {
             // REQ-0237: an Enum's name is a Long-typed type name.
