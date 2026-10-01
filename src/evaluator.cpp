@@ -1693,137 +1693,59 @@ struct DateParts {
 // VB6's own two-level (module/procedure) scoping, which has no nested
 // block scope.
 // REQ-0243: the built-in `Collection`, written in the evaluator's own VB
-// dialect and registered on demand (a doubly linked list of nodes).
-constexpr std::string_view kCollectionNodeSource = R"VB(Public Value As Variant
-Public Key As String
-Public NextNode As WfcCollectionNode
-)VB";
+// dialect and registered on demand; its storage is the native `WfcStore`.
 
-constexpr std::string_view kCollectionSource = R"VB(Private head As WfcCollectionNode
-Private tail As WfcCollectionNode
-Private n As Long
+constexpr std::string_view kCollectionSource = R"VB(Private Sub Class_Initialize()
+Dim r As Long
+r = WfcStore(10, Me, 1)
+End Sub
 Public Sub Add(ByVal Item As Variant, Optional Key As String = "", Optional Before As Variant, Optional After As Variant)
-Dim nd As New WfcCollectionNode
-If IsObject(Item) Then
-Set nd.Value = Item
-Else
-nd.Value = Item
-End If
-nd.Key = Key
-If Key <> "" Then
-If Not FindKey(Key) Is Nothing Then Err.Raise 457, , "This key is already associated with an element of this collection"
-End If
+Dim pos As Long
+Dim k As Variant
 If Not IsMissing(Before) And Not IsMissing(After) Then Err.Raise 5, , "Invalid procedure call or argument"
-If tail Is Nothing Then
-Set head = nd
-Set tail = nd
-ElseIf Not IsMissing(Before) Then
-Dim ref As WfcCollectionNode
-Dim prev As WfcCollectionNode
-Set ref = Locate(Before)
-If ref Is head Then
-Set nd.NextNode = head
-Set head = nd
-Else
-Set prev = head
-Do While Not prev.NextNode Is ref
-Set prev = prev.NextNode
-Loop
-Set nd.NextNode = ref
-Set prev.NextNode = nd
+If Key <> "" Then
+If WfcStore(2, Me, Key) > 0 Then Err.Raise 457, , "This key is already associated with an element of this collection"
+k = Key
 End If
-ElseIf Not IsMissing(After) Then
-Set ref = Locate(After)
-Set nd.NextNode = ref.NextNode
-Set ref.NextNode = nd
-If ref Is tail Then Set tail = nd
-Else
-Set tail.NextNode = nd
-Set tail = nd
-End If
-n = n + 1
+pos = 0
+If Not IsMissing(Before) Then pos = Locate(Before)
+If Not IsMissing(After) Then pos = Locate(After) + 1
+pos = WfcStore(3, Me, k, Item, pos)
 End Sub
 Public Property Get Count() As Long
-Count = n
+Count = WfcStore(1, Me)
 End Property
 Public Function Item(Index As Variant) As Variant
 Attribute Item.VB_UserMemId = 0
-Dim nd As WfcCollectionNode
-Set nd = Locate(Index)
-If IsObject(nd.Value) Then
-Set Item = nd.Value
+Dim p As Long
+p = Locate(Index)
+If WfcStore(11, Me, p) Then
+Set Item = WfcStore(4, Me, p)
 Else
-Item = nd.Value
+Item = WfcStore(4, Me, p)
 End If
 End Function
 Public Sub Remove(Index As Variant)
-Dim nd As WfcCollectionNode
-Dim prev As WfcCollectionNode
-Dim cur As WfcCollectionNode
-Set nd = Locate(Index)
-Set cur = head
-Do While Not cur Is Nothing
-If cur Is nd Then Exit Do
-Set prev = cur
-Set cur = cur.NextNode
-Loop
-If prev Is Nothing Then
-Set head = nd.NextNode
-Else
-Set prev.NextNode = nd.NextNode
-End If
-If nd Is tail Then Set tail = prev
-Set nd.NextNode = Nothing
-n = n - 1
+Dim p As Long
+p = Locate(Index)
+p = WfcStore(8, Me, p)
 End Sub
-Private Function FindKey(Key As String) As WfcCollectionNode
-Dim cur As WfcCollectionNode
-Set cur = head
-Do While Not cur Is Nothing
-If LCase(cur.Key) = LCase(Key) Then
-Set FindKey = cur
-Exit Function
-End If
-Set cur = cur.NextNode
-Loop
-Set FindKey = Nothing
-End Function
-Private Function Locate(Index As Variant) As WfcCollectionNode
-Dim cur As WfcCollectionNode
-Dim i As Long
+Private Function Locate(Index As Variant) As Long
+Dim p As Long
 If VarType(Index) = 8 Then
-Set cur = FindKey(Index)
-If cur Is Nothing Then Err.Raise 5, , "Invalid procedure call or argument"
-Set Locate = cur
+p = WfcStore(2, Me, Index)
+If p = 0 Then Err.Raise 5, , "Invalid procedure call or argument"
+Locate = p
 Exit Function
 End If
-If Index < 1 Or Index > n Then Err.Raise 9, , "Subscript out of range"
-Set cur = head
-For i = 2 To Index
-Set cur = cur.NextNode
-Next i
-Set Locate = cur
+If Index < 1 Or Index > WfcStore(1, Me) Then Err.Raise 9, , "Subscript out of range"
+Locate = CLng(Index)
 End Function
 Public Function NewEnum() As Object
 Set NewEnum = Me
 End Function
 Public Function WfcItems() As Variant
-Dim r() As Variant
-Dim cur As WfcCollectionNode
-Dim i As Long
-If n > 0 Then
-ReDim r(1 To n)
-Set cur = head
-For i = 1 To n
-If IsObject(cur.Value) Then
-Set r(i) = cur.Value
-Else
-r(i) = cur.Value
-End If
-Set cur = cur.NextNode
-Next i
-End If
-WfcItems = r
+WfcItems = WfcStore(12, Me)
 End Function
 )VB";
 
@@ -1831,54 +1753,26 @@ End Function
 // Scripting.Dictionary, provided as VB source like Collection (case-sensitive
 // keys unless CompareMode = 1; reading a missing key adds an Empty entry, as
 // the real object does).
-constexpr std::string_view kDictionarySource = R"VB(Private ks() As Variant
-Private vs() As Variant
-Private n As Long
-Private mode As Long
+constexpr std::string_view kDictionarySource = R"VB(Private mode As Long
 Public Property Get CompareMode() As Long
 CompareMode = mode
 End Property
 Public Property Let CompareMode(v As Long)
-If n > 0 Then Err.Raise 5, , "Invalid procedure call or argument"
+Dim r As Long
+If WfcStore(1, Me) > 0 Then Err.Raise 5, , "Invalid procedure call or argument"
 mode = v
+r = WfcStore(10, Me, v)
 End Property
 Public Property Get Count() As Long
-Count = n
+Count = WfcStore(1, Me)
 End Property
 Private Function IndexOf(Key As Variant) As Long
-Dim i As Long
-IndexOf = 0
-For i = 1 To n
-If VarType(Key) = 8 And VarType(ks(i)) = 8 Then
-If mode = 1 Then
-If LCase(ks(i)) = LCase(Key) Then IndexOf = i: Exit Function
-Else
-If ks(i) = Key Then IndexOf = i: Exit Function
-End If
-ElseIf VarType(Key) <> 8 And VarType(ks(i)) <> 8 Then
-If ks(i) = Key Then IndexOf = i: Exit Function
-End If
-Next i
+IndexOf = WfcStore(2, Me, Key)
 End Function
-Private Sub Grow()
-n = n + 1
-If n = 1 Then
-ReDim ks(1 To 4)
-ReDim vs(1 To 4)
-ElseIf n > UBound(ks) Then
-ReDim Preserve ks(1 To UBound(ks) * 2)
-ReDim Preserve vs(1 To UBound(vs) * 2)
-End If
-End Sub
 Public Sub Add(Key As Variant, Item As Variant)
+Dim r As Long
 If IndexOf(Key) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
-Grow
-ks(n) = Key
-If IsObject(Item) Then
-Set vs(n) = Item
-Else
-vs(n) = Item
-End If
+r = WfcStore(3, Me, Key, Item, 0)
 End Sub
 Public Function Exists(Key As Variant) As Boolean
 Exists = IndexOf(Key) > 0
@@ -1886,95 +1780,64 @@ End Function
 Public Property Get Item(Key As Variant) As Variant
 Attribute Item.VB_UserMemId = 0
 Dim i As Long
+Dim r As Long
 i = IndexOf(Key)
 If i = 0 Then
-Grow
-ks(n) = Key
-vs(n) = Empty
-i = n
+r = WfcStore(3, Me, Key, Empty, 0)
+i = WfcStore(1, Me)
 End If
-If IsObject(vs(i)) Then
-Set Item = vs(i)
+If WfcStore(11, Me, i) Then
+Set Item = WfcStore(4, Me, i)
 Else
-Item = vs(i)
+Item = WfcStore(4, Me, i)
 End If
 End Property
 Public Property Let Item(Key As Variant, NewItem As Variant)
 Dim i As Long
+Dim r As Long
 i = IndexOf(Key)
 If i = 0 Then
-Grow
-ks(n) = Key
-i = n
+r = WfcStore(3, Me, Key, NewItem, 0)
+Else
+r = WfcStore(6, Me, i, NewItem)
 End If
-vs(i) = NewItem
 End Property
 Public Property Set Item(Key As Variant, NewItem As Object)
 Dim i As Long
+Dim r As Long
 i = IndexOf(Key)
 If i = 0 Then
-Grow
-ks(n) = Key
-i = n
+r = WfcStore(3, Me, Key, NewItem, 0)
+Else
+r = WfcStore(6, Me, i, NewItem)
 End If
-Set vs(i) = NewItem
 End Property
 Public Property Let Key(OldKey As Variant, NewKey As Variant)
 Dim i As Long
+Dim r As Long
 i = IndexOf(OldKey)
 If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
 If IndexOf(NewKey) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
-ks(i) = NewKey
+r = WfcStore(7, Me, i, NewKey)
 End Property
 Public Sub Remove(Key As Variant)
-Dim i As Long, j As Long
+Dim i As Long
 i = IndexOf(Key)
 If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
-For j = i To n - 1
-ks(j) = ks(j + 1)
-If IsObject(vs(j + 1)) Then
-Set vs(j) = vs(j + 1)
-Else
-vs(j) = vs(j + 1)
-End If
-Next j
-n = n - 1
+i = WfcStore(8, Me, i)
 End Sub
 Public Sub RemoveAll()
-n = 0
+Dim r As Long
+r = WfcStore(9, Me)
 End Sub
 Public Function Keys() As Variant
-Dim r() As Variant
-Dim i As Long
-If n = 0 Then
-Keys = Array()
-Else
-ReDim r(0 To n - 1)
-For i = 1 To n
-r(i - 1) = ks(i)
-Next i
-Keys = r
-End If
+Keys = WfcStore(13, Me)
 End Function
 Public Function Items() As Variant
-Dim r() As Variant
-Dim i As Long
-If n = 0 Then
-Items = Array()
-Else
-ReDim r(0 To n - 1)
-For i = 1 To n
-If IsObject(vs(i)) Then
-Set r(i - 1) = vs(i)
-Else
-r(i - 1) = vs(i)
-End If
-Next i
-Items = r
-End If
+Items = WfcStore(12, Me)
 End Function
 Public Function WfcItems() As Variant
-WfcItems = Keys()
+WfcItems = WfcStore(13, Me)
 End Function
 )VB";
 
@@ -2575,8 +2438,19 @@ struct ClassDef {
 // wrapping the raw InstanceData* instance_scopes_ tracks in a *new*
 // shared_ptr would create a second, independent control block, leading to a
 // double-free once both reached zero).
+// Native key/value storage behind the built-in Collection and Dictionary classes (reached
+// through the hidden `WfcStore` function): ordered entries plus a hash index of the keys.
+struct NativeStore {
+    std::vector<Value> keys;
+    std::vector<Value> values;
+    std::unordered_map<std::string, std::size_t> index;  // canonical key -> 0-based position
+    bool dirty{true};
+    bool text_compare{false};
+};
+
 struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::string class_name;
+    std::unique_ptr<NativeStore> store;
     Scope fields;
     // Objects handling this instance's events: the sink instance (weak, so
     // a handler does not keep itself alive through its source) and the
@@ -4016,7 +3890,6 @@ private:
             needed = needed || mentions(module.source);
         }
         if (needed) {
-            class_sources_.push_back({"WfcCollectionNode", kCollectionNodeSource});
             class_sources_.push_back({"Collection", kCollectionSource});
         }
         const auto mentions_dictionary = [](const std::string_view text) {
@@ -13474,6 +13347,14 @@ private:
                 }
             }
         }
+        if (instance->store) {
+            for (auto& stored : instance->store->values) {
+                if (!terminate_if_last_reference(stored)) {
+                    return false;
+                }
+            }
+            instance->store->values.clear();
+        }
         return drain_scope_instances(instance->fields);
     }
 
@@ -13944,7 +13825,7 @@ private:
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
             "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
             "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname", "shell",
-            "getallsettings", "objptr", "strptr", "wfcregexmatches", "wfcregexreplace"};
+            "getallsettings", "objptr", "strptr", "wfcregexmatches", "wfcregexreplace", "wfcstore"};
         return names.contains(std::string(name));
     }
 
@@ -14159,6 +14040,150 @@ private:
             } catch (const std::regex_error&) {
                 static_cast<void>(raise_runtime(5017, "Syntax error in regular expression", offset));
                 return std::nullopt;
+            }
+        }
+        if (name == "wfcstore") {
+            if (arguments.size() < 2U) return bad_type();
+            const auto* op = std::get_if<Integer>(&arguments[0]);
+            const auto* owner = std::get_if<ObjectInstance>(&arguments[1]);
+            if (op == nullptr || owner == nullptr) return bad_type();
+            if (!execute_) return Value{Integer{0}};
+            auto& slot = owner->data->store;
+            if (!slot) slot = std::make_unique<NativeStore>();
+            NativeStore& store = *slot;
+            const auto canonical = [&](const Value& key) {
+                char buffer[40];
+                if (const auto* text = std::get_if<std::string>(&key)) {
+                    std::string result = "s";
+                    for (const char ch : *text) result.push_back(store.text_compare ? ascii_lower(ch) : ch);
+                    return result;
+                }
+                if (is_number(key) || std::holds_alternative<bool>(key)) {
+                    std::snprintf(buffer, sizeof(buffer), "n%.17g",
+                                  std::holds_alternative<bool>(key) ? (std::get<bool>(key) ? -1.0 : 0.0)
+                                                                    : as_double(key));
+                    return std::string(buffer);
+                }
+                if (const auto* date = std::get_if<DateValue>(&key)) {
+                    std::snprintf(buffer, sizeof(buffer), "d%.17g", date->serial);
+                    return std::string(buffer);
+                }
+                if (const auto* object = std::get_if<ObjectInstance>(&key)) {
+                    std::snprintf(buffer, sizeof(buffer), "o%p", static_cast<const void*>(object->data.get()));
+                    return std::string(buffer);
+                }
+                return std::string("e");
+            };
+            const auto reindex = [&]() {
+                store.index.clear();
+                store.index.reserve(store.keys.size());
+                for (std::size_t i = 0; i < store.keys.size(); ++i) {
+                    if (!std::holds_alternative<Empty>(store.keys[i])) {
+                        store.index.emplace(canonical(store.keys[i]), i);
+                    }
+                }
+                store.dirty = false;
+            };
+            const auto position_at = [&](const std::size_t argument) -> std::optional<std::size_t> {
+                if (argument >= arguments.size()) return std::nullopt;
+                const auto* position = std::get_if<Integer>(&arguments[argument]);
+                if (position == nullptr || *position < 1 ||
+                    static_cast<std::size_t>(*position) > store.keys.size()) {
+                    return std::nullopt;
+                }
+                return static_cast<std::size_t>(*position) - 1U;
+            };
+            const auto make_array = [&](std::vector<Value> elements) {
+                ArrayValue result{};
+                result.elements = std::move(elements);
+                result.is_variant_element = true;
+                result.element_type_index = Value{Empty{}}.index();
+                return Value{std::move(result)};
+            };
+            switch (*op) {
+            case 1: return Value{static_cast<Integer>(store.keys.size())};
+            case 2: {
+                if (arguments.size() < 3U) return bad_type();
+                if (store.dirty) reindex();
+                const auto found = store.index.find(canonical(arguments[2]));
+                return Value{found == store.index.end() ? Integer{0}
+                                                        : static_cast<Integer>(found->second + 1U)};
+            }
+            case 3: {
+                if (arguments.size() < 5U) return bad_type();
+                const auto* at = std::get_if<Integer>(&arguments[4]);
+                if (at == nullptr) return bad_type();
+                const bool append = *at < 1 || static_cast<std::size_t>(*at) > store.keys.size();
+                const bool keyed = !std::holds_alternative<Empty>(arguments[2]);
+                if (append) {
+                    if (!store.dirty && keyed) {
+                        store.index.emplace(canonical(arguments[2]), store.keys.size());
+                    }
+                    store.keys.push_back(arguments[2]);
+                    store.values.push_back(arguments[3]);
+                } else {
+                    const auto where = static_cast<std::ptrdiff_t>(*at - 1);
+                    store.keys.insert(store.keys.begin() + where, arguments[2]);
+                    store.values.insert(store.values.begin() + where, arguments[3]);
+                    store.dirty = true;
+                }
+                return Value{Integer{0}};
+            }
+            case 4:
+            case 5:
+            case 11: {
+                const auto at = position_at(2);
+                if (!at.has_value()) return *op == 11 ? Value{false} : Value{Empty{}};
+                if (*op == 11) return Value{is_object_reference(store.values[*at])};
+                return *op == 4 ? store.values[*at] : store.keys[*at];
+            }
+            case 6: {
+                const auto at = position_at(2);
+                if (!at.has_value() || arguments.size() < 4U) return bad_type();
+                Value old = std::move(store.values[*at]);
+                store.values[*at] = arguments[3];
+                if (!terminate_if_last_reference(old)) return std::nullopt;
+                return Value{Integer{0}};
+            }
+            case 7: {
+                const auto at = position_at(2);
+                if (!at.has_value() || arguments.size() < 4U) return bad_type();
+                store.keys[*at] = arguments[3];
+                store.dirty = true;
+                return Value{Integer{0}};
+            }
+            case 8: {
+                const auto at = position_at(2);
+                if (!at.has_value()) return bad_type();
+                Value old = std::move(store.values[*at]);
+                store.keys.erase(store.keys.begin() + static_cast<std::ptrdiff_t>(*at));
+                store.values.erase(store.values.begin() + static_cast<std::ptrdiff_t>(*at));
+                store.dirty = true;
+                if (!terminate_if_last_reference(old)) return std::nullopt;
+                return Value{Integer{0}};
+            }
+            case 9: {
+                auto old = std::move(store.values);
+                store.values.clear();
+                store.keys.clear();
+                store.index.clear();
+                store.dirty = false;
+                for (auto& value : old) {
+                    if (!terminate_if_last_reference(value)) return std::nullopt;
+                }
+                return Value{Integer{0}};
+            }
+            case 10: {
+                if (arguments.size() < 3U) return bad_type();
+                const auto* mode = std::get_if<Integer>(&arguments[2]);
+                if (mode == nullptr) return bad_type();
+                store.text_compare = *mode != 0;
+                store.dirty = true;
+                return Value{Integer{0}};
+            }
+            case 12: return make_array(std::vector<Value>(store.values));
+            case 13: return make_array(std::vector<Value>(store.keys));
+            default: return bad_type();
             }
         }
         if (name == "objptr" || name == "strptr") {
