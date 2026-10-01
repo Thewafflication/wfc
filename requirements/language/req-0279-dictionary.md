@@ -41,3 +41,7 @@ Addendum: an unsuffixed decimal integer literal beyond the `Long` range is a
 
 Addendum: `Dim b(2)` with no `As` is a Variant array; `EnumName.Member` resolves
 (`Level.High`). Corpus `43-declarations`.
+
+Addendum: `ReDim obj.field(...)` resizes a UDT/class array field; assigning a UDT
+(or an array of UDTs, including one inside a UDT) copies every element
+(value semantics). Corpus `46-nested-udt`.

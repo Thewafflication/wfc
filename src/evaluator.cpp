@@ -3451,6 +3451,8 @@ private:
             if (is_udt_class(instance->data->class_name)) {
                 return Value{ObjectInstance{clone_udt(*instance->data)}};
             }
+        } else if (std::holds_alternative<ArrayValue>(value)) {
+            deep_copy_udt_values(value);  // an array of UDTs copies its elements
         }
         return value;
     }
@@ -3467,13 +3469,23 @@ private:
         copy->class_name = source.class_name;
         copy->fields = source.fields;
         for (auto& [name, value] : copy->fields.variables) {
-            if (const auto* nested = std::get_if<ObjectInstance>(&value)) {
-                if (is_udt_class(nested->data->class_name)) {
-                    value = Value{ObjectInstance{clone_udt(*nested->data)}};
-                }
-            }
+            deep_copy_udt_values(value);
         }
         return copy;
+    }
+
+    // Gives every UDT instance inside `value` (itself, or the elements of an
+    // array) its own copy, so value semantics hold for arrays of UDTs.
+    void deep_copy_udt_values(Value& value) {
+        if (const auto* nested = std::get_if<ObjectInstance>(&value)) {
+            if (is_udt_class(nested->data->class_name)) {
+                value = Value{ObjectInstance{clone_udt(*nested->data)}};
+            }
+        } else if (auto* array = std::get_if<ArrayValue>(&value)) {
+            for (auto& element : array->elements) {
+                deep_copy_udt_values(element);
+            }
+        }
     }
 
     // `target = source` where both are UDT instances of the same type.
@@ -8978,7 +8990,20 @@ private:
             set_error("WFC0011", "expected array name", identifier_offset);
             return false;
         }
+        std::vector<std::string> member_path;  // `ReDim obj.field(...)`
         skip_horizontal_whitespace();
+        while (!at_end() && current() == '.') {
+            advance();
+            skip_horizontal_whitespace();
+            char member_type_character{};
+            auto member = parse_identifier(&member_type_character);
+            if (!member.has_value()) {
+                set_error("WFC0011", "expected member name after '.'", offset_);
+                return false;
+            }
+            member_path.push_back(std::move(*member));
+            skip_horizontal_whitespace();
+        }
         if (at_end() || current() != '(') {
             set_error("WFC0145", "ReDim requires an array bound", offset_);
             return false;
@@ -9045,7 +9070,23 @@ private:
             return true;
         }
 
-        const auto variable = find_variable(*identifier);
+        const auto variable_lookup = find_variable(*identifier);
+        Value* redim_target = variable_lookup.value;
+        for (const auto& member : member_path) {
+            auto* holder = redim_target != nullptr ? std::get_if<ObjectInstance>(redim_target) : nullptr;
+            if (holder == nullptr) {
+                set_error("WFC0136", "member access requires an object reference", identifier_offset);
+                return false;
+            }
+            const auto field = holder->data->fields.variables.find(member);
+            if (field == holder->data->fields.variables.end()) {
+                set_error("WFC0135", "unknown member", identifier_offset);
+                return false;
+            }
+            redim_target = &field->second;
+        }
+        struct RedimVariable { Value* value; };
+        const RedimVariable variable{redim_target};
         if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value) ||
             !std::get<ArrayValue>(*variable.value).is_dynamic) {
             set_error(
@@ -9477,6 +9518,9 @@ private:
                 if (auto* text = std::get_if<std::string>(&*value)) {
                     text->resize(fixed->second, ' ');
                 }
+            }
+            if (std::holds_alternative<ArrayValue>(*value)) {
+                deep_copy_udt_values(*value);
             }
             *variable.value = std::move(*value);
         }
