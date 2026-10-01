@@ -1,0 +1,4 @@
+Module=Main; 100-default-member-value.bas
+Class=Named; 100-default-member-value.cls.named
+Class=Sized; 100-default-member-value.cls.sized
+Startup="Sub Main"

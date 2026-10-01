@@ -35,10 +35,14 @@ Behaviors added by corpus-driven hardening of MP-0002, each with a corpus progra
   Variant rules: a string Variant against a typed number compares numerically (error 13 when
   not numeric); a numeric Variant against a String compares as text; two Variants order
   numbers before strings. Typed String against typed number remains error 13.
+- **Default members as values.** An object whose class marks a default member
+  (`Attribute Name.VB_UserMemId = 0`) stands for that member where a value is expected:
+  `s = obj`, `"x" & obj`, `Print obj`, arithmetic, logical and comparison operators
+  (`tests/corpus/100-default-member-value`).
 - **Performance.** `Collection` and `Scripting.Dictionary` use a native ordered store with
   a hash index (keyed Add/Item/Exists are O(1)); `s = s & expr` appends in place when the
   operands are side-effect free.
 
 ## Verification
 
-`tests/corpus/66-input-variants` through `82-variant-compare`, plus the evaluator tests.
+`tests/corpus/66-input-variants` through `82-variant-compare` and `100-default-member-value`, plus the evaluator tests.

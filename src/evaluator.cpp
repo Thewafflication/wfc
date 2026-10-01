@@ -4739,6 +4739,43 @@ private:
         return false;
     }
 
+    // An object reference used where a value is expected stands for its class's
+    // default member (`Attribute Name.VB_UserMemId = 0`): `s = obj`, `"x" & obj`,
+    // `Print obj`. Replaces `value` with that member's result; leaves it unchanged
+    // (returning true) when it is not an instance of a class with a default
+    // member. Returns false only after the default member itself failed.
+    [[nodiscard]] bool resolve_default_value(Value& value, const std::size_t offset) {
+        const auto* holder = std::get_if<ObjectInstance>(&value);
+        if (holder == nullptr || !execute_ || holder->data == nullptr) {
+            return true;
+        }
+        const auto class_iterator = class_definitions_.find(holder->data->class_name);
+        if (class_iterator == class_definitions_.end() || class_iterator->second.is_udt ||
+            class_iterator->second.default_member.empty()) {
+            return true;
+        }
+        const auto& class_def = class_iterator->second;
+        const ProcedureDef* definition = nullptr;
+        if (const auto method = class_def.methods.find(class_def.default_member);
+            method != class_def.methods.end()) {
+            definition = &method->second;
+        } else if (const auto getter = class_def.property_get.find(class_def.default_member);
+                   getter != class_def.property_get.end()) {
+            definition = &getter->second;
+        }
+        if (definition == nullptr) {
+            return true;
+        }
+        const auto instance = holder->data;  // keep the object alive across the call
+        auto result = invoke_definition(
+            *definition, class_def.default_member, {}, offset, class_def.source, instance.get());
+        if (!result.has_value()) {
+            return false;
+        }
+        value = std::move(*result);
+        return true;
+    }
+
     // Attempt Integer/Long/Single/Double/Currency widening or checked
     // narrowing so `value` matches `target_index`. Leaves `value` unchanged, and returns
     // true, when no numeric conversion applies (including when it already
@@ -4754,6 +4791,11 @@ private:
     // pair is not a scalar conversion (the caller reports the mismatch).
     [[nodiscard]] bool implicit_scalar_conversion(
         Value& value, const std::size_t target_index, const std::size_t offset) {
+        const std::size_t object_index = Value{ObjectInstance{}}.index();
+        if (value.index() == object_index && target_index != object_index &&
+            !resolve_default_value(value, offset)) {
+            return false;
+        }
         const std::size_t long_index = Value{Integer{}}.index();
         const std::size_t string_index = Value{std::string{}}.index();
         const std::size_t bool_index = Value{false}.index();
@@ -7578,7 +7620,7 @@ private:
                 offset_ = save;
             }
             auto value = parse_expression();
-            if (!value.has_value()) {
+            if (!value.has_value() || !resolve_default_value(*value, offset_)) {
                 return false;
             }
             if (execute_) {
@@ -10527,6 +10569,9 @@ private:
             if (!operand.has_value()) {
                 return AppendOutcome::failed;
             }
+            if (!resolve_default_value(*operand, operand_offset)) {
+                return AppendOutcome::failed;
+            }
             if (is_object_reference(*operand) || std::holds_alternative<ArrayValue>(*operand)) {
                 set_error("WFC0020", "concatenation requires String or Long operands", operand_offset);
                 return AppendOutcome::failed;
@@ -12240,6 +12285,10 @@ private:
                 left = Value{(left_null ? std::string{} : render(*left)) +
                              (right_null ? std::string{} : render(*right))};
                 continue;
+            }
+            if (!resolve_default_value(*left, operator_offset) ||
+                !resolve_default_value(*right, operator_offset)) {
+                return std::nullopt;
             }
             if (is_object_reference(*left) || is_object_reference(*right) ||
                 std::holds_alternative<ArrayValue>(*left) ||
@@ -19264,6 +19313,19 @@ private:
         const Value& right,
         const char operation,
         const std::size_t operator_offset) {
+        if (execute_ && (std::holds_alternative<ObjectInstance>(left) ||
+                         std::holds_alternative<ObjectInstance>(right))) {
+            Value resolved_left = left;
+            Value resolved_right = right;
+            if (!resolve_default_value(resolved_left, operator_offset) ||
+                !resolve_default_value(resolved_right, operator_offset)) {
+                return std::nullopt;
+            }
+            if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
+                !std::holds_alternative<ObjectInstance>(resolved_right)) {
+                return logical_binary(resolved_left, resolved_right, operation, operator_offset);
+            }
+        }
         // REQ-0244: And/Or/Xor/Eqv/Imp on integer operands are bitwise.
         {
             const auto integer_of = [](const Value& v) -> std::optional<std::int32_t> {
@@ -19379,6 +19441,19 @@ private:
         // local VB6 6.00.8176 reference.
         if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
             return Value{Null{}};
+        }
+        // An object beside a value compares through its default member.
+        if (execute_ && (std::holds_alternative<ObjectInstance>(left) !=
+                         std::holds_alternative<ObjectInstance>(right))) {
+            Value resolved_left = left;
+            Value resolved_right = right;
+            if (!resolve_default_value(resolved_left, operator_offset) ||
+                !resolve_default_value(resolved_right, operator_offset)) {
+                return std::nullopt;
+            }
+            if (!is_object_reference(resolved_left) && !is_object_reference(resolved_right)) {
+                return compare(resolved_left, resolved_right, operation, operator_offset);
+            }
         }
         // Object references compare only through Is, matching real VB6
         // (plain =/<> on an object reference requires a default member,
@@ -19564,6 +19639,19 @@ private:
         const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        if (execute_ && (std::holds_alternative<ObjectInstance>(left_in) ||
+                         std::holds_alternative<ObjectInstance>(right_in))) {
+            Value resolved_left = left_in;
+            Value resolved_right = right_in;
+            if (!resolve_default_value(resolved_left, operator_offset) ||
+                !resolve_default_value(resolved_right, operator_offset)) {
+                return std::nullopt;
+            }
+            if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
+                !std::holds_alternative<ObjectInstance>(resolved_right)) {
+                return numeric_binary(resolved_left, resolved_right, operation, operator_offset);
+            }
+        }
         // Byte/Integer operands keep their own width: Byte op Byte is a Byte, anything else
         // small is an Integer (a Variant operand promotes instead of overflowing).
         if ((operation == '+' || operation == '-' || operation == '*' || operation == '\\' ||
@@ -19992,6 +20080,19 @@ private:
         const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        if (execute_ && (std::holds_alternative<ObjectInstance>(left_in) ||
+                         std::holds_alternative<ObjectInstance>(right_in))) {
+            Value resolved_left = left_in;
+            Value resolved_right = right_in;
+            if (!resolve_default_value(resolved_left, operator_offset) ||
+                !resolve_default_value(resolved_right, operator_offset)) {
+                return std::nullopt;
+            }
+            if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
+                !std::holds_alternative<ObjectInstance>(resolved_right)) {
+                return integer_binary(resolved_left, resolved_right, operation, operator_offset);
+            }
+        }
         if ((std::holds_alternative<Byte>(left_in) || std::holds_alternative<Int16>(left_in)) &&
             (std::holds_alternative<Byte>(right_in) || std::holds_alternative<Int16>(right_in))) {
             return numeric_binary(left_in, right_in, operation, operator_offset);
