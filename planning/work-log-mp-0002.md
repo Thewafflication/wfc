@@ -300,6 +300,7 @@ a specific requirement.
 | 2026-09-30 #215 | Construction | Fixed MSVC x86/x64 build break from the RegExp commit: std::regex::multiline is libstdc++-only; use std::regex_constants::multiline. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #216 | Construction | Made RegExp.Multiline portable: uses the STL multiline flag when present (newer MSVC/libstdc++), otherwise ^/$ match only at text ends. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #217 | Construction | Input # into Variants now yields Boolean/Date/Null for #TRUE#/#date#/#NULL# fields and Integer for small whole numbers; Write # writes dates as #yyyy-mm-dd# (time only when non-zero). Corpus 66. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #218 | Construction | Procedure headers may be followed by ':' and the body/End on the same line, in modules and classes. Corpus 67. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

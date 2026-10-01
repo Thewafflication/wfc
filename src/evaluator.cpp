@@ -3100,6 +3100,30 @@ private:
                 }
                 offset_ = line_offset;
             }
+            // `Sub F(): Print 1: End Sub` -- look for a `: End <keyword>` on this line.
+            bool in_string = false;
+            while (!at_end() && current() != '\r' && current() != '\n') {
+                const char ch = current();
+                if (ch == '"') {
+                    in_string = !in_string;
+                } else if (!in_string && ch == '\'') {
+                    break;
+                } else if (!in_string && ch == ':') {
+                    advance();
+                    skip_horizontal_whitespace();
+                    const auto end_offset = offset_;
+                    if (consume_keyword("end")) {
+                        skip_horizontal_whitespace();
+                        if (consume_keyword(keyword)) {
+                            body_end = end_offset;
+                            return true;
+                        }
+                    }
+                    offset_ = end_offset;
+                    continue;
+                }
+                advance();
+            }
             skip_rest_of_line();
         }
     }
@@ -3734,7 +3758,7 @@ private:
                 return false;
             }
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
         definition.body_start = offset_;
@@ -3797,7 +3821,7 @@ private:
             definition.return_is_array = *array_marker;
             }
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
         definition.body_start = offset_;
@@ -4260,7 +4284,7 @@ private:
                 definition.return_is_array = *array_marker;
                 }
             }
-            if (!consume_block_line_end()) {
+            if (!consume_loop_header_end()) {
                 offset_ = saved_offset;
                 return false;
             }
