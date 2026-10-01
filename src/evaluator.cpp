@@ -13576,6 +13576,12 @@ private:
             const auto point = digits_text.find('.');
             std::string whole = digits_text.substr(0, point);
             const std::string fraction = point == std::string::npos ? "" : digits_text.substr(point);
+            if (count >= 3U && whole == "0") {
+                bool include_leading = true;
+                if (const auto* flag = std::get_if<bool>(&arguments[2])) include_leading = *flag;
+                else if (const auto leading = number_at(2, -2.0)) include_leading = *leading != 0.0;
+                if (!include_leading && !fraction.empty()) whole.clear();
+            }
             bool group = true;
             if (count >= 5U) {
                 if (const auto* g = std::get_if<bool>(&arguments[4])) group = *g;
@@ -14164,6 +14170,10 @@ private:
                         } else if (identifier == "instrrev") {
                             if (slot == 2U) default_value = -1;
                             else if (slot == 3U) default_value = compare_default;
+                        } else if (identifier == "formatnumber" || identifier == "formatcurrency" ||
+                                   identifier == "formatpercent") {
+                            if (slot == 1U) default_value = -1;
+                            else if (slot >= 2U && slot <= 4U) default_value = -2;  // vbUseDefault
                         }
                         if (!default_value.has_value()) {
                             set_error("WFC0072", "function received an empty argument", offset_);
@@ -14960,6 +14970,12 @@ private:
                     }
                 }
                 return Value{out + tail};
+            }
+            if (std::holds_alternative<Null>(arguments[0])) {
+                return Value{Null{}};
+            }
+            if (std::holds_alternative<Empty>(arguments[0])) {
+                return Value{std::string{}};
             }
             if (!is_number(arguments[0]) && !std::holds_alternative<bool>(arguments[0])) {
                 set_error(
@@ -17152,9 +17168,12 @@ private:
             static_cast<int>(fraction_digit_count));
         const std::string rendered_magnitude(buffer, to_chars_result.ptr);
         const auto rendered_dot = rendered_magnitude.find('.');
-        const std::string integer_digits = rendered_dot == std::string::npos
-                                                ? rendered_magnitude
-                                                : rendered_magnitude.substr(0, rendered_dot);
+        std::string integer_digits = rendered_dot == std::string::npos
+                                          ? rendered_magnitude
+                                          : rendered_magnitude.substr(0, rendered_dot);
+        if (integer_digits == "0") {
+            integer_digits.clear();  // a zero integer part shows no digit (`0` placeholders still pad)
+        }
         const std::string fraction_digits = rendered_dot == std::string::npos
                                                  ? std::string{}
                                                  : rendered_magnitude.substr(rendered_dot + 1U);

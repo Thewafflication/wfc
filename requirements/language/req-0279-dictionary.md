@@ -72,3 +72,9 @@ resolves for Public class enums/constants. Corpus `51-class-statics`.
 Addendum: a procedure called as a statement with a parenthesized list (`Inc (x)`,
 `Inc(x)`, `Show(a, b)`) is accepted; one parenthesized argument is evaluated as an
 expression and so passed by value. Corpus `52-byval-parentheses`.
+
+Addendum (`Format`): a zero integer part shows no digit for `#` placeholders or
+when the picture has no integer placeholder (`Format(0.5, ".00")` is `.50`,
+`Format(0, "#")` is empty, `Format(0, "0;-0;Zero")` is `Zero`); `Format(Null, ...)` is Null;
+`FormatNumber` family accepts omitted middle arguments and honours the
+leading-digit flag. (Amends the unverified `".00"` interpretation noted in REQ-0218.)
