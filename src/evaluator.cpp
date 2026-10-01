@@ -7794,7 +7794,7 @@ private:
             }
             if (current() == ',') {
                 advance();
-                text.append(14U - text.size() % 14U, ' ');
+                text.append(14U - utf16_length(text) % 14U, ' ');
                 newline = false;
                 continue;
             }
@@ -7823,8 +7823,9 @@ private:
                     if (execute_ && *count > 0) {
                         if (is_spc) {
                             text.append(static_cast<std::size_t>(*count), ' ');
-                        } else if (static_cast<std::size_t>(*count - 1) > text.size()) {
-                            text.append(static_cast<std::size_t>(*count - 1) - text.size(), ' ');
+                        } else if (const auto column = utf16_length(text);
+                                   static_cast<std::size_t>(*count - 1) > column) {
+                            text.append(static_cast<std::size_t>(*count - 1) - column, ' ');
                         }
                     }
                     newline = true;
@@ -16910,61 +16911,67 @@ private:
                               : fmt.substr(0, section);
                 }
                 bool upper = false, lower = false, left_fill = false;
-                std::string mask;
-                for (std::size_t i = 0; i < fmt.size(); ++i) {
-                    const char c = fmt[i];
-                    if (c == '>') upper = true;
-                    else if (c == '<') lower = true;
-                    else if (c == '!') left_fill = true;
-                    else if (c == '\\' && i + 1 < fmt.size()) mask += std::string{'\x01', fmt[++i]};
-                    else if (c == '"') {
-                        while (++i < fmt.size() && fmt[i] != '"') mask += std::string{'\x01', fmt[i]};
+                // Work in UTF-16 units;  marks a literal character in the mask.
+                const std::u16string wide_fmt = to_utf16_units(fmt);
+                std::u16string mask;
+                for (std::size_t i = 0; i < wide_fmt.size(); ++i) {
+                    const char16_t c = wide_fmt[i];
+                    if (c == u'>') upper = true;
+                    else if (c == u'<') lower = true;
+                    else if (c == u'!') left_fill = true;
+                    else if (c == u'\\' && i + 1 < wide_fmt.size()) {
+                        mask.push_back(u'');
+                        mask.push_back(wide_fmt[++i]);
+                    } else if (c == u'"') {
+                        while (++i < wide_fmt.size() && wide_fmt[i] != u'"') {
+                            mask.push_back(u'');
+                            mask.push_back(wide_fmt[i]);
+                        }
                     } else mask.push_back(c);
                 }
-                std::string source_text = *text_argument;
-                for (char& c : source_text) {
-                    if (upper) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-                    if (lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                std::u16string chars = to_utf16_units(*text_argument);
+                for (auto& c : chars) {
+                    if (upper) c = unit_to_upper(c);
+                    if (lower) c = unit_to_lower(c);
                 }
                 std::size_t placeholders = 0;
                 for (std::size_t i = 0; i < mask.size(); ++i) {
-                    if (mask[i] == '\x01') { ++i; continue; }
-                    if (mask[i] == '@' || mask[i] == '&') ++placeholders;
+                    if (mask[i] == u'') { ++i; continue; }
+                    if (mask[i] == u'@' || mask[i] == u'&') ++placeholders;
                 }
                 if (placeholders == 0) {
-                    return Value{source_text};
+                    return Value{from_utf16_units(chars)};
                 }
-                std::string out;
+                std::u16string out;
                 // `@` pads with a space, `&` with nothing; characters fill right to left
                 // unless `!` asks for left to right.
-                std::vector<char> chars(source_text.begin(), source_text.end());
                 std::size_t next = left_fill ? 0 : (chars.size() > placeholders ? chars.size() - placeholders : 0);
                 const std::size_t skip = left_fill ? 0 : (placeholders > chars.size() ? placeholders - chars.size() : 0);
                 std::size_t seen = 0;
-                std::string tail;
+                std::u16string tail;
                 if (left_fill && chars.size() > placeholders) {
-                    tail = source_text.substr(placeholders);
+                    tail = chars.substr(placeholders);
                 }
                 if (!left_fill && chars.size() > placeholders) {
-                    out = source_text.substr(0, chars.size() - placeholders);
+                    out = chars.substr(0, chars.size() - placeholders);
                 }
                 for (std::size_t i = 0; i < mask.size(); ++i) {
-                    if (mask[i] == '\x01') { out.push_back(mask[++i]); continue; }
-                    if (mask[i] == '@' || mask[i] == '&') {
+                    if (mask[i] == u'') { out.push_back(mask[++i]); continue; }
+                    if (mask[i] == u'@' || mask[i] == u'&') {
                         const bool pad = !left_fill && seen < skip;
                         if (pad) {
-                            if (mask[i] == '@') out.push_back(' ');
+                            if (mask[i] == u'@') out.push_back(u' ');
                         } else if (next < chars.size()) {
                             out.push_back(chars[next++]);
-                        } else if (mask[i] == '@') {
-                            out.push_back(' ');
+                        } else if (mask[i] == u'@') {
+                            out.push_back(u' ');
                         }
                         ++seen;
                     } else {
                         out.push_back(mask[i]);
                     }
                 }
-                return Value{out + tail};
+                return Value{from_utf16_units(out + tail)};
             }
             if (std::holds_alternative<Null>(arguments[0])) {
                 return Value{Null{}};

@@ -47,7 +47,8 @@ Behaviors added by corpus-driven hardening of MP-0002, each with a corpus progra
   Windows-1252. Source files that are not valid UTF-8 are read as Windows-1252, and text-file
   I/O (`Print #`, `Input #`, `Line Input #`, `Input$`, string `Get`/`Put`) is ANSI on disk.
   The `*B` functions keep reporting stored bytes (REQ-0177). `tests/corpus/101-utf16-strings`,
-  `102-ansi-file-text`.
+  `102-ansi-file-text`, `103-utf16-print-format`. `Print` zones, `Tab` and `Spc` count columns in
+  units, and `Format` string pictures (`@`, `&`, `<`, `>`, `!`) work per unit.
 - **Performance.** `Collection` and `Scripting.Dictionary` use a native ordered store with
   a hash index (keyed Add/Item/Exists are O(1)); `s = s & expr` appends in place when the
   operands are side-effect free.
