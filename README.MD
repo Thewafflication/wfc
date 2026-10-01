@@ -88,8 +88,12 @@ UDT elements), conditional compilation (`#If`), line continuation, the
 `FileSystem`/`Interaction` libraries (including `Split`/`Join`/`Format`,
 sequential/binary/random file I/O, `CVErr`), a built-in `Collection`, and
 class modules (fields, array fields, methods, properties, `Const`/`Enum`,
-`New`/`Me`, `Implements`, default members, lifecycle hooks,
-`Public`/`Private`/`Friend`). It does not claim general VB6 compatibility —
+`New`/`Me`, `Implements`, events (`Event`/`RaiseEvent`/`WithEvents`), default
+members, lazy `As New`, lifecycle hooks, `Public`/`Private`/`Friend`),
+`CreateObject("Scripting.Dictionary")`, named arguments, `DefType` statements,
+and deep recursion (error 28 beyond 5000 nested calls). `Debug.Print` text goes
+to standard error and a failing program still shows what it printed before the
+error. It does not claim general VB6 compatibility —
 see the [language requirements index](requirements/language/README.md) for
 exactly what is specified and implemented, `REQ`-numbered and cross-referenced
 to its diagnostics and scope boundary, and
