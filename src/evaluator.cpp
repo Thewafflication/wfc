@@ -4344,6 +4344,26 @@ private:
             identifier.push_back(ascii_lower(current()));
             advance();
         } while (!at_end() && is_identifier_part(current()));
+        // `VBA.Left$(...)`, `Strings.Left`, `Conversion.Int`, ...: the library qualifier is
+        // implied; drop it (and a second one: `VBA.Strings.Left`).
+        for (int qualifiers = 0; qualifiers < 2; ++qualifiers) {
+            static const std::set<std::string, std::less<>> libraries = {
+                "vba", "strings", "math", "conversion", "datetime", "interaction", "filesystem",
+                "information", "fileio", "financial", "constants", "globals", "vbruntime"};
+            if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
+                is_identifier_start(source_[offset_ + 1]) && libraries.contains(identifier) &&
+                find_variable(identifier).value == nullptr &&
+                !(module_names_.contains(identifier))) {
+                advance();
+                identifier.clear();
+                do {
+                    identifier.push_back(ascii_lower(current()));
+                    advance();
+                } while (!at_end() && is_identifier_part(current()));
+            } else {
+                break;
+            }
+        }
         // REQ-0258: `Module1.Name` -- drop the module qualifier (standard
         // modules share one namespace), unless a variable shadows it.
         if (!module_names_.empty() && !at_end() && current() == '.' &&
@@ -15094,7 +15114,7 @@ private:
                             identifier == "ascw";
         const bool is_chr_b = identifier == "chrb" || identifier == "chrb$";
         const bool is_chr = identifier == "chr" || identifier == "chr$" ||
-                            identifier == "chrw" || is_chr_b;
+                            identifier == "chrw" || identifier == "chrw$" || is_chr_b;
         const bool is_reverse = identifier == "strreverse";
         const bool is_space = identifier == "space" || identifier == "space$";
         const bool is_string = identifier == "string" || identifier == "string$";
