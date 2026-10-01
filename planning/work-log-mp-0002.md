@@ -302,6 +302,7 @@ a specific requirement.
 | 2026-09-30 #217 | Construction | Input # into Variants now yields Boolean/Date/Null for #TRUE#/#date#/#NULL# fields and Integer for small whole numbers; Write # writes dates as #yyyy-mm-dd# (time only when non-zero). Corpus 66. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #218 | Construction | Procedure headers may be followed by ':' and the body/End on the same line, in modules and classes. Corpus 67. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #219 | Construction | Corpus 67 clarified (a line-start 'Name:' is a label in VB6). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #220 | Construction | For Each over a class exposing NewEnum (VB_UserMemId -4); Collection.[_NewEnum]; As IUnknown/IDispatch map to Object; [bracketed names] supported by a source rewrite. Corpus 68. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

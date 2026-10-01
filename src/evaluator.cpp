@@ -1800,6 +1800,9 @@ Set cur = cur.NextNode
 Next i
 Set Locate = cur
 End Function
+Public Function NewEnum() As Object
+Set NewEnum = Me
+End Function
 Public Function WfcItems() As Variant
 Dim r() As Variant
 Dim cur As WfcCollectionNode
@@ -8506,8 +8509,24 @@ private:
         // `WfcItems` method) iterates the array that method returns.
         if (execute_) {
             if (const auto* holder = std::get_if<ObjectInstance>(&*collection_value)) {
-                const auto class_iterator = class_definitions_.find(holder->data->class_name);
+                auto class_iterator = class_definitions_.find(holder->data->class_name);
+                // A class exposing a `NewEnum` method (VB_UserMemId -4): iterate what it returns.
                 if (class_iterator != class_definitions_.end() &&
+                    !class_iterator->second.methods.contains("wfcitems") &&
+                    class_iterator->second.methods.contains("newenum")) {
+                    auto enumerator = call_class_method(
+                        *holder->data, class_iterator->second, "newenum", collection_offset,
+                        /*require_function=*/true);
+                    if (!enumerator.has_value()) {
+                        return false;
+                    }
+                    collection_value = std::move(enumerator);
+                    holder = std::get_if<ObjectInstance>(&*collection_value);
+                    class_iterator = holder != nullptr
+                        ? class_definitions_.find(holder->data->class_name)
+                        : class_definitions_.end();
+                }
+                if (holder != nullptr && class_iterator != class_definitions_.end() &&
                     class_iterator->second.methods.contains("wfcitems")) {
                     auto items = call_class_method(
                         *holder->data, class_iterator->second, "wfcitems", collection_offset,
@@ -19169,6 +19188,76 @@ private:
 
 // REQ-0261: joins ` _` line continuations by blanking the underscore and the
 // line break (byte offsets are unchanged).
+// `[bracketed name]` identifiers: plain names lose the brackets; names with spaces or a
+// leading underscore become `wfcb_` identifiers; `[_NewEnum]` maps to `NewEnum`.
+void rewrite_bracketed_identifiers(std::string& text) {
+    if (text.find('[') == std::string::npos) return;
+    std::string out;
+    out.reserve(text.size());
+    bool in_string = false;
+    bool in_comment = false;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const char ch = text[i];
+        if (ch == '\n') {
+            in_string = false;
+            in_comment = false;
+        } else if (!in_comment) {
+            if (ch == '"') {
+                in_string = !in_string;
+            } else if (!in_string && ch == '\'') {
+                in_comment = true;
+            } else if (!in_string && ch == '[') {
+                const auto close = text.find_first_of("]\n", i + 1);
+                if (close != std::string::npos && text[close] == ']' && close > i + 1) {
+                    std::string name = text.substr(i + 1, close - i - 1);
+                    bool plain = !std::isdigit(static_cast<unsigned char>(name[0])) && name[0] != '_';
+                    for (const char c : name) {
+                        if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) plain = false;
+                    }
+                    if (name == "_NewEnum") {
+                        name = "NewEnum";
+                    } else if (!plain) {
+                        for (char& c : name) {
+                            if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) c = '_';
+                        }
+                        name = "wfcb_" + name;
+                    }
+                    out += name;
+                    i = close;
+                    continue;
+                }
+            }
+        }
+        out.push_back(ch);
+    }
+    text = std::move(out);
+}
+
+// `As IUnknown` / `As IDispatch` are plain object references to this interpreter.
+void rewrite_object_aliases(std::string& text) {
+    const auto lower_at = [&](const std::size_t at, const std::string_view word) {
+        if (at + word.size() > text.size()) return false;
+        for (std::size_t i = 0; i < word.size(); ++i) {
+            const auto ch = static_cast<char>(std::tolower(static_cast<unsigned char>(text[at + i])));
+            if (ch != word[i]) return false;
+        }
+        const auto after = at + word.size();
+        return after >= text.size() ||
+               !(std::isalnum(static_cast<unsigned char>(text[after])) || text[after] == '_');
+    };
+    for (std::size_t at = 0; at + 7 < text.size(); ++at) {
+        if (text[at] != 'I' && text[at] != 'i') continue;
+        const bool unknown = lower_at(at, "iunknown");
+        const bool dispatch = !unknown && lower_at(at, "idispatch");
+        if (!unknown && !dispatch) continue;
+        std::size_t before = at;
+        while (before > 0 && (text[before - 1] == ' ' || text[before - 1] == '\t')) --before;
+        if (before < 3 || before == at) continue;
+        if (!lower_at(before - 2, "as") || (before > 2 && (std::isalnum(static_cast<unsigned char>(text[before - 3])) || text[before - 3] == '_'))) continue;
+        text.replace(at, unknown ? 8U : 9U, "Object");
+    }
+}
+
 void join_line_continuations(std::string& text) {
     std::size_t line_start = 0;
     while (line_start < text.size()) {
@@ -19529,6 +19618,8 @@ Evaluation evaluate_program(const std::string_view source) {
         return failure_for_directive(error, error_offset);
     }
     join_line_continuations(*processed);
+    rewrite_object_aliases(*processed);
+    rewrite_bracketed_identifiers(*processed);
     return evaluate_interpreter([&](const std::size_t depth, const char* base,
                                     const std::size_t budget) {
         Interpreter interpreter(*processed);
@@ -19547,6 +19638,8 @@ Evaluation evaluate_program(
         return failure_for_directive(error, error_offset);
     }
     join_line_continuations(*processed);
+    rewrite_object_aliases(*processed);
+    rewrite_bracketed_identifiers(*processed);
     std::vector<std::string> processed_classes;
     processed_classes.reserve(classes.size());
     for (const auto& module : classes) {
@@ -19555,6 +19648,8 @@ Evaluation evaluate_program(
             return failure_for_directive(error, error_offset);
         }
         join_line_continuations(*text);
+        rewrite_object_aliases(*text);
+        rewrite_bracketed_identifiers(*text);
         processed_classes.push_back(std::move(*text));
     }
     std::vector<ClassModuleSource> rewritten;

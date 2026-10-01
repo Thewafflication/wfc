@@ -1,0 +1,3 @@
+Module=Main; 68-new-enum.bas
+Class=Bag; 68-new-enum.cls.bag
+Startup="Sub Main"
