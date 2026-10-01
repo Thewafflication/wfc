@@ -17769,7 +17769,7 @@ private:
                 advance();
             }
         }
-        if (!at_end() && (current() == 'e' || current() == 'E')) {
+        if (!at_end() && (current() == 'e' || current() == 'E' || current() == 'd' || current() == 'D')) {
             const char sign = peek(1);
             const std::size_t digit_ahead = (sign == '+' || sign == '-') ? 2U : 1U;
             if (is_digit(peek(digit_ahead))) {
@@ -17790,10 +17790,11 @@ private:
         const std::size_t start,
         const std::size_t end) {
         double value{};
-        const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + end, value);
-        if (conversion.ec != std::errc{} ||
-            conversion.ptr != source_.data() + end) {
+        std::string text(source_.substr(start, end - start));
+        std::replace(text.begin(), text.end(), 'd', 'e');
+        std::replace(text.begin(), text.end(), 'D', 'e');
+        const auto conversion = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (conversion.ec != std::errc{} || conversion.ptr != text.data() + text.size()) {
             set_error("WFC0006", "numeric literal is malformed", start);
             return std::nullopt;
         }
@@ -17804,10 +17805,11 @@ private:
         const std::size_t start,
         const std::size_t end) {
         float value{};
-        const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + end, value);
-        if (conversion.ec != std::errc{} ||
-            conversion.ptr != source_.data() + end) {
+        std::string text(source_.substr(start, end - start));
+        std::replace(text.begin(), text.end(), 'd', 'e');
+        std::replace(text.begin(), text.end(), 'D', 'e');
+        const auto conversion = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (conversion.ec != std::errc{} || conversion.ptr != text.data() + text.size()) {
             set_error("WFC0006", "numeric literal is malformed", start);
             return std::nullopt;
         }
