@@ -5962,6 +5962,34 @@ private:
         if (consume_keyword("randomize")) {
             return parse_randomize_statement(statement_offset);
         }
+        if (const auto rnd_start = offset_ - 0U; consume_keyword("rnd")) {
+            // `Rnd -1` as a statement: the call's result is discarded.
+            skip_horizontal_whitespace();
+            if (at_end() || current() == '(' || current() == '=') {
+                offset_ = rnd_start;
+            } else {
+                double argument = 1.0;
+                const bool has_argument = current() != ':' && current() != '\r' &&
+                                          current() != '\n' && current() != '\'';
+                if (has_argument) {
+                    auto value = parse_expression();
+                    if (!value.has_value()) return false;
+                    if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
+                        set_error("WFC0073", "Rnd requires a numeric argument", statement_offset);
+                        return false;
+                    }
+                    argument = std::holds_alternative<bool>(*value)
+                                   ? (std::get<bool>(*value) ? -1.0 : 0.0)
+                                   : as_double(*value);
+                }
+                if (execute_ && !(has_argument && argument == 0.0)) {
+                    rnd_state_ = (has_argument && argument < 0.0) ? seed_from_number(argument)
+                                                                  : rnd_step(rnd_state_);
+                    rnd_last_value_ = static_cast<float>(rnd_value(rnd_state_));
+                }
+                return true;
+            }
+        }
         // REQ-0271: Dim/Static/Const are legal inside blocks; a declaration
         // executed again (loop iteration) is a no-op.
         if (consume_keyword("dim")) {
