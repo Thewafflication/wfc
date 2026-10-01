@@ -1708,9 +1708,30 @@ nd.Key = Key
 If Key <> "" Then
 If Not FindKey(Key) Is Nothing Then Err.Raise 457, , "This key is already associated with an element of this collection"
 End If
+If Not IsMissing(Before) And Not IsMissing(After) Then Err.Raise 5, , "Invalid procedure call or argument"
 If tail Is Nothing Then
 Set head = nd
 Set tail = nd
+ElseIf Not IsMissing(Before) Then
+Dim ref As WfcCollectionNode
+Dim prev As WfcCollectionNode
+Set ref = Locate(Before)
+If ref Is head Then
+Set nd.NextNode = head
+Set head = nd
+Else
+Set prev = head
+Do While Not prev.NextNode Is ref
+Set prev = prev.NextNode
+Loop
+Set nd.NextNode = ref
+Set prev.NextNode = nd
+End If
+ElseIf Not IsMissing(After) Then
+Set ref = Locate(After)
+Set nd.NextNode = ref.NextNode
+Set ref.NextNode = nd
+If ref Is tail Then Set tail = nd
 Else
 Set tail.NextNode = nd
 Set tail = nd
@@ -11287,6 +11308,10 @@ private:
             // Both operands must still be object references, matching real
             // VB6's requirement that Is only accepts object operands.
             if (!is_object_reference(*left) || !is_object_reference(*right)) {
+                if (!execute_) {
+                    left = Value{false};  // placeholder operand of a not-taken branch
+                    continue;
+                }
                 set_error("WFC0107", "Is requires object operands", operator_offset);
                 return std::nullopt;
             }
@@ -12455,7 +12480,13 @@ private:
         if (bare_arguments) {
             std::vector<CallArgument> arguments;
             while (true) {
-                auto argument = parse_call_argument();
+                skip_horizontal_whitespace();
+                std::optional<CallArgument> argument;
+                if (!at_end() && current() == ',') {
+                    argument = CallArgument{Value{Empty{}}, nullptr, true};  // omitted slot
+                } else {
+                    argument = parse_call_argument();
+                }
                 if (!argument.has_value()) {
                     return std::nullopt;
                 }

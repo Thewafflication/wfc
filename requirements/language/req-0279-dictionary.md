@@ -106,3 +106,8 @@ Addendum: `CreateObject("Scripting.FileSystemObject")` returns a built-in FileSy
 `MoveFile`, `DeleteFile`, `CreateFolder`, `DeleteFolder`; TextStream has `Write`,
 `WriteLine`, `WriteBlankLines`, `ReadLine`, `ReadAll`, `Read`, `SkipLine`, `AtEndOfStream`,
 `Line`, `Close`. Corpus `59-file-system-object`.
+
+Addendum: `Collection.Add item, key, before, after` honours `Before` / `After` (index or key;
+both given is error 5); omitted middle arguments work in parenthesis-free calls
+(`c.Add "a", , 1`); `Is` in a not-taken branch never raises. Corpus
+`60-collection-before-after`.
