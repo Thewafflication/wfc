@@ -15,3 +15,10 @@
 ## Verification
 
 Corpus `37-dictionary`, `38-default-let`.
+
+Addendum: a numeric (or numeric-string / "True"/"False") condition is accepted by
+`If`, `ElseIf`, `While`, `Do While/Until` and `IIf` (non-zero is True); `Len(Empty)` is 0
+and `Len(Null)` is Null; the global `App` object offers `Path`, `Title`, `EXEName`,
+`PrevInstance`, `Major/Minor/Revision` and the version-info strings; `Declare`d
+`GetTickCount`/`timeGetTime` and `Sleep` are emulated natively (other `Declare`d
+routines still raise error 453). Corpus `39-conditions-app-declare`.

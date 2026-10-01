@@ -21,6 +21,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <thread>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
@@ -1932,6 +1933,53 @@ WfcItems = Keys()
 End Function
 )VB";
 
+// The global `App` object (the properties a console-style program reads).
+constexpr std::string_view kAppSource = R"VB(Public Property Get Path() As String
+Path = CurDir$
+End Property
+Public Property Get Title() As String
+Title = ""
+End Property
+Public Property Get EXEName() As String
+EXEName = "Project1"
+End Property
+Public Property Get PrevInstance() As Boolean
+PrevInstance = False
+End Property
+Public Property Get Major() As Long
+Major = 1
+End Property
+Public Property Get Minor() As Long
+Minor = 0
+End Property
+Public Property Get Revision() As Long
+Revision = 0
+End Property
+Public Property Get hInstance() As Long
+hInstance = 0
+End Property
+Public Property Get ThreadID() As Long
+ThreadID = 0
+End Property
+Public Property Get CompanyName() As String
+CompanyName = ""
+End Property
+Public Property Get ProductName() As String
+ProductName = ""
+End Property
+Public Property Get FileDescription() As String
+FileDescription = ""
+End Property
+Public Property Get Comments() As String
+Comments = ""
+End Property
+Public Property Get LegalCopyright() As String
+LegalCopyright = ""
+End Property
+Public Sub LogEvent(LogBuffer As String, Optional EventType As Long = 1)
+End Sub
+)VB";
+
 struct Scope {
     std::unordered_map<std::string, Value> variables;
     std::unordered_set<std::string> constants;
@@ -3540,6 +3588,23 @@ private:
         }
         if (needs_dictionary) {
             class_sources_.push_back({"WfcDictionary", kDictionarySource});
+        }
+        const auto mentions_app = [](const std::string_view text) {
+            for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
+                if (ascii_lower(text[i]) == 'a' && ascii_lower(text[i + 1U]) == 'p' &&
+                    ascii_lower(text[i + 2U]) == 'p' && text[i + 3U] == '.' &&
+                    (i == 0 || !is_identifier_part(text[i - 1U]))) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        bool needs_app = mentions_app(source_);
+        for (const auto& module : class_sources_) {
+            needs_app = needs_app || mentions_app(module.source);
+        }
+        if (needs_app) {
+            class_sources_.push_back({"WfcApp", kAppSource});
         }
     }
 
@@ -11423,6 +11488,16 @@ private:
                         }
                     }
                 }
+                if (type_character == '\0' && *identifier == "app" &&
+                    class_definitions_.contains("wfcapp")) {
+                    if (!app_instance_.has_value()) {
+                        app_instance_ = instantiate_class("wfcapp", identifier_offset);
+                        if (!app_instance_.has_value()) {
+                            return std::nullopt;
+                        }
+                    }
+                    return *app_instance_;
+                }
                 // A parenthesis-free, zero-argument call to a known
                 // module-level Function or class-sibling Function/method
                 // (REQ-0213) -- e.g. bare `Print NextId`. Checked only
@@ -11724,6 +11799,20 @@ private:
         if (definition.is_external) {
             if (!execute_) {
                 return definition.is_function ? Value{Empty{}} : Value{Empty{}};
+            }
+            // A few ubiquitous Win32 timing calls are emulated natively.
+            if (binding_name == "gettickcount" || binding_name == "timegettime") {
+                const auto ticks = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+                return Value{static_cast<Integer>(static_cast<std::uint32_t>(ticks))};
+            }
+            if (binding_name == "sleep" && arguments.size() == 1U) {
+                if (const auto* milliseconds = std::get_if<Integer>(&arguments[0].value)) {
+                    if (*milliseconds > 0) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(*milliseconds));
+                    }
+                    return Value{Empty{}};
+                }
             }
             static_cast<void>(raise_runtime(453, "Specified DLL function not found", identifier_offset));
             return std::nullopt;
@@ -14721,9 +14810,14 @@ private:
         }
 
         if (is_iif) {
-            const auto* condition = std::get_if<bool>(&arguments[0]);
+            bool iif_flag = false;
+            const bool* condition = nullptr;
+            if (const auto converted = coerce_condition_boolean(
+                    arguments[0], identifier_offset, "WFC0021", "IIf condition must be Boolean")) {
+                iif_flag = *converted;
+                condition = &iif_flag;
+            }
             if (condition == nullptr) {
-                set_error("WFC0021", "IIf condition must be Boolean", identifier_offset);
                 return std::nullopt;
             }
             if (!execute_) {
@@ -15644,6 +15738,12 @@ private:
             return Value{std::move(digits)};
         }
 
+        if (is_len && execute_ && std::holds_alternative<Empty>(arguments[0])) {
+            return Value{Integer{0}};
+        }
+        if (is_len && execute_ && std::holds_alternative<Null>(arguments[0])) {
+            return Value{Null{}};
+        }
         if (is_len && execute_ && !std::holds_alternative<std::string>(arguments[0])) {
             if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
                 if (is_udt_class(instance->data->class_name)) {
@@ -16859,6 +16959,19 @@ private:
         }
         const auto* boolean = std::get_if<bool>(&value);
         if (boolean == nullptr) {
+            // Any non-zero number is True; "True"/"False" and numeric
+            // strings convert as CBool would.
+            if (is_number(value)) {
+                return as_double(value) != 0.0;
+            }
+            if (const auto* text = std::get_if<std::string>(&value)) {
+                std::string lowered;
+                for (const char c : *text) lowered.push_back(ascii_lower(c));
+                if (lowered == "true") return true;
+                if (lowered == "false") return false;
+                const auto parsed = parse_numeric_string(*text);
+                if (parsed.status == NumericStringStatus::valid) return parsed.value != 0.0;
+            }
             set_error(error_code, error_message, offset);
             return std::nullopt;
         }
@@ -17695,6 +17808,7 @@ private:
     bool bare_call_arguments_{};
     bool udt_array_{};
     std::size_t fixed_string_length_{};
+    std::optional<Value> app_instance_;
     bool retry_statement_{};
     // Public Enum/Const members declared in class modules.
     std::unordered_map<std::string, Value> global_class_constants_;
