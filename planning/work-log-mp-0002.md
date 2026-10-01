@@ -267,6 +267,7 @@ a specific requirement.
 | 2026-09-30 #182 | Construction | Increment: unsuffixed decimal integer literals beyond Long become Double; &-suffixed ones still raise. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #183 | Construction | Increment: Dim b(2) as Variant array, EnumName.Member; corpus 43. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #184 | Construction | Corpus: 44-algorithms (recursion, 2D Boolean arrays passed ByRef and replaced). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #185 | Construction | Increment: bare Me.Method args calls; corpus 45-bank (events, errors, collections, Currency). Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

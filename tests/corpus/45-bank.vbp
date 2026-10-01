@@ -1,0 +1,4 @@
+Module=Main; 45-bank.bas
+Class=Account; 45-bank.cls.account
+Class=Bank; 45-bank.cls.bank
+Startup="Sub Main"

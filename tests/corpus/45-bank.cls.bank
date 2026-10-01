@@ -1,0 +1,38 @@
+Option Explicit
+Private WithEvents watched As Account
+Private accts As New Collection
+Public Alerts As Long
+Public Function Open(owner As String, Optional initial As Currency = 0) As Account
+    Dim a As New Account
+    a.Owner = owner
+    If initial > 0 Then a.Deposit initial
+    accts.Add a, owner
+    Set Open = a
+End Function
+Public Sub Watch(a As Account)
+    Set watched = a
+End Sub
+Private Sub watched_Overdrawn(ByVal shortBy As Currency)
+    Alerts = Alerts + 1
+    Print "ALERT: short by " & Format(shortBy, "0.00")
+End Sub
+Public Function Total() As Currency
+    Dim a As Account
+    For Each a In accts
+        Total = Total + a.Balance
+    Next
+End Function
+Public Function Richest() As Account
+    Dim a As Account, best As Account
+    For Each a In accts
+        If best Is Nothing Then
+            Set best = a
+        ElseIf a.Balance > best.Balance Then
+            Set best = a
+        End If
+    Next
+    Set Richest = best
+End Function
+Public Property Get Count() As Long
+    Count = accts.Count
+End Property

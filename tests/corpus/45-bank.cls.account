@@ -1,0 +1,44 @@
+Option Explicit
+Private mBalance As Currency
+Private mOwner As String
+Private mHistory As Collection
+Public Event Overdrawn(ByVal shortBy As Currency)
+Public Property Get Balance() As Currency
+    Balance = mBalance
+End Property
+Public Property Get Owner() As String
+    Owner = mOwner
+End Property
+Public Property Let Owner(ByVal v As String)
+    mOwner = v
+End Property
+Public Sub Deposit(ByVal amt As Currency)
+    If amt <= 0 Then Err.Raise vbObjectError + 100, "Account", "Deposit must be positive"
+    mBalance = mBalance + amt
+    Log "D " & Format(amt, "0.00")
+End Sub
+Public Sub Withdraw(ByVal amt As Currency)
+    If amt > mBalance Then
+        RaiseEvent Overdrawn(amt - mBalance)
+        Err.Raise vbObjectError + 101, "Account", "Insufficient funds"
+    End If
+    mBalance = mBalance - amt
+    Log "W " & Format(amt, "0.00")
+End Sub
+Private Sub Log(s As String)
+    mHistory.Add s
+End Sub
+Public Function History() As String
+    Dim v As Variant, r As String
+    For Each v In mHistory
+        r = r & v & ";"
+    Next
+    History = r
+End Function
+Public Sub TransferTo(other As Account, ByVal amt As Currency)
+    Me.Withdraw amt
+    other.Deposit amt
+End Sub
+Private Sub Class_Initialize()
+    Set mHistory = New Collection
+End Sub

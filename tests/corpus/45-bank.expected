@@ -1,0 +1,6 @@
+ALERT: short by 50.00
+101           Insufficient funds          Account
+100           Deposit must be positive
+69.5          30.5          100           2             1
+ann           D 100.00;W 30.50;           D 30.50;
+Account       True          False

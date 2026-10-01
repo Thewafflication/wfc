@@ -10111,6 +10111,27 @@ private:
                     return false;
                 }
                 advance();
+                if (const auto* const me_instance = std::get_if<ObjectInstance>(&*base)) {
+                    // `Me.Method args` with no `Call`.
+                    const auto& me_class = class_definitions_.at(me_instance->data->class_name);
+                    const auto peek_offset = offset_;
+                    char peek_type_character{};
+                    auto peek_member_name = parse_identifier(&peek_type_character);
+                    skip_horizontal_whitespace();
+                    const bool bare_statement_end = at_end() || current() == '\r' ||
+                        current() == '\n' || current() == ':' || current() == '\'';
+                    const bool arguments_follow = !bare_statement_end && current() != '=' &&
+                        current() != '(' && current() != '.';
+                    const bool is_method = peek_member_name.has_value() &&
+                        peek_type_character == '\0' && me_class.methods.contains(*peek_member_name);
+                    offset_ = peek_offset;
+                    if ((bare_statement_end || arguments_follow) && is_method) {
+                        bare_call_arguments_ = arguments_follow;
+                        const auto result = parse_member_access_after_dot(
+                            *base, identifier_offset, /*require_function=*/false);
+                        return result.has_value();
+                    }
+                }
                 return parse_member_assignment(*base, identifier_offset);
             }
             offset_ = saved_offset;
