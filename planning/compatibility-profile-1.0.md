@@ -131,6 +131,12 @@ becomes a release gate:
 | `PropertyPage` hosting | Proposed; not yet accepted | Required for component authoring or replaceable with programmatic configuration? |
 | Legacy WinHelp and context-help integration | Proposed; not yet accepted | Preserve IDs/API behavior, bridge to current help, or report unsupported UI? |
 
+Recommendations for all six, with alternatives, affected requirements, and
+blank acceptance records, are drafted in
+[`legacy-feature-dispositions.md`](legacy-feature-dispositions.md). They are
+proposals only; this table stays "Proposed; not yet accepted" until the
+maintainer records a decision.
+
 A candidate is not silently omitted. Until approved otherwise, its existing
 requirement remains Proposed and its milestone shall include either
 implementation evidence or a controlled removal/deferment record.

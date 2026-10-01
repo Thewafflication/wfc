@@ -236,6 +236,7 @@ a specific requirement.
 | 2026-09-30 #151 | Construction | Declare variables implicitly on assignment, and read undeclared names as Empty, unless `Option Explicit` is present anywhere in the program, under `REQ-0265`; negative tests now use `Option Explicit`. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #152 | Construction | Accept `Declare Function|Sub` (calls raise error 453) under `REQ-0266`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #153 | Construction | Accept class/UDT-typed array parameters, return UDTs from functions with copy semantics, and copy UDTs stored into Variants (Collection.Add is ByVal) under `REQ-0267`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #154 | Construction | Draft `planning/legacy-feature-dispositions.md`: recommendations, alternatives, affected requirements and blank acceptance records for DDE, Data/DAO, OLE1, ActiveX Documents, PropertyPage and WinHelp; linked from the compatibility profile and planning index. Proposals only -- nothing accepted. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2063,7 +2064,8 @@ modules; default members in user classes (`Collection`'s `c(1)` works), class in
 `InputBox`. The deterministic VB6 reference-probe corpus beyond the existing
 spot probes has not been extended in this series.
 
-**Owner decisions still open for the MP-0002 exit gate:** the six legacy
+**Owner decisions still open for the MP-0002 exit gate** (recommendations drafted in
+`planning/legacy-feature-dispositions.md`, each awaiting acceptance): the six legacy
 features listed in `planning/compatibility-profile-1.0.md` under "Legacy
 Features Requiring Explicit Disposition" (DDE, intrinsic `Data`/DAO, OLE1,
 ActiveX Documents, PropertyPage hosting, WinHelp) remain "Proposed; not yet

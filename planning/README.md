@@ -6,6 +6,8 @@
 
 - [1.0 compatibility profile](compatibility-profile-1.0.md) defines what a
   mostly complete replacement means and records explicit exclusions.
+- [Legacy feature disposition proposals](legacy-feature-dispositions.md) draft
+  recommendations for the six legacy features awaiting maintainer decision.
 - [Roadmap to 1.0.0](roadmap-1.0.md) divides delivery into versioned milestones
   from foundation through compatibility closure and release.
 
