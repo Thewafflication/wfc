@@ -921,7 +921,7 @@ Print Rnd()]=]
         TC-MP0002-rnd-randomize-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;math;single"
-            PASS_REGULAR_EXPRESSION "0.21560597.*0.52674717.*0.21560597"
+            PASS_REGULAR_EXPRESSION "0.215606.*0.5267472.*0.215606"
     )
 
     add_test(
@@ -1636,6 +1636,27 @@ Print v.x & q.x]=]
             LABELS "integration;mp-0002;statements"
             PASS_REGULAR_EXPRESSION "^35"
     )
+
+    # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
+    # when present) must print exactly the matching .expected text.
+    file(GLOB wfc_corpus_expected CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/*.expected")
+    foreach(expected_file IN LISTS wfc_corpus_expected)
+        get_filename_component(corpus_name "${expected_file}" NAME_WE)
+        set(corpus_input "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.bas")
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
+            set(corpus_input "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
+        endif()
+        add_test(
+            NAME TC-MP0002-corpus-${corpus_name}
+            COMMAND
+                "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DINPUT=${corpus_input}"
+                "-DEXPECTED=${expected_file}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
+        )
+        set_tests_properties(
+            TC-MP0002-corpus-${corpus_name}
+            PROPERTIES LABELS "integration;mp-0002;corpus")
+    endforeach()
 
     add_test(
         NAME TC-MP0002-class-refinements-cli

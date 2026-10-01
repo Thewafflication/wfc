@@ -1,0 +1,11 @@
+Private bal As Currency
+Public Sub Deposit(amt As Currency)
+    bal = bal + amt
+End Sub
+Public Sub Withdraw(amt As Currency)
+    If amt > bal Then Err.Raise 1001, , "Insufficient funds"
+    bal = bal - amt
+End Sub
+Public Property Get Balance() As Currency
+    Balance = bal
+End Property

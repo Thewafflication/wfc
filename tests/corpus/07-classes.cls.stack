@@ -1,0 +1,17 @@
+Private items() As Long
+Private n As Long
+Public Sub Push(v As Long)
+    n = n + 1
+    ReDim Preserve items(1 To n)
+    items(n) = v
+End Sub
+Public Function Pop() As Long
+    Pop = items(n)
+    n = n - 1
+End Function
+Public Function Peek() As Long
+    Peek = items(n)
+End Function
+Public Property Get Count() As Long
+    Count = n
+End Property

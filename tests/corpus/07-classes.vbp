@@ -1,0 +1,4 @@
+Module=Main; 07-classes.bas
+Class=Stack; 07-classes.cls.stack
+Class=Account; 07-classes.cls.account
+Startup="Sub Main"

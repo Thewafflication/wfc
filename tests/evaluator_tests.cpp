@@ -287,7 +287,7 @@ int main() {
     expect_success("Print Round(1.25, 1) & \" \" & Round(1.35, 1) & \" \" & Round(-1.25, 1)",
                    "1.2 1.4 -1.2");
     expect_success("Print TypeName(Round(2.0)) & \" \" & Round(1.234567890123456, 20)",
-                   "Double 1.234567890123456");
+                   "Double 1.23456789012346");
     expect_success("Print Format(42) & \" \" & Format(3.5) & \" \" & Format(\"hi\")",
                    "42 3.5 hi");
     expect_program_success("Print Format(True): Print Format(False)", "True\nFalse");
@@ -419,13 +419,13 @@ int main() {
     expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.08105588 0.08105588");
     expect_program_success(
         "Print Rnd(-5): Print Rnd(1)",
-        "0.08105588\n0.30735058");
+        "0.08105588\n0.3073506");
     expect_program_success(
         "Randomize 42\nPrint Rnd()\nPrint Rnd()\nRandomize 42\nPrint Rnd()",
-        "0.21560597\n0.52674717\n0.21560597");
+        "0.215606\n0.5267472\n0.215606");
     expect_program_success(
         "Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
-        "0.11961287\n0.7612116");
+        "0.1196129\n0.7612116");
     expect_program_success(
         "Randomize\nPrint Rnd() >= 0 And Rnd() < 1",
         "True");
@@ -1452,6 +1452,14 @@ int main() {
         "Dim c As New Collection\nq.x = 3\nc.Add q\nq.x = 9\nDim r As Pt\nr = c(1)\nPrint r.x\n"
         "Dim v As Variant\nv = q\nq.x = 5\nPrint v.x & q.x",
         "20\n7\n3\n95");
+    // REQ-0268: Double renders with 15 significant digits, Single with 7;
+    // UDT assignment inside a not-taken branch is a no-op, not a mismatch.
+    expect_program_success(
+        "Print 1 / 3\nPrint Sqr(2)\nPrint 0.1 + 0.2\nPrint 1E15\nPrint 0.00001\nPrint CSng(1) / 3",
+        "0.333333333333333\n1.4142135623731\n0.3\n1E+15\n1E-05\n0.3333333");
+    expect_program_success(
+        "Type P\nn As Long\nEnd Type\nDim a As P, b As P\na.n = 1\nIf a.n > 5 Then\nb = a\nEnd If\nPrint b.n",
+        "0");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid

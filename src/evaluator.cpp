@@ -3038,6 +3038,9 @@ private:
 
     // `target = source` where both are UDT instances of the same type.
     [[nodiscard]] bool assign_udt(Value& target, const Value& source, const std::size_t offset) {
+        if (!execute_) {
+            return true;  // dry run: operands are placeholders
+        }
         const auto* destination = std::get_if<ObjectInstance>(&target);
         const auto* origin = std::get_if<ObjectInstance>(&source);
         if (destination == nullptr || origin == nullptr ||
@@ -4358,9 +4361,8 @@ private:
                 }
                 if (execute_) {
                     const Integer raised = std::get<Integer>(*number);
-                    if (raised <= 0 || raised > 65535) {
-                        set_error("WFC0101", "Error number is outside the valid range", member_offset);
-                        return false;
+                    if (raised == 0) {
+                        return raise_runtime(5, "Invalid procedure call or argument", member_offset);
                     }
                     err_number_ = raised;
                     err_description_ = has_description ? description : vb_error_description(raised);
@@ -16112,6 +16114,22 @@ private:
         return Value{static_cast<Int16>(result)};
     }
 
+    // REQ-0268: VB6 renders a Double with 15 significant digits and a Single
+    // with 7 (C's %G rules: exponent form below 1E-4 or from 1E15/1E7 up).
+    [[nodiscard]] static std::string render_floating(const double number, const int digits) {
+        if (std::isnan(number) || std::isinf(number)) {
+            return std::to_string(number);
+        }
+        char buffer[48];
+        std::snprintf(buffer, sizeof(buffer), "%.*G", digits, number);
+        std::string text = buffer;
+        // VB writes 1E+15 / 1E-05 exactly like C; but negative zero is "0".
+        if (text == "-0") {
+            return "0";
+        }
+        return text;
+    }
+
     [[nodiscard]] static std::string render(const Value& value) {
         if (const auto* integer = std::get_if<Integer>(&value)) {
             return std::to_string(*integer);
@@ -16123,16 +16141,10 @@ private:
             return std::to_string(static_cast<unsigned>(*byte));
         }
         if (const auto* number = std::get_if<double>(&value)) {
-            char buffer[32];
-            const auto result =
-                std::to_chars(buffer, buffer + sizeof(buffer), *number);
-            return std::string(buffer, result.ptr);
+            return render_floating(*number, 15);
         }
         if (const auto* single = std::get_if<float>(&value)) {
-            char buffer[32];
-            const auto result =
-                std::to_chars(buffer, buffer + sizeof(buffer), *single);
-            return std::string(buffer, result.ptr);
+            return render_floating(static_cast<double>(*single), 7);
         }
         if (const auto* currency = std::get_if<Currency>(&value)) {
             return render_currency(currency->scaled);
