@@ -9133,8 +9133,9 @@ private:
                 "chdir", "randomize", "lset", "rset", "end", "stop", "raiseevent", "mid",
                 "savesetting", "deletesetting", "chdrive", "unlock", "lock", "reset", "load",
                 "unload", "beep", "doevents", "date", "time", "dim", "static", "const", "error", "debug"};
-            if (word.has_value() && probe_type_character == '\0' && delegated.contains(*word) &&
-                *word != "date" && *word != "time") {
+            if (word.has_value() &&
+                (probe_type_character == '\0' || (probe_type_character == '$' && *word == "mid")) &&
+                delegated.contains(*word) && *word != "date" && *word != "time") {
                 return parse_statement_core();
             }
         }
