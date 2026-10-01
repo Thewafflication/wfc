@@ -2588,7 +2588,7 @@ int main() {
     expect_program_success("Print IIf(42, \"a\", \"b\")", "a");  // REQ-0279: numeric condition
     expect_program_success("Print IsNull(Choose(0, \"a\", \"b\"))", "True");
     expect_program_success("Print IsNull(Choose(3, \"a\", \"b\"))", "True");
-    expect_program_failure("Print Switch(False, 1, False, 2)", "WFC0090");
+    expect_program_success("Print IsNull(Switch(False, 1, False, 2))", "True");
     expect_program_failure("Print Switch(42, \"a\")", "WFC0021");
     expect_program_failure("Print Int(\"x\")", "WFC0073");
     expect_program_failure("Print RGB(1, 2)", "WFC0072");

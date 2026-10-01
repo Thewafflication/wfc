@@ -8101,7 +8101,7 @@ private:
             set_error("WFC0136", "With requires an object reference", expression_offset);
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
         const std::string name = "with." + std::to_string(++with_counter_);
@@ -8524,12 +8524,19 @@ private:
             }
             step_value = std::move(*parsed_step);
         }
-        const auto numeric = [](const Value& value) -> std::optional<double> {
+        const auto numeric = [this](const Value& value) -> std::optional<double> {
             if (const auto* v = std::get_if<Integer>(&value)) return static_cast<double>(*v);
             if (const auto* v = std::get_if<Int16>(&value)) return static_cast<double>(*v);
             if (const auto* v = std::get_if<Byte>(&value)) return static_cast<double>(*v);
             if (const auto* v = std::get_if<double>(&value)) return *v;
             if (const auto* v = std::get_if<float>(&value)) return static_cast<double>(*v);
+            if (std::holds_alternative<Currency>(value) || std::holds_alternative<Decimal>(value)) {
+                return as_double(value);
+            }
+            if (const auto* v = std::get_if<DateValue>(&value)) return v->serial;
+            if (std::holds_alternative<Empty>(value)) return 0.0;
+            if (const auto* v = std::get_if<bool>(&value)) return *v ? -1.0 : 0.0;
+            if (!execute_) return 0.0;  // a placeholder operand of a not-taken branch
             return std::nullopt;
         };
         const auto start_number = numeric(*start_value);
@@ -8921,7 +8928,7 @@ private:
         if (!selector.has_value()) {
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
@@ -9004,7 +9011,9 @@ private:
                         return false;
                     }
                     const bool both_numeric = is_number(*case_value) && is_number(*selector);
-                    if (case_value->index() != selector->index() && !both_numeric) {
+                    if (case_value->index() != selector->index() && !both_numeric &&
+                        enclosing_execution && !std::holds_alternative<Empty>(*selector) &&
+                        !std::holds_alternative<Empty>(*case_value)) {
                         execute_ = enclosing_execution;
                         set_error("WFC0053", "Case value must match selector type", value_offset);
                         return false;
@@ -12613,6 +12622,15 @@ private:
                 }
                 continue;
             }
+            if (!execute_ && !at_end() && current() == '(' && !is_object_reference(*value)) {
+                // A not-taken branch: the placeholder stands for an array element's array.
+                advance();
+                if (!parse_index_list(kAnyDimensionCount).has_value()) {
+                    return std::nullopt;
+                }
+                value = Value{Empty{}};
+                continue;
+            }
             skip_horizontal_whitespace();
             if (at_end() || current() != '.') {
                 return value;
@@ -12872,6 +12890,24 @@ private:
                             }
                         }
                     }
+                }
+                if (array_variable.value != nullptr && type_character == '\0' &&
+                    std::holds_alternative<Nothing>(*array_variable.value) &&
+                    !procedures_.contains(*identifier) &&
+                    !(current_class_def() != nullptr &&
+                      (current_class_def()->methods.contains(*identifier) ||
+                       current_class_def()->property_get.contains(*identifier)))) {
+                    // `obj(args)` through an unset Object variable.
+                    auto ignored = parse_call_argument_list();
+                    if (!ignored.has_value()) {
+                        return std::nullopt;
+                    }
+                    if (execute_) {
+                        static_cast<void>(raise_runtime(
+                            91, "Object variable or With block variable not set", identifier_offset));
+                        return std::nullopt;
+                    }
+                    return Value{Empty{}};
                 }
                 if (procedures_.contains(*identifier) &&
                     (type_character == '\0' || procedures_.at(*identifier).is_function)) {
@@ -16838,7 +16874,7 @@ private:
         if (is_switch) {
             for (std::size_t pair = 0U; pair < arguments.size(); pair += 2U) {
                 const auto* condition = std::get_if<bool>(&arguments[pair]);
-                if (condition == nullptr) {
+                if (condition == nullptr && execute_) {
                     set_error(
                         "WFC0021",
                         "Switch expressions must be Boolean",
@@ -16852,8 +16888,7 @@ private:
             if (!execute_) {
                 return arguments[1];
             }
-            set_error("WFC0090", "Switch found no matching expression", identifier_offset);
-            return std::nullopt;
+            return Value{Null{}};  // VB: no expression matched
         }
 
         if (is_isnumeric) {
@@ -19786,6 +19821,28 @@ private:
                 return std::nullopt;
             }
             return static_cast<Integer>(rounded);
+        }
+        if (const auto* byte = std::get_if<Byte>(&value)) {
+            return static_cast<Integer>(*byte);
+        }
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            return *flag ? Integer{-1} : Integer{0};
+        }
+        if (std::holds_alternative<Empty>(value)) {
+            return Integer{0};
+        }
+        if (const auto* text = std::get_if<std::string>(&value); text != nullptr && execute_) {
+            const auto parsed = parse_numeric_string(*text);
+            if (parsed.status == NumericStringStatus::valid &&
+                std::fabs(parsed.value) < 2147483647.5) {
+                return static_cast<Integer>(std::nearbyint(parsed.value));
+            }
+        }
+        if (const auto* date = std::get_if<DateValue>(&value)) {
+            return static_cast<Integer>(std::nearbyint(date->serial));
+        }
+        if (!execute_) {
+            return Integer{0};  // a placeholder operand of a not-taken branch
         }
         set_error("WFC0007", "operator requires integer operands", operator_offset);
         return std::nullopt;
