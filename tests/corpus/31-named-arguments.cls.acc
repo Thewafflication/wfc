@@ -1,0 +1,3 @@
+Public Function Add(a As Long, Optional b As Long = 10, Optional c As Long = 100) As Long
+    Add = a + b + c
+End Function

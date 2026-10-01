@@ -250,6 +250,7 @@ a specific requirement.
 | 2026-09-30 #165 | Construction | Increment: numeric cross-type Select Case, array elements passed ByRef; corpus 28. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #166 | Construction | Increment: Boolean as -1/0 in arithmetic, Date$/Time$ as String, &H and thousands separators in numeric-string conversion; corpus 29. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #167 | Construction | Increment: placeholder operands never raise in not-taken branches, any simple statement and nested If inside single-line If, Format w/y/ww/q/ddddd/@; corpus 30. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #168 | Construction | Increment: name:=value arguments for user Sub/Function/method calls; corpus 31. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

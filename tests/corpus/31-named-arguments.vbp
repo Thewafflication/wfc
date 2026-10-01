@@ -1,0 +1,3 @@
+Module=Main; 31-named-arguments.bas
+Class=Acc; 31-named-arguments.cls.acc
+Startup="Sub Main"

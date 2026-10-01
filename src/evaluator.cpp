@@ -2039,6 +2039,8 @@ struct CallArgument {
     Value* byref_target{};
     // REQ-0269: `F(, 7)` -- an omitted argument slot.
     bool omitted{};
+    // `name:=value` (lowercased); empty for a positional argument.
+    std::string name{};
 };
 
 class Interpreter final {
@@ -10930,6 +10932,23 @@ private:
     // parses as an ordinary expression with no write-back target.
     [[nodiscard]] std::optional<CallArgument> parse_call_argument() {
         skip_horizontal_whitespace();
+        if (!at_end() && is_identifier_start(current())) {
+            // `name:=value`
+            const auto before_name = offset_;
+            char name_type_character{};
+            auto argument_name = parse_identifier(&name_type_character);
+            skip_horizontal_whitespace();
+            if (argument_name.has_value() && name_type_character == '\0' && !at_end() &&
+                current() == ':' && peek(1) == '=') {
+                offset_ += 2;
+                auto named = parse_call_argument();
+                if (named.has_value()) {
+                    named->name = std::move(*argument_name);
+                }
+                return named;
+            }
+            offset_ = before_name;
+        }
         if (!at_end() && (is_identifier_start(current()) || at_with_member())) {
             const auto saved_offset = offset_;
             char type_character{};
@@ -11100,6 +11119,46 @@ private:
             return std::nullopt;
         }
         const auto& parameters = definition.parameters;
+        if (std::any_of(arguments.begin(), arguments.end(),
+                        [](const CallArgument& a) { return !a.name.empty(); })) {
+            // Bind `name:=value` arguments to their parameter positions.
+            std::vector<CallArgument> ordered;
+            std::size_t positional = 0;
+            while (positional < arguments.size() && arguments[positional].name.empty()) {
+                ++positional;
+            }
+            for (std::size_t i = 0; i < positional; ++i) ordered.push_back(std::move(arguments[i]));
+            for (std::size_t i = positional; i < arguments.size(); ++i) {
+                if (arguments[i].name.empty()) {
+                    set_error("WFC0072", "positional argument follows a named argument",
+                              identifier_offset);
+                    return std::nullopt;
+                }
+                std::size_t slot = parameters.size();
+                for (std::size_t k = 0; k < parameters.size(); ++k) {
+                    if (!parameters[k].is_param_array && parameters[k].name == arguments[i].name) {
+                        slot = k;
+                        break;
+                    }
+                }
+                if (slot == parameters.size()) {
+                    static_cast<void>(raise_runtime(
+                        448, "Named argument not found", identifier_offset));
+                    return std::nullopt;
+                }
+                while (ordered.size() <= slot) {
+                    ordered.push_back(CallArgument{Value{Empty{}}, nullptr, true});
+                }
+                if (!ordered[slot].omitted) {
+                    set_error("WFC0072", "argument specified more than once", identifier_offset);
+                    return std::nullopt;
+                }
+                ordered[slot] = std::move(arguments[i]);
+                ordered[slot].name.clear();
+                ordered[slot].omitted = false;
+            }
+            arguments = std::move(ordered);
+        }
         const bool has_param_array = !parameters.empty() && parameters.back().is_param_array;
         const std::size_t fixed_and_optional_count =
             has_param_array ? parameters.size() - 1U : parameters.size();
