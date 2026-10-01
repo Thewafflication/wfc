@@ -1,0 +1,3 @@
+Module=Main; 53-method-parentheses.bas
+Class=Acc2; 53-method-parentheses.cls.acc
+Startup="Sub Main"

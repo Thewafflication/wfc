@@ -8272,6 +8272,44 @@ private:
 
     // Bare `Name [args]` call statement (see the REQ-0217 notes where this is
     // used); nullopt when the statement is not such a call.
+    struct ParenGroup {
+        bool ends_statement{};  // `( ... )` is balanced and ends the statement
+        bool is_list{};         // empty, or has a top-level comma
+    };
+
+    [[nodiscard]] ParenGroup scan_statement_paren_group(const std::size_t open_offset) const {
+        ParenGroup group;
+        std::size_t depth = 0;
+        bool in_string = false;
+        bool top_level_comma = false;
+        bool empty = true;
+        bool balanced = false;
+        std::size_t look = open_offset;
+        for (; look < source_.size(); ++look) {
+            const char c = source_[look];
+            if (c == '"') in_string = !in_string;
+            if (in_string) continue;
+            if (c == '(') {
+                ++depth;
+            } else if (c == ')') {
+                if (--depth == 0) { balanced = true; ++look; break; }
+            } else if (c == ',' && depth == 1) {
+                top_level_comma = true;
+            } else if (c == '\r' || c == '\n') {
+                break;
+            } else if (depth == 1 && c != ' ' && c != '\t') {
+                empty = false;
+            }
+        }
+        if (balanced) {
+            while (look < source_.size() && (source_[look] == ' ' || source_[look] == '\t')) ++look;
+            group.ends_statement = look >= source_.size() || source_[look] == '\r' ||
+                source_[look] == '\n' || source_[look] == ':' || source_[look] == '\'';
+            group.is_list = top_level_comma || empty;
+        }
+        return group;
+    }
+
     [[nodiscard]] std::optional<bool> parse_bare_call(
         const std::string& identifier, const std::size_t identifier_offset,
         const char type_character, const bool has_let) {
@@ -8292,37 +8330,9 @@ private:
                 (procedures_.contains(identifier) ||
                  (current_instance() != nullptr && current_class_def() != nullptr &&
                   current_class_def()->methods.contains(identifier)))) {
-                std::size_t depth = 0;
-                bool in_string = false;
-                bool top_level_comma = false;
-                std::size_t look = offset_;
-                bool balanced = false;
-                bool empty = true;
-                for (; look < source_.size(); ++look) {
-                    const char c = source_[look];
-                    if (c == '"') in_string = !in_string;
-                    if (in_string) continue;
-                    if (c == '(') {
-                        ++depth;
-                    } else if (c == ')') {
-                        if (--depth == 0) { balanced = true; ++look; break; }
-                    } else if (c == ',' && depth == 1) {
-                        top_level_comma = true;
-                    } else if (c == '\r' || c == '\n') {
-                        break;
-                    } else if (depth == 1 && c != ' ' && c != '\t') {
-                        empty = false;
-                    }
-                }
-                if (balanced) {
-                    while (look < source_.size() && (source_[look] == ' ' || source_[look] == '\t')) ++look;
-                    const bool ends = look >= source_.size() || source_[look] == '\r' ||
-                        source_[look] == '\n' || source_[look] == ':' || source_[look] == '\'';
-                    if (ends) {
-                        parenthesized_call = true;
-                        parenthesized_list = top_level_comma || empty;
-                    }
-                }
+                const auto group = scan_statement_paren_group(offset_);
+                parenthesized_call = group.ends_statement;
+                parenthesized_list = group.is_list;
             }
             offset_ = saved_offset;
             if (parenthesized_call) {
@@ -10420,7 +10430,19 @@ private:
                              (implements_interface &&
                               instance_class_def.methods.contains(
                                   declared_interface_class + "_" + *peek_member_name)));
+                        ParenGroup paren_group;
+                        if (is_method && !at_end() && current() == '(') {
+                            paren_group = scan_statement_paren_group(offset_);
+                        }
                         offset_ = peek_offset;
+                        if (paren_group.ends_statement && is_method) {
+                            bare_call_arguments_ = !paren_group.is_list;
+                            const auto result = parse_member_access_after_dot(
+                                base, identifier_offset, /*require_function=*/false,
+                                declared_interface_class);
+                            bare_call_arguments_ = false;
+                            return result.has_value();
+                        }
                         if ((bare_statement_end || arguments_follow) && is_method) {
                             bare_call_arguments_ = arguments_follow;
                             const auto result = parse_member_access_after_dot(

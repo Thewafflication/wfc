@@ -278,6 +278,7 @@ a specific requirement.
 | 2026-09-30 #193 | Construction | Increment: Static locals in class methods are per object, Cls.Member for class Enums; corpus 51. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #194 | Construction | Docs: README coverage paragraph covers events, Dictionary, named arguments, DefType, deep recursion, Debug.Print. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #195 | Construction | Increment: Inc (x) / Show(a, b) as statements; corpus 52. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #196 | Construction | Increment: obj.Method (x) / obj.Method(a, b) as statements; corpus 53. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
