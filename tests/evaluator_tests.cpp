@@ -1440,9 +1440,9 @@ int main() {
     expect_program_failure("Option Explicit\nx = 5", "WFC0015");
     // Declare statements (REQ-0266).
     expect_program_success(
-        "Private Declare Function GetTickCount Lib \"kernel32\" () As Long\n"
-        "Public Declare PtrSafe Sub Sleep Lib \"kernel32\" (ByVal ms As Long)\nOn Error Resume Next\n"
-        "Dim t As Long\nt = GetTickCount()\nPrint Err.Number\nSleep 10\nPrint Err.Number & \" \" & Err.Description",
+        "Private Declare Function GetCurrentProcessId Lib \"kernel32\" () As Long\n"
+        "Public Declare PtrSafe Sub MessageBeep Lib \"user32\" (ByVal t As Long)\nOn Error Resume Next\n"
+        "Dim t As Long\nt = GetCurrentProcessId()\nPrint Err.Number\nMessageBeep 10\nPrint Err.Number & \" \" & Err.Description",
         "453\n453 Specified DLL function not found");
     // UDT arrays, results and Variant copies (REQ-0267).
     expect_program_success(
@@ -2560,7 +2560,7 @@ int main() {
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");
     expect_program_failure("Print CInt(\"\")", "WFC0088");
     expect_program_failure("Print CInt(\"12e\")", "WFC0088");
-    expect_program_failure("Print IIf(42, \"a\", \"b\")", "WFC0021");
+    expect_program_success("Print IIf(42, \"a\", \"b\")", "a");  // REQ-0279: numeric condition
     expect_program_failure("Print Choose(0, \"a\", \"b\")", "WFC0089");
     expect_program_failure("Print Choose(3, \"a\", \"b\")", "WFC0089");
     expect_program_failure("Print Switch(False, 1, False, 2)", "WFC0090");
@@ -2637,7 +2637,7 @@ int main() {
     expect_program_failure("Print True < False", "WFC0018");
     expect_program_failure("Print \"a\" And \"b\"", "WFC0019");
     expect_program_failure("Print Nothing & \" value\"", "WFC0020");
-    expect_program_failure("If 1 Then Print \"no\"", "WFC0021");
+    expect_program_success("If 1 Then Print \"yes\"", "yes");
     expect_program_failure("If True Print \"no\"", "WFC0022");
     expect_program_failure("If True Then", "WFC0023");
     expect_program_failure("If False Then Print \"no\" Else", "WFC0023");
@@ -2645,24 +2645,24 @@ int main() {
     expect_program_failure("If True Then\nEnd Nope", "WFC0025");
     expect_program_failure("If True Then\nElse\nElse\nEnd If", "WFC0026");
     expect_program_success("If True Then\nDim local As Long\nlocal = 4\nPrint local\nEnd If", "4");
-    expect_program_failure("If False Then\nElseIf 1 Then\nEnd If", "WFC0028");
+    expect_program_success("If False Then\nElseIf 1 Then\nPrint \"elseif\"\nEnd If", "elseif");
     expect_program_failure("If False Then\nElseIf True\nEnd If", "WFC0029");
     expect_program_failure(
         "If False Then\nElse\nElseIf True Then\nEnd If",
         "WFC0030");
-    expect_program_failure("While 1\nWend", "WFC0031");
+    expect_program_success("While 0\nWend\nPrint \"after\"", "after");
     expect_program_failure("While True\nPrint \"no\"", "WFC0032");
     expect_program_failure("Wend", "WFC0033");
     expect_program_success("While False\nDim local As Long\nWend\nPrint 1", "1");
     expect_program_success("While False: Print \"no\": Wend\nPrint \"x\"", "x");
-    expect_program_failure("Do While 1\nLoop", "WFC0035");
+    expect_program_success("Do While 0\nLoop\nPrint \"after\"", "after");
     expect_program_failure("Do Nope\nLoop", "WFC0036");
     expect_program_failure("Do While True\nPrint \"no\"", "WFC0037");
     expect_program_failure("Loop", "WFC0038");
     expect_program_success("Do Until True\nDim local As Long\nLoop\nPrint 1", "1");
     expect_program_success("Do While False: Print \"no\": Loop\nPrint \"x\"", "x");
     expect_program_failure("Do\nPrint \"no\"\nLoop Forever", "WFC0040");
-    expect_program_failure("Do\nPrint \"no\"\nLoop While 1", "WFC0035");
+    expect_program_success("Do\nPrint \"once\"\nLoop While 0", "once");
     expect_program_failure("Exit Nope", "WFC0041");
     expect_program_failure("Exit Do", "WFC0042");
     expect_program_failure("Dim Exit As Long", "WFC0017");
