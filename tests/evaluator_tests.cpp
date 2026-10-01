@@ -2654,13 +2654,13 @@ int main() {
     expect_program_failure("While True\nPrint \"no\"", "WFC0032");
     expect_program_failure("Wend", "WFC0033");
     expect_program_success("While False\nDim local As Long\nWend\nPrint 1", "1");
-    expect_program_failure("While False: Print \"no\": Wend", "WFC0004");
+    expect_program_success("While False: Print \"no\": Wend\nPrint \"x\"", "x");
     expect_program_failure("Do While 1\nLoop", "WFC0035");
     expect_program_failure("Do Nope\nLoop", "WFC0036");
     expect_program_failure("Do While True\nPrint \"no\"", "WFC0037");
     expect_program_failure("Loop", "WFC0038");
     expect_program_success("Do Until True\nDim local As Long\nLoop\nPrint 1", "1");
-    expect_program_failure("Do While False: Print \"no\": Loop", "WFC0004");
+    expect_program_success("Do While False: Print \"no\": Loop\nPrint \"x\"", "x");
     expect_program_failure("Do\nPrint \"no\"\nLoop Forever", "WFC0040");
     expect_program_failure("Do\nPrint \"no\"\nLoop While 1", "WFC0035");
     expect_program_failure("Exit Nope", "WFC0041");

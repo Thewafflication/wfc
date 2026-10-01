@@ -244,6 +244,7 @@ a specific requirement.
 | 2026-09-30 #159 | Construction | Increment: interface-typed array element dispatch (`shapes(i).Area`, bare `shapes(i).SetSize 2`); corpus 22 polymorphism. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #160 | Construction | Increment: class events (`Event`/`RaiseEvent`/`WithEvents`), weak subscriptions, ByRef event args; corpus 23. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #161 | Construction | Increment: omitted optional slots in Replace/InStr/InStrRev; corpus 24. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #162 | Construction | Increment: single-line For/While/Do loops; library argument errors map to VB error 5/9; corpus 25. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

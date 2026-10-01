@@ -3416,6 +3416,17 @@ private:
         return consume_block_line_end();
     }
 
+    // A loop header may be followed by `:` and the first body statement on
+    // the same line (`For i = 1 To 3: Print i: Next`).
+    [[nodiscard]] bool consume_loop_header_end() {
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == ':') {
+            advance();
+            return true;
+        }
+        return consume_block_line_end();
+    }
+
     [[nodiscard]] bool consume_block_line_end() {
         skip_horizontal_whitespace();
         if (!at_end() && current() == '\'') {
@@ -4054,7 +4065,14 @@ private:
         if (code == "WFC0111") return 9;
         if (code == "WFC0106") return 91;
         if (code == "WFC0104") return 94;
-        if (code == "WFC0089" || code == "WFC0101") return 5;
+        if (code == "WFC0089" || code == "WFC0101" || code == "WFC0075" ||
+            code == "WFC0076" || code == "WFC0077" || code == "WFC0079" ||
+            code == "WFC0080" || code == "WFC0082" || code == "WFC0083" ||
+            code == "WFC0091" || code == "WFC0092" || code == "WFC0094" ||
+            code == "WFC0096") {
+            return 5;
+        }
+        if (code == "WFC0148") return 9;
         if (code == "WFC0123") return 28;
         return 0;
     }
@@ -6383,7 +6401,7 @@ private:
         if (!boolean.has_value()) {
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
@@ -6423,7 +6441,7 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            if (!consume_block_line_end()) {
+            if (!consume_loop_header_end()) {
                 execute_ = enclosing_execution;
                 return false;
             }
@@ -6688,7 +6706,7 @@ private:
     [[nodiscard]] bool parse_do_statement() {
         const bool enclosing_execution = execute_;
         skip_horizontal_whitespace();
-        if (!at_end() && (current() == '\r' || current() == '\n' || current() == '\'')) {
+        if (!at_end() && (current() == '\r' || current() == '\n' || current() == ':' || current() == '\'')) {
             return parse_posttest_do_statement(enclosing_execution);
         }
         bool until{};
@@ -6712,7 +6730,7 @@ private:
         if (!boolean.has_value()) {
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
@@ -6763,7 +6781,7 @@ private:
                 execute_ = enclosing_execution;
                 return false;
             }
-            if (!consume_block_line_end()) {
+            if (!consume_loop_header_end()) {
                 execute_ = enclosing_execution;
                 return false;
             }
@@ -6776,7 +6794,7 @@ private:
     }
 
     [[nodiscard]] bool parse_posttest_do_statement(const bool enclosing_execution) {
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
@@ -6969,7 +6987,7 @@ private:
             set_error("WFC0047", "For Step cannot be zero", variable_offset);
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
@@ -7178,7 +7196,7 @@ private:
             set_error("WFC0147", "For Each requires an array", collection_offset);
             return false;
         }
-        if (!consume_block_line_end()) {
+        if (!consume_loop_header_end()) {
             return false;
         }
 
