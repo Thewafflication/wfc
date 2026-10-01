@@ -29,6 +29,18 @@ void expect_failure(const std::string_view source, const std::string_view code) 
     }
 }
 
+void expect_program_success_vb6_print(
+    const std::string_view source, const std::string_view expected) {
+    wfc::EvaluationOptions options;
+    options.vb6_print_spacing = true;
+    const auto result = wfc::evaluate_program(source, {}, options);
+    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
+        std::cerr << "expected VB6-print success for [" << source << "] but got ["
+                  << result.diagnostic << "] output [" << result.output << "]\n";
+        ++failures;
+    }
+}
+
 void expect_program_success(const std::string_view source, const std::string_view expected) {
     const auto result = wfc::evaluate_program(source);
     if (!result.success || result.output != expected || !result.diagnostic.empty()) {
@@ -1447,6 +1459,10 @@ int main() {
         "x = 5\ny$ = \"s\"\nPrint x + 1 & y$\nPrint IsEmpty(neverSet)\nSub S()\nz = 3\nPrint z\nEnd Sub\nCall S",
         "6s\nTrue\n3");
     expect_program_failure("Option Explicit\nx = 5", "WFC0015");
+    // REQ-0282: VB6 Print number spacing is opt-in.
+    expect_program_success("Print 5, -5\nPrint \"a\"; 7; True", "5             -5\na7True");
+    expect_program_success_vb6_print(
+        "Print 5, -5\nPrint \"a\"; 7; True", " 5            -5 \na 7 True");
     // Declare statements (REQ-0266).
     expect_program_success(
         "Private Declare Function GetCurrentProcessId Lib \"kernel32\" () As Long\n"
