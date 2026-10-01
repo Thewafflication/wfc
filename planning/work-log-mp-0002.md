@@ -320,6 +320,7 @@ a specific requirement.
 | 2026-09-30 #235 | Construction | CDate/IsDate accept month-name forms (March 5, 2024; 5-Mar-24; Mar 2024); DatePart ww honours FirstDayOfWeek/FirstWeekOfYear; DateDiff w counts weeks and ww honours FirstDayOfWeek. Corpus 79. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #236 | Construction | Mid$(...) = x is dispatched as a statement after Then. Corpus 80 (word frequency with Dictionary). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #237 | Construction | Byte op Byte stays Byte, Byte/Integer mixes are Integer (also Mod, backslash, And/Or, unary minus); Variant-variable arithmetic that overflows promotes Integer->Long->Double instead of raising Overflow. Corpus 81. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #238 | Construction | Comparisons mixing a String and a number follow VB's Variant rules (string Variant vs typed number compares numerically, numeric Variant vs String compares as text, Variant vs Variant orders numbers before strings); a Boolean compares with numbers as -1/0. Corpus 82. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

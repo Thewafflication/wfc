@@ -5727,6 +5727,8 @@ private:
 
     [[nodiscard]] bool parse_statement_core() {
         variant_operand_seen_ = false;
+        variant_string_seen_ = false;
+        variant_number_seen_ = false;
         skip_horizontal_whitespace();
         // A leading line number (`10  x = 1`) is a label that also feeds Erl.
         if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
@@ -12889,6 +12891,11 @@ private:
             }
             if (variable.scope->variant_variables.contains(*identifier)) {
                 variant_operand_seen_ = true;
+                if (std::holds_alternative<std::string>(*variable.value)) {
+                    variant_string_seen_ = true;
+                } else if (is_number(*variable.value)) {
+                    variant_number_seen_ = true;
+                }
             }
             return *variable.value;
         }
@@ -18955,6 +18962,52 @@ private:
             }
             return compare(Value{*l}, Value{*r}, operation, operator_offset);
         }
+        // Boolean beside a number compares as the number (True = -1).
+        if (std::holds_alternative<bool>(left) != std::holds_alternative<bool>(right)) {
+            const auto as_small = [](const Value& v) -> Value {
+                if (const auto* flag = std::get_if<bool>(&v)) {
+                    return Value{static_cast<Int16>(*flag ? -1 : 0)};
+                }
+                return v;
+            };
+            const Value other = std::holds_alternative<bool>(left) ? right : left;
+            if (is_number(other) && !std::holds_alternative<DateValue>(other)) {
+                return compare(as_small(left), as_small(right), operation, operator_offset);
+            }
+        }
+        // A String beside a number: Variant operands follow VB's Variant comparison rules.
+        if ((std::holds_alternative<std::string>(left) && is_number(right)) ||
+            (std::holds_alternative<std::string>(right) && is_number(left))) {
+            if ((variant_string_seen_ || variant_number_seen_) && execute_) {
+                const bool string_left = std::holds_alternative<std::string>(left);
+                const std::string& text = std::get<std::string>(string_left ? left : right);
+                const Value& number = string_left ? right : left;
+                int ordering{};
+                if (variant_string_seen_ && variant_number_seen_) {
+                    ordering = string_left ? 1 : -1;  // a numeric Variant sorts before a string Variant
+                } else if (variant_string_seen_) {
+                    const auto parsed = parse_numeric_string(text);
+                    if (parsed.status != NumericStringStatus::valid) {
+                        set_error("WFC0018", "comparison requires operands of the same type",
+                                  operator_offset);
+                        return std::nullopt;
+                    }
+                    const double l = string_left ? parsed.value : as_double(number);
+                    const double r = string_left ? as_double(number) : parsed.value;
+                    ordering = l < r ? -1 : l > r ? 1 : 0;
+                } else {
+                    const std::string rendered = render(number);
+                    ordering = string_left ? compare_strings(text, rendered)
+                                           : compare_strings(rendered, text);
+                }
+                if (operation == "=") return Value{ordering == 0};
+                if (operation == "<>") return Value{ordering != 0};
+                if (operation == "<") return Value{ordering < 0};
+                if (operation == "<=") return Value{ordering <= 0};
+                if (operation == ">") return Value{ordering > 0};
+                return Value{ordering >= 0};
+            }
+        }
         // Long and Double operands compare numerically, in either combination;
         // int32 widens to double exactly, so the ordering is precise.
         if (is_number(left) && is_number(right)) {
@@ -19686,6 +19739,8 @@ private:
     // Set when the current statement read a Variant variable: Variant arithmetic that overflows
     // is promoted (Integer -> Long -> Double) instead of raising Overflow.
     bool variant_operand_seen_{};
+    bool variant_string_seen_{};
+    bool variant_number_seen_{};
     bool integer_literals_are_integer_{true};
     bool pending_lazy_new_{};
     std::string current_class_scan_name_;
