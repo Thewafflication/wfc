@@ -12314,7 +12314,7 @@ private:
             }
             const auto operand = [](const Value& v) -> std::optional<double> {
                 if (std::holds_alternative<Empty>(v)) return 0.0;
-                if (is_number(v) && !std::holds_alternative<Decimal>(v)) return as_double(v);
+                if (is_number(v)) return as_double(v);
                 if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
                 return std::nullopt;
             };
