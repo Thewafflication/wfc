@@ -383,3 +383,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0274 — For over any numeric type; bare calls in inline If](req-0274-for-types.md)
 - [REQ-0275 — Named arguments](req-0275-named-arguments.md)
 - [REQ-0276 — DefType, untyped Function results, suffix functions](req-0276-deftype.md)
+- [REQ-0277 — UDT fixed strings, Len, Get/Put of UDTs](req-0277-udt-binary-io.md)

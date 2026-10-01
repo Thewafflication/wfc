@@ -1955,6 +1955,8 @@ struct ClassFieldDef {
     // `Private WithEvents x As Source`: handlers named `x_Event` run when
     // the referenced object raises that event.
     bool with_events{};
+    // `String * n` field: its fixed length (0 for an ordinary String).
+    std::size_t fixed_length{};
     // REQ-0251: an array field (`Private items() As Variant`,
     // `Public grid(1 To 3) As Long`). `dimensions` is empty for a dynamic
     // (bound-less) array, which starts unallocated until `ReDim`.
@@ -1977,6 +1979,8 @@ struct ClassDef {
     // identifier in this evaluator.
     std::string display_name;
     std::unordered_map<std::string, ClassFieldDef> fields;
+    // Field names in declaration order (UDT serialization, Len).
+    std::vector<std::string> field_order;
     std::unordered_map<std::string, ProcedureDef> methods;
     std::unordered_map<std::string, ProcedureDef> property_get;
     std::unordered_map<std::string, ProcedureDef> property_let;
@@ -2981,6 +2985,23 @@ private:
             field.is_variant = type_result->is_variant;
             field.is_object = type_result->is_object;
             field.class_name = type_result->class_name;
+            skip_horizontal_whitespace();
+            if (!field.is_array && !field.is_variant && !field.is_object &&
+                field.type_index == Value{std::string{}}.index() && consume('*')) {
+                skip_horizontal_whitespace();
+                std::size_t length = 0;
+                std::size_t digits = 0;
+                while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+                    length = length * 10U + static_cast<std::size_t>(current() - '0');
+                    advance();
+                    ++digits;
+                }
+                if (digits == 0 || length == 0 || length > 65535U) {
+                    set_error("WFC0012", "expected a fixed string length", offset_);
+                    return false;
+                }
+                field.fixed_length = length;
+            }
         } else {
             // A bare field declaration with no As clause is implicitly
             // Variant, matching a bare module-level Dim.
@@ -2996,6 +3017,7 @@ private:
         if (!consume_statement_end()) {
             return false;
         }
+        class_def.field_order.push_back(*name);
         class_def.fields.emplace(std::move(*name), std::move(field));
         return true;
     }
@@ -3309,10 +3331,6 @@ private:
                 }
             }
             if (i >= line.size()) continue;
-            // Drop a fixed-length `* n` String suffix.
-            if (const auto star = line.find('*', i); star != std::string::npos) {
-                line.resize(star);
-            }
             body += "Public " + line.substr(i) + "\n";
         }
     }
@@ -5396,6 +5414,83 @@ private:
     }
 
     // `Get|Put [#]n, [position], variable` and `Seek [#]n, position`.
+    struct LValue {
+        Value* ptr{};
+        std::size_t fixed{};
+    };
+
+    // `name`, `name(i, ...)`, `.field` chains: a storage location for Get.
+    [[nodiscard]] bool parse_lvalue_path(LValue& result) {
+        const auto variable_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        if (!name.has_value()) {
+            set_error("WFC0011", "expected variable name", variable_offset);
+            return false;
+        }
+        const auto variable = find_variable(*name);
+        if (variable.value == nullptr) {
+            set_error("WFC0015", "undeclared variable", variable_offset);
+            return false;
+        }
+        result.ptr = variable.value;
+        if (const auto fixed = variable.scope->fixed_string_lengths.find(*name);
+            fixed != variable.scope->fixed_string_lengths.end()) {
+            result.fixed = fixed->second;
+        }
+        while (true) {
+            skip_horizontal_whitespace();
+            if (at_end()) return true;
+            if (current() == '(' && result.ptr != nullptr &&
+                std::holds_alternative<ArrayValue>(*result.ptr)) {
+                auto& array = std::get<ArrayValue>(*result.ptr);
+                advance();
+                auto indices = parse_index_list(array_expected_dimension_count(array));
+                if (!indices.has_value()) return false;
+                if (execute_) {
+                    const auto flat_offset = array_flat_offset(array, *indices);
+                    if (!flat_offset.has_value()) return false;
+                    result.ptr = &array.elements[*flat_offset];
+                    result.fixed = 0;
+                } else {
+                    result.ptr = nullptr;
+                }
+                continue;
+            }
+            if (current() == '.') {
+                advance();
+                skip_horizontal_whitespace();
+                char field_type_character{};
+                const auto field_offset = offset_;
+                auto field_name = parse_identifier(&field_type_character);
+                if (!field_name.has_value()) {
+                    set_error("WFC0011", "expected member name after '.'", field_offset);
+                    return false;
+                }
+                if (!execute_ || result.ptr == nullptr) {
+                    result.ptr = nullptr;
+                    continue;
+                }
+                auto* instance = std::get_if<ObjectInstance>(result.ptr);
+                if (instance == nullptr) {
+                    set_error("WFC0136", "member access requires an object reference", field_offset);
+                    return false;
+                }
+                const auto field = instance->data->fields.variables.find(*field_name);
+                if (field == instance->data->fields.variables.end()) {
+                    set_error("WFC0135", "unknown member", field_offset);
+                    return false;
+                }
+                result.ptr = &field->second;
+                const auto fixed = instance->data->fields.fixed_string_lengths.find(*field_name);
+                result.fixed = fixed != instance->data->fields.fixed_string_lengths.end()
+                    ? fixed->second : 0U;
+                continue;
+            }
+            return true;
+        }
+    }
+
     [[nodiscard]] std::optional<bool> parse_binary_statement(const std::size_t statement_offset) {
         const auto start = offset_;
         const bool is_get = consume_keyword("get");
@@ -5449,16 +5544,8 @@ private:
             return false;
         }
         skip_horizontal_whitespace();
-        const auto variable_offset = offset_;
-        char type_character{};
-        auto name = parse_identifier(&type_character);
-        if (!name.has_value()) {
-            set_error("WFC0011", "expected variable name", variable_offset);
-            return false;
-        }
-        const auto variable = find_variable(*name);
-        if (variable.value == nullptr) {
-            set_error("WFC0015", "undeclared variable", variable_offset);
+        LValue lvalue;
+        if (!parse_lvalue_path(lvalue)) {
             return false;
         }
         if (!execute_) {
@@ -5478,46 +5565,79 @@ private:
             std::fseek(file->handle, std::ftell(file->handle), SEEK_SET);
         }
         const long record_start = std::ftell(file->handle);
-        Value& target = *variable.value;
         const auto transfer = [&](void* data, const std::size_t size) {
             return is_get ? std::fread(data, 1, size, file->handle) == size
                           : std::fwrite(data, 1, size, file->handle) == size;
         };
-        bool ok = true;
-        if (auto* v1 = std::get_if<Integer>(&target)) {
-            std::int32_t x = *v1; ok = transfer(&x, 4); if (is_get) *v1 = x;
-        } else if (auto* v2 = std::get_if<Int16>(&target)) {
-            std::int16_t x = *v2; ok = transfer(&x, 2); if (is_get) *v2 = x;
-        } else if (auto* v3 = std::get_if<Byte>(&target)) {
-            std::uint8_t x = *v3; ok = transfer(&x, 1); if (is_get) *v3 = x;
-        } else if (auto* v4 = std::get_if<float>(&target)) {
-            float x = *v4; ok = transfer(&x, 4); if (is_get) *v4 = x;
-        } else if (auto* v5 = std::get_if<double>(&target)) {
-            double x = *v5; ok = transfer(&x, 8); if (is_get) *v5 = x;
-        } else if (auto* v6 = std::get_if<Currency>(&target)) {
-            std::int64_t x = v6->scaled; ok = transfer(&x, 8); if (is_get) v6->scaled = x;
-        } else if (auto* v7 = std::get_if<DateValue>(&target)) {
-            double x = v7->serial; ok = transfer(&x, 8); if (is_get) v7->serial = x;
-        } else if (auto* v8 = std::get_if<bool>(&target)) {
-            std::int16_t x = *v8 ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v8 = x != 0;
-        } else if (auto* v9 = std::get_if<std::string>(&target)) {
-            const bool fixed = variable.scope->fixed_string_lengths.contains(*name);
-            if (file->mode == 5 && !fixed) {
-                std::uint16_t length = static_cast<std::uint16_t>(v9->size());
-                ok = transfer(&length, 2);
-                if (is_get && ok) v9->assign(length, '\0');
+        const std::function<bool(Value&, std::size_t, bool)> transfer_value =
+            [&](Value& target, const std::size_t fixed, const bool nested) -> bool {
+            bool ok = true;
+            if (auto* v1 = std::get_if<Integer>(&target)) {
+                std::int32_t x = *v1; ok = transfer(&x, 4); if (is_get) *v1 = x;
+            } else if (auto* v2 = std::get_if<Int16>(&target)) {
+                std::int16_t x = *v2; ok = transfer(&x, 2); if (is_get) *v2 = x;
+            } else if (auto* v3 = std::get_if<Byte>(&target)) {
+                std::uint8_t x = *v3; ok = transfer(&x, 1); if (is_get) *v3 = x;
+            } else if (auto* v4 = std::get_if<float>(&target)) {
+                float x = *v4; ok = transfer(&x, 4); if (is_get) *v4 = x;
+            } else if (auto* v5 = std::get_if<double>(&target)) {
+                double x = *v5; ok = transfer(&x, 8); if (is_get) *v5 = x;
+            } else if (auto* v6 = std::get_if<Currency>(&target)) {
+                std::int64_t x = v6->scaled; ok = transfer(&x, 8); if (is_get) v6->scaled = x;
+            } else if (auto* v7 = std::get_if<DateValue>(&target)) {
+                double x = v7->serial; ok = transfer(&x, 8); if (is_get) v7->serial = x;
+            } else if (auto* v8 = std::get_if<bool>(&target)) {
+                std::int16_t x = *v8 ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v8 = x != 0;
+            } else if (auto* v9 = std::get_if<std::string>(&target)) {
+                if (fixed != 0U) {
+                    if (!is_get) v9->resize(fixed, ' ');
+                    else v9->assign(fixed, '\0');
+                    ok = transfer(v9->data(), fixed);
+                } else {
+                    if (file->mode == 5 || nested) {
+                        std::uint16_t length = static_cast<std::uint16_t>(v9->size());
+                        ok = transfer(&length, 2);
+                        if (is_get && ok) v9->assign(length, '\0');
+                    }
+                    if (ok && !v9->empty()) {
+                        ok = transfer(v9->data(), v9->size());
+                    }
+                }
+            } else if (auto* array = std::get_if<ArrayValue>(&target)) {
+                for (auto& element : array->elements) {
+                    if (!transfer_value(element, 0, true)) return false;
+                }
+            } else if (auto* instance = std::get_if<ObjectInstance>(&target)) {
+                const auto class_iterator = class_definitions_.find(instance->data->class_name);
+                if (class_iterator == class_definitions_.end() || !class_iterator->second.is_udt) {
+                    return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+                }
+                for (const auto& field_name : class_iterator->second.field_order) {
+                    const auto field = instance->data->fields.variables.find(field_name);
+                    if (field == instance->data->fields.variables.end()) continue;
+                    const auto fixed_length = instance->data->fields.fixed_string_lengths.find(field_name);
+                    if (!transfer_value(
+                            field->second,
+                            fixed_length != instance->data->fields.fixed_string_lengths.end()
+                                ? fixed_length->second
+                                : 0U,
+                            true)) {
+                        return false;
+                    }
+                }
+            } else {
+                return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
             }
-            if (ok && !v9->empty()) {
-                ok = transfer(v9->data(), v9->size());
+            if (!ok) {
+                if (is_get) {
+                    return raise_runtime(62, "Input past end of file", statement_offset);
+                }
+                return raise_runtime(57, "Device I/O error", statement_offset);
             }
-        } else {
-            return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
-        }
-        if (!ok) {
-            if (is_get) {
-                return raise_runtime(62, "Input past end of file", statement_offset);
-            }
-            return raise_runtime(57, "Device I/O error", statement_offset);
+            return true;
+        };
+        if (!transfer_value(*lvalue.ptr, lvalue.fixed, false)) {
+            return false;
         }
         if (file->mode == 5) {
             const long end = record_start + file->record_length;
@@ -9501,6 +9621,12 @@ private:
             return false;
         }
         if (execute_) {
+            if (const auto fixed = instance.fields.fixed_string_lengths.find(*member_name);
+                fixed != instance.fields.fixed_string_lengths.end()) {
+                if (auto* text = std::get_if<std::string>(&*value)) {
+                    text->resize(fixed->second, ' ');
+                }
+            }
             field_iterator->second = std::move(*value);
         }
         return true;
@@ -10443,6 +10569,44 @@ private:
     // value, matching a fixed-type variable's own default, before
     // `Class_Initialize` (if the class declares one) runs against the new,
     // fully field-initialized instance.
+    // The size in bytes of a UDT as stored in a Binary/Random file (and
+    // reported by `Len`): fixed strings are their length, a variable String
+    // is its 2-byte descriptor plus text, scalars are their natural width.
+    [[nodiscard]] std::size_t udt_byte_size(const Value& value) const {
+        if (std::holds_alternative<Integer>(value)) return 4;
+        if (std::holds_alternative<Int16>(value) || std::holds_alternative<bool>(value)) return 2;
+        if (std::holds_alternative<Byte>(value)) return 1;
+        if (std::holds_alternative<float>(value)) return 4;
+        if (std::holds_alternative<double>(value) || std::holds_alternative<Currency>(value) ||
+            std::holds_alternative<DateValue>(value)) {
+            return 8;
+        }
+        if (const auto* array = std::get_if<ArrayValue>(&value)) {
+            std::size_t total = 0;
+            for (const auto& element : array->elements) total += udt_byte_size(element);
+            return total;
+        }
+        if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
+            const auto class_iterator = class_definitions_.find(instance->data->class_name);
+            if (class_iterator == class_definitions_.end()) return 0;
+            std::size_t total = 0;
+            for (const auto& name : class_iterator->second.field_order) {
+                const auto field = instance->data->fields.variables.find(name);
+                if (field == instance->data->fields.variables.end()) continue;
+                if (const auto* text = std::get_if<std::string>(&field->second)) {
+                    total += instance->data->fields.fixed_string_lengths.contains(name)
+                        ? text->size()
+                        : 2U + text->size();
+                } else {
+                    total += udt_byte_size(field->second);
+                }
+            }
+            return total;
+        }
+        if (const auto* text = std::get_if<std::string>(&value)) return text->size();
+        return 16;  // Variant / Decimal
+    }
+
     [[nodiscard]] std::optional<Value> instantiate_class(
         const std::string& class_name, const std::size_t offset) {
         const auto class_iterator = class_definitions_.find(class_name);
@@ -10508,6 +10672,9 @@ private:
                 initial_value = Value{Nothing{}};
             } else if (field_def.is_variant) {
                 initial_value = Value{Empty{}};
+            } else if (field_def.fixed_length != 0U) {
+                initial_value = Value{std::string(field_def.fixed_length, ' ')};
+                instance->fields.fixed_string_lengths[field_name] = field_def.fixed_length;
             } else {
                 initial_value = zero_value_for_index(field_def.type_index);
             }
@@ -15136,6 +15303,17 @@ private:
             return Value{std::move(digits)};
         }
 
+        if (is_len && execute_ && !std::holds_alternative<std::string>(arguments[0])) {
+            if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
+                if (is_udt_class(instance->data->class_name)) {
+                    return Value{static_cast<Integer>(udt_byte_size(arguments[0]))};
+                }
+            }
+            if (is_number(arguments[0]) || std::holds_alternative<bool>(arguments[0]) ||
+                std::holds_alternative<DateValue>(arguments[0])) {
+                return Value{static_cast<Integer>(render(arguments[0]).size())};
+            }
+        }
         const auto* string = std::get_if<std::string>(&arguments[0]);
         static const std::string dry_run_string;
         if (string == nullptr && !execute_) {

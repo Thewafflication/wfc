@@ -2409,7 +2409,7 @@ int main() {
     expect_program_failure(
         "Print Replace(\"a\", \"b\", \"c\", 1, -1, 0, 1)",
         "WFC0072");
-    expect_program_failure("Print Len(42)", "WFC0073");
+    expect_program_success("Print Len(42)", "2");  // REQ-0277: Variant coercion
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
     expect_program_failure("Print Right(\"value\", \"1\")", "WFC0073");
