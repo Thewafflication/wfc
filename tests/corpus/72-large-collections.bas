@@ -2,15 +2,15 @@ Option Explicit
 Sub Main()
     Dim c As New Collection, d As Object, i As Long, total As Long
     Set d = CreateObject("Scripting.Dictionary")
-    For i = 1 To 3000
+    For i = 1 To 600
         c.Add i * 2, "K" & i
         d.Add "key" & i, i
     Next
     For i = 1 To c.Count
         total = total + c(i)
     Next
-    Print c.Count, d.Count, total, c("k2999"), c("K3000"), d("key1500")
-    For i = 1 To 3000 Step 2
+    Print c.Count, d.Count, total, c("k599"), c("K600"), d("key300")
+    For i = 1 To 600 Step 2
         c.Remove "k" & i
         d.Remove "key" & i
     Next

@@ -309,6 +309,7 @@ a specific requirement.
 | 2026-09-30 #224 | Construction | Assigning a String to a Byte array copies its UCS-2 bytes and back; StrConv(s, vbFromUnicode) returns a Byte array and StrConv(bytes, vbUnicode) a String. Corpus 70. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #225 | Construction | Date Format strings accept the AMPM token (12-hour clock with AM/PM). Corpus 71. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #226 | Construction | Collection and Scripting.Dictionary now keep their entries in a native store with a hash index of the keys: keyed Add/Item/Exists are O(1) instead of an interpreted linear scan (1000 keyed Adds: 2.3s -> 17ms). Corpus 72. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #227 | Construction | Corpus 72 reduced to 600 entries (Debug builds run the interpreter ~20x slower). Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
