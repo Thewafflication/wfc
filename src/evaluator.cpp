@@ -5150,7 +5150,7 @@ private:
             code == "WFC0096") {
             return 5;
         }
-        if (code == "WFC0148") return 9;
+        if (code == "WFC0148" || code == "WFC0151") return 9;
         if (code == "WFC0123") return 28;
         return 0;
     }
@@ -10594,7 +10594,15 @@ private:
             if (std::holds_alternative<ArrayValue>(*value)) {
                 deep_copy_udt_values(*value);
             }
+            // Assigning an array to a dynamic array leaves the target dynamic (resizable).
+            const bool target_was_dynamic = [&] {
+                const auto* previous = std::get_if<ArrayValue>(variable.value);
+                return previous != nullptr && previous->is_dynamic;
+            }();
             *variable.value = std::move(*value);
+            if (target_was_dynamic) {
+                std::get<ArrayValue>(*variable.value).is_dynamic = true;
+            }
         }
         return true;
     }
