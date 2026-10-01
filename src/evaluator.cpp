@@ -13921,7 +13921,12 @@ private:
             try {
                 auto options = std::regex::ECMAScript;
                 if (ignore_case) options |= std::regex::icase;
-                if (multi_line) options |= std::regex_constants::multiline;
+                if (multi_line) {
+                    // Older MSVC STLs lack the C++17 multiline flag; there ^/$ match only at the text ends.
+                    []<typename Regex>(auto& flags) {
+                        if constexpr (requires { Regex::multiline; }) flags |= Regex::multiline;
+                    }.template operator()<std::regex>(options);
+                }
                 const std::regex expression(*pattern, options);
                 if (replacing) {
                     return Value{std::regex_replace(
