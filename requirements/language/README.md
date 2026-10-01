@@ -385,3 +385,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0276 — DefType, untyped Function results, suffix functions](req-0276-deftype.md)
 - [REQ-0277 — UDT fixed strings, Len, Get/Put of UDTs](req-0277-udt-binary-io.md)
 - [REQ-0278 — Error handlers run in context; Err.Source](req-0278-handlers-in-context.md)
+- [REQ-0279 — Scripting.Dictionary; default-member assignment](req-0279-dictionary.md)

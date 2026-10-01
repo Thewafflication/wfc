@@ -1782,6 +1782,156 @@ End Function
 )VB";
 
 
+// Scripting.Dictionary, provided as VB source like Collection (case-sensitive
+// keys unless CompareMode = 1; reading a missing key adds an Empty entry, as
+// the real object does).
+constexpr std::string_view kDictionarySource = R"VB(Private ks() As Variant
+Private vs() As Variant
+Private n As Long
+Private mode As Long
+Public Property Get CompareMode() As Long
+CompareMode = mode
+End Property
+Public Property Let CompareMode(v As Long)
+If n > 0 Then Err.Raise 5, , "Invalid procedure call or argument"
+mode = v
+End Property
+Public Property Get Count() As Long
+Count = n
+End Property
+Private Function IndexOf(Key As Variant) As Long
+Dim i As Long
+IndexOf = 0
+For i = 1 To n
+If VarType(Key) = 8 And VarType(ks(i)) = 8 Then
+If mode = 1 Then
+If LCase(ks(i)) = LCase(Key) Then IndexOf = i: Exit Function
+Else
+If ks(i) = Key Then IndexOf = i: Exit Function
+End If
+ElseIf VarType(Key) <> 8 And VarType(ks(i)) <> 8 Then
+If ks(i) = Key Then IndexOf = i: Exit Function
+End If
+Next i
+End Function
+Private Sub Grow()
+n = n + 1
+If n = 1 Then
+ReDim ks(1 To 4)
+ReDim vs(1 To 4)
+ElseIf n > UBound(ks) Then
+ReDim Preserve ks(1 To UBound(ks) * 2)
+ReDim Preserve vs(1 To UBound(vs) * 2)
+End If
+End Sub
+Public Sub Add(Key As Variant, Item As Variant)
+If IndexOf(Key) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
+Grow
+ks(n) = Key
+If IsObject(Item) Then
+Set vs(n) = Item
+Else
+vs(n) = Item
+End If
+End Sub
+Public Function Exists(Key As Variant) As Boolean
+Exists = IndexOf(Key) > 0
+End Function
+Public Property Get Item(Key As Variant) As Variant
+Attribute Item.VB_UserMemId = 0
+Dim i As Long
+i = IndexOf(Key)
+If i = 0 Then
+Grow
+ks(n) = Key
+vs(n) = Empty
+i = n
+End If
+If IsObject(vs(i)) Then
+Set Item = vs(i)
+Else
+Item = vs(i)
+End If
+End Property
+Public Property Let Item(Key As Variant, NewItem As Variant)
+Dim i As Long
+i = IndexOf(Key)
+If i = 0 Then
+Grow
+ks(n) = Key
+i = n
+End If
+vs(i) = NewItem
+End Property
+Public Property Set Item(Key As Variant, NewItem As Object)
+Dim i As Long
+i = IndexOf(Key)
+If i = 0 Then
+Grow
+ks(n) = Key
+i = n
+End If
+Set vs(i) = NewItem
+End Property
+Public Property Let Key(OldKey As Variant, NewKey As Variant)
+Dim i As Long
+i = IndexOf(OldKey)
+If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
+If IndexOf(NewKey) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
+ks(i) = NewKey
+End Property
+Public Sub Remove(Key As Variant)
+Dim i As Long, j As Long
+i = IndexOf(Key)
+If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
+For j = i To n - 1
+ks(j) = ks(j + 1)
+If IsObject(vs(j + 1)) Then
+Set vs(j) = vs(j + 1)
+Else
+vs(j) = vs(j + 1)
+End If
+Next j
+n = n - 1
+End Sub
+Public Sub RemoveAll()
+n = 0
+End Sub
+Public Function Keys() As Variant
+Dim r() As Variant
+Dim i As Long
+If n = 0 Then
+Keys = Array()
+Else
+ReDim r(0 To n - 1)
+For i = 1 To n
+r(i - 1) = ks(i)
+Next i
+Keys = r
+End If
+End Function
+Public Function Items() As Variant
+Dim r() As Variant
+Dim i As Long
+If n = 0 Then
+Items = Array()
+Else
+ReDim r(0 To n - 1)
+For i = 1 To n
+If IsObject(vs(i)) Then
+Set r(i - 1) = vs(i)
+Else
+r(i - 1) = vs(i)
+End If
+Next i
+Items = r
+End If
+End Function
+Public Function WfcItems() As Variant
+WfcItems = Keys()
+End Function
+)VB";
+
 struct Scope {
     std::unordered_map<std::string, Value> variables;
     std::unordered_set<std::string> constants;
@@ -3374,6 +3524,22 @@ private:
         if (needed) {
             class_sources_.push_back({"WfcCollectionNode", kCollectionNodeSource});
             class_sources_.push_back({"Collection", kCollectionSource});
+        }
+        const auto mentions_dictionary = [](const std::string_view text) {
+            constexpr std::string_view needle = "scripting.dictionary";
+            for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
+                std::size_t k = 0;
+                while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
+                if (k == needle.size()) return true;
+            }
+            return false;
+        };
+        bool needs_dictionary = mentions_dictionary(source_);
+        for (const auto& module : class_sources_) {
+            needs_dictionary = needs_dictionary || mentions_dictionary(module.source);
+        }
+        if (needs_dictionary) {
+            class_sources_.push_back({"WfcDictionary", kDictionarySource});
         }
     }
 
@@ -9424,6 +9590,21 @@ private:
 
         const auto after_identifier_offset = offset_;
         skip_horizontal_whitespace();
+        if (type_character == '\0' && !at_end() && current() == '(' &&
+            std::holds_alternative<ObjectInstance>(*variable.value)) {
+            auto& instance_data = *std::get<ObjectInstance>(*variable.value).data;
+            const auto class_iterator = class_definitions_.find(instance_data.class_name);
+            if (class_iterator != class_definitions_.end() &&
+                !class_iterator->second.default_member.empty()) {
+                const auto& class_def = class_iterator->second;
+                const auto setter = class_def.property_set.find(class_def.default_member);
+                if (setter != class_def.property_set.end()) {
+                    return invoke_property_let_or_set(
+                        instance_data, class_def, setter->second, class_def.default_member,
+                        identifier_offset);
+                }
+            }
+        }
         if (type_character == '\0' && !at_end() && current() == '.' &&
             (std::holds_alternative<Nothing>(*variable.value) ||
              std::holds_alternative<ObjectInstance>(*variable.value))) {
@@ -9775,6 +9956,27 @@ private:
                 if (!at_end() && current() == '(') {
                     const auto identifier_offset = saved_offset - identifier.size();
                     return parse_array_element_assignment(identifier, identifier_offset);
+                }
+                offset_ = saved_offset;
+            }
+            if (variable.value != nullptr && std::holds_alternative<ObjectInstance>(*variable.value)) {
+                // `obj(args) = value` through the class's default member
+                // (a Property Let).
+                const auto saved_offset = offset_;
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '(') {
+                    auto& instance_data = *std::get<ObjectInstance>(*variable.value).data;
+                    const auto class_iterator = class_definitions_.find(instance_data.class_name);
+                    if (class_iterator != class_definitions_.end() &&
+                        !class_iterator->second.default_member.empty()) {
+                        const auto& class_def = class_iterator->second;
+                        const auto letter = class_def.property_let.find(class_def.default_member);
+                        if (letter != class_def.property_let.end()) {
+                            return invoke_property_let_or_set(
+                                instance_data, class_def, letter->second, class_def.default_member,
+                                saved_offset);
+                        }
+                    }
                 }
                 offset_ = saved_offset;
             }
@@ -12578,6 +12780,16 @@ private:
         if (name == "createobject" || name == "getobject") {
             if (!arity(0, 2)) return std::nullopt;
             if (!execute_) return Value{Nothing{}};
+            if (name == "createobject") {
+                if (const auto* progid = std::get_if<std::string>(&arguments[0])) {
+                    std::string lowered;
+                    for (const char c : *progid) lowered.push_back(ascii_lower(c));
+                    if (lowered == "scripting.dictionary" &&
+                        class_definitions_.contains("wfcdictionary")) {
+                        return instantiate_class("wfcdictionary", offset);
+                    }
+                }
+            }
             static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
             return std::nullopt;
         }
@@ -14413,8 +14625,8 @@ private:
             // A live instance's TypeName is its own class's name (its
             // as-supplied spelling, not the lowercased lookup key).
             if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
-                return Value{
-                    class_definitions_.at(instance->data->class_name).display_name};
+                const auto& shown = class_definitions_.at(instance->data->class_name).display_name;
+                return Value{shown == "WfcDictionary" ? std::string{"Dictionary"} : shown};
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
                 // Real VB6 renders an array's TypeName as its element type

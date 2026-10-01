@@ -1,0 +1,3 @@
+Module=Main; 38-default-let.bas
+Class=D; 38-default-let.cls.d
+Startup="Sub Main"
