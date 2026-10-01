@@ -62,3 +62,6 @@ earlier fixed limit of 64 nested calls is gone. Corpus `49-deep-recursion`.
 
 Addendum: `Debug.Print` text is collected in `Evaluation::debug_output` (never in `output`)
 and the command line writes it to standard error. Test `TC-MP0002-debug-print-cli`.
+
+Addendum: comparison operators chain left to right (`1 < 2 = True`); `And`/`Or` evaluate
+both operands (no short circuit). Corpus `50-operators`.

@@ -10814,6 +10814,7 @@ private:
             return std::nullopt;
         }
 
+        while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
         if (consume_keyword("is")) {
@@ -10834,7 +10835,8 @@ private:
                 set_error("WFC0107", "Is requires object operands", operator_offset);
                 return std::nullopt;
             }
-            return Value{*left == *right};
+            left = Value{*left == *right};
+            continue;
         }
         if (consume_keyword("like")) {
             skip_horizontal_whitespace();
@@ -10845,13 +10847,15 @@ private:
             const auto* text = std::get_if<std::string>(&*left);
             const auto* mask = std::get_if<std::string>(&*pattern);
             if ((text == nullptr || mask == nullptr) && !execute_) {
-                return Value{false};
+                left = Value{false};
+                continue;
             }
             if (text == nullptr || mask == nullptr) {
                 set_error("WFC0018", "Like requires String operands", operator_offset);
                 return std::nullopt;
             }
-            return Value{execute_ ? like_match(*text, *mask, option_compare_text_) : false};
+            left = Value{execute_ ? like_match(*text, *mask, option_compare_text_) : false};
+            continue;
         }
         std::string_view operation;
         if (consume('=')) {
@@ -10875,7 +10879,11 @@ private:
         if (!right.has_value()) {
             return std::nullopt;
         }
-        return compare(*left, *right, operation, operator_offset);
+        left = compare(*left, *right, operation, operator_offset);
+        if (!left.has_value()) {
+            return std::nullopt;
+        }
+        }
     }
 
     [[nodiscard]] std::optional<Value> parse_concatenation() {
