@@ -5137,7 +5137,8 @@ private:
                 return evaluate_misc_function("callbyname", values, statement_offset).has_value();
             }
         }
-        if (consume_keyword("msgbox")) {
+        if (consume_keyword("msgbox") || consume_keyword("appactivate") ||
+            consume_keyword("sendkeys")) {
             // The statement form evaluates and ignores its arguments.
             skip_horizontal_whitespace();
             while (!at_statement_end()) {
@@ -12733,7 +12734,8 @@ private:
             "pmt", "fv", "pv", "nper", "ipmt", "ppmt", "npv", "irr", "sln", "syd", "ddb",
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
             "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
-            "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname"};
+            "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname", "shell",
+            "getallsettings"};
         return names.contains(std::string(name));
     }
 
@@ -12881,6 +12883,41 @@ private:
             }
             static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
             return std::nullopt;
+        }
+        if (name == "shell") {
+            if (!arity(1, 2)) return std::nullopt;
+            const auto* command = std::get_if<std::string>(&arguments[0]);
+            if (command == nullptr) return bad_type();
+            if (!execute_) return Value{0.0};
+            if (std::system(command->c_str()) != 0) {
+                static_cast<void>(raise_runtime(53, "File not found", offset));
+                return std::nullopt;
+            }
+            return Value{1.0};  // a task id; the command has already run to completion
+        }
+        if (name == "getallsettings") {
+            if (!arity(2, 2)) return std::nullopt;
+            const auto* application = std::get_if<std::string>(&arguments[0]);
+            const auto* section = std::get_if<std::string>(&arguments[1]);
+            if (application == nullptr || section == nullptr) return bad_type();
+            if (!execute_) return Value{Empty{}};
+            const std::string prefix = *application + "\x01" + *section + "\x01";
+            std::vector<Value> cells;
+            for (const auto& [key, value] : settings_) {
+                if (key.rfind(prefix, 0) == 0) {
+                    std::string setting_name = key.substr(prefix.size());
+                    if (!setting_name.empty() && setting_name.back() == '\x01') setting_name.pop_back();
+                    cells.push_back(Value{std::move(setting_name)});
+                    cells.push_back(Value{value});
+                }
+            }
+            if (cells.empty()) return Value{Empty{}};
+            ArrayValue result{};
+            result.elements = std::move(cells);
+            result.is_variant_element = true;
+            result.element_type_index = Value{Empty{}}.index();
+            result.dimensions = {{0, static_cast<Integer>(result.elements.size() / 2U) - 1}, {0, 1}};
+            return Value{std::move(result)};
         }
         if (name == "getsetting") {
             if (!arity(3, 4)) return std::nullopt;
