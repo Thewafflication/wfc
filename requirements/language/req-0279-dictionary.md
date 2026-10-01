@@ -97,3 +97,12 @@ takes a numeric argument (`Mid$(s, i, i)` with `i As Integer`); they reach the r
 `VarType`, `Hex`, `Oct`, `Abs`, `Sgn`, `Int`, `Fix`, conversions, `IIf`, ...).
 Without `Option Explicit`, `ReDim` of an undeclared name declares it. Corpus
 `57-word-frequency`, `58-integer-arguments`.
+
+Addendum: `CreateObject("Scripting.FileSystemObject")` returns a built-in FileSystemObject
+(VB source on the native file statements): `FileExists`, `FolderExists`, `CreateTextFile`,
+`OpenTextFile` (read / write / append), `GetFile` (`Name`, `Path`, `Size`,
+`DateLastModified`), `GetFileName`, `GetBaseName`, `GetExtensionName`,
+`GetParentFolderName`, `BuildPath`, `GetAbsolutePathName`, `GetTempName`, `CopyFile`,
+`MoveFile`, `DeleteFile`, `CreateFolder`, `DeleteFolder`; TextStream has `Write`,
+`WriteLine`, `WriteBlankLines`, `ReadLine`, `ReadAll`, `Read`, `SkipLine`, `AtEndOfStream`,
+`Line`, `Close`. Corpus `59-file-system-object`.

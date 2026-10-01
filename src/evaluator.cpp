@@ -1996,6 +1996,188 @@ Public Sub LogEvent(LogBuffer As String, Optional EventType As Long = 1)
 End Sub
 )VB";
 
+// Scripting.FileSystemObject and its TextStream / File objects, written in VB
+// on top of the native file statements.
+constexpr std::string_view kTextStreamSource = R"VB(Private fnum As Integer
+Private mLine As Long
+Private isOpen As Boolean
+Public Sub Init(ByVal path As String, ByVal m As Long)
+fnum = FreeFile
+Select Case m
+Case 1
+Open path For Input As #fnum
+Case 2
+Open path For Output As #fnum
+Case Else
+Open path For Append As #fnum
+End Select
+isOpen = True
+End Sub
+Public Sub Write(ByVal s As String)
+Print #fnum, s;
+End Sub
+Public Sub WriteLine(Optional ByVal s As String = "")
+Print #fnum, s
+End Sub
+Public Sub WriteBlankLines(ByVal n As Long)
+Dim i As Long
+For i = 1 To n
+Print #fnum, ""
+Next i
+End Sub
+Public Function ReadLine() As String
+Line Input #fnum, ReadLine
+mLine = mLine + 1
+End Function
+Public Function ReadAll() As String
+Dim t As String, first As Boolean
+first = True
+Do While Not EOF(fnum)
+Line Input #fnum, t
+If Not first Then ReadAll = ReadAll & vbCrLf
+ReadAll = ReadAll & t
+first = False
+mLine = mLine + 1
+Loop
+End Function
+Public Function Read(ByVal n As Long) As String
+Read = Input$(n, #fnum)
+End Function
+Public Sub SkipLine()
+Dim t As String
+Line Input #fnum, t
+mLine = mLine + 1
+End Sub
+Public Property Get AtEndOfStream() As Boolean
+AtEndOfStream = EOF(fnum)
+End Property
+Public Property Get Line() As Long
+Line = mLine + 1
+End Property
+Public Sub Close()
+If isOpen Then Close #fnum
+isOpen = False
+End Sub
+Private Sub Class_Terminate()
+If isOpen Then Close #fnum
+End Sub
+)VB";
+
+constexpr std::string_view kFileObjectSource = R"VB(Private mPath As String
+Public Sub Init(ByVal path As String)
+mPath = path
+End Sub
+Public Property Get Path() As String
+Path = mPath
+End Property
+Public Property Get Name() As String
+Dim i As Long
+i = InStrRev(mPath, "\")
+If InStrRev(mPath, "/") > i Then i = InStrRev(mPath, "/")
+Name = Mid$(mPath, i + 1)
+End Property
+Public Property Get Size() As Long
+Size = FileLen(mPath)
+End Property
+Public Property Get DateLastModified() As Date
+DateLastModified = FileDateTime(mPath)
+End Property
+Public Sub Delete()
+Kill mPath
+End Sub
+)VB";
+
+constexpr std::string_view kFileSystemObjectSource = R"VB(Public Function FileExists(ByVal path As String) As Boolean
+On Error Resume Next
+Err.Clear
+FileExists = ((GetAttr(path) And 16) = 0)
+If Err.Number <> 0 Then FileExists = False
+End Function
+Public Function FolderExists(ByVal path As String) As Boolean
+On Error Resume Next
+Err.Clear
+FolderExists = ((GetAttr(path) And 16) <> 0)
+If Err.Number <> 0 Then FolderExists = False
+End Function
+Private Function LastSep(ByVal path As String) As Long
+LastSep = InStrRev(path, "\")
+If InStrRev(path, "/") > LastSep Then LastSep = InStrRev(path, "/")
+End Function
+Public Function GetFileName(ByVal path As String) As String
+GetFileName = Mid$(path, LastSep(path) + 1)
+End Function
+Public Function GetExtensionName(ByVal path As String) As String
+Dim n As String, i As Long
+n = GetFileName(path)
+i = InStrRev(n, ".")
+If i > 0 Then GetExtensionName = Mid$(n, i + 1)
+End Function
+Public Function GetBaseName(ByVal path As String) As String
+Dim n As String, i As Long
+n = GetFileName(path)
+i = InStrRev(n, ".")
+If i > 0 Then GetBaseName = Left$(n, i - 1) Else GetBaseName = n
+End Function
+Public Function GetParentFolderName(ByVal path As String) As String
+Dim i As Long
+i = LastSep(path)
+If i > 1 Then GetParentFolderName = Left$(path, i - 1) Else GetParentFolderName = ""
+End Function
+Public Function BuildPath(ByVal a As String, ByVal b As String) As String
+If a = "" Then
+BuildPath = b
+ElseIf Right$(a, 1) = "\" Or Right$(a, 1) = "/" Then
+BuildPath = a & b
+Else
+BuildPath = a & "\" & b
+End If
+End Function
+Public Function GetAbsolutePathName(ByVal path As String) As String
+If Mid$(path, 2, 1) = ":" Or Left$(path, 1) = "\" Or Left$(path, 1) = "/" Then
+GetAbsolutePathName = path
+Else
+GetAbsolutePathName = BuildPath(CurDir$, path)
+End If
+End Function
+Public Function GetTempName() As String
+GetTempName = "rad" & Hex$(Int(Rnd * 65535)) & ".tmp"
+End Function
+Public Function CreateTextFile(ByVal path As String, Optional ByVal overwrite As Boolean = True) As Object
+Dim t As New WfcTextStream
+If Not overwrite And FileExists(path) Then Err.Raise 58, "FileSystemObject", "File already exists"
+t.Init path, 2
+Set CreateTextFile = t
+End Function
+Public Function OpenTextFile(ByVal path As String, Optional ByVal mode As Long = 1, Optional ByVal create As Boolean = False) As Object
+Dim t As New WfcTextStream
+If mode = 1 And Not FileExists(path) Then Err.Raise 53, "FileSystemObject", "File not found"
+t.Init path, mode
+Set OpenTextFile = t
+End Function
+Public Function GetFile(ByVal path As String) As Object
+Dim f As New WfcFile
+If Not FileExists(path) Then Err.Raise 53, "FileSystemObject", "File not found"
+f.Init path
+Set GetFile = f
+End Function
+Public Sub DeleteFile(ByVal path As String)
+Kill path
+End Sub
+Public Sub CopyFile(ByVal src As String, ByVal dst As String, Optional ByVal overwrite As Boolean = True)
+If Not overwrite And FileExists(dst) Then Err.Raise 58, "FileSystemObject", "File already exists"
+FileCopy src, dst
+End Sub
+Public Sub MoveFile(ByVal src As String, ByVal dst As String)
+Name src As dst
+End Sub
+Public Sub CreateFolder(ByVal path As String)
+MkDir path
+End Sub
+Public Sub DeleteFolder(ByVal path As String)
+RmDir path
+End Sub
+)VB";
+
 struct Scope {
     std::unordered_map<std::string, Value> variables;
     std::unordered_set<std::string> constants;
@@ -3678,6 +3860,24 @@ private:
         }
         if (needs_dictionary) {
             class_sources_.push_back({"WfcDictionary", kDictionarySource});
+        }
+        const auto mentions_fso = [](const std::string_view text) {
+            constexpr std::string_view needle = "scripting.filesystemobject";
+            for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
+                std::size_t k = 0;
+                while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
+                if (k == needle.size()) return true;
+            }
+            return false;
+        };
+        bool needs_fso = mentions_fso(source_);
+        for (const auto& module : class_sources_) {
+            needs_fso = needs_fso || mentions_fso(module.source);
+        }
+        if (needs_fso) {
+            class_sources_.push_back({"WfcTextStream", kTextStreamSource});
+            class_sources_.push_back({"WfcFile", kFileObjectSource});
+            class_sources_.push_back({"WfcFileSystemObject", kFileSystemObjectSource});
         }
         const auto mentions_app = [](const std::string_view text) {
             for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
@@ -13438,6 +13638,10 @@ private:
                         class_definitions_.contains("wfcdictionary")) {
                         return instantiate_class("wfcdictionary", offset);
                     }
+                    if (lowered == "scripting.filesystemobject" &&
+                        class_definitions_.contains("wfcfilesystemobject")) {
+                        return instantiate_class("wfcfilesystemobject", offset);
+                    }
                 }
             }
             static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
@@ -15349,7 +15553,11 @@ private:
             // as-supplied spelling, not the lowercased lookup key).
             if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
                 const auto& shown = class_definitions_.at(instance->data->class_name).display_name;
-                return Value{shown == "WfcDictionary" ? std::string{"Dictionary"} : shown};
+                if (shown == "WfcDictionary") return Value{std::string{"Dictionary"}};
+                if (shown == "WfcFileSystemObject") return Value{std::string{"FileSystemObject"}};
+                if (shown == "WfcTextStream") return Value{std::string{"TextStream"}};
+                if (shown == "WfcFile") return Value{std::string{"File"}};
+                return Value{shown};
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {
                 // Real VB6 renders an array's TypeName as its element type

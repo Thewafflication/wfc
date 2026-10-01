@@ -287,6 +287,7 @@ a specific requirement.
 | 2026-09-30 #202 | Construction | Increment: Int16/Byte arguments widen for library routines (Mid$(s, i, i) with Integer i), ReDim declares undeclared arrays; corpus 57, 58. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #203 | Construction | Increment: literals in -32768..32767 are Integer (TypeName(5) = Integer, Integer overflow like VB6); whole-number acceptance for Tab/Spc/String * n/Len=/Sleep; REQ-0199 amended. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #204 | Construction | Docs: status section reflects module properties, Shell, literals. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #205 | Construction | Increment: CreateObject("Scripting.FileSystemObject") built-in; corpus 59. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

@@ -1,0 +1,9 @@
+True          False         True
+first line
+False         2
+second line
+fso_test.txt  32            File          FileSystemObject            TextStream
+file.tar.gz   file.tar      gz            C:\dir\sub
+C:\dir\x.txt  C:\dir\x.txt
+False         True
+53            File not found
