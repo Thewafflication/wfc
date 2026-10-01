@@ -25,8 +25,8 @@ End Function
 Function Twice%(n%)
     Twice% = n% * 2
 End Function
-Function Implicit(a)
-    Implicit = a & "!"
+Function Implicit(v)
+    Implicit = v & "!"
 End Function
 Sub More()
     Print Greet$("bob"), Twice%(4), Greet("al"), Implicit("q")
