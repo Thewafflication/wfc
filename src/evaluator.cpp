@@ -1659,6 +1659,186 @@ struct DateParts {
     return character;
 }
 
+// String model: a VB String is a sequence of UTF-16 code units. WFC stores it as
+// UTF-8 (so I/O and source text need no conversion) and counts, slices and
+// searches by UTF-16 unit. Bytes that are not valid UTF-8 count as one unit each
+// (their Latin-1 value). ASCII-only text takes the plain byte paths.
+[[nodiscard]] inline bool is_ascii_text(const std::string_view text) noexcept {
+    for (const char character : text) {
+        if (static_cast<unsigned char>(character) >= 0x80U) return false;
+    }
+    return true;
+}
+
+[[nodiscard]] inline std::u16string to_utf16_units(const std::string_view text) {
+    std::u16string units;
+    units.reserve(text.size());
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        std::size_t length = lead < 0x80U ? 1U : (lead >= 0xF0U && lead < 0xF8U) ? 4U
+                             : (lead >= 0xE0U && lead < 0xF0U) ? 3U : (lead >= 0xC2U && lead < 0xE0U) ? 2U : 0U;
+        bool valid = length != 0 && i + length <= text.size();
+        std::uint32_t code = length == 1U ? lead : length == 2U ? (lead & 0x1FU)
+                             : length == 3U ? (lead & 0x0FU) : (lead & 0x07U);
+        for (std::size_t k = 1; valid && k < length; ++k) {
+            const auto next = static_cast<unsigned char>(text[i + k]);
+            valid = (next & 0xC0U) == 0x80U;
+            code = (code << 6) | (next & 0x3FU);
+        }
+        if (!valid) {
+            units.push_back(static_cast<char16_t>(lead));
+            ++i;
+            continue;
+        }
+        i += length;
+        if (code >= 0x10000U) {
+            code -= 0x10000U;
+            units.push_back(static_cast<char16_t>(0xD800U + (code >> 10U)));
+            units.push_back(static_cast<char16_t>(0xDC00U + (code & 0x3FFU)));
+        } else {
+            units.push_back(static_cast<char16_t>(code));
+        }
+    }
+    return units;
+}
+
+inline void append_utf8_unit(std::string& out, const std::uint32_t code) {
+    if (code < 0x80U) {
+        out.push_back(static_cast<char>(code));
+    } else if (code < 0x800U) {
+        out.push_back(static_cast<char>(0xC0U | (code >> 6U)));
+        out.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+    } else if (code < 0x10000U) {
+        out.push_back(static_cast<char>(0xE0U | (code >> 12U)));
+        out.push_back(static_cast<char>(0x80U | ((code >> 6U) & 0x3FU)));
+        out.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+    } else {
+        out.push_back(static_cast<char>(0xF0U | (code >> 18U)));
+        out.push_back(static_cast<char>(0x80U | ((code >> 12U) & 0x3FU)));
+        out.push_back(static_cast<char>(0x80U | ((code >> 6U) & 0x3FU)));
+        out.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+    }
+}
+
+[[nodiscard]] inline std::string from_utf16_units(const std::u16string_view units) {
+    std::string out;
+    out.reserve(units.size());
+    for (std::size_t i = 0; i < units.size(); ++i) {
+        std::uint32_t code = units[i];
+        if (code >= 0xD800U && code < 0xDC00U && i + 1U < units.size() &&
+            units[i + 1U] >= 0xDC00U && units[i + 1U] < 0xE000U) {
+            code = 0x10000U + ((code - 0xD800U) << 10U) + (units[i + 1U] - 0xDC00U);
+            ++i;
+        }
+        append_utf8_unit(out, code);
+    }
+    return out;
+}
+
+// Number of UTF-16 units in `text`.
+[[nodiscard]] inline std::size_t utf16_length(const std::string& text) {
+    return is_ascii_text(text) ? text.size() : to_utf16_units(text).size();
+}
+
+// Pads with spaces or truncates `text` to exactly `units` UTF-16 units (a fixed-length String).
+inline void fit_to_units(std::string& text, const std::size_t units) {
+    if (is_ascii_text(text)) {
+        text.resize(units, ' ');
+        return;
+    }
+    auto wide = to_utf16_units(text);
+    wide.resize(units, u' ');
+    text = from_utf16_units(wide);
+}
+
+// The Unicode character a Windows-1252 byte stands for (what Chr() yields).
+[[nodiscard]] inline std::uint32_t ansi_to_unicode(const unsigned code) noexcept {
+    static constexpr std::uint16_t table[32] = {
+        0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160,
+        0x2039, 0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022,
+        0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178};
+    return code >= 0x80U && code <= 0x9FU ? table[code - 0x80U] : code;
+}
+
+// File text is ANSI (Windows-1252) on disk; Strings are Unicode in memory.
+[[nodiscard]] inline std::string ansi_bytes_to_text(const std::string& bytes) {
+    if (is_ascii_text(bytes)) return bytes;
+    std::string text;
+    text.reserve(bytes.size() + 8U);
+    for (const char byte : bytes) {
+        append_utf8_unit(text, ansi_to_unicode(static_cast<unsigned char>(byte)));
+    }
+    return text;
+}
+
+// The Windows-1252 byte for a character, or '?' when it has none.
+[[nodiscard]] inline unsigned unicode_to_ansi(const std::uint32_t code) noexcept {
+    if (code < 0x80U || (code >= 0xA0U && code <= 0xFFU)) return code;
+    for (unsigned byte = 0x80U; byte <= 0x9FU; ++byte) {
+        if (ansi_to_unicode(byte) == code) return byte;
+    }
+    return static_cast<unsigned>('?');
+}
+
+[[nodiscard]] inline std::string text_to_ansi_bytes(const std::string& text) {
+    if (is_ascii_text(text)) return text;
+    std::string bytes;
+    for (const char16_t unit : to_utf16_units(text)) {
+        bytes.push_back(static_cast<char>(unicode_to_ansi(unit)));
+    }
+    return bytes;
+}
+
+// Latin Extended-A letters pair upper/lower as even/odd, except two runs where
+// the odd one is the capital.
+[[nodiscard]] inline bool latin_ext_a_letter(const char16_t c) noexcept {
+    return c >= 0x100U && c <= 0x17FU && c != 0x130U && c != 0x131U && c != 0x138U &&
+           c != 0x149U && c != 0x178U && c != 0x17FU;
+}
+
+[[nodiscard]] inline bool latin_ext_a_odd_upper(const char16_t c) noexcept {
+    return (c >= 0x139U && c <= 0x148U) || (c >= 0x179U && c <= 0x17EU);
+}
+
+[[nodiscard]] inline char16_t unit_to_lower(const char16_t c) noexcept {
+    if (c >= u'A' && c <= u'Z') return static_cast<char16_t>(c + 32);
+    if (c >= 0xC0U && c <= 0xDEU && c != 0xD7U) return static_cast<char16_t>(c + 32);
+    if (c == 0x178U) return 0xFFU;
+    if (c >= 0x391U && c <= 0x3A9U && c != 0x3A2U) return static_cast<char16_t>(c + 32);
+    if (c >= 0x410U && c <= 0x42FU) return static_cast<char16_t>(c + 32);
+    if (c >= 0x400U && c <= 0x40FU) return static_cast<char16_t>(c + 80);
+    if (latin_ext_a_letter(c) && (c % 2U == (latin_ext_a_odd_upper(c) ? 1U : 0U))) {
+        return static_cast<char16_t>(c + 1);
+    }
+    return c;
+}
+
+[[nodiscard]] inline char16_t unit_to_upper(const char16_t c) noexcept {
+    if (c >= u'a' && c <= u'z') return static_cast<char16_t>(c - 32);
+    if (c >= 0xE0U && c <= 0xFEU && c != 0xF7U) return static_cast<char16_t>(c - 32);
+    if (c == 0xFFU) return 0x178U;
+    if (c >= 0x3B1U && c <= 0x3C9U && c != 0x3C2U) return static_cast<char16_t>(c - 32);
+    if (c >= 0x430U && c <= 0x44FU) return static_cast<char16_t>(c - 32);
+    if (c >= 0x450U && c <= 0x45FU) return static_cast<char16_t>(c - 80);
+    if (latin_ext_a_letter(c) && (c % 2U == (latin_ext_a_odd_upper(c) ? 0U : 1U))) {
+        return static_cast<char16_t>(c - 1);
+    }
+    return c;
+}
+
+// Case-fold `text` for a text comparison (ASCII bytes, or full units when non-ASCII).
+[[nodiscard]] inline std::string fold_case(const std::string& text) {
+    if (is_ascii_text(text)) {
+        std::string folded = text;
+        for (char& character : folded) character = ascii_lower(character);
+        return folded;
+    }
+    auto units = to_utf16_units(text);
+    for (auto& unit : units) unit = unit_to_lower(unit);
+    return from_utf16_units(units);
+}
+
 [[nodiscard]] bool is_identifier_start(const char character) noexcept {
     return (character >= 'A' && character <= 'Z') ||
            (character >= 'a' && character <= 'z');
@@ -5526,10 +5706,18 @@ private:
                 set_error("WFC0016", "LSet/RSet require String operands", variable_offset);
                 return false;
             }
-            const std::size_t width = target->size();
-            std::string aligned = text->substr(0, width);
-            if (aligned.size() < width) {
-                const std::string padding(width - aligned.size(), ' ');
+            const std::size_t width = utf16_length(*target);
+            std::string aligned = *text;
+            if (!is_ascii_text(aligned)) {
+                auto wide = to_utf16_units(aligned);
+                wide.resize(std::min(wide.size(), width));
+                aligned = from_utf16_units(wide);
+            } else {
+                aligned.resize(std::min(aligned.size(), width));
+            }
+            const std::size_t used = utf16_length(aligned);
+            if (used < width) {
+                const std::string padding(width - used, ' ');
                 aligned = right ? padding + aligned : aligned + padding;
             }
             *target = std::move(aligned);
@@ -6364,7 +6552,8 @@ private:
         if (file->mode == 1) {
             return raise_runtime(54, "Bad file mode", offset);
         }
-        if (!text.empty() && std::fwrite(text.data(), 1, text.size(), file->handle) != text.size()) {
+        const std::string bytes = text_to_ansi_bytes(text);
+        if (!bytes.empty() && std::fwrite(bytes.data(), 1, bytes.size(), file->handle) != bytes.size()) {
             return raise_runtime(57, "Device I/O error", offset);
         }
         return true;
@@ -6651,6 +6840,20 @@ private:
             return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
         }
         const auto begin = static_cast<std::size_t>(position - 1);
+        if (!is_ascii_text(*target) || !is_ascii_text(*text)) {
+            auto target_units = to_utf16_units(*target);
+            const auto text_units = to_utf16_units(*text);
+            if (begin >= target_units.size()) {
+                return true;
+            }
+            std::size_t unit_count = std::min(text_units.size(), target_units.size() - begin);
+            if (length >= 0) {
+                unit_count = std::min(unit_count, static_cast<std::size_t>(length));
+            }
+            target_units.replace(begin, unit_count, text_units, 0, unit_count);
+            *target = from_utf16_units(target_units);
+            return true;
+        }
         if (begin >= target->size()) {
             return true;
         }
@@ -6844,20 +7047,28 @@ private:
             } else if (auto* v8 = std::get_if<bool>(&target)) {
                 std::int16_t x = *v8 ? -1 : 0; ok = transfer(&x, 2); if (is_get) *v8 = x != 0;
             } else if (auto* v9 = std::get_if<std::string>(&target)) {
+                // On disk a string is ANSI bytes; in memory it is Unicode.
+                std::string bytes;
                 if (fixed != 0U) {
-                    if (!is_get) v9->resize(fixed, ' ');
-                    else v9->assign(fixed, '\0');
-                    ok = transfer(v9->data(), fixed);
-                } else {
-                    if (file->mode == 5 || nested) {
-                        std::uint16_t length = static_cast<std::uint16_t>(v9->size());
-                        ok = transfer(&length, 2);
-                        if (is_get && ok) v9->assign(length, '\0');
+                    if (!is_get) {
+                        fit_to_units(*v9, fixed);
+                        bytes = text_to_ansi_bytes(*v9);
+                    } else {
+                        bytes.assign(fixed, '\0');
                     }
-                    if (ok && !v9->empty()) {
-                        ok = transfer(v9->data(), v9->size());
+                    ok = transfer(bytes.data(), fixed);
+                } else {
+                    bytes = is_get ? std::string(utf16_length(*v9), '\0') : text_to_ansi_bytes(*v9);
+                    if (file->mode == 5 || nested) {
+                        std::uint16_t length = static_cast<std::uint16_t>(bytes.size());
+                        ok = transfer(&length, 2);
+                        if (is_get && ok) bytes.assign(length, '\0');
+                    }
+                    if (ok && !bytes.empty()) {
+                        ok = transfer(bytes.data(), bytes.size());
                     }
                 }
+                if (is_get && ok) *v9 = ansi_bytes_to_text(bytes);
             } else if (auto* array = std::get_if<ArrayValue>(&target)) {
                 for (auto& element : array->elements) {
                     if (!transfer_value(element, 0, true)) return false;
@@ -7111,6 +7322,7 @@ private:
             if (!read_file_line(file->handle, line)) {
                 return raise_runtime(62, "Input past end of file", statement_offset);
             }
+            line = ansi_bytes_to_text(line);
             if (!std::holds_alternative<std::string>(*variable.value) &&
                 !variable.scope->variant_variables.contains(*name)) {
                 set_error("WFC0016", "Line Input requires a String or Variant variable", variable_offset);
@@ -7161,6 +7373,7 @@ private:
                     if (!read_input_field(file->handle, token, quoted)) {
                         return raise_runtime(62, "Input past end of file", statement_offset);
                     }
+                    token = ansi_bytes_to_text(token);
                     if (!store_input_token(
                             *variable.value, variable.scope->variant_variables.contains(*name),
                             token, quoted, variable_offset)) {
@@ -7484,7 +7697,7 @@ private:
                 }
                 text.push_back(static_cast<char>(c));
             }
-            return Value{std::move(text)};
+            return Value{ansi_bytes_to_text(text)};
         }
         set_error("WFC0071", "unsupported function", offset);
         return std::nullopt;
@@ -10751,9 +10964,9 @@ private:
             if (execute_) {
                 const auto& text = std::get<std::string>(*value);
                 target_array->elements.clear();
-                for (const char character : text) {
-                    target_array->elements.emplace_back(static_cast<Byte>(character));
-                    target_array->elements.emplace_back(static_cast<Byte>(0));
+                for (const char16_t unit : to_utf16_units(text)) {
+                    target_array->elements.emplace_back(static_cast<Byte>(unit & 0xFFU));
+                    target_array->elements.emplace_back(static_cast<Byte>(unit >> 8U));
                 }
                 target_array->lower_bound = 0;
                 target_array->dimensions.clear();
@@ -10766,12 +10979,16 @@ private:
                 source_array != nullptr &&
                 source_array->element_type_index == Value{Byte{}}.index()) {
                 if (execute_) {
-                    std::string text;
+                    std::u16string units;
+                    const auto byte_at = [&](const std::size_t i) -> unsigned {
+                        const auto* byte = std::get_if<Byte>(&source_array->elements[i]);
+                        return byte != nullptr ? *byte : static_cast<unsigned>('?');
+                    };
                     for (std::size_t i = 0; i < source_array->elements.size(); i += 2U) {
-                        const auto* low = std::get_if<Byte>(&source_array->elements[i]);
-                        text.push_back(low != nullptr ? static_cast<char>(*low) : '?');
+                        const unsigned high = i + 1U < source_array->elements.size() ? byte_at(i + 1U) : 0U;
+                        units.push_back(static_cast<char16_t>(byte_at(i) | (high << 8U)));
                     }
-                    *variable.value = std::move(text);
+                    *variable.value = from_utf16_units(units);
                 }
                 return true;
             }
@@ -10787,7 +11004,7 @@ private:
             if (const auto fixed = variable.scope->fixed_string_lengths.find(identifier);
                 fixed != variable.scope->fixed_string_lengths.end()) {
                 if (auto* text = std::get_if<std::string>(&*value)) {
-                    text->resize(fixed->second, ' ');
+                    fit_to_units(*text, fixed->second);
                 }
             }
             if (std::holds_alternative<ArrayValue>(*value)) {
@@ -11493,7 +11710,7 @@ private:
             if (const auto fixed = instance.fields.fixed_string_lengths.find(*member_name);
                 fixed != instance.fields.fixed_string_lengths.end()) {
                 if (auto* text = std::get_if<std::string>(&*value)) {
-                    text->resize(fixed->second, ' ');
+                    fit_to_units(*text, fixed->second);
                 }
             }
             field_iterator->second = std::move(*value);
@@ -11961,7 +12178,7 @@ private:
         }
         if (array.element_fixed_length != 0U) {
             if (auto* text = std::get_if<std::string>(&*value)) {
-                text->resize(array.element_fixed_length, ' ');
+                fit_to_units(*text, array.element_fixed_length);
             }
         }
         array.elements[*flat_offset] = copy_if_udt(std::move(*value));
@@ -12118,16 +12335,25 @@ private:
     }
 
     // VB `Like`: ? any char, * any run, # digit, [list]/[!list] with ranges.
-    [[nodiscard]] static bool like_match(
-        const std::string& text, const std::string& pattern, const bool fold) {
-        const auto same = [&](const char a, const char b) {
-            return fold ? ascii_lower(a) == ascii_lower(b) : a == b;
+    template <class Text>
+    [[nodiscard]] static bool like_match_units(
+        const Text& text, const Text& pattern, const bool fold) {
+        using Unit = typename Text::value_type;
+        const auto lower = [](const Unit c) -> Unit {
+            if constexpr (sizeof(Unit) == 1U) {
+                return static_cast<Unit>(ascii_lower(static_cast<char>(c)));
+            } else {
+                return static_cast<Unit>(unit_to_lower(c));
+            }
+        };
+        const auto same = [&](const Unit a, const Unit b) {
+            return fold ? lower(a) == lower(b) : a == b;
         };
         std::function<bool(std::size_t, std::size_t)> match = [&](std::size_t t, std::size_t p) {
             while (p < pattern.size()) {
-                const char c = pattern[p];
-                if (c == '*') {
-                    while (p < pattern.size() && pattern[p] == '*') ++p;
+                const Unit c = pattern[p];
+                if (c == Unit{'*'}) {
+                    while (p < pattern.size() && pattern[p] == Unit{'*'}) ++p;
                     if (p == pattern.size()) return true;
                     for (std::size_t k = t; k <= text.size(); ++k) {
                         if (match(k, p)) return true;
@@ -12135,23 +12361,23 @@ private:
                     return false;
                 }
                 if (t >= text.size()) return false;
-                if (c == '?') {
+                if (c == Unit{'?'}) {
                     ++t; ++p;
-                } else if (c == '#') {
-                    if (std::isdigit(static_cast<unsigned char>(text[t])) == 0) return false;
+                } else if (c == Unit{'#'}) {
+                    if (!(text[t] >= Unit{'0'} && text[t] <= Unit{'9'})) return false;
                     ++t; ++p;
-                } else if (c == '[') {
-                    const auto close = pattern.find(']', p + 2);
-                    if (close == std::string::npos) return false;
+                } else if (c == Unit{'['}) {
+                    const auto close = pattern.find(Unit{']'}, p + 2);
+                    if (close == Text::npos) return false;
                     std::size_t q = p + 1;
                     bool negate = false;
-                    if (q < close && pattern[q] == '!') { negate = true; ++q; }
+                    if (q < close && pattern[q] == Unit{'!'}) { negate = true; ++q; }
                     bool hit = false;
                     while (q < close) {
-                        if (q + 2 < close && pattern[q + 1] == '-') {
-                            const char lo = fold ? ascii_lower(pattern[q]) : pattern[q];
-                            const char hi = fold ? ascii_lower(pattern[q + 2]) : pattern[q + 2];
-                            const char ch = fold ? ascii_lower(text[t]) : text[t];
+                        if (q + 2 < close && pattern[q + 1] == Unit{'-'}) {
+                            const Unit lo = fold ? lower(pattern[q]) : pattern[q];
+                            const Unit hi = fold ? lower(pattern[q + 2]) : pattern[q + 2];
+                            const Unit ch = fold ? lower(text[t]) : text[t];
                             if (ch >= lo && ch <= hi) hit = true;
                             q += 3;
                         } else {
@@ -12170,6 +12396,14 @@ private:
             return t == text.size();
         };
         return match(0, 0);
+    }
+
+    [[nodiscard]] static bool like_match(
+        const std::string& text, const std::string& pattern, const bool fold) {
+        if (is_ascii_text(text) && is_ascii_text(pattern)) {
+            return like_match_units(text, pattern, fold);
+        }
+        return like_match_units(to_utf16_units(text), to_utf16_units(pattern), fold);
     }
 
     [[nodiscard]] std::optional<Value> parse_comparison() {
@@ -14788,7 +15022,7 @@ private:
                 char buffer[40];
                 if (const auto* text = std::get_if<std::string>(&key)) {
                     std::string result = "s";
-                    for (const char ch : *text) result.push_back(store.text_compare ? ascii_lower(ch) : ch);
+                    result += store.text_compare ? fold_case(*text) : *text;
                     return result;
                 }
                 if (is_number(key) || std::holds_alternative<bool>(key)) {
@@ -16086,8 +16320,8 @@ private:
                 }
                 std::string search_text = *text;
                 if (text_compare) {
-                    for (char& character : search_text) character = ascii_lower(character);
-                    for (char& character : delimiter) character = ascii_lower(character);
+                    search_text = fold_case(search_text);
+                    delimiter = fold_case(delimiter);
                 }
                 std::vector<std::string> parts;
                 if (delimiter.empty()) {
@@ -16164,7 +16398,7 @@ private:
             }
             const auto fold = [&](std::string text) {
                 if (text_compare) {
-                    for (auto& c : text) c = ascii_lower(c);
+                    text = fold_case(text);
                 }
                 return text;
             };
@@ -16198,16 +16432,11 @@ private:
                     identifier_offset);
                 return std::nullopt;
             }
-            if (*character_code > 255) {  // beyond one byte: UTF-8
-                std::string utf8;
+            if (*character_code >= 0x80 && !is_chr_b) {
+                // Chr maps through Windows-1252; ChrW is the code unit itself.
                 const auto code = static_cast<unsigned>(*character_code);
-                if (code < 0x800U) {
-                    utf8.push_back(static_cast<char>(0xC0U | (code >> 6)));
-                } else {
-                    utf8.push_back(static_cast<char>(0xE0U | (code >> 12)));
-                    utf8.push_back(static_cast<char>(0x80U | ((code >> 6) & 0x3FU)));
-                }
-                utf8.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+                std::string utf8;
+                append_utf8_unit(utf8, wide ? code : ansi_to_unicode(code));
                 return Value{std::move(utf8)};
             }
             return Value{std::string(1U, static_cast<char>(*character_code))};
@@ -17572,14 +17801,18 @@ private:
                 return std::nullopt;
             }
             char fill{};
+            std::string wide_fill;
             if (fill_is_code) {
                 const auto code = std::get<Integer>(arguments[1]);
-                if (code < 0 || code > 127) {
+                if (code < 0 || code > 255) {
                     set_error(
                         "WFC0079",
-                        "String fill code must be in the ASCII range",
+                        "String fill code must be in the character range",
                         identifier_offset);
                     return std::nullopt;
+                }
+                if (code > 127) {
+                    append_utf8_unit(wide_fill, ansi_to_unicode(static_cast<unsigned>(code)));
                 }
                 fill = static_cast<char>(code);
             } else {
@@ -17592,6 +17825,16 @@ private:
                     return std::nullopt;
                 }
                 fill = text.front();
+                if (static_cast<unsigned char>(fill) >= 0x80U) {
+                    const auto first_unit = to_utf16_units(text).front();
+                    append_utf8_unit(wide_fill, first_unit);
+                }
+            }
+            if (!wide_fill.empty()) {
+                std::string repeated;
+                repeated.reserve(wide_fill.size() * static_cast<std::size_t>(*count));
+                for (Integer i = 0; i < *count; ++i) repeated += wide_fill;
+                return Value{std::move(repeated)};
             }
             return Value{std::string(static_cast<std::size_t>(*count), fill)};
         }
@@ -17636,6 +17879,26 @@ private:
             if (start < 1) {
                 set_error("WFC0076", "InStr start must be positive", identifier_offset);
                 return std::nullopt;
+            }
+            if (!is_ascii_text(*haystack) || !is_ascii_text(*needle)) {
+                auto hay_units = to_utf16_units(*haystack);
+                auto needle_units = to_utf16_units(*needle);
+                if (text_compare) {
+                    for (auto& unit : hay_units) unit = unit_to_lower(unit);
+                    for (auto& unit : needle_units) unit = unit_to_lower(unit);
+                }
+                const auto unit_begin = static_cast<std::size_t>(start - 1);
+                if (unit_begin > hay_units.size()) {
+                    return Value{Integer{0}};
+                }
+                if (needle_units.empty()) {
+                    return Value{unit_begin < hay_units.size() ? static_cast<Integer>(start)
+                                                               : Integer{0}};
+                }
+                const auto unit_found = hay_units.find(needle_units, unit_begin);
+                return Value{unit_found == std::u16string::npos
+                                 ? Integer{0}
+                                 : static_cast<Integer>(unit_found + 1U)};
             }
             const auto begin = static_cast<std::size_t>(start - 1);
             if (begin > haystack->size()) {
@@ -17703,6 +17966,32 @@ private:
                 text_compare = *compare_method == -1 ? option_compare_text_
                                                      : *compare_method >= 1;
             }
+            if (!is_ascii_text(*haystack) || !is_ascii_text(*needle)) {
+                auto hay_units = to_utf16_units(*haystack);
+                auto needle_units = to_utf16_units(*needle);
+                if (text_compare) {
+                    for (auto& unit : hay_units) unit = unit_to_lower(unit);
+                    for (auto& unit : needle_units) unit = unit_to_lower(unit);
+                }
+                if (hay_units.empty()) {
+                    return Value{Integer{0}};
+                }
+                const auto unit_start =
+                    start == -1 ? hay_units.size() : static_cast<std::size_t>(start);
+                if (unit_start > hay_units.size()) {
+                    return Value{Integer{0}};
+                }
+                if (needle_units.empty()) {
+                    return Value{static_cast<Integer>(unit_start)};
+                }
+                if (needle_units.size() > unit_start) {
+                    return Value{Integer{0}};
+                }
+                const auto unit_found = hay_units.rfind(needle_units, unit_start - needle_units.size());
+                return Value{unit_found == std::u16string::npos
+                                 ? Integer{0}
+                                 : static_cast<Integer>(unit_found + 1U)};
+            }
             if (haystack->empty()) {
                 return Value{Integer{0}};
             }
@@ -17763,14 +18052,8 @@ private:
             }
             int comparison{};
             if (text_compare) {
-                std::string lowered_left = *left;
-                std::string lowered_right = *right;
-                for (char& character : lowered_left) {
-                    character = ascii_lower(character);
-                }
-                for (char& character : lowered_right) {
-                    character = ascii_lower(character);
-                }
+                const std::string lowered_left = fold_case(*left);
+                const std::string lowered_right = fold_case(*right);
                 comparison = lowered_left.compare(lowered_right);
             } else {
                 comparison = left->compare(*right);
@@ -17835,16 +18118,8 @@ private:
             if (find->empty() || count == 0) {
                 return Value{source};
             }
-            std::string haystack = source;
-            std::string needle = *find;
-            if (text_compare) {
-                for (char& character : haystack) {
-                    character = ascii_lower(character);
-                }
-                for (char& character : needle) {
-                    character = ascii_lower(character);
-                }
-            }
+            std::string haystack = text_compare ? fold_case(source) : source;
+            std::string needle = text_compare ? fold_case(*find) : *find;
             std::string result;
             std::size_t position{};
             Integer replacements{};
@@ -17984,7 +18259,7 @@ private:
                 std::string text;
                 for (const auto& element : bytes.elements) {
                     if (const auto* byte = std::get_if<Byte>(&element)) {
-                        text.push_back(static_cast<char>(*byte));
+                        append_utf8_unit(text, ansi_to_unicode(*byte));
                     }
                 }
                 return Value{std::move(text)};
@@ -18025,7 +18300,9 @@ private:
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            return Value{static_cast<Integer>(string->size())};
+            // LenB reports stored bytes (REQ-0177); Len counts UTF-16 units.
+            return Value{static_cast<Integer>(
+                identifier == "lenb" ? string->size() : utf16_length(*string))};
         }
 
         if (is_asc) {
@@ -18037,20 +18314,18 @@ private:
                 return std::nullopt;
             }
             const auto lead = static_cast<unsigned char>(string->front());
-            if (identifier == "ascw" && lead >= 0xC0U) {  // decode a UTF-8 sequence
-                const std::size_t length = lead >= 0xE0U ? 3U : 2U;
-                if (string->size() >= length) {
-                    unsigned code = lead & (length == 3U ? 0x0FU : 0x1FU);
-                    bool valid = true;
-                    for (std::size_t i = 1; i < length; ++i) {
-                        const auto next = static_cast<unsigned char>((*string)[i]);
-                        valid = valid && (next & 0xC0U) == 0x80U;
-                        code = (code << 6) | (next & 0x3FU);
-                    }
-                    if (valid) return Value{static_cast<Integer>(code)};
-                }
+            if (lead < 0x80U) {
+                return Value{static_cast<Integer>(lead)};
             }
-            return Value{static_cast<Integer>(lead)};
+            const auto units = to_utf16_units(*string);
+            const unsigned first_unit = units.front();
+            if (identifier == "ascw") {
+                // AscW is a signed 16-bit value: units above 32767 are negative.
+                return Value{static_cast<Integer>(
+                    first_unit > 0x7FFFU ? static_cast<int>(first_unit) - 0x10000
+                                         : static_cast<int>(first_unit))};
+            }
+            return Value{static_cast<Integer>(unicode_to_ansi(first_unit))};
         }
 
         if (is_strconv) {
@@ -18065,43 +18340,33 @@ private:
             if (!execute_) {
                 return Value{std::string{}};
             }
-            if (*conversion == 1) {  // vbUpperCase
-                std::string result = *string;
-                for (char& character : result) {
-                    character = ascii_upper(character);
-                }
-                return Value{std::move(result)};
-            }
-            if (*conversion == 2) {  // vbLowerCase
-                std::string result = *string;
-                for (char& character : result) {
-                    character = ascii_lower(character);
-                }
-                return Value{std::move(result)};
-            }
-            if (*conversion == 3) {  // vbProperCase
-                std::string result = *string;
+            if (*conversion == 1 || *conversion == 2 || *conversion == 3) {
+                // vbUpperCase, vbLowerCase, vbProperCase (per UTF-16 unit).
+                auto units = to_utf16_units(*string);
+                const auto is_letter = [](const char16_t c) {
+                    return unit_to_lower(c) != c || unit_to_upper(c) != c;
+                };
                 bool word_start = true;
-                for (char& character : result) {
-                    const bool is_letter =
-                        (character >= 'A' && character <= 'Z') ||
-                        (character >= 'a' && character <= 'z');
-                    if (is_letter) {
-                        character = word_start ? ascii_upper(character)
-                                               : ascii_lower(character);
+                for (auto& unit : units) {
+                    if (*conversion == 1) {
+                        unit = unit_to_upper(unit);
+                    } else if (*conversion == 2) {
+                        unit = unit_to_lower(unit);
+                    } else if (is_letter(unit)) {
+                        unit = word_start ? unit_to_upper(unit) : unit_to_lower(unit);
                         word_start = false;
                     } else {
                         word_start = true;
                     }
                 }
-                return Value{std::move(result)};
+                return Value{from_utf16_units(units)};
             }
-            if (*conversion == 128) {  // vbFromUnicode: the string's (ANSI) bytes
+            if (*conversion == 128) {  // vbFromUnicode: the string's ANSI bytes
                 ArrayValue bytes{};
                 bytes.is_dynamic = true;
                 bytes.element_type_index = Value{Byte{}}.index();
-                for (const char character : *string) {
-                    bytes.elements.emplace_back(static_cast<Byte>(character));
+                for (const char16_t unit : to_utf16_units(*string)) {
+                    bytes.elements.emplace_back(static_cast<Byte>(unicode_to_ansi(unit)));
                 }
                 return Value{std::move(bytes)};
             }
@@ -18265,6 +18530,13 @@ private:
                 return std::nullopt;
             }
             const auto requested = static_cast<std::size_t>(*length);
+            if (!is_ascii_text(*string)) {
+                const auto units = to_utf16_units(*string);
+                const auto unit_count = std::min(requested, units.size());
+                return Value{from_utf16_units(
+                    is_left ? std::u16string_view(units).substr(0U, unit_count)
+                            : std::u16string_view(units).substr(units.size() - unit_count))};
+            }
             const auto count = std::min(requested, string->size());
             return Value{
                 is_left ? string->substr(0U, count) : string->substr(string->size() - count)};
@@ -18294,6 +18566,17 @@ private:
             }
 
             const auto first = static_cast<std::size_t>(*start - 1);
+            if (!is_ascii_text(*string)) {
+                const auto units = to_utf16_units(*string);
+                if (first >= units.size()) {
+                    return Value{std::string{}};
+                }
+                const auto unit_available = units.size() - first;
+                const auto unit_count =
+                    length == nullptr ? unit_available
+                                      : std::min(static_cast<std::size_t>(*length), unit_available);
+                return Value{from_utf16_units(std::u16string_view(units).substr(first, unit_count))};
+            }
             if (first >= string->size()) {
                 return Value{std::string{}};
             }
@@ -18325,11 +18608,21 @@ private:
         }
 
         if (is_reverse) {
+            if (!is_ascii_text(*string)) {
+                auto units = to_utf16_units(*string);
+                std::reverse(units.begin(), units.end());
+                return Value{from_utf16_units(units)};
+            }
             std::string result = *string;
             std::reverse(result.begin(), result.end());
             return Value{std::move(result)};
         }
 
+        if (!is_ascii_text(*string)) {
+            auto units = to_utf16_units(*string);
+            for (auto& unit : units) unit = is_lower ? unit_to_lower(unit) : unit_to_upper(unit);
+            return Value{from_utf16_units(units)};
+        }
         std::string result = *string;
         for (char& character : result) {
             character = is_lower ? ascii_lower(character) : ascii_upper(character);
@@ -19399,8 +19692,18 @@ private:
     }
 
     [[nodiscard]] int compare_strings(
-        const std::string_view left,
-        const std::string_view right) const noexcept {
+        const std::string_view left_in,
+        const std::string_view right_in) const {
+        std::string folded_left;
+        std::string folded_right;
+        std::string_view left = left_in;
+        std::string_view right = right_in;
+        if (option_compare_text_ && (!is_ascii_text(left) || !is_ascii_text(right))) {
+            folded_left = fold_case(std::string(left));
+            folded_right = fold_case(std::string(right));
+            left = folded_left;
+            right = folded_right;
+        }
         const auto common_size = std::min(left.size(), right.size());
         for (std::size_t index = 0; index < common_size; ++index) {
             const auto left_character = static_cast<unsigned char>(

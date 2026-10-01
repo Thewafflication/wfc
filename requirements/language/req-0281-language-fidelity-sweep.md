@@ -39,6 +39,15 @@ Behaviors added by corpus-driven hardening of MP-0002, each with a corpus progra
   (`Attribute Name.VB_UserMemId = 0`) stands for that member where a value is expected:
   `s = obj`, `"x" & obj`, `Print obj`, arithmetic, logical and comparison operators
   (`tests/corpus/100-default-member-value`).
+- **UTF-16 strings.** A String is a sequence of UTF-16 code units, stored as UTF-8.
+  `Len`, `Left`, `Right`, `Mid`, `Mid` statement, `InStr`, `InStrRev`, `StrReverse`,
+  `UCase`/`LCase`/`StrConv` (Latin-1, Latin Extended-A, Greek, Cyrillic case mapping),
+  `Like`, text comparison, `Replace`/`Split`, fixed-length strings, `LSet`/`RSet`, `String`,
+  `Asc`/`AscW`/`Chr`/`ChrW` and `Byte()` conversion all work per unit. `Chr`/`Asc` map through
+  Windows-1252. Source files that are not valid UTF-8 are read as Windows-1252, and text-file
+  I/O (`Print #`, `Input #`, `Line Input #`, `Input$`, string `Get`/`Put`) is ANSI on disk.
+  The `*B` functions keep reporting stored bytes (REQ-0177). `tests/corpus/101-utf16-strings`,
+  `102-ansi-file-text`.
 - **Performance.** `Collection` and `Scripting.Dictionary` use a native ordered store with
   a hash index (keyed Add/Item/Exists are O(1)); `s = s & expr` appends in place when the
   operands are side-effect free.

@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "wfc/project.hpp"
 
 #include <algorithm>
@@ -26,12 +27,58 @@ namespace {
     return std::string(text.substr(first, last - first));
 }
 
+[[nodiscard]] bool is_valid_utf8(const std::string_view text) {
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        std::size_t length = lead < 0x80U ? 1U : (lead >= 0xC2U && lead < 0xE0U) ? 2U
+                             : (lead >= 0xE0U && lead < 0xF0U) ? 3U
+                             : (lead >= 0xF0U && lead < 0xF5U) ? 4U : 0U;
+        if (length == 0U || i + length > text.size()) return false;
+        for (std::size_t k = 1; k < length; ++k) {
+            if ((static_cast<unsigned char>(text[i + k]) & 0xC0U) != 0x80U) return false;
+        }
+        i += length;
+    }
+    return true;
+}
+
+// Windows-1252 bytes to UTF-8 (the 0x80-0x9F block maps to its typographic characters).
+[[nodiscard]] std::string ansi_to_utf8(const std::string_view text) {
+    static constexpr std::uint16_t table[32] = {
+        0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160,
+        0x2039, 0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022,
+        0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178};
+    std::string result;
+    result.reserve(text.size());
+    for (const char character : text) {
+        const auto byte = static_cast<unsigned char>(character);
+        if (byte < 0x80U) {
+            result.push_back(character);
+            continue;
+        }
+        const unsigned code = byte <= 0x9FU ? table[byte - 0x80U] : byte;
+        if (code < 0x800U) {
+            result.push_back(static_cast<char>(0xC0U | (code >> 6U)));
+            result.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+        } else {
+            result.push_back(static_cast<char>(0xE0U | (code >> 12U)));
+            result.push_back(static_cast<char>(0x80U | ((code >> 6U) & 0x3FU)));
+            result.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+        }
+    }
+    return result;
+}
+
 [[nodiscard]] bool read_file(const std::filesystem::path& path, std::string& out) {
     std::ifstream stream(path, std::ios::binary);
     if (!stream) {
         return false;
     }
     out.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+    if (!is_valid_utf8(out)) {
+        out = ansi_to_utf8(out);  // classic VB6 source files are Windows-1252
+    }
     return true;
 }
 

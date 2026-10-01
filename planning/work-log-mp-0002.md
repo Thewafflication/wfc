@@ -2177,7 +2177,7 @@ for project runs (REQ-0281, REQ-0282).
 Variants and dynamic-array descriptors; class inheritance; other
 `CreateObject`/`GetObject` ProgIDs and COM interop (MP-0003); visual items in `.vbp`
 files (MP-0004); real `SendKeys`; asynchronous `Shell`;
-UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings).
+`LenB`/`LeftB`/`MidB`/`AscB` still report WFC's stored UTF-8 bytes (REQ-0177), not VB6's UTF-16 byte layout.
 The deterministic VB6 reference-probe corpus beyond the existing spot probes has
 not been extended in this series.
 
