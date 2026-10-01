@@ -4907,7 +4907,7 @@ private:
         if (code == "WFC0111") return 9;
         if (code == "WFC0106") return 91;
         if (code == "WFC0104") return 94;
-        if (code == "WFC0089" || code == "WFC0101" || code == "WFC0075" ||
+        if (code == "WFC0089" || code == "WFC0101" || code == "WFC0075" || code == "WFC0078" ||
             code == "WFC0076" || code == "WFC0077" || code == "WFC0079" ||
             code == "WFC0080" || code == "WFC0082" || code == "WFC0083" ||
             code == "WFC0091" || code == "WFC0092" || code == "WFC0094" ||
@@ -14629,6 +14629,25 @@ private:
         }
 
         {
+            // Numeric strings are accepted where a math routine wants a number.
+            static const std::set<std::string, std::less<>> math_functions = {
+                "abs", "sgn", "int", "fix", "sqr", "sin", "cos", "tan", "atn", "exp", "log",
+                "round"};
+            if (!arguments.empty() && math_functions.contains(std::string(identifier))) {
+                if (const auto* text = std::get_if<std::string>(&arguments[0])) {
+                    const auto parsed = parse_numeric_string(*text);
+                    if (parsed.status == NumericStringStatus::valid) {
+                        arguments[0] = Value{parsed.value};
+                    }
+                }
+            }
+            if (identifier == "strcomp" && execute_ && arguments.size() >= 2U &&
+                (std::holds_alternative<Null>(arguments[0]) ||
+                 std::holds_alternative<Null>(arguments[1]))) {
+                return Value{Null{}};
+            }
+        }
+        {
             // `Integer` (Int16) and `Byte` arguments reach library routines as
             // Long, except for functions whose result depends on the subtype.
             static const std::set<std::string, std::less<>> keep_subtype = {
@@ -16609,6 +16628,24 @@ private:
             return Value{std::move(digits)};
         }
 
+        if (execute_ && !arguments.empty() && std::holds_alternative<Null>(arguments[0])) {
+            // The Variant-returning string functions propagate Null; their `$`
+            // forms reject it (error 94).
+            static const std::set<std::string, std::less<>> null_propagating = {
+                "trim", "ltrim", "rtrim", "ucase", "lcase", "left", "right", "mid", "strreverse",
+                "space", "string", "chr", "chrw"};
+            static const std::set<std::string, std::less<>> null_rejecting = {
+                "trim$", "ltrim$", "rtrim$", "ucase$", "lcase$", "left$", "right$", "mid$",
+                "space$", "string$", "chr$", "chrw$"};
+            const std::string key(identifier);
+            if (null_propagating.contains(key)) {
+                return Value{Null{}};
+            }
+            if (null_rejecting.contains(key)) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+        }
         if (is_len && execute_ && std::holds_alternative<Empty>(arguments[0])) {
             return Value{Integer{0}};
         }

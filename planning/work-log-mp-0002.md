@@ -290,6 +290,7 @@ a specific requirement.
 | 2026-09-30 #205 | Construction | Increment: CreateObject("Scripting.FileSystemObject") built-in; corpus 59. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #206 | Construction | Increment: Collection Before/After insertion, omitted arguments in parenthesis-free calls; corpus 60. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #207 | Construction | Increment: hidden-module InputB/ObjPtr/StrPtr. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #208 | Construction | Increment: Null in string functions, StrComp Null, numeric strings in Abs/Sgn/..., Chr range error mapped; corpus 61. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

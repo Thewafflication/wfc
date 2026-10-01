@@ -2463,7 +2463,7 @@ int main() {
     expect_program_failure("Print Hex(2147483648#)", "WFC0009");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_failure("Print Val(42)", "WFC0073");
-    expect_program_failure("Print Abs(\"42\")", "WFC0073");
+    expect_program_success("Print Abs(\"42\")", "42");
     expect_program_failure("Print Sgn(False)", "WFC0073");
     expect_program_failure("Print Abs()", "WFC0072");
     expect_program_failure("Print Abs(1, 2)", "WFC0072");

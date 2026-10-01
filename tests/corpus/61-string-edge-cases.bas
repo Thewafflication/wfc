@@ -1,0 +1,55 @@
+Sub T(label As String, v As Variant)
+    If IsNull(v) Then
+        Print label & "=Null"
+    ElseIf IsArray(v) Then
+        Print label & "=array(" & LBound(v) & "," & UBound(v) & ")" & Join(v, "|")
+    Else
+        Print label & "=" & v
+    End If
+End Sub
+Sub Main()
+    On Error Resume Next
+    T "instr1", InStr(5, "abc", "b")
+    T "instr2", InStr(2, "abc", "")
+    T "instr3", InStr("abc", "")
+    T "instr0", InStr(0, "abc", "b")
+    T "mid5", Mid$("abc", 5)
+    T "mid0", Mid$("abc", 0)
+    T "midneg", Mid$("abc", 2, -1)
+    T "left_big", Left$("abc", 10)
+    T "left_neg", Left$("abc", -1)
+    T "replace_empty", Replace("abc", "", "x")
+    T "replace_cnt0", Replace("aaa", "a", "b", , 0)
+    T "split_lim", Split("a,b,c", ",", 2)
+    T "split_lim1", Split("a,b,c", ",", 1)
+    T "split_empty_delim", Split("abc", "")
+    T "split_none", Split("abc", ",")
+    T "split_lead", Split(",a,", ",")
+    T "trim_null", Trim(Null)
+    T "ucase_null", UCase(Null)
+    T "len_null", Len(Null)
+    T "asc_empty", Asc("")
+    T "chr_neg", Chr(-1)
+    T "chr256", Chr(256)
+    T "chrw256", AscW(ChrW(256))
+    T "string0", String(0, "a")
+    T "space_neg", Space(-1)
+    T "strcomp_null", StrComp(Null, "a")
+    T "hex_frac", Hex(255.5)
+    T "hex_neg", Hex(-1)
+    T "oct_neg", Oct(-1)
+    T "val_e", Val("1e")
+    T "val_hex", Val("&H1F")
+    T "val_ws", Val("  12abc")
+    T "val_comma", Val("1,000")
+    T "val_dot", Val(".5")
+    T "val_neg", Val("-3.5x")
+    T "val_empty", Val("")
+    T "cint_str", CInt("12.5")
+    T "clng_big", CLng(3000000000#)
+    T "cbyte_neg", CByte(-1)
+    T "int_neg", Int(-2.5)
+    T "sgn_str", Sgn("5")
+    T "abs_str", Abs("-5")
+    T "mid_stmt", "ok"
+End Sub

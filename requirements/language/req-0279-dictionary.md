@@ -113,3 +113,8 @@ both given is error 5); omitted middle arguments work in parenthesis-free calls
 `60-collection-before-after`.
 
 Addendum: `InputB`/`InputB$`, `ObjPtr` and `StrPtr` (opaque non-zero values; `VarPtr` is not provided).
+
+Addendum: the Variant string functions (`Trim`, `UCase`, `Left`, `Mid`, ...) return Null
+for a Null argument and their `$` forms raise error 94; `StrComp` with a Null is Null; math
+routines (`Abs`, `Sgn`, `Int`, `Fix`, `Sqr`, trig, `Exp`, `Log`, `Round`) accept numeric strings;
+out-of-range `Chr` is error 5. Corpus `61-string-edge-cases`.
