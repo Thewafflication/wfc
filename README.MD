@@ -90,10 +90,14 @@ sequential/binary/random file I/O, `CVErr`), a built-in `Collection`, and
 class modules (fields, array fields, methods, properties, `Const`/`Enum`,
 `New`/`Me`, `Implements`, events (`Event`/`RaiseEvent`/`WithEvents`), default
 members, lazy `As New`, lifecycle hooks, `Public`/`Private`/`Friend`),
-`CreateObject("Scripting.Dictionary")`, named arguments, `DefType` statements,
-and deep recursion (error 28 beyond 5000 nested calls). `Debug.Print` text goes
-to standard error and a failing program still shows what it printed before the
-error. It does not claim general VB6 compatibility —
+the built-in `Scripting.Dictionary`, `FileSystemObject` and `VBScript.RegExp`
+classes (usable late- or early-bound), named arguments, `DefType` statements,
+numbered lines with `Erl`, single-line procedures, `Static` procedures, `NewEnum`
+enumerators, `VBA.`-qualified library calls, and deep recursion (error 28 beyond
+5000 nested calls). `Debug.Print` text goes to standard error and a failing
+program still shows what it printed before the error, with the failing
+`line`/`column` (or `file:line:col` for projects). `Print` does not add VB6's
+leading/trailing space around numbers (a documented deviation). It does not claim general VB6 compatibility —
 see the [language requirements index](requirements/language/README.md) for
 exactly what is specified and implemented, `REQ`-numbered and cross-referenced
 to its diagnostics and scope boundary, and
