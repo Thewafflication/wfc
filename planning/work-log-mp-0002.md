@@ -264,6 +264,7 @@ a specific requirement.
 | 2026-09-30 #179 | Construction | Increment: GetAllSettings, Shell function (synchronous), AppActivate/SendKeys no-op statements; corpus 40. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #180 | Construction | Increment: label: statement on one line, Width/Lock/Unlock; corpus 41. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #181 | Construction | Increment: module-level Property Get/Let/Set, Exit Property; corpus 42. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #182 | Construction | Increment: unsuffixed decimal integer literals beyond Long become Double; &-suffixed ones still raise. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2089,7 +2090,7 @@ descriptors; class inheritance; other `CreateObject`/`GetObject` ProgIDs and COM
 interop (MP-0003); visual items in `.vbp` files (MP-0004); `SendKeys`/`Shell`;
 UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings);
 unsuffixed integer literals are `Long` (`TypeName(5)` is "Long"; VB6 says
-"Integer"); integer literals above `Long` raise instead of becoming `Double`.
+"Integer").
 The deterministic VB6 reference-probe corpus beyond the existing spot probes has
 not been extended in this series.
 
@@ -2099,8 +2100,7 @@ features listed in `planning/compatibility-profile-1.0.md` under "Legacy
 Features Requiring Explicit Disposition" (DDE, intrinsic `Data`/DAO, OLE1,
 ActiveX Documents, PropertyPage hosting, WinHelp) remain "Proposed; not yet
 accepted" -- these are scope decisions for the maintainer, not something this
-series changed. Also open: whether `TypeName(5)` should become "Integer" and
-whether an over-`Long` integer literal should become `Double`.
+series changed. Also open: whether `TypeName(5)` should become "Integer".
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the corpus-driven hardening under MP-0002.

@@ -1808,8 +1808,8 @@ int main() {
     expect_failure("Print \"unterminated", "WFC0003");
     expect_failure("Print \"ok\" trailing", "WFC0004");
     expect_failure("Print (1 + 2", "WFC0005");
-    expect_failure("Print 2147483648", "WFC0006");
-    expect_failure("Print -2147483649", "WFC0006");
+    expect_success("Print 2147483648", "2147483648");  // beyond Long: a Double literal
+    expect_failure("Print -2147483649&", "WFC0006");
     expect_failure("Print 1.5&", "WFC0006");
     expect_failure("Print 1e3&", "WFC0006");
     expect_failure("Print 1 + \"two\"", "WFC0300");

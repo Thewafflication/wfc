@@ -16441,6 +16441,9 @@ private:
         const auto conversion =
             std::from_chars(source_.data() + start, source_.data() + end, value);
         if (conversion.ec == std::errc::result_out_of_range) {
+            if (suffix != '&') {
+                return parse_double(start, end);  // beyond Long: a Double literal
+            }
             set_error("WFC0006", "integer literal out of range", start);
             return std::nullopt;
         }
@@ -16512,6 +16515,11 @@ private:
             static_cast<std::uint64_t>(std::numeric_limits<Integer>::max()) + 1U;
         if (conversion.ec == std::errc::result_out_of_range ||
             magnitude > maximum_magnitude) {
+            if (suffix != '&') {
+                auto wide = parse_double(start, end);
+                if (!wide.has_value()) return std::nullopt;
+                return Value{-std::get<double>(*wide)};
+            }
             set_error("WFC0006", "integer literal out of range", start);
             return std::nullopt;
         }

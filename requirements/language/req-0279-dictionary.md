@@ -34,3 +34,7 @@ as no-ops. Corpus `41-labels-and-file-stubs`.
 Addendum: standard modules may declare `Property Get|Let|Set` procedures
 (`Count = 5` calls the Property Let; reading `Count` calls the Get; indexed
 accessors work); `Exit Property` is accepted. Corpus `42-module-properties`.
+
+Addendum: an unsuffixed decimal integer literal beyond the `Long` range is a
+`Double` literal (`Print 3000000000`, `TypeName(3000000000)` is "Double");
+`&`-suffixed literals still raise `WFC0006`. (Supersedes the REQ-0140 subset limit.)
