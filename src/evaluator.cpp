@@ -12683,8 +12683,30 @@ private:
             if (!consume(')')) {
                 while (true) {
                     if (!at_end() && current() == ',') {
-                        set_error("WFC0072", "function received an empty argument", offset_);
-                        return std::nullopt;
+                        // An omitted optional slot of Replace/InStr/InStrRev
+                        // takes that parameter's default.
+                        const auto slot = arguments.size();
+                        const Integer compare_default = option_compare_text_ ? 1 : 0;
+                        std::optional<Integer> default_value;
+                        if (identifier == "replace") {
+                            if (slot == 3U) default_value = 1;
+                            else if (slot == 4U) default_value = -1;
+                            else if (slot == 5U) default_value = compare_default;
+                        } else if (identifier == "instr") {
+                            if (slot == 0U) default_value = 1;
+                            else if (slot == 3U) default_value = compare_default;
+                        } else if (identifier == "instrrev") {
+                            if (slot == 2U) default_value = -1;
+                            else if (slot == 3U) default_value = compare_default;
+                        }
+                        if (!default_value.has_value()) {
+                            set_error("WFC0072", "function received an empty argument", offset_);
+                            return std::nullopt;
+                        }
+                        arguments.push_back(Value{*default_value});
+                        advance();
+                        skip_horizontal_whitespace();
+                        continue;
                     }
                     auto argument = parse_expression();
                     if (!argument.has_value()) {

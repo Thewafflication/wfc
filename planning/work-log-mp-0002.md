@@ -243,6 +243,7 @@ a specific requirement.
 | 2026-09-30 #158 | Construction | Allow `Dim`/`Static`/`Const` inside blocks (re-executed declarations are no-ops) and keep colon-separated statements inside a single-line `If` branch; add corpus 18-20; five obsolete negative tests now expect success; one CLI test relied on the old (wrong) colon semantics and was split across lines. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #159 | Construction | Increment: interface-typed array element dispatch (`shapes(i).Area`, bare `shapes(i).SetSize 2`); corpus 22 polymorphism. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #160 | Construction | Increment: class events (`Event`/`RaiseEvent`/`WithEvents`), weak subscriptions, ByRef event args; corpus 23. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #161 | Construction | Increment: omitted optional slots in Replace/InStr/InStrRev; corpus 24. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
