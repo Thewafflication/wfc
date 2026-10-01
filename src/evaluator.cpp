@@ -4510,7 +4510,8 @@ private:
             if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
                 is_identifier_start(source_[offset_ + 1]) && libraries.contains(identifier) &&
                 find_variable(identifier).value == nullptr &&
-                !(module_names_.contains(identifier))) {
+                !(module_names_.contains(identifier)) && !class_definitions_.contains(identifier) &&
+                std::find(enum_names_.begin(), enum_names_.end(), identifier) == enum_names_.end()) {
                 advance();
                 identifier.clear();
                 do {
