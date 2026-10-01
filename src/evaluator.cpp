@@ -5951,7 +5951,9 @@ private:
                     return raise_runtime(53, "File not found", statement_offset);
                 }
                 std::filesystem::permissions(
-                    *path, std::filesystem::perms::owner_write | std::filesystem::perms::group_write,
+                    *path,
+                    std::filesystem::perms::owner_write | std::filesystem::perms::group_write |
+                        std::filesystem::perms::others_write,
                     (*attributes & 1) != 0 ? std::filesystem::perm_options::remove
                                            : std::filesystem::perm_options::add,
                     ec);
