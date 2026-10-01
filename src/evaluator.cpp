@@ -5918,6 +5918,7 @@ private:
                     if (!consume(',')) break;
                     skip_horizontal_whitespace();
                 }
+                if (!execute_) return true;
                 return evaluate_misc_function("shell", values, statement_offset).has_value();
             }
         }
@@ -6181,6 +6182,7 @@ private:
                     auto value = parse_expression();
                     if (!value.has_value()) return false;
                     if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
+                        if (!execute_) return true;
                         set_error("WFC0073", "Rnd requires a numeric argument", statement_offset);
                         return false;
                     }
@@ -7628,6 +7630,7 @@ private:
             return false;
         }
         if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
+            if (!execute_) return true;
             set_error("WFC0073", "Randomize requires a numeric seed", statement_offset);
             return false;
         }
@@ -8827,9 +8830,8 @@ private:
             }
         }
         const auto* array = std::get_if<ArrayValue>(&*collection_value);
-        if (array == nullptr && !execute_ &&
-            std::holds_alternative<ObjectInstance>(*collection_value)) {
-            static const ArrayValue empty_array{};
+        if (array == nullptr && !execute_) {
+            static const ArrayValue empty_array{};  // a placeholder in a not-taken branch
             array = &empty_array;
         }
         if (array == nullptr) {
@@ -10533,6 +10535,32 @@ private:
         return AppendOutcome::done;
     }
 
+    // Whether the parenthesised group opening at `open_offset` is followed by a '.'.
+    [[nodiscard]] bool paren_followed_by_dot(const std::size_t open_offset) const noexcept {
+        std::size_t depth = 0;
+        bool in_string = false;
+        for (std::size_t i = open_offset; i < source_.size(); ++i) {
+            const char ch = source_[i];
+            if (ch == '\r' || ch == '\n') return false;
+            if (ch == '"') {
+                in_string = !in_string;
+            } else if (!in_string) {
+                if (ch == '(') {
+                    ++depth;
+                } else if (ch == ')') {
+                    if (--depth == 0) {
+                        std::size_t k = i + 1;
+                        while (k < source_.size() && (source_[k] == ' ' || source_[k] == '\t')) ++k;
+                        return k < source_.size() && source_[k] == '.';
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    std::size_t chain_counter_{};
+
     [[nodiscard]] bool parse_assignment(
         std::string identifier,
         const char type_character = '\0') {
@@ -11231,6 +11259,23 @@ private:
                 // and the RHS's own shape are validated, but assigns
                 // nothing (there is nowhere to assign it to).
                 skip_horizontal_whitespace();
+                // Skip a longer chain (`o.Child.Prop(1).Name = x`) down to its last member.
+                while (!at_end() && (current() == '.' || current() == '(')) {
+                    if (consume('.')) {
+                        skip_horizontal_whitespace();
+                        char chain_type_character{};
+                        if (!parse_identifier(&chain_type_character).has_value()) {
+                            set_error("WFC0011", "expected member name after '.'", offset_);
+                            return false;
+                        }
+                    } else {
+                        advance();
+                        if (!parse_index_list(kAnyDimensionCount).has_value()) {
+                            return false;
+                        }
+                    }
+                    skip_horizontal_whitespace();
+                }
                 if (!consume('=')) {
                     if (at_statement_end() || current() != '=') {
                         // A call statement `obj.Method args`: parse (and ignore) the arguments.
@@ -11255,6 +11300,38 @@ private:
         InstanceData& instance = *std::get<ObjectInstance>(base).data;
         const auto class_iterator = class_definitions_.find(instance.class_name);
         const ClassDef& class_def = class_iterator->second;
+
+        // `obj.Prop(args).member = x` / `obj.Prop.member = x`: read the property or method
+        // first, then write the member of the object it returns.
+        if (!instance.fields.variables.contains(*member_name) &&
+            !class_def.property_let.contains(*member_name) &&
+            (class_def.property_get.contains(*member_name) ||
+             class_def.methods.contains(*member_name))) {
+            const auto after_member = offset_;
+            skip_horizontal_whitespace();
+            if (!at_end() && (current() == '.' || (current() == '(' && paren_followed_by_dot(offset_)))) {
+                offset_ = member_offset;
+                auto chained = parse_member_access_after_dot(
+                    base, base_offset, /*require_function=*/true, via_interface_class);
+                if (!chained.has_value()) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!at_end() && current() == '.') {
+                    const std::string temp_name = "wfcchain" + std::to_string(chain_counter_++);
+                    current_scope().variables.insert_or_assign(
+                        temp_name,
+                        std::holds_alternative<ObjectInstance>(*chained) ? *chained
+                                                                         : Value{Nothing{}});
+                    const bool chained_ok = parse_assignment_or_array_element(temp_name, '\0');
+                    current_scope().variables.erase(temp_name);
+                    return chained_ok;
+                }
+                set_error("WFC0014", "expected assignment operator", offset_);
+                return false;
+            }
+            offset_ = after_member;
+        }
 
         // REQ-0233: through an interface-typed reference the implementing
         // class's `Interface_Member` accessor is the target.
@@ -11424,6 +11501,37 @@ private:
                     return parse_array_element_assignment(identifier, identifier_offset);
                 }
                 offset_ = saved_offset;
+            }
+            if (variable.value != nullptr &&
+                (std::holds_alternative<ObjectInstance>(*variable.value) ||
+                 (!execute_ && std::holds_alternative<Nothing>(*variable.value)))) {
+                // `obj(args).member ...` (for example `items(1).Name = x` on a Collection):
+                // run the default-member call, then treat its object as the statement's base.
+                {
+                    const auto call_offset = offset_;
+                    skip_horizontal_whitespace();
+                    if (!at_end() && current() == '(' && paren_followed_by_dot(offset_)) {
+                        offset_ = call_offset - identifier.size();
+                        auto chained = parse_primary_base();
+                        if (!chained.has_value()) {
+                            return false;
+                        }
+                        skip_horizontal_whitespace();
+                        if (at_end() || current() != '.') {
+                            set_error("WFC0004", "unexpected trailing input", offset_);
+                            return false;
+                        }
+                        const std::string temp_name = "wfcchain" + std::to_string(chain_counter_++);
+                        current_scope().variables.insert_or_assign(
+                            temp_name,
+                            std::holds_alternative<ObjectInstance>(*chained) ? *chained
+                                                                             : Value{Nothing{}});
+                        const bool chained_ok = parse_assignment_or_array_element(temp_name, '\0');
+                        current_scope().variables.erase(temp_name);
+                        return chained_ok;
+                    }
+                    offset_ = call_offset;
+                }
             }
             if (variable.value != nullptr && std::holds_alternative<ObjectInstance>(*variable.value)) {
                 // `obj(args) = value` through the class's default member
@@ -11647,6 +11755,24 @@ private:
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
             return false;
+        }
+        // `v(0).Name = x`: write a member of the object a Variant element holds.
+        if (array.is_variant_element && !at_end() && current() == '.') {
+            Value base{Nothing{}};
+            if (execute_) {
+                const auto flat_offset = array_flat_offset(array, *indices);
+                if (!flat_offset.has_value()) {
+                    return false;
+                }
+                base = array.elements[*flat_offset];
+                if (!std::holds_alternative<ObjectInstance>(base)) {
+                    set_error("WFC0136", "member access requires an object reference",
+                              identifier_offset);
+                    return false;
+                }
+            }
+            advance();
+            return parse_member_assignment(base, identifier_offset);
         }
         // `jag(1)(2) = x`: assign into an array held by a Variant element.
         if (array.is_variant_element && !at_end() && current() == '(') {
@@ -15449,7 +15575,9 @@ private:
             // error; syntax and arity errors still are.
             const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
             if (code == "WFC0073" || code == "WFC0095" || code == "WFC0018" ||
-                code == "WFC0016" || code == "WFC0007") {
+                code == "WFC0016" || code == "WFC0007" || code == "WFC0101" ||
+                (code != "WFC0300" && code != "WFC0072" && code != "WFC0071" &&
+                 runtime_error_number() != 0)) {
                 error_ = wfc::Evaluation{};
                 static const std::set<std::string, std::less<>> string_results = {
                     "left", "right", "mid", "trim", "ltrim", "rtrim", "lcase", "ucase", "replace",
@@ -19079,6 +19207,9 @@ private:
         }
         if (std::holds_alternative<Empty>(value)) {
             return TernaryOperand{false, false};
+        }
+        if (!execute_ && !std::holds_alternative<bool>(value)) {
+            return TernaryOperand{false, false};  // placeholder operand of a not-taken branch
         }
         const auto* boolean = require_boolean(value, operator_offset);
         if (boolean == nullptr) {

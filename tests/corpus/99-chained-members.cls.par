@@ -1,0 +1,16 @@
+Private mKids As New Collection
+Public Name As String
+Public Sub AddKid(n As String)
+    Dim k As New Itm
+    k.Name = n
+    mKids.Add k
+End Sub
+Public Property Get Kids() As Collection
+    Set Kids = mKids
+End Property
+Public Property Get Kid(i As Long) As Itm
+    Set Kid = mKids(i)
+End Property
+Public Sub Rename(i As Long, s As String)
+    mKids(i).Name = s
+End Sub

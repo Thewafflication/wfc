@@ -1,0 +1,4 @@
+Module=Main; 99-chained-members.bas
+Class=Par; 99-chained-members.cls.par
+Class=Itm; 99-chained-members.cls.itm
+Startup="Sub Main"

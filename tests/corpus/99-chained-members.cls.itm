@@ -1,0 +1,5 @@
+Public Name As String
+Public N As Long
+Public Sub Bump(Optional by As Long = 1)
+    N = N + by
+End Sub
