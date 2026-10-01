@@ -1,0 +1,12 @@
+Type=Exe
+Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#..\..\Windows\SysWOW64\stdole2.tlb#OLE Automation
+Module=Mod1; 89-real-project.bas
+Module=Helpers; 89-real-project.helpers.bas
+Class=Counter; 89-real-project.cls.counter
+Startup="Sub Main"
+Title="Demo"
+ExeName32="Demo.exe"
+Name="Demo"
+MajorVer=1
+MinorVer=0
+BoundsCheck=0
