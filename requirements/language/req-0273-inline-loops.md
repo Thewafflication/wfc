@@ -13,3 +13,7 @@
 ## Verification
 
 Corpus `25-inline-loops`.
+
+Addendum: custom `Format` pictures accept a scientific section
+(`0.00E+00`, `0.0e-0`): the mantissa picture, `E+`/`E-` and one or more exponent
+digit placeholders. Corpus `26-format-scientific`.

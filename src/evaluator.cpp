@@ -15543,6 +15543,72 @@ private:
         const double value, const std::string& picture) {
         const bool negative = value < 0.0;
 
+        // Scientific picture: `0.00E+00` / `0.0e-0` (mantissa picture, then
+        // `E+`/`E-` and at least one exponent digit placeholder).
+        {
+            std::size_t e_position = std::string::npos;
+            for (std::size_t i = 0; i < picture.size(); ++i) {
+                const char c = picture[i];
+                if (c == '\\') {
+                    ++i;
+                } else if (c == '"') {
+                    const auto close = picture.find('"', i + 1U);
+                    if (close == std::string::npos) break;
+                    i = close;
+                } else if ((c == 'E' || c == 'e') && i + 2U < picture.size() &&
+                           (picture[i + 1U] == '+' || picture[i + 1U] == '-') &&
+                           picture[i + 2U] == '0' && i > 0U) {
+                    e_position = i;
+                    break;
+                }
+            }
+            if (e_position != std::string::npos) {
+                const bool force_sign = picture[e_position + 1U] == '+';
+                std::size_t exponent_digits = 0U;
+                std::size_t after = e_position + 2U;
+                while (after < picture.size() && picture[after] == '0') {
+                    ++exponent_digits;
+                    ++after;
+                }
+                const std::string mantissa_picture = picture.substr(0, e_position);
+                std::size_t integer_places = 0U;
+                for (const char c : mantissa_picture) {
+                    if (c == '.') break;
+                    if (c == '0' || c == '#') ++integer_places;
+                }
+                integer_places = std::max<std::size_t>(integer_places, 1U);
+                std::size_t fraction_places = 0U;
+                if (const auto dot = mantissa_picture.find('.'); dot != std::string::npos) {
+                    for (std::size_t i = dot + 1U; i < mantissa_picture.size(); ++i) {
+                        if (mantissa_picture[i] == '0' || mantissa_picture[i] == '#') ++fraction_places;
+                    }
+                }
+                const double magnitude = std::fabs(value);
+                int exponent = 0;
+                double mantissa = 0.0;
+                if (magnitude != 0.0) {
+                    exponent = static_cast<int>(std::floor(std::log10(magnitude))) -
+                               static_cast<int>(integer_places - 1U);
+                    mantissa = magnitude / std::pow(10.0, exponent);
+                    const double scale = std::pow(10.0, static_cast<double>(fraction_places));
+                    const double limit = std::pow(10.0, static_cast<double>(integer_places));
+                    if (std::round(mantissa * scale) / scale >= limit) {
+                        ++exponent;
+                        mantissa = magnitude / std::pow(10.0, exponent);
+                    }
+                }
+                std::string exponent_text = std::to_string(std::abs(exponent));
+                while (exponent_text.size() < exponent_digits) exponent_text.insert(0, "0");
+                std::string result = render_custom_numeric_picture_section(mantissa, mantissa_picture);
+                result.push_back(picture[e_position]);
+                if (exponent < 0) result.push_back('-');
+                else if (force_sign) result.push_back('+');
+                result += exponent_text;
+                result += picture.substr(after);
+                return negative && magnitude != 0.0 ? "-" + result : result;
+            }
+        }
+
         // REQ-0221: expand every `\`-escaped pair first, so a placeholder/
         // decimal-point/grouping-comma character that was actually
         // written as `\0`/`\#`/`\,`/`\.` etc. is unambiguously a literal
