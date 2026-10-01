@@ -2431,6 +2431,8 @@ struct ProcedureParameter {
 struct ProcedureDef {
     std::vector<ProcedureParameter> parameters;
     bool is_function{};
+    // `Static Sub|Function|Property`: every local variable keeps its value between calls.
+    bool static_locals{};
     std::size_t return_type_index{};
     bool return_is_variant{};
     // A Function/Property Get declared `As Object` or `As SomeClass`
@@ -3521,6 +3523,10 @@ private:
                 has_visibility_keyword = true;
                 skip_horizontal_whitespace();
             }
+            if (consume_keyword("static")) {
+                pending_static_procedure_ = true;
+                skip_horizontal_whitespace();
+            }
 
             if (consume_keyword("event")) {
                 skip_horizontal_whitespace();
@@ -3732,6 +3738,7 @@ private:
         ProcedureDef definition;
         definition.is_function = accessor == Accessor::get;
         definition.is_private = is_private;
+        definition.static_locals = std::exchange(pending_static_procedure_, false);
         if (!scan_procedure_parameters(definition)) {
             return false;
         }
@@ -3819,6 +3826,7 @@ private:
         ProcedureDef definition;
         definition.is_function = is_function;
         definition.is_private = is_private;
+        definition.static_locals = std::exchange(pending_static_procedure_, false);
         if (!scan_procedure_parameters(definition)) {
             return false;
         }
@@ -4203,7 +4211,13 @@ private:
             // scan_procedures already does for anything it doesn't
             // recognize.
             const auto pre_modifier_offset = offset_;
-            if (consume_keyword("public") || consume_keyword("private")) {
+            if (consume_keyword("public") || consume_keyword("private") ||
+                consume_keyword("friend")) {
+                skip_horizontal_whitespace();
+            }
+            bool static_procedure = false;
+            if (consume_keyword("static")) {
+                static_procedure = true;
                 skip_horizontal_whitespace();
             }
             bool is_function = false;
@@ -4277,6 +4291,7 @@ private:
 
             ProcedureDef definition;
             definition.is_function = is_function;
+            definition.static_locals = static_procedure;
             if (!scan_procedure_parameters(definition)) {
                 offset_ = saved_offset;
                 return false;
@@ -6053,7 +6068,11 @@ private:
             // here so `Public`/`Private` (both are reserved keywords) never
             // exists as a fully-unrecognized standalone statement.
             const auto pre_modifier_offset = offset_;
-            if (consume_keyword("public") || consume_keyword("private")) {
+            const bool had_modifier = consume_keyword("public") || consume_keyword("private") ||
+                                      consume_keyword("friend");
+            skip_horizontal_whitespace();
+            const bool had_static = consume_keyword("static");
+            if (had_modifier || had_static) {
                 skip_horizontal_whitespace();
                 if (consume_keyword("sub") || consume_keyword("function")) {
                     return parse_procedure_declaration_skip(statement_offset);
@@ -6107,6 +6126,9 @@ private:
         // REQ-0271: Dim/Static/Const are legal inside blocks; a declaration
         // executed again (loop iteration) is a no-op.
         if (consume_keyword("dim")) {
+            if (current_procedure_def_ != nullptr && current_procedure_def_->static_locals) {
+                return parse_static_declaration(statement_offset);
+            }
             return parse_declaration();
         }
         if (consume_keyword("static")) {
@@ -19742,6 +19764,7 @@ private:
     // Set when the current statement read a Variant variable: Variant arithmetic that overflows
     // is promoted (Integer -> Long -> Double) instead of raising Overflow.
     bool variant_operand_seen_{};
+    bool pending_static_procedure_{};
     bool variant_string_seen_{};
     bool variant_number_seen_{};
     bool integer_literals_are_integer_{true};
