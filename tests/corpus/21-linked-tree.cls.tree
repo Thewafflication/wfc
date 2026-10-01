@@ -1,0 +1,3 @@
+Public Key As Long
+Public Left As TreeNode
+Public Right As TreeNode

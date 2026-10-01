@@ -1,0 +1,11 @@
+Implements IShape
+Private r As Double
+Private Sub IShape_SetSize(v As Double)
+    r = v
+End Sub
+Private Function IShape_Area() As Double
+    IShape_Area = 3.14159265358979 * r * r
+End Function
+Private Function IShape_Name() As String
+    IShape_Name = "Circle"
+End Function

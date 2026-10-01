@@ -9292,6 +9292,43 @@ private:
             Value placeholder{Nothing{}};
             if (member_write) {
                 advance();
+                if (element != nullptr) {
+                    if (const auto* const instance_base = std::get_if<ObjectInstance>(element)) {
+                        // `arr(i).Method args` with no `Call`: reaches
+                        // the method directly, or through the array's
+                        // declared interface (REQ-0233).
+                        const auto& instance_class_def =
+                            class_definitions_.at(instance_base->data->class_name);
+                        const std::string& interface_name = array.element_class_name;
+                        bool implements_interface = false;
+                        for (const auto& implemented : instance_class_def.implements) {
+                            if (implemented == interface_name) implements_interface = true;
+                        }
+                        const auto peek_offset = offset_;
+                        char peek_type_character{};
+                        auto peek_member_name = parse_identifier(&peek_type_character);
+                        skip_horizontal_whitespace();
+                        const bool bare_statement_end = at_end() || current() == '\r' ||
+                            current() == '\n' || current() == ':' || current() == '\'';
+                        const bool arguments_follow = !bare_statement_end && current() != '=' &&
+                            current() != '(' && current() != '.';
+                        const bool is_method = peek_member_name.has_value() &&
+                            peek_type_character == '\0' &&
+                            (instance_class_def.methods.contains(*peek_member_name) ||
+                             (implements_interface &&
+                              instance_class_def.methods.contains(
+                                  interface_name + "_" + *peek_member_name)));
+                        offset_ = peek_offset;
+                        if ((bare_statement_end || arguments_follow) && is_method) {
+                            bare_call_arguments_ = arguments_follow;
+                            const auto base = *element;
+                            const auto result = parse_member_access_after_dot(
+                                base, identifier_offset, /*require_function=*/false,
+                                interface_name);
+                            return result.has_value();
+                        }
+                    }
+                }
                 return parse_member_assignment(
                     element != nullptr ? *element : placeholder, identifier_offset);
             }
@@ -10073,6 +10110,12 @@ private:
                         variable.scope->object_class_names.find(*lookahead_identifier);
                     if (declared_class != variable.scope->object_class_names.end()) {
                         declared_interface_class = declared_class->second;
+                    } else if (const auto* array = std::get_if<ArrayValue>(variable.value)) {
+                        // An array of interface-typed references dispatches
+                        // through the element class the same way.
+                        if (array->is_object_element) {
+                            declared_interface_class = array->element_class_name;
+                        }
                     }
                 }
             }

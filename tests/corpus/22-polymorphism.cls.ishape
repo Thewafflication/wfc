@@ -1,0 +1,6 @@
+Public Sub SetSize(v As Double)
+End Sub
+Public Function Area() As Double
+End Function
+Public Function Name() As String
+End Function
