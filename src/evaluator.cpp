@@ -14309,7 +14309,26 @@ private:
         }
         if (name == "msgbox") {
             if (!arity(1, 5)) return std::nullopt;
-            return Value{Integer{1}};  // vbOK: there is no UI to show
+            // There is no UI: answer with the dialog's default button.
+            std::int64_t style = 0;
+            if (count >= 2U && is_number(arguments[1]) && !std::holds_alternative<Decimal>(arguments[1])) {
+                style = static_cast<std::int64_t>(as_double(arguments[1]));
+            }
+            // Result value of the Nth button (0-based) for each button set.
+            static const std::array<std::array<Integer, 3>, 6> buttons{{
+                {1, 0, 0},   // vbOKOnly
+                {1, 2, 0},   // vbOKCancel: OK, Cancel
+                {3, 4, 5},   // vbAbortRetryIgnore
+                {6, 7, 2},   // vbYesNoCancel
+                {6, 7, 0},   // vbYesNo
+                {4, 2, 0},   // vbRetryCancel
+            }};
+            static const std::array<std::size_t, 6> button_counts{1, 2, 3, 3, 2, 2};
+            const auto set = static_cast<std::size_t>(style & 7);
+            if (set >= buttons.size()) return Value{Integer{1}};
+            auto index = static_cast<std::size_t>((style >> 8) & 3);
+            if (index >= button_counts[set]) index = 0;
+            return Value{buttons[set][index]};
         }
         if (name == "inputbox") {
             if (!arity(1, 7)) return std::nullopt;
