@@ -5743,6 +5743,23 @@ private:
             }
             return true;
         }
+        if (const auto shell_start = offset_; consume_keyword("shell")) {
+            skip_horizontal_whitespace();
+            if (at_end() || current() == '=' || current() == '.' || at_statement_end()) {
+                offset_ = shell_start;
+            } else {
+                std::vector<Value> values;
+                while (!at_statement_end()) {
+                    auto value = parse_expression();
+                    if (!value.has_value()) return false;
+                    values.push_back(std::move(*value));
+                    skip_horizontal_whitespace();
+                    if (!consume(',')) break;
+                    skip_horizontal_whitespace();
+                }
+                return evaluate_misc_function("shell", values, statement_offset).has_value();
+            }
+        }
         if (consume_keyword("savesetting") || consume_keyword("deletesetting") ||
             consume_keyword("setattr") || consume_keyword("chdrive")) {
             const std::string_view word = source_.substr(statement_offset, 4);
