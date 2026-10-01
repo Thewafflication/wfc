@@ -17,6 +17,9 @@ struct Evaluation final {
     std::string partial_output;
     // Text written by `Debug.Print` (the Immediate window), success or not.
     std::string debug_output;
+    // When the failure is a VB run-time error: its number (0 otherwise) and text.
+    long vb_error_number{};
+    std::string vb_error_description;
 };
 
 // One named class module source, supplied alongside the standard module

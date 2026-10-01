@@ -134,6 +134,17 @@ Print "to the output"]=]
     )
 
     add_test(
+        NAME TC-MP0002-runtime-error-text-cli
+        COMMAND wfc --eval [=[Print 1 / 0]=]
+    )
+    set_tests_properties(
+        TC-MP0002-runtime-error-text-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;errors"
+            PASS_REGULAR_EXPRESSION "Run-time error '11': Division by zero"
+    )
+
+    add_test(
         NAME TC-MP0002-block-conditional-cli
         COMMAND wfc --eval [=[Dim total As Long
 If True Then

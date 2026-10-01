@@ -2570,6 +2570,17 @@ public:
         result.debug_output = debug_output_;
         if (!result.success) {
             result.partial_output = output_;  // what the program printed before it failed
+            const auto saved_error = std::move(error_);
+            error_ = result;
+            const Integer number = runtime_error_number();
+            if (number != 0) {
+                result.vb_error_number = number;
+                result.vb_error_description =
+                    std::string_view(result.diagnostic).substr(0, 7) == "WFC0300"
+                        ? err_description_
+                        : vb_error_description(number);
+            }
+            error_ = saved_error;
         }
         return result;
     }

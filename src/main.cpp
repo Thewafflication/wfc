@@ -52,6 +52,10 @@ int main(const int argument_count, const char* const arguments[]) {
                 std::cout.flush();
             }
             std::cerr << result.diagnostic << '\n';
+            if (result.vb_error_number != 0) {
+                std::cerr << "Run-time error '" << result.vb_error_number << "': "
+                          << result.vb_error_description << '\n';
+            }
             return 1;
         }
         std::cout << result.output << '\n';
@@ -98,6 +102,10 @@ int main(const int argument_count, const char* const arguments[]) {
             std::cout.flush();
         }
         std::cerr << evaluation.diagnostic << '\n';
+        if (evaluation.vb_error_number != 0) {
+            std::cerr << "Run-time error '" << evaluation.vb_error_number << "': "
+                      << evaluation.vb_error_description << '\n';
+        }
         return 1;
     }
 

@@ -81,3 +81,7 @@ leading-digit flag. (Amends the unverified `".00"` interpretation noted in REQ-0
 
 Addendum: `Err.Description` / `Error$(n)` carry the full VB6 trappable-error text table
 (3, 5-18, 20, 28, 35, 47-76, 91-94, 321-394, 422-463, 481-521, ...). Corpus `55-error-descriptions`.
+
+Addendum: a failing evaluation reports `vb_error_number` / `vb_error_description`
+when the failure is a VB run-time error, and the command line prints
+`Run-time error 'N': text` after the diagnostic. Test `TC-MP0002-runtime-error-text-cli`.

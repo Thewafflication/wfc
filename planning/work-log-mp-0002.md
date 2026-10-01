@@ -282,6 +282,7 @@ a specific requirement.
 | 2026-09-30 #197 | Construction | Increment: Format shows no digit for a zero integer part with # placeholders, Format(Null), FormatNumber omitted args and leading digit flag. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #198 | Construction | Corpus: 54-format-pictures. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #199 | Construction | Increment: Error$/Err.Description text for the VB6 trappable errors; corpus 55. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #200 | Construction | Increment: Evaluation::vb_error_number/description, CLI prints Run-time error N: text; TC-MP0002-runtime-error-text-cli. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
