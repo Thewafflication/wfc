@@ -1364,6 +1364,7 @@ struct DateParts {
     if (lowered == "short time") return pad2(parts.hour) + ":" + pad2(parts.minute);
     const auto hour12 = parts.hour % 12 == 0 ? 12 : parts.hour % 12;
     const bool has_ampm = lowered.find("am/pm") != std::string::npos ||
+                          lowered.find("ampm") != std::string::npos ||
                           lowered.find("a/p") != std::string::npos;
     std::string out;
     std::size_t i = 0;
@@ -1450,6 +1451,9 @@ struct DateParts {
         } else if (lowered.compare(i, 5, "am/pm") == 0) {
             out += parts.hour < 12 ? (style[i] == 'a' ? "am" : "AM") : (style[i] == 'a' ? "pm" : "PM");
             i += 5;
+        } else if (lowered.compare(i, 4, "ampm") == 0) {
+            out += parts.hour < 12 ? "AM" : "PM";
+            i += 4;
         } else if (lowered.compare(i, 3, "a/p") == 0) {
             out += parts.hour < 12 ? (style[i] == 'a' ? "a" : "A") : (style[i] == 'a' ? "p" : "P");
             i += 3;
