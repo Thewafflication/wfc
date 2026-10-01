@@ -324,6 +324,7 @@ a specific requirement.
 | 2026-09-30 #239 | Construction | Added REQ-0281 documenting single-line procedures, numbered lines, bracket names, library qualifiers, nested array indexing, Byte/String conversion, ByRef fields, date parsing, Variant arithmetic/comparison rules, and the native Collection/Dictionary store. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #240 | Construction | Consecutive statement separators are accepted as empty statements. Corpus 83 (mixed-case keywords, tabs, continuation). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #241 | Construction | Procedures declared Static keep every local between calls (modules and classes); Friend accepted before module-level procedures. Corpus 84. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #242 | Construction | Removed the unused 84-static-procedures.cls.cnt. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
