@@ -4208,7 +4208,7 @@ private:
 
     [[nodiscard]] bool consume_keyword(const std::string_view keyword) {
         const auto start = offset_;
-        if (keyword == "long" && !enum_names_.empty()) {
+        if (!enum_names_.empty() && keyword == "long") {
             // REQ-0237: an Enum's name is a Long-typed type name.
             for (const auto& enum_name : enum_names_) {
                 std::size_t i = 0;
@@ -5486,6 +5486,12 @@ private:
     [[nodiscard]] bool parse_statement_core() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
+        // A statement that once fell through every keyword test is an
+        // assignment or call; skip straight to that tail next time (the loop
+        // bodies re-parse the same text over and over).
+        if (identifier_statements_.contains(source_.data() + statement_offset)) {
+            return parse_identifier_statement(statement_offset);
+        }
         if (const auto handled = parse_error_handling_statement(statement_offset)) {
             return *handled;
         }
@@ -5803,6 +5809,14 @@ private:
             return parse_set_statement();
         }
 
+        offset_ = statement_offset;
+        identifier_statements_.insert(source_.data() + statement_offset);
+        return parse_identifier_statement(statement_offset);
+    }
+
+    // `[Let] name ...`: an assignment, array/member write, or a bare call.
+    [[nodiscard]] bool parse_identifier_statement(const std::size_t statement_offset) {
+        offset_ = statement_offset;
         const bool has_let = consume_keyword("let");
         if (has_let) {
             skip_horizontal_whitespace();
@@ -8755,7 +8769,7 @@ private:
                 "write", "input", "line", "get", "put", "seek", "kill", "name", "mkdir", "rmdir",
                 "chdir", "randomize", "lset", "rset", "end", "stop", "raiseevent", "mid",
                 "savesetting", "deletesetting", "chdrive", "unlock", "lock", "reset", "load",
-                "unload", "beep", "doevents", "date", "time", "dim", "static", "const", "error"};
+                "unload", "beep", "doevents", "date", "time", "dim", "static", "const", "error", "debug"};
             if (word.has_value() && probe_type_character == '\0' && delegated.contains(*word) &&
                 *word != "date" && *word != "time") {
                 return parse_statement_core();
@@ -12198,23 +12212,28 @@ private:
                 }
                 return parse_function_call(*identifier, identifier_offset);
             }
-            if (const auto global = global_class_constants_.find(*identifier);
-                global != global_class_constants_.end() && type_character == '\0') {
-                return global->second;
-            }
-            if (const auto constant = vba_constant_value(*identifier)) {
-                Value value{*constant};
-                if (!type_character_matches(value, type_character, identifier_offset)) {
-                    return std::nullopt;
+            // A declared variable shadows the built-in constants.
+            const bool names_variable =
+                allow_identifiers_ && find_variable_raw(*identifier).value != nullptr;
+            if (!names_variable) {
+                if (const auto global = global_class_constants_.find(*identifier);
+                    global != global_class_constants_.end() && type_character == '\0') {
+                    return global->second;
                 }
-                return value;
-            }
-            if (auto text = vba_string_constant(*identifier)) {
-                Value value{std::move(*text)};
-                if (!type_character_matches(value, type_character, identifier_offset)) {
-                    return std::nullopt;
+                if (const auto constant = vba_constant_value(*identifier)) {
+                    Value value{*constant};
+                    if (!type_character_matches(value, type_character, identifier_offset)) {
+                        return std::nullopt;
+                    }
+                    return value;
                 }
-                return value;
+                if (auto text = vba_string_constant(*identifier)) {
+                    Value value{std::move(*text)};
+                    if (!type_character_matches(value, type_character, identifier_offset)) {
+                        return std::nullopt;
+                    }
+                    return value;
+                }
             }
             if (!allow_identifiers_) {
                 set_error("WFC0002", "expected expression", identifier_offset);
@@ -18748,6 +18767,7 @@ private:
     std::size_t fixed_string_length_{};
     std::optional<Value> app_instance_;
     bool retry_statement_{};
+    std::unordered_set<const char*> identifier_statements_;
     bool integer_literals_are_integer_{true};
     bool pending_lazy_new_{};
     std::string current_class_scan_name_;

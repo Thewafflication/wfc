@@ -293,6 +293,7 @@ a specific requirement.
 | 2026-09-30 #208 | Construction | Increment: Null in string functions, StrComp Null, numeric strings in Abs/Sgn/..., Chr range error mapped; corpus 61. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #209 | Construction | Increment: date functions return Null for Null, CDate overflow; corpus 62. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #210 | Construction | Increment: Array() lower bound follows Option Base 1; corpus 63. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #211 | Construction | Increment: Debug.Print inside single-line If, cached identifier-statement dispatch, user variables shadow VBA constants; corpus 64. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
