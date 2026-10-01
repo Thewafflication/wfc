@@ -297,6 +297,7 @@ a specific requirement.
 | 2026-09-30 #212 | Construction | Perf: consume_keyword rejects on the first character inline (about 15% on a recursion-heavy program). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #213 | Construction | Increment: CreateObject("VBScript.RegExp") with Test/Execute/Replace, MatchCollection, SubMatches; Prop(i) through a returned default member; corpus 65. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #214 | Construction | Fixed x86-only CI failure in corpus 62: Sin(1E10) differed in the last digits between x86 and x64 libm; probe now rounds to 8 places. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #215 | Construction | Fixed MSVC x86/x64 build break from the RegExp commit: std::regex::multiline is libstdc++-only; use std::regex_constants::multiline. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

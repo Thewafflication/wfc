@@ -13921,7 +13921,7 @@ private:
             try {
                 auto options = std::regex::ECMAScript;
                 if (ignore_case) options |= std::regex::icase;
-                if (multi_line) options |= std::regex::multiline;
+                if (multi_line) options |= std::regex_constants::multiline;
                 const std::regex expression(*pattern, options);
                 if (replacing) {
                     return Value{std::regex_replace(
