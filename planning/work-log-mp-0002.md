@@ -310,6 +310,7 @@ a specific requirement.
 | 2026-09-30 #225 | Construction | Date Format strings accept the AMPM token (12-hour clock with AM/PM). Corpus 71. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #226 | Construction | Collection and Scripting.Dictionary now keep their entries in a native store with a hash index of the keys: keyed Add/Item/Exists are O(1) instead of an interpreted linear scan (1000 keyed Adds: 2.3s -> 17ms). Corpus 72. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #227 | Construction | Corpus 72 reduced to 600 entries (Debug builds run the interpreter ~20x slower). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #228 | Construction | Assignments of the form s = s & operand... extend the string in place when the operands are side-effect free; otherwise the ordinary path runs. Also concatenation appends to its left operand instead of re-copying it. Corpus 73. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

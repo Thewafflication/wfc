@@ -10118,6 +10118,98 @@ private:
         return true;
     }
 
+    enum class AppendOutcome { not_applicable, done, failed };
+
+    // `s = s & expr [& expr...]` extends the variable's string in place instead of building
+    // and copying a new string each time (quadratic in loops that accumulate text). Used only
+    // when the rest of the statement is a plain concatenation of side-effect-free operands.
+    [[nodiscard]] bool append_statement_eligible(const std::string& identifier) {
+        std::size_t i = offset_;
+        for (const char expected : identifier) {
+            if (i >= source_.size() || ascii_lower(source_[i]) != expected) return false;
+            ++i;
+        }
+        if (i < source_.size() && (is_identifier_part(source_[i]) || source_[i] == '.')) return false;
+        while (i < source_.size() && (source_[i] == ' ' || source_[i] == '\t')) ++i;
+        if (i >= source_.size() || source_[i] != '&') return false;
+        ++i;
+        if (i < source_.size() && source_[i] == '=') return false;
+        const auto* const class_def = current_class_def();
+        bool in_string = false;
+        while (i < source_.size() && source_[i] != '\r' && source_[i] != '\n') {
+            const char ch = source_[i];
+            if (ch == '"') {
+                in_string = !in_string;
+                ++i;
+                continue;
+            }
+            if (in_string) {
+                ++i;
+                continue;
+            }
+            if (ch == ':' || ch == '\'') break;
+            if (ch == '=' || ch == '<' || ch == '>') return false;
+            if (is_identifier_start(ch)) {
+                const bool member_access = i > 0 && source_[i - 1] == '.';
+                std::string word;
+                while (i < source_.size() && is_identifier_part(source_[i])) {
+                    word.push_back(ascii_lower(source_[i]));
+                    ++i;
+                }
+                if (member_access) {
+                    continue;
+                }
+                static const std::set<std::string, std::less<>> excluded = {
+                    "and", "or", "xor", "eqv", "imp", "like", "is", "else", "not", "input",
+                    "rnd", "then", "to", "step", "typeof", "new", "set", "let", "get", "put",
+                    "callbyname", "createobject", "getobject", "shell", "inputb", "inputbox"};
+                if (excluded.contains(word) || procedures_.contains(word) ||
+                    (class_def != nullptr && class_def->methods.contains(word))) {
+                    return false;
+                }
+                continue;
+            }
+            ++i;
+        }
+        return !in_string;
+    }
+
+    [[nodiscard]] AppendOutcome try_append_assignment(const std::string& identifier, std::string& target) {
+        const char* const key = source_.data() + offset_;
+        auto cached = append_eligibility_.find(key);
+        if (cached == append_eligibility_.end()) {
+            cached = append_eligibility_.emplace(key, append_statement_eligible(identifier)).first;
+        }
+        if (!cached->second) {
+            return AppendOutcome::not_applicable;
+        }
+        offset_ += identifier.size();
+        skip_horizontal_whitespace();
+        static_cast<void>(consume('&'));
+        std::string appended;
+        while (true) {
+            skip_horizontal_whitespace();
+            const auto operand_offset = offset_;
+            auto operand = parse_additive();
+            if (!operand.has_value()) {
+                return AppendOutcome::failed;
+            }
+            if (is_object_reference(*operand) || std::holds_alternative<ArrayValue>(*operand)) {
+                set_error("WFC0020", "concatenation requires String or Long operands", operand_offset);
+                return AppendOutcome::failed;
+            }
+            if (const auto* text = std::get_if<std::string>(&*operand)) {
+                appended += *text;
+            } else if (!std::holds_alternative<Null>(*operand)) {
+                appended += render(*operand);
+            }
+            skip_horizontal_whitespace();
+            if (!consume('&')) break;
+        }
+        target += appended;
+        return AppendOutcome::done;
+    }
+
     [[nodiscard]] bool parse_assignment(
         std::string identifier,
         const char type_character = '\0') {
@@ -10223,6 +10315,15 @@ private:
             return false;
         }
         skip_horizontal_whitespace();
+        if (execute_) {
+            if (auto* const target = std::get_if<std::string>(variable.value);
+                target != nullptr && !variable.scope->fixed_string_lengths.contains(identifier)) {
+                const auto outcome = try_append_assignment(identifier, *target);
+                if (outcome != AppendOutcome::not_applicable) {
+                    return outcome == AppendOutcome::done;
+                }
+            }
+        }
         auto value = parse_expression();
         if (!value.has_value()) {
             return false;
@@ -11653,6 +11754,12 @@ private:
                 set_error(
                     "WFC0020", "concatenation requires String or Long operands", operator_offset);
                 return std::nullopt;
+            }
+            if (auto* text = std::get_if<std::string>(&*left)) {
+                if (const auto* tail = std::get_if<std::string>(&*right)) {
+                    text->append(*tail);  // extend in place instead of copying `left` again
+                    continue;
+                }
             }
             left = Value{render(*left) + render(*right)};
         }
@@ -19287,6 +19394,7 @@ private:
     std::optional<Value> app_instance_;
     bool retry_statement_{};
     std::unordered_set<const char*> identifier_statements_;
+    std::unordered_map<const char*, bool> append_eligibility_;
     bool integer_literals_are_integer_{true};
     bool pending_lazy_new_{};
     std::string current_class_scan_name_;
