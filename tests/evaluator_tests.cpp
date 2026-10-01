@@ -171,11 +171,13 @@ int main() {
         "aXbXc");
     expect_success("Print Hex(255)", "FF");
     expect_success("Print Hex$(0)", "0");
-    expect_success("Print Hex(-1)", "FFFFFFFF");
+    expect_success("Print Hex(-1)", "FFFF");
+    expect_success("Print Hex(-1&)", "FFFFFFFF");
     expect_success("Print Hex(4096)", "1000");
     expect_success("Print Oct(8)", "10");
     expect_success("Print Oct$(0)", "0");
-    expect_success("Print Oct(-1)", "37777777777");
+    expect_success("Print Oct(-1)", "177777");
+    expect_success("Print Oct(-1&)", "37777777777");
     expect_success("Print Hex(15.5) & \" \" & Hex(17.5) & \" \" & Oct(7.5)", "10 12 10");
     expect_success("Print Hex(-1.5) & \" \" & Oct(8.5)", "FFFFFFFE 10");
     expect_success(
@@ -401,7 +403,7 @@ int main() {
     // quoted `"%"` is a plain literal `%` with no scaling.
     expect_success("Print Format(0.5, \"0.00%\") & \" \" & Format(-0.256, \"0.0%\")",
                    "50.00% -25.6%");
-    expect_success("Print Format(0.5, \"0\\%\") & \" \" & Format(0.5, \"0\"\"%\"\"\")",
+    expect_success("Print Format(0.4, \"0\\%\") & \" \" & Format(0.4, \"0\"\"%\"\"\")",
                    "0% 0%");
     expect_success(
         "Print Format(1.5, \"0%;(0%)\") & \" \" & Format(-1.5, \"0%;(0%)\")",

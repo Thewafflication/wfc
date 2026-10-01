@@ -17565,6 +17565,9 @@ private:
                 return std::nullopt;
             }
             auto magnitude = static_cast<std::uint32_t>(*number);
+            if (std::holds_alternative<Int16>(arguments[0])) {
+                magnitude &= 0xFFFFU;  // an Integer prints as 16 bits
+            }
             if (magnitude == 0U) {
                 return Value{std::string{"0"}};
             }
@@ -18330,6 +18333,59 @@ private:
         return result;
     }
 
+    // Fixed-point text of a non-negative finite number with `places` decimals, rounded
+    // half-up from its 15-significant-digit decimal form (how VB's Format rounds: 2.5 -> "3",
+    // 0.285 -> "0.29"), instead of from the exact binary value.
+    [[nodiscard]] static std::string fixed_half_up(const double magnitude, const int places) {
+        if (magnitude == 0.0) {
+            return places > 0 ? "0." + std::string(static_cast<std::size_t>(places), '0') : "0";
+        }
+        char buffer[64];
+        const auto converted = std::to_chars(
+            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::scientific, 14);
+        const std::string text(buffer, converted.ptr);
+        const auto e_position = text.find('e');
+        std::string digits;
+        for (std::size_t i = 0; i < e_position; ++i) {
+            if (text[i] != '.') digits.push_back(text[i]);
+        }
+        const int exponent = std::atoi(text.c_str() + e_position + 1);
+        const int point = exponent + 1;  // digits before the decimal point
+        std::string integer_part;
+        std::string fraction_part;
+        if (point <= 0) {
+            integer_part = "0";
+            fraction_part = std::string(static_cast<std::size_t>(-point), '0') + digits;
+        } else if (static_cast<std::size_t>(point) >= digits.size()) {
+            integer_part = digits + std::string(static_cast<std::size_t>(point) - digits.size(), '0');
+        } else {
+            integer_part = digits.substr(0, static_cast<std::size_t>(point));
+            fraction_part = digits.substr(static_cast<std::size_t>(point));
+        }
+        const auto wanted = static_cast<std::size_t>(places);
+        bool round_up = fraction_part.size() > wanted && fraction_part[wanted] >= '5';
+        fraction_part.resize(wanted, '0');
+        std::string all = integer_part + fraction_part;
+        if (round_up) {
+            std::size_t i = all.size();
+            while (i > 0) {
+                --i;
+                if (all[i] == '9') {
+                    all[i] = '0';
+                } else {
+                    ++all[i];
+                    round_up = false;
+                    break;
+                }
+            }
+            if (round_up) all.insert(all.begin(), '1');
+        }
+        const std::size_t integer_size = all.size() - wanted;
+        std::string result = all.substr(0, integer_size);
+        if (wanted > 0) result += "." + all.substr(integer_size);
+        return result;
+    }
+
     // Render a finite double using VBA's "Fixed"/"Standard" Format styles:
     // exactly two decimal digits, an optional grouped integer part, and a
     // leading '-' only when the rounded magnitude is nonzero.
@@ -18338,10 +18394,7 @@ private:
         const bool grouping) {
         const bool negative = value < 0.0;
         const double magnitude = std::fabs(value);
-        char buffer[400];
-        const auto result = std::to_chars(
-            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::fixed, 2);
-        std::string digits(buffer, result.ptr);
+        std::string digits = fixed_half_up(magnitude, 2);
         if (grouping) {
             const auto dot = digits.find('.');
             std::string integer_part = digits.substr(0, dot);
@@ -18631,11 +18684,8 @@ private:
             }
         }
 
-        char buffer[400];
-        const auto to_chars_result = std::to_chars(
-            buffer, buffer + sizeof(buffer), magnitude, std::chars_format::fixed,
-            static_cast<int>(fraction_digit_count));
-        const std::string rendered_magnitude(buffer, to_chars_result.ptr);
+        const std::string rendered_magnitude =
+            fixed_half_up(magnitude, static_cast<int>(fraction_digit_count));
         const auto rendered_dot = rendered_magnitude.find('.');
         std::string integer_digits = rendered_dot == std::string::npos
                                           ? rendered_magnitude

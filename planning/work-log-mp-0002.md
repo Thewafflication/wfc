@@ -331,6 +331,7 @@ a specific requirement.
 | 2026-09-30 #246 | Construction | b = a leaves b dynamic so Erase/ReDin still work; a ReDim Preserve that changes a non-last dimension raises catchable error 9. Corpus 87. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #247 | Construction | Chr/ChrB accept the full byte range; ChrW encodes code points above 255 as UTF-8 and AscW decodes them. Corpus 88. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #248 | Construction | Corpus 89: a .vbp with Reference/Title/version keys, two modules, and a class file with the VERSION/BEGIN header. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #249 | Construction | Format/FormatNumber-style fixed output rounds half up from the number's 15-significant-digit decimal form (Format(2.5, "0") = 3, Format(0.285, "0.00") = 0.29, Format(1234.5, "#,##0") = 1,235); Hex/Oct of a negative Integer print 16 bits. Corpus 90. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

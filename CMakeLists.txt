@@ -2085,7 +2085,7 @@ Print Format(5, "0 ""pos"";0 ""neg""") & " " & Format(-5, "0 ""pos"";0 ""neg""")
     add_test(
         NAME TC-MP0002-format-percent-picture-cli
         COMMAND wfc --eval [=[Print Format(0.5, "0.00%") & " " & Format(-0.256, "0.0%")
-Print Format(0.5, "0\%") & " " & Format(0.5, "0""%""")
+Print Format(0.4, "0\%") & " " & Format(0.4, "0""%""")
 Print Format(1.5, "0%;(0%)") & " " & Format(-1.5, "0%;(0%)")]=]
     )
     set_tests_properties(
