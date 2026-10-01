@@ -7653,6 +7653,12 @@ private:
             set_error("WFC0066", "Option directives must precede module statements", statement_offset);
             return false;
         }
+        if (consume_keyword("private")) {
+            // `Option Private Module`: every module is private to the project already.
+            skip_horizontal_whitespace();
+            static_cast<void>(consume_keyword("module"));
+            return true;
+        }
         if (consume_keyword("explicit")) {
             if (option_explicit_) {
                 set_error("WFC0067", "duplicate Option Explicit", statement_offset);
@@ -7667,7 +7673,7 @@ private:
                 return false;
             }
             skip_horizontal_whitespace();
-            if (consume_keyword("binary")) {
+            if (consume_keyword("binary") || consume_keyword("database")) {
                 option_compare_text_ = false;
             } else if (consume_keyword("text")) {
                 option_compare_text_ = true;

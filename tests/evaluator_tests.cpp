@@ -2361,7 +2361,8 @@ int main() {
         "If True Then\nOption Explicit\nEnd If",
         "WFC0068");
     expect_program_failure("Option Compare Text\nOption Compare Binary", "WFC0069");
-    expect_program_failure("Option Compare Database", "WFC0070");
+    expect_program_success("Option Compare Database\nPrint \"a\" = \"A\"", "False");
+    expect_program_failure("Option Compare Banana", "WFC0070");
     // Option Base (REQ-0226): a bound-less dimension (`Dim arr(n)`, and
     // the same for ReDim) takes its lower bound from Option Base -- 0
     // unless Option Base 1 was declared -- while an explicit `<lower> To`

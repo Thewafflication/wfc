@@ -347,6 +347,7 @@ a specific requirement.
 | 2026-09-30 #13 | Construction | Dir lists directories only with vbDirectory (including . and ..); Kill accepts * and ? masks; SetAttr toggles the read-only bit and GetAttr reports read-only/archive/directory. Corpus 96. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #14 | Construction | Untaken-branch placeholders no longer raise (chained indexing, calls through unset Object variables, Switch, For bounds, Case values); unmatched Switch yields Null; coerce_long accepts Byte/Boolean/Empty/numeric strings/Date; one-line With and Select Case headers. Corpus 97-98. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #15 | Construction | col(i).Prop = x, obj.Prop(args).member = x, obj.Prop.member = x and v(i).member = x assign into the object reached; one-line With/Select; Randomize/Rnd/Shell/For Each/logical operators tolerate placeholders in untaken branches. Corpus 99. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #16 | Construction | Option Compare Database behaves as Binary; Option Private Module is accepted and ignored. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
