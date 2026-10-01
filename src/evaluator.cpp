@@ -4061,58 +4061,65 @@ private:
         if (needed) {
             class_sources_.push_back({"Collection", kCollectionSource});
         }
-        const auto mentions_dictionary = [](const std::string_view text) {
-            constexpr std::string_view needle = "scripting.dictionary";
+        const auto text_mentions = [](const std::string_view text, const std::string_view needle,
+                                      const bool whole_word) {
             for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
                 std::size_t k = 0;
                 while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
-                if (k == needle.size()) return true;
+                if (k == needle.size() &&
+                    (!whole_word ||
+                     ((i == 0 || !is_identifier_part(text[i - 1])) &&
+                      (i + k == text.size() || !is_identifier_part(text[i + k]))))) {
+                    return true;
+                }
             }
             return false;
         };
-        bool needs_dictionary = mentions_dictionary(source_);
-        for (const auto& module : class_sources_) {
-            needs_dictionary = needs_dictionary || mentions_dictionary(module.source);
-        }
-        if (needs_dictionary) {
+        const auto any_source_mentions = [&](const std::string_view needle, const bool whole_word) {
+            bool found = text_mentions(source_, needle, whole_word);
+            for (const auto& module : class_sources_) {
+                found = found || text_mentions(module.source, needle, whole_word);
+            }
+            return found;
+        };
+        const auto user_defines = [&](const std::string_view name) {
+            for (const auto& module : class_sources_) {
+                if (module.name.size() == name.size()) {
+                    bool same = true;
+                    for (std::size_t i = 0; i < name.size(); ++i) {
+                        same = same && ascii_lower(module.name[i]) == name[i];
+                    }
+                    if (same) return true;
+                }
+            }
+            return false;
+        };
+        // Each built-in is registered under an internal `Wfc` name (what CreateObject builds)
+        // and, unless the program defines its own class of that name, the public type name too
+        // (`Dim d As New Dictionary`, `As Scripting.Dictionary`).
+        if (any_source_mentions("scripting.dictionary", false) ||
+            any_source_mentions("dictionary", true)) {
+            const bool alias = !user_defines("dictionary");
             class_sources_.push_back({"WfcDictionary", kDictionarySource});
+            if (alias) class_sources_.push_back({"Dictionary", kDictionarySource});
         }
-        const auto mentions_fso = [](const std::string_view text) {
-            constexpr std::string_view needle = "scripting.filesystemobject";
-            for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
-                std::size_t k = 0;
-                while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
-                if (k == needle.size()) return true;
-            }
-            return false;
-        };
-        bool needs_fso = mentions_fso(source_);
-        for (const auto& module : class_sources_) {
-            needs_fso = needs_fso || mentions_fso(module.source);
-        }
-        if (needs_fso) {
+        if (any_source_mentions("scripting.filesystemobject", false) ||
+            any_source_mentions("filesystemobject", true)) {
+            const bool alias = !user_defines("filesystemobject");
             class_sources_.push_back({"WfcTextStream", kTextStreamSource});
             class_sources_.push_back({"WfcFile", kFileObjectSource});
             class_sources_.push_back({"WfcFileSystemObject", kFileSystemObjectSource});
+            if (alias) class_sources_.push_back({"FileSystemObject", kFileSystemObjectSource});
         }
-        const auto mentions_regexp = [](const std::string_view text) {
-            constexpr std::string_view needle = "vbscript.regexp";
-            for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
-                std::size_t k = 0;
-                while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
-                if (k == needle.size()) return true;
-            }
-            return false;
-        };
-        bool needs_regexp = mentions_regexp(source_);
-        for (const auto& module : class_sources_) {
-            needs_regexp = needs_regexp || mentions_regexp(module.source);
-        }
-        if (needs_regexp) {
+        if (any_source_mentions("vbscript.regexp", false) ||
+            any_source_mentions("vbscript_regexp_55.regexp", false) ||
+            any_source_mentions("regexp", true)) {
+            const bool alias = !user_defines("regexp");
             class_sources_.push_back({"WfcRegExp", kRegExpSource});
             class_sources_.push_back({"WfcMatchCollection", kMatchCollectionSource});
             class_sources_.push_back({"WfcMatch", kMatchSource});
             class_sources_.push_back({"WfcSubMatches", kSubMatchesSource});
+            if (alias) class_sources_.push_back({"RegExp", kRegExpSource});
         }
         const auto mentions_app = [](const std::string_view text) {
             for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
@@ -4498,7 +4505,8 @@ private:
         for (int qualifiers = 0; qualifiers < 2; ++qualifiers) {
             static const std::set<std::string, std::less<>> libraries = {
                 "vba", "strings", "math", "conversion", "datetime", "interaction", "filesystem",
-                "information", "fileio", "financial", "constants", "globals", "vbruntime"};
+                "information", "fileio", "financial", "constants", "globals", "vbruntime", "scripting",
+                "vbscript_regexp_55", "vbscript_regexp_10"};
             if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
                 is_identifier_start(source_[offset_ + 1]) && libraries.contains(identifier) &&
                 find_variable(identifier).value == nullptr &&
