@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <regex>
 #include <set>
 #include <string>
 #include <thread>
@@ -2199,6 +2200,127 @@ RmDir path
 End Sub
 )VB";
 
+// VBScript.RegExp, written in VB over two native helpers (WfcRegexMatches /
+// WfcRegexReplace, std::regex ECMAScript flavor).
+constexpr std::string_view kRegExpSource = R"VB(Public Pattern As String
+Public Global As Boolean
+Public IgnoreCase As Boolean
+Public MultiLine As Boolean
+Public Function Test(ByVal text As String) As Boolean
+Dim m As Variant
+m = WfcRegexMatches(Pattern, text, IgnoreCase, MultiLine, False)
+Test = UBound(m) >= 0
+End Function
+Public Function Execute(ByVal text As String) As Object
+Dim raw As Variant, i As Long, mc As New WfcMatchCollection
+raw = WfcRegexMatches(Pattern, text, IgnoreCase, MultiLine, Global)
+For i = 0 To UBound(raw)
+mc.AddRaw raw(i)
+Next i
+Set Execute = mc
+End Function
+Public Function Replace(ByVal text As String, ByVal replacement As String) As String
+Replace = WfcRegexReplace(Pattern, text, replacement, IgnoreCase, MultiLine, Global)
+End Function
+)VB";
+
+constexpr std::string_view kMatchCollectionSource = R"VB(Private items() As Variant
+Private n As Long
+Public Sub AddRaw(raw As Variant)
+Dim m As New WfcMatch
+m.Init raw
+n = n + 1
+If n = 1 Then
+ReDim items(0 To 3)
+ElseIf n > UBound(items) + 1 Then
+ReDim Preserve items(0 To UBound(items) * 2 + 1)
+End If
+Set items(n - 1) = m
+End Sub
+Public Property Get Count() As Long
+Count = n
+End Property
+Public Function Item(ByVal Index As Long) As Object
+Attribute Item.VB_UserMemId = 0
+If Index < 0 Or Index >= n Then Err.Raise 9, , "Subscript out of range"
+Set Item = items(Index)
+End Function
+Public Function WfcItems() As Variant
+Dim r() As Variant, i As Long
+If n = 0 Then
+WfcItems = Array()
+Else
+ReDim r(1 To n)
+For i = 1 To n
+Set r(i) = items(i - 1)
+Next i
+WfcItems = r
+End If
+End Function
+)VB";
+
+constexpr std::string_view kMatchSource = R"VB(Private mIndex As Long
+Private mLength As Long
+Private mValue As String
+Private subs As Variant
+Public Sub Init(raw As Variant)
+Dim sm As New WfcSubMatches, i As Long
+mIndex = raw(0)
+mLength = raw(1)
+mValue = raw(2)
+For i = 3 To UBound(raw)
+sm.AddText raw(i)
+Next i
+Set subs = sm
+End Sub
+Public Property Get Value() As String
+Attribute Value.VB_UserMemId = 0
+Value = mValue
+End Property
+Public Property Get FirstIndex() As Long
+FirstIndex = mIndex
+End Property
+Public Property Get Length() As Long
+Length = mLength
+End Property
+Public Property Get SubMatches() As Object
+Set SubMatches = subs
+End Property
+)VB";
+
+constexpr std::string_view kSubMatchesSource = R"VB(Private items() As Variant
+Private n As Long
+Public Sub AddText(ByVal s As String)
+n = n + 1
+If n = 1 Then
+ReDim items(0 To 3)
+ElseIf n > UBound(items) + 1 Then
+ReDim Preserve items(0 To UBound(items) * 2 + 1)
+End If
+items(n - 1) = s
+End Sub
+Public Property Get Count() As Long
+Count = n
+End Property
+Public Function Item(ByVal Index As Long) As String
+Attribute Item.VB_UserMemId = 0
+If Index < 0 Or Index >= n Then Err.Raise 9, , "Subscript out of range"
+Item = items(Index)
+End Function
+Public Function WfcItems() As Variant
+Dim r() As Variant, i As Long
+If n = 0 Then
+WfcItems = Array()
+Else
+ReDim r(1 To n)
+For i = 1 To n
+r(i) = items(i - 1)
+Next i
+WfcItems = r
+End If
+End Function
+)VB";
+
 struct Scope {
     std::unordered_map<std::string, Value> variables;
     std::unordered_set<std::string> constants;
@@ -3899,6 +4021,25 @@ private:
             class_sources_.push_back({"WfcTextStream", kTextStreamSource});
             class_sources_.push_back({"WfcFile", kFileObjectSource});
             class_sources_.push_back({"WfcFileSystemObject", kFileSystemObjectSource});
+        }
+        const auto mentions_regexp = [](const std::string_view text) {
+            constexpr std::string_view needle = "vbscript.regexp";
+            for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
+                std::size_t k = 0;
+                while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
+                if (k == needle.size()) return true;
+            }
+            return false;
+        };
+        bool needs_regexp = mentions_regexp(source_);
+        for (const auto& module : class_sources_) {
+            needs_regexp = needs_regexp || mentions_regexp(module.source);
+        }
+        if (needs_regexp) {
+            class_sources_.push_back({"WfcRegExp", kRegExpSource});
+            class_sources_.push_back({"WfcMatchCollection", kMatchCollectionSource});
+            class_sources_.push_back({"WfcMatch", kMatchSource});
+            class_sources_.push_back({"WfcSubMatches", kSubMatchesSource});
         }
         const auto mentions_app = [](const std::string_view text) {
             for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
@@ -10586,6 +10727,17 @@ private:
                 // nothing (there is nowhere to assign it to).
                 skip_horizontal_whitespace();
                 if (!consume('=')) {
+                    if (at_statement_end() || current() != '=') {
+                        // A call statement `obj.Method args`: parse (and ignore) the arguments.
+                        skip_horizontal_whitespace();
+                        while (!at_statement_end()) {
+                            if (!parse_expression().has_value()) return false;
+                            skip_horizontal_whitespace();
+                            if (!consume(',')) break;
+                            skip_horizontal_whitespace();
+                        }
+                        return true;
+                    }
                     set_error("WFC0014", "expected assignment operator", offset_);
                     return false;
                 }
@@ -13307,6 +13459,44 @@ private:
                         member_offset);
                     return std::nullopt;
                 }
+                if (indexed_getter_iterator->second.parameters.empty()) {
+                    // `obj.Prop(i)` where Prop takes no index: apply the
+                    // parentheses to the object (or array) it returns.
+                    auto held = invoke_definition(
+                        indexed_getter_iterator->second, *member_name, {}, member_offset,
+                        class_def.source, &instance);
+                    if (!held.has_value()) {
+                        return std::nullopt;
+                    }
+                    if (const auto* holder = std::get_if<ObjectInstance>(&*held)) {
+                        const auto held_class = class_definitions_.find(holder->data->class_name);
+                        if (held_class != class_definitions_.end() &&
+                            !held_class->second.default_member.empty()) {
+                            const auto& default_member = held_class->second.default_member;
+                            if (held_class->second.methods.contains(default_member)) {
+                                return call_class_method(
+                                    *holder->data, held_class->second, default_member, member_offset,
+                                    /*require_function=*/true);
+                            }
+                            const auto default_getter =
+                                held_class->second.property_get.find(default_member);
+                            if (default_getter != held_class->second.property_get.end()) {
+                                auto default_arguments = parse_call_argument_list();
+                                if (!default_arguments.has_value()) {
+                                    return std::nullopt;
+                                }
+                                return invoke_definition(
+                                    default_getter->second, default_member,
+                                    std::move(*default_arguments), member_offset,
+                                    held_class->second.source, holder->data.get());
+                            }
+                        }
+                    } else if (std::holds_alternative<ArrayValue>(*held)) {
+                        return parse_array_index(*held);
+                    }
+                    set_error("WFC0135", "unknown member", member_offset);
+                    return std::nullopt;
+                }
                 auto arguments = parse_call_argument_list();
                 if (!arguments.has_value()) {
                     return std::nullopt;
@@ -13554,7 +13744,7 @@ private:
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
             "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
             "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname", "shell",
-            "getallsettings", "objptr", "strptr"};
+            "getallsettings", "objptr", "strptr", "wfcregexmatches", "wfcregexreplace"};
         return names.contains(std::string(name));
     }
 
@@ -13698,6 +13888,10 @@ private:
                         class_definitions_.contains("wfcdictionary")) {
                         return instantiate_class("wfcdictionary", offset);
                     }
+                    if ((lowered == "vbscript.regexp" || lowered == "vbscript.regexp.55") &&
+                        class_definitions_.contains("wfcregexp")) {
+                        return instantiate_class("wfcregexp", offset);
+                    }
                     if (lowered == "scripting.filesystemobject" &&
                         class_definitions_.contains("wfcfilesystemobject")) {
                         return instantiate_class("wfcfilesystemobject", offset);
@@ -13706,6 +13900,61 @@ private:
             }
             static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
             return std::nullopt;
+        }
+        if (name == "wfcregexmatches" || name == "wfcregexreplace") {
+            const bool replacing = name == "wfcregexreplace";
+            if (!arity(replacing ? 6 : 5, replacing ? 6 : 5)) return std::nullopt;
+            const auto* pattern = std::get_if<std::string>(&arguments[0]);
+            const auto* text = std::get_if<std::string>(&arguments[1]);
+            if (pattern == nullptr || text == nullptr) return bad_type();
+            const std::size_t flag_base = replacing ? 3U : 2U;
+            const auto* replacement = replacing ? std::get_if<std::string>(&arguments[2]) : nullptr;
+            if (replacing && replacement == nullptr) return bad_type();
+            const auto flag = [&](const std::size_t index) {
+                const auto* value = std::get_if<bool>(&arguments[index]);
+                return value != nullptr && *value;
+            };
+            const bool ignore_case = flag(flag_base);
+            const bool multi_line = flag(flag_base + 1U);
+            const bool global = flag(flag_base + 2U);
+            if (!execute_) return replacing ? Value{std::string{}} : Value{Empty{}};
+            try {
+                auto options = std::regex::ECMAScript;
+                if (ignore_case) options |= std::regex::icase;
+                if (multi_line) options |= std::regex::multiline;
+                const std::regex expression(*pattern, options);
+                if (replacing) {
+                    return Value{std::regex_replace(
+                        *text, expression, *replacement,
+                        global ? std::regex_constants::format_default
+                               : std::regex_constants::format_first_only)};
+                }
+                std::vector<Value> found;
+                for (auto it = std::sregex_iterator(text->begin(), text->end(), expression);
+                     it != std::sregex_iterator(); ++it) {
+                    const std::smatch& match = *it;
+                    std::vector<Value> row;
+                    row.emplace_back(static_cast<Integer>(match.position(0)));
+                    row.emplace_back(static_cast<Integer>(match.length(0)));
+                    for (std::size_t group = 0; group < match.size(); ++group) {
+                        row.emplace_back(match[group].str());
+                    }
+                    ArrayValue row_array{};
+                    row_array.elements = std::move(row);
+                    row_array.is_variant_element = true;
+                    row_array.element_type_index = Value{Empty{}}.index();
+                    found.emplace_back(std::move(row_array));
+                    if (!global) break;
+                }
+                ArrayValue result{};
+                result.elements = std::move(found);
+                result.is_variant_element = true;
+                result.element_type_index = Value{Empty{}}.index();
+                return Value{std::move(result)};
+            } catch (const std::regex_error&) {
+                static_cast<void>(raise_runtime(5017, "Syntax error in regular expression", offset));
+                return std::nullopt;
+            }
         }
         if (name == "objptr" || name == "strptr") {
             // Opaque, stable-per-object "addresses" for code that passes them along.
@@ -15663,6 +15912,10 @@ private:
                 if (shown == "WfcFileSystemObject") return Value{std::string{"FileSystemObject"}};
                 if (shown == "WfcTextStream") return Value{std::string{"TextStream"}};
                 if (shown == "WfcFile") return Value{std::string{"File"}};
+                if (shown == "WfcRegExp") return Value{std::string{"RegExp"}};
+                if (shown == "WfcMatchCollection") return Value{std::string{"MatchCollection"}};
+                if (shown == "WfcMatch") return Value{std::string{"Match"}};
+                if (shown == "WfcSubMatches") return Value{std::string{"SubMatches"}};
                 return Value{shown};
             }
             if (const auto* array = std::get_if<ArrayValue>(&arguments[0])) {

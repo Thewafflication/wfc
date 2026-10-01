@@ -295,6 +295,7 @@ a specific requirement.
 | 2026-09-30 #210 | Construction | Increment: Array() lower bound follows Option Base 1; corpus 63. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #211 | Construction | Increment: Debug.Print inside single-line If, cached identifier-statement dispatch, user variables shadow VBA constants; corpus 64. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #212 | Construction | Perf: consume_keyword rejects on the first character inline (about 15% on a recursion-heavy program). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #213 | Construction | Increment: CreateObject("VBScript.RegExp") with Test/Execute/Replace, MatchCollection, SubMatches; Prop(i) through a returned default member; corpus 65. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

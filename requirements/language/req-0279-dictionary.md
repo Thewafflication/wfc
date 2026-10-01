@@ -121,3 +121,9 @@ out-of-range `Chr` is error 5. Corpus `61-string-edge-cases`.
 
 Addendum: `Year`/`Month`/`Day`/`Hour`/`Minute`/`Second`/`Weekday`/`DateAdd`/`DateDiff`/`DatePart` return Null for a
 Null date; `CDate` outside year 100..9999 is Overflow. Corpus `62-math-date-edges`.
+
+Addendum: `CreateObject("VBScript.RegExp")` returns a built-in RegExp (`Pattern`, `Global`,
+`IgnoreCase`, `MultiLine`, `Test`, `Execute`, `Replace`) over `std::regex` (ECMAScript flavor);
+`Execute` returns a MatchCollection (`Count`, default `Item`, `For Each`) of Match objects
+(`Value`, `FirstIndex`, `Length`, `SubMatches`); a bad pattern is error 5017. `obj.Prop(i)`
+applies the parentheses to the object a parameterless property returns. Corpus `65-regexp`.
