@@ -3653,10 +3653,141 @@ private:
     // assigned to a Double target) is not this function's concern. Returns
     // false only after reporting WFC0009 for a narrowing conversion whose
     // result does not fit the target type.
+    // REQ-0270: VB6's implicit scalar assignment conversions -- numeric <->
+    // numeric (round half to even, overflow is error 6), Boolean <-> number,
+    // numeric String -> number (non-numeric is error 13), number/Boolean/Date
+    // -> String, Empty -> the target's zero. Leaves `value` untouched when the
+    // pair is not a scalar conversion (the caller reports the mismatch).
+    [[nodiscard]] bool implicit_scalar_conversion(
+        Value& value, const std::size_t target_index, const std::size_t offset) {
+        const std::size_t long_index = Value{Integer{}}.index();
+        const std::size_t string_index = Value{std::string{}}.index();
+        const std::size_t bool_index = Value{false}.index();
+        const bool target_numeric = target_index == long_index ||
+            target_index == Value{Int16{}}.index() || target_index == Value{Byte{}}.index() ||
+            target_index == Value{0.0}.index() || target_index == Value{0.0f}.index() ||
+            target_index == Value{Currency{}}.index() || target_index == Value{Decimal{}}.index();
+        const bool target_scalar = target_numeric || target_index == string_index ||
+            target_index == bool_index || target_index == Value{DateValue{}}.index();
+        if (!target_scalar) {
+            return true;
+        }
+        const bool source_scalar = is_number(value) || std::holds_alternative<bool>(value) ||
+            std::holds_alternative<std::string>(value) || std::holds_alternative<Empty>(value) ||
+            std::holds_alternative<DateValue>(value) || std::holds_alternative<Null>(value);
+        if (!source_scalar) {
+            return true;
+        }
+        if (std::holds_alternative<Null>(value)) {
+            if (execute_) {
+                set_error("WFC0104", "Invalid use of Null", offset);
+                return false;
+            }
+            value = zero_value_for_index(target_index);
+            return true;
+        }
+        if (std::holds_alternative<Empty>(value)) {
+            value = zero_value_for_index(target_index);
+            return true;
+        }
+        if (!execute_) {
+            // Dry run: the operand is a placeholder; only the type matters.
+            if (target_index == bool_index || target_index == string_index || target_numeric) {
+                value = zero_value_for_index(target_index);
+            }
+            return true;
+        }
+        const auto mismatch = [&]() {
+            set_error("WFC0016", "assignment type mismatch", offset);
+            return false;
+        };
+        // To String.
+        if (target_index == string_index) {
+            if (std::holds_alternative<std::string>(value)) {
+                return true;
+            }
+            value = render(value);
+            return true;
+        }
+        // From String.
+        if (const auto* text = std::get_if<std::string>(&value)) {
+            if (target_index == string_index) {
+                return true;
+            }
+            if (target_index == bool_index) {
+                std::string lowered;
+                for (const char c : *text) lowered.push_back(ascii_lower(c));
+                if (lowered == "true") { value = true; return true; }
+                if (lowered == "false") { value = false; return true; }
+            }
+            if (target_index == Value{DateValue{}}.index()) {
+                return true;  // handled by the Date branch below
+            }
+            const auto parsed = parse_numeric_string(*text);
+            if (parsed.status == NumericStringStatus::out_of_range) {
+                set_error("WFC0009", "numeric overflow", offset);
+                return false;
+            }
+            if (parsed.status != NumericStringStatus::valid) {
+                return mismatch();
+            }
+            value = parsed.value;
+            if (target_index == bool_index) {
+                value = parsed.value != 0.0;
+                return true;
+            }
+            return coerce_numeric_value(value, target_index, offset);
+        }
+        // From Boolean.
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            if (target_index == bool_index) {
+                return true;
+            }
+            value = Integer{*flag ? -1 : 0};
+            return coerce_numeric_value(value, target_index, offset);
+        }
+        // To Boolean from a number.
+        if (target_index == bool_index) {
+            if (std::holds_alternative<DateValue>(value)) {
+                value = std::get<DateValue>(value).serial != 0.0;
+            } else if (std::holds_alternative<Decimal>(value)) {
+                value = as_double(value) != 0.0;
+            } else {
+                value = as_double(value) != 0.0;
+            }
+            return true;
+        }
+        // To Long from the other numerics (round half to even).
+        if (target_index == long_index && !std::holds_alternative<Integer>(value)) {
+            double number{};
+            if (const auto* date = std::get_if<DateValue>(&value)) {
+                number = date->serial;
+            } else if (std::holds_alternative<Decimal>(value)) {
+                number = decimal_to_double(std::get<Decimal>(value));
+            } else {
+                number = as_double(value);
+            }
+            const double rounded = std::nearbyint(number);
+            if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+                set_error("WFC0009", "integer overflow", offset);
+                return false;
+            }
+            value = static_cast<Integer>(rounded);
+            return true;
+        }
+        return true;
+    }
+
     [[nodiscard]] bool coerce_numeric_value(
         Value& value,
         const std::size_t target_index,
         const std::size_t offset) {
+        if (value.index() == target_index) {
+            return true;
+        }
+        if (!implicit_scalar_conversion(value, target_index, offset)) {
+            return false;
+        }
         if (value.index() == target_index) {
             return true;
         }
@@ -3883,6 +4014,7 @@ private:
     [[nodiscard]] Integer runtime_error_number() const {
         const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
         if (code == "WFC0300") return err_number_;
+        if (code == "WFC0016") return 13;
         if (code == "WFC0008") return 11;
         if (code == "WFC0009") return 6;
         if (code == "WFC0111") return 9;
@@ -10692,6 +10824,14 @@ private:
                 frame.variables.emplace(parameter.name, copy_if_udt(std::move(argument.value)));
                 frame.variant_variables.insert(parameter.name);
                 continue;
+            }
+            if (argument.byref_target != nullptr && !parameter.by_val &&
+                argument.value.index() != parameter.type_index) {
+                // VB6: "ByRef argument type mismatch" -- a variable passed by
+                // reference must already have the parameter's exact type
+                // (REQ-0270); convert it first (CLng(x)) or declare ByVal.
+                set_error("WFC0016", "ByRef argument type mismatch", identifier_offset);
+                return std::nullopt;
             }
             if (!coerce_numeric_value(argument.value, parameter.type_index, identifier_offset)) {
                 return std::nullopt;

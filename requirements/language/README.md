@@ -374,5 +374,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0267 — UDT arrays, results, Variant copies](req-0267-udt-arrays-results.md)
 - [REQ-0268 — Number rendering; program corpus](req-0268-double-rendering-and-corpus.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
+- [REQ-0270 — Implicit scalar conversions](req-0270-implicit-conversions.md)
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

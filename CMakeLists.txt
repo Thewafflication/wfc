@@ -1659,6 +1659,20 @@ Print v.x & q.x]=]
     endforeach()
 
     add_test(
+        NAME TC-MP0002-implicit-conversions-cli
+        COMMAND wfc
+            --eval [=[Dim n As Long
+n = 10 / 4
+Print n]=]
+    )
+    set_tests_properties(
+        TC-MP0002-implicit-conversions-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^2"
+    )
+
+    add_test(
         NAME TC-MP0002-class-refinements-cli
         COMMAND wfc
             --class Counter [=[Public n As Long]=]

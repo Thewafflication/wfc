@@ -665,8 +665,8 @@ int main() {
         "Dim x As Long\nDim arr() As Long\nDim n As Long\n"
         "For Each x In arr\nn = n + 1\nNext\nPrint n",
         "0");
-    expect_program_failure(
-        "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext", "WFC0016");
+    expect_program_success(
+        "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext", "0\n0\n0");
     expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0147");
     expect_program_failure("Dim x As Long\nFor Each x 5\nNext", "WFC0147");
     // Multi-dimensional (fixed-size only) arrays: Dim arr(b1, b2, ...),
@@ -1460,6 +1460,13 @@ int main() {
     expect_program_success(
         "Type P\nn As Long\nEnd Type\nDim a As P, b As P\na.n = 1\nIf a.n > 5 Then\nb = a\nEnd If\nPrint b.n",
         "0");
+    // Implicit scalar conversions (REQ-0270).
+    expect_program_success(
+        "Dim n As Long: n = 10 / 4: Print n\nn = 2.5: Print n\nn = 3.5: Print n\nn = \"12\": Print n\nn = True: Print n\n"
+        "Dim s As String: s = 5: Print s & TypeName(s)\nDim d As Double: d = \"1.5\": Print d\n"
+        "Dim b As Boolean: b = 2: Print b\nDim i As Integer: i = 3.5: Print i\nPrint \"3\" * \"4\" & \" \" & (\"5\" + 10)\n"
+        "On Error Resume Next\nn = \"abc\"\nPrint Err.Number\nn = 3000000000#\nPrint Err.Number",
+        "2\n2\n4\n12\n-1\n5String\n1.5\nTrue\n4\n12 15\n13\n6");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
