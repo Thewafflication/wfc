@@ -1,8 +1,8 @@
 L1 caught 1001 Level3 deep failure
 top caught: rethrown: deep failure [Level1]
 ok 5          err 11
-after         13
-53            File not found
+after          13 
+ 53           File not found
 i=1
 cnt 9 at i=2
 i=2

@@ -1,6 +1,6 @@
-queens        92
-hanoi         1023
+queens         92 
+hanoi          1023 
 11111111      FF            0             2626
-gen1          3             True          False
-gen2          3             False         True
-gen3          3             True          False
+gen1           3            True          False
+gen2           3            False         True
+gen3           3            True          False

@@ -1555,7 +1555,7 @@ Print l(21)]=]
         TC-MP0002-vbp-modules-cli
         PROPERTIES
             LABELS "integration;mp-0002;project"
-            PASS_REGULAR_EXPRESSION "^8"
+            PASS_REGULAR_EXPRESSION "^ 8 "
     )
 
     add_test(

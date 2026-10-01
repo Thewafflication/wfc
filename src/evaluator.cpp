@@ -2951,6 +2951,8 @@ public:
 
     // The class module (display name) whose source was executing when the last error was
     // raised; empty for the standard module(s).
+    void set_vb_number_spacing(const bool enabled) noexcept { vb_number_spacing_ = enabled; }
+
     [[nodiscard]] std::string failing_module_name() const {
         if (error_source_data_ == nullptr || error_source_data_ == main_source_data_) {
             return {};
@@ -7525,6 +7527,13 @@ private:
             if (execute_) {
                 if (std::holds_alternative<Null>(*value)) {
                     text += "Null";
+                } else if (vb_number_spacing_ && is_number(*value) &&
+                           !std::holds_alternative<DateValue>(*value)) {
+                    // VB6 reserves a sign position before a number and adds a trailing space.
+                    const std::string digits = render(*value);
+                    if (digits.empty() || digits.front() != '-') text.push_back(' ');
+                    text += digits;
+                    text.push_back(' ');
                 } else {
                     text += render(*value);
                 }
@@ -19968,6 +19977,7 @@ private:
     // Set when the current statement read a Variant variable: Variant arithmetic that overflows
     // is promoted (Integer -> Long -> Double) instead of raising Overflow.
     bool variant_operand_seen_{};
+    bool vb_number_spacing_{};
     bool pending_static_procedure_{};
     bool variant_string_seen_{};
     bool variant_number_seen_{};
@@ -20525,6 +20535,12 @@ Evaluation evaluate_program(const std::string_view source) {
 
 Evaluation evaluate_program(
     const std::string_view source, const std::vector<ClassModuleSource>& classes) {
+    return evaluate_program(source, classes, EvaluationOptions{});
+}
+
+Evaluation evaluate_program(
+    const std::string_view source, const std::vector<ClassModuleSource>& classes,
+    const EvaluationOptions& options) {
     std::string error;
     std::size_t error_offset{};
     auto processed = ConditionalPreprocessor{}.run(source, error, error_offset);
@@ -20556,6 +20572,7 @@ Evaluation evaluate_program(
     return evaluate_interpreter([&](const std::size_t depth, const char* base,
                                     const std::size_t budget) {
         Interpreter interpreter(*processed, rewritten);
+        interpreter.set_vb_number_spacing(options.vb6_print_spacing);
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
         auto result = interpreter.evaluate();

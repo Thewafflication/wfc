@@ -339,6 +339,7 @@ a specific requirement.
 | 2026-09-30 #5 | Construction | README coverage paragraph updated for the built-in Scripting classes, numbered lines, single-line and Static procedures, NewEnum, VBA-qualified calls, and line/column diagnostics. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #6 | Construction | Exponentiation accepts Decimal operands (result Double). Corpus 92 (Decimal/Currency arithmetic). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #7 | Construction | Declared Win32 timing and MessageBox calls work without a DLL: a 10 MHz performance counter (Currency raw count) and default-button answers. Corpus 93. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #8 | Construction | Project/.bas runs print numbers as VB6 does (sign position + trailing space) via EvaluationOptions::vb6_print_spacing; --eval and the default API stay compact. All corpus expectations regenerated (whitespace-only changes verified). REQ-0282, corpus 94. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

@@ -37,10 +37,21 @@ struct ClassModuleSource final {
     std::string_view source;
 };
 
+// Behaviors that differ between a compact one-liner snippet and a faithful VB6 program run.
+struct EvaluationOptions final {
+    // `Print` reserves a sign position before a number and adds a trailing space, as VB6 does
+    // (` 5 `, `-5 `). Off by default: snippets print numbers compactly.
+    bool vb6_print_spacing{};
+};
+
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);
 
 [[nodiscard]] Evaluation evaluate_program(
     std::string_view source, const std::vector<ClassModuleSource>& classes);
+
+[[nodiscard]] Evaluation evaluate_program(
+    std::string_view source, const std::vector<ClassModuleSource>& classes,
+    const EvaluationOptions& options);
 
 [[nodiscard]] Evaluation evaluate_print_statement(std::string_view source);
 

@@ -72,9 +72,10 @@ int main(const int argument_count, const char* const arguments[]) {
             project_classes.push_back(
                 wfc::ClassModuleSource{project.class_names[i], project.class_sources[i]});
         }
-        const auto result = project_classes.empty()
-            ? wfc::evaluate_program(project.module_source)
-            : wfc::evaluate_program(project.module_source, project_classes);
+        // Running real project files: print numbers the way VB6 does.
+        wfc::EvaluationOptions options;
+        options.vb6_print_spacing = true;
+        const auto result = wfc::evaluate_program(project.module_source, project_classes, options);
         if (!result.debug_output.empty()) {
             std::cerr << result.debug_output;
         }

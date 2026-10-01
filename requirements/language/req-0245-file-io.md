@@ -10,8 +10,10 @@
   Files are written with CRLF line ends and read tolerant of LF/CRLF.
 - `Print` (console and file) takes an item list separated by `;` (join) or
   `,` (next 14-column zone), `Spc(n)`, `Tab(n)`, and a trailing separator
-  suppresses the newline. Numbers keep this evaluator's existing no-padding
-  rendering (real VB6 adds a leading sign space).
+  suppresses the newline. When running project files (`wfc file.vbp|.bas`,
+  `EvaluationOptions::vb6_print_spacing`), numbers print as in VB6: a leading
+  space for non-negative values (`-` for negative) and a trailing space
+  (REQ-0282). `--eval` snippets and the default API keep the compact rendering.
 - `Kill`, `MkDir`, `RmDir`, `FileCopy`, `Dir(pattern)`/`Dir()`, `FileLen`,
   `CurDir`, `Environ(name)`.
 - Failures raise catchable errors: 52 bad file number, 53 file not found,

@@ -3,10 +3,10 @@ Byte          Integer       Integer       Long          Double        Integer
 Single        Single        Double        Currency      Currency      Currency
 Integer       Integer       Integer       Integer       Byte          Integer
 Byte          Integer       Long          Double        String
-32768         Long
-2147483648    Double
-90000         Long
-500           Integer
-6
-6
-6
+ 32768        Long
+ 2147483648   Double
+ 90000        Long
+ 500          Integer
+ 6 
+ 6 
+ 6 
