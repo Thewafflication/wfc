@@ -314,6 +314,7 @@ a specific requirement.
 | 2026-09-30 #229 | Construction | Indexing the array produced by an array element or function call (jag(2)(1), Array(..)(2), Split(..)(2)) and assigning into arrays held by Variant elements (v(1)(0) = x) now work; Debug.Assert is accepted and ignored. Corpus 74. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #230 | Construction | Corpus 75: recursive-descent calculator (module-level state, Select Case, error handlers, Err.Raise). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #231 | Construction | Class-level field declarations accept comma-separated declarators. Corpus 76 (Matrix class with indexed properties). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #232 | Construction | Passing rec.Field, objs(i).Field or obj.Field alone as an argument now writes the parameter back (ByRef). Corpus 77. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

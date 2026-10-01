@@ -12831,28 +12831,27 @@ private:
                 if (variable.value != nullptr) {
                     return CallArgument{*variable.value, variable.value};
                 }
-            } else if (type_character == '\0' && execute_ && !at_end() && current() == '(') {
-                // `arr(i)` alone in its argument slot is a ByRef target too.
+            } else if (type_character == '\0' && execute_ && !at_end() &&
+                       (current() == '(' || current() == '.')) {
+                // `arr(i)`, `rec.Field`, `objs(i).Field` alone in an argument slot are
+                // ByRef targets too.
                 const auto variable = find_variable(*identifier);
-                if (variable.value != nullptr) {
-                    if (auto* array = std::get_if<ArrayValue>(variable.value)) {
-                        advance();
-                        auto indices = parse_index_list(array_expected_dimension_count(*array));
-                        if (!indices.has_value()) {
-                            return std::nullopt;
-                        }
+                if (variable.value != nullptr &&
+                    (std::holds_alternative<ArrayValue>(*variable.value) ||
+                     std::holds_alternative<ObjectInstance>(*variable.value))) {
+                    const auto saved_error = error_;
+                    offset_ = saved_offset;
+                    LValue target;
+                    if (parse_lvalue_path(target)) {
                         skip_horizontal_whitespace();
-                        if (at_end() || current() == ',' || current() == ')' ||
-                            current() == '\r' || current() == '\n' || current() == ':' ||
-                            current() == '\'') {
-                            const auto flat_offset = array_flat_offset(*array, *indices);
-                            if (!flat_offset.has_value()) {
-                                return std::nullopt;
-                            }
-                            Value* element = &array->elements[*flat_offset];
-                            return CallArgument{*element, element};
+                        if (target.ptr != nullptr &&
+                            (at_end() || current() == ',' || current() == ')' ||
+                             current() == '\r' || current() == '\n' || current() == ':' ||
+                             current() == '\'')) {
+                            return CallArgument{*target.ptr, target.ptr};
                         }
                     }
+                    error_ = saved_error;
                 }
             }
             offset_ = saved_offset;
