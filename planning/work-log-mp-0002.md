@@ -285,6 +285,7 @@ a specific requirement.
 | 2026-09-30 #200 | Construction | Increment: Evaluation::vb_error_number/description, CLI prints Run-time error N: text; TC-MP0002-runtime-error-text-cli. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #201 | Construction | Increment: ReDim As Type and lists, Variant becomes an array, free dimension count for Dim a(), String * k arrays; corpus 56. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #202 | Construction | Increment: Int16/Byte arguments widen for library routines (Mid$(s, i, i) with Integer i), ReDim declares undeclared arrays; corpus 57, 58. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #203 | Construction | Increment: literals in -32768..32767 are Integer (TypeName(5) = Integer, Integer overflow like VB6); whole-number acceptance for Tab/Spc/String * n/Len=/Sleep; REQ-0199 amended. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2109,8 +2110,7 @@ class modules (`Implements`, default members, `Event`/`RaiseEvent`/`WithEvents`,
 descriptors; class inheritance; other `CreateObject`/`GetObject` ProgIDs and COM
 interop (MP-0003); visual items in `.vbp` files (MP-0004); `SendKeys`/`Shell`;
 UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings);
-unsuffixed integer literals are `Long` (`TypeName(5)` is "Long"; VB6 says
-"Integer").
+
 The deterministic VB6 reference-probe corpus beyond the existing spot probes has
 not been extended in this series.
 
@@ -2120,7 +2120,7 @@ features listed in `planning/compatibility-profile-1.0.md` under "Legacy
 Features Requiring Explicit Disposition" (DDE, intrinsic `Data`/DAO, OLE1,
 ActiveX Documents, PropertyPage hosting, WinHelp) remain "Proposed; not yet
 accepted" -- these are scope decisions for the maintainer, not something this
-series changed. Also open: whether `TypeName(5)` should become "Integer".
+series changed.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the corpus-driven hardening under MP-0002.

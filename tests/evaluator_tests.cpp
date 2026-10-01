@@ -228,7 +228,7 @@ int main() {
         "2 4 255");
     expect_success(
         "Print TypeName(CVar(42)) & \" \" & TypeName(CVar(2.5)) & \" \" & TypeName(CVar(True)) & \" \" & TypeName(CVar(\"x\"))",
-        "Long Double Boolean String");
+        "Integer Double Boolean String");
     expect_success("Print CVar(42) + 1 & \" \" & CVar(\"value\")", "43 value");
     expect_success("Print Hex(MacID(\"TEXT\")) & \" \" & Hex(MacID(\"XLS8\"))", "54455854 584C5338");
     expect_success("Print MacID(\"ABCD\")", "1094861636");
@@ -261,11 +261,11 @@ int main() {
         "False\nFalse\nFalse");
     expect_success(
         "Print TypeName(42) & \" \" & TypeName(True) & \" \" & TypeName(\"x\")",
-        "Long Boolean String");
+        "Integer Boolean String");
     expect_success("Print TypeName(1 = 1) & \" \" & TypeName(Len(\"ab\"))", "Boolean Long");
     expect_success(
         "Print VarType(42) & \" \" & VarType(True) & \" \" & VarType(\"x\")",
-        "3 11 8");
+        "2 11 8");
     expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString", "3 11 8");
     expect_success("Print VarType(\"y\") = vbString", "True");
     expect_success("Print TypeName(3.14) & \" \" & VarType(3.14)", "Double 5");
@@ -788,7 +788,7 @@ int main() {
         "Dim arr(2) As Variant\narr(0) = 5\narr(1) = \"hello\"\narr(2) = True\n"
         "Print TypeName(arr(0)) & \" \" & TypeName(arr(1)) & \" \" & TypeName(arr(2)) & "
         "\" \" & TypeName(arr) & \" \" & VarType(arr)",
-        "Long String Boolean Variant() 8204");
+        "Integer String Boolean Variant() 8204");
     expect_program_success(
         "Dim arr(1) As Object\nPrint TypeName(arr) & \" \" & VarType(arr) & \" \" & "
         "CStr(arr(0) Is Nothing)",
@@ -1791,7 +1791,7 @@ int main() {
         "Print vbEmpty & \" \" & vbInteger & \" \" & vbDouble & \" \" & vbByte & "
         "\" \" & vbArray",
         "0 2 5 17 8192");
-    expect_success("Print VarType(42) = vbLong", "True");
+    expect_success("Print VarType(42) = vbInteger", "True");
     expect_success("Print VarType(\"x\") = vbString", "True");
     expect_success(
         "Print vbIMEModeHangul & \" \" & vbIMEModeHangulFull & \" \" & vbIMEOn",
@@ -1883,12 +1883,12 @@ int main() {
     // character nor an `As Type` clause, a Const takes its type from the
     // initializer's own value -- the real-VB6 asymmetry with a bare `Dim`,
     // which instead defaults to Variant.
-    expect_program_success("Const x = 5\nPrint x & \" \" & TypeName(x)", "5 Long");
+    expect_program_success("Const x = 5\nPrint x & \" \" & TypeName(x)", "5 Integer");
     expect_program_success("Const y = \"hello\"\nPrint y & \" \" & TypeName(y)", "hello String");
     expect_program_success("Const z = True\nPrint CStr(z) & \" \" & TypeName(z)", "True Boolean");
     expect_program_success("Const w = 3.14\nPrint w & \" \" & TypeName(w)", "3.14 Double");
     expect_program_success(
-        "Const x = 5\nConst y = x + 10\nPrint y & \" \" & TypeName(y)", "15 Long");
+        "Const x = 5\nConst y = x + 10\nPrint y & \" \" & TypeName(y)", "15 Integer");
     expect_program_failure(
         "Dim value As Long: value = 1: Const bad = value", "WFC0064");
     expect_program_success(
@@ -2802,7 +2802,7 @@ int main() {
     expect_program_success(
         "Dim x As Long\nx = 9\nIf Null Then\nx = 1\nElse\nx = 2\nEnd If\nPrint x",
         "2");
-    expect_program_success("Dim x As Variant\nx = 5\nPrint TypeName(x)", "Long");
+    expect_program_success("Dim x As Variant\nx = 5\nPrint TypeName(x)", "Integer");
     expect_program_success(
         "Dim x As Variant\nx = 5\nx = \"hi\"\nPrint TypeName(x)",
         "String");
@@ -2869,7 +2869,7 @@ int main() {
         "Sub Fill(nums() As Variant)\nnums(0) = \"a\"\nnums(1) = 5\nEnd Sub\n"
         "Dim arr(1) As Variant\nCall Fill(arr)\n"
         "Print TypeName(arr(0)) & \" \" & TypeName(arr(1))",
-        "String Long");
+        "String Integer");
     expect_classes_success(
         {{"Counter", "Public value As Long"}},
         "Sub Fill(objs() As Object)\nDim c As New Counter\nSet objs(0) = c\nEnd Sub\n"

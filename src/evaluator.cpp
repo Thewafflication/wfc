@@ -974,6 +974,14 @@ struct NumericStringResult {
            std::holds_alternative<double>(value);
 }
 
+// A whole-number value (Long, Integer or Byte) as a Long.
+[[nodiscard]] inline std::optional<Integer> whole_value(const Value& value) noexcept {
+    if (const auto* integer = std::get_if<Integer>(&value)) return *integer;
+    if (const auto* short_integer = std::get_if<Int16>(&value)) return static_cast<Integer>(*short_integer);
+    if (const auto* byte = std::get_if<Byte>(&value)) return static_cast<Integer>(*byte);
+    return std::nullopt;
+}
+
 // An object reference: either Nothing (REQ-0200's unset state) or a live
 // `New`-produced class instance (REQ-0203). Every place that used to check
 // only for Nothing, back when Nothing was the only object-reference value
@@ -6228,7 +6236,7 @@ private:
                 if (!length.has_value()) {
                     return false;
                 }
-                if (const auto* size = std::get_if<Integer>(&*length)) {
+                if (const auto size = whole_value(*length)) {
                     record_length = *size;
                 }
             }
@@ -6827,7 +6835,8 @@ private:
                         set_error("WFC0005", "expected closing parenthesis", offset_);
                         return false;
                     }
-                    const auto* count = std::get_if<Integer>(&*amount);
+                    const auto count_value = whole_value(*amount);
+                    const Integer* const count = count_value ? &*count_value : nullptr;
                     if (count == nullptr) {
                         set_error("WFC0073", "Spc/Tab requires a Long argument", offset_);
                         return false;
@@ -9015,7 +9024,8 @@ private:
                     if (!length.has_value()) {
                         return false;
                     }
-                    const auto* size = std::get_if<Integer>(&*length);
+                    const auto size_value = whole_value(*length);
+                    const Integer* const size = size_value ? &*size_value : nullptr;
                     if (size == nullptr || *size < 1 || *size > 65526) {
                         set_error("WFC0012", "fixed String length must be 1 to 65526", length_offset);
                         return false;
@@ -12327,7 +12337,7 @@ private:
                 return Value{static_cast<Integer>(static_cast<std::uint32_t>(ticks))};
             }
             if (binding_name == "sleep" && arguments.size() == 1U) {
-                if (const auto* milliseconds = std::get_if<Integer>(&arguments[0].value)) {
+                if (const auto milliseconds = whole_value(arguments[0].value)) {
                     if (*milliseconds > 0) {
                         std::this_thread::sleep_for(std::chrono::milliseconds(*milliseconds));
                     }
@@ -16888,6 +16898,9 @@ private:
             set_error("WFC0006", "integer literal out of range", start);
             return std::nullopt;
         }
+        if (suffix == '\0' && integer_literals_are_integer_ && value >= -32768 && value <= 32767) {
+            return Value{static_cast<Int16>(value)};  // a small literal is an Integer
+        }
         return Value{value};
     }
 
@@ -16966,6 +16979,9 @@ private:
         }
         if (magnitude == maximum_magnitude) {
             return Value{std::numeric_limits<Integer>::min()};
+        }
+        if (suffix == '\0' && integer_literals_are_integer_ && magnitude <= 32768U) {
+            return Value{static_cast<Int16>(-static_cast<std::int32_t>(magnitude))};
         }
         return Value{static_cast<Integer>(-static_cast<Integer>(magnitude))};
     }
@@ -18429,6 +18445,7 @@ private:
     std::size_t fixed_string_length_{};
     std::optional<Value> app_instance_;
     bool retry_statement_{};
+    bool integer_literals_are_integer_{true};
     bool pending_lazy_new_{};
     std::string current_class_scan_name_;
     // Public Enum/Const members declared in class modules.

@@ -642,7 +642,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
         TC-MP0002-cvar-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;conversion;variant"
-            PASS_REGULAR_EXPRESSION "Long Double value"
+            PASS_REGULAR_EXPRESSION "Integer Double value"
     )
 
     add_test(
@@ -697,7 +697,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
         TC-MP0002-typename-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "Long Boolean String"
+            PASS_REGULAR_EXPRESSION "Integer Boolean String"
     )
 
     add_test(
@@ -708,7 +708,7 @@ Print StrComp("abc", "ABC", vbTextCompare)]=]
         TC-MP0002-vartype-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "3 11 8"
+            PASS_REGULAR_EXPRESSION "2 11 8"
     )
 
     add_test(
@@ -1016,7 +1016,7 @@ Print TypeName(x) & " " & x]=]
         TC-MP0002-variant-cli
         PROPERTIES
             LABELS "integration;mp-0002;expressions;variables;variant"
-            PASS_REGULAR_EXPRESSION "Long False False.*Null True \\|\\|.*String hello"
+            PASS_REGULAR_EXPRESSION "Integer False False.*Null True \\|\\|.*String hello"
     )
 
     add_test(
@@ -1934,7 +1934,7 @@ Print TypeName(objs) & " " & CStr(objs(0) Is Nothing)]=]
         TC-MP0002-variant-object-array-cli
         PROPERTIES
             LABELS "integration;mp-0002;statements;array;variant;object"
-            PASS_REGULAR_EXPRESSION "Long String Boolean Variant\\(\\).*Object\\(\\) True"
+            PASS_REGULAR_EXPRESSION "Integer String Boolean Variant\\(\\).*Object\\(\\) True"
     )
 
     add_test(
@@ -2171,7 +2171,7 @@ Print z & " " & TypeName(z)]=]
         TC-MP0002-const-inferred-type-cli
         PROPERTIES
             LABELS "integration;mp-0002;statements;constants"
-            PASS_REGULAR_EXPRESSION "5 Long.*hello String.*3.14 Double.*15 Long"
+            PASS_REGULAR_EXPRESSION "5 Integer.*hello String.*3.14 Double.*15 Integer"
     )
 
     add_test(

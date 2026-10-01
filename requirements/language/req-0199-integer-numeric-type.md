@@ -112,3 +112,11 @@ list and by `REQ-0195`'s and `REQ-0196`'s Scope sections (the `%` literal
 suffix and identifier character), and extends the `Long`/`Single`/
 `Currency`/`Decimal`/`Double` coverage in `REQ-0171`, `REQ-0176`, `REQ-0180`,
 `REQ-0187`, `REQ-0189`, `REQ-0195`, `REQ-0196`, and `REQ-0198` to `Integer`.
+
+## Amendment (REQ-0280)
+
+An unsuffixed decimal integer literal in -32768 through 32767 is an `Integer`
+(`TypeName(5)` is "Integer", `VarType(5)` is 2, as in VB6); larger ones are `Long`
+(or `Double` beyond the `Long` range). `Integer` arithmetic therefore overflows as
+in VB6 (`Print 200 * 200` is error 6; use `200& * 200`). This supersedes the earlier
+scope note that unsuffixed literals were always `Long`.
