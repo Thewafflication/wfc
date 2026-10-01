@@ -2139,6 +2139,104 @@ public:
         }
     }
 
+    // `DefInt A-C, X` ... `DefVar`: the default type for undeclared names by
+    // first letter. Scanned up front from every module (one program-wide
+    // table; a per-module table is not modeled).
+    static constexpr std::size_t no_default_type = static_cast<std::size_t>(-1);
+    std::array<std::size_t, 26> default_types_ = [] {
+        std::array<std::size_t, 26> table{};
+        table.fill(static_cast<std::size_t>(-1));
+        return table;
+    }();
+
+    [[nodiscard]] std::optional<std::size_t> default_type_for(const std::string& name) const {
+        if (name.empty()) return std::nullopt;
+        const char c = ascii_lower(name.front());
+        if (c < 'a' || c > 'z') return std::nullopt;
+        const auto index = default_types_[static_cast<std::size_t>(c - 'a')];
+        if (index == no_default_type) return std::nullopt;
+        return index;
+    }
+
+    // A Function/Property Get declared without `As Type`: Variant, or the
+    // DefXxx type for its first letter.
+    void apply_implicit_return_type(
+        ProcedureDef& definition, const std::string& name, const char suffix = '\0') const {
+        if (suffix != '\0') {
+            definition.return_type_index = type_character_index(suffix);
+            definition.return_is_variant = false;
+        } else if (const auto default_type = default_type_for(name)) {
+            definition.return_type_index = *default_type;
+            definition.return_is_variant = false;
+        } else {
+            definition.return_type_index = Value{Empty{}}.index();
+            definition.return_is_variant = true;
+        }
+    }
+
+    // Parses one `DefXxx letters` line starting at `text[position]`; returns
+    // false if the line is not a Def statement.
+    bool apply_deftype_line(const std::string_view line) {
+        std::size_t i = 0;
+        while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+        if (line.size() < i + 6U || ascii_lower(line[i]) != 'd' || ascii_lower(line[i + 1U]) != 'e' ||
+            ascii_lower(line[i + 2U]) != 'f') {
+            return false;
+        }
+        std::size_t j = i + 3U;
+        std::string word;
+        while (j < line.size() && std::isalpha(static_cast<unsigned char>(line[j])) != 0) {
+            word.push_back(ascii_lower(line[j++]));
+        }
+        std::size_t type_index = no_default_type;
+        if (word == "int") type_index = Value{Int16{}}.index();
+        else if (word == "lng") type_index = Value{Integer{}}.index();
+        else if (word == "sng") type_index = Value{0.0f}.index();
+        else if (word == "dbl") type_index = Value{0.0}.index();
+        else if (word == "cur") type_index = Value{Currency{}}.index();
+        else if (word == "str") type_index = Value{std::string{}}.index();
+        else if (word == "bool") type_index = Value{false}.index();
+        else if (word == "byte") type_index = Value{Byte{}}.index();
+        else if (word == "dec") type_index = Value{Decimal{}}.index();
+        else if (word == "date") type_index = Value{DateValue{}}.index();
+        else if (word != "var" && word != "obj") return false;
+        if (j >= line.size() || (line[j] != ' ' && line[j] != '\t')) return false;
+        while (j < line.size()) {
+            while (j < line.size() && (line[j] == ' ' || line[j] == '\t' || line[j] == ',')) ++j;
+            if (j >= line.size() || std::isalpha(static_cast<unsigned char>(line[j])) == 0) break;
+            const char first = ascii_lower(line[j++]);
+            char last = first;
+            std::size_t k = j;
+            while (k < line.size() && line[k] == ' ') ++k;
+            if (k < line.size() && line[k] == '-') {
+                ++k;
+                while (k < line.size() && line[k] == ' ') ++k;
+                if (k < line.size() && std::isalpha(static_cast<unsigned char>(line[k])) != 0) {
+                    last = ascii_lower(line[k]);
+                    j = k + 1U;
+                }
+            }
+            for (char c = first; c <= last; ++c) {
+                default_types_[static_cast<std::size_t>(c - 'a')] = type_index;
+            }
+        }
+        return true;
+    }
+
+    void scan_deftypes() {
+        const auto scan = [this](const std::string_view text) {
+            std::size_t position = 0;
+            while (position < text.size()) {
+                auto end = text.find('\n', position);
+                if (end == std::string_view::npos) end = text.size();
+                static_cast<void>(apply_deftype_line(text.substr(position, end - position)));
+                position = end + 1;
+            }
+        };
+        scan(source_);
+        for (const auto& module : class_sources_) scan(module.source);
+    }
+
     void scan_module_names() {
         const std::string_view text = source_;
         std::size_t position = 0;
@@ -2217,6 +2315,7 @@ public:
 
     [[nodiscard]] wfc::Evaluation evaluate() {
         scan_option_explicit();
+        scan_deftypes();
         scan_module_names();
         scan_enum_names();
         scan_udt_types();
@@ -2607,8 +2706,12 @@ private:
             } else {
                 // A bare parameter with no As clause and no type character
                 // is implicitly Variant, matching real VB6.
-                parameter.type_index = Value{Empty{}}.index();
-                parameter.is_variant = true;
+                if (const auto default_type = default_type_for(parameter.name)) {
+                    parameter.type_index = *default_type;
+                } else {
+                    parameter.type_index = Value{Empty{}}.index();
+                    parameter.is_variant = true;
+                }
             }
 
             if (is_optional) {
@@ -2953,12 +3056,8 @@ private:
             // `obj.Name` with no parentheses at all.
             skip_horizontal_whitespace();
             if (!consume_keyword("as")) {
-                set_error(
-                    "WFC0012",
-                    "expected As after Property Get parameter list",
-                    offset_);
-                return false;
-            }
+                apply_implicit_return_type(definition, *name);
+            } else {
             const auto type_offset = offset_;
             const auto type_result = parse_scalar_object_or_class_type();
             if (!type_result.has_value()) {
@@ -2974,6 +3073,7 @@ private:
             definition.return_is_variant = type_result->is_variant;
             definition.return_is_object = type_result->is_object;
             definition.return_class_name = type_result->class_name;
+            }
         } else {
             // Property Let/Set's last parameter is always the value
             // being assigned; any parameters before it are index
@@ -3020,7 +3120,7 @@ private:
         const auto name_offset = offset_;
         char type_character{};
         auto name = parse_identifier(&type_character);
-        if (!name.has_value() || type_character != '\0') {
+        if (!name.has_value() || (type_character != '\0' && !is_function)) {
             set_error("WFC0118", "expected procedure name", name_offset);
             return false;
         }
@@ -3037,12 +3137,8 @@ private:
         if (is_function) {
             skip_horizontal_whitespace();
             if (!consume_keyword("as")) {
-                set_error(
-                    "WFC0012",
-                    "expected As after Function parameter list",
-                    offset_);
-                return false;
-            }
+                apply_implicit_return_type(definition, *name, type_character);
+            } else {
             const auto type_offset = offset_;
             const auto type_result = parse_scalar_object_or_class_type();
             if (!type_result.has_value()) {
@@ -3062,6 +3158,7 @@ private:
                 return false;
             }
             definition.return_is_array = *array_marker;
+            }
         }
         if (!consume_block_line_end()) {
             return false;
@@ -3383,7 +3480,7 @@ private:
             const auto name_offset = offset_;
             char type_character{};
             auto name = parse_identifier(&type_character);
-            if (!name.has_value() || type_character != '\0') {
+            if (!name.has_value() || (type_character != '\0' && !is_function)) {
                 offset_ = saved_offset;
                 set_error("WFC0118", "expected procedure name", name_offset);
                 return false;
@@ -3404,14 +3501,8 @@ private:
             if (is_function) {
                 skip_horizontal_whitespace();
                 if (!consume_keyword("as")) {
-                    const auto as_offset = offset_;
-                    offset_ = saved_offset;
-                    set_error(
-                        "WFC0012",
-                        "expected As after Function parameter list",
-                        as_offset);
-                    return false;
-                }
+                    apply_implicit_return_type(definition, *name, type_character);
+                } else {
                 const auto type_offset = offset_;
                 const auto type_result = parse_scalar_object_or_class_type();
                 if (!type_result.has_value()) {
@@ -3434,6 +3525,7 @@ private:
                     return false;
                 }
                 definition.return_is_array = *array_marker;
+                }
             }
             if (!consume_block_line_end()) {
                 offset_ = saved_offset;
@@ -4663,6 +4755,16 @@ private:
         }
         if (consume_keyword("doevents")) {
             return true;
+        }
+        {
+            // DefXxx statements were applied by scan_deftypes.
+            const auto line_end = source_.find_first_of("\r\n", offset_);
+            const auto length =
+                (line_end == std::string_view::npos ? source_.size() : line_end) - statement_offset;
+            if (apply_deftype_line(source_.substr(statement_offset, length))) {
+                offset_ = statement_offset + length;
+                return true;
+            }
         }
         if (consume_keyword("beep")) {
             return true;
@@ -8116,7 +8218,12 @@ private:
             // character implicitly declares a Variant, matching real VB6.
             // Arrays require an explicit element type in this evaluator
             // (Variant-element arrays are outside the current array scope).
-            if (!is_array && (at_end() || current() == '\r' || current() == '\n' ||
+            if (const auto default_type = default_type_for(*identifier);
+                default_type.has_value() &&
+                (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
+                 current() == '\'' || current() == ',')) {
+                element_default = zero_value_for_index(*default_type);
+            } else if (!is_array && (at_end() || current() == '\r' || current() == '\n' ||
                 current() == ':' || current() == '\'' || current() == ',')) {
                 element_default = Empty{};
                 is_variant = true;
@@ -8752,6 +8859,9 @@ private:
                 bool variant = true;
                 if (type_character != '\0') {
                     initial = zero_value_for_index(type_character_index(type_character));
+                    variant = false;
+                } else if (const auto default_type = default_type_for(identifier)) {
+                    initial = zero_value_for_index(*default_type);
                     variant = false;
                 }
                 current_scope().variables.emplace(identifier, std::move(initial));
@@ -10732,7 +10842,8 @@ private:
                         }
                     }
                 }
-                if (type_character == '\0' && procedures_.contains(*identifier)) {
+                if (procedures_.contains(*identifier) &&
+                    (type_character == '\0' || procedures_.at(*identifier).is_function)) {
                     return parse_procedure_call(*identifier, identifier_offset);
                 }
                 // An unqualified call to a sibling method of the class
@@ -10820,7 +10931,8 @@ private:
                 // once every variable/Property-Get possibility above has
                 // found nothing, so a local name always shadows a
                 // same-named procedure, matching ordinary lexical scoping.
-                if (type_character == '\0' && procedures_.contains(*identifier)) {
+                if (procedures_.contains(*identifier) &&
+                    (type_character == '\0' || procedures_.at(*identifier).is_function)) {
                     return parse_procedure_call(*identifier, identifier_offset);
                 }
                 if (type_character == '\0') {

@@ -252,6 +252,7 @@ a specific requirement.
 | 2026-09-30 #167 | Construction | Increment: placeholder operands never raise in not-taken branches, any simple statement and nested If inside single-line If, Format w/y/ww/q/ddddd/@; corpus 30. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #168 | Construction | Increment: name:=value arguments for user Sub/Function/method calls; corpus 31. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #169 | Construction | Fix: CI checkout failed because requirements/language/req-0269*.md is not a valid Windows path. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #170 | Construction | Increment: DefInt/DefStr/etc, Function with no As clause, Function Name$ suffix returns; corpus 32. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

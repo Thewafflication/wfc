@@ -382,3 +382,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0273 — Single-line loops; more mapped errors](req-0273-inline-loops.md)
 - [REQ-0274 — For over any numeric type; bare calls in inline If](req-0274-for-types.md)
 - [REQ-0275 — Named arguments](req-0275-named-arguments.md)
+- [REQ-0276 — DefType, untyped Function results, suffix functions](req-0276-deftype.md)
