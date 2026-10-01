@@ -258,6 +258,7 @@ a specific requirement.
 | 2026-09-30 #173 | Construction | Increment: Private x As New Cls class fields, Public Enum/Const in classes visible to other modules; corpus 35. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #174 | Construction | Increment: Resume/Resume Next inside loops, handler errors in inline If, Err.Source, more error mappings; corpus 36. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #175 | Construction | Increment: CreateObject("Scripting.Dictionary") built-in, obj(args) = value through default Property Let/Set; corpus 37, 38. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #176 | Construction | Docs: refreshed the MP-0002 status section (184 tests, 38 corpus programs, gaps and open decisions). Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2056,34 +2057,36 @@ underlying evaluator logic (`src/evaluator.cpp`, the `valid_arity` dispatch
 starting near line 2115) needed no changes; only test and requirement-record
 gaps were closed.
 
-## MP-0002 status after increment #139
+## MP-0002 status after increment #172
 
-Measured on the x64 debug build: 129 CTest tests pass (unit suite plus CLI
-and project-fixture integration tests). GitHub Actions x64, x86 and arm64 all pass (run 36776340747, commit `931ec86`).
-The arm64 job had been failing at *Configure* ("Generator Visual Studio 17
-2022 could not find any instance of Visual Studio") since 2026-09-29, when the
-`windows-11-arm` image moved to Visual Studio 2026; the arm64 preset in
-`CMakePresets.json` now uses the `Visual Studio 18 2026` generator (x86/x64
-stay on `windows-2022` / VS 2022).
+Measured on the x64 debug build: 184 CTest tests pass (unit suite, CLI and
+project-fixture integration tests, and 38 corpus programs under
+`tests/corpus/`). GitHub Actions x86, x64 and arm64 pass on the latest commits
+(the arm64 preset uses the `Visual Studio 18 2026` generator; x86/x64 stay on
+`windows-2022` / VS 2022).
 
-**Implemented against the MP-0002 principal-work list:** procedures, module
-state, expressions, statements, arrays, UDTs, variants, strings, errors
-(`On Error`/`Resume`/`Err`/`GoTo`/`GoSub`), conditional compilation, the core
-value types (`Boolean`, `Byte`, `Integer`, `Long`, `Single`, `Double`,
-`Currency`, `Decimal`, `Date`, `String`, `Variant`, `Object`),
-file I/O (sequential), `Date`/`Time`, financial and formatting functions,
-`.vbp`/`.bas`/`.cls` loading, and the minimal class-module foundation
-(including `Implements`, array fields, `TypeOf`, `Collection`).
+**Implemented against the MP-0002 principal-work list:** procedures (named and
+omitted arguments, ParamArray, ByRef array elements), module state, expressions
+(VB precedence, Boolean as -1/0), statements (single-line loops, nested
+single-line `If`), arrays, UDTs (fixed strings, `Len`, `Get`/`Put`), variants,
+strings, `Format` (named, custom, scientific, date and string pictures), errors
+(`On Error`/`Resume`/`Err`/`GoTo`/`GoSub`; handlers run in the failing
+statement's context so `Resume Next` works inside loops), conditional
+compilation, `DefType`, the core value types, file I/O (sequential, Binary,
+Random), `Date`/`Time`, financial functions, `.vbp`/`.bas`/`.cls` loading, and
+class modules (`Implements`, default members, `Event`/`RaiseEvent`/`WithEvents`,
+`As New` fields, program-wide class Enums, `Collection`,
+`CreateObject("Scripting.Dictionary")`).
 
-**Known remaining gaps** (each documented in its requirement's Scope):
-`Get`/`Put` of UDTs, Variants and arrays;
-`Format` tokens `c`/`w`/`ww`/`q`/`y`, `Rate`/`MIRR`;
-module-qualified names and module-private scoping across multiple standard
-modules; default members in user classes (`Collection`'s `c(1)` works), class inheritance, events/`WithEvents`,
-`CreateObject`/`GetObject`, and COM interop (MP-0003); visual items in
-`.vbp` files (MP-0004); `Declare` statements and `SendKeys`/`Shell`/`MsgBox`/
-`InputBox`. The deterministic VB6 reference-probe corpus beyond the existing
-spot probes has not been extended in this series.
+**Known remaining gaps** (each documented in its requirement's Scope): module-level
+`Property` procedures in standard modules; `Get`/`Put` of Variants and dynamic-array
+descriptors; class inheritance; other `CreateObject`/`GetObject` ProgIDs and COM
+interop (MP-0003); visual items in `.vbp` files (MP-0004); `SendKeys`/`Shell`;
+UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings);
+unsuffixed integer literals are `Long` (`TypeName(5)` is "Long"; VB6 says
+"Integer"); integer literals above `Long` raise instead of becoming `Double`.
+The deterministic VB6 reference-probe corpus beyond the existing spot probes has
+not been extended in this series.
 
 **Owner decisions still open for the MP-0002 exit gate** (recommendations drafted in
 `planning/legacy-feature-dispositions.md`, each awaiting acceptance): the six legacy
@@ -2091,7 +2094,8 @@ features listed in `planning/compatibility-profile-1.0.md` under "Legacy
 Features Requiring Explicit Disposition" (DDE, intrinsic `Data`/DAO, OLE1,
 ActiveX Documents, PropertyPage hosting, WinHelp) remain "Proposed; not yet
 accepted" -- these are scope decisions for the maintainer, not something this
-series changed.
+series changed. Also open: whether `TypeName(5)` should become "Integer" and
+whether an over-`Long` integer literal should become `Double`.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
-continuing the `Strings`/`Conversion` build-out under MP-0002.
+continuing the corpus-driven hardening under MP-0002.
