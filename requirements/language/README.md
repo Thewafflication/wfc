@@ -378,3 +378,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0271 — Block declarations; inline If with colons](req-0271-block-dim-inline-if.md)
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.
+- [REQ-0272 — Class events (Event, RaiseEvent, WithEvents)](req-0272-events.md)

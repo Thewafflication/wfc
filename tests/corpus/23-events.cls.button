@@ -1,0 +1,13 @@
+Option Explicit
+Public Event Clicked(ByVal times As Long)
+Public Event Closing(Cancel As Boolean)
+Private n As Long
+Public Sub Click()
+    n = n + 1
+    RaiseEvent Clicked(n)
+End Sub
+Public Function TryClose() As Boolean
+    Dim cancel As Boolean
+    RaiseEvent Closing(cancel)
+    TryClose = Not cancel
+End Function

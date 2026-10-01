@@ -1882,6 +1882,9 @@ struct ClassFieldDef {
     // (lowercased) required class name for `As SomeClass`.
     bool is_object{};
     std::string class_name;
+    // `Private WithEvents x As Source`: handlers named `x_Event` run when
+    // the referenced object raises that event.
+    bool with_events{};
     // REQ-0251: an array field (`Private items() As Variant`,
     // `Public grid(1 To 3) As Long`). `dimensions` is empty for a dynamic
     // (bound-less) array, which starts unallocated until `ReDim`.
@@ -1925,6 +1928,8 @@ struct ClassDef {
     std::string default_member;
     // REQ-0260: `Const` and `Enum` members declared in the class module.
     std::unordered_map<std::string, Value> constants;
+    // `Public Event Name(params)` declarations; only `parameters` is used.
+    std::unordered_map<std::string, ProcedureDef> events;
 };
 
 // The storage backing one live `New ClassName` instance. Reuses Scope for
@@ -1944,6 +1949,10 @@ struct ClassDef {
 struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::string class_name;
     Scope fields;
+    // Objects handling this instance's events: the sink instance (weak, so
+    // a handler does not keep itself alive through its source) and the
+    // WithEvents field name that holds this instance.
+    std::vector<std::pair<std::weak_ptr<InstanceData>, std::string>> event_sinks;
 };
 
 // One evaluated call argument. `byref_target` is non-null only when the
@@ -2685,6 +2694,28 @@ private:
                 skip_horizontal_whitespace();
             }
 
+            if (consume_keyword("event")) {
+                skip_horizontal_whitespace();
+                const auto event_name_offset = offset_;
+                char event_type_character{};
+                auto event_name = parse_identifier(&event_type_character);
+                if (!event_name.has_value() || event_type_character != '\0') {
+                    set_error("WFC0011", "expected event name", event_name_offset);
+                    return false;
+                }
+                if (class_def.events.contains(*event_name) ||
+                    class_member_name_used(class_def, *event_name)) {
+                    set_error("WFC0128", "duplicate or reserved class member name",
+                              event_name_offset);
+                    return false;
+                }
+                ProcedureDef definition;
+                if (!scan_procedure_parameters(definition) || !consume_statement_end()) {
+                    return false;
+                }
+                class_def.events.emplace(std::move(*event_name), std::move(definition));
+                continue;
+            }
             if (consume_keyword("property")) {
                 if (!scan_class_property_declaration(class_def, is_private, line_offset)) {
                     return false;
@@ -2727,6 +2758,8 @@ private:
     // `is_private`.
     [[nodiscard]] bool scan_class_field_declaration(ClassDef& class_def, const bool is_private) {
         skip_horizontal_whitespace();
+        const bool with_events = consume_keyword("withevents");
+        skip_horizontal_whitespace();
         const auto name_offset = offset_;
         char type_character{};
         auto name = parse_identifier(&type_character);
@@ -2741,6 +2774,7 @@ private:
         skip_horizontal_whitespace();
         ClassFieldDef field;
         field.is_private = is_private;
+        field.with_events = with_events;
         if (!at_end() && current() == '(') {
             advance();
             skip_horizontal_whitespace();
@@ -4778,6 +4812,9 @@ private:
         }
         if (consume_keyword("call")) {
             return parse_call_statement();
+        }
+        if (consume_keyword("raiseevent")) {
+            return parse_raise_event_statement(statement_offset);
         }
         if (consume_keyword("print")) {
             return parse_print_statement();
@@ -8781,8 +8818,9 @@ private:
         const std::string declared_class_name =
             declared_class != instance.fields.object_class_names.end() ? declared_class->second
                                                                          : std::string{};
-        return assign_object_reference(
-            field_iterator->second, declared_class_name, std::move(*value), member_offset);
+        return assign_field_reference(
+            instance, *member_name, field_iterator->second, declared_class_name,
+            std::move(*value), member_offset);
     }
 
     // `Set identifier = expression` is the only legal way to assign an
@@ -8916,8 +8954,110 @@ private:
         const std::string declared_class_name =
             declared_class != variable.scope->object_class_names.end() ? declared_class->second
                                                                          : std::string{};
+        InstanceData* const owner = current_instance();
+        if (owner != nullptr && &owner->fields == variable.scope) {
+            return assign_field_reference(
+                *owner, *identifier, *variable.value, declared_class_name, std::move(*value),
+                identifier_offset);
+        }
         return assign_object_reference(
             *variable.value, declared_class_name, std::move(*value), identifier_offset);
+    }
+
+    // `Set field = x` on an instance's field: like assign_object_reference,
+    // but a WithEvents field also moves the instance's event subscription
+    // from the old referent to the new one.
+    [[nodiscard]] bool assign_field_reference(
+        InstanceData& owner,
+        const std::string& field_name,
+        Value& slot,
+        const std::string& declared_class_name,
+        Value source,
+        const std::size_t offset) {
+        bool with_events = false;
+        if (const auto class_iterator = class_definitions_.find(owner.class_name);
+            class_iterator != class_definitions_.end()) {
+            const auto field_def = class_iterator->second.fields.find(field_name);
+            with_events = field_def != class_iterator->second.fields.end() &&
+                field_def->second.with_events;
+        }
+        if (!with_events || !execute_) {
+            return assign_object_reference(slot, declared_class_name, std::move(source), offset);
+        }
+        const auto unsubscribe = [&]() {
+            if (const auto* old_instance = std::get_if<ObjectInstance>(&slot)) {
+                auto& sinks = old_instance->data->event_sinks;
+                std::erase_if(sinks, [&](const auto& entry) {
+                    return entry.second == field_name && entry.first.lock().get() == &owner;
+                });
+            }
+        };
+        unsubscribe();
+        const std::shared_ptr<InstanceData> new_data =
+            std::holds_alternative<ObjectInstance>(source)
+                ? std::get<ObjectInstance>(source).data
+                : nullptr;
+        if (!assign_object_reference(slot, declared_class_name, std::move(source), offset)) {
+            return false;
+        }
+        if (new_data != nullptr) {
+            new_data->event_sinks.emplace_back(owner.weak_from_this(), field_name);
+        }
+        return true;
+    }
+
+    // `RaiseEvent Name[(args)]`: runs every subscribed `field_Name` handler.
+    [[nodiscard]] bool parse_raise_event_statement(const std::size_t statement_offset) {
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        const auto event_name = parse_identifier(&type_character);
+        if (!event_name.has_value() || type_character != '\0') {
+            set_error("WFC0011", "expected event name", name_offset);
+            return false;
+        }
+        InstanceData* const source = current_instance();
+        const ClassDef* const source_class = current_class_def();
+        if (source == nullptr || source_class == nullptr ||
+            !source_class->events.contains(*event_name)) {
+            set_error("WFC0015", "event is not declared in this class", statement_offset);
+            return false;
+        }
+        std::vector<CallArgument> arguments;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '(') {
+            auto parsed = parse_call_argument_list();
+            if (!parsed.has_value()) {
+                return false;
+            }
+            arguments = std::move(*parsed);
+        }
+        if (!execute_) {
+            return true;
+        }
+        const auto sinks = source->event_sinks;  // handlers may resubscribe
+        for (const auto& [weak_sink, field_name] : sinks) {
+            const auto sink = weak_sink.lock();
+            if (sink == nullptr) {
+                continue;
+            }
+            const auto sink_class = class_definitions_.find(sink->class_name);
+            if (sink_class == class_definitions_.end()) {
+                continue;
+            }
+            const std::string handler = field_name + "_" + *event_name;
+            const auto method = sink_class->second.methods.find(handler);
+            if (method == sink_class->second.methods.end()) {
+                continue;
+            }
+            if (!invoke_definition(
+                    method->second, handler, arguments, statement_offset,
+                    sink_class->second.source, sink.get())
+                     .has_value()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // `identifier.member = expression` writes through a Property Let

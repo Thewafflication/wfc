@@ -1,0 +1,28 @@
+Option Explicit
+Private WithEvents ok As Button
+Private WithEvents other As Button
+Public Sub Go()
+    Set ok = New Button
+    Set other = New Button
+    ok.Click
+    ok.Click
+    other.Click
+    Print "close ok: " & ok.TryClose()
+    Print "close other: " & other.TryClose()
+    Dim spare As New Button
+    spare.Click
+    Set ok = spare
+    spare.Click
+    Set ok = Nothing
+    spare.Click
+    Print "done"
+End Sub
+Private Sub ok_Clicked(ByVal times As Long)
+    Print "ok clicked " & times
+End Sub
+Private Sub other_Clicked(ByVal times As Long)
+    Print "other clicked " & times
+End Sub
+Private Sub other_Closing(Cancel As Boolean)
+    Cancel = True
+End Sub
