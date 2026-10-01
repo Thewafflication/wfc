@@ -40,3 +40,7 @@ evidence, not a substitute for retained VB6 reference probes.
   comparisons of arrays / error values (`WFC0018`).
 - Known deviation recorded, not changed: unsuffixed integer literals are
   `Long` (`TypeName(5)` is `Long`; VB6 says `Integer`), per `REQ-0199`'s Scope.
+
+Addendum: `Replace`, `InStr` and `InStrRev` accept an omitted optional slot
+(`Replace(s, a, b, , 1)`, `InStr(, s, t)`); the slot takes its default
+(start 1 / -1, count -1, `Option Compare` mode). Corpus `24-omitted-builtin-args`.
