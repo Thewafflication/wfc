@@ -5730,6 +5730,9 @@ private:
         variant_string_seen_ = false;
         variant_number_seen_ = false;
         skip_horizontal_whitespace();
+        if (!at_end() && current() == ':') {
+            return true;  // an empty statement (`a = 1 : : b = 2`)
+        }
         // A leading line number (`10  x = 1`) is a label that also feeds Erl.
         if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
             std::size_t line_start = offset_;

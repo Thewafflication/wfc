@@ -322,6 +322,7 @@ a specific requirement.
 | 2026-09-30 #237 | Construction | Byte op Byte stays Byte, Byte/Integer mixes are Integer (also Mod, backslash, And/Or, unary minus); Variant-variable arithmetic that overflows promotes Integer->Long->Double instead of raising Overflow. Corpus 81. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #238 | Construction | Comparisons mixing a String and a number follow VB's Variant rules (string Variant vs typed number compares numerically, numeric Variant vs String compares as text, Variant vs Variant orders numbers before strings); a Boolean compares with numbers as -1/0. Corpus 82. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #239 | Construction | Added REQ-0281 documenting single-line procedures, numbered lines, bracket names, library qualifiers, nested array indexing, Byte/String conversion, ByRef fields, date parsing, Variant arithmetic/comparison rules, and the native Collection/Dictionary store. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #240 | Construction | Consecutive statement separators are accepted as empty statements. Corpus 83 (mixed-case keywords, tabs, continuation). Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
