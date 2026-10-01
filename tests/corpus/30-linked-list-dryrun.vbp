@@ -1,0 +1,3 @@
+Module=Main; 30-linked-list-dryrun.bas
+Class=Nd; 30-linked-list-dryrun.cls.nd
+Startup="Sub Main"

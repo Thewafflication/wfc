@@ -24,3 +24,11 @@ Addendum: `True`/`False` act as -1/0 in arithmetic (`True + True` is -2, `-True`
 `Date$`/`Time$` return Strings (`mm-dd-yyyy`, `hh:mm:ss`); numeric-string
 conversion (`CDbl`, `CLng`, `IsNumeric`, ...) accepts `&H`/`&O` literals and thousands
 separators (`"1,000"`). Corpus `29-booleans-and-text-numbers`.
+
+Addendum (dry runs): in a not-taken branch, members of `Nothing`, string/number
+library functions, `Like` and comparisons accept placeholder operands and never
+raise value-type errors (`If Not p Is Nothing Then s = Left(p.Name, 1)` with `p`
+Nothing). A single-line `If` branch may hold any simple statement, including a
+nested `If`, `Close`, `GoTo` or `Open`. `Format` supports the `w`, `y`, `ww`,
+`q`, `ddddd`, `dddddd` date tokens and `@`/`&` for numbers. Corpus
+`30-linked-list-dryrun`.

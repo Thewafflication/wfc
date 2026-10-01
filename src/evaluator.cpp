@@ -19,6 +19,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -1373,8 +1374,26 @@ struct DateParts {
             i += 2;
         } else if (c == 'y') {
             const auto n = run_length('y');
-            out += n >= 3 ? std::to_string(parts.year) : pad2(parts.year % 100);
+            if (n == 1) {
+                out += std::to_string(
+                    static_cast<std::int64_t>(serial - date_serial(parts.year, 1, 1)) + 1);
+            } else {
+                out += n >= 3 ? std::to_string(parts.year) : pad2(parts.year % 100);
+            }
             i += n;
+        } else if (c == 'w') {
+            const auto n = run_length('w');
+            if (n == 1) {
+                out += std::to_string(parts.weekday);
+            } else {
+                const auto doy = static_cast<std::int64_t>(std::floor(serial) - date_serial(parts.year, 1, 1)) + 1;
+                const auto jan1_weekday = split_date(date_serial(parts.year, 1, 1)).weekday;
+                out += std::to_string((doy - 1 + jan1_weekday - 1) / 7 + 1);
+            }
+            i += n;
+        } else if (c == 'q') {
+            out += std::to_string((parts.month - 1) / 3 + 1);
+            ++i;
         } else if (c == 'm') {
             const auto n = run_length('m');
             if (is_minute(i, n)) {
@@ -1384,6 +1403,12 @@ struct DateParts {
             else if (n == 3) out += std::string(month_names[parts.month - 1]).substr(0, 3);
             else out += month_names[parts.month - 1];
             i += n;
+        } else if (c == 'd' && lowered.compare(i, 6, "dddddd") == 0) {
+            out += format_date_pattern(serial, "Long Date");
+            i += 6;
+        } else if (c == 'd' && lowered.compare(i, 5, "ddddd") == 0) {
+            out += render_date_part(parts);
+            i += 5;
         } else if (c == 'd') {
             const auto n = run_length('d');
             if (n == 1) out += std::to_string(parts.day);
@@ -7637,6 +7662,24 @@ private:
             return *handled;
         }
 
+        {
+            // Other simple statements run through the ordinary dispatcher
+            // (`If a Then If b Then ...`, `If a Then Close #1`, `GoTo`...).
+            const auto probe = offset_;
+            char probe_type_character{};
+            const auto word = parse_identifier(&probe_type_character);
+            offset_ = probe;
+            static const std::set<std::string, std::less<>> delegated = {
+                "if", "goto", "gosub", "return", "resume", "redim", "erase", "open", "close",
+                "write", "input", "line", "get", "put", "seek", "kill", "name", "mkdir", "rmdir",
+                "chdir", "randomize", "lset", "rset", "end", "stop", "raiseevent", "mid",
+                "savesetting", "deletesetting", "chdrive", "unlock", "lock", "reset", "load",
+                "unload", "beep", "doevents", "date", "time", "dim", "static", "const", "error"};
+            if (word.has_value() && probe_type_character == '\0' && delegated.contains(*word) &&
+                *word != "date" && *word != "time") {
+                return parse_statement_core();
+            }
+        }
         const bool has_let = consume_keyword("let");
         if (has_let) {
             skip_horizontal_whitespace();
@@ -9916,6 +9959,9 @@ private:
             }
             const auto* text = std::get_if<std::string>(&*left);
             const auto* mask = std::get_if<std::string>(&*pattern);
+            if ((text == nullptr || mask == nullptr) && !execute_) {
+                return Value{false};
+            }
             if (text == nullptr || mask == nullptr) {
                 set_error("WFC0018", "Like requires String operands", operator_offset);
                 return std::nullopt;
@@ -11616,6 +11662,11 @@ private:
         const std::string& via_interface_class = {}) {
         if (!std::holds_alternative<Nothing>(base) &&
             !std::holds_alternative<ObjectInstance>(base)) {
+            if (!execute_) {
+                // A placeholder from a not-taken branch: parse through it.
+                return parse_member_access_after_dot(
+                    Value{Nothing{}}, base_offset, require_function, via_interface_class);
+            }
             set_error("WFC0136", "member access requires an object reference", base_offset);
             return std::nullopt;
         }
@@ -12687,7 +12738,29 @@ private:
     [[nodiscard]] std::optional<Value> parse_function_call(
         const std::string_view identifier,
         const std::size_t identifier_offset) {
+        const bool dry_run = !execute_;
         auto result = parse_function_call_impl(identifier, identifier_offset);
+        if (dry_run && !result.has_value()) {
+            // A not-taken branch can hold placeholder arguments (a member
+            // of `Nothing`), so a value-type complaint there is not an
+            // error; syntax and arity errors still are.
+            const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
+            if (code == "WFC0073" || code == "WFC0095" || code == "WFC0018" ||
+                code == "WFC0016" || code == "WFC0007") {
+                error_ = wfc::Evaluation{};
+                static const std::set<std::string, std::less<>> string_results = {
+                    "left", "right", "mid", "trim", "ltrim", "rtrim", "lcase", "ucase", "replace",
+                    "string", "space", "chr", "hex", "oct", "str", "cstr", "format", "join",
+                    "strreverse", "left$", "right$", "mid$", "trim$", "ltrim$", "rtrim$", "lcase$",
+                    "ucase$", "chr$", "hex$", "oct$", "str$", "format$", "space$", "string$",
+                    "typename", "strconv", "formatnumber", "formatcurrency", "formatpercent",
+                    "formatdatetime", "monthname", "weekdayname", "environ", "environ$"};
+                if (string_results.contains(std::string(identifier))) {
+                    return Value{std::string{}};
+                }
+                return Value{Integer{}};
+            }
+        }
         // REQ-0247: CByte's range-checked Long result is a Byte.
         if (identifier == "cbyte" && result.has_value()) {
             if (const auto* number = std::get_if<Integer>(&*result)) {
@@ -13622,6 +13695,10 @@ private:
             if (const auto* date_argument = std::get_if<DateValue>(&arguments[0])) {
                 return Value{execute_ ? format_date_pattern(date_argument->serial, *style)
                                       : std::string{}};
+            }
+            if (is_number(arguments[0]) && style->find_first_of("@&") != std::string::npos &&
+                style->find_first_of("0#") == std::string::npos) {
+                arguments[0] = Value{render(arguments[0])};  // `@@@@` formats the digits as text
             }
             if (const auto* text_argument = std::get_if<std::string>(&arguments[0])) {
                 // REQ-0264: string formats -- `@`/`&` placeholders, `<`, `>`, `!`.
@@ -14889,6 +14966,11 @@ private:
         }
 
         const auto* string = std::get_if<std::string>(&arguments[0]);
+        static const std::string dry_run_string;
+        if (string == nullptr && !execute_) {
+            // A placeholder from a not-taken branch (a member of `Nothing`).
+            string = &dry_run_string;
+        }
         if (string == nullptr) {
             set_error("WFC0073", "function requires a String argument", identifier_offset);
             return std::nullopt;
@@ -16281,6 +16363,9 @@ private:
         }
 
         if (left.index() != right.index()) {
+            if (!execute_) {
+                return Value{false};  // placeholder operand of a not-taken branch
+            }
             set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
             return std::nullopt;
         }
