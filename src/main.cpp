@@ -2,6 +2,7 @@
 #include "wfc/project.hpp"
 #include "wfc/version.hpp"
 
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <string_view>
@@ -14,6 +15,37 @@ void print_usage() {
               << "       wfc [--class <Name> <class source>]... --eval <VB source>\n"
               << "       wfc <project.vbp | module.bas [class.cls]...>\n"
               << "       wfc --version\n";
+}
+
+// "file:line:col: " for a failure inside a loaded project, or "" when unknown.
+std::string project_location(const wfc::LoadedProject& project, const wfc::Evaluation& result) {
+    if (result.error_line == 0) {
+        return {};
+    }
+    std::string file;
+    std::size_t line = result.error_line;
+    if (result.error_module.empty()) {
+        for (const auto& span : project.module_spans) {
+            if (span.first_line <= result.error_line) {
+                file = span.file;
+                line = result.error_line - span.first_line + 1U;
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < project.class_names.size(); ++i) {
+            std::string a = project.class_names[i];
+            std::string b = result.error_module;
+            for (auto& ch : a) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            for (auto& ch : b) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (a == b && i < project.class_files.size()) {
+                file = project.class_files[i];
+            }
+        }
+    }
+    if (file.empty()) {
+        return {};
+    }
+    return file + ":" + std::to_string(line) + ":" + std::to_string(result.error_column) + ": ";
 }
 
 }  // namespace
@@ -51,7 +83,7 @@ int main(const int argument_count, const char* const arguments[]) {
                 std::cout << result.partial_output << '\n';
                 std::cout.flush();
             }
-            std::cerr << result.diagnostic << '\n';
+            std::cerr << project_location(project, result) << result.diagnostic << '\n';
             if (result.vb_error_number != 0) {
                 std::cerr << "Run-time error '" << result.vb_error_number << "': "
                           << result.vb_error_description << '\n';
@@ -100,6 +132,10 @@ int main(const int argument_count, const char* const arguments[]) {
         if (!evaluation.partial_output.empty()) {
             std::cout << evaluation.partial_output << '\n';
             std::cout.flush();
+        }
+        if (evaluation.error_line != 0) {
+            std::cerr << "line " << evaluation.error_line << ", column " << evaluation.error_column
+                      << ": ";
         }
         std::cerr << evaluation.diagnostic << '\n';
         if (evaluation.vb_error_number != 0) {

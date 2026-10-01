@@ -20,6 +20,12 @@ struct Evaluation final {
     // When the failure is a VB run-time error: its number (0 otherwise) and text.
     long vb_error_number{};
     std::string vb_error_description;
+    // Where a failure happened: 1-based line and column within the module that failed
+    // (`error_module` is empty for the standard module(s), else the class module's name).
+    // Zero when the position is unknown.
+    std::size_t error_line{};
+    std::size_t error_column{};
+    std::string error_module;
 };
 
 // One named class module source, supplied alongside the standard module

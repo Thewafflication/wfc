@@ -2612,13 +2612,14 @@ public:
     Interpreter& operator=(const Interpreter&) = delete;
 
     explicit Interpreter(const std::string_view source, const bool allow_identifiers = true)
-        : source_(source), allow_identifiers_(allow_identifiers) {}
+        : source_(source), allow_identifiers_(allow_identifiers), main_source_data_(source.data()) {}
 
     Interpreter(
         const std::string_view source,
         std::vector<wfc::ClassModuleSource> classes,
         const bool allow_identifiers = true)
-        : source_(source), allow_identifiers_(allow_identifiers), class_sources_(std::move(classes)) {}
+        : source_(source), allow_identifiers_(allow_identifiers),
+          main_source_data_(source.data()), class_sources_(std::move(classes)) {}
 
     [[nodiscard]] Scope& current_scope() noexcept { return scopes_.back(); }
     [[nodiscard]] Scope& module_scope() noexcept { return scopes_.front(); }
@@ -2923,6 +2924,20 @@ public:
             error_ = saved_error;
         }
         return result;
+    }
+
+    // The class module (display name) whose source was executing when the last error was
+    // raised; empty for the standard module(s).
+    [[nodiscard]] std::string failing_module_name() const {
+        if (error_source_data_ == nullptr || error_source_data_ == main_source_data_) {
+            return {};
+        }
+        for (const auto& [name, definition] : class_definitions_) {
+            if (definition.source.data() == error_source_data_) {
+                return definition.display_name;
+            }
+        }
+        return {};
     }
 
     [[nodiscard]] wfc::Evaluation evaluate_program_text() {
@@ -19840,13 +19855,17 @@ private:
             err_description_ = "Object doesn't support this property or method";
             err_source_.clear();
             error_ = failure("WFC0300", err_description_, offset);
+            error_source_data_ = source_.data();
             return;
         }
         error_ = failure(code, message, offset);
+        error_source_data_ = source_.data();
     }
 
+    const char* error_source_data_{};
     std::string_view source_;
     bool allow_identifiers_;
+    const char* main_source_data_{};
     std::size_t offset_{};
     // scopes_[0] is the single module-level scope; every entry after it is
     // one active procedure call's local scope (its parameters and locally
@@ -20043,7 +20062,7 @@ void rewrite_object_aliases(std::string& text) {
     }
 }
 
-void join_line_continuations(std::string& text) {
+void join_line_continuations(std::string& text, std::vector<std::size_t>* joined = nullptr) {
     std::size_t line_start = 0;
     while (line_start < text.size()) {
         std::size_t line_end = text.find('\n', line_start);
@@ -20072,6 +20091,7 @@ void join_line_continuations(std::string& text) {
             text[last - 1] == '_' &&
             (last - 1 == line_start || text[last - 2] == ' ' || text[last - 2] == '\t')) {
             text[last - 1] = ' ';
+            if (joined != nullptr) joined->push_back(line_end);
             text[line_end] = ' ';
             if (line_end > line_start && text[line_end - 1] == '\r') {
                 text[line_end - 1] = ' ';
@@ -20395,6 +20415,34 @@ void run_large_stack_task(void* raw) {
 
 }  // namespace
 
+// Fills in `error_line`/`error_column` from the failing module's processed text (line breaks
+// removed by continuation joining are counted back in).
+void attach_position(
+    Evaluation& result, const std::string_view text, const std::vector<std::size_t>& joined,
+    std::string module) {
+    if (result.success) {
+        return;
+    }
+    const auto offset = std::min(result.error_offset, text.size());
+    std::size_t line = 1;
+    std::size_t line_start = 0;
+    for (std::size_t i = 0; i < offset; ++i) {
+        if (text[i] == '\n') {
+            ++line;
+            line_start = i + 1;
+        }
+    }
+    for (const auto position : joined) {
+        if (position < offset) {
+            ++line;
+            line_start = std::max(line_start, position + 1);
+        }
+    }
+    result.error_line = line;
+    result.error_column = offset - line_start + 1;
+    result.error_module = std::move(module);
+}
+
 Evaluation evaluate_program(const std::string_view source) {
     std::string error;
     std::size_t error_offset{};
@@ -20402,15 +20450,20 @@ Evaluation evaluate_program(const std::string_view source) {
     if (!processed.has_value()) {
         return failure_for_directive(error, error_offset);
     }
-    join_line_continuations(*processed);
     rewrite_object_aliases(*processed);
     rewrite_bracketed_identifiers(*processed);
+    std::vector<std::size_t> joined;
+    join_line_continuations(*processed, &joined);
     return evaluate_interpreter([&](const std::size_t depth, const char* base,
                                     const std::size_t budget) {
         Interpreter interpreter(*processed);
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
-        return interpreter.evaluate();
+        auto result = interpreter.evaluate();
+        if (interpreter.failing_module_name().empty()) {
+            attach_position(result, *processed, joined, {});
+        }
+        return result;
     });
 }
 
@@ -20422,19 +20475,21 @@ Evaluation evaluate_program(
     if (!processed.has_value()) {
         return failure_for_directive(error, error_offset);
     }
-    join_line_continuations(*processed);
     rewrite_object_aliases(*processed);
     rewrite_bracketed_identifiers(*processed);
+    std::vector<std::size_t> joined;
+    join_line_continuations(*processed, &joined);
     std::vector<std::string> processed_classes;
+    std::vector<std::vector<std::size_t>> class_joined(classes.size());
     processed_classes.reserve(classes.size());
-    for (const auto& module : classes) {
-        auto text = ConditionalPreprocessor{}.run(module.source, error, error_offset);
+    for (std::size_t index = 0; index < classes.size(); ++index) {
+        auto text = ConditionalPreprocessor{}.run(classes[index].source, error, error_offset);
         if (!text.has_value()) {
             return failure_for_directive(error, error_offset);
         }
-        join_line_continuations(*text);
         rewrite_object_aliases(*text);
         rewrite_bracketed_identifiers(*text);
+        join_line_continuations(*text, &class_joined[index]);
         processed_classes.push_back(std::move(*text));
     }
     std::vector<ClassModuleSource> rewritten;
@@ -20447,7 +20502,23 @@ Evaluation evaluate_program(
         Interpreter interpreter(*processed, rewritten);
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
-        return interpreter.evaluate();
+        auto result = interpreter.evaluate();
+        const auto module = interpreter.failing_module_name();
+        if (module.empty()) {
+            attach_position(result, *processed, joined, {});
+        } else {
+            for (std::size_t index = 0; index < rewritten.size(); ++index) {
+                std::string lowered_a = module;
+                std::string lowered_b = rewritten[index].name;
+                for (auto& ch : lowered_a) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                for (auto& ch : lowered_b) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                if (lowered_a == lowered_b) {
+                    attach_position(result, processed_classes[index], class_joined[index], rewritten[index].name);
+                    break;
+                }
+            }
+        }
+        return result;
     });
 }
 

@@ -174,6 +174,10 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         }
         static_cast<void>(strip_file_header(text, /*keep_vb_name=*/true));
         has_main = has_main || declares_sub_main(text);
+        project.module_spans.push_back(LoadedProject::ModuleSpan{
+            module_path.string(),
+            static_cast<std::size_t>(std::count(
+                project.module_source.begin(), project.module_source.end(), '\n')) + 1U});
         project.module_source += text;
         project.module_source += "\n";
     }
@@ -191,6 +195,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         }
         project.class_names.push_back(std::move(name));
         project.class_sources.push_back(std::move(text));
+        project.class_files.push_back(class_path.string());
     }
     if (startup_sub_main && has_main) {
         project.module_source += "Call Main\n";

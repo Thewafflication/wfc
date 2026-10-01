@@ -145,6 +145,21 @@ Print "to the output"]=]
     )
 
     add_test(
+        NAME TC-MP0002-diagnostic-location-cli
+        COMMAND wfc --eval [=[Dim a As Long
+a = 1 + _
+    2
+a = 3 +
+Print a]=]
+    )
+    set_tests_properties(
+        TC-MP0002-diagnostic-location-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;errors"
+            PASS_REGULAR_EXPRESSION "line 4, column 8: WFC0002"
+    )
+
+    add_test(
         NAME TC-MP0002-block-conditional-cli
         COMMAND wfc --eval [=[Dim total As Long
 If True Then
