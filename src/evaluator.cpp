@@ -10011,7 +10011,9 @@ private:
     // to that instance field. `base` is the already-evaluated object
     // reference the member is accessed on; its own '.' has already been
     // consumed.
-    [[nodiscard]] bool parse_member_assignment(const Value base, const std::size_t base_offset) {
+    [[nodiscard]] bool parse_member_assignment(
+        const Value base, const std::size_t base_offset,
+        const std::string& via_interface_class = {}) {
         skip_horizontal_whitespace();
         const auto member_offset = offset_;
         char type_character{};
@@ -10044,6 +10046,19 @@ private:
         const auto class_iterator = class_definitions_.find(instance.class_name);
         const ClassDef& class_def = class_iterator->second;
 
+        // REQ-0233: through an interface-typed reference the implementing
+        // class's `Interface_Member` accessor is the target.
+        if (!via_interface_class.empty()) {
+            const std::string prefixed = via_interface_class + "_" + *member_name;
+            const bool implements_interface = std::find(
+                class_def.implements.begin(), class_def.implements.end(), via_interface_class) !=
+                class_def.implements.end();
+            if (implements_interface && class_def.property_let.contains(prefixed)) {
+                return invoke_property_let_or_set(
+                    instance, class_def, class_def.property_let.at(prefixed), prefixed,
+                    member_offset);
+            }
+        }
         const auto letter_iterator = class_def.property_let.find(*member_name);
         if (letter_iterator != class_def.property_let.end()) {
             if (!member_accessible(class_def, letter_iterator->second.is_private)) {
@@ -10283,7 +10298,13 @@ private:
                             return result.has_value();
                         }
                     }
-                    return parse_member_assignment(base, identifier_offset);
+                    const auto declared_for_assignment =
+                        variable.scope->object_class_names.find(identifier);
+                    return parse_member_assignment(
+                        base, identifier_offset,
+                        declared_for_assignment != variable.scope->object_class_names.end()
+                            ? declared_for_assignment->second
+                            : std::string{});
                 }
                 offset_ = saved_offset;
             }

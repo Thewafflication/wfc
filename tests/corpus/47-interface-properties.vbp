@@ -1,0 +1,4 @@
+Module=Main; 47-interface-properties.bas
+Class=IShape; 47-interface-properties.cls.ishape
+Class=Sq; 47-interface-properties.cls.sq
+Startup="Sub Main"
