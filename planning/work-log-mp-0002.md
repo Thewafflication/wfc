@@ -284,6 +284,7 @@ a specific requirement.
 | 2026-09-30 #199 | Construction | Increment: Error$/Err.Description text for the VB6 trappable errors; corpus 55. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #200 | Construction | Increment: Evaluation::vb_error_number/description, CLI prints Run-time error N: text; TC-MP0002-runtime-error-text-cli. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #201 | Construction | Increment: ReDim As Type and lists, Variant becomes an array, free dimension count for Dim a(), String * k arrays; corpus 56. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #202 | Construction | Increment: Int16/Byte arguments widen for library routines (Mid$(s, i, i) with Integer i), ReDim declares undeclared arrays; corpus 57, 58. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

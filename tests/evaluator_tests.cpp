@@ -620,7 +620,7 @@ int main() {
         "0");
     expect_program_failure(
         "Dim arr(3) As Long\nReDim arr(5)", "WFC0145");
-    expect_program_failure("ReDim arr(5)", "WFC0145");
+    expect_program_failure("Option Explicit\nReDim arr(5)", "WFC0145");
     expect_program_failure("Dim x As Long\nReDim x(5)", "WFC0145");
     expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0117");
     expect_program_success(

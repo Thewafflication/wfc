@@ -90,3 +90,10 @@ Addendum: `ReDim a(n) As Type` (type agrees, or defines the array held by a Vari
 arrays in one `ReDim`, a plain `Dim a()` array may change its dimension count on a
 non-Preserve `ReDim` (`Dim a(,)` still fixes it), and `Dim a(n) As String * k`
 pads/truncates each element. Corpus `56-redim-and-fixed-arrays`.
+
+Addendum: `Integer` and `Byte` arguments are accepted by every library routine that
+takes a numeric argument (`Mid$(s, i, i)` with `i As Integer`); they reach the routine as
+`Long`, except for functions whose result depends on the subtype (`TypeName`,
+`VarType`, `Hex`, `Oct`, `Abs`, `Sgn`, `Int`, `Fix`, conversions, `IIf`, ...).
+Without `Option Explicit`, `ReDim` of an undeclared name declares it. Corpus
+`57-word-frequency`, `58-integer-arguments`.

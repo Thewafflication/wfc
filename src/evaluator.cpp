@@ -9335,7 +9335,14 @@ private:
             return true;
         }
 
-        const auto variable_lookup = find_variable(*identifier);
+        auto variable_lookup = find_variable(*identifier);
+        if (variable_lookup.value == nullptr && member_path.empty() && !strict_declarations_ &&
+            !in_with_identifier(*identifier)) {
+            // Without Option Explicit, ReDim declares the (Variant) array too.
+            current_scope().variables.emplace(*identifier, Value{Empty{}});
+            current_scope().variant_variables.insert(*identifier);
+            variable_lookup = find_variable(*identifier);
+        }
         Value* redim_target = variable_lookup.value;
         for (const auto& member : member_path) {
             auto* holder = redim_target != nullptr ? std::get_if<ObjectInstance>(redim_target) : nullptr;
@@ -14362,6 +14369,28 @@ private:
             }
         }
 
+        {
+            // `Integer` (Int16) and `Byte` arguments reach library routines as
+            // Long, except for functions whose result depends on the subtype.
+            static const std::set<std::string, std::less<>> keep_subtype = {
+                "typename", "vartype", "hex", "hex$", "oct", "oct$", "isnumeric", "isempty",
+                "isnull", "isobject", "isarray", "isdate", "iserror", "ismissing", "cvar", "cstr",
+                "cbool", "cbyte", "cint", "clng", "csng", "cdbl", "ccur", "cdec", "cdate", "cvdate",
+                "cverr", "abs", "sgn", "int", "fix", "format", "format$", "str", "str$", "len",
+                "lenb", "array", "iif", "switch", "isnumeric", "varptr", "formatdatetime"};
+            const bool is_choose_fn = identifier == "choose";
+            const bool keep_first = identifier == "round";  // Round(Integer) stays Integer
+            if (!keep_subtype.contains(std::string(identifier))) {
+                for (std::size_t index = keep_first ? 1U : 0U; index < arguments.size(); ++index) {
+                    if (is_choose_fn && index > 0U) break;
+                    if (const auto* short_value = std::get_if<Int16>(&arguments[index])) {
+                        arguments[index] = Value{static_cast<Integer>(*short_value)};
+                    } else if (const auto* byte_value = std::get_if<Byte>(&arguments[index])) {
+                        arguments[index] = Value{static_cast<Integer>(*byte_value)};
+                    }
+                }
+            }
+        }
         if (is_date_fn) {
             return evaluate_date_function(identifier, arguments, identifier_offset);
         }
