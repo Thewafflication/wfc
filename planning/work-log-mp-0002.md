@@ -317,6 +317,7 @@ a specific requirement.
 | 2026-09-30 #232 | Construction | Passing rec.Field, objs(i).Field or obj.Field alone as an argument now writes the parameter back (ByRef). Corpus 77. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #233 | Construction | Library-qualified calls such as VBA.Left$, VBA.Strings.UCase$, Math.Sqr and Interaction.IIf resolve to the plain functions; ChrW$ added. Corpus 78. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #234 | Construction | Numeric literals may use D as the exponent marker (1.5D-1 is a Double). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #235 | Construction | CDate/IsDate accept month-name forms (March 5, 2024; 5-Mar-24; Mar 2024); DatePart ww honours FirstDayOfWeek/FirstWeekOfYear; DateDiff w counts weeks and ww honours FirstDayOfWeek. Corpus 79. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

@@ -16,6 +16,7 @@ cdate_num=12:00:00 PM
 cdate_big=12/31/9999
 date_min=1/1/100
 cdate_str_t=12:30:00 PM
+cdate_str_dt=1/5/2020
 isdate_num=False
 hour_frac=18
 datepart_w=1

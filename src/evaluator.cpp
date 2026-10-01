@@ -1215,6 +1215,29 @@ struct DateParts {
     return parts;
 }
 
+// DatePart "ww": the week number of `serial` for a week starting on `first_day` (1 = Sunday)
+// under `first_week` (1 = week containing Jan 1, 2 = first week with four days, 3 = first full week).
+[[nodiscard]] inline std::int64_t vb_week_of_year(
+    const double serial, const std::int64_t first_day, const std::int64_t first_week) noexcept {
+    const double day = std::floor(serial);
+    const auto parts = split_date(day);
+    const auto week1_start = [&](const std::int64_t year) {
+        const double jan1 = date_serial(year, 1, 1);
+        const auto offset = (split_date(jan1).weekday - first_day + 7) % 7;
+        const double week_start = jan1 - static_cast<double>(offset);
+        if (first_week == 3) return offset == 0 ? jan1 : week_start + 7.0;
+        if (first_week == 2) return (7 - offset) >= 4 ? week_start : week_start + 7.0;
+        return week_start;
+    };
+    double start = week1_start(parts.year);
+    if (first_week != 1 && day < start) {
+        start = week1_start(parts.year - 1);
+    } else if (first_week == 2 && day >= week1_start(parts.year + 1)) {
+        return 1;
+    }
+    return static_cast<std::int64_t>(std::floor((day - start) / 7.0)) + 1;
+}
+
 [[nodiscard]] inline std::string render_time_part(const DateParts& parts) {
     const auto hour12 = parts.hour % 12 == 0 ? 12 : parts.hour % 12;
     char buffer[32];
@@ -1268,7 +1291,103 @@ struct DateParts {
     const auto start = i;
     std::int64_t a{}, b{}, c{};
     std::size_t da{}, db{}, dc{};
-    if (read_number(a, da) && i < text.size() && (text[i] == '/' || text[i] == '-')) {
+    // Month names: "March 5, 2024", "Fri, Mar 15 2024", "5 March 2024", "5-Mar-24".
+    const auto read_word = [&]() {
+        std::string word;
+        while (i < text.size() && std::isalpha(static_cast<unsigned char>(text[i])) != 0) {
+            word.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(text[i]))));
+            ++i;
+        }
+        return word;
+    };
+    const auto month_from_word = [](const std::string& word) -> std::int64_t {
+        static const char* const names[] = {"january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december"};
+        if (word.size() < 3U) return 0;
+        for (std::int64_t m = 0; m < 12; ++m) {
+            const std::string_view name = names[m];
+            if (word == name || (word.size() == 3U && name.substr(0, 3) == word)) return m + 1;
+        }
+        return 0;
+    };
+    const auto skip_separators = [&] {
+        while (i < text.size() && (text[i] == ' ' || text[i] == '\t' || text[i] == ',' ||
+                                   text[i] == '-' || text[i] == '.')) {
+            ++i;
+        }
+    };
+    const auto finish_named = [&](std::int64_t month, std::int64_t day, std::int64_t year,
+                                  const bool have_year) -> bool {
+        if (!have_year) year = 2000;  // no year given: a fixed year keeps parsing deterministic
+        if (year < 100) year += year < 30 ? 2000 : 1900;
+        if (month < 1 || day < 1 || year < 100 || year > 9999 || day > days_in_month(year, month)) {
+            return false;
+        }
+        result = date_serial(year, month, day);
+        have_date = true;
+        return true;
+    };
+    if (i < text.size() && std::isalpha(static_cast<unsigned char>(text[i])) != 0) {
+        auto word = read_word();
+        static const char* const weekdays[] = {"sunday", "monday", "tuesday", "wednesday",
+            "thursday", "friday", "saturday"};
+        for (const char* weekday : weekdays) {
+            const std::string_view name = weekday;
+            if (word == name || (word.size() == 3U && name.substr(0, 3) == word)) {
+                skip_separators();
+                word = read_word();
+                break;
+            }
+        }
+        const auto month = month_from_word(word);
+        if (month == 0) return std::nullopt;
+        skip_separators();
+        std::int64_t first{}, second{};
+        std::size_t first_digits{}, second_digits{};
+        if (!read_number(first, first_digits)) {
+            return std::nullopt;
+        }
+        std::int64_t day = first, year = 0;
+        bool have_year = false;
+        skip_separators();
+        const auto before_next = i;
+        if (read_number(second, second_digits) && !(i < text.size() && text[i] == ':')) {
+            year = second;
+            have_year = true;
+        } else {
+            i = before_next;
+            if (first_digits > 2U) {  // "March 2024"
+                year = first;
+                day = 1;
+                have_year = true;
+            }
+        }
+        if (!finish_named(month, day, year, have_year)) return std::nullopt;
+    } else if (read_number(a, da) && i < text.size() &&
+               (text[i] == ' ' || text[i] == '-') && [&] {
+                   const auto save = i;
+                   skip_separators();
+                   const bool alpha = i < text.size() &&
+                                      std::isalpha(static_cast<unsigned char>(text[i])) != 0;
+                   i = save;
+                   return alpha;
+               }()) {
+        // "5 March 2024" / "5-Mar-24"
+        skip_separators();
+        const auto month = month_from_word(read_word());
+        if (month == 0) return std::nullopt;
+        skip_separators();
+        std::int64_t year{};
+        std::size_t year_digits{};
+        const auto before_year = i;
+        bool have_year = false;
+        if (read_number(year, year_digits) && !(i < text.size() && text[i] == ':')) {
+            have_year = true;
+        } else {
+            i = before_year;
+        }
+        if (!finish_named(month, a, year, have_year)) return std::nullopt;
+    } else if (da > 0 && i < text.size() && (text[i] == '/' || text[i] == '-')) {
         const char separator = text[i++];
         if (!read_number(b, db) || i >= text.size() || text[i] != separator) {
             return std::nullopt;
@@ -15021,13 +15140,20 @@ private:
                 else if (interval == "m") result = (b.year * 12 + b.month) - (a.year * 12 + a.month);
                 else if (interval == "q")
                     result = (b.year * 4 + (b.month - 1) / 3) - (a.year * 4 + (a.month - 1) / 3);
-                else if (interval == "d" || interval == "y" || interval == "w")
+                else if (interval == "d" || interval == "y")
                     result = static_cast<std::int64_t>(std::floor(*second) - std::floor(*first));
+                else if (interval == "w")
+                    result = static_cast<std::int64_t>(std::floor(*second) - std::floor(*first)) / 7;
                 else if (interval == "ww") {
-                    const auto sunday = [](const double v) {
-                        return std::floor(v) - static_cast<double>(split_date(v).weekday - 1);
+                    std::int64_t first_day = 1;
+                    if (const auto fd = arguments.size() > 3U ? long_at(3) : std::nullopt) {
+                        first_day = *fd == 0 ? 1 : *fd;
+                    }
+                    const auto week_start = [first_day](const double v) {
+                        return std::floor(v) -
+                               static_cast<double>((split_date(v).weekday - first_day + 7) % 7);
                     };
-                    result = static_cast<std::int64_t>((sunday(*second) - sunday(*first)) / 7.0);
+                    result = static_cast<std::int64_t>((week_start(*second) - week_start(*first)) / 7.0);
                 } else if (interval == "h")
                     result = static_cast<std::int64_t>(std::floor(*second * 24.0 + 1e-9) - std::floor(*first * 24.0 + 1e-9));
                 else if (interval == "n")
@@ -15049,8 +15175,19 @@ private:
             else if (interval == "d") result = parts.day;
             else if (interval == "w") result = parts.weekday;
             else if (interval == "ww") {
-                const auto jan1_weekday = split_date(date_serial(parts.year, 1, 1)).weekday;
-                result = (day_of_year - 1 + jan1_weekday - 1) / 7 + 1;
+                std::int64_t first_day = 1;
+                std::int64_t first_week = 1;
+                if (const auto fd = arguments.size() > 2U ? long_at(2) : std::nullopt) {
+                    first_day = *fd == 0 ? 1 : *fd;
+                }
+                if (const auto fw = arguments.size() > 3U ? long_at(3) : std::nullopt) {
+                    first_week = *fw == 0 ? 1 : *fw;
+                }
+                if (first_day < 1 || first_day > 7 || first_week < 1 || first_week > 3) {
+                    set_error("WFC0101", "Invalid procedure call or argument", offset);
+                    return std::nullopt;
+                }
+                result = vb_week_of_year(*serial, first_day, first_week);
             } else if (interval == "h") result = parts.hour;
             else if (interval == "n") result = parts.minute;
             else result = parts.second;
