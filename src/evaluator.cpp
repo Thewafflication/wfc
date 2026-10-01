@@ -6129,13 +6129,34 @@ private:
         Value& target, const bool is_variant, const std::string& token, const bool quoted,
         const std::size_t offset) {
         if (is_variant) {
+            if (!quoted && token.size() >= 2 && token.front() == '#' && token.back() == '#') {
+                std::string inner = token.substr(1, token.size() - 2);
+                std::string lowered;
+                for (const char ch : inner) lowered.push_back(ascii_lower(ch));
+                if (lowered == "true" || lowered == "false") {
+                    target = lowered == "true";
+                    return true;
+                }
+                if (lowered == "null") {
+                    target = Null{};
+                    return true;
+                }
+                if (const auto parsed = parse_date_text(inner)) {
+                    target = DateValue{*parsed};
+                    return true;
+                }
+            }
             if (!quoted) {
                 const auto number = parse_numeric_string(token);
                 if (number.status == NumericStringStatus::valid) {
-                    target = std::floor(number.value) == number.value &&
-                                     std::fabs(number.value) < 2147483648.0
-                                 ? Value{static_cast<Integer>(number.value)}
-                                 : Value{number.value};
+                    const bool whole = std::floor(number.value) == number.value;
+                    if (whole && number.value >= -32768.0 && number.value <= 32767.0) {
+                        target = Value{static_cast<Int16>(number.value)};
+                    } else if (whole && std::fabs(number.value) < 2147483648.0) {
+                        target = Value{static_cast<Integer>(number.value)};
+                    } else {
+                        target = Value{number.value};
+                    }
                     return true;
                 }
             }
@@ -6198,12 +6219,24 @@ private:
         if (const auto* date = std::get_if<DateValue>(&value)) {
             const auto parts = split_date(date->serial);
             char buffer[64];
-            std::snprintf(
-                buffer, sizeof(buffer), "#%04lld-%02lld-%02lld %02lld:%02lld:%02lld#",
-                static_cast<long long>(parts.year), static_cast<long long>(parts.month),
-                static_cast<long long>(parts.day), static_cast<long long>(parts.hour),
-                static_cast<long long>(parts.minute), static_cast<long long>(parts.second));
-            return buffer;
+            const bool has_time = parts.hour != 0 || parts.minute != 0 || parts.second != 0;
+            const bool has_date = std::floor(date->serial) != 0.0 || !has_time;
+            std::string text = "#";
+            if (has_date) {
+                std::snprintf(
+                    buffer, sizeof(buffer), "%04lld-%02lld-%02lld",
+                    static_cast<long long>(parts.year), static_cast<long long>(parts.month),
+                    static_cast<long long>(parts.day));
+                text += buffer;
+            }
+            if (has_time) {
+                std::snprintf(
+                    buffer, sizeof(buffer), "%02lld:%02lld:%02lld",
+                    static_cast<long long>(parts.hour), static_cast<long long>(parts.minute),
+                    static_cast<long long>(parts.second));
+                text += (has_date ? " " : "") + std::string(buffer);
+            }
+            return text + "#";
         }
         return render(value);
     }
