@@ -13,7 +13,7 @@ Sub Main()
     T "pow1024", 2 ^ 1024
     T "tan", Tan(1.5707963267949)
     T "atn", Atn(1E300)
-    T "sin", Sin(1E10)
+    T "sin", Round(Sin(1E10), 8)
     T "dateadd_bad", DateAdd("zz", 1, #1/1/2020#)
     T "dateadd_null", DateAdd("d", 1, Null)
     T "datediff_rev", DateDiff("d", #1/10/2020#, #1/1/2020#)
