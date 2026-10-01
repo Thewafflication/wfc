@@ -65,3 +65,6 @@ and the command line writes it to standard error. Test `TC-MP0002-debug-print-cl
 
 Addendum: comparison operators chain left to right (`1 < 2 = True`); `And`/`Or` evaluate
 both operands (no short circuit). Corpus `50-operators`.
+
+Addendum: `Static` locals in class methods are per instance; `Cls.EnumMember`
+resolves for Public class enums/constants. Corpus `51-class-statics`.

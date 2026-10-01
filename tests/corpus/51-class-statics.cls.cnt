@@ -1,0 +1,13 @@
+Option Explicit
+Private Const STEP_SIZE As Long = 5
+Public Enum Mode
+    Up = 1
+    Down = -1
+End Enum
+Private n As Long
+Public Function Tick(Optional m As Mode = Up) As Long
+    Static calls As Long
+    calls = calls + 1
+    n = n + STEP_SIZE * m
+    Tick = n * 1000 + calls
+End Function

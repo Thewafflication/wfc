@@ -2237,6 +2237,8 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
     // a handler does not keep itself alive through its source) and the
     // WithEvents field name that holds this instance.
     std::vector<std::pair<std::weak_ptr<InstanceData>, std::string>> event_sinks;
+    // `Static` locals of this instance's methods (VB6 keeps them per object).
+    std::map<const void*, Scope> static_scopes;
 };
 
 // One evaluated call argument. `byref_target` is non-null only when the
@@ -3112,6 +3114,7 @@ private:
                         // A Public Enum/Const in a class module is visible program-wide.
                         if (!constant_is_private) {
                             global_class_constants_.emplace(constant_name, constant_value);
+                            module_names_.insert(current_class_scan_name_);  // `Cls.Member`
                         }
                         class_def.constants[constant_name] = std::move(constant_value);
                     }
@@ -3722,6 +3725,7 @@ private:
             const auto saved_offset = offset_;
             source_ = class_def.source;
             offset_ = 0;
+            current_class_scan_name_ = lowered_name;
             const bool scanned_ok = scan_class_body(class_def);
             source_ = saved_source;
             offset_ = saved_offset;
@@ -8577,7 +8581,9 @@ private:
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
         }
-        auto& statics = current_procedure_def_->statics;
+        auto& statics = current_instance() != nullptr
+            ? current_instance()->static_scopes[current_procedure_def_]
+            : current_procedure_def_->statics;
         if (!statics.variables.contains(*identifier)) {
             statics.variables.emplace(*identifier, std::move(initial_value));
             if (is_variant) {
@@ -12418,7 +12424,8 @@ private:
                 // silently drop that last reference without ever running
                 // `Class_Terminate`, the same class of bug REQ-0228 fixed
                 // for a ByRef parameter's own write-back.
-                auto& persistent = definition.statics.variables[name];
+                auto& persistent = (instance != nullptr ? instance->static_scopes[&definition]
+                                                        : definition.statics).variables[name];
                 if (!terminate_if_last_reference(persistent)) {
                     statics_copy_back_ok = false;
                     break;
@@ -18159,6 +18166,7 @@ private:
     std::optional<Value> app_instance_;
     bool retry_statement_{};
     bool pending_lazy_new_{};
+    std::string current_class_scan_name_;
     // Public Enum/Const members declared in class modules.
     std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.

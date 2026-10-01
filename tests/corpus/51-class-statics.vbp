@@ -1,0 +1,3 @@
+Module=Main; 51-class-statics.bas
+Class=Cnt; 51-class-statics.cls.cnt
+Startup="Sub Main"
