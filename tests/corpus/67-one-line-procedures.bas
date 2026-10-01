@@ -6,7 +6,7 @@ Sub Greet(ByVal who As String): Print "hi " & who & ":": End Sub
 Property Get Doubled() As Long: Doubled = total * 2: End Property
 Sub Empty1(): End Sub
 Sub Main()
-    Bump: Bump
+    Bump : Bump
     Greet "bob"
     Empty1
     Print A(), total, Doubled
