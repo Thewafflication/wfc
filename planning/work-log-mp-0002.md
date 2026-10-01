@@ -344,6 +344,7 @@ a specific requirement.
 | 2026-09-30 #10 | Construction | Gave ArrayValue::element_class_name a default member initializer so aggregate initialisation no longer warns under GCC (-Werror builds). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #11 | Construction | Public Sub Print is accepted in class modules, joining members already named after functions. Corpus 95. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #12 | Construction | Status section updated: 244 tests, 95 corpus programs, and the capabilities added by the hardening series. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #13 | Construction | Dir lists directories only with vbDirectory (including . and ..); Kill accepts * and ? masks; SetAttr toggles the read-only bit and GetAttr reports read-only/archive/directory. Corpus 96. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

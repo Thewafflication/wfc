@@ -5937,6 +5937,25 @@ private:
                 if (!consume(',')) break;
                 skip_horizontal_whitespace();
             }
+            if (execute_ && ascii_lower(word[0]) == 's' && ascii_lower(word[1]) == 'e') {
+                // SetAttr path, attributes: only the read-only bit has an effect.
+                const auto* path = values.empty() ? nullptr : std::get_if<std::string>(&values[0]);
+                const auto attributes = values.size() < 2U ? std::nullopt : whole_value(values[1]);
+                if (path == nullptr || !attributes.has_value()) {
+                    set_error("WFC0073", "SetAttr requires a path and attributes", statement_offset);
+                    return false;
+                }
+                std::error_code ec;
+                if (!std::filesystem::exists(*path, ec)) {
+                    return raise_runtime(53, "File not found", statement_offset);
+                }
+                std::filesystem::permissions(
+                    *path, std::filesystem::perms::owner_write | std::filesystem::perms::group_write,
+                    (*attributes & 1) != 0 ? std::filesystem::perm_options::remove
+                                           : std::filesystem::perm_options::add,
+                    ec);
+                return true;
+            }
             if (execute_ && values.size() >= 3U) {
                 std::string key;
                 bool strings = true;
@@ -7126,7 +7145,24 @@ private:
             }
             std::error_code ec;
             const std::filesystem::path target(*text);
-            if (first == 'k') {
+            if (first == 'k' && target.filename().string().find_first_of("*?") != std::string::npos) {
+                const auto directory =
+                    target.has_parent_path() ? target.parent_path() : std::filesystem::path(".");
+                const std::string mask = target.filename().string();
+                std::vector<std::filesystem::path> matches;
+                for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
+                    if (entry.is_regular_file(ec) &&
+                        like_match(entry.path().filename().string(), mask, true)) {
+                        matches.push_back(entry.path());
+                    }
+                }
+                if (matches.empty()) {
+                    return raise_runtime(53, "File not found", statement_offset);
+                }
+                for (const auto& match : matches) {
+                    std::filesystem::remove(match, ec);
+                }
+            } else if (first == 'k') {
                 if (!std::filesystem::is_regular_file(target, ec)) {
                     return raise_runtime(53, "File not found", statement_offset);
                 }
@@ -7347,18 +7383,30 @@ private:
                 std::filesystem::path full(*pattern);
                 const auto directory = full.has_parent_path() ? full.parent_path() : std::filesystem::path(".");
                 const std::string mask = full.filename().string();
+                const bool want_directories = count >= 2U && long_at(1).value_or(0) & 16;
                 if (mask.find_first_of("*?") == std::string::npos) {
-                    if (std::filesystem::exists(full, ec)) {
+                    if (std::filesystem::exists(full, ec) &&
+                        (want_directories || !std::filesystem::is_directory(full, ec))) {
                         dir_matches_.push_back(full.filename().string());
                     }
                 } else {
                     for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
                         const std::string entry_name = entry.path().filename().string();
+                        if (!want_directories && entry.is_directory(ec)) {
+                            continue;
+                        }
                         if (like_match(entry_name, mask, true)) {
                             dir_matches_.push_back(entry_name);
                         }
                     }
                     std::sort(dir_matches_.begin(), dir_matches_.end());
+                    if (want_directories) {
+                        for (const char* dots : {"..", "."}) {
+                            if (like_match(dots, mask, true)) {
+                                dir_matches_.insert(dir_matches_.begin(), dots);
+                            }
+                        }
+                    }
                 }
             }
             if (dir_index_ < dir_matches_.size()) {
@@ -14751,7 +14799,11 @@ private:
                 return std::nullopt;
             }
             if (name == "getattr") {
-                return Value{std::filesystem::is_directory(target, ec) ? Integer{16} : Integer{0}};
+                const auto permissions = std::filesystem::status(target, ec).permissions();
+                const bool read_only = (permissions & std::filesystem::perms::owner_write) ==
+                                       std::filesystem::perms::none;
+                const Integer base = std::filesystem::is_directory(target, ec) ? 16 : 32;
+                return Value{static_cast<Integer>(base | (read_only ? 1 : 0))};
             }
             const auto stamp = std::filesystem::last_write_time(target, ec);
             const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
