@@ -8282,7 +8282,62 @@ private:
                 current() == ':' || current() == '\'';
             const bool arguments_follow = !bare_statement_end && current() != '=' &&
                 current() != '(' && current() != '.';
+            // `Name (arg)` / `Name(a, b)` as a statement: a parenthesized
+            // list ending the statement. One argument is passed by value
+            // (VB evaluates `(x)` as an expression); several are an
+            // ordinary argument list.
+            bool parenthesized_call = false;
+            bool parenthesized_list = false;
+            if (!bare_statement_end && !at_end() && current() == '(' &&
+                (procedures_.contains(identifier) ||
+                 (current_instance() != nullptr && current_class_def() != nullptr &&
+                  current_class_def()->methods.contains(identifier)))) {
+                std::size_t depth = 0;
+                bool in_string = false;
+                bool top_level_comma = false;
+                std::size_t look = offset_;
+                bool balanced = false;
+                bool empty = true;
+                for (; look < source_.size(); ++look) {
+                    const char c = source_[look];
+                    if (c == '"') in_string = !in_string;
+                    if (in_string) continue;
+                    if (c == '(') {
+                        ++depth;
+                    } else if (c == ')') {
+                        if (--depth == 0) { balanced = true; ++look; break; }
+                    } else if (c == ',' && depth == 1) {
+                        top_level_comma = true;
+                    } else if (c == '\r' || c == '\n') {
+                        break;
+                    } else if (depth == 1 && c != ' ' && c != '\t') {
+                        empty = false;
+                    }
+                }
+                if (balanced) {
+                    while (look < source_.size() && (source_[look] == ' ' || source_[look] == '\t')) ++look;
+                    const bool ends = look >= source_.size() || source_[look] == '\r' ||
+                        source_[look] == '\n' || source_[look] == ':' || source_[look] == '\'';
+                    if (ends) {
+                        parenthesized_call = true;
+                        parenthesized_list = top_level_comma || empty;
+                    }
+                }
+            }
             offset_ = saved_offset;
+            if (parenthesized_call) {
+                bare_call_arguments_ = !parenthesized_list;
+                std::optional<Value> result;
+                if (procedures_.contains(identifier)) {
+                    result = call_procedure(identifier, identifier_offset, false);
+                } else {
+                    result = call_class_method(
+                        *current_instance(), *current_class_def(), identifier, identifier_offset,
+                        false);
+                }
+                bare_call_arguments_ = false;
+                return result.has_value();
+            }
             if (bare_statement_end || arguments_follow) {
                 bare_call_arguments_ = arguments_follow;
                 if (procedures_.contains(identifier)) {

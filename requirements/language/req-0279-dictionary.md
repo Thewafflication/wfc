@@ -68,3 +68,7 @@ both operands (no short circuit). Corpus `50-operators`.
 
 Addendum: `Static` locals in class methods are per instance; `Cls.EnumMember`
 resolves for Public class enums/constants. Corpus `51-class-statics`.
+
+Addendum: a procedure called as a statement with a parenthesized list (`Inc (x)`,
+`Inc(x)`, `Show(a, b)`) is accepted; one parenthesized argument is evaluated as an
+expression and so passed by value. Corpus `52-byval-parentheses`.
