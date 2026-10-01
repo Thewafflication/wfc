@@ -7419,7 +7419,8 @@ private:
                         execute_ = enclosing_execution;
                         return false;
                     }
-                    if (case_value->index() != selector->index()) {
+                    const bool both_numeric = is_number(*case_value) && is_number(*selector);
+                    if (case_value->index() != selector->index() && !both_numeric) {
                         execute_ = enclosing_execution;
                         set_error("WFC0053", "Case value must match selector type", value_offset);
                         return false;
@@ -7450,7 +7451,8 @@ private:
                             execute_ = enclosing_execution;
                             return false;
                         }
-                        if (upper_value->index() != selector->index() ||
+                        if ((upper_value->index() != selector->index() &&
+                             !(is_number(*upper_value) && is_number(*selector))) ||
                             std::holds_alternative<bool>(*selector) ||
                             (!is_number(*selector) &&
                              !std::holds_alternative<std::string>(*selector))) {
@@ -7478,7 +7480,9 @@ private:
                         }
                         skip_horizontal_whitespace();
                     } else {
-                        item_matches = values_equal(*case_value, *selector);
+                        item_matches = both_numeric
+                            ? as_double(*case_value) == as_double(*selector)
+                            : values_equal(*case_value, *selector);
                     }
                     case_matches = case_matches || item_matches;
                     if (!consume(',')) {
@@ -10841,6 +10845,29 @@ private:
                 const auto variable = find_variable(*identifier);
                 if (variable.value != nullptr) {
                     return CallArgument{*variable.value, variable.value};
+                }
+            } else if (type_character == '\0' && execute_ && !at_end() && current() == '(') {
+                // `arr(i)` alone in its argument slot is a ByRef target too.
+                const auto variable = find_variable(*identifier);
+                if (variable.value != nullptr) {
+                    if (auto* array = std::get_if<ArrayValue>(variable.value)) {
+                        advance();
+                        auto indices = parse_index_list(array_expected_dimension_count(*array));
+                        if (!indices.has_value()) {
+                            return std::nullopt;
+                        }
+                        skip_horizontal_whitespace();
+                        if (at_end() || current() == ',' || current() == ')' ||
+                            current() == '\r' || current() == '\n' || current() == ':' ||
+                            current() == '\'') {
+                            const auto flat_offset = array_flat_offset(*array, *indices);
+                            if (!flat_offset.has_value()) {
+                                return std::nullopt;
+                            }
+                            Value* element = &array->elements[*flat_offset];
+                            return CallArgument{*element, element};
+                        }
+                    }
                 }
             }
             offset_ = saved_offset;

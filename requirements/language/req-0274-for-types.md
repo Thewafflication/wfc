@@ -14,3 +14,8 @@
 ## Verification
 
 Corpus `27-for-types`; `tests/evaluator_tests.cpp`.
+
+Addendum: `Select Case` compares numeric selectors and `Case` values of different
+numeric types by value (`Integer` selector, `Long` literal; `Case 1 To 2` on a
+`Double`); an array element alone in an argument slot (`Bump a(1)`) is passed
+ByRef. Corpus `28-integer-programs`.
