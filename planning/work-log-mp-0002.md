@@ -343,6 +343,7 @@ a specific requirement.
 | 2026-09-30 #9 | Construction | Added evaluator unit tests covering the compact and VB6 Print number rendering. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #10 | Construction | Gave ArrayValue::element_class_name a default member initializer so aggregate initialisation no longer warns under GCC (-Werror builds). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #11 | Construction | Public Sub Print is accepted in class modules, joining members already named after functions. Corpus 95. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #12 | Construction | Status section updated: 244 tests, 95 corpus programs, and the capabilities added by the hardening series. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2141,10 +2142,10 @@ underlying evaluator logic (`src/evaluator.cpp`, the `valid_arity` dispatch
 starting near line 2115) needed no changes; only test and requirement-record
 gaps were closed.
 
-## MP-0002 status after increment #172
+## MP-0002 status after the corpus-hardening series (increment #172 onward)
 
-Measured on the x64 debug build: 184 CTest tests pass (unit suite, CLI and
-project-fixture integration tests, and 38 corpus programs under
+Measured on the x64 debug build: 244 CTest tests pass (unit suite, CLI and
+project-fixture integration tests, and 95 corpus programs under
 `tests/corpus/`). GitHub Actions x86, x64 and arm64 pass on the latest commits
 (the arm64 preset uses the `Visual Studio 18 2026` generator; x86/x64 stay on
 `windows-2022` / VS 2022).
@@ -2160,7 +2161,13 @@ compilation, `DefType`, the core value types, file I/O (sequential, Binary,
 Random), `Date`/`Time`, financial functions, `.vbp`/`.bas`/`.cls` loading, and
 class modules (`Implements`, default members, `Event`/`RaiseEvent`/`WithEvents`,
 `As New` fields, program-wide class Enums, `Collection`,
-`CreateObject("Scripting.Dictionary")`).
+`CreateObject("Scripting.Dictionary")`), and, since then: built-in `Scripting.Dictionary`/
+`FileSystemObject`/`VBScript.RegExp` (late or early bound) on a native hash-indexed store,
+numbered lines and `Erl`, single-line and `Static` procedures, `NewEnum`, `VBA.`-qualified
+calls, nested array indexing, ByRef through fields, Variant arithmetic/comparison rules,
+Byte/Integer result types, month-name dates, `Format` half-up rounding, `Declare` timing
+and `MessageBox` emulation, `file:line:col` diagnostics, and VB6 `Print` number spacing
+for project runs (REQ-0281, REQ-0282).
 
 **Known remaining gaps** (each documented in its requirement's Scope): `Get`/`Put` of
 Variants and dynamic-array descriptors; class inheritance; other
