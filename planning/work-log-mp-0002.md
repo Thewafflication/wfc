@@ -335,6 +335,7 @@ a specific requirement.
 | 2026-09-30 #1 | Construction | Evaluation carries error_line/error_column/error_module; the command line prints 'line N, column M' for --eval and 'file:line:col' for projects (module and class files), counting lines joined by continuations. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #2 | Construction | Early-bound uses of the built-in Scripting classes work: Dim d As New Dictionary / Scripting.Dictionary, As New FileSystemObject, As RegExp (a program-defined class of the same name wins). Corpus 91. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #3 | Construction | A program-defined Enum or class named like a VBA library (Constants, Math, ...) keeps its own member access. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #4 | Construction | Added ColorConstants (vbRed...), common VBRUN key/shift/mouse/Show constants, vbKeyA..Z/0..9, and vbUseCompareOption (-1) for the string comparison arguments. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

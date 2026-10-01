@@ -1678,6 +1678,23 @@ struct DateParts {
     static const std::unordered_map<std::string_view, Integer> table = {
         // VbCompareMethod (REQ-0089)
         {"vbbinarycompare", 0}, {"vbtextcompare", 1}, {"vbdatabasecompare", 2},
+        {"vbusecompareoption", -1},
+        // ColorConstants (RGB values as Long)
+        {"vbblack", 0}, {"vbred", 255}, {"vbgreen", 65280}, {"vbyellow", 65535},
+        {"vbblue", 16711680}, {"vbmagenta", 16711935}, {"vbcyan", 16776960},
+        {"vbwhite", 16777215},
+        // Common VBRUN constants (key codes, shift masks, mouse buttons, Show modes)
+        {"vbkeyreturn", 13}, {"vbkeyescape", 27}, {"vbkeyspace", 32}, {"vbkeyback", 8},
+        {"vbkeytab", 9}, {"vbkeyleft", 37}, {"vbkeyup", 38}, {"vbkeyright", 39},
+        {"vbkeydown", 40}, {"vbkeydelete", 46}, {"vbkeyinsert", 45}, {"vbkeyhome", 36},
+        {"vbkeyend", 35}, {"vbkeypageup", 33}, {"vbkeypagedown", 34}, {"vbkeyshift", 16},
+        {"vbkeycontrol", 17}, {"vbkeymenu", 18}, {"vbkeyf1", 112}, {"vbkeyf2", 113},
+        {"vbkeyf3", 114}, {"vbkeyf4", 115}, {"vbkeyf5", 116}, {"vbkeyf6", 117},
+        {"vbkeyf7", 118}, {"vbkeyf8", 119}, {"vbkeyf9", 120}, {"vbkeyf10", 121},
+        {"vbkeyf11", 122}, {"vbkeyf12", 123},
+        {"vbshiftmask", 1}, {"vbctrlmask", 2}, {"vbaltmask", 4},
+        {"vbleftbutton", 1}, {"vbrightbutton", 2}, {"vbmiddlebutton", 4},
+        {"vbmodeless", 0}, {"vbmodal", 1},
         // VbVarType (REQ-0080)
         {"vbempty", 0}, {"vbnull", 1}, {"vbinteger", 2}, {"vblong", 3},
         {"vbsingle", 4}, {"vbdouble", 5}, {"vbcurrency", 6}, {"vbdate", 7},
@@ -1736,6 +1753,12 @@ struct DateParts {
     };
     const auto entry = table.find(identifier);
     if (entry == table.end()) {
+        // vbKeyA..vbKeyZ and vbKey0..vbKey9 are their ASCII codes.
+        if (identifier.size() == 6U && identifier.substr(0, 5U) == "vbkey") {
+            const char last = identifier[5];
+            if (last >= 'a' && last <= 'z') return static_cast<Integer>(last - 'a' + 'A');
+            if (last >= '0' && last <= '9') return static_cast<Integer>(last);
+        }
         return std::nullopt;
     }
     return entry->second;
@@ -17297,11 +17320,12 @@ private:
             }
             bool text_compare = option_compare_text_;
             if (compare_method != nullptr) {
-                if (*compare_method < 0 || *compare_method > 1) {
+                if (*compare_method < -1 || *compare_method > 1) {
                     set_error("WFC0081", "unsupported comparison method", identifier_offset);
                     return std::nullopt;
                 }
-                text_compare = *compare_method == 1;
+                text_compare = *compare_method == -1 ? option_compare_text_
+                                                     : *compare_method >= 1;
             }
             if (start < 1) {
                 set_error("WFC0076", "InStr start must be positive", identifier_offset);
@@ -17366,11 +17390,12 @@ private:
             }
             bool text_compare = option_compare_text_;
             if (compare_method != nullptr) {
-                if (*compare_method < 0 || *compare_method > 1) {
+                if (*compare_method < -1 || *compare_method > 1) {
                     set_error("WFC0081", "unsupported comparison method", identifier_offset);
                     return std::nullopt;
                 }
-                text_compare = *compare_method == 1;
+                text_compare = *compare_method == -1 ? option_compare_text_
+                                                     : *compare_method >= 1;
             }
             if (haystack->empty()) {
                 return Value{Integer{0}};
@@ -17423,11 +17448,12 @@ private:
             }
             bool text_compare = option_compare_text_;
             if (compare_method != nullptr) {
-                if (*compare_method < 0 || *compare_method > 1) {
+                if (*compare_method < -1 || *compare_method > 1) {
                     set_error("WFC0081", "unsupported comparison method", identifier_offset);
                     return std::nullopt;
                 }
-                text_compare = *compare_method == 1;
+                text_compare = *compare_method == -1 ? option_compare_text_
+                                                     : *compare_method >= 1;
             }
             int comparison{};
             if (text_compare) {
@@ -17487,11 +17513,12 @@ private:
             }
             bool text_compare = option_compare_text_;
             if (compare_method != nullptr) {
-                if (*compare_method < 0 || *compare_method > 1) {
+                if (*compare_method < -1 || *compare_method > 1) {
                     set_error("WFC0081", "unsupported comparison method", identifier_offset);
                     return std::nullopt;
                 }
-                text_compare = *compare_method == 1;
+                text_compare = *compare_method == -1 ? option_compare_text_
+                                                     : *compare_method >= 1;
             }
 
             const auto begin = static_cast<std::size_t>(start - 1);
