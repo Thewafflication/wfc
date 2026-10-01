@@ -43,6 +43,9 @@ int main(const int argument_count, const char* const arguments[]) {
         const auto result = project_classes.empty()
             ? wfc::evaluate_program(project.module_source)
             : wfc::evaluate_program(project.module_source, project_classes);
+        if (!result.debug_output.empty()) {
+            std::cerr << result.debug_output;
+        }
         if (!result.success) {
             if (!result.partial_output.empty()) {
                 std::cout << result.partial_output << '\n';
@@ -86,6 +89,9 @@ int main(const int argument_count, const char* const arguments[]) {
 
     const auto evaluation = classes.empty() ? wfc::evaluate_program(module_source)
                                              : wfc::evaluate_program(module_source, classes);
+    if (!evaluation.debug_output.empty()) {
+        std::cerr << evaluation.debug_output;
+    }
     if (!evaluation.success) {
         if (!evaluation.partial_output.empty()) {
             std::cout << evaluation.partial_output << '\n';

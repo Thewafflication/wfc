@@ -15,6 +15,8 @@ struct Evaluation final {
     // On failure, `output` stays empty; the text printed before the error is
     // kept here (the command line shows it ahead of the diagnostic).
     std::string partial_output;
+    // Text written by `Debug.Print` (the Immediate window), success or not.
+    std::string debug_output;
 };
 
 // One named class module source, supplied alongside the standard module

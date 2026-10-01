@@ -2565,6 +2565,7 @@ public:
 
     [[nodiscard]] wfc::Evaluation evaluate() {
         auto result = evaluate_program_text();
+        result.debug_output = debug_output_;
         if (!result.success) {
             result.partial_output = output_;  // what the program printed before it failed
         }
@@ -5306,8 +5307,8 @@ private:
                 if (consume('.')) {
                     skip_horizontal_whitespace();
                     if (consume_keyword("print")) {
-                        // Immediate-window output has no console here; the
-                        // items are evaluated and discarded.
+                        // Immediate-window output: collected in
+                        // `Evaluation::debug_output`, not in `output`.
                         const bool saved_discard = discard_print_;
                         discard_print_ = true;
                         const bool ok = parse_print_statement();
@@ -6759,7 +6760,13 @@ private:
             }
             newline = true;
         }
-        if (!execute_ || discard_print_) {
+        if (!execute_) {
+            return true;
+        }
+        if (discard_print_) {
+            // `Debug.Print`: the Immediate window; kept apart from the output.
+            debug_output_ += text;
+            if (newline) debug_output_.push_back('\n');
             return true;
         }
         if (to_file) {
@@ -18169,6 +18176,7 @@ private:
     bool has_output_line_{};
     bool output_line_open_{};
     bool discard_print_{};
+    std::string debug_output_;
     bool pending_next_comma_{};
     bool strict_declarations_{};
     std::map<std::string, std::string> settings_;

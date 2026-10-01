@@ -59,3 +59,6 @@ Addendum: the interpreter runs on a thread with a large reserved stack (512 MB o
 5000 (1500 on 32-bit) before error 28 "Out of stack space"; a measured-stack
 guard raises the same error earlier if native frames are unexpectedly large. The
 earlier fixed limit of 64 nested calls is gone. Corpus `49-deep-recursion`.
+
+Addendum: `Debug.Print` text is collected in `Evaluation::debug_output` (never in `output`)
+and the command line writes it to standard error. Test `TC-MP0002-debug-print-cli`.

@@ -122,6 +122,18 @@ Print 1 / 0]=]
     )
 
     add_test(
+        NAME TC-MP0002-debug-print-cli
+        COMMAND wfc --eval [=[Debug.Print "to the immediate window"
+Print "to the output"]=]
+    )
+    set_tests_properties(
+        TC-MP0002-debug-print-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "to the immediate window.*to the output|to the output.*to the immediate window"
+    )
+
+    add_test(
         NAME TC-MP0002-block-conditional-cli
         COMMAND wfc --eval [=[Dim total As Long
 If True Then

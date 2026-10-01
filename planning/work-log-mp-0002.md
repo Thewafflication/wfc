@@ -273,6 +273,7 @@ a specific requirement.
 | 2026-09-30 #188 | Construction | Increment: obj.Prop = x dispatches to Interface_Prop Property Let; corpus 47. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #189 | Construction | Increment: Dim x As New Cls creates the object on first use (VB6 semantics); corpus 48. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #190 | Construction | Increment: large reserved stack thread, recursion depth 5000 (1500 on 32-bit) with a measured-stack guard replacing the old 64-call limit; corpus 49. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #191 | Construction | Increment: Debug.Print text is kept in Evaluation::debug_output and written to stderr by the CLI; TC-MP0002-debug-print-cli. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
