@@ -111,3 +111,5 @@ Addendum: `Collection.Add item, key, before, after` honours `Before` / `After` (
 both given is error 5); omitted middle arguments work in parenthesis-free calls
 (`c.Add "a", , 1`); `Is` in a not-taken branch never raises. Corpus
 `60-collection-before-after`.
+
+Addendum: `InputB`/`InputB$`, `ObjPtr` and `StrPtr` (opaque non-zero values; `VarPtr` is not provided).

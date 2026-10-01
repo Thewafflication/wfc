@@ -6789,8 +6789,8 @@ private:
     [[nodiscard]] static bool is_file_function_name(const std::string_view name) {
         return name == "eof" || name == "lof" || name == "freefile" || name == "dir" ||
                name == "dir$" || name == "curdir" || name == "curdir$" || name == "filelen" ||
-               name == "input" || name == "input$" || name == "environ" || name == "environ$" ||
-               name == "loc" || name == "seek";
+               name == "input" || name == "input$" || name == "inputb" || name == "inputb$" ||
+               name == "environ" || name == "environ$" || name == "loc" || name == "seek";
     }
 
     [[nodiscard]] std::optional<Value> evaluate_file_function(
@@ -6915,7 +6915,7 @@ private:
             }
             return Value{std::string{}};
         }
-        if (name == "input" || name == "input$") {
+        if (name == "input" || name == "input$" || name == "inputb" || name == "inputb$") {
             if (!arity(2, 2)) return std::nullopt;
             const auto length = long_at(0);
             const auto number = long_at(1);
@@ -13525,7 +13525,7 @@ private:
             "formatnumber", "formatcurrency", "formatpercent", "partition", "doevents", "command",
             "command$", "cverr", "cvdate", "rate", "mirr", "msgbox", "inputbox", "createobject",
             "getobject", "getsetting", "fileattr", "filedatetime", "getattr", "callbyname", "shell",
-            "getallsettings"};
+            "getallsettings", "objptr", "strptr"};
         return names.contains(std::string(name));
     }
 
@@ -13677,6 +13677,20 @@ private:
             }
             static_cast<void>(raise_runtime(429, "ActiveX component can't create object", offset));
             return std::nullopt;
+        }
+        if (name == "objptr" || name == "strptr") {
+            // Opaque, stable-per-object "addresses" for code that passes them along.
+            if (!arity(1, 1)) return std::nullopt;
+            if (!execute_) return Value{Integer{}};
+            std::uintptr_t address = 0;
+            if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
+                address = reinterpret_cast<std::uintptr_t>(instance->data.get());
+            } else if (const auto* text = std::get_if<std::string>(&arguments[0])) {
+                address = text->empty() ? 0U : reinterpret_cast<std::uintptr_t>(text->data());
+            } else if (name == "objptr") {
+                return bad_type();
+            }
+            return Value{static_cast<Integer>(address & 0x7FFFFFFFU)};
         }
         if (name == "shell") {
             if (!arity(1, 2)) return std::nullopt;
