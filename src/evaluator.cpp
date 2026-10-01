@@ -4552,18 +4552,95 @@ private:
     [[nodiscard]] static std::string vb_error_description(const Integer number) {
         switch (number) {
         case 0: return {};
+        case 3: return "Return without GoSub";
         case 5: return "Invalid procedure call or argument";
         case 6: return "Overflow";
         case 7: return "Out of memory";
         case 9: return "Subscript out of range";
+        case 10: return "This array is fixed or temporarily locked";
         case 11: return "Division by zero";
         case 13: return "Type mismatch";
+        case 14: return "Out of string space";
+        case 16: return "Expression too complex";
+        case 17: return "Can't perform requested operation";
+        case 18: return "User interrupt occurred";
+        case 20: return "Resume without error";
         case 28: return "Out of stack space";
+        case 35: return "Sub, Function, or Property not defined";
+        case 47: return "Too many DLL application clients";
+        case 48: return "Error in loading DLL";
+        case 49: return "Bad DLL calling convention";
+        case 51: return "Internal error";
+        case 52: return "Bad file name or number";
         case 53: return "File not found";
+        case 54: return "Bad file mode";
+        case 55: return "File already open";
+        case 57: return "Device I/O error";
+        case 58: return "File already exists";
+        case 59: return "Bad record length";
+        case 61: return "Disk full";
+        case 62: return "Input past end of file";
+        case 63: return "Bad record number";
+        case 67: return "Too many files";
+        case 68: return "Device unavailable";
         case 70: return "Permission denied";
+        case 71: return "Disk not ready";
+        case 74: return "Can't rename with different drive";
+        case 75: return "Path/File access error";
         case 76: return "Path not found";
         case 91: return "Object variable or With block variable not set";
+        case 92: return "For loop not initialized";
+        case 93: return "Invalid pattern string";
         case 94: return "Invalid use of Null";
+        case 321: return "Invalid file format";
+        case 322: return "Can't create necessary temporary file";
+        case 325: return "Invalid format in resource file";
+        case 380: return "Invalid property value";
+        case 381: return "Invalid property array index";
+        case 382: return "Set not supported at runtime";
+        case 383: return "Set not supported (read-only property)";
+        case 385: return "Need property array index";
+        case 387: return "Set not permitted";
+        case 393: return "Get not supported at runtime";
+        case 394: return "Get not supported (write-only property)";
+        case 422: return "Property not found";
+        case 423: return "Property or method not found";
+        case 424: return "Object required";
+        case 429: return "ActiveX component can't create object";
+        case 430: return "Class does not support Automation or does not support expected interface";
+        case 432: return "File name or class name not found during Automation operation";
+        case 438: return "Object doesn't support this property or method";
+        case 440: return "Automation error";
+        case 443: return "Automation object does not have a default value";
+        case 445: return "Object doesn't support this action";
+        case 446: return "Object doesn't support named arguments";
+        case 447: return "Object doesn't support current locale setting";
+        case 448: return "Named argument not found";
+        case 449: return "Argument not optional";
+        case 450: return "Wrong number of arguments or invalid property assignment";
+        case 451: return "Property let procedure not defined and property get procedure did not return an object";
+        case 452: return "Invalid ordinal";
+        case 453: return "Specified DLL function not found";
+        case 454: return "Code resource not found";
+        case 455: return "Code resource lock error";
+        case 457: return "This key is already associated with an element of this collection";
+        case 458: return "Variable uses an Automation type not supported in Visual Basic";
+        case 459: return "Object or class does not support the set of events";
+        case 460: return "Invalid clipboard format";
+        case 461: return "Method or data member not found";
+        case 462: return "The remote server machine does not exist or is unavailable";
+        case 463: return "Class not registered on local machine";
+        case 481: return "Invalid picture";
+        case 482: return "Printer error";
+        case 483: return "Printer driver does not support specified property";
+        case 485: return "Invalid picture type";
+        case 486: return "Can't print form image to this type of printer";
+        case 520: return "Can't empty Clipboard";
+        case 521: return "Can't open Clipboard";
+        case 735: return "Can't save file to TEMP";
+        case 744: return "Search text not found";
+        case 746: return "Replacements too long";
+        case 31001: return "Out of memory";
         default: return "Application-defined or object-defined error";
         }
     }
@@ -15411,23 +15488,7 @@ private:
                 set_error("WFC0101", "Error number is outside the valid range", identifier_offset);
                 return std::nullopt;
             }
-            switch (*number) {
-            case 0: return Value{std::string{}};
-            case 5: return Value{std::string{"Invalid procedure call or argument"}};
-            case 6: return Value{std::string{"Overflow"}};
-            case 7: return Value{std::string{"Out of memory"}};
-            case 9: return Value{std::string{"Subscript out of range"}};
-            case 11: return Value{std::string{"Division by zero"}};
-            case 13: return Value{std::string{"Type mismatch"}};
-            case 28: return Value{std::string{"Out of stack space"}};
-            case 53: return Value{std::string{"File not found"}};
-            case 70: return Value{std::string{"Permission denied"}};
-            case 76: return Value{std::string{"Path not found"}};
-            case 91:
-                return Value{std::string{"Object variable or With block variable not set"}};
-            default:
-                return Value{std::string{"Application-defined or object-defined error"}};
-            }
+            return Value{vb_error_description(*number)};
         }
 
         if (is_cvar) {

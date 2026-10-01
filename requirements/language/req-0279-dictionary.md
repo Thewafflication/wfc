@@ -78,3 +78,6 @@ when the picture has no integer placeholder (`Format(0.5, ".00")` is `.50`,
 `Format(0, "#")` is empty, `Format(0, "0;-0;Zero")` is `Zero`); `Format(Null, ...)` is Null;
 `FormatNumber` family accepts omitted middle arguments and honours the
 leading-digit flag. (Amends the unverified `".00"` interpretation noted in REQ-0218.)
+
+Addendum: `Err.Description` / `Error$(n)` carry the full VB6 trappable-error text table
+(3, 5-18, 20, 28, 35, 47-76, 91-94, 321-394, 422-463, 481-521, ...). Corpus `55-error-descriptions`.
