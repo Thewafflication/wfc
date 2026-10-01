@@ -1817,6 +1817,11 @@ struct DateParts {
            vba_string_constant(identifier).has_value();
 }
 
+// Class members may reuse a few statement keywords (`Public Sub Print`).
+[[nodiscard]] bool is_reserved_member_name(const std::string_view identifier) noexcept {
+    return identifier != "print" && identifier != "randomize" && is_reserved_identifier(identifier);
+}
+
 [[nodiscard]] wfc::Evaluation failure(
     const std::string_view code,
     const std::string_view message,
@@ -3653,7 +3658,7 @@ private:
             set_error("WFC0011", "expected field name", name_offset);
             return false;
         }
-        if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+        if (is_reserved_member_name(*name) || class_member_name_used(class_def, *name)) {
             set_error("WFC0128", "duplicate or reserved class member name", name_offset);
             return false;
         }
@@ -3760,7 +3765,7 @@ private:
             set_error("WFC0118", "expected property name", name_offset);
             return false;
         }
-        if (is_reserved_identifier(*name) || class_def.fields.contains(*name) ||
+        if (is_reserved_member_name(*name) || class_def.fields.contains(*name) ||
             class_def.methods.contains(*name)) {
             set_error(
                 "WFC0128", "duplicate or reserved class member name", name_offset);
@@ -3859,7 +3864,7 @@ private:
             set_error("WFC0118", "expected procedure name", name_offset);
             return false;
         }
-        if (is_reserved_identifier(*name) || class_member_name_used(class_def, *name)) {
+        if (is_reserved_member_name(*name) || class_member_name_used(class_def, *name)) {
             set_error("WFC0128", "duplicate or reserved class member name", name_offset);
             return false;
         }

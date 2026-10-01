@@ -1,0 +1,3 @@
+Module=Main; 95-keyword-members.bas
+Class=Kw; 95-keyword-members.cls.kw
+Startup="Sub Main"

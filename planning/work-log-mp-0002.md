@@ -342,6 +342,7 @@ a specific requirement.
 | 2026-09-30 #8 | Construction | Project/.bas runs print numbers as VB6 does (sign position + trailing space) via EvaluationOptions::vb6_print_spacing; --eval and the default API stay compact. All corpus expectations regenerated (whitespace-only changes verified). REQ-0282, corpus 94. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #9 | Construction | Added evaluator unit tests covering the compact and VB6 Print number rendering. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #10 | Construction | Gave ArrayValue::element_class_name a default member initializer so aggregate initialisation no longer warns under GCC (-Werror builds). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #11 | Construction | Public Sub Print is accepted in class modules, joining members already named after functions. Corpus 95. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

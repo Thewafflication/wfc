@@ -1,0 +1,14 @@
+Public Name As String
+Public Date As Date
+Public Left As Long
+Public Right As Long
+Public NextNode As Kw
+Public Property Get Count() As Long: Count = 7: End Property
+Public Sub Print(ByVal s As String)
+    Debug.Print "[" & s & "]"
+End Sub
+Public Function Format(ByVal v As Long) As String
+    Format = "<" & v & ">"
+End Function
+Public Function Len() As Long: Len = 99: End Function
+Public Function Input() As String: Input = "in": End Function
