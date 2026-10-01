@@ -1,0 +1,40 @@
+Option Explicit
+Private d() As Double
+Private r As Long, c As Long
+Public Sub Init(ByVal rows As Long, ByVal cols As Long)
+    r = rows: c = cols
+    ReDim d(1 To r, 1 To c)
+End Sub
+Public Property Get Rows() As Long: Rows = r: End Property
+Public Property Get Cols() As Long: Cols = c: End Property
+Public Property Get Cell(ByVal i As Long, ByVal j As Long) As Double
+    Cell = d(i, j)
+End Property
+Public Property Let Cell(ByVal i As Long, ByVal j As Long, ByVal v As Double)
+    d(i, j) = v
+End Property
+Public Function Times(o As Matrix) As Matrix
+    Dim m As New Matrix, i As Long, j As Long, k As Long, s As Double
+    If c <> o.Rows Then Err.Raise 5, "Matrix", "dimension mismatch"
+    m.Init r, o.Cols
+    For i = 1 To r
+        For j = 1 To o.Cols
+            s = 0
+            For k = 1 To c
+                s = s + d(i, k) * o.Cell(k, j)
+            Next k
+            m.Cell(i, j) = s
+        Next j
+    Next i
+    Set Times = m
+End Function
+Public Function ToString() As String
+    Dim i As Long, j As Long, s As String
+    For i = 1 To r
+        For j = 1 To c
+            s = s & d(i, j) & IIf(j < c, " ", "")
+        Next j
+        s = s & IIf(i < r, "; ", "")
+    Next i
+    ToString = "[" & s & "]"
+End Function

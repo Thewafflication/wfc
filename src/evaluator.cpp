@@ -3465,7 +3465,19 @@ private:
     // `[Dim|Public|Private] name [As Type]` -- the keyword itself has
     // already been consumed by scan_class_body, which also determined
     // `is_private`.
+    // `Private a As Long, b As String` declares several fields on one line.
     [[nodiscard]] bool scan_class_field_declaration(ClassDef& class_def, const bool is_private) {
+        bool more = true;
+        while (more) {
+            if (!scan_class_field_declarator(class_def, is_private, more)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool scan_class_field_declarator(
+        ClassDef& class_def, const bool is_private, bool& more) {
         skip_horizontal_whitespace();
         const bool with_events = consume_keyword("withevents");
         skip_horizontal_whitespace();
@@ -3547,7 +3559,9 @@ private:
         // mandatory" requirement is right for them), a class's last field
         // can legally be its source's very last line with no trailing line
         // break.
-        if (!consume_statement_end()) {
+        skip_horizontal_whitespace();
+        more = consume(',');
+        if (!more && !consume_statement_end()) {
             return false;
         }
         class_def.field_order.push_back(*name);

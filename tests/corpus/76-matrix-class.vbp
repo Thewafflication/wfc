@@ -1,0 +1,3 @@
+Module=Main; 76-matrix-class.bas
+Class=Matrix; 76-matrix-class.cls.matrix
+Startup="Sub Main"
