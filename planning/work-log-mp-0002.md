@@ -263,6 +263,7 @@ a specific requirement.
 | 2026-09-30 #178 | Construction | Fix: old negative tests for numeric conditions and Declare now match the new semantics (a While 1 test had become an infinite loop). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #179 | Construction | Increment: GetAllSettings, Shell function (synchronous), AppActivate/SendKeys no-op statements; corpus 40. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #180 | Construction | Increment: label: statement on one line, Width/Lock/Unlock; corpus 41. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #181 | Construction | Increment: module-level Property Get/Let/Set, Exit Property; corpus 42. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

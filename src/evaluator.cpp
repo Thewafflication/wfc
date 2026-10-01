@@ -3711,7 +3711,23 @@ private:
                 static_cast<void>(consume_keyword("ptrsafe"));
                 skip_horizontal_whitespace();
             }
-            if (consume_keyword("sub")) {
+            std::string property_prefix;  // "" for Sub/Function, else "wfclet_" / "wfcset_"
+            bool is_property = false;
+            if (!is_declare && consume_keyword("property")) {
+                skip_horizontal_whitespace();
+                is_property = true;
+                if (consume_keyword("get")) {
+                    is_function = true;
+                } else if (consume_keyword("let")) {
+                    property_prefix = "wfclet_";
+                } else if (consume_keyword("set")) {
+                    property_prefix = "wfcset_";
+                } else {
+                    offset_ = pre_modifier_offset;
+                    skip_rest_of_line();
+                    continue;
+                }
+            } else if (consume_keyword("sub")) {
                 is_function = false;
             } else if (consume_keyword("function")) {
                 is_function = true;
@@ -3748,7 +3764,8 @@ private:
                 set_error("WFC0118", "expected procedure name", name_offset);
                 return false;
             }
-            if (is_reserved_identifier(*name) || procedures_.contains(*name)) {
+            const std::string procedure_key = property_prefix + *name;
+            if (is_reserved_identifier(*name) || procedures_.contains(procedure_key)) {
                 offset_ = saved_offset;
                 set_error(
                     "WFC0119", "duplicate or reserved procedure name", name_offset);
@@ -3796,16 +3813,19 @@ private:
             }
             definition.body_start = offset_;
 
-            if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
+            if (!skip_to_matching_end(
+                    is_property ? "property" : is_function ? "function" : "sub",
+                    definition.body_end)) {
                 offset_ = saved_offset;
                 set_error(
                     is_function ? "WFC0120" : "WFC0121",
-                    is_function ? "expected End Function" : "expected End Sub",
+                    is_property ? "expected End Property"
+                    : is_function ? "expected End Function" : "expected End Sub",
                     line_offset);
                 return false;
             }
             definition.declaration_end = offset_;
-            procedures_.emplace(std::move(*name), std::move(definition));
+            procedures_.emplace(procedure_key, std::move(definition));
         }
         offset_ = saved_offset;
         return true;
@@ -5302,6 +5322,9 @@ private:
         if (consume_keyword("sub") || consume_keyword("function")) {
             return parse_procedure_declaration_skip(statement_offset);
         }
+        if (consume_keyword("property")) {
+            return parse_property_declaration_skip(statement_offset);
+        }
         {
             // REQ-0248: module-level `Public|Private|Global [Const] name ...`
             // declares a module variable/constant (visibility is not
@@ -5347,6 +5370,9 @@ private:
                 skip_horizontal_whitespace();
                 if (consume_keyword("sub") || consume_keyword("function")) {
                     return parse_procedure_declaration_skip(statement_offset);
+                }
+                if (consume_keyword("property")) {
+                    return parse_property_declaration_skip(statement_offset);
                 }
                 offset_ = pre_modifier_offset;
             }
@@ -6810,7 +6836,21 @@ private:
             }
             return true;
         }
-        set_error("WFC0041", "expected Do, For, Sub, or Function after Exit", offset_);
+        if (consume_keyword("property")) {
+            if (!in_procedure()) {
+                set_error("WFC0124", "Exit Property is not inside a Property", statement_offset);
+                return false;
+            }
+            if (execute_) {
+                if (current_scope().is_function_frame) {
+                    exit_function_requested_ = true;
+                } else {
+                    exit_sub_requested_ = true;
+                }
+            }
+            return true;
+        }
+        set_error("WFC0041", "expected Do, For, Sub, Function, or Property after Exit", offset_);
         return false;
     }
 
@@ -9327,6 +9367,31 @@ private:
                     }
                 }
             }
+            if (type_character == '\0') {
+                const auto letter = procedures_.find("wfclet_" + identifier);
+                if (letter != procedures_.end()) {
+                    std::vector<CallArgument> arguments;
+                    skip_horizontal_whitespace();
+                    if (!at_end() && current() == '(') {
+                        auto parsed = parse_call_argument_list();
+                        if (!parsed.has_value()) return false;
+                        arguments = std::move(*parsed);
+                    }
+                    skip_horizontal_whitespace();
+                    if (!consume('=')) {
+                        set_error("WFC0014", "expected assignment operator", offset_);
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    auto value = parse_expression();
+                    if (!value.has_value()) return false;
+                    arguments.push_back(CallArgument{std::move(*value), nullptr});
+                    return invoke_definition(
+                               letter->second, identifier, std::move(arguments),
+                               identifier_offset, source_, nullptr)
+                        .has_value();
+                }
+            }
             if (!strict_declarations_ && !in_with_identifier(identifier) &&
                 !procedures_.contains(identifier)) {
                 // REQ-0265: without Option Explicit an assignment declares
@@ -9659,6 +9724,31 @@ private:
                                 identifier_offset);
                         }
                     }
+                }
+            }
+            if (type_character == '\0') {
+                const auto setter = procedures_.find("wfcset_" + *identifier);
+                if (setter != procedures_.end()) {
+                    std::vector<CallArgument> arguments;
+                    skip_horizontal_whitespace();
+                    if (!at_end() && current() == '(') {
+                        auto parsed = parse_call_argument_list();
+                        if (!parsed.has_value()) return false;
+                        arguments = std::move(*parsed);
+                    }
+                    skip_horizontal_whitespace();
+                    if (!consume('=')) {
+                        set_error("WFC0014", "expected assignment operator", offset_);
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    auto value = parse_expression();
+                    if (!value.has_value()) return false;
+                    arguments.push_back(CallArgument{std::move(*value), nullptr});
+                    return invoke_definition(
+                               setter->second, *identifier, std::move(arguments),
+                               identifier_offset, source_, nullptr)
+                        .has_value();
                 }
             }
             set_error("WFC0015", "undeclared variable", identifier_offset);
@@ -12689,6 +12779,35 @@ private:
     // main top-to-bottom pass: its body only runs when called, not where
     // it's textually written. `scan_procedures` already registered it
     // (including its `declaration_end`) before this pass began.
+    // `Property Get|Let|Set Name(...) ... End Property` in a standard module:
+    // `Property` has been consumed; skips the whole declaration.
+    [[nodiscard]] bool parse_property_declaration_skip(const std::size_t statement_offset) {
+        skip_horizontal_whitespace();
+        std::string prefix;
+        if (consume_keyword("get")) {
+        } else if (consume_keyword("let")) {
+            prefix = "wfclet_";
+        } else if (consume_keyword("set")) {
+            prefix = "wfcset_";
+        } else {
+            set_error("WFC0010", "expected Get, Let or Set after Property", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const auto name_offset = offset_;
+        char type_character{};
+        auto name = parse_identifier(&type_character);
+        const auto definition =
+            name.has_value() ? procedures_.find(prefix + *name) : procedures_.end();
+        if (definition == procedures_.end()) {
+            set_error("WFC0118", "expected procedure name", name_offset);
+            return false;
+        }
+        static_cast<void>(statement_offset);
+        offset_ = definition->second.declaration_end;
+        return true;
+    }
+
     [[nodiscard]] bool parse_procedure_declaration_skip(const std::size_t statement_offset) {
         if (!allow_declarations_) {
             set_error(

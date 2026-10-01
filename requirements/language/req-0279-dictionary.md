@@ -30,3 +30,7 @@ a task id (error 53 when the command fails). Corpus `40-settings-and-stubs`.
 
 Addendum: `label: statement` on one line; `Width #n, w`, `Lock` and `Unlock` are accepted
 as no-ops. Corpus `41-labels-and-file-stubs`.
+
+Addendum: standard modules may declare `Property Get|Let|Set` procedures
+(`Count = 5` calls the Property Let; reading `Count` calls the Get; indexed
+accessors work); `Exit Property` is accepted. Corpus `42-module-properties`.
