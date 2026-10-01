@@ -1,5 +1,7 @@
 #include "wfc/evaluator.hpp"
 
+#include "large_stack.hpp"
+
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -13,6 +15,7 @@
 #include <ctime>
 #include <cstring>
 #include <deque>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -2541,6 +2544,23 @@ public:
                 enum_names_.push_back(std::move(name));
             }
         }
+    }
+
+    void set_max_procedure_depth(const std::size_t depth) noexcept { max_procedure_depth_ = depth; }
+
+    // Native stack accounting for deep recursion: `base` is an address near
+    // the top of the (downward-growing) stack, `budget` the bytes that may be
+    // used before a call reports "Out of stack space".
+    void set_stack_budget(const char* const base, const std::size_t budget) noexcept {
+        stack_base_ = base;
+        stack_budget_ = budget;
+    }
+
+    [[nodiscard]] bool stack_nearly_exhausted() const noexcept {
+        if (stack_budget_ == 0U) return false;
+        char marker = 0;
+        const char* const here = &marker;
+        return stack_base_ > here && static_cast<std::size_t>(stack_base_ - here) > stack_budget_;
     }
 
     [[nodiscard]] wfc::Evaluation evaluate() {
@@ -12136,7 +12156,7 @@ private:
         // recurses through this same C++ function, so unbounded VB6
         // recursion (now including a method calling another method, or
         // itself) must still be bounded to avoid a native stack overflow.
-        if (procedure_depth_ >= 64U) {
+        if (procedure_depth_ >= max_procedure_depth_ || stack_nearly_exhausted()) {
             set_error("WFC0123", "procedure call nesting is too deep", identifier_offset);
             return std::nullopt;
         }
@@ -18178,6 +18198,9 @@ private:
     std::size_t for_depth_{};
     bool exit_for_requested_{};
     std::size_t procedure_depth_{};
+    const char* stack_base_{};
+    std::size_t stack_budget_{};
+    std::size_t max_procedure_depth_{64U};  // raised when running on a large stack
     bool exit_sub_requested_{};
     bool exit_function_requested_{};
     // Rnd/Randomize generator state. 327680 is the verified default seed of
@@ -18491,6 +18514,60 @@ private:
 
 namespace wfc {
 
+namespace {
+
+// Deep VB recursion needs far more native stack than a default main thread
+// has (1 MB on Windows), so the interpreter runs on a thread with a large
+// reserved (not committed) stack. `depth_limit` is the procedure nesting the
+// stack is sized for; 0 means the thread could not be created and the work
+// ran inline.
+constexpr std::size_t kLargeStackBytes =
+    sizeof(void*) >= 8U ? (std::size_t{512} << 20U) : (std::size_t{160} << 20U);
+constexpr std::size_t kLargeStackDepth = sizeof(void*) >= 8U ? 5000U : 1500U;
+
+struct LargeStackTask {
+    std::function<void()> work;
+    std::exception_ptr failure;
+};
+
+void run_large_stack_task(void* raw) {
+    auto& task = *static_cast<LargeStackTask*>(raw);
+    try {
+        task.work();
+    } catch (...) {
+        task.failure = std::current_exception();
+    }
+}
+
+// Runs `work` on a large-stack thread; returns false if no such thread could
+// be started (the caller then runs `work` itself with the small limit).
+[[nodiscard]] bool run_on_large_stack(std::function<void()> work) {
+    LargeStackTask task{std::move(work), nullptr};
+    if (!detail::run_on_thread_with_stack(&run_large_stack_task, &task, kLargeStackBytes)) {
+        return false;
+    }
+    if (task.failure) {
+        std::rethrow_exception(task.failure);
+    }
+    return true;
+}
+
+// Evaluates with a deep-recursion limit matching the stack it runs on.
+[[nodiscard]] Evaluation evaluate_interpreter(
+    const std::function<Evaluation(std::size_t, const char*, std::size_t)>& run) {
+    Evaluation result;
+    const bool ran = run_on_large_stack([&] {
+        char stack_top = 0;
+        result = run(kLargeStackDepth, &stack_top, kLargeStackBytes - (std::size_t{24} << 20U));
+    });
+    if (!ran) {
+        result = run(64U, nullptr, 0U);
+    }
+    return result;
+}
+
+}  // namespace
+
 Evaluation evaluate_program(const std::string_view source) {
     std::string error;
     std::size_t error_offset{};
@@ -18499,7 +18576,13 @@ Evaluation evaluate_program(const std::string_view source) {
         return failure_for_directive(error, error_offset);
     }
     join_line_continuations(*processed);
-    return Interpreter(*processed).evaluate();
+    return evaluate_interpreter([&](const std::size_t depth, const char* base,
+                                    const std::size_t budget) {
+        Interpreter interpreter(*processed);
+        interpreter.set_max_procedure_depth(depth);
+        interpreter.set_stack_budget(base, budget);
+        return interpreter.evaluate();
+    });
 }
 
 Evaluation evaluate_program(
@@ -18526,7 +18609,13 @@ Evaluation evaluate_program(
     for (std::size_t index = 0; index < classes.size(); ++index) {
         rewritten.push_back({classes[index].name, processed_classes[index]});
     }
-    return Interpreter(*processed, rewritten).evaluate();
+    return evaluate_interpreter([&](const std::size_t depth, const char* base,
+                                    const std::size_t budget) {
+        Interpreter interpreter(*processed, rewritten);
+        interpreter.set_max_procedure_depth(depth);
+        interpreter.set_stack_budget(base, budget);
+        return interpreter.evaluate();
+    });
 }
 
 Evaluation evaluate_print_statement(const std::string_view source) {

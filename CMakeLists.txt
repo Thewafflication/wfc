@@ -17,6 +17,7 @@ target_sources(
     wfc_frontend
     PRIVATE
         src/evaluator.cpp
+        src/large_stack.cpp
         src/project.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -32,6 +33,8 @@ target_include_directories(
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
+find_package(Threads REQUIRED)
+target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
 wfc_enable_strict_warnings(wfc_frontend)
 
 add_executable(wfc src/main.cpp)

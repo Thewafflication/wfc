@@ -53,3 +53,9 @@ empty on failure. Test `TC-MP0002-partial-output-cli`.
 Addendum: `Dim x As New Cls` (variables, not arrays/UDTs/class fields) creates the object on
 first use, and again on first use after `Set x = Nothing`; an unused variable
 never runs `Class_Initialize`. `x Is Nothing` counts as a use. Corpus `48-lazy-new`.
+
+Addendum: the interpreter runs on a thread with a large reserved stack (512 MB on
+64-bit, 160 MB on 32-bit targets), so procedure recursion is allowed to a depth of
+5000 (1500 on 32-bit) before error 28 "Out of stack space"; a measured-stack
+guard raises the same error earlier if native frames are unexpectedly large. The
+earlier fixed limit of 64 nested calls is gone. Corpus `49-deep-recursion`.
