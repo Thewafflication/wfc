@@ -799,7 +799,7 @@ struct ArrayValue {
     // the array-element analogue of a scalar `As ClassName` variable's
     // `Scope::object_class_names` entry. Empty means the generic `As
     // Object` form: any class (or `Nothing`) is accepted.
-    std::string element_class_name;
+    std::string element_class_name{};
     // Only meaningful while `is_dynamic` and not yet `is_allocated`
     // (REQ-0219): the array's dimension count, fixed in advance by a
     // comma-only declaration (`Dim arr(,) As Type` is 2, `Dim arr(,,) As
