@@ -312,6 +312,7 @@ a specific requirement.
 | 2026-09-30 #227 | Construction | Corpus 72 reduced to 600 entries (Debug builds run the interpreter ~20x slower). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #228 | Construction | Assignments of the form s = s & operand... extend the string in place when the operands are side-effect free; otherwise the ordinary path runs. Also concatenation appends to its left operand instead of re-copying it. Corpus 73. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #229 | Construction | Indexing the array produced by an array element or function call (jag(2)(1), Array(..)(2), Split(..)(2)) and assigning into arrays held by Variant elements (v(1)(0) = x) now work; Debug.Assert is accepted and ignored. Corpus 74. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #230 | Construction | Corpus 75: recursive-descent calculator (module-level state, Select Case, error handlers, Err.Raise). Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
