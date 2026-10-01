@@ -10362,6 +10362,38 @@ private:
             }
             return true;
         }
+        // Byte() <-> String assignment copies the string's UCS-2 bytes (VB6 semantics).
+        if (auto* target_array = std::get_if<ArrayValue>(variable.value);
+            target_array != nullptr && target_array->element_type_index == Value{Byte{}}.index() &&
+            std::holds_alternative<std::string>(*value)) {
+            if (execute_) {
+                const auto& text = std::get<std::string>(*value);
+                target_array->elements.clear();
+                for (const char character : text) {
+                    target_array->elements.emplace_back(static_cast<Byte>(character));
+                    target_array->elements.emplace_back(static_cast<Byte>(0));
+                }
+                target_array->lower_bound = 0;
+                target_array->dimensions.clear();
+                target_array->is_allocated = true;
+            }
+            return true;
+        }
+        if (std::holds_alternative<std::string>(*variable.value)) {
+            if (const auto* source_array = std::get_if<ArrayValue>(&*value);
+                source_array != nullptr &&
+                source_array->element_type_index == Value{Byte{}}.index()) {
+                if (execute_) {
+                    std::string text;
+                    for (std::size_t i = 0; i < source_array->elements.size(); i += 2U) {
+                        const auto* low = std::get_if<Byte>(&source_array->elements[i]);
+                        text.push_back(low != nullptr ? static_cast<char>(*low) : '?');
+                    }
+                    *variable.value = std::move(text);
+                }
+                return true;
+            }
+        }
         if (!coerce_numeric_value(*value, variable.value->index(), identifier_offset)) {
             return false;
         }
@@ -17127,6 +17159,20 @@ private:
                 return Value{static_cast<Integer>(render(arguments[0]).size())};
             }
         }
+        if (is_strconv && execute_ && std::holds_alternative<ArrayValue>(arguments[0])) {
+            const auto& bytes = std::get<ArrayValue>(arguments[0]);
+            const auto* mode = std::get_if<Integer>(&arguments[1]);
+            if (mode != nullptr && *mode == 64 &&
+                bytes.element_type_index == Value{Byte{}}.index()) {  // vbUnicode
+                std::string text;
+                for (const auto& element : bytes.elements) {
+                    if (const auto* byte = std::get_if<Byte>(&element)) {
+                        text.push_back(static_cast<char>(*byte));
+                    }
+                }
+                return Value{std::move(text)};
+            }
+        }
         const auto* string = std::get_if<std::string>(&arguments[0]);
         static const std::string dry_run_string;
         if (string == nullptr && !execute_) {
@@ -17218,6 +17264,18 @@ private:
                     }
                 }
                 return Value{std::move(result)};
+            }
+            if (*conversion == 128) {  // vbFromUnicode: the string's (ANSI) bytes
+                ArrayValue bytes{};
+                bytes.is_dynamic = true;
+                bytes.element_type_index = Value{Byte{}}.index();
+                for (const char character : *string) {
+                    bytes.elements.emplace_back(static_cast<Byte>(character));
+                }
+                return Value{std::move(bytes)};
+            }
+            if (*conversion == 64) {  // vbUnicode on a String: unchanged
+                return Value{*string};
             }
             set_error(
                 "WFC0093",

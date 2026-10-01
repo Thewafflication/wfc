@@ -2581,7 +2581,7 @@ int main() {
     expect_program_failure("Print QBColor(16)", "WFC0092");
     expect_program_failure("Print StrConv(\"a\")", "WFC0072");
     expect_program_failure("Print StrConv(\"a\", \"1\")", "WFC0073");
-    expect_program_failure("Print StrConv(\"a\", vbUnicode)", "WFC0093");
+    expect_program_failure("Print StrConv(\"a\", vbWide)", "WFC0093");
     expect_program_failure("Print StrConv(\"a\", 99)", "WFC0093");
     expect_program_failure("Print Round(\"x\")", "WFC0073");
     expect_program_failure("Print Round(5, -1)", "WFC0094");

@@ -306,6 +306,7 @@ a specific requirement.
 | 2026-09-30 #221 | Construction | Rnd may be used as a statement with an argument (the Rnd -1: Randomize seed idiom). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #222 | Construction | Shell may be called as a statement without parentheses. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #223 | Construction | Line numbers (10 stmt) act as labels and set Erl; GoTo/GoSub/On..GoTo/Resume accept line numbers. Corpus 69. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #224 | Construction | Assigning a String to a Byte array copies its UCS-2 bytes and back; StrConv(s, vbFromUnicode) returns a Byte array and StrConv(bytes, vbUnicode) a String. Corpus 70. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
