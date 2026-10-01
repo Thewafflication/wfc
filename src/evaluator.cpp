@@ -6874,7 +6874,15 @@ private:
                 handle = open_file(*path_text, mode == 1 ? "rb" : mode == 2 ? "wb" : "ab");
             }
             if (handle == nullptr) {
-                return raise_runtime(mode == 1 ? 53 : 76, mode == 1 ? "File not found" : "Path not found", statement_offset);
+                std::error_code path_error;
+                const auto parent = std::filesystem::path(*path_text).parent_path();
+                if (!parent.empty() && !std::filesystem::is_directory(parent, path_error)) {
+                    return raise_runtime(76, "Path not found", statement_offset);
+                }
+                if (mode == 1 && !std::filesystem::exists(std::filesystem::path(*path_text), path_error)) {
+                    return raise_runtime(53, "File not found", statement_offset);
+                }
+                return raise_runtime(70, "Permission denied", statement_offset);
             }
             files_[number] = OpenFile{handle, mode, record_length > 0 ? record_length : 128};
             return true;
@@ -9936,10 +9944,7 @@ private:
                 dimension_upper = *first_long;
             }
             if (execute_ && dimension_lower > dimension_upper) {
-                set_error(
-                    "WFC0117", "array lower bound must not exceed the upper bound",
-                    identifier_offset);
-                return false;
+                return raise_runtime(9, "Subscript out of range", identifier_offset);
             }
             new_dimensions.emplace_back(dimension_lower, dimension_upper);
             skip_horizontal_whitespace();
@@ -16639,8 +16644,7 @@ private:
             }
             const auto choice_count = static_cast<Integer>(arguments.size() - 1U);
             if (*index < 1 || *index > choice_count) {
-                set_error("WFC0089", "Choose index is out of range", identifier_offset);
-                return std::nullopt;
+                return Value{Null{}};  // VB: an out-of-range index yields Null
             }
             return arguments[static_cast<std::size_t>(*index)];
         }
@@ -19713,6 +19717,14 @@ private:
         const std::string_view code,
         const std::string_view message,
         const std::size_t offset) {
+        if (code == "WFC0135" && execute_) {
+            // An unknown member reached at run time is a catchable "Object doesn't support..."
+            err_number_ = 438;
+            err_description_ = "Object doesn't support this property or method";
+            err_source_.clear();
+            error_ = failure("WFC0300", err_description_, offset);
+            return;
+        }
         error_ = failure(code, message, offset);
     }
 

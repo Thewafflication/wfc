@@ -622,7 +622,7 @@ int main() {
         "Dim arr(3) As Long\nReDim arr(5)", "WFC0145");
     expect_program_failure("Option Explicit\nReDim arr(5)", "WFC0145");
     expect_program_failure("Dim x As Long\nReDim x(5)", "WFC0145");
-    expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0117");
+    expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0300");
     expect_program_success(
         "Dim arr() As Long\nIf True Then\nReDim arr(2)\narr(1) = 7\nEnd If\nPrint arr(1)",
         "7");
@@ -975,7 +975,7 @@ int main() {
     expect_classes_failure(
         {{"Foo", "Public x As Long\nSub x()\nEnd Sub"}}, "Print \"unused\"", "WFC0128");
     expect_classes_failure(
-        {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0135");
+        {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0300");
     // The Me keyword and the Class_Initialize/Class_Terminate lifecycle
     // hooks. Class_Initialize runs against a fully field-initialized
     // instance at New; Class_Terminate runs when the last reference to an
@@ -2568,8 +2568,8 @@ int main() {
     expect_program_failure("Print CInt(\"\")", "WFC0088");
     expect_program_failure("Print CInt(\"12e\")", "WFC0088");
     expect_program_success("Print IIf(42, \"a\", \"b\")", "a");  // REQ-0279: numeric condition
-    expect_program_failure("Print Choose(0, \"a\", \"b\")", "WFC0089");
-    expect_program_failure("Print Choose(3, \"a\", \"b\")", "WFC0089");
+    expect_program_success("Print IsNull(Choose(0, \"a\", \"b\"))", "True");
+    expect_program_success("Print IsNull(Choose(3, \"a\", \"b\"))", "True");
     expect_program_failure("Print Switch(False, 1, False, 2)", "WFC0090");
     expect_program_failure("Print Switch(42, \"a\")", "WFC0021");
     expect_program_failure("Print Int(\"x\")", "WFC0073");

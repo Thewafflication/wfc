@@ -325,6 +325,7 @@ a specific requirement.
 | 2026-09-30 #240 | Construction | Consecutive statement separators are accepted as empty statements. Corpus 83 (mixed-case keywords, tabs, continuation). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #241 | Construction | Procedures declared Static keep every local between calls (modules and classes); Friend accepted before module-level procedures. Corpus 84. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #242 | Construction | Removed the unused 84-static-procedures.cls.cnt. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #243 | Construction | Unknown members reached at run time raise catchable error 438; Open distinguishes Path not found (76), File not found (53) and Permission denied (70); Choose returns Null out of range; ReDim with lower > upper raises error 9. Corpus 85. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

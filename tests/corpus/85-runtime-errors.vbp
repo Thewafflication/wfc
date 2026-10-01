@@ -1,0 +1,3 @@
+Module=Main; 85-runtime-errors.bas
+Class=Obj; 85-runtime-errors.cls.obj
+Startup="Sub Main"

@@ -1,0 +1,24 @@
+nothing call: 91 Object variable or With block variable not set
+unknown member: 438 Object doesn't support this property or method
+unallocated: 9 Subscript out of range
+range: 9 Subscript out of range
+erased: 9 Subscript out of range
+path: 76 Path not found
+file: 53 File not found
+badnum: 52 Bad file name or number
+eof: 62 Input past end of file
+null: 94 Invalid use of Null
+cint: 13 Type mismatch
+createobj: 429 ActiveX component can't create object
+readonly: 438 Object doesn't support this property or method
+div: 11 Division by zero
+space: 5 Invalid procedure call or argument
+mid: 5 Invalid procedure call or argument
+chr: 5 Invalid procedure call or argument
+asc: 5 Invalid procedure call or argument
+string: 5 Invalid procedure call or argument
+arr: 9 Subscript out of range
+choose: 94 Invalid use of Null
+sqr: 5 Invalid procedure call or argument
+redim: 9 Subscript out of range
+cverr: 13 Type mismatch
