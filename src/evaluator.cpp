@@ -5726,6 +5726,7 @@ private:
     }
 
     [[nodiscard]] bool parse_statement_core() {
+        variant_operand_seen_ = false;
         skip_horizontal_whitespace();
         // A leading line number (`10  x = 1`) is a label that also feeds Erl.
         if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
@@ -12131,6 +12132,9 @@ private:
             if (const auto* flag = std::get_if<bool>(&*value)) {
                 value = Value{static_cast<Int16>(*flag ? -1 : 0)};
             }
+            if (const auto* byte = std::get_if<Byte>(&*value)) {
+                value = Value{static_cast<Int16>(*byte)};  // negated below as an Integer
+            }
             if (std::holds_alternative<Null>(*value)) {
                 return value;
             }
@@ -12882,6 +12886,9 @@ private:
                     "constant initializer cannot reference a variable",
                     identifier_offset);
                 return std::nullopt;
+            }
+            if (variable.scope->variant_variables.contains(*identifier)) {
+                variant_operand_seen_ = true;
             }
             return *variable.value;
         }
@@ -18819,8 +18826,8 @@ private:
                 if (std::holds_alternative<Byte>(left) && std::holds_alternative<Byte>(right)) {
                     return Value{static_cast<Byte>(r)};
                 }
-                if (std::holds_alternative<Int16>(left) && std::holds_alternative<Int16>(right)) {
-                    return Value{static_cast<Int16>(r)};
+                if (!std::holds_alternative<Integer>(left) && !std::holds_alternative<Integer>(right)) {
+                    return Value{static_cast<Int16>(r)};  // Byte/Integer/Boolean mixes are Integer
                 }
                 return Value{static_cast<Integer>(r)};
             }
@@ -19047,6 +19054,50 @@ private:
         const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        // Byte/Integer operands keep their own width: Byte op Byte is a Byte, anything else
+        // small is an Integer (a Variant operand promotes instead of overflowing).
+        if ((operation == '+' || operation == '-' || operation == '*' || operation == '\\' ||
+             operation == '%') &&
+            (std::holds_alternative<Byte>(left_in) || std::holds_alternative<Int16>(left_in)) &&
+            (std::holds_alternative<Byte>(right_in) || std::holds_alternative<Int16>(right_in))) {
+            const bool both_bytes =
+                std::holds_alternative<Byte>(left_in) && std::holds_alternative<Byte>(right_in);
+            if (!execute_) {
+                return both_bytes ? Value{Byte{}} : Value{Int16{}};
+            }
+            const auto small_value = [](const Value& v) -> std::int64_t {
+                if (const auto* b = std::get_if<Byte>(&v)) return *b;
+                return std::get<Int16>(v);
+            };
+            const std::int64_t a = small_value(left_in);
+            const std::int64_t b = small_value(right_in);
+            if ((operation == '\\' || operation == '%') && b == 0) {
+                set_error("WFC0008", "division by zero", operator_offset);
+                return std::nullopt;
+            }
+            std::int64_t result{};
+            switch (operation) {
+            case '+': result = a + b; break;
+            case '-': result = a - b; break;
+            case '*': result = a * b; break;
+            case '\\': result = a / b; break;
+            default: result = a % b; break;
+            }
+            if (both_bytes && result >= 0 && result <= 255) {
+                return Value{static_cast<Byte>(result)};
+            }
+            if (!both_bytes && result >= -32768 && result <= 32767) {
+                return Value{static_cast<Int16>(result)};
+            }
+            if (both_bytes && result >= -32768 && result <= 32767 && variant_operand_seen_) {
+                return Value{static_cast<Int16>(result)};
+            }
+            if (variant_operand_seen_) {
+                return Value{static_cast<Integer>(result)};
+            }
+            set_error("WFC0009", "integer overflow", operator_offset);
+            return std::nullopt;
+        }
         const Value left = widen_byte(left_in);
         const Value right = widen_byte(right_in);
         if (operation == '+' && std::holds_alternative<std::string>(left) &&
@@ -19409,6 +19460,10 @@ private:
         const Value& right_in,
         const char operation,
         const std::size_t operator_offset) {
+        if ((std::holds_alternative<Byte>(left_in) || std::holds_alternative<Int16>(left_in)) &&
+            (std::holds_alternative<Byte>(right_in) || std::holds_alternative<Int16>(right_in))) {
+            return numeric_binary(left_in, right_in, operation, operator_offset);
+        }
         const Value left = widen_byte(left_in);
         const Value right = widen_byte(right_in);
         const auto left_coerced = coerce_long(left, operator_offset);
@@ -19459,6 +19514,9 @@ private:
 
         if (result < std::numeric_limits<Integer>::min() ||
             result > std::numeric_limits<Integer>::max()) {
+            if (variant_operand_seen_ && (operation == '+' || operation == '-' || operation == '*')) {
+                return Value{static_cast<double>(result)};
+            }
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
@@ -19497,6 +19555,9 @@ private:
 
         if (result < std::numeric_limits<Int16>::min() ||
             result > std::numeric_limits<Int16>::max()) {
+            if (variant_operand_seen_) {
+                return Value{static_cast<Integer>(result)};
+            }
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
@@ -19622,6 +19683,9 @@ private:
     bool retry_statement_{};
     std::unordered_set<const char*> identifier_statements_;
     std::unordered_map<const char*, bool> append_eligibility_;
+    // Set when the current statement read a Variant variable: Variant arithmetic that overflows
+    // is promoted (Integer -> Long -> Double) instead of raising Overflow.
+    bool variant_operand_seen_{};
     bool integer_literals_are_integer_{true};
     bool pending_lazy_new_{};
     std::string current_class_scan_name_;
