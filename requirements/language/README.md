@@ -375,5 +375,6 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0268 — Number rendering; program corpus](req-0268-double-rendering-and-corpus.md)
   makes a dying instance's own `Class_Terminate`-invoking drain cascade
 - [REQ-0270 — Implicit scalar conversions](req-0270-implicit-conversions.md)
+- [REQ-0271 — Block declarations; inline If with colons](req-0271-block-dim-inline-if.md)
   into its fields, so a field holding the last reference to another
   instance has its own `Class_Terminate` run too, recursively.

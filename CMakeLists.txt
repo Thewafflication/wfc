@@ -96,7 +96,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
 
     add_test(
         NAME TC-MP0002-conditional-cli
-        COMMAND wfc --eval "Dim total As Long: If True Then total = 6 * 7 Else total = 0: If total = 42 Then Print \"selected\" Else Print \"wrong\""
+        COMMAND wfc --eval [=[Dim total As Long: If True Then total = 6 * 7 Else total = 0
+If total = 42 Then Print "selected" Else Print "wrong"]=]
     )
     set_tests_properties(
         TC-MP0002-conditional-cli
@@ -1670,6 +1671,23 @@ Print n]=]
         PROPERTIES
             LABELS "integration;mp-0002;statements"
             PASS_REGULAR_EXPRESSION "^2"
+    )
+
+    add_test(
+        NAME TC-MP0002-block-dim-inline-if-cli
+        COMMAND wfc
+            --eval [=[Dim i As Long
+For i = 1 To 3
+Dim j As Long
+j = j + i
+Next
+Print j]=]
+    )
+    set_tests_properties(
+        TC-MP0002-block-dim-inline-if-cli
+        PROPERTIES
+            LABELS "integration;mp-0002;statements"
+            PASS_REGULAR_EXPRESSION "^6"
     )
 
     add_test(

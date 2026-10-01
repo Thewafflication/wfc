@@ -1467,6 +1467,12 @@ int main() {
         "Dim b As Boolean: b = 2: Print b\nDim i As Integer: i = 3.5: Print i\nPrint \"3\" * \"4\" & \" \" & (\"5\" + 10)\n"
         "On Error Resume Next\nn = \"abc\"\nPrint Err.Number\nn = 3000000000#\nPrint Err.Number",
         "2\n2\n4\n12\n-1\n5String\n1.5\nTrue\n4\n12 15\n13\n6");
+    // Block declarations and inline If with colons (REQ-0271).
+    expect_program_success(
+        "Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint j\n"
+        "Function F(n As Long) As String\nIf n = 0 Then F = \"zero\": Exit Function\nF = \"nonzero\"\nEnd Function\n"
+        "Print F(0) & F(1)\nIf i > 100 Then Print \"a\": Print \"b\" Else Print \"c\": Print \"d\"",
+        "6\nzerononzero\nc\nd");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
     // Then ... Else <access o.Member> End If` must not raise "Invalid
@@ -2316,9 +2322,9 @@ int main() {
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
-    expect_program_failure(
-        "If True Then\nConst local As Long = 1\nEnd If",
-        "WFC0063");
+    expect_program_success(
+        "If True Then\nConst local As Long = 1\nPrint local\nEnd If",
+        "1");
     expect_program_failure(
         "Dim value As Long: value = 1: Const snapshot As Long = value",
         "WFC0064");
@@ -2638,7 +2644,7 @@ int main() {
     expect_program_failure("If True Then\nPrint \"no\"", "WFC0024");
     expect_program_failure("If True Then\nEnd Nope", "WFC0025");
     expect_program_failure("If True Then\nElse\nElse\nEnd If", "WFC0026");
-    expect_program_failure("If True Then\nDim local As Long\nEnd If", "WFC0027");
+    expect_program_success("If True Then\nDim local As Long\nlocal = 4\nPrint local\nEnd If", "4");
     expect_program_failure("If False Then\nElseIf 1 Then\nEnd If", "WFC0028");
     expect_program_failure("If False Then\nElseIf True\nEnd If", "WFC0029");
     expect_program_failure(
@@ -2647,13 +2653,13 @@ int main() {
     expect_program_failure("While 1\nWend", "WFC0031");
     expect_program_failure("While True\nPrint \"no\"", "WFC0032");
     expect_program_failure("Wend", "WFC0033");
-    expect_program_failure("While False\nDim local As Long\nWend", "WFC0034");
+    expect_program_success("While False\nDim local As Long\nWend\nPrint 1", "1");
     expect_program_failure("While False: Print \"no\": Wend", "WFC0004");
     expect_program_failure("Do While 1\nLoop", "WFC0035");
     expect_program_failure("Do Nope\nLoop", "WFC0036");
     expect_program_failure("Do While True\nPrint \"no\"", "WFC0037");
     expect_program_failure("Loop", "WFC0038");
-    expect_program_failure("Do Until True\nDim local As Long\nLoop", "WFC0039");
+    expect_program_success("Do Until True\nDim local As Long\nLoop\nPrint 1", "1");
     expect_program_failure("Do While False: Print \"no\": Loop", "WFC0004");
     expect_program_failure("Do\nPrint \"no\"\nLoop Forever", "WFC0040");
     expect_program_failure("Do\nPrint \"no\"\nLoop While 1", "WFC0035");
@@ -2669,7 +2675,7 @@ int main() {
     expect_program_failure(
         "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j",
         "WFC0049");
-    expect_program_failure("Dim i As Long\nFor i = 1 To 2\nDim j As Long\nNext", "WFC0050");
+    expect_program_success("Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint j", "6");
     expect_program_failure("Exit For", "WFC0052");
     expect_program_failure("Select Nope 1\nEnd Select", "WFC0054");
     expect_program_failure("Select Case 1\nPrint 1\nEnd Select", "WFC0054");

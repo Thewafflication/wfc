@@ -4785,30 +4785,15 @@ private:
         if (consume_keyword("randomize")) {
             return parse_randomize_statement(statement_offset);
         }
+        // REQ-0271: Dim/Static/Const are legal inside blocks; a declaration
+        // executed again (loop iteration) is a no-op.
         if (consume_keyword("dim")) {
-            if (!allow_declarations_) {
-                set_error("WFC0027", "declarations are not supported in conditional blocks", statement_offset);
-                return false;
-            }
             return parse_declaration();
         }
         if (consume_keyword("static")) {
-            if (!allow_declarations_) {
-                set_error(
-                    "WFC0027", "declarations are not supported in conditional blocks",
-                    statement_offset);
-                return false;
-            }
             return parse_static_declaration(statement_offset);
         }
         if (consume_keyword("const")) {
-            if (!allow_declarations_) {
-                set_error(
-                    "WFC0063",
-                    "constants are not supported in control-flow blocks",
-                    statement_offset);
-                return false;
-            }
             return parse_constant_declaration();
         }
         if (consume_keyword("redim")) {
@@ -6203,21 +6188,53 @@ private:
             return parse_block_if_statement(enclosing_execution, *boolean);
         }
         execute_ = enclosing_execution && *boolean;
-        if (!parse_inline_statement()) {
+        if (!parse_inline_statement_list()) {
             execute_ = enclosing_execution;
             return false;
         }
 
         skip_horizontal_whitespace();
         if (consume_keyword("else")) {
-            execute_ = enclosing_execution && !*boolean;
-            if (!parse_inline_statement()) {
+            execute_ = enclosing_execution && !*boolean && !control_exit_requested();
+            if (!parse_inline_statement_list()) {
                 execute_ = enclosing_execution;
                 return false;
             }
         }
-        execute_ = enclosing_execution;
+        execute_ = control_exit_requested() ? false : enclosing_execution;
         return true;
+    }
+
+    // REQ-0271: `If c Then a : b Else c : d` -- colon-separated statements
+    // after Then / Else all belong to that branch.
+    [[nodiscard]] bool parse_inline_statement_list() {
+        const bool branch_execution = execute_;
+        while (true) {
+            if (!parse_inline_statement()) {
+                return false;
+            }
+            if (control_exit_requested()) {
+                execute_ = false;
+            }
+            skip_horizontal_whitespace();
+            if (at_end() || current() != ':') {
+                execute_ = branch_execution && !control_exit_requested();
+                return true;
+            }
+            const auto colon_offset = offset_;
+            advance();
+            skip_horizontal_whitespace();
+            const auto probe = offset_;
+            if (at_end() || current() == '\r' || current() == '\n' || current() == '\'' ||
+                consume_keyword("else")) {
+                offset_ = at_end() || current() == '\r' || current() == '\n' || current() == '\''
+                              ? colon_offset
+                              : probe;
+                execute_ = branch_execution && !control_exit_requested();
+                return true;
+            }
+            offset_ = probe;
+        }
     }
 
     [[nodiscard]] bool parse_block_if_statement(
@@ -6614,13 +6631,6 @@ private:
             }
 
             const auto statement_offset = offset_;
-            if (consume_keyword("dim")) {
-                set_error(
-                    "WFC0034",
-                    "declarations are not supported in While blocks",
-                    statement_offset);
-                return false;
-            }
             const bool enclosing_declaration_permission = allow_declarations_;
             allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
@@ -6831,13 +6841,6 @@ private:
             }
 
             const auto statement_offset = offset_;
-            if (consume_keyword("dim")) {
-                set_error(
-                    "WFC0039",
-                    "declarations are not supported in Do blocks",
-                    statement_offset);
-                return false;
-            }
             const bool enclosing_declaration_permission = allow_declarations_;
             allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
@@ -7050,10 +7053,6 @@ private:
             }
 
             const auto statement_offset = offset_;
-            if (consume_keyword("dim")) {
-                set_error("WFC0050", "declarations are not supported in For blocks", statement_offset);
-                return false;
-            }
             const bool enclosing_declaration_permission = allow_declarations_;
             allow_declarations_ = false;
             const bool parsed_statement = parse_statement();
@@ -7646,6 +7645,9 @@ private:
         }
 
         if (current_scope().variables.contains(*identifier)) {
+            if (!allow_declarations_) {
+                return true;  // REQ-0271: re-executed declaration inside a block
+            }
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
         }
@@ -7769,6 +7771,8 @@ private:
             set_error("WFC0011", "expected variable name", identifier_offset);
             return false;
         }
+        const bool repeat_in_block =
+            !allow_declarations_ && current_scope().variables.contains(*identifier);
         if (is_reserved_identifier(*identifier)) {
             set_error("WFC0017", "reserved keyword cannot be a variable name", identifier_offset);
             return false;
@@ -7985,7 +7989,9 @@ private:
                 }
             }
 
-            if (eager_new) {
+            if (eager_new && repeat_in_block) {
+                element_default = Nothing{};
+            } else if (eager_new) {
                 auto instance = instantiate_class(declared_class_name, identifier_offset);
                 if (!instance.has_value()) {
                     return false;
@@ -8035,7 +8041,7 @@ private:
         } else {
             initial_value = std::move(element_default);
         }
-        if (udt_array_) {
+        if (udt_array_ && !repeat_in_block) {
             udt_array_ = false;
             if (auto* const array = std::get_if<ArrayValue>(&initial_value)) {
                 for (auto& element : array->elements) {
@@ -8052,6 +8058,9 @@ private:
             current_scope().variables.emplace(*identifier, std::move(initial_value));
         (void)entry;
         if (!inserted) {
+            if (repeat_in_block) {
+                return true;  // REQ-0271: re-executed declaration inside a block
+            }
             set_error("WFC0013", "duplicate variable declaration", identifier_offset);
             return false;
         }
@@ -8385,7 +8394,9 @@ private:
         if (!validate_type_character(type_character, identifier_offset)) {
             return false;
         }
-        if (current_scope().variables.contains(*identifier)) {
+        const bool repeat_constant =
+            !allow_declarations_ && current_scope().variables.contains(*identifier);
+        if (!repeat_constant && current_scope().variables.contains(*identifier)) {
             set_error("WFC0013", "duplicate variable or constant declaration", identifier_offset);
             return false;
         }
@@ -8461,6 +8472,9 @@ private:
             }
         }
 
+        if (repeat_constant) {
+            return true;
+        }
         current_scope().variables.emplace(*identifier, std::move(*value));
         current_scope().constants.insert(std::move(*identifier));
         return true;
