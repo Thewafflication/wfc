@@ -19,3 +19,8 @@ Addendum: `Select Case` compares numeric selectors and `Case` values of differen
 numeric types by value (`Integer` selector, `Long` literal; `Case 1 To 2` on a
 `Double`); an array element alone in an argument slot (`Bump a(1)`) is passed
 ByRef. Corpus `28-integer-programs`.
+
+Addendum: `True`/`False` act as -1/0 in arithmetic (`True + True` is -2, `-True` is 1);
+`Date$`/`Time$` return Strings (`mm-dd-yyyy`, `hh:mm:ss`); numeric-string
+conversion (`CDbl`, `CLng`, `IsNumeric`, ...) accepts `&H`/`&O` literals and thousands
+separators (`"1,000"`). Corpus `29-booleans-and-text-numbers`.

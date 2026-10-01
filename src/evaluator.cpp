@@ -891,6 +891,51 @@ struct NumericStringResult {
         return {};
     }
 
+    // `&H1F` / `&O17` (optionally `&`-suffixed): VB converts these too.
+    if (last - first > 2U && text[first] == '&' &&
+        (text[first + 1U] == 'h' || text[first + 1U] == 'H' || text[first + 1U] == 'o' ||
+         text[first + 1U] == 'O')) {
+        const bool hex = text[first + 1U] == 'h' || text[first + 1U] == 'H';
+        std::size_t end = last;
+        if (text[end - 1U] == '&') --end;
+        std::uint64_t magnitude = 0;
+        for (std::size_t i = first + 2U; i < end; ++i) {
+            const char c = text[i];
+            int digit = -1;
+            if (c >= '0' && c <= '9') digit = c - '0';
+            else if (hex && c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+            else if (hex && c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+            if (digit < 0 || (!hex && digit > 7) || magnitude > 0xFFFFFFFFULL) return {};
+            magnitude = magnitude * (hex ? 16U : 8U) + static_cast<std::uint64_t>(digit);
+        }
+        if (magnitude > 0xFFFFFFFFULL) return {};
+        // 4 or fewer hex digits is an Integer (sign-extended from 16 bits).
+        const bool short_form = text[end - 1U] != '&' && (end - first - 2U) <= (hex ? 4U : 6U) &&
+            magnitude <= 0xFFFFULL && text[last - 1U] != '&';
+        double result = short_form ? static_cast<double>(static_cast<std::int16_t>(magnitude))
+                                   : static_cast<double>(static_cast<std::int32_t>(magnitude));
+        return {NumericStringStatus::valid, result};
+    }
+    // Thousands separators between digits of the integer part: `1,000`.
+    std::string stripped;
+    if (text.substr(first, last - first).find(',') != std::string_view::npos) {
+        bool in_integer_part = true;
+        for (std::size_t i = first; i < last; ++i) {
+            const char c = text[i];
+            if (c == '.' || c == 'e' || c == 'E') in_integer_part = false;
+            if (c == ',' && in_integer_part && i > first && i + 1U < last &&
+                std::isdigit(static_cast<unsigned char>(text[i - 1U])) != 0 &&
+                std::isdigit(static_cast<unsigned char>(text[i + 1U])) != 0) {
+                continue;
+            }
+            stripped.push_back(c);
+        }
+        if (stripped.find(',') != std::string::npos) {
+            return {};
+        }
+        return parse_numeric_string(stripped);
+    }
+
     double value{};
     const auto conversion =
         std::from_chars(text.data() + first, text.data() + last, value);
@@ -10063,6 +10108,9 @@ private:
             if (!value.has_value()) {
                 return std::nullopt;
             }
+            if (const auto* flag = std::get_if<bool>(&*value)) {
+                value = Value{static_cast<Int16>(*flag ? -1 : 0)};
+            }
             // Unary +/- follow the same Null-propagates,
             // Empty-coerces-to-zero rule already verified for the binary
             // arithmetic operators.
@@ -10104,6 +10152,9 @@ private:
             auto value = parse_unary();
             if (!value.has_value()) {
                 return std::nullopt;
+            }
+            if (const auto* flag = std::get_if<bool>(&*value)) {
+                value = Value{static_cast<Int16>(*flag ? -1 : 0)};
             }
             if (std::holds_alternative<Null>(*value)) {
                 return value;
@@ -12400,6 +12451,21 @@ private:
                 if (!execute_) return Value{0.0f};
                 const double now = current_date_serial();
                 return Value{static_cast<float>((now - std::floor(now)) * 86400.0)};
+            }
+            if (name.back() == '$') {
+                if (!execute_) return Value{std::string{}};
+                const auto parts = split_date(current_date_serial());
+                char text[32];
+                if (name[0] == 'd') {
+                    std::snprintf(text, sizeof(text), "%02d-%02d-%04d",
+                                  static_cast<int>(parts.month), static_cast<int>(parts.day),
+                                  static_cast<int>(parts.year));
+                } else {
+                    std::snprintf(text, sizeof(text), "%02d:%02d:%02d",
+                                  static_cast<int>(parts.hour), static_cast<int>(parts.minute),
+                                  static_cast<int>(parts.second));
+                }
+                return Value{std::string{text}};
             }
             if (!execute_) return name[0] == 'n' ? Value{DateValue{}} : Value{DateValue{}};
             const double now = current_date_serial();
@@ -16271,6 +16337,9 @@ private:
     [[nodiscard]] static Value widen_byte(const Value& value) {
         if (const auto* byte = std::get_if<Byte>(&value)) {
             return Value{static_cast<Integer>(*byte)};
+        }
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            return Value{static_cast<Int16>(*flag ? -1 : 0)};  // True is -1
         }
         return value;
     }

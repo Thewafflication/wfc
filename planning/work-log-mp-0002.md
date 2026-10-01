@@ -248,6 +248,7 @@ a specific requirement.
 | 2026-09-30 #163 | Construction | Increment: Format E+/E- scientific pictures; corpus 26. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #164 | Construction | Increment: For control variable of any numeric type, body-modified control variable; bare Proc-with-args calls inside single-line If; corpus 27. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #165 | Construction | Increment: numeric cross-type Select Case, array elements passed ByRef; corpus 28. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #166 | Construction | Increment: Boolean as -1/0 in arithmetic, Date$/Time$ as String, &H and thousands separators in numeric-string conversion; corpus 29. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
