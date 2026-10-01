@@ -329,6 +329,7 @@ a specific requirement.
 | 2026-09-30 #244 | Construction | Without a UI MsgBox returns the default button's result (vbYes for vbYesNo, vbAbort for vbAbortRetryIgnore, ...), honouring vbDefaultButton2/3. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #245 | Construction | Split matches its delimiter case-insensitively under Option Compare Text or vbTextCompare. Corpus 86. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #246 | Construction | b = a leaves b dynamic so Erase/ReDin still work; a ReDim Preserve that changes a non-last dimension raises catchable error 9. Corpus 87. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #247 | Construction | Chr/ChrB accept the full byte range; ChrW encodes code points above 255 as UTF-8 and AscW decodes them. Corpus 88. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

@@ -15834,14 +15834,27 @@ private:
             if (!execute_) {
                 return Value{std::string{}};
             }
-            const Integer maximum = is_chr_b ? 255 : 127;
+            const bool wide = identifier == "chrw" || identifier == "chrw$";
+            const Integer maximum = wide ? 65535 : 255;
             if (*character_code < 0 || *character_code > maximum) {
                 set_error(
                     "WFC0078",
                     is_chr_b ? "ChrB code must be in the byte range"
-                             : "Chr code must be in the ASCII range",
+                             : "Chr code must be in the character range",
                     identifier_offset);
                 return std::nullopt;
+            }
+            if (*character_code > 255) {  // beyond one byte: UTF-8
+                std::string utf8;
+                const auto code = static_cast<unsigned>(*character_code);
+                if (code < 0x800U) {
+                    utf8.push_back(static_cast<char>(0xC0U | (code >> 6)));
+                } else {
+                    utf8.push_back(static_cast<char>(0xE0U | (code >> 12)));
+                    utf8.push_back(static_cast<char>(0x80U | ((code >> 6) & 0x3FU)));
+                }
+                utf8.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+                return Value{std::move(utf8)};
             }
             return Value{std::string(1U, static_cast<char>(*character_code))};
         }
@@ -17663,7 +17676,21 @@ private:
                 set_error("WFC0077", "Asc requires a non-empty String", identifier_offset);
                 return std::nullopt;
             }
-            return Value{static_cast<Integer>(static_cast<unsigned char>(string->front()))};
+            const auto lead = static_cast<unsigned char>(string->front());
+            if (identifier == "ascw" && lead >= 0xC0U) {  // decode a UTF-8 sequence
+                const std::size_t length = lead >= 0xE0U ? 3U : 2U;
+                if (string->size() >= length) {
+                    unsigned code = lead & (length == 3U ? 0x0FU : 0x1FU);
+                    bool valid = true;
+                    for (std::size_t i = 1; i < length; ++i) {
+                        const auto next = static_cast<unsigned char>((*string)[i]);
+                        valid = valid && (next & 0xC0U) == 0x80U;
+                        code = (code << 6) | (next & 0x3FU);
+                    }
+                    if (valid) return Value{static_cast<Integer>(code)};
+                }
+            }
+            return Value{static_cast<Integer>(lead)};
         }
 
         if (is_strconv) {

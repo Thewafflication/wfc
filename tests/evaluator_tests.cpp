@@ -2497,7 +2497,7 @@ int main() {
     expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 0)", "WFC0076");
     expect_program_failure("Print Asc(\"\")", "WFC0077");
     expect_program_failure("Print Chr(-1)", "WFC0078");
-    expect_program_failure("Print Chr(128)", "WFC0078");
+    expect_program_failure("Print Chr(256)", "WFC0078");
     expect_program_failure("Print ChrB(256)", "WFC0078");
     expect_program_failure(
         "Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
