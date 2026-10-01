@@ -5067,8 +5067,7 @@ private:
             if (allow_label && label.has_value() && !at_end() && current() == ':' &&
                 !(offset_ + 1 < source_.size() && source_[offset_ + 1] == '=') &&
                 !is_reserved_identifier(*label) && *label != "else") {
-                advance();
-                return true;
+                return true;  // the ':' is left for the statement separator
             }
             offset_ = start;
         }
@@ -5184,6 +5183,18 @@ private:
                 }
             }
             return true;
+        }
+        {
+            // File width / record locking: accepted, no effect.
+            const auto before_lock = offset_;
+            if (consume_keyword("width") || consume_keyword("lock") || consume_keyword("unlock")) {
+                skip_horizontal_whitespace();
+                if (!at_end() && current() != '=' && current() != '(' && current() != '.') {
+                    skip_to_statement_end();
+                    return true;
+                }
+                offset_ = before_lock;
+            }
         }
         if (consume_keyword("reset")) {
             if (execute_) {

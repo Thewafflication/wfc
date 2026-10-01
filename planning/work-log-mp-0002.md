@@ -262,6 +262,7 @@ a specific requirement.
 | 2026-09-30 #177 | Construction | Increment: numeric If/While/IIf conditions, global App object, native GetTickCount/Sleep declares, Len(Empty/Null); corpus 39. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #178 | Construction | Fix: old negative tests for numeric conditions and Declare now match the new semantics (a While 1 test had become an infinite loop). Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #179 | Construction | Increment: GetAllSettings, Shell function (synchronous), AppActivate/SendKeys no-op statements; corpus 40. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #180 | Construction | Increment: label: statement on one line, Width/Lock/Unlock; corpus 41. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

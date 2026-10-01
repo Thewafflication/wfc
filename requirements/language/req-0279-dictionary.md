@@ -27,3 +27,6 @@ Addendum: `GetAllSettings` returns the saved key/value pairs as a 0-based
 `n x 2` array (Empty when none); `AppActivate` and `SendKeys` are accepted as
 no-ops; `Shell(command)` runs the command to completion through the host shell and returns
 a task id (error 53 when the command fails). Corpus `40-settings-and-stubs`.
+
+Addendum: `label: statement` on one line; `Width #n, w`, `Lock` and `Unlock` are accepted
+as no-ops. Corpus `41-labels-and-file-stubs`.
