@@ -4885,33 +4885,8 @@ private:
         // arg2` (with arguments) remains unsupported, avoiding the classic
         // ambiguity that form has with other statement shapes; see
         // REQ-0217's Scope.
-        if (!has_let && type_character == '\0' && find_variable(*identifier).value == nullptr) {
-            const auto saved_offset = offset_;
-            skip_horizontal_whitespace();
-            const bool bare_statement_end = at_end() || current() == '\r' || current() == '\n' ||
-                current() == ':' || current() == '\'';
-            const bool arguments_follow = !bare_statement_end && current() != '=' &&
-                current() != '(' && current() != '.';
-            offset_ = saved_offset;
-            if (bare_statement_end || arguments_follow) {
-                bare_call_arguments_ = arguments_follow;
-                if (procedures_.contains(*identifier)) {
-                    const auto result = call_procedure(*identifier, identifier_offset, false);
-                    bare_call_arguments_ = false;
-                    return result.has_value();
-                }
-                if (auto* const instance = current_instance()) {
-                    if (const auto* const class_def = current_class_def()) {
-                        if (class_def->methods.contains(*identifier)) {
-                            const auto result = call_class_method(
-                                *instance, *class_def, *identifier, identifier_offset, false);
-                            bare_call_arguments_ = false;
-                            return result.has_value();
-                        }
-                    }
-                }
-                bare_call_arguments_ = false;
-            }
+        if (const auto handled = parse_bare_call(*identifier, identifier_offset, type_character, has_let)) {
+            return *handled;
         }
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }
@@ -6931,8 +6906,23 @@ private:
         if (!type_character_matches(*variable.value, type_character, variable_offset)) {
             return false;
         }
-        if (!std::holds_alternative<Integer>(*variable.value)) {
-            set_error("WFC0045", "For control variable must be Long", variable_offset);
+        const bool is_variant_variable = variable.scope->variant_variables.contains(*identifier);
+        enum class Slot { integer, int16, byte, floating_double, floating_single };
+        Slot slot{};
+        if (std::holds_alternative<Integer>(*variable.value)) {
+            slot = Slot::integer;
+        } else if (std::holds_alternative<Int16>(*variable.value)) {
+            slot = Slot::int16;
+        } else if (std::holds_alternative<Byte>(*variable.value)) {
+            slot = Slot::byte;
+        } else if (std::holds_alternative<double>(*variable.value)) {
+            slot = Slot::floating_double;
+        } else if (std::holds_alternative<float>(*variable.value)) {
+            slot = Slot::floating_single;
+        } else if (is_variant_variable) {
+            slot = Slot::integer;  // refined from the bounds below
+        } else {
+            set_error("WFC0045", "For control variable must be numeric", variable_offset);
             return false;
         }
 
@@ -6946,12 +6936,6 @@ private:
         if (!start_value.has_value()) {
             return false;
         }
-        const auto* start = std::get_if<Integer>(&*start_value);
-        if (start == nullptr) {
-            set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
-            return false;
-        }
-
         skip_horizontal_whitespace();
         if (!consume_keyword("to")) {
             set_error("WFC0044", "expected To", offset_);
@@ -6962,28 +6946,41 @@ private:
         if (!end_value.has_value()) {
             return false;
         }
-        const auto* end = std::get_if<Integer>(&*end_value);
-        if (end == nullptr) {
-            set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
-            return false;
-        }
-
-        Integer step = 1;
+        Value step_value{Integer{1}};
         skip_horizontal_whitespace();
         if (consume_keyword("step")) {
             skip_horizontal_whitespace();
-            auto step_value = parse_expression();
-            if (!step_value.has_value()) {
+            auto parsed_step = parse_expression();
+            if (!parsed_step.has_value()) {
                 return false;
             }
-            const auto* parsed_step = std::get_if<Integer>(&*step_value);
-            if (parsed_step == nullptr) {
-                set_error("WFC0045", "For bounds and Step must be Long", variable_offset);
-                return false;
-            }
-            step = *parsed_step;
+            step_value = std::move(*parsed_step);
         }
-        if (step == 0) {
+        const auto numeric = [](const Value& value) -> std::optional<double> {
+            if (const auto* v = std::get_if<Integer>(&value)) return static_cast<double>(*v);
+            if (const auto* v = std::get_if<Int16>(&value)) return static_cast<double>(*v);
+            if (const auto* v = std::get_if<Byte>(&value)) return static_cast<double>(*v);
+            if (const auto* v = std::get_if<double>(&value)) return *v;
+            if (const auto* v = std::get_if<float>(&value)) return static_cast<double>(*v);
+            return std::nullopt;
+        };
+        const auto start_number = numeric(*start_value);
+        const auto end_number = numeric(*end_value);
+        const auto step_number = numeric(step_value);
+        if (!start_number || !end_number || !step_number) {
+            set_error("WFC0045", "For bounds and Step must be numeric", variable_offset);
+            return false;
+        }
+        if (is_variant_variable) {
+            const bool any_floating = std::holds_alternative<double>(*start_value) ||
+                std::holds_alternative<float>(*start_value) ||
+                std::holds_alternative<double>(*end_value) ||
+                std::holds_alternative<float>(*end_value) ||
+                std::holds_alternative<double>(step_value) ||
+                std::holds_alternative<float>(step_value);
+            slot = any_floating ? Slot::floating_double : Slot::integer;
+        }
+        if (*step_number == 0.0) {
             set_error("WFC0047", "For Step cannot be zero", variable_offset);
             return false;
         }
@@ -6991,14 +6988,62 @@ private:
             return false;
         }
 
+        const bool floating = slot == Slot::floating_double || slot == Slot::floating_single;
+        std::int64_t whole_min = std::numeric_limits<Integer>::min();
+        std::int64_t whole_max = std::numeric_limits<Integer>::max();
+        if (slot == Slot::int16) {
+            whole_min = std::numeric_limits<Int16>::min();
+            whole_max = std::numeric_limits<Int16>::max();
+        } else if (slot == Slot::byte) {
+            whole_min = 0;
+            whole_max = 255;
+        }
+        const auto round_whole = [](const double number) {
+            return static_cast<std::int64_t>(std::nearbyint(number));
+        };
+        const auto store = [&](const double number) {
+            switch (slot) {
+            case Slot::integer: *variable.value = static_cast<Integer>(round_whole(number)); break;
+            case Slot::int16: *variable.value = static_cast<Int16>(round_whole(number)); break;
+            case Slot::byte: *variable.value = static_cast<Byte>(round_whole(number)); break;
+            case Slot::floating_double: *variable.value = number; break;
+            case Slot::floating_single: *variable.value = static_cast<float>(number); break;
+            }
+        };
+        const auto read = [&]() -> double {
+            const auto current = numeric(*variable.value);
+            return current.has_value() ? *current : 0.0;
+        };
+        double limit = *end_number;
+        double step = *step_number;
+        double current_value = *start_number;
+        if (!floating) {
+            limit = static_cast<double>(round_whole(limit));
+            step = static_cast<double>(round_whole(step));
+            current_value = static_cast<double>(round_whole(current_value));
+            if (step == 0.0) {
+                set_error("WFC0047", "For Step cannot be zero", variable_offset);
+                return false;
+            }
+            if (enclosing_execution &&
+                (current_value < static_cast<double>(whole_min) ||
+                 current_value > static_cast<double>(whole_max))) {
+                set_error("WFC0009", "numeric overflow", variable_offset);
+                return false;
+            }
+        } else if (slot == Slot::floating_single) {
+            limit = static_cast<float>(limit);
+            step = static_cast<float>(step);
+            current_value = static_cast<float>(current_value);
+        }
+        const auto should_continue = [&](const double current) {
+            return step > 0.0 ? current <= limit : current >= limit;
+        };
+
         const auto body_offset = offset_;
         std::size_t continuation_offset{};
-        Integer current_value = *start;
-        const auto should_continue = [end = *end, step](const Integer current) {
-            return step > 0 ? current <= end : current >= end;
-        };
         if (enclosing_execution) {
-            *variable.value = current_value;
+            store(current_value);
         }
         bool continue_loop = enclosing_execution && should_continue(current_value);
         if (!continue_loop) {
@@ -7011,7 +7056,7 @@ private:
         }
 
         while (continue_loop) {
-            *variable.value = current_value;
+            store(current_value);
             offset_ = body_offset;
             execute_ = enclosing_execution;
             ++for_depth_;
@@ -7033,18 +7078,22 @@ private:
                 return true;
             }
 
-            const auto next = static_cast<std::int64_t>(current_value) + step;
-            if (next < std::numeric_limits<Integer>::min() ||
-                next > std::numeric_limits<Integer>::max()) {
+            // The body may have assigned the control variable.
+            double next = read() + step;
+            if (slot == Slot::floating_single) {
+                next = static_cast<float>(next);
+            }
+            if (!floating && (next < static_cast<double>(whole_min) ||
+                              next > static_cast<double>(whole_max))) {
                 set_error("WFC0047", "For control variable overflow", variable_offset);
                 execute_ = enclosing_execution;
                 return false;
             }
-            current_value = static_cast<Integer>(next);
+            current_value = next;
             continue_loop = should_continue(current_value);
         }
 
-        *variable.value = current_value;
+        store(current_value);
         offset_ = continuation_offset;
         execute_ = enclosing_execution;
         return true;
@@ -7478,6 +7527,42 @@ private:
         }
     }
 
+    // Bare `Name [args]` call statement (see the REQ-0217 notes where this is
+    // used); nullopt when the statement is not such a call.
+    [[nodiscard]] std::optional<bool> parse_bare_call(
+        const std::string& identifier, const std::size_t identifier_offset,
+        const char type_character, const bool has_let) {
+        if (!has_let && type_character == '\0' && find_variable(identifier).value == nullptr) {
+            const auto saved_offset = offset_;
+            skip_horizontal_whitespace();
+            const bool bare_statement_end = at_end() || current() == '\r' || current() == '\n' ||
+                current() == ':' || current() == '\'';
+            const bool arguments_follow = !bare_statement_end && current() != '=' &&
+                current() != '(' && current() != '.';
+            offset_ = saved_offset;
+            if (bare_statement_end || arguments_follow) {
+                bare_call_arguments_ = arguments_follow;
+                if (procedures_.contains(identifier)) {
+                    const auto result = call_procedure(identifier, identifier_offset, false);
+                    bare_call_arguments_ = false;
+                    return result.has_value();
+                }
+                if (auto* const instance = current_instance()) {
+                    if (const auto* const class_def = current_class_def()) {
+                        if (class_def->methods.contains(identifier)) {
+                            const auto result = call_class_method(
+                                *instance, *class_def, identifier, identifier_offset, false);
+                            bare_call_arguments_ = false;
+                            return result.has_value();
+                        }
+                    }
+                }
+                bare_call_arguments_ = false;
+            }
+        }
+        return std::nullopt;
+    }
+
     [[nodiscard]] bool parse_inline_statement() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
@@ -7507,11 +7592,16 @@ private:
         if (has_let) {
             skip_horizontal_whitespace();
         }
+        const auto inline_identifier_offset = offset_;
         char type_character{};
         auto identifier = parse_identifier(&type_character);
         if (!identifier.has_value() || is_reserved_identifier(*identifier)) {
             set_error("WFC0023", "expected Print or assignment branch", statement_offset);
             return false;
+        }
+        if (const auto handled = parse_bare_call(
+                *identifier, inline_identifier_offset, type_character, has_let)) {
+            return *handled;
         }
         return parse_assignment_or_array_element(std::move(*identifier), type_character);
     }

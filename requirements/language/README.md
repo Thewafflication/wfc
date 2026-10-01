@@ -380,3 +380,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
   instance has its own `Class_Terminate` run too, recursively.
 - [REQ-0272 — Class events (Event, RaiseEvent, WithEvents)](req-0272-events.md)
 - [REQ-0273 — Single-line loops; more mapped errors](req-0273-inline-loops.md)
+- [REQ-0274 — For over any numeric type; bare calls in inline If](req-0274-for-types.md)
