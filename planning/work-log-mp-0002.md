@@ -338,6 +338,7 @@ a specific requirement.
 | 2026-09-30 #4 | Construction | Added ColorConstants (vbRed...), common VBRUN key/shift/mouse/Show constants, vbKeyA..Z/0..9, and vbUseCompareOption (-1) for the string comparison arguments. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #5 | Construction | README coverage paragraph updated for the built-in Scripting classes, numbered lines, single-line and Static procedures, NewEnum, VBA-qualified calls, and line/column diagnostics. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #6 | Construction | Exponentiation accepts Decimal operands (result Double). Corpus 92 (Decimal/Currency arithmetic). Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #7 | Construction | Declared Win32 timing and MessageBox calls work without a DLL: a 10 MHz performance counter (Currency raw count) and default-button answers. Corpus 93. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

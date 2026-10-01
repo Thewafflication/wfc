@@ -13234,6 +13234,26 @@ private:
                     std::chrono::steady_clock::now().time_since_epoch()).count();
                 return Value{static_cast<Integer>(static_cast<std::uint32_t>(ticks))};
             }
+            if ((binding_name == "queryperformancecounter" ||
+                 binding_name == "queryperformancefrequency") && arguments.size() == 1U &&
+                arguments[0].byref_target != nullptr &&
+                std::holds_alternative<Currency>(*arguments[0].byref_target)) {
+                // A 10 MHz counter; a Currency receives the raw 64-bit count.
+                std::int64_t count = 10000000;
+                if (binding_name == "queryperformancecounter") {
+                    count = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch()).count() / 100;
+                }
+                *arguments[0].byref_target = Value{Currency{count}};
+                return Value{Integer{1}};
+            }
+            if (binding_name == "messagebox" && arguments.size() == 4U) {
+                // No UI: answer with the default button of the requested set.
+                const auto flags = whole_value(arguments[3].value).value_or(0);
+                static const std::array<Integer, 6> defaults{1, 1, 3, 6, 6, 4};
+                const auto set = static_cast<std::size_t>(flags & 7);
+                return Value{set < defaults.size() ? defaults[set] : Integer{1}};
+            }
             if (binding_name == "sleep" && arguments.size() == 1U) {
                 if (const auto milliseconds = whole_value(arguments[0].value)) {
                     if (*milliseconds > 0) {
