@@ -2923,6 +2923,19 @@ private:
         return false;
     }
 
+    // Skips to the end of the current statement (a ':' or line end outside a string).
+    void skip_comment_free_statement_text() noexcept {
+        bool in_string = false;
+        while (!at_end() && current() != '\r' && current() != '\n') {
+            if (current() == '"') {
+                in_string = !in_string;
+            } else if (!in_string && (current() == ':' || current() == '\'')) {
+                break;
+            }
+            advance();
+        }
+    }
+
     void skip_comment() noexcept {
         while (!at_end() && current() != '\r' && current() != '\n') {
             advance();
@@ -5761,6 +5774,11 @@ private:
                         const bool ok = parse_print_statement();
                         discard_print_ = saved_discard;
                         return ok;
+                    }
+                    if (consume_keyword("assert")) {
+                        // Stripped from compiled programs: the condition is not evaluated.
+                        skip_comment_free_statement_text();
+                        return true;
                     }
                 }
                 offset_ = before_debug;
@@ -11231,6 +11249,8 @@ private:
     // run the same way every other runtime check in this evaluator is.
     // Shared by `parse_array_index` (read) and
     // `parse_array_element_assignment` (write). REQ-0210.
+    static constexpr std::size_t kAnyDimensionCount = static_cast<std::size_t>(-1);
+
     [[nodiscard]] std::optional<std::vector<std::pair<Integer, std::size_t>>> parse_index_list(
         const std::size_t dimension_count) {
         std::vector<std::pair<Integer, std::size_t>> indices;
@@ -11257,7 +11277,7 @@ private:
             set_error("WFC0005", "expected closing parenthesis", offset_);
             return std::nullopt;
         }
-        if (indices.size() != dimension_count) {
+        if (dimension_count != kAnyDimensionCount && indices.size() != dimension_count) {
             set_error(
                 "WFC0115", "index count does not match array dimensions", indices.front().second);
             return std::nullopt;
@@ -11314,6 +11334,32 @@ private:
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
             return false;
+        }
+        // `jag(1)(2) = x`: assign into an array held by a Variant element.
+        if (array.is_variant_element && !at_end() && current() == '(') {
+            if (!execute_) {
+                while (!at_end() && current() == '(') {
+                    advance();
+                    if (!parse_index_list(kAnyDimensionCount).has_value()) return false;
+                }
+                skip_horizontal_whitespace();
+                if (!consume('=')) {
+                    set_error("WFC0014", "expected assignment operator", offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                return parse_expression().has_value();
+            }
+            const auto flat_offset = array_flat_offset(array, *indices);
+            if (!flat_offset.has_value()) {
+                return false;
+            }
+            Value& inner = array.elements[*flat_offset];
+            if (!std::holds_alternative<ArrayValue>(inner)) {
+                set_error("WFC0136", "indexing requires an array", identifier_offset);
+                return false;
+            }
+            return parse_array_element_assignment_on(inner, identifier_offset);
         }
         // An Object-element array (REQ-0212) matches a scalar Object
         // variable's own rule: a plain `=` is rejected outright, requiring
@@ -12252,6 +12298,14 @@ private:
         }
         bool is_first_member_access = true;
         while (true) {
+            // `jag(2)(1)`, `Split(s)(0)`: index the array a previous primary produced.
+            if (!at_end() && current() == '(' && std::holds_alternative<ArrayValue>(*value)) {
+                value = parse_array_index(*value);
+                if (!value.has_value()) {
+                    return std::nullopt;
+                }
+                continue;
+            }
             skip_horizontal_whitespace();
             if (at_end() || current() != '.') {
                 return value;
