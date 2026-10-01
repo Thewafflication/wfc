@@ -85,3 +85,8 @@ Addendum: `Err.Description` / `Error$(n)` carry the full VB6 trappable-error tex
 Addendum: a failing evaluation reports `vb_error_number` / `vb_error_description`
 when the failure is a VB run-time error, and the command line prints
 `Run-time error 'N': text` after the diagnostic. Test `TC-MP0002-runtime-error-text-cli`.
+
+Addendum: `ReDim a(n) As Type` (type agrees, or defines the array held by a Variant), several
+arrays in one `ReDim`, a plain `Dim a()` array may change its dimension count on a
+non-Preserve `ReDim` (`Dim a(,)` still fixes it), and `Dim a(n) As String * k`
+pads/truncates each element. Corpus `56-redim-and-fixed-arrays`.

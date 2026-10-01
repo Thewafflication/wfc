@@ -813,6 +813,11 @@ struct ArrayValue {
     // beside) so every existing positional aggregate-init call site that
     // predates it keeps compiling unchanged.
     std::size_t dynamic_dimension_count{0};
+    // True when `Dim a(,)` fixed the dimension count in the declaration (a later
+    // ReDim may not change it); a plain `Dim a()` leaves it free.
+    bool dimension_count_declared{false};
+    // `Dim a(n) As String * k`: every element is padded/truncated to k characters.
+    std::size_t element_fixed_length{0};
 
     [[nodiscard]] friend bool operator==(
         const ArrayValue& left, const ArrayValue& right) noexcept {
@@ -9119,6 +9124,7 @@ private:
                     /*is_allocated=*/false, element_type_index, /*dimensions=*/{}, is_variant,
                     is_object, declared_class_name};
                 array_value.dynamic_dimension_count = dynamic_dimension_count;
+                array_value.dimension_count_declared = dynamic_dimension_count > 0U;
                 initial_value = std::move(array_value);
             } else if (!array_dimensions.empty()) {
                 std::size_t total_size = 1U;
@@ -9139,6 +9145,11 @@ private:
             }
         } else {
             initial_value = std::move(element_default);
+        }
+        if (is_array && fixed_string_length_ != 0U) {
+            if (auto* const fixed_array = std::get_if<ArrayValue>(&initial_value)) {
+                fixed_array->element_fixed_length = fixed_string_length_;
+            }
         }
         if (udt_array_ && !repeat_in_block) {
             udt_array_ = false;
@@ -9211,6 +9222,19 @@ private:
         if (preserve) {
             skip_horizontal_whitespace();
         }
+        while (true) {
+            if (!parse_redim_declarator(preserve)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (!consume(',')) {
+                return true;
+            }
+            skip_horizontal_whitespace();
+        }
+    }
+
+    [[nodiscard]] bool parse_redim_declarator(const bool preserve) {
         const auto identifier_offset = offset_;
         char type_character{};
         auto identifier = parse_identifier(&type_character);
@@ -9293,6 +9317,19 @@ private:
             set_error("WFC0005", "expected closing parenthesis", offset_);
             return false;
         }
+        // `ReDim a(n) As Type`: the type must agree with the array's own; for a
+        // Variant it is the new array's element type.
+        std::optional<ResolvedType> redim_type;
+        skip_horizontal_whitespace();
+        if (consume_keyword("as")) {
+            skip_horizontal_whitespace();
+            const auto type_offset = offset_;
+            redim_type = parse_scalar_object_or_class_type();
+            if (!redim_type.has_value()) {
+                set_error("WFC0012", "expected a type after As", type_offset);
+                return false;
+            }
+        }
 
         if (!execute_) {
             return true;
@@ -9313,6 +9350,28 @@ private:
             }
             redim_target = &field->second;
         }
+        if (redim_target != nullptr && !std::holds_alternative<ArrayValue>(*redim_target) &&
+            (std::holds_alternative<Empty>(*redim_target) ||
+             (member_path.empty() &&
+              variable_lookup.scope->variant_variables.contains(*identifier)))) {
+            // A Variant (or Empty) becomes a dynamic array.
+            ArrayValue created{};
+            created.is_dynamic = true;
+            created.is_allocated = false;
+            if (redim_type.has_value() && !redim_type->is_variant) {
+                if (redim_type->is_object) {
+                    created.is_object_element = true;
+                    created.element_class_name = redim_type->class_name;
+                    created.element_type_index = Value{Nothing{}}.index();
+                } else {
+                    created.element_type_index = redim_type->type_index;
+                }
+            } else {
+                created.is_variant_element = true;
+                created.element_type_index = Value{Empty{}}.index();
+            }
+            *redim_target = std::move(created);
+        }
         struct RedimVariable { Value* value; };
         const RedimVariable variable{redim_target};
         if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value) ||
@@ -9331,10 +9390,10 @@ private:
         // allocated *and* was declared with the plain `Dim identifier()`
         // form (no pre-declared count) lets this first `ReDim` decide it.
         std::size_t required_dimension_count = new_dimensions.size();
-        if (array.is_allocated) {
+        if (array.dimension_count_declared) {
+            required_dimension_count = array.dynamic_dimension_count;  // `Dim a(,)` fixed it
+        } else if (array.is_allocated && preserve) {
             required_dimension_count = array.dimensions.empty() ? 1U : array.dimensions.size();
-        } else if (array.dynamic_dimension_count > 0U) {
-            required_dimension_count = array.dynamic_dimension_count;
         }
         if (new_dimensions.size() != required_dimension_count) {
             set_error(
@@ -9367,7 +9426,10 @@ private:
             total_size *= static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
         }
         std::vector<Value> new_elements(
-            total_size, array_element_default(array.element_type_index));
+            total_size,
+            array.element_fixed_length != 0U
+                ? Value{std::string(array.element_fixed_length, ' ')}
+                : array_element_default(array.element_type_index));
 
         if (preserve && array.is_allocated && !array.elements.empty()) {
             // Every dimension except the last keeps identical bounds
@@ -10770,6 +10832,11 @@ private:
         const auto flat_offset = array_flat_offset(array, *indices);
         if (!flat_offset.has_value()) {
             return false;
+        }
+        if (array.element_fixed_length != 0U) {
+            if (auto* text = std::get_if<std::string>(&*value)) {
+                text->resize(array.element_fixed_length, ' ');
+            }
         }
         array.elements[*flat_offset] = copy_if_udt(std::move(*value));
         return true;
