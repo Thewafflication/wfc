@@ -5258,6 +5258,13 @@ private:
             }
             std::size_t i = position;
             while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) ++i;
+            if (!label.empty() && std::isdigit(static_cast<unsigned char>(label[0])) != 0) {
+                std::size_t k = i;
+                while (k < line_end && std::isdigit(static_cast<unsigned char>(source_[k])) != 0) ++k;
+                if (k > i && source_.substr(i, k - i) == label) return i;
+                position = line_end + 1;
+                continue;
+            }
             std::size_t j = 0;
             while (j < label.size() && i + j < line_end &&
                    ascii_lower(source_[i + j]) == label[j]) {
@@ -5270,6 +5277,20 @@ private:
             position = line_end + 1;
         }
         return std::string::npos;
+    }
+
+    // A label operand: an identifier or a line number.
+    [[nodiscard]] std::optional<std::string> parse_label_name() {
+        skip_horizontal_whitespace();
+        if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+            std::string digits;
+            while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+                digits.push_back(current());
+                advance();
+            }
+            return digits;
+        }
+        return parse_identifier();
     }
 
     [[nodiscard]] bool in_procedure_body() const noexcept { return scopes_.size() > 1U; }
@@ -5382,7 +5403,7 @@ private:
         if (consume_keyword("gosub")) {
             skip_horizontal_whitespace();
             const auto label_offset = offset_;
-            auto label = parse_identifier();
+            auto label = parse_label_name();
             if (!label.has_value()) {
                 set_error("WFC0011", "expected label after GoSub", label_offset);
                 return false;
@@ -5426,7 +5447,7 @@ private:
                 while (true) {
                     skip_horizontal_whitespace();
                     const auto label_offset = offset_;
-                    auto label = parse_identifier();
+                    auto label = parse_label_name();
                     if (!label.has_value()) {
                         set_error("WFC0011", "expected label", label_offset);
                         return false;
@@ -5489,7 +5510,7 @@ private:
                 return true;
             }
             const auto label_offset = offset_;
-            auto label = parse_identifier();
+            auto label = parse_label_name();
             if (!label.has_value()) {
                 set_error("WFC0011", "expected label after GoTo", label_offset);
                 return false;
@@ -5517,7 +5538,7 @@ private:
                 target = frame.error_retry;
             } else {
                 const auto label_offset = offset_;
-                auto label = parse_identifier();
+                auto label = parse_label_name();
                 if (!label.has_value()) {
                     set_error("WFC0011", "expected label after Resume", label_offset);
                     return false;
@@ -5550,7 +5571,7 @@ private:
         if (consume_keyword("goto")) {
             skip_horizontal_whitespace();
             const auto label_offset = offset_;
-            auto label = parse_identifier();
+            auto label = parse_label_name();
             if (!label.has_value()) {
                 set_error("WFC0011", "expected label after GoTo", label_offset);
                 return false;
@@ -5663,6 +5684,28 @@ private:
 
     [[nodiscard]] bool parse_statement_core() {
         skip_horizontal_whitespace();
+        // A leading line number (`10  x = 1`) is a label that also feeds Erl.
+        if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+            std::size_t line_start = offset_;
+            while (line_start > 0 && (source_[line_start - 1] == ' ' || source_[line_start - 1] == '\t')) {
+                --line_start;
+            }
+            if (line_start == 0 || source_[line_start - 1] == '\n') {
+                Integer number{};
+                while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+                    number = static_cast<Integer>(
+                        std::min<long long>(number * 10LL + (current() - '0'), 2147483647LL));
+                    advance();
+                }
+                if (execute_) erl_ = number;
+                if (!at_end() && current() == ':' &&
+                    !(offset_ + 1 < source_.size() && source_[offset_ + 1] == '=')) {
+                    advance();
+                }
+                skip_horizontal_whitespace();
+                if (at_statement_end()) return true;
+            }
+        }
         const auto statement_offset = offset_;
         // A statement that once fell through every keyword test is an
         // assignment or call; skip straight to that tail next time (the loop
@@ -12355,7 +12398,7 @@ private:
                              class_satisfies(instance->data->class_name, *class_name)};
             }
             if (consume_keyword("erl")) {
-                return Value{Integer{0}};
+                return Value{erl_};
             }
         }
         {
@@ -19164,6 +19207,7 @@ private:
     std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.
     Integer err_number_{};
+    Integer erl_{};  // the last numbered line executed (VB's Erl)
     std::string err_description_;
     std::string err_source_;
     bool jump_pending_{};
