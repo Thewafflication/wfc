@@ -238,6 +238,7 @@ a specific requirement.
 | 2026-09-30 #153 | Construction | Accept class/UDT-typed array parameters, return UDTs from functions with copy semantics, and copy UDTs stored into Variants (Collection.Add is ByVal) under `REQ-0267`; unit + CLI tests. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #154 | Construction | Draft `planning/legacy-feature-dispositions.md`: recommendations, alternatives, affected requirements and blank acceptance records for DDE, Data/DAO, OLE1, ActiveX Documents, PropertyPage and WinHelp; linked from the compatibility profile and planning index. Proposals only -- nothing accepted. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #155 | Construction | Add the self-checking `tests/corpus` programs, render Double/Single with 15/7 significant digits like VB6, fix UDT assignment in not-taken branches, and let `Err.Raise` take `vbObjectError + n` under `REQ-0268`. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #156 | Construction | Add corpus programs 13-16; convert numeric strings in arithmetic, support omitted arguments, and fix crashes found by function/operator sweeps (error Variants, Date, ordering of arrays); documented as an addendum to `REQ-0268`. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

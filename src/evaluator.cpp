@@ -1958,6 +1958,8 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
 struct CallArgument {
     Value value;
     Value* byref_target{};
+    // REQ-0269: `F(, 7)` -- an omitted argument slot.
+    bool omitted{};
 };
 
 class Interpreter final {
@@ -10477,7 +10479,13 @@ private:
         std::vector<CallArgument> arguments;
         if (!consume(')')) {
             while (true) {
-                auto argument = parse_call_argument();
+                skip_horizontal_whitespace();
+                std::optional<CallArgument> argument;
+                if (!at_end() && (current() == ',' || current() == ')')) {
+                    argument = CallArgument{Value{Empty{}}, nullptr, true};
+                } else {
+                    argument = parse_call_argument();
+                }
                 if (!argument.has_value()) {
                     return std::nullopt;
                 }
@@ -10583,9 +10591,13 @@ private:
             // matching a literal/expression argument.
             CallArgument synthesized_argument;
             CallArgument* argument_ptr;
-            if (index < arguments.size()) {
+            if (index < arguments.size() && !arguments[index].omitted) {
                 argument_ptr = &arguments[index];
             } else {
+                if (!parameter.is_optional) {
+                    static_cast<void>(raise_runtime(449, "Argument not optional", identifier_offset));
+                    return std::nullopt;
+                }
                 // REQ-0224: only an omitted Optional Variant argument
                 // with no explicit default is a candidate for IsMissing
                 // -- recorded by name now, while it is still known which
@@ -12378,10 +12390,24 @@ private:
                 }
             }
         }
+        // REQ-0259: an error-subtype Variant reaching a function that needs a
+        // real value raises the error it carries.
+        if (!is_typename && !is_vartype && !is_cvar && !is_iif && !is_choose && !is_switch &&
+            !is_isnumeric && !is_isarray && !is_isobject && !is_isnull && !is_isempty &&
+            !is_constant_false_predicate && !is_cstr && !is_ismissing && execute_) {
+            for (const auto& argument : arguments) {
+                if (const auto* error_value = std::get_if<ErrorValue>(&argument)) {
+                    static_cast<void>(raise_runtime(
+                        error_value->code == 0 ? 5 : error_value->code,
+                        vb_error_description(error_value->code), identifier_offset));
+                    return std::nullopt;
+                }
+            }
+        }
         // REQ-0242: numeric conversions/functions see a Date as its serial.
         if (!arguments.empty() && std::holds_alternative<DateValue>(arguments[0]) &&
             (is_cdbl || is_csng || is_clng || is_cint || is_ccur || is_cdec || is_cbyte ||
-             is_int || is_fix || is_round || is_abs || is_sgn)) {
+             is_cbool || is_int || is_fix || is_round || is_abs || is_sgn)) {
             arguments[0] = Value{std::get<DateValue>(arguments[0]).serial};
         }
         bool valid_arity{};
@@ -13451,6 +13477,9 @@ private:
                 return Value{true};
             }
 
+            if (!std::holds_alternative<std::string>(arguments[0])) {
+                return Value{false};  // Date, error values, ...
+            }
             const auto parsed = parse_numeric_string(std::get<std::string>(arguments[0]));
             return Value{parsed.status == NumericStringStatus::valid};
         }
@@ -15640,6 +15669,10 @@ private:
             set_error("WFC0018", "Boolean ordering is not supported", operator_offset);
             return std::nullopt;
         }
+        if (!std::holds_alternative<std::string>(left)) {
+            set_error("WFC0018", "ordering is not supported for this type", operator_offset);
+            return std::nullopt;
+        }
 
         bool less{};
         bool greater{};
@@ -15702,6 +15735,35 @@ private:
             const Value coerced_right =
                 std::holds_alternative<Empty>(right) ? Value{Integer{0}} : right;
             return numeric_binary(coerced_left, coerced_right, operation, operator_offset);
+        }
+        {
+            // REQ-0269: a numeric String beside a number (or another numeric
+            // String under - * /) converts to Double, as VB does for Variants.
+            const bool left_text = std::holds_alternative<std::string>(left);
+            const bool right_text = std::holds_alternative<std::string>(right);
+            if ((left_text || right_text) && !(left_text && right_text && operation == '+')) {
+                const auto convert = [&](const Value& v) -> std::optional<Value> {
+                    if (const auto* text = std::get_if<std::string>(&v)) {
+                        const auto parsed = parse_numeric_string(*text);
+                        if (parsed.status != NumericStringStatus::valid) return std::nullopt;
+                        return Value{parsed.value};
+                    }
+                    if (is_number(v) && !std::holds_alternative<DateValue>(v)) return v;
+                    return std::nullopt;
+                };
+                const auto converted_left = convert(left);
+                const auto converted_right = convert(right);
+                if (converted_left && converted_right) {
+                    return numeric_binary(*converted_left, *converted_right, operation, operator_offset);
+                }
+                if (execute_) {
+                    err_number_ = 13;
+                    err_description_ = "Type mismatch";
+                    set_error("WFC0300", "Type mismatch", operator_offset);
+                    return std::nullopt;
+                }
+                return Value{0.0};
+            }
         }
         if (std::holds_alternative<DateValue>(left) || std::holds_alternative<DateValue>(right)) {
             // REQ-0242: Date +/- number stays a Date; Date - Date is a

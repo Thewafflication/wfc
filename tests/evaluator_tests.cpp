@@ -1799,7 +1799,7 @@ int main() {
     expect_failure("Print -2147483649", "WFC0006");
     expect_failure("Print 1.5&", "WFC0006");
     expect_failure("Print 1e3&", "WFC0006");
-    expect_failure("Print 1 + \"two\"", "WFC0007");
+    expect_failure("Print 1 + \"two\"", "WFC0300");
     expect_failure("Print 1 \\ 0", "WFC0008");
     expect_failure("Print 2147483647 + 1", "WFC0009");
 

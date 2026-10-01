@@ -26,3 +26,17 @@ evidence, not a substitute for retained VB6 reference probes.
 ## Verification
 
 `tests/evaluator_tests.cpp`; `TC-MP0002-corpus-*`.
+
+## Addendum (REQ-0269): corpus-driven fixes
+
+- A numeric `String` beside a number (and numeric strings under `- * /`)
+  converts to `Double` (`"5" + 10` is `15`, `"3" * "4"` is `12`); a
+  non-numeric string is error 13. `String + String` still concatenates.
+- Omitted argument slots (`Describe(, 7)`) take the `Optional` default; an
+  omitted required argument is error 449.
+- Robustness sweeps found and fixed crashes on error-subtype Variants and
+  `Date` values reaching conversion functions (`CInt(CVErr(5))` now raises
+  error 5; `CBool(#1/1/1900#)` works), `IsNumeric(Date)`, and ordering
+  comparisons of arrays / error values (`WFC0018`).
+- Known deviation recorded, not changed: unsuffixed integer literals are
+  `Long` (`TypeName(5)` is `Long`; VB6 says `Integer`), per `REQ-0199`'s Scope.
