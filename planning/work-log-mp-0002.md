@@ -256,6 +256,7 @@ a specific requirement.
 | 2026-09-30 #171 | Construction | Fix: corpus 32 passed a String to a DefInt parameter. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #172 | Construction | Increment: String * n in Type, Len(udt)/Len(number), Get/Put of UDTs, array elements and arrays; corpus 33, 34. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #173 | Construction | Increment: Private x As New Cls class fields, Public Enum/Const in classes visible to other modules; corpus 35. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #174 | Construction | Increment: Resume/Resume Next inside loops, handler errors in inline If, Err.Source, more error mappings; corpus 36. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 

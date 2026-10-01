@@ -1817,6 +1817,10 @@ struct Scope {
     int on_error_mode{};
     std::size_t on_error_label{};
     bool in_error_handler{};
+    // While an `On Error GoTo` handler runs in the context of the failing
+    // statement: set by `Resume` / `Resume Next` (1 = next, 2 = retry).
+    int handler_depth{};
+    int resume_signal{};
     std::size_t error_resume_next{};
     std::size_t error_retry{};
     // REQ-0248: return offsets of active `GoSub` calls in this frame.
@@ -4251,7 +4255,13 @@ private:
     [[nodiscard]] Integer runtime_error_number() const {
         const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
         if (code == "WFC0300") return err_number_;
-        if (code == "WFC0016") return 13;
+        if (code == "WFC0016" || code == "WFC0007" || code == "WFC0018" || code == "WFC0019" ||
+            code == "WFC0020" || code == "WFC0073" || code == "WFC0086" || code == "WFC0087" ||
+            code == "WFC0088" || code == "WFC0095" || code == "WFC0098" || code == "WFC0103" ||
+            code == "WFC0105" || code == "WFC0060" || code == "WFC0053") {
+            return 13;  // Type mismatch
+        }
+        if (code == "WFC0136" || code == "WFC0107") return 424;  // Object required
         if (code == "WFC0008") return 11;
         if (code == "WFC0009") return 6;
         if (code == "WFC0111") return 9;
@@ -4301,6 +4311,7 @@ private:
         }
         if (std::string_view(error_.diagnostic).substr(0, 7) != "WFC0300") {
             err_number_ = number;
+            err_source_.clear();
             err_description_ = vb_error_description(number);
         }
         skip_to_statement_end();
@@ -4312,13 +4323,65 @@ private:
             return true;
         }
         frame.in_error_handler = true;
-        jump_pending_ = true;
-        jump_target_ = frame.on_error_label;
-        set_error("WFC0999", "internal jump", statement_start);
-        return false;
+        const bool in_procedure_context =
+            in_procedure_body() && current_procedure_def_ != nullptr && frame.handler_depth == 0;
+        if (!in_procedure_context) {
+            jump_pending_ = true;
+            jump_target_ = frame.on_error_label;
+            set_error("WFC0999", "internal jump", statement_start);
+            return false;
+        }
+        // Run the handler right here, in the failing statement's context, so
+        // `Resume Next` / `Resume` continue inside any enclosing loop.
+        const auto resume_point = offset_;
+        const auto end_limit = current_procedure_def_->body_end;
+        offset_ = frame.on_error_label;
+        ++frame.handler_depth;
+        frame.resume_signal = 0;
+        bool completed = true;
+        while (true) {
+            skip_program_leading_trivia();
+            if (offset_ >= end_limit || at_end()) {
+                exit_sub_requested_ = true;
+                exit_function_requested_ = true;
+                offset_ = resume_point;
+                break;
+            }
+            if (!parse_statement() || !consume_statement_end()) {
+                completed = false;
+                break;
+            }
+            if (frame.resume_signal != 0 || exit_sub_requested_ || exit_function_requested_) {
+                offset_ = resume_point;
+                break;
+            }
+        }
+        --frame.handler_depth;
+        if (!completed) {
+            return false;
+        }
+        if (frame.resume_signal == 2) {
+            retry_statement_ = true;
+        }
+        frame.resume_signal = 0;
+        execute_ = true;
+        return true;
     }
 
     [[nodiscard]] bool parse_statement() {
+        while (true) {
+            const auto start = offset_;
+            if (parse_statement_once()) {
+                if (!retry_statement_) return true;
+                retry_statement_ = false;
+                offset_ = start;
+                continue;
+            }
+            return false;
+        }
+    }
+
+    [[nodiscard]] bool parse_statement_once() {
         const auto start = offset_;
         const bool entry_execute = execute_;
         if (parse_statement_core()) {
@@ -4652,6 +4715,13 @@ private:
                     return raise_runtime(20, "Resume without error", statement_offset);
                 }
                 frame.in_error_handler = false;
+                if (frame.handler_depth > 0 &&
+                    (target == frame.error_resume_next || target == frame.error_retry)) {
+                    frame.resume_signal = target == frame.error_retry &&
+                            target != frame.error_resume_next ? 2 : 1;
+                    skip_to_statement_end();
+                    return true;
+                }
                 jump_pending_ = true;
                 jump_target_ = target;
                 set_error("WFC0999", "internal jump", statement_offset);
@@ -4692,6 +4762,7 @@ private:
                 if (execute_) {
                     err_number_ = 0;
                     err_description_.clear();
+                    err_source_.clear();
                 }
                 return true;
             }
@@ -4709,6 +4780,7 @@ private:
                     return false;
                 }
                 std::string description;
+                std::string source_text;
                 bool has_description = false;
                 for (int argument = 0; argument < 4; ++argument) {
                     skip_horizontal_whitespace();
@@ -4722,6 +4794,11 @@ private:
                     auto value = parse_expression();
                     if (!value.has_value()) {
                         return false;
+                    }
+                    if (argument == 0) {
+                        if (const auto* text = std::get_if<std::string>(&*value)) {
+                            source_text = *text;
+                        }
                     }
                     if (argument == 1) {
                         if (const auto* text = std::get_if<std::string>(&*value)) {
@@ -4743,6 +4820,7 @@ private:
                         return raise_runtime(5, "Invalid procedure call or argument", member_offset);
                     }
                     err_number_ = raised;
+                    err_source_ = source_text;
                     err_description_ = has_description ? description : vb_error_description(raised);
                     set_error("WFC0300", err_description_, statement_offset);
                     return false;
@@ -5130,6 +5208,7 @@ private:
         const Integer number, const std::string& description, const std::size_t offset) {
         err_number_ = number;
         err_description_ = description;
+        err_source_.clear();
         set_error("WFC0300", description, offset);
         return false;
     }
@@ -7871,7 +7950,31 @@ private:
         return std::nullopt;
     }
 
+    // One statement of a single-line `If` branch; a runtime error in it is
+    // handled by the frame's `On Error` mode like any other statement.
     [[nodiscard]] bool parse_inline_statement() {
+        while (true) {
+            const auto start = offset_;
+            const bool entry_execute = execute_;
+            if (parse_inline_statement_core()) {
+                return true;
+            }
+            if (!entry_execute || jump_pending_) {
+                return false;
+            }
+            execute_ = entry_execute;
+            if (!recover_runtime_error(start)) {
+                return false;
+            }
+            if (!retry_statement_) {
+                return true;
+            }
+            retry_statement_ = false;
+            offset_ = start;
+        }
+    }
+
+    [[nodiscard]] bool parse_inline_statement_core() {
         skip_horizontal_whitespace();
         const auto statement_offset = offset_;
         if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
@@ -10949,7 +11052,13 @@ private:
                         return Value{err_description_};
                     }
                     if (member == "source") {
+                        return Value{err_source_};
+                    }
+                    if (member == "helpfile") {
                         return Value{std::string{}};
+                    }
+                    if (member == "helpcontext" || member == "lastdllerror") {
+                        return Value{Integer{0}};
                     }
                     set_error("WFC0135", "unknown member", member_offset);
                     return std::nullopt;
@@ -17374,11 +17483,13 @@ private:
     bool bare_call_arguments_{};
     bool udt_array_{};
     std::size_t fixed_string_length_{};
+    bool retry_statement_{};
     // Public Enum/Const members declared in class modules.
     std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.
     Integer err_number_{};
     std::string err_description_;
+    std::string err_source_;
     bool jump_pending_{};
     std::size_t jump_target_{};
     // REQ-0236 With-block state.
