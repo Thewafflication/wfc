@@ -2516,6 +2516,7 @@ public:
                 name.push_back(line[i++]);
             }
             if (!name.empty()) {
+                module_names_.insert(name);  // `EnumName.Member`
                 enum_names_.push_back(std::move(name));
             }
         }
@@ -8739,8 +8740,8 @@ private:
                 (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
                  current() == '\'' || current() == ',')) {
                 element_default = zero_value_for_index(*default_type);
-            } else if (!is_array && (at_end() || current() == '\r' || current() == '\n' ||
-                current() == ':' || current() == '\'' || current() == ',')) {
+            } else if (at_end() || current() == '\r' || current() == '\n' ||
+                current() == ':' || current() == '\'' || current() == ',') {
                 element_default = Empty{};
                 is_variant = true;
             } else {

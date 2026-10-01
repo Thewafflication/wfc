@@ -38,3 +38,6 @@ accessors work); `Exit Property` is accepted. Corpus `42-module-properties`.
 Addendum: an unsuffixed decimal integer literal beyond the `Long` range is a
 `Double` literal (`Print 3000000000`, `TypeName(3000000000)` is "Double");
 `&`-suffixed literals still raise `WFC0006`. (Supersedes the REQ-0140 subset limit.)
+
+Addendum: `Dim b(2)` with no `As` is a Variant array; `EnumName.Member` resolves
+(`Level.High`). Corpus `43-declarations`.
