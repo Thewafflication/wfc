@@ -286,6 +286,7 @@ a specific requirement.
 | 2026-09-30 #201 | Construction | Increment: ReDim As Type and lists, Variant becomes an array, free dimension count for Dim a(), String * k arrays; corpus 56. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #202 | Construction | Increment: Int16/Byte arguments widen for library routines (Mid$(s, i, i) with Integer i), ReDim declares undeclared arrays; corpus 57, 58. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #203 | Construction | Increment: literals in -32768..32767 are Integer (TypeName(5) = Integer, Integer overflow like VB6); whole-number acceptance for Tab/Spc/String * n/Len=/Sleep; REQ-0199 amended. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-09-30 #204 | Construction | Docs: status section reflects module properties, Shell, literals. Goal token usage / elapsed time: Not reported | Commit pending |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
@@ -2105,14 +2106,16 @@ class modules (`Implements`, default members, `Event`/`RaiseEvent`/`WithEvents`,
 `As New` fields, program-wide class Enums, `Collection`,
 `CreateObject("Scripting.Dictionary")`).
 
-**Known remaining gaps** (each documented in its requirement's Scope): module-level
-`Property` procedures in standard modules; `Get`/`Put` of Variants and dynamic-array
-descriptors; class inheritance; other `CreateObject`/`GetObject` ProgIDs and COM
-interop (MP-0003); visual items in `.vbp` files (MP-0004); `SendKeys`/`Shell`;
-UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings);
-
+**Known remaining gaps** (each documented in its requirement's Scope): `Get`/`Put` of
+Variants and dynamic-array descriptors; class inheritance; other
+`CreateObject`/`GetObject` ProgIDs and COM interop (MP-0003); visual items in `.vbp`
+files (MP-0004); real `SendKeys`; asynchronous `Shell`;
+UTF-16 string semantics (`Len`/`LenB`/`AscW` operate on WFC's byte strings).
 The deterministic VB6 reference-probe corpus beyond the existing spot probes has
 not been extended in this series.
+
+**Resolved during the series:** unsuffixed small integer literals are now `Integer`
+(REQ-0280) and over-`Long` literals are `Double`.
 
 **Owner decisions still open for the MP-0002 exit gate** (recommendations drafted in
 `planning/legacy-feature-dispositions.md`, each awaiting acceptance): the six legacy
