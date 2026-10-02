@@ -1763,12 +1763,13 @@ int main() {
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
     expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
-                   "3 65 B");
+                   "6 65 B");
     expect_success("Print AscB(ChrB(255)) & \" \" & LenB(ChrB$(0))", "255 1");
     expect_success(
         "Print LeftB(\"WFC\", 2) & \" \" & RightB$(\"WFC\", 2) & \" \" & "
-        "MidB(\"WFC\", 2, 1) & \" \" & InStrB(\"WFC\", \"FC\")",
-        "WF FC F 2");
+        "AscB(MidB(\"WFC\", 2, 1)) & \" \" & InStrB(\"WFC\", \"FC\") & \" \" & "
+        "Len(ChrB(65) & ChrB(0)) & \" \" & LenB(ChrB(65))",
+        "W C 0 3 1 1");
     expect_success("Print AscB(LeftB(ChrB(255) & \"x\", 1))", "255");
     expect_success(
         "Print StrConv(\"aBc\", vbUpperCase) & \" \" & StrConv(\"aBc\", vbLowerCase)",

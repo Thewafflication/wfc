@@ -46,7 +46,7 @@ Behaviors added by corpus-driven hardening of MP-0002, each with a corpus progra
   `Asc`/`AscW`/`Chr`/`ChrW` and `Byte()` conversion all work per unit. `Chr`/`Asc` map through
   Windows-1252. Source files that are not valid UTF-8 are read as Windows-1252, and text-file
   I/O (`Print #`, `Input #`, `Line Input #`, `Input$`, string `Get`/`Put`) is ANSI on disk.
-  The `*B` functions keep reporting stored bytes (REQ-0177). `tests/corpus/101-utf16-strings`,
+  The `*B` functions follow VB6: they see the UTF-16LE bytes (`LenB("abc")` is 6; REQ-0177). `tests/corpus/101-utf16-strings`,
   `102-ansi-file-text`, `103-utf16-print-format`. `Print` zones, `Tab` and `Spc` count columns in
   units, and `Format` string pictures (`@`, `&`, `<`, `>`, `!`) work per unit.
 - **Performance.** `Collection` and `Scripting.Dictionary` use a native ordered store with

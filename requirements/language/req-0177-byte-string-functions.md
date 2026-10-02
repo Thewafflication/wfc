@@ -5,24 +5,27 @@
 The MP-0002 evaluator shall recognize the case-insensitive byte-string
 intrinsics below:
 
-- `LenB(String)` shall return the number of stored bytes;
-- `AscB(String)` shall return the unsigned value of the first stored byte and
-  shall reject an empty String with `WFC0077`;
+- `LenB(String)` shall return the number of bytes in the String's UTF-16LE form
+  (twice `Len`, as in VB6);
+- `AscB(String)` shall return the unsigned value of the first byte of that form
+  and shall reject an empty String with `WFC0077`;
 - `ChrB(Long)` and `ChrB$(Long)` shall return the one-byte String corresponding
   to values 0 through 255 and reject other values with `WFC0078`.
 - `LeftB`/`LeftB$`, `RightB`/`RightB$`, `MidB`/`MidB$`, and `InStrB` shall use
   the same one-based slicing/search rules as their character counterparts,
-  with positions and lengths measured in stored bytes.
+  with positions and lengths measured in bytes of the UTF-16LE form.
 
 Wrong arity shall fail with `WFC0072`, and wrong argument types shall fail with
 `WFC0073`.
 
 ## Scope
 
-The current evaluator stores Strings as byte sequences and limits source text
-semantics to its deterministic ASCII-compatible subset. These functions expose
-that existing representation; they do not claim DBCS code-page behavior or
-general Unicode/BSTR byte-layout equivalence.
+Strings are UTF-16 code-unit sequences (stored as UTF-8). The B functions view
+a String as its UTF-16LE bytes, as VB6 does, so `LenB("abc")` is 6 and
+`LeftB("WFC", 2)` is `"W"`. A lone byte (from `ChrB` or an odd-sized slice) is
+held as a private-use half unit U+F700+byte; two touching half units merge into
+one unit on concatenation, so `ChrB(65) & ChrB(0)` equals `"A"`, and `Print`
+shows a half unit as its raw byte. DBCS code pages are not modelled.
 
 ## Verification
 

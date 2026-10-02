@@ -1670,6 +1670,10 @@ struct DateParts {
     return true;
 }
 
+[[nodiscard]] inline bool is_byte_half(const char16_t unit) noexcept {
+    return unit >= 0xF700U && unit <= 0xF7FFU;
+}
+
 [[nodiscard]] inline std::u16string to_utf16_units(const std::string_view text) {
     std::u16string units;
     units.reserve(text.size());
@@ -1785,9 +1789,74 @@ inline void fit_to_units(std::string& text, const std::size_t units) {
     if (is_ascii_text(text)) return text;
     std::string bytes;
     for (const char16_t unit : to_utf16_units(text)) {
-        bytes.push_back(static_cast<char>(unicode_to_ansi(unit)));
+        bytes.push_back(static_cast<char>(
+            is_byte_half(unit) ? (unit & 0xFFU) : unicode_to_ansi(unit)));
     }
     return bytes;
+}
+
+// The B functions (LenB, AscB, ChrB, LeftB, MidB, ...) see a String as its UTF-16LE bytes.
+// A lone byte -- which ChrB and an odd-length slice produce -- is held as a private-use
+// "half unit" U+F700+byte, so that `ChrB(65) & ChrB(0)` can rejoin into the unit "A".
+[[nodiscard]] inline std::string string_to_bytes(const std::string& text) {
+    std::string bytes;
+    bytes.reserve(text.size() * 2U);
+    for (const char16_t unit : to_utf16_units(text)) {
+        if (is_byte_half(unit)) {
+            bytes.push_back(static_cast<char>(unit & 0xFFU));
+        } else {
+            bytes.push_back(static_cast<char>(unit & 0xFFU));
+            bytes.push_back(static_cast<char>(unit >> 8U));
+        }
+    }
+    return bytes;
+}
+
+[[nodiscard]] inline std::string bytes_to_string(const std::string& bytes) {
+    std::u16string units;
+    for (std::size_t i = 0; i < bytes.size(); i += 2U) {
+        const auto low = static_cast<unsigned char>(bytes[i]);
+        if (i + 1U < bytes.size()) {
+            units.push_back(static_cast<char16_t>(low | (static_cast<unsigned char>(bytes[i + 1U]) << 8U)));
+        } else {
+            units.push_back(static_cast<char16_t>(0xF700U | low));
+        }
+    }
+    return from_utf16_units(units);
+}
+
+// After `text` was extended past `left_size` bytes: two half units that now touch
+// merge into one real unit.
+inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
+    if (left_size < 3U || left_size + 3U > text.size()) return;
+    const auto half_at = [&](const std::size_t at) -> int {
+        if (static_cast<unsigned char>(text[at]) != 0xEFU) return -1;
+        const auto second = static_cast<unsigned char>(text[at + 1U]);
+        if (second < 0x9CU || second > 0x9FU) return -1;
+        const unsigned code = 0xF000U | ((second & 0x3FU) << 6U) |
+                              (static_cast<unsigned char>(text[at + 2U]) & 0x3FU);
+        return is_byte_half(static_cast<char16_t>(code)) ? static_cast<int>(code & 0xFFU) : -1;
+    };
+    const int low = half_at(left_size - 3U);
+    const int high = half_at(left_size);
+    if (low < 0 || high < 0) return;
+    std::string merged;
+    append_utf8_unit(merged, static_cast<std::uint32_t>(low | (high << 8)));
+    text.replace(left_size - 3U, 6U, merged);
+}
+
+// Half units print as the raw byte they hold.
+[[nodiscard]] inline std::string show_byte_halves(const std::string& text) {
+    if (text.find('\xEF') == std::string::npos) return text;
+    std::string shown;
+    for (const char16_t unit : to_utf16_units(text)) {
+        if (is_byte_half(unit)) {
+            shown.push_back(static_cast<char>(unit & 0xFFU));
+        } else {
+            append_utf8_unit(shown, unit);
+        }
+    }
+    return shown;
 }
 
 // Latin Extended-A letters pair upper/lower as even/odd, except two runs where
@@ -7763,7 +7832,7 @@ private:
                 if (has_output_line_) {
                     output_.push_back('\n');
                 }
-                output_ += render(*value);
+                output_ += show_byte_halves(render(*value));
                 has_output_line_ = true;
             }
             return true;
@@ -7848,7 +7917,7 @@ private:
                     text += digits;
                     text.push_back(' ');
                 } else {
-                    text += render(*value);
+                    text += show_byte_halves(render(*value));
                 }
             }
             newline = true;
@@ -10798,7 +10867,9 @@ private:
             skip_horizontal_whitespace();
             if (!consume('&')) break;
         }
+        const auto target_size = target.size();
         target += appended;
+        merge_byte_halves(target, target_size);
         return AppendOutcome::done;
     }
 
@@ -10965,9 +11036,8 @@ private:
             if (execute_) {
                 const auto& text = std::get<std::string>(*value);
                 target_array->elements.clear();
-                for (const char16_t unit : to_utf16_units(text)) {
-                    target_array->elements.emplace_back(static_cast<Byte>(unit & 0xFFU));
-                    target_array->elements.emplace_back(static_cast<Byte>(unit >> 8U));
+                for (const char byte : string_to_bytes(text)) {
+                    target_array->elements.emplace_back(static_cast<Byte>(byte));
                 }
                 target_array->lower_bound = 0;
                 target_array->dimensions.clear();
@@ -10986,8 +11056,11 @@ private:
                         return byte != nullptr ? *byte : static_cast<unsigned>('?');
                     };
                     for (std::size_t i = 0; i < source_array->elements.size(); i += 2U) {
-                        const unsigned high = i + 1U < source_array->elements.size() ? byte_at(i + 1U) : 0U;
-                        units.push_back(static_cast<char16_t>(byte_at(i) | (high << 8U)));
+                        if (i + 1U < source_array->elements.size()) {
+                            units.push_back(static_cast<char16_t>(byte_at(i) | (byte_at(i + 1U) << 8U)));
+                        } else {
+                            units.push_back(static_cast<char16_t>(0xF700U | byte_at(i)));
+                        }
                     }
                     *variable.value = from_utf16_units(units);
                 }
@@ -12534,7 +12607,9 @@ private:
             }
             if (auto* text = std::get_if<std::string>(&*left)) {
                 if (const auto* tail = std::get_if<std::string>(&*right)) {
+                    const auto left_size = text->size();
                     text->append(*tail);  // extend in place instead of copying `left` again
+                    merge_byte_halves(*text, left_size);
                     continue;
                 }
             }
@@ -16433,7 +16508,10 @@ private:
                     identifier_offset);
                 return std::nullopt;
             }
-            if (*character_code >= 0x80 && !is_chr_b) {
+            if (is_chr_b) {
+                return Value{bytes_to_string(std::string(1U, static_cast<char>(*character_code)))};
+            }
+            if (*character_code >= 0x80) {
                 // Chr maps through Windows-1252; ChrW is the code unit itself.
                 const auto code = static_cast<unsigned>(*character_code);
                 std::string utf8;
@@ -17887,6 +17965,22 @@ private:
                 set_error("WFC0076", "InStr start must be positive", identifier_offset);
                 return std::nullopt;
             }
+            if (identifier == "instrb") {
+                const std::string hay_bytes = string_to_bytes(*haystack);
+                const std::string needle_bytes = string_to_bytes(*needle);
+                const auto byte_begin = static_cast<std::size_t>(start - 1);
+                if (byte_begin > hay_bytes.size()) {
+                    return Value{Integer{0}};
+                }
+                if (needle_bytes.empty()) {
+                    return Value{byte_begin < hay_bytes.size() ? static_cast<Integer>(start)
+                                                               : Integer{0}};
+                }
+                const auto byte_found = hay_bytes.find(needle_bytes, byte_begin);
+                return Value{byte_found == std::string::npos
+                                 ? Integer{0}
+                                 : static_cast<Integer>(byte_found + 1U)};
+            }
             if (!is_ascii_text(*haystack) || !is_ascii_text(*needle)) {
                 auto hay_units = to_utf16_units(*haystack);
                 auto needle_units = to_utf16_units(*needle);
@@ -18307,9 +18401,9 @@ private:
                 set_error("WFC0009", "integer overflow", identifier_offset);
                 return std::nullopt;
             }
-            // LenB reports stored bytes (REQ-0177); Len counts UTF-16 units.
+            // LenB counts the bytes of the UTF-16 form; Len counts UTF-16 units.
             return Value{static_cast<Integer>(
-                identifier == "lenb" ? string->size() : utf16_length(*string))};
+                identifier == "lenb" ? string_to_bytes(*string).size() : utf16_length(*string))};
         }
 
         if (is_asc) {
@@ -18319,6 +18413,10 @@ private:
             if (string->empty()) {
                 set_error("WFC0077", "Asc requires a non-empty String", identifier_offset);
                 return std::nullopt;
+            }
+            if (identifier == "ascb") {
+                return Value{static_cast<Integer>(
+                    static_cast<unsigned char>(string_to_bytes(*string).front()))};
             }
             const auto lead = static_cast<unsigned char>(string->front());
             if (lead < 0x80U) {
@@ -18537,6 +18635,13 @@ private:
                 return std::nullopt;
             }
             const auto requested = static_cast<std::size_t>(*length);
+            if (identifier[identifier.size() - 1U] == 'b' || identifier.ends_with("b$")) {
+                const std::string bytes = string_to_bytes(*string);
+                const auto byte_count = std::min(requested, bytes.size());
+                return Value{bytes_to_string(
+                    is_left ? bytes.substr(0U, byte_count)
+                            : bytes.substr(bytes.size() - byte_count))};
+            }
             if (!is_ascii_text(*string)) {
                 const auto units = to_utf16_units(*string);
                 const auto unit_count = std::min(requested, units.size());
@@ -18573,6 +18678,17 @@ private:
             }
 
             const auto first = static_cast<std::size_t>(*start - 1);
+            if (identifier == "midb" || identifier == "midb$") {
+                const std::string bytes = string_to_bytes(*string);
+                if (first >= bytes.size()) {
+                    return Value{std::string{}};
+                }
+                const auto byte_available = bytes.size() - first;
+                const auto byte_count =
+                    length == nullptr ? byte_available
+                                      : std::min(static_cast<std::size_t>(*length), byte_available);
+                return Value{bytes_to_string(bytes.substr(first, byte_count))};
+            }
             if (!is_ascii_text(*string)) {
                 const auto units = to_utf16_units(*string);
                 if (first >= units.size()) {
