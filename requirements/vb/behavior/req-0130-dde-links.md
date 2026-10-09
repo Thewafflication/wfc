@@ -2,7 +2,10 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Deferred beyond 1.0 (maintainer decision, 2026-10-09). DDE is
+excluded from the 1.0 profile and scheduled after MP-0010; for 1.0 the
+excluded-profile clause below applies. See
+`planning/legacy-feature-dispositions.md` §1.
 
 **Source:** Installed `VB6.OLB`; VB6 form/control documentation baseline
 

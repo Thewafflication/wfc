@@ -124,7 +124,7 @@ becomes a release gate:
 
 | Feature | Current disposition | Decision question |
 | --- | --- | --- |
-| DDE links and `Link*` members | Proposed; not yet accepted | Remove, provide a disabled compatibility stub, or implement an optional legacy profile? |
+| DDE links and `Link*` members | **Deferred** beyond 1.0 (after MP-0010); 1.0 applies `REQ-0130`'s excluded-profile diagnostic — maintainer decision, 2026-10-09 | Remove, provide a disabled compatibility stub, or implement an optional legacy profile? |
 | Intrinsic `Data` control and DAO/Jet database behavior | Proposed; not yet accepted | Retain generic binding only, implement DAO compatibility, or remove the control? |
 | OLE1 conversion and `SaveToOle1File` | Proposed; not yet accepted | Remove only OLE1 conversion while retaining OLE2 hosting? |
 | `UserDocument`/ActiveX Documents | Proposed; not yet accepted | Required by the accepted application corpus or removable legacy host? |
@@ -132,10 +132,9 @@ becomes a release gate:
 | Legacy WinHelp and context-help integration | Proposed; not yet accepted | Preserve IDs/API behavior, bridge to current help, or report unsupported UI? |
 
 Recommendations for all six, with alternatives, affected requirements, and
-blank acceptance records, are drafted in
-[`legacy-feature-dispositions.md`](legacy-feature-dispositions.md). They are
-proposals only; this table stays "Proposed; not yet accepted" until the
-maintainer records a decision.
+acceptance records, are drafted in
+[`legacy-feature-dispositions.md`](legacy-feature-dispositions.md). A row stays
+"Proposed; not yet accepted" until the maintainer records a decision there.
 
 A candidate is not silently omitted. Until approved otherwise, its existing
 requirement remains Proposed and its milestone shall include either

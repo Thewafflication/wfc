@@ -2,12 +2,11 @@
 
 **Content type:** Decision proposal (for maintainer review)
 
-**Status:** Proposed — **nothing in this document is accepted.** Each section
-ends with an acceptance record that stays blank until the maintainer fills it
-in. The authoritative disposition table remains the one in
-[`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
-Features Requiring Explicit Disposition"); it still reads "Proposed; not yet
-accepted" for all six features.
+**Status:** Partly decided — §1 (DDE) decided 2026-10-09; §2–§6 still
+proposed. Each section ends with an acceptance record that stays blank until
+the maintainer fills it in. The authoritative disposition table remains the one
+in [`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
+Features Requiring Explicit Disposition").
 
 **Milestone:** MP-0002 exit gate — "no legacy candidate needed by MP-0003 or
 MP-0004 lacks a controlled disposition".
@@ -52,7 +51,7 @@ unsupported-feature diagnostic").
 
 | # | Feature | Recommendation | Decision still needed from maintainer |
 | --- | --- | --- | --- |
-| 1 | DDE links and `Link*` members | **Disabled compatibility stub** | Confirm no accepted-corpus application depends on live DDE |
+| 1 | DDE links and `Link*` members | ~~Disabled compatibility stub~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
 | 2 | Intrinsic `Data` control and DAO/Jet | **Generic data binding retained; DAO/Jet engine removed** | Confirm the generic-binding provider model; confirm no corpus app needs `.mdb` access through the control |
 | 3 | OLE1 conversion / `SaveToOle1File` | **Remove OLE1 conversion only; keep OLE2 hosting** | None beyond acceptance |
 | 4 | `UserDocument` / ActiveX Documents | **Remove from 1.0 (deferred, not implemented)** | Confirm no corpus app ships an ActiveX Document |
@@ -106,7 +105,13 @@ with the behavior above, add the `WFC90xx` entry, add a conformance test that
 each stubbed member either returns the documented inert value or raises 282,
 and record the variance in the release notes.
 
-**Acceptance record:** _decision: ____  date: ____  by: ____ _
+**Acceptance record:** _decision: **Deferred beyond 1.0** — DDE is
+implemented, if at all, after all 1.0 milestones (after MP-0010). For 1.0,
+`REQ-0130`'s excluded-profile clause governs: `Link*` members stay
+source-visible and persisted values load, and use fails through one documented
+diagnostic. The compatibility-stub details above (error 282, `LinkMode` forced
+to `0`) are the planned shape of that diagnostic, finalized with the MP-0004
+form work. date: 2026-10-09  by: maintainer_
 
 ## 2. Intrinsic `Data` control and DAO/Jet database behavior
 
