@@ -2,7 +2,10 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Proposed. Exception: `SaveToOle1File` is deferred beyond 1.0
+(maintainer decision, 2026-10-09); in 1.0 it stays declared and calling it
+fails through one documented unsupported-feature diagnostic. See
+`planning/legacy-feature-dispositions.md` §3.
 
 **Source:** Installed Visual Basic 6.0 object library (`VB6.OLB`)
 
@@ -109,7 +112,7 @@ are part of the compatibility contract.
 | `Close` | `` | `HRESULT` | 131084 | — |
 | `Delete` | `` | `HRESULT` | 131085 | — |
 | `SaveToFile` | `FileNum: Integer` | `HRESULT` | 131086 | — |
-| `SaveToOle1File` | `FileNum: Integer` | `HRESULT` | 131087 | — |
+| `SaveToOle1File` | `FileNum: Integer` | `HRESULT` | 131087 | Deferred beyond 1.0 |
 | `ReadFromFile` | `FileNum: Integer` | `HRESULT` | 131088 | — |
 | `InsertObjDlg` | `` | `HRESULT` | 131089 | — |
 | `PasteSpecialDlg` | `` | `HRESULT` | 131090 | — |
