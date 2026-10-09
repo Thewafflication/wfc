@@ -1,0 +1,5 @@
+# Mechanical formatting commits skipped by git blame.
+# Enable locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format owned sources to WSP 1.4.0's 80-column style
+c62755f1f3d0a84ccec2fd4099d257b074774ddc
