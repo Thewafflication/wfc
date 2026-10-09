@@ -2,8 +2,8 @@
 
 **Content type:** Decision proposal (for maintainer review)
 
-**Status:** Partly decided — §1 (DDE), §2 (`Data`/DAO) and §3 (OLE1) decided
-2026-10-09; §4–§6 still proposed. Each section ends with an acceptance record that stays blank until
+**Status:** Partly decided — §1 (DDE), §2 (`Data`/DAO), §3 (OLE1) and §4
+(ActiveX Documents) decided 2026-10-09; §5–§6 still proposed. Each section ends with an acceptance record that stays blank until
 the maintainer fills it in. The authoritative disposition table remains the one
 in [`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
 Features Requiring Explicit Disposition").
@@ -54,7 +54,7 @@ unsupported-feature diagnostic").
 | 1 | DDE links and `Link*` members | ~~Disabled compatibility stub~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
 | 2 | Intrinsic `Data` control and DAO/Jet | ~~Generic data binding retained; DAO/Jet engine removed~~ **Decided 2026-10-09: control and engine deferred to 2.0** | Whether generic binding (`REQ-0131`) stays in 1.0 |
 | 3 | OLE1 conversion / `SaveToOle1File` | ~~Remove OLE1 conversion only; keep OLE2 hosting~~ **Decided 2026-10-09: `SaveToOle1File` deferred beyond 1.0; OLE2 kept** | None — decided |
-| 4 | `UserDocument` / ActiveX Documents | **Remove from 1.0 (deferred, not implemented)** | Confirm no corpus app ships an ActiveX Document |
+| 4 | `UserDocument` / ActiveX Documents | ~~Remove from 1.0 (deferred, not implemented)~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
 | 5 | `PropertyPage` hosting | **Accept and persist at build time; no runtime hosting UI** | Confirm component authoring does not need design-time page hosting in 1.0 |
 | 6 | WinHelp / context help | **Preserve IDs and API values; bridge to HTML Help (`.chm`); report `.hlp` as unsupported** | Confirm `.chm` bridging is wanted in 1.0 vs. deferred |
 
@@ -244,7 +244,12 @@ revisited before MP-0004.
 **On acceptance:** mark `REQ-0066` "Deferred beyond 1.0", add the loader
 diagnostic and test.
 
-**Acceptance record:** _decision: ____  date: ____  by: ____ _
+**Acceptance record:** _decision: **Deferred beyond 1.0** — ActiveX Documents
+are scheduled after MP-0010. In 1.0 the project loader rejects a
+`UserDocument=`/`.dob` item with one documented unsupported-feature diagnostic
+naming the file, and `As UserDocument` fails at compile time with the same
+diagnostic; no stub class is provided. `REQ-0066` is retained as a deferred,
+unimplemented contract. date: 2026-10-09  by: maintainer_
 
 ## 5. `PropertyPage` hosting
 

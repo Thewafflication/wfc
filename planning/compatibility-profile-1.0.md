@@ -127,7 +127,7 @@ becomes a release gate:
 | DDE links and `Link*` members | **Deferred** beyond 1.0 (after MP-0010); 1.0 applies `REQ-0130`'s excluded-profile diagnostic — maintainer decision, 2026-10-09 | Remove, provide a disabled compatibility stub, or implement an optional legacy profile? |
 | Intrinsic `Data` control and DAO/Jet database behavior | **Deferred** to 2.0 (engine to be replaced by SQLite or a separate WFC database project); 1.0 reports a documented unsupported-feature diagnostic; generic binding (`REQ-0131`) still open — maintainer decision, 2026-10-09 | Retain generic binding only, implement DAO compatibility, or remove the control? |
 | OLE1 conversion and `SaveToOle1File` | **Deferred** beyond 1.0 (after MP-0010); `SaveToOle1File` stays declared and fails through a documented diagnostic; OLE2 hosting stays in scope — maintainer decision, 2026-10-09 | Remove only OLE1 conversion while retaining OLE2 hosting? |
-| `UserDocument`/ActiveX Documents | Proposed; not yet accepted | Required by the accepted application corpus or removable legacy host? |
+| `UserDocument`/ActiveX Documents | **Deferred** beyond 1.0 (after MP-0010); the loader and compiler report a documented unsupported-feature diagnostic — maintainer decision, 2026-10-09 | Required by the accepted application corpus or removable legacy host? |
 | `PropertyPage` hosting | Proposed; not yet accepted | Required for component authoring or replaceable with programmatic configuration? |
 | Legacy WinHelp and context-help integration | Proposed; not yet accepted | Preserve IDs/API behavior, bridge to current help, or report unsupported UI? |
 

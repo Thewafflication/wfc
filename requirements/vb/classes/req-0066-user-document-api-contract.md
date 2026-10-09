@@ -2,7 +2,12 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Deferred beyond 1.0 (maintainer decision, 2026-10-09). The member
+inventory is retained as a deferred contract and is not implemented. In 1.0 the
+project loader rejects a `UserDocument=`/`.dob` item with one documented
+unsupported-feature diagnostic naming the file, and `As UserDocument` fails at
+compile time with the same diagnostic. See
+`planning/legacy-feature-dispositions.md` §4.
 
 **Source:** Installed Visual Basic 6.0 object library (`VB6.OLB`)
 
