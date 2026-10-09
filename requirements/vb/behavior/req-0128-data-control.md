@@ -2,7 +2,12 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Deferred to 2.0 (maintainer decision, 2026-10-09). The intrinsic
+`Data` control and its DAO/Jet engine are not in the 1.0 profile; 2.0 is
+expected to replace the engine with SQLite or a WFC database engine developed
+as a separate project. For 1.0, a form containing a `VB.Data` item, or code
+using the control, fails through one documented unsupported-feature
+diagnostic. See `planning/legacy-feature-dispositions.md` §2.
 
 **Source:** Installed `VB6.OLB`; VB6 form/control documentation baseline
 

@@ -125,7 +125,7 @@ becomes a release gate:
 | Feature | Current disposition | Decision question |
 | --- | --- | --- |
 | DDE links and `Link*` members | **Deferred** beyond 1.0 (after MP-0010); 1.0 applies `REQ-0130`'s excluded-profile diagnostic — maintainer decision, 2026-10-09 | Remove, provide a disabled compatibility stub, or implement an optional legacy profile? |
-| Intrinsic `Data` control and DAO/Jet database behavior | Proposed; not yet accepted | Retain generic binding only, implement DAO compatibility, or remove the control? |
+| Intrinsic `Data` control and DAO/Jet database behavior | **Deferred** to 2.0 (engine to be replaced by SQLite or a separate WFC database project); 1.0 reports a documented unsupported-feature diagnostic; generic binding (`REQ-0131`) still open — maintainer decision, 2026-10-09 | Retain generic binding only, implement DAO compatibility, or remove the control? |
 | OLE1 conversion and `SaveToOle1File` | Proposed; not yet accepted | Remove only OLE1 conversion while retaining OLE2 hosting? |
 | `UserDocument`/ActiveX Documents | Proposed; not yet accepted | Required by the accepted application corpus or removable legacy host? |
 | `PropertyPage` hosting | Proposed; not yet accepted | Required for component authoring or replaceable with programmatic configuration? |

@@ -2,8 +2,8 @@
 
 **Content type:** Decision proposal (for maintainer review)
 
-**Status:** Partly decided — §1 (DDE) decided 2026-10-09; §2–§6 still
-proposed. Each section ends with an acceptance record that stays blank until
+**Status:** Partly decided — §1 (DDE) and §2 (`Data`/DAO) decided 2026-10-09;
+§3–§6 still proposed. Each section ends with an acceptance record that stays blank until
 the maintainer fills it in. The authoritative disposition table remains the one
 in [`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
 Features Requiring Explicit Disposition").
@@ -52,7 +52,7 @@ unsupported-feature diagnostic").
 | # | Feature | Recommendation | Decision still needed from maintainer |
 | --- | --- | --- | --- |
 | 1 | DDE links and `Link*` members | ~~Disabled compatibility stub~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
-| 2 | Intrinsic `Data` control and DAO/Jet | **Generic data binding retained; DAO/Jet engine removed** | Confirm the generic-binding provider model; confirm no corpus app needs `.mdb` access through the control |
+| 2 | Intrinsic `Data` control and DAO/Jet | ~~Generic data binding retained; DAO/Jet engine removed~~ **Decided 2026-10-09: control and engine deferred to 2.0** | Whether generic binding (`REQ-0131`) stays in 1.0 |
 | 3 | OLE1 conversion / `SaveToOle1File` | **Remove OLE1 conversion only; keep OLE2 hosting** | None beyond acceptance |
 | 4 | `UserDocument` / ActiveX Documents | **Remove from 1.0 (deferred, not implemented)** | Confirm no corpus app ships an ActiveX Document |
 | 5 | `PropertyPage` hosting | **Accept and persist at build time; no runtime hosting UI** | Confirm component authoring does not need design-time page hosting in 1.0 |
@@ -162,7 +162,14 @@ a removed engine part (status "Excluded from 1.0 — DAO/Jet"), keep `REQ-0131`
 in scope, define the provider interface in the architecture documents, and add
 tests for the 3170 stub and for binding over an in-memory provider.
 
-**Acceptance record:** _decision: ____  date: ____  by: ____ _
+**Acceptance record:** _decision: **Deferred to 2.0** — the intrinsic `Data`
+control (`REQ-0062`, `REQ-0128`) and the DAO/Jet engine are not in 1.0. 2.0 is
+expected to supply the database engine through SQLite or a WFC database engine
+developed as a separate project, not a Jet reimplementation. For 1.0, a form
+containing a `VB.Data` item, or code using the control, fails through one
+documented unsupported-feature diagnostic. Generic data binding (`REQ-0131`) is
+not covered by this decision and remains open. date: 2026-10-09  by:
+maintainer_
 
 ## 3. OLE1 conversion and `SaveToOle1File`
 
