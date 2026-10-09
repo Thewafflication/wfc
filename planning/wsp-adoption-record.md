@@ -65,8 +65,8 @@ needs their evidence; they are not reported as passing in MP-0001.
 | `WSP-STYLE-0001`–`WSP-STYLE-0007` | Applicable — migration gap | See [WSP 1.4.0 upgrade](#wsp-140-upgrade) |
 | `WSP-LANG-0002` (C++) | Applicable — migration gap | `src/`, `tests/*.cpp`; C++20 |
 | `WSP-LANG-0004` (YAML) | Applicable — migration gap | `.github/workflows/`, `.pre-commit-config.yaml` |
-| `WSP-LANG-0005` (JSON) | Applicable — migration gap | `CMakePresets.json`; generated `evidence/reference/*.json` excluded as tool output |
-| `WSP-LANG-0007` (PowerShell) | Applicable — migration gap | `tools/*.ps1` |
+| `WSP-LANG-0005` (JSON) | Applicable | `CMakePresets.json`; generated `evidence/reference/*.json` excluded as tool output |
+| `WSP-LANG-0007` (PowerShell) | Applicable; no owned scripts yet | The retired MP-0001 discovery scripts in `tools/` are excluded (see [Owned-source exclusions](#owned-source-exclusions)); PowerShell added for the commit gate is in scope |
 | `WSP-LANG-0009` (Visual Basic) | Not applicable to owned source | `.bas`/`.cls`/`.vbp` files under `tests/` are compiler test fixtures (deliberately varied VB6 input), excluded as owned fixtures |
 | `WSP-LANG-0010` (CMake) | Applicable — migration gap | `CMakeLists.txt`, `cmake/`, `tests/**/*.cmake` |
 | `WSP-LANG-0001`, `0003`, `0006`, `0008`, `0011` | Not applicable | WFC owns no C, Python, Make, C#, or other-language source |
@@ -116,8 +116,8 @@ as migration gaps rather than declared compliant. Measured on 2026-10-09:
 
 | Gap | Requirement | Measured state | Planned closure |
 | --- | --- | --- | --- |
-| Overlength lines | `WSP-STYLE-0001` | 2,493 lines over 80 characters (`src/evaluator.cpp` 1,980, `tests/evaluator_tests.cpp` 405, `CMakeLists.txt` 57, others 51); `Test-SourceStyle.ps1` reports no other `WSP-STYLE` findings | Controlled `clang-format` (`ColumnLimit: 80`) plus manual splits; CMake/YAML wrapped by hand |
-| Formatter configuration | `WSP-STYLE-0004`, `WSP-LANG-0002`, `WSP-LANG-0010` | No `.clang-format`, `.editorconfig`, or gersemi configuration | Add controlled configurations and check-mode runs |
+| Overlength lines | `WSP-STYLE-0001` | 2,493 lines over 80 characters (`src/evaluator.cpp` 1,980, `tests/evaluator_tests.cpp` 405, `CMakeLists.txt` 57, others 51); `Test-SourceStyle.ps1` reports no other `WSP-STYLE` findings | **Closed 2026-10-09** (`c62755f`): `Test-SourceStyle.ps1` passes for `src`, `include`, `tests`, `cmake`, `.github`, and the root build/configuration files. Not yet enforced by a lint stage (see below) |
+| Formatter configuration | `WSP-STYLE-0004`, `WSP-LANG-0002`, `WSP-LANG-0010` | No `.clang-format`, `.editorconfig`, or gersemi configuration | **Closed 2026-10-09** (`c62755f`): `.clang-format` (clang-format 22.1.3), `.gersemirc` (gersemi 0.29.2), `.editorconfig`, `.gitattributes`; check-mode runs join the lint stage |
 | Structured documentation | `WSP-STYLE-0006`, `WSP-LANG-0002` | No `Doxyfile`; most functions lack Doxygen contracts | Add a strict `Doxyfile` and document owned C++ incrementally, file by file |
 | Commit gate | `WSP-CHECK-0001`–`0007` | No `.pre-commit-config.yaml`, no canonical lint/build/test scripts, no check inventory | Add project-owned scripts shared by hooks and CI, plus a check inventory |
 | CI lint stage | `WSP-STYLE-0007`, `WSP-CHECK-0008` | CI builds and tests on x86/x64/ARM64 but runs no lint | Add a lint job calling the canonical lint script |
@@ -125,6 +125,16 @@ as migration gaps rather than declared compliant. Measured on 2026-10-09:
 | Build hardening | `WSP-SEC-0015`–`0016` | MSVC defaults (`/GS`, ASLR, NX) are on; Control Flow Guard and binary verification are not | Enable `/guard:cf` and verify with `Test-PeHardening.ps1` in CI |
 
 Until each gap closes, the affected requirement is not reported as passing.
+
+### Owned-source exclusions
+
+| Path | Reason | Approval |
+| --- | --- | --- |
+| `wsp/`, `wcrt/` | Pinned submodules owned by their own projects | Ownership boundary |
+| `out/` | Build output | Ownership boundary |
+| `evidence/reference/*.json` | Tool-generated reference evidence | Ownership boundary (generated) |
+| `tests/corpus/`, `tests/fixtures/` (`.bas`, `.cls`, `.vbp`, `.expected`) | VB6 compiler test fixtures: deliberately varied input and exact expected output | Owned fixture boundary |
+| `tools/*.ps1` | Retired MP-0001 discovery scripts kept for provenance; must not be re-run (see `tools/README.md`) | Maintainer decision, 2026-10-09 |
 
 ## Baseline History
 
