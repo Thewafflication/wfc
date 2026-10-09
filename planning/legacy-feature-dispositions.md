@@ -2,8 +2,8 @@
 
 **Content type:** Decision proposal (for maintainer review)
 
-**Status:** Partly decided — §1 (DDE), §2 (`Data`/DAO), §3 (OLE1) and §4
-(ActiveX Documents) decided 2026-10-09; §5–§6 still proposed. Each section ends with an acceptance record that stays blank until
+**Status:** Partly decided — §1–§5 decided 2026-10-09; §6 (WinHelp) still
+proposed. Each section ends with an acceptance record that stays blank until
 the maintainer fills it in. The authoritative disposition table remains the one
 in [`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
 Features Requiring Explicit Disposition").
@@ -55,7 +55,7 @@ unsupported-feature diagnostic").
 | 2 | Intrinsic `Data` control and DAO/Jet | ~~Generic data binding retained; DAO/Jet engine removed~~ **Decided 2026-10-09: control and engine deferred to 2.0** | Whether generic binding (`REQ-0131`) stays in 1.0 |
 | 3 | OLE1 conversion / `SaveToOle1File` | ~~Remove OLE1 conversion only; keep OLE2 hosting~~ **Decided 2026-10-09: `SaveToOle1File` deferred beyond 1.0; OLE2 kept** | None — decided |
 | 4 | `UserDocument` / ActiveX Documents | ~~Remove from 1.0 (deferred, not implemented)~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
-| 5 | `PropertyPage` hosting | **Accept and persist at build time; no runtime hosting UI** | Confirm component authoring does not need design-time page hosting in 1.0 |
+| 5 | `PropertyPage` hosting | **Decided 2026-10-09: accept and persist at build time; no runtime hosting UI** | None — decided |
 | 6 | WinHelp / context help | **Preserve IDs and API values; bridge to HTML Help (`.chm`); report `.hlp` as unsupported** | Confirm `.chm` bridging is wanted in 1.0 vs. deferred |
 
 ## 1. DDE links and `Link*` members
@@ -291,7 +291,12 @@ be fully functional inside WFC's own host?
 **On acceptance:** mark `REQ-0065` "Compile-time only", add the loader/
 compiler acceptance test and the run-time 445 stub test.
 
-**Acceptance record:** _decision: ____  date: ____  by: ____ _
+**Acceptance record:** _decision: **Accepted as recommended** — `PropertyPage`
+items load and compile, and `PropertyPages` metadata is written into the built
+component unchanged. WFC provides no page-hosting UI; a run-time request to
+show property pages fails through one documented unsupported-feature
+diagnostic (planned as error 445). Programmatic configuration is the supported
+replacement. date: 2026-10-09  by: maintainer_
 
 ## 6. Legacy WinHelp and context-help integration
 

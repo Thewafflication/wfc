@@ -2,7 +2,12 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Proposed — compile-time only (maintainer decision, 2026-10-09).
+WFC loads and compiles `PropertyPage` items and writes `PropertyPages`
+metadata into the built component unchanged so other design-time hosts can
+show the pages. WFC provides no page-hosting UI; a run-time request to show
+property pages fails through one documented unsupported-feature diagnostic
+(planned as error 445). See `planning/legacy-feature-dispositions.md` §5.
 
 **Source:** Installed Visual Basic 6.0 object library (`VB6.OLB`)
 
