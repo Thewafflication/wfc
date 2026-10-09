@@ -8,6 +8,14 @@ This requirement set defines source-language behavior implemented during
 MP-0002. Each increment states its exact compatibility boundary so passing a
 narrow corpus cannot be mistaken for complete VB6 language support.
 
+## Diagnostics
+
+- [Diagnostic catalog](diagnostics.md) is the authoritative registry of every
+  `WFC` diagnostic code: its message, whether `On Error` can catch it, the
+  requirements that define it, retired codes, and the reserved
+  `WFC9000`–`WFC9099` legacy-feature range. `TC-MP0002-diagnostic-catalog`
+  keeps it in step with the source.
+
 ## Requirements
 
 - [REQ-0140 — Core expression execution subset](req-0140-core-expression-subset.md)

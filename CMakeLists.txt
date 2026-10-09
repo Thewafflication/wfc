@@ -1691,6 +1691,17 @@ Print v.x & q.x]=]
             PASS_REGULAR_EXPRESSION "^35"
     )
 
+    # The diagnostic catalog must list exactly the WFC codes the source raises.
+    add_test(
+        NAME TC-MP0002-diagnostic-catalog
+        COMMAND
+            "${CMAKE_COMMAND}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_diagnostic_catalog.cmake"
+    )
+    set_tests_properties(
+        TC-MP0002-diagnostic-catalog
+        PROPERTIES LABELS "integration;mp-0002;diagnostics")
+
     # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
     # when present) must print exactly the matching .expected text.
     file(GLOB wfc_corpus_expected CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/*.expected")

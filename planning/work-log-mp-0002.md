@@ -348,6 +348,7 @@ a specific requirement.
 | 2026-09-30 #14 | Construction | Untaken-branch placeholders no longer raise (chained indexing, calls through unset Object variables, Switch, For bounds, Case values); unmatched Switch yields Null; coerce_long accepts Byte/Boolean/Empty/numeric strings/Date; one-line With and Select Case headers. Corpus 97-98. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #15 | Construction | col(i).Prop = x, obj.Prop(args).member = x, obj.Prop.member = x and v(i).member = x assign into the object reached; one-line With/Select; Randomize/Rnd/Shell/For Each/logical operators tolerate placeholders in untaken branches. Corpus 99. Goal token usage / elapsed time: Not reported | Commit pending |
 | 2026-09-30 #16 | Construction | Option Compare Database behaves as Binary; Option Private Module is accepted and ignored. Goal token usage / elapsed time: Not reported | Commit pending |
+| 2026-10-09 #17 | Construction | Diagnostic catalog for the MP-0002 exit gate ("diagnostics are stable and documented"): `requirements/language/diagnostics.md` lists all 142 raised `WFC` codes with messages, `On Error` mapping and defining requirements, 8 retired codes, stability rules and the reserved `WFC9000`–`WFC9099` legacy range; `TC-MP0002-diagnostic-catalog` fails when source and catalog drift. Goal token usage / elapsed time: Not reported | This commit |
 
 ## Reference Probe Evidence — `Rnd`/`Randomize` (increment #78)
 
