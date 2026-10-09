@@ -11,6 +11,8 @@ option(WFC_BUILD_TESTS "Build WFC automated tests" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(WfcWarnings)
+# WSP-SEC-0015: the pinned WSP build baseline supplies the hardening flags.
+include("${CMAKE_CURRENT_SOURCE_DIR}/wsp/tools/cmake/WspBuild.cmake")
 
 add_library(wfc_frontend STATIC)
 target_sources(
@@ -51,11 +53,13 @@ target_include_directories(
 find_package(Threads REQUIRED)
 target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
 wfc_enable_strict_warnings(wfc_frontend)
+wsp_enable_hardening(wfc_frontend)
 
 add_executable(wfc src/main.cpp)
 target_compile_features(wfc PRIVATE cxx_std_20)
 target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
+wsp_enable_hardening(wfc)
 
 include(CTest)
 if(BUILD_TESTING AND WFC_BUILD_TESTS)
@@ -63,6 +67,40 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   target_compile_features(wfc_frontend_tests PRIVATE cxx_std_20)
   target_link_libraries(wfc_frontend_tests PRIVATE wfc_frontend)
   wfc_enable_strict_warnings(wfc_frontend_tests)
+  wsp_enable_hardening(wfc_frontend_tests)
+
+  # WSP-SEC-0016: inspect the final images, not the compiler options.
+  find_program(WFC_PWSH pwsh REQUIRED)
+  set(wfc_pe_check "${CMAKE_CURRENT_SOURCE_DIR}/wsp/tools/Test-PeHardening.ps1")
+  foreach(hardened_target IN ITEMS wfc wfc_frontend_tests)
+    add_test(
+      NAME TC-WSP-SEC-0016-pe-hardening-${hardened_target}
+      COMMAND
+        "${WFC_PWSH}" -NoProfile -File "${wfc_pe_check}" -Path
+        "$<TARGET_FILE:${hardened_target}>" -RequireControlFlowGuard
+    )
+    set_tests_properties(
+      TC-WSP-SEC-0016-pe-hardening-${hardened_target}
+      PROPERTIES LABELS "security;hardening"
+    )
+  endforeach()
+
+  # Controlled missing-control test: an image built without the WSP
+  # baseline must be rejected for its missing Control Flow Guard flag.
+  add_executable(wfc_unhardened_fixture tests/hardening/unhardened_fixture.cpp)
+  target_compile_features(wfc_unhardened_fixture PRIVATE cxx_std_20)
+  add_test(
+    NAME TC-WSP-SEC-0016-pe-hardening-rejects-unhardened
+    COMMAND
+      "${WFC_PWSH}" -NoProfile -File "${wfc_pe_check}" -Path
+      "$<TARGET_FILE:wfc_unhardened_fixture>" -RequireControlFlowGuard
+  )
+  set_tests_properties(
+    TC-WSP-SEC-0016-pe-hardening-rejects-unhardened
+    PROPERTIES
+      LABELS "security;hardening;negative"
+      PASS_REGULAR_EXPRESSION "GUARD_CF. DllCharacteristics="
+  )
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
   set_tests_properties(

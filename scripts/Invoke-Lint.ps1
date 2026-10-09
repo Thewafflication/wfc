@@ -52,7 +52,8 @@ try {
     # command is a real finding under --warnings-as-errors.
     Invoke-CheckedCommand $gersemi (@(
             '--check', '--warnings-as-errors',
-            '--definitions', 'cmake', 'tests', '--') + $cmake)
+            '--definitions', 'cmake', 'tests', 'wsp/tools/cmake',
+            '--') + $cmake)
 
     Write-Output '[lint] PowerShell syntax and analysis'
     & ./wsp/tools/Test-RepositorySyntax.ps1

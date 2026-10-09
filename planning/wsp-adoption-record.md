@@ -72,7 +72,7 @@ needs their evidence; they are not reported as passing in MP-0001.
 | `WSP-LANG-0001`, `0003`, `0006`, `0008`, `0011` | Not applicable | WFC owns no C, Python, Make, C#, or other-language source |
 | `WSP-CHECK-0001`–`WSP-CHECK-0008` | Applicable | [`commit-checks.md`](commit-checks.md): `.pre-commit-config.yaml`, `scripts/Invoke-{Lint,Build,Tests}.ps1`, CI lint job |
 | `WSP-SAST-0001`–`WSP-SAST-0006` | Applicable — migration gap | clang-tidy over `src/` and `tests/` |
-| `WSP-SEC-0015`–`WSP-SEC-0016` | Applicable — migration gap | MSVC hardening for `wfc.exe` and verification with `Test-PeHardening.ps1` |
+| `WSP-SEC-0015`–`WSP-SEC-0016` | Applicable | `wsp_enable_hardening()` on all targets; `TC-WSP-SEC-0016-*` CTest inspection of the final images |
 | `WSP-TEST-0019`–`WSP-TEST-0021` | Applicable | `wfc` reads VB `Input`/`Line Input` from standard input; covered when console input enters scope |
 | `WSP-INFO-*` (information for users) | Selection pending maintainer decision | WFC will ship a CLI, compiler diagnostics, and compatibility documentation |
 | `WSP-UX-*` (UX/UI) | Selection pending maintainer decision | WFC's CLI and diagnostics, and the forms runtime from MP-0004 |
@@ -122,7 +122,7 @@ as migration gaps rather than declared compliant. Measured on 2026-10-09:
 | Commit gate | `WSP-CHECK-0001`–`0007` | No `.pre-commit-config.yaml`, no canonical lint/build/test scripts, no check inventory | **Closed 2026-10-09**: see [`commit-checks.md`](commit-checks.md) |
 | CI lint stage | `WSP-STYLE-0007`, `WSP-CHECK-0008` | CI builds and tests on x86/x64/ARM64 but runs no lint | **Closed 2026-10-09**: CI lint job and build/test steps call the canonical scripts |
 | Static analysis | `WSP-SAST-0001`–`0006` | clang-tidy not configured | Ninja-based analysis preset using the WSP clang-tidy baseline |
-| Build hardening | `WSP-SEC-0015`–`0016` | MSVC defaults (`/GS`, ASLR, NX) are on; Control Flow Guard and binary verification are not | Enable `/guard:cf` and verify with `Test-PeHardening.ps1` in CI |
+| Build hardening | `WSP-SEC-0015`–`0016` | MSVC defaults (`/GS`, ASLR, NX) are on; Control Flow Guard and binary verification are not | **Closed 2026-10-09**: every target uses WSP's `wsp_enable_hardening()` (`/GS`, `/sdl`, `/guard:cf`, `/DYNAMICBASE`, `/NXCOMPAT`, `/HIGHENTROPYVA` on 64-bit); CTest inspects `wfc.exe` and the test executable with `Test-PeHardening.ps1 -RequireControlFlowGuard` on every preset, and a negative test proves an unhardened image is rejected |
 
 Until each gap closes, the affected requirement is not reported as passing.
 

@@ -63,7 +63,7 @@ documentation-only commits (`always_run`, `pass_filenames: false`,
 | `WSP-CHECK-0008`, `WSP-TEST-0012` | `.github/workflows/build.yml` | Lint job plus build/test matrix | Uses the same scripts |
 | `WSP-STYLE-0006`, `WSP-LANG-0002` documentation | **Gap** | — | Doxygen contracts not yet written or checked |
 | `WSP-SAST-0001`–`0006` | **Gap** | — | clang-tidy not yet configured |
-| `WSP-SEC-0015`–`0016` | **Gap** | — | `Test-PeHardening.ps1` not yet run in CI |
+| `WSP-SEC-0015`–`0016` | `TC-WSP-SEC-0016-pe-hardening-*` in `scripts/Invoke-Tests.ps1` | `wsp_enable_hardening()` in `CMakeLists.txt` | Final images must show ASLR, NX, CFG (and high-entropy VA on 64-bit); a negative test rejects an unhardened fixture |
 
 Gaps are recorded in the WSP adoption record and are not reported as passing.
 
