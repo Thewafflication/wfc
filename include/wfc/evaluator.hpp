@@ -17,12 +17,14 @@ struct Evaluation final {
     std::string partial_output;
     // Text written by `Debug.Print` (the Immediate window), success or not.
     std::string debug_output;
-    // When the failure is a VB run-time error: its number (0 otherwise) and text.
+    // When the failure is a VB run-time error: its number (0 otherwise) and
+    // text.
     long vb_error_number{};
     std::string vb_error_description;
-    // Where a failure happened: 1-based line and column within the module that failed
-    // (`error_module` is empty for the standard module(s), else the class module's name).
-    // Zero when the position is unknown.
+    // Where a failure happened: 1-based line and column within the module that
+    // failed
+    // (`error_module` is empty for the standard module(s), else the class
+    // module's name). Zero when the position is unknown.
     std::size_t error_line{};
     std::size_t error_column{};
     std::string error_module;
@@ -37,9 +39,11 @@ struct ClassModuleSource final {
     std::string_view source;
 };
 
-// Behaviors that differ between a compact one-liner snippet and a faithful VB6 program run.
+// Behaviors that differ between a compact one-liner snippet and a faithful VB6
+// program run.
 struct EvaluationOptions final {
-    // `Print` reserves a sign position before a number and adds a trailing space, as VB6 does
+    // `Print` reserves a sign position before a number and adds a trailing
+    // space, as VB6 does
     // (` 5 `, `-5 `). Off by default: snippets print numbers compactly.
     bool vb6_print_spacing{};
 };

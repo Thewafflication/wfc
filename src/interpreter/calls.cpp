@@ -6,7 +6,8 @@
 
 namespace wfc::detail {
 
-bool Interpreter::parse_raise_event_statement(const std::size_t statement_offset) {
+bool Interpreter::parse_raise_event_statement(
+    const std::size_t statement_offset) {
     skip_horizontal_whitespace();
     const auto name_offset = offset_;
     char type_character{};
@@ -19,7 +20,8 @@ bool Interpreter::parse_raise_event_statement(const std::size_t statement_offset
     const ClassDef* const source_class = current_class_def();
     if (source == nullptr || source_class == nullptr ||
         !source_class->events.contains(*event_name)) {
-        set_error("WFC0015", "event is not declared in this class", statement_offset);
+        set_error("WFC0015", "event is not declared in this class",
+                  statement_offset);
         return false;
     }
     std::vector<CallArgument> arguments;
@@ -49,9 +51,9 @@ bool Interpreter::parse_raise_event_statement(const std::size_t statement_offset
         if (method == sink_class->second.methods.end()) {
             continue;
         }
-        if (!invoke_definition(
-                method->second, handler, arguments, statement_offset,
-                sink_class->second.source, sink.get())
+        if (!invoke_definition(method->second, handler, arguments,
+                               statement_offset, sink_class->second.source,
+                               sink.get())
                  .has_value()) {
             return false;
         }
@@ -67,40 +69,52 @@ std::optional<Value> Interpreter::instantiate_class(
         return std::nullopt;
     }
     if (constant_expression_) {
-        set_error(
-            "WFC0074", "constant initializer cannot call a procedure", offset);
+        set_error("WFC0074", "constant initializer cannot call a procedure",
+                  offset);
         return std::nullopt;
     }
     auto instance = std::make_shared<InstanceData>();
     instance->class_name = class_name;
-    for (const auto& [constant_name, constant_value] : class_iterator->second.constants) {
+    for (const auto& [constant_name, constant_value] :
+         class_iterator->second.constants) {
         instance->fields.variables.emplace(constant_name, constant_value);
         instance->fields.constants.insert(constant_name);
     }
     for (const auto& [field_name, field_def] : class_iterator->second.fields) {
         Value initial_value;
         if (field_def.is_array) {
-            Value element_default = field_def.is_variant ? Value{Empty{}}
-                : field_def.is_object                    ? Value{Nothing{}}
-                                                         : array_element_default(field_def.type_index);
+            Value element_default =
+                field_def.is_variant ? Value{Empty{}}
+                : field_def.is_object
+                    ? Value{Nothing{}}
+                    : array_element_default(field_def.type_index);
             const std::size_t element_type_index = element_default.index();
-            ArrayValue array{
-                /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/field_def.dimensions.empty(),
-                /*is_allocated=*/!field_def.dimensions.empty(), element_type_index,
-                field_def.dimensions.size() > 1U ? field_def.dimensions
-                                                 : std::vector<std::pair<Integer, Integer>>{},
-                field_def.is_variant, field_def.is_object, field_def.class_name};
+            ArrayValue array{/*elements=*/{},
+                             /*lower_bound=*/0,
+                             /*is_dynamic=*/field_def.dimensions.empty(),
+                             /*is_allocated=*/!field_def.dimensions.empty(),
+                             element_type_index,
+                             field_def.dimensions.size() > 1U
+                                 ? field_def.dimensions
+                                 : std::vector<std::pair<Integer, Integer>>{},
+                             field_def.is_variant,
+                             field_def.is_object,
+                             field_def.class_name};
             if (!field_def.dimensions.empty()) {
                 std::size_t total = 1U;
                 for (const auto& dimension : field_def.dimensions) {
-                    total *= static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                    total *= static_cast<std::size_t>(dimension.second -
+                                                      dimension.first) +
+                             1U;
                 }
                 array.lower_bound = field_def.dimensions.front().first;
                 const bool udt_elements = field_def.is_object &&
-                    !field_def.class_name.empty() && is_udt_class(field_def.class_name);
+                                          !field_def.class_name.empty() &&
+                                          is_udt_class(field_def.class_name);
                 for (std::size_t i = 0; i < total; ++i) {
                     if (udt_elements) {
-                        auto nested = instantiate_class(field_def.class_name, offset);
+                        auto nested =
+                            instantiate_class(field_def.class_name, offset);
                         if (!nested.has_value()) {
                             return std::nullopt;
                         }
@@ -110,7 +124,8 @@ std::optional<Value> Interpreter::instantiate_class(
                     }
                 }
             }
-            instance->fields.variables.emplace(field_name, Value{std::move(array)});
+            instance->fields.variables.emplace(field_name,
+                                               Value{std::move(array)});
             continue;
         }
         if (field_def.is_object && !field_def.class_name.empty() &&
@@ -120,7 +135,8 @@ std::optional<Value> Interpreter::instantiate_class(
                 return std::nullopt;
             }
             initial_value = std::move(*nested);
-        } else if (field_def.is_object && field_def.auto_new && !field_def.class_name.empty()) {
+        } else if (field_def.is_object && field_def.auto_new &&
+                   !field_def.class_name.empty()) {
             auto nested = instantiate_class(field_def.class_name, offset);
             if (!nested.has_value()) {
                 return std::nullopt;
@@ -132,30 +148,34 @@ std::optional<Value> Interpreter::instantiate_class(
             initial_value = Value{Empty{}};
         } else if (field_def.fixed_length != 0U) {
             initial_value = Value{std::string(field_def.fixed_length, ' ')};
-            instance->fields.fixed_string_lengths[field_name] = field_def.fixed_length;
+            instance->fields.fixed_string_lengths[field_name] =
+                field_def.fixed_length;
         } else {
             initial_value = zero_value_for_index(field_def.type_index);
         }
-        instance->fields.variables.emplace(field_name, std::move(initial_value));
+        instance->fields.variables.emplace(field_name,
+                                           std::move(initial_value));
         if (field_def.is_variant) {
             instance->fields.variant_variables.insert(field_name);
         } else if (field_def.is_object) {
             instance->fields.object_variables.insert(field_name);
             if (!field_def.class_name.empty()) {
-                instance->fields.object_class_names.emplace(field_name, field_def.class_name);
+                instance->fields.object_class_names.emplace(
+                    field_name, field_def.class_name);
             }
         }
     }
-    const auto initializer_iterator = class_iterator->second.methods.find("class_initialize");
+    const auto initializer_iterator =
+        class_iterator->second.methods.find("class_initialize");
     if (initializer_iterator != class_iterator->second.methods.end()) {
         // invoke_definition's own !execute_ short-circuit already skips
         // actually running the body during a dry-run/type-check-only
         // pass (an unreached If branch, ...), so New still allocates a
         // correctly-typed placeholder instance there without invoking
         // any Class_Initialize side effect.
-        if (!invoke_definition(
-                 initializer_iterator->second, "class_initialize", {}, offset,
-                 class_iterator->second.source, instance.get())
+        if (!invoke_definition(initializer_iterator->second, "class_initialize",
+                               {}, offset, class_iterator->second.source,
+                               instance.get())
                  .has_value()) {
             return std::nullopt;
         }
@@ -171,8 +191,8 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
         char name_type_character{};
         auto argument_name = parse_identifier(&name_type_character);
         skip_horizontal_whitespace();
-        if (argument_name.has_value() && name_type_character == '\0' && !at_end() &&
-            current() == ':' && peek(1) == '=') {
+        if (argument_name.has_value() && name_type_character == '\0' &&
+            !at_end() && current() == ':' && peek(1) == '=') {
             offset_ += 2;
             auto named = parse_call_argument();
             if (named.has_value()) {
@@ -187,9 +207,11 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
         char type_character{};
         auto identifier = parse_identifier(&type_character);
         skip_horizontal_whitespace();
-        const bool bare_candidate = type_character == '\0' &&
-            (at_end() || current() == ',' || current() == ')' || current() == '\r' ||
-             current() == '\n' || current() == ':' || current() == '\'');
+        const bool bare_candidate =
+            type_character == '\0' &&
+            (at_end() || current() == ',' || current() == ')' ||
+             current() == '\r' || current() == '\n' || current() == ':' ||
+             current() == '\'');
         if (bare_candidate) {
             const auto variable = find_variable(*identifier);
             if (variable.value != nullptr) {
@@ -197,8 +219,8 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
             }
         } else if (type_character == '\0' && execute_ && !at_end() &&
                    (current() == '(' || current() == '.')) {
-            // `arr(i)`, `rec.Field`, `objs(i).Field` alone in an argument slot are
-            // ByRef targets too.
+            // `arr(i)`, `rec.Field`, `objs(i).Field` alone in an argument slot
+            // are ByRef targets too.
             const auto variable = find_variable(*identifier);
             if (variable.value != nullptr &&
                 (std::holds_alternative<ArrayValue>(*variable.value) ||
@@ -210,8 +232,8 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
                     skip_horizontal_whitespace();
                     if (target.ptr != nullptr &&
                         (at_end() || current() == ',' || current() == ')' ||
-                         current() == '\r' || current() == '\n' || current() == ':' ||
-                         current() == '\'')) {
+                         current() == '\r' || current() == '\n' ||
+                         current() == ':' || current() == '\'')) {
                         return CallArgument{*target.ptr, target.ptr};
                     }
                 }
@@ -250,7 +272,8 @@ bool Interpreter::run_procedure_body(const std::size_t body_end) {
     }
 }
 
-std::optional<std::vector<CallArgument>> Interpreter::parse_call_argument_list() {
+std::optional<std::vector<CallArgument>>
+Interpreter::parse_call_argument_list() {
     // REQ-0243: `Name a, b` / `obj.Method a, b` (no parentheses).
     const bool bare_arguments = bare_call_arguments_;
     bare_call_arguments_ = false;
@@ -261,7 +284,8 @@ std::optional<std::vector<CallArgument>> Interpreter::parse_call_argument_list()
             skip_horizontal_whitespace();
             std::optional<CallArgument> argument;
             if (!at_end() && current() == ',') {
-                argument = CallArgument{Value{Empty{}}, nullptr, true};  // omitted slot
+                argument = CallArgument{Value{Empty{}}, nullptr,
+                                        true};  // omitted slot
             } else {
                 argument = parse_call_argument();
             }
@@ -309,12 +333,9 @@ std::optional<std::vector<CallArgument>> Interpreter::parse_call_argument_list()
 }
 
 std::optional<Value> Interpreter::invoke_definition(
-    const ProcedureDef& definition,
-    const std::string& binding_name,
-    std::vector<CallArgument> arguments,
-    const std::size_t identifier_offset,
-    const std::string_view body_source,
-    InstanceData* const instance) {
+    const ProcedureDef& definition, const std::string& binding_name,
+    std::vector<CallArgument> arguments, const std::size_t identifier_offset,
+    const std::string_view body_source, InstanceData* const instance) {
     // REQ-0206: Optional parameters make the required argument count a
     // range rather than a fixed number; a trailing ParamArray removes
     // the upper bound entirely (every argument from its position
@@ -325,19 +346,24 @@ std::optional<Value> Interpreter::invoke_definition(
         }
         // A few ubiquitous Win32 timing calls are emulated natively.
         if (binding_name == "gettickcount" || binding_name == "timegettime") {
-            const auto ticks = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count();
-            return Value{static_cast<Integer>(static_cast<std::uint32_t>(ticks))};
+            const auto ticks =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            return Value{
+                static_cast<Integer>(static_cast<std::uint32_t>(ticks))};
         }
         if ((binding_name == "queryperformancecounter" ||
-             binding_name == "queryperformancefrequency") && arguments.size() == 1U &&
-            arguments[0].byref_target != nullptr &&
+             binding_name == "queryperformancefrequency") &&
+            arguments.size() == 1U && arguments[0].byref_target != nullptr &&
             std::holds_alternative<Currency>(*arguments[0].byref_target)) {
             // A 10 MHz counter; a Currency receives the raw 64-bit count.
             std::int64_t count = 10000000;
             if (binding_name == "queryperformancecounter") {
                 count = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch()).count() / 100;
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count() /
+                        100;
             }
             *arguments[0].byref_target = Value{Currency{count}};
             return Value{Integer{1}};
@@ -352,12 +378,14 @@ std::optional<Value> Interpreter::invoke_definition(
         if (binding_name == "sleep" && arguments.size() == 1U) {
             if (const auto milliseconds = whole_value(arguments[0].value)) {
                 if (*milliseconds > 0) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(*milliseconds));
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(*milliseconds));
                 }
                 return Value{Empty{}};
             }
         }
-        static_cast<void>(raise_runtime(453, "Specified DLL function not found", identifier_offset));
+        static_cast<void>(raise_runtime(453, "Specified DLL function not found",
+                                        identifier_offset));
         return std::nullopt;
     }
     const auto& parameters = definition.parameters;
@@ -366,33 +394,39 @@ std::optional<Value> Interpreter::invoke_definition(
         // Bind `name:=value` arguments to their parameter positions.
         std::vector<CallArgument> ordered;
         std::size_t positional = 0;
-        while (positional < arguments.size() && arguments[positional].name.empty()) {
+        while (positional < arguments.size() &&
+               arguments[positional].name.empty()) {
             ++positional;
         }
-        for (std::size_t i = 0; i < positional; ++i) ordered.push_back(std::move(arguments[i]));
+        for (std::size_t i = 0; i < positional; ++i) {
+            ordered.push_back(std::move(arguments[i]));
+        }
         for (std::size_t i = positional; i < arguments.size(); ++i) {
             if (arguments[i].name.empty()) {
-                set_error("WFC0072", "positional argument follows a named argument",
+                set_error("WFC0072",
+                          "positional argument follows a named argument",
                           identifier_offset);
                 return std::nullopt;
             }
             std::size_t slot = parameters.size();
             for (std::size_t k = 0; k < parameters.size(); ++k) {
-                if (!parameters[k].is_param_array && parameters[k].name == arguments[i].name) {
+                if (!parameters[k].is_param_array &&
+                    parameters[k].name == arguments[i].name) {
                     slot = k;
                     break;
                 }
             }
             if (slot == parameters.size()) {
-                static_cast<void>(raise_runtime(
-                    448, "Named argument not found", identifier_offset));
+                static_cast<void>(raise_runtime(448, "Named argument not found",
+                                                identifier_offset));
                 return std::nullopt;
             }
             while (ordered.size() <= slot) {
                 ordered.push_back(CallArgument{Value{Empty{}}, nullptr, true});
             }
             if (!ordered[slot].omitted) {
-                set_error("WFC0072", "argument specified more than once", identifier_offset);
+                set_error("WFC0072", "argument specified more than once",
+                          identifier_offset);
                 return std::nullopt;
             }
             ordered[slot] = std::move(arguments[i]);
@@ -401,7 +435,8 @@ std::optional<Value> Interpreter::invoke_definition(
         }
         arguments = std::move(ordered);
     }
-    const bool has_param_array = !parameters.empty() && parameters.back().is_param_array;
+    const bool has_param_array =
+        !parameters.empty() && parameters.back().is_param_array;
     const std::size_t fixed_and_optional_count =
         has_param_array ? parameters.size() - 1U : parameters.size();
     std::size_t required_count = fixed_and_optional_count;
@@ -413,10 +448,8 @@ std::optional<Value> Interpreter::invoke_definition(
     }
     if (arguments.size() < required_count ||
         (!has_param_array && arguments.size() > fixed_and_optional_count)) {
-        set_error(
-            "WFC0072",
-            "procedure received the wrong number of arguments",
-            identifier_offset);
+        set_error("WFC0072", "procedure received the wrong number of arguments",
+                  identifier_offset);
         return std::nullopt;
     }
 
@@ -432,15 +465,17 @@ std::optional<Value> Interpreter::invoke_definition(
                 /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
                 /*is_allocated=*/false, definition.return_type_index}};
         }
-        return definition.return_is_variant ? Value{Empty{}}
-                                              : zero_value_for_index(definition.return_type_index);
+        return definition.return_is_variant
+                   ? Value{Empty{}}
+                   : zero_value_for_index(definition.return_type_index);
     }
     // See call_procedure's own identical guard: every nested call
     // recurses through this same C++ function, so unbounded VB6
     // recursion (now including a method calling another method, or
     // itself) must still be bounded to avoid a native stack overflow.
     if (procedure_depth_ >= max_procedure_depth_ || stack_nearly_exhausted()) {
-        set_error("WFC0123", "procedure call nesting is too deep", identifier_offset);
+        set_error("WFC0123", "procedure call nesting is too deep",
+                  identifier_offset);
         return std::nullopt;
     }
 
@@ -457,7 +492,8 @@ std::optional<Value> Interpreter::invoke_definition(
             argument_ptr = &arguments[index];
         } else {
             if (!parameter.is_optional) {
-                static_cast<void>(raise_runtime(449, "Argument not optional", identifier_offset));
+                static_cast<void>(raise_runtime(449, "Argument not optional",
+                                                identifier_offset));
                 return std::nullopt;
             }
             // REQ-0224: only an omitted Optional Variant argument
@@ -471,22 +507,25 @@ std::optional<Value> Interpreter::invoke_definition(
             // omitted in real VB6, matching REQ-0206's own
             // documented fact: the default value counts as having
             // been supplied.
-            if (parameter.is_optional && parameter.is_variant && !parameter.has_default) {
+            if (parameter.is_optional && parameter.is_variant &&
+                !parameter.has_default) {
                 frame.missing_parameter_names.insert(parameter.name);
             }
-            synthesized_argument.value = parameter.has_default
-                ? parameter.default_value
-                : (parameter.is_variant ? Value{Empty{}}
-                                         : zero_value_for_index(parameter.type_index));
+            synthesized_argument.value =
+                parameter.has_default
+                    ? parameter.default_value
+                    : (parameter.is_variant
+                           ? Value{Empty{}}
+                           : zero_value_for_index(parameter.type_index));
             argument_ptr = &synthesized_argument;
         }
         auto& argument = *argument_ptr;
         if (parameter.is_object_reference) {
             if (!std::holds_alternative<Nothing>(argument.value) &&
                 !std::holds_alternative<ObjectInstance>(argument.value)) {
-                set_error(
-                    "WFC0106", "Object parameter requires an object reference",
-                    identifier_offset);
+                set_error("WFC0106",
+                          "Object parameter requires an object reference",
+                          identifier_offset);
                 return std::nullopt;
             }
             // REQ-0228: a specific-class parameter (`As SomeClassName`,
@@ -504,21 +543,26 @@ std::optional<Value> Interpreter::invoke_definition(
                     std::get<ObjectInstance>(argument.value).data->class_name,
                     parameter.class_name)) {
                 set_error(
-                    "WFC0137", "argument does not match the parameter's declared class",
+                    "WFC0137",
+                    "argument does not match the parameter's declared class",
                     identifier_offset);
                 return std::nullopt;
             }
-            if (!parameter.class_name.empty() && is_udt_class(parameter.class_name) &&
+            if (!parameter.class_name.empty() &&
+                is_udt_class(parameter.class_name) &&
                 (parameter.by_val || argument.byref_target == nullptr)) {
                 // REQ-0241: a UDT passed ByVal is a private copy.
-                if (const auto* udt = std::get_if<ObjectInstance>(&argument.value)) {
-                    argument.value = Value{ObjectInstance{clone_udt(*udt->data)}};
+                if (const auto* udt =
+                        std::get_if<ObjectInstance>(&argument.value)) {
+                    argument.value =
+                        Value{ObjectInstance{clone_udt(*udt->data)}};
                 }
             }
             frame.variables.emplace(parameter.name, std::move(argument.value));
             frame.object_variables.insert(parameter.name);
             if (!parameter.class_name.empty()) {
-                frame.object_class_names.emplace(parameter.name, parameter.class_name);
+                frame.object_class_names.emplace(parameter.name,
+                                                 parameter.class_name);
             }
             continue;
         }
@@ -529,29 +573,33 @@ std::optional<Value> Interpreter::invoke_definition(
             // kind (never a fixed-scalar-typed one, and vice versa);
             // a fixed-type parameter matches only a fixed-type
             // argument array with the same element type.
-            const bool element_kind_matches = array != nullptr &&
+            const bool element_kind_matches =
+                array != nullptr &&
                 (parameter.is_variant_array_parameter
                      ? array->is_variant_element
-                     : parameter.is_object_array_parameter
-                           ? (array->is_object_element &&
-                              (parameter.class_name.empty() ||
-                               array->element_class_name == parameter.class_name))
-                           : (!array->is_variant_element && !array->is_object_element &&
-                              array->element_type_index == parameter.type_index));
+                 : parameter.is_object_array_parameter
+                     ? (array->is_object_element &&
+                        (parameter.class_name.empty() ||
+                         array->element_class_name == parameter.class_name))
+                     : (!array->is_variant_element &&
+                        !array->is_object_element &&
+                        array->element_type_index == parameter.type_index));
             if (!element_kind_matches) {
-                set_error("WFC0016", "argument type mismatch", identifier_offset);
+                set_error("WFC0016", "argument type mismatch",
+                          identifier_offset);
                 return std::nullopt;
             }
             if (argument.byref_target == nullptr) {
-                set_error(
-                    "WFC0149", "array argument must be a variable", identifier_offset);
+                set_error("WFC0149", "array argument must be a variable",
+                          identifier_offset);
                 return std::nullopt;
             }
             frame.variables.emplace(parameter.name, std::move(argument.value));
             continue;
         }
         if (parameter.is_variant) {
-            frame.variables.emplace(parameter.name, copy_if_udt(std::move(argument.value)));
+            frame.variables.emplace(parameter.name,
+                                    copy_if_udt(std::move(argument.value)));
             frame.variant_variables.insert(parameter.name);
             continue;
         }
@@ -560,10 +608,12 @@ std::optional<Value> Interpreter::invoke_definition(
             // VB6: "ByRef argument type mismatch" -- a variable passed by
             // reference must already have the parameter's exact type
             // (REQ-0270); convert it first (CLng(x)) or declare ByVal.
-            set_error("WFC0016", "ByRef argument type mismatch", identifier_offset);
+            set_error("WFC0016", "ByRef argument type mismatch",
+                      identifier_offset);
             return std::nullopt;
         }
-        if (!coerce_numeric_value(argument.value, parameter.type_index, identifier_offset)) {
+        if (!coerce_numeric_value(argument.value, parameter.type_index,
+                                  identifier_offset)) {
             return std::nullopt;
         }
         if (argument.value.index() != parameter.type_index) {
@@ -575,33 +625,38 @@ std::optional<Value> Interpreter::invoke_definition(
     if (has_param_array) {
         const auto& param_array_parameter = parameters.back();
         std::vector<Value> elements;
-        for (std::size_t index = fixed_and_optional_count; index < arguments.size();
-             ++index) {
+        for (std::size_t index = fixed_and_optional_count;
+             index < arguments.size(); ++index) {
             Value element_value = std::move(arguments[index].value);
             if (!param_array_parameter.is_variant) {
-                if (!coerce_numeric_value(
-                        element_value, param_array_parameter.type_index, identifier_offset)) {
+                if (!coerce_numeric_value(element_value,
+                                          param_array_parameter.type_index,
+                                          identifier_offset)) {
                     return std::nullopt;
                 }
                 if (element_value.index() != param_array_parameter.type_index) {
-                    set_error("WFC0016", "argument type mismatch", identifier_offset);
+                    set_error("WFC0016", "argument type mismatch",
+                              identifier_offset);
                     return std::nullopt;
                 }
             }
             elements.push_back(std::move(element_value));
         }
-        ArrayValue param_array{
-            std::move(elements), 0, /*is_dynamic=*/false, /*is_allocated=*/true,
-            param_array_parameter.type_index};
+        ArrayValue param_array{std::move(elements), 0, /*is_dynamic=*/false,
+                               /*is_allocated=*/true,
+                               param_array_parameter.type_index};
         param_array.is_variant_element = param_array_parameter.is_variant;
-        frame.variables.emplace(param_array_parameter.name, Value{std::move(param_array)});
+        frame.variables.emplace(param_array_parameter.name,
+                                Value{std::move(param_array)});
     }
     if (definition.is_function) {
         frame.is_function_frame = true;
         Value initial_return_value;
-        if (definition.return_is_object && !definition.return_class_name.empty() &&
+        if (definition.return_is_object &&
+            !definition.return_class_name.empty() &&
             is_udt_class(definition.return_class_name)) {
-            auto fresh = instantiate_class(definition.return_class_name, identifier_offset);
+            auto fresh = instantiate_class(definition.return_class_name,
+                                           identifier_offset);
             if (!fresh.has_value()) {
                 return std::nullopt;
             }
@@ -620,7 +675,8 @@ std::optional<Value> Interpreter::invoke_definition(
                 /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
                 /*is_allocated=*/false, definition.return_type_index};
         } else {
-            initial_return_value = zero_value_for_index(definition.return_type_index);
+            initial_return_value =
+                zero_value_for_index(definition.return_type_index);
         }
         frame.variables.emplace(binding_name, std::move(initial_return_value));
         if (definition.return_is_variant) {
@@ -635,7 +691,8 @@ std::optional<Value> Interpreter::invoke_definition(
             // return_class_name is non-empty) with no new code.
             frame.object_variables.insert(binding_name);
             if (!definition.return_class_name.empty()) {
-                frame.object_class_names.emplace(binding_name, definition.return_class_name);
+                frame.object_class_names.emplace(binding_name,
+                                                 definition.return_class_name);
             }
         }
     }
@@ -686,8 +743,10 @@ std::optional<Value> Interpreter::invoke_definition(
             // silently drop that last reference without ever running
             // `Class_Terminate`, the same class of bug REQ-0228 fixed
             // for a ByRef parameter's own write-back.
-            auto& persistent = (instance != nullptr ? instance->static_scopes[&definition]
-                                                    : definition.statics).variables[name];
+            auto& persistent =
+                (instance != nullptr ? instance->static_scopes[&definition]
+                                     : definition.statics)
+                    .variables[name];
             if (!terminate_if_last_reference(persistent)) {
                 statics_copy_back_ok = false;
                 break;
@@ -702,13 +761,15 @@ std::optional<Value> Interpreter::invoke_definition(
     }
 
     std::optional<Value> result =
-        definition.is_function ? scopes_.back().variables.at(binding_name) : Value{Empty{}};
+        definition.is_function ? scopes_.back().variables.at(binding_name)
+                               : Value{Empty{}};
     // Bounded by fixed_and_optional_count, not arguments.size(): a
     // ParamArray's own collected elements (beyond that point) are
     // always ByVal, with no corresponding `parameters` entry per
     // argument to look up in the first place.
     bool write_back_ok = true;
-    for (std::size_t index = 0U; index < std::min(arguments.size(), fixed_and_optional_count);
+    for (std::size_t index = 0U;
+         index < std::min(arguments.size(), fixed_and_optional_count);
          ++index) {
         const auto& parameter = parameters[index];
         if (!parameter.by_val && arguments[index].byref_target != nullptr) {
@@ -724,14 +785,16 @@ std::optional<Value> Interpreter::invoke_definition(
                 write_back_ok = false;
                 break;
             }
-            *arguments[index].byref_target = scopes_.back().variables.at(parameter.name);
+            *arguments[index].byref_target =
+                scopes_.back().variables.at(parameter.name);
         }
     }
     // The return value and any ByRef write-backs above are already
     // copied out, bumping their use_count, so an instance among them
     // correctly survives this drain rather than being (wrongly) treated
     // as going out of scope here.
-    const bool drained_ok = write_back_ok && drain_scope_instances(scopes_.back());
+    const bool drained_ok =
+        write_back_ok && drain_scope_instances(scopes_.back());
     scopes_.pop_back();
     if (!drained_ok) {
         return std::nullopt;
@@ -740,26 +803,26 @@ std::optional<Value> Interpreter::invoke_definition(
 }
 
 std::optional<Value> Interpreter::call_procedure(
-    const std::string& name,
-    const std::size_t identifier_offset,
+    const std::string& name, const std::size_t identifier_offset,
     const bool require_function) {
     const auto definition_iterator = procedures_.find(name);
     const auto& definition = definition_iterator->second;
     if (require_function && !definition.is_function) {
-        set_error("WFC0122", "a Sub cannot be used in an expression", identifier_offset);
+        set_error("WFC0122", "a Sub cannot be used in an expression",
+                  identifier_offset);
         return std::nullopt;
     }
     if (constant_expression_) {
-        set_error(
-            "WFC0074", "constant initializer cannot call a procedure", identifier_offset);
+        set_error("WFC0074", "constant initializer cannot call a procedure",
+                  identifier_offset);
         return std::nullopt;
     }
     auto arguments = parse_call_argument_list();
     if (!arguments.has_value()) {
         return std::nullopt;
     }
-    return invoke_definition(
-        definition, name, std::move(*arguments), identifier_offset, source_, nullptr);
+    return invoke_definition(definition, name, std::move(*arguments),
+                             identifier_offset, source_, nullptr);
 }
 
 std::optional<Value> Interpreter::parse_procedure_call(
@@ -780,10 +843,11 @@ const ClassDef* Interpreter::current_class_def() {
     return iterator == class_definitions_.end() ? nullptr : &iterator->second;
 }
 
-bool Interpreter::member_accessible(
-    const ClassDef& class_def, const bool is_private,
-    const bool bypass_for_interface_dispatch) {
-    return !is_private || bypass_for_interface_dispatch || current_class_def() == &class_def;
+bool Interpreter::member_accessible(const ClassDef& class_def,
+                                    const bool is_private,
+                                    const bool bypass_for_interface_dispatch) {
+    return !is_private || bypass_for_interface_dispatch ||
+           current_class_def() == &class_def;
 }
 
 std::optional<Value> Interpreter::me_value(const std::size_t offset) {
@@ -803,12 +867,13 @@ bool Interpreter::terminate_if_last_reference(Value& value) {
     InstanceData* const instance = instance_value->data.get();
     const auto class_iterator = class_definitions_.find(instance->class_name);
     if (class_iterator != class_definitions_.end()) {
-        const auto terminate_iterator = class_iterator->second.methods.find("class_terminate");
+        const auto terminate_iterator =
+            class_iterator->second.methods.find("class_terminate");
         if (terminate_iterator != class_iterator->second.methods.end()) {
-            if (!invoke_definition(
-                    terminate_iterator->second, "class_terminate", {}, 0,
-                    class_iterator->second.source, instance)
-                    .has_value()) {
+            if (!invoke_definition(terminate_iterator->second,
+                                   "class_terminate", {}, 0,
+                                   class_iterator->second.source, instance)
+                     .has_value()) {
                 return false;
             }
         }
@@ -837,51 +902,52 @@ bool Interpreter::drain_scope_instances(Scope& scope) {
 }
 
 std::optional<Value> Interpreter::call_class_method(
-    InstanceData& instance,
-    const ClassDef& class_def,
-    const std::string& member_name,
-    const std::size_t member_offset,
-    const bool require_function,
-    const bool bypass_for_interface_dispatch) {
+    InstanceData& instance, const ClassDef& class_def,
+    const std::string& member_name, const std::size_t member_offset,
+    const bool require_function, const bool bypass_for_interface_dispatch) {
     const auto method_iterator = class_def.methods.find(member_name);
     if (method_iterator == class_def.methods.end()) {
         set_error("WFC0135", "unknown member", member_offset);
         return std::nullopt;
     }
-    if (!member_accessible(
-            class_def, method_iterator->second.is_private, bypass_for_interface_dispatch)) {
-        set_error("WFC0142", "member is not accessible outside its class", member_offset);
+    if (!member_accessible(class_def, method_iterator->second.is_private,
+                           bypass_for_interface_dispatch)) {
+        set_error("WFC0142", "member is not accessible outside its class",
+                  member_offset);
         return std::nullopt;
     }
     if (require_function && !method_iterator->second.is_function) {
-        set_error("WFC0122", "a Sub cannot be used in an expression", member_offset);
+        set_error("WFC0122", "a Sub cannot be used in an expression",
+                  member_offset);
         return std::nullopt;
     }
     if (constant_expression_) {
-        set_error(
-            "WFC0074", "constant initializer cannot call a procedure", member_offset);
+        set_error("WFC0074", "constant initializer cannot call a procedure",
+                  member_offset);
         return std::nullopt;
     }
     auto arguments = parse_call_argument_list();
     if (!arguments.has_value()) {
         return std::nullopt;
     }
-    return invoke_definition(
-        method_iterator->second, member_name, std::move(*arguments), member_offset,
-        class_def.source, &instance);
+    return invoke_definition(method_iterator->second, member_name,
+                             std::move(*arguments), member_offset,
+                             class_def.source, &instance);
 }
 
 std::optional<Value> Interpreter::parse_member_access_after_dot(
-    const Value base, const std::size_t base_offset, const bool require_function,
-    const std::string& via_interface_class) {
+    const Value base, const std::size_t base_offset,
+    const bool require_function, const std::string& via_interface_class) {
     if (!std::holds_alternative<Nothing>(base) &&
         !std::holds_alternative<ObjectInstance>(base)) {
         if (!execute_) {
             // A placeholder from a not-taken branch: parse through it.
-            return parse_member_access_after_dot(
-                Value{Nothing{}}, base_offset, require_function, via_interface_class);
+            return parse_member_access_after_dot(Value{Nothing{}}, base_offset,
+                                                 require_function,
+                                                 via_interface_class);
         }
-        set_error("WFC0136", "member access requires an object reference", base_offset);
+        set_error("WFC0136", "member access requires an object reference",
+                  base_offset);
         return std::nullopt;
     }
     skip_horizontal_whitespace();
@@ -949,51 +1015,59 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
     skip_horizontal_whitespace();
     if (!at_end() && current() == '(') {
         if (class_def.methods.contains(*member_name)) {
-            return call_class_method(
-                instance, class_def, *member_name, member_offset, require_function,
-                dispatched_via_interface);
+            return call_class_method(instance, class_def, *member_name,
+                                     member_offset, require_function,
+                                     dispatched_via_interface);
         }
         // An indexed Property Get (REQ-0205): `obj.Name(args)` reaches
         // the same parenthesized-call shape a method call would, since
         // a class cannot declare both a method and a property under the
         // same name (see scan_class_body's WFC0128 check).
-        const auto indexed_getter_iterator = class_def.property_get.find(*member_name);
+        const auto indexed_getter_iterator =
+            class_def.property_get.find(*member_name);
         if (indexed_getter_iterator != class_def.property_get.end()) {
-            if (!member_accessible(
-                    class_def, indexed_getter_iterator->second.is_private,
-                    dispatched_via_interface)) {
-                set_error(
-                    "WFC0142", "member is not accessible outside its class", member_offset);
+            if (!member_accessible(class_def,
+                                   indexed_getter_iterator->second.is_private,
+                                   dispatched_via_interface)) {
+                set_error("WFC0142",
+                          "member is not accessible outside its class",
+                          member_offset);
                 return std::nullopt;
             }
             if (constant_expression_) {
-                set_error(
-                    "WFC0074", "constant initializer cannot call a procedure",
-                    member_offset);
+                set_error("WFC0074",
+                          "constant initializer cannot call a procedure",
+                          member_offset);
                 return std::nullopt;
             }
             if (indexed_getter_iterator->second.parameters.empty()) {
                 // `obj.Prop(i)` where Prop takes no index: apply the
                 // parentheses to the object (or array) it returns.
-                auto held = invoke_definition(
-                    indexed_getter_iterator->second, *member_name, {}, member_offset,
-                    class_def.source, &instance);
+                auto held = invoke_definition(indexed_getter_iterator->second,
+                                              *member_name, {}, member_offset,
+                                              class_def.source, &instance);
                 if (!held.has_value()) {
                     return std::nullopt;
                 }
                 if (const auto* holder = std::get_if<ObjectInstance>(&*held)) {
-                    const auto held_class = class_definitions_.find(holder->data->class_name);
+                    const auto held_class =
+                        class_definitions_.find(holder->data->class_name);
                     if (held_class != class_definitions_.end() &&
                         !held_class->second.default_member.empty()) {
-                        const auto& default_member = held_class->second.default_member;
-                        if (held_class->second.methods.contains(default_member)) {
+                        const auto& default_member =
+                            held_class->second.default_member;
+                        if (held_class->second.methods.contains(
+                                default_member)) {
                             return call_class_method(
-                                *holder->data, held_class->second, default_member, member_offset,
+                                *holder->data, held_class->second,
+                                default_member, member_offset,
                                 /*require_function=*/true);
                         }
                         const auto default_getter =
-                            held_class->second.property_get.find(default_member);
-                        if (default_getter != held_class->second.property_get.end()) {
+                            held_class->second.property_get.find(
+                                default_member);
+                        if (default_getter !=
+                            held_class->second.property_get.end()) {
                             auto default_arguments = parse_call_argument_list();
                             if (!default_arguments.has_value()) {
                                 return std::nullopt;
@@ -1014,20 +1088,25 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
             if (!arguments.has_value()) {
                 return std::nullopt;
             }
-            return invoke_definition(
-                indexed_getter_iterator->second, *member_name, std::move(*arguments),
-                member_offset, class_def.source, &instance);
+            return invoke_definition(indexed_getter_iterator->second,
+                                     *member_name, std::move(*arguments),
+                                     member_offset, class_def.source,
+                                     &instance);
         }
         {
             // REQ-0251: `obj.arrayField(i)`.
-            const auto array_field = instance.fields.variables.find(*member_name);
+            const auto array_field =
+                instance.fields.variables.find(*member_name);
             if (array_field != instance.fields.variables.end() &&
                 std::holds_alternative<ArrayValue>(array_field->second)) {
-                const auto field_def_iterator = class_def.fields.find(*member_name);
+                const auto field_def_iterator =
+                    class_def.fields.find(*member_name);
                 if (field_def_iterator != class_def.fields.end() &&
-                    !member_accessible(class_def, field_def_iterator->second.is_private)) {
-                    set_error(
-                        "WFC0142", "member is not accessible outside its class", member_offset);
+                    !member_accessible(class_def,
+                                       field_def_iterator->second.is_private)) {
+                    set_error("WFC0142",
+                              "member is not accessible outside its class",
+                              member_offset);
                     return std::nullopt;
                 }
                 return parse_array_index(array_field->second);
@@ -1038,14 +1117,14 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
     }
     const auto getter_iterator = class_def.property_get.find(*member_name);
     if (getter_iterator != class_def.property_get.end()) {
-        if (!member_accessible(
-                class_def, getter_iterator->second.is_private, dispatched_via_interface)) {
-            set_error("WFC0142", "member is not accessible outside its class", member_offset);
+        if (!member_accessible(class_def, getter_iterator->second.is_private,
+                               dispatched_via_interface)) {
+            set_error("WFC0142", "member is not accessible outside its class",
+                      member_offset);
             return std::nullopt;
         }
-        return invoke_definition(
-            getter_iterator->second, *member_name, {}, member_offset, class_def.source,
-            &instance);
+        return invoke_definition(getter_iterator->second, *member_name, {},
+                                 member_offset, class_def.source, &instance);
     }
     // `obj.Method` / `Call obj.Method` with no parentheses (REQ-0217):
     // a zero-argument dotted method call, checked after Property Get
@@ -1057,16 +1136,18 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
     // WFC0072 if the method actually requires one or more.
     const auto method_iterator = class_def.methods.find(*member_name);
     if (method_iterator != class_def.methods.end()) {
-        return call_class_method(
-            instance, class_def, *member_name, member_offset, require_function,
-            dispatched_via_interface);
+        return call_class_method(instance, class_def, *member_name,
+                                 member_offset, require_function,
+                                 dispatched_via_interface);
     }
     const auto field_iterator = instance.fields.variables.find(*member_name);
     if (field_iterator != instance.fields.variables.end()) {
         const auto field_def_iterator = class_def.fields.find(*member_name);
         if (field_def_iterator != class_def.fields.end() &&
-            !member_accessible(class_def, field_def_iterator->second.is_private)) {
-            set_error("WFC0142", "member is not accessible outside its class", member_offset);
+            !member_accessible(class_def,
+                               field_def_iterator->second.is_private)) {
+            set_error("WFC0142", "member is not accessible outside its class",
+                      member_offset);
             return std::nullopt;
         }
         if (std::holds_alternative<ArrayValue>(field_iterator->second)) {

@@ -1,6 +1,6 @@
-// Interpreter: Format and numeric rendering (fixed, scientific, and custom pictures).
-// Internal to the WFC evaluator; not part of the public API.
-// Split out of src/evaluator.cpp; see src/interpreter/README.md.
+// Interpreter: Format and numeric rendering (fixed, scientific, and custom
+// pictures). Internal to the WFC evaluator; not part of the public API. Split
+// out of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
 
@@ -8,9 +8,9 @@ namespace wfc::detail {
 
 std::string Interpreter::render_currency(const std::int64_t scaled) {
     const bool negative = scaled < 0;
-    const std::uint64_t magnitude = negative
-        ? (~static_cast<std::uint64_t>(scaled) + 1ULL)
-        : static_cast<std::uint64_t>(scaled);
+    const std::uint64_t magnitude =
+        negative ? (~static_cast<std::uint64_t>(scaled) + 1ULL)
+                 : static_cast<std::uint64_t>(scaled);
     const std::uint64_t whole_part = magnitude / 10000ULL;
     const std::uint64_t fraction_part = magnitude % 10000ULL;
     std::string result = std::to_string(whole_part);
@@ -29,18 +29,24 @@ std::string Interpreter::render_currency(const std::int64_t scaled) {
     return result;
 }
 
-std::string Interpreter::fixed_half_up(const double magnitude, const int places) {
+std::string Interpreter::fixed_half_up(const double magnitude,
+                                       const int places) {
     if (magnitude == 0.0) {
-        return places > 0 ? "0." + std::string(static_cast<std::size_t>(places), '0') : "0";
+        return places > 0
+                   ? "0." + std::string(static_cast<std::size_t>(places), '0')
+                   : "0";
     }
     char buffer[64];
-    const auto converted = std::to_chars(
-        buffer, buffer + sizeof(buffer), magnitude, std::chars_format::scientific, 14);
+    const auto converted =
+        std::to_chars(buffer, buffer + sizeof(buffer), magnitude,
+                      std::chars_format::scientific, 14);
     const std::string text(buffer, converted.ptr);
     const auto e_position = text.find('e');
     std::string digits;
     for (std::size_t i = 0; i < e_position; ++i) {
-        if (text[i] != '.') digits.push_back(text[i]);
+        if (text[i] != '.') {
+            digits.push_back(text[i]);
+        }
     }
     const int exponent = std::atoi(text.c_str() + e_position + 1);
     const int point = exponent + 1;  // digits before the decimal point
@@ -48,15 +54,19 @@ std::string Interpreter::fixed_half_up(const double magnitude, const int places)
     std::string fraction_part;
     if (point <= 0) {
         integer_part = "0";
-        fraction_part = std::string(static_cast<std::size_t>(-point), '0') + digits;
+        fraction_part =
+            std::string(static_cast<std::size_t>(-point), '0') + digits;
     } else if (static_cast<std::size_t>(point) >= digits.size()) {
-        integer_part = digits + std::string(static_cast<std::size_t>(point) - digits.size(), '0');
+        integer_part =
+            digits +
+            std::string(static_cast<std::size_t>(point) - digits.size(), '0');
     } else {
         integer_part = digits.substr(0, static_cast<std::size_t>(point));
         fraction_part = digits.substr(static_cast<std::size_t>(point));
     }
     const auto wanted = static_cast<std::size_t>(places);
-    bool round_up = fraction_part.size() > wanted && fraction_part[wanted] >= '5';
+    bool round_up =
+        fraction_part.size() > wanted && fraction_part[wanted] >= '5';
     fraction_part.resize(wanted, '0');
     std::string all = integer_part + fraction_part;
     if (round_up) {
@@ -71,17 +81,20 @@ std::string Interpreter::fixed_half_up(const double magnitude, const int places)
                 break;
             }
         }
-        if (round_up) all.insert(all.begin(), '1');
+        if (round_up) {
+            all.insert(all.begin(), '1');
+        }
     }
     const std::size_t integer_size = all.size() - wanted;
     std::string result = all.substr(0, integer_size);
-    if (wanted > 0) result += "." + all.substr(integer_size);
+    if (wanted > 0) {
+        result += "." + all.substr(integer_size);
+    }
     return result;
 }
 
-std::string Interpreter::render_fixed_style(
-    const double value,
-    const bool grouping) {
+std::string Interpreter::render_fixed_style(const double value,
+                                            const bool grouping) {
     const bool negative = value < 0.0;
     const double magnitude = std::fabs(value);
     std::string digits = fixed_half_up(magnitude, 2);
@@ -104,8 +117,9 @@ std::string Interpreter::render_scientific_style(const double value) {
     const bool negative = value < 0.0;
     const double magnitude = std::fabs(value);
     char buffer[64];
-    const auto result = std::to_chars(
-        buffer, buffer + sizeof(buffer), magnitude, std::chars_format::scientific, 2);
+    const auto result =
+        std::to_chars(buffer, buffer + sizeof(buffer), magnitude,
+                      std::chars_format::scientific, 2);
     const std::string text(buffer, result.ptr);
     const auto e_position = text.find('e');
     std::string mantissa = text.substr(0, e_position);
@@ -121,11 +135,13 @@ std::string Interpreter::render_scientific_style(const double value) {
     return rendered;
 }
 
-auto Interpreter::parse_picture_escapes(const std::string& section) -> EscapedPicture {
+auto Interpreter::parse_picture_escapes(const std::string& section)
+    -> EscapedPicture {
     EscapedPicture result;
     bool in_quotes = false;
     for (std::size_t index = 0U; index < section.size(); ++index) {
-        if (!in_quotes && section[index] == '\\' && index + 1U < section.size()) {
+        if (!in_quotes && section[index] == '\\' &&
+            index + 1U < section.size()) {
             result.text.push_back(section[index + 1U]);
             result.forced_literal.push_back(true);
             ++index;
@@ -149,7 +165,8 @@ std::string Interpreter::render_custom_numeric_picture(
     std::string current_section;
     bool in_quotes = false;
     for (std::size_t index = 0U; index < picture.size(); ++index) {
-        if (!in_quotes && picture[index] == '\\' && index + 1U < picture.size()) {
+        if (!in_quotes && picture[index] == '\\' &&
+            index + 1U < picture.size()) {
             current_section.push_back(picture[index]);
             current_section.push_back(picture[index + 1U]);
             ++index;
@@ -171,7 +188,8 @@ std::string Interpreter::render_custom_numeric_picture(
         return render_custom_numeric_picture_section(0.0, sections[2]);
     }
     if (value < 0.0) {
-        return render_custom_numeric_picture_section(std::fabs(value), sections[1]);
+        return render_custom_numeric_picture_section(std::fabs(value),
+                                                     sections[1]);
     }
     return render_custom_numeric_picture_section(value, sections.front());
 }
@@ -190,7 +208,9 @@ std::string Interpreter::render_custom_numeric_picture_section(
                 ++i;
             } else if (c == '"') {
                 const auto close = picture.find('"', i + 1U);
-                if (close == std::string::npos) break;
+                if (close == std::string::npos) {
+                    break;
+                }
                 i = close;
             } else if ((c == 'E' || c == 'e') && i + 2U < picture.size() &&
                        (picture[i + 1U] == '+' || picture[i + 1U] == '-') &&
@@ -210,14 +230,23 @@ std::string Interpreter::render_custom_numeric_picture_section(
             const std::string mantissa_picture = picture.substr(0, e_position);
             std::size_t integer_places = 0U;
             for (const char c : mantissa_picture) {
-                if (c == '.') break;
-                if (c == '0' || c == '#') ++integer_places;
+                if (c == '.') {
+                    break;
+                }
+                if (c == '0' || c == '#') {
+                    ++integer_places;
+                }
             }
             integer_places = std::max<std::size_t>(integer_places, 1U);
             std::size_t fraction_places = 0U;
-            if (const auto dot = mantissa_picture.find('.'); dot != std::string::npos) {
-                for (std::size_t i = dot + 1U; i < mantissa_picture.size(); ++i) {
-                    if (mantissa_picture[i] == '0' || mantissa_picture[i] == '#') ++fraction_places;
+            if (const auto dot = mantissa_picture.find('.');
+                dot != std::string::npos) {
+                for (std::size_t i = dot + 1U; i < mantissa_picture.size();
+                     ++i) {
+                    if (mantissa_picture[i] == '0' ||
+                        mantissa_picture[i] == '#') {
+                        ++fraction_places;
+                    }
                 }
             }
             const double magnitude = std::fabs(value);
@@ -227,19 +256,27 @@ std::string Interpreter::render_custom_numeric_picture_section(
                 exponent = static_cast<int>(std::floor(std::log10(magnitude))) -
                            static_cast<int>(integer_places - 1U);
                 mantissa = magnitude / std::pow(10.0, exponent);
-                const double scale = std::pow(10.0, static_cast<double>(fraction_places));
-                const double limit = std::pow(10.0, static_cast<double>(integer_places));
+                const double scale =
+                    std::pow(10.0, static_cast<double>(fraction_places));
+                const double limit =
+                    std::pow(10.0, static_cast<double>(integer_places));
                 if (std::round(mantissa * scale) / scale >= limit) {
                     ++exponent;
                     mantissa = magnitude / std::pow(10.0, exponent);
                 }
             }
             std::string exponent_text = std::to_string(std::abs(exponent));
-            while (exponent_text.size() < exponent_digits) exponent_text.insert(0, "0");
-            std::string result = render_custom_numeric_picture_section(mantissa, mantissa_picture);
+            while (exponent_text.size() < exponent_digits) {
+                exponent_text.insert(0, "0");
+            }
+            std::string result = render_custom_numeric_picture_section(
+                mantissa, mantissa_picture);
             result.push_back(picture[e_position]);
-            if (exponent < 0) result.push_back('-');
-            else if (force_sign) result.push_back('+');
+            if (exponent < 0) {
+                result.push_back('-');
+            } else if (force_sign) {
+                result.push_back('+');
+            }
             result += exponent_text;
             result += picture.substr(after);
             return negative && magnitude != 0.0 ? "-" + result : result;
@@ -279,12 +316,14 @@ std::string Interpreter::render_custom_numeric_picture_section(
     const bool has_dot = dot_position < escaped.text.size();
     const std::string integer_pic = escaped.text.substr(0, dot_position);
     const std::vector<bool> integer_pic_forced(
-        escaped.forced_literal.begin(), escaped.forced_literal.begin() + dot_position);
+        escaped.forced_literal.begin(),
+        escaped.forced_literal.begin() + dot_position);
     const std::string fraction_pic =
         has_dot ? escaped.text.substr(dot_position + 1U) : std::string{};
     const std::vector<bool> fraction_pic_forced =
         has_dot ? std::vector<bool>(
-                      escaped.forced_literal.begin() + static_cast<std::ptrdiff_t>(dot_position) + 1,
+                      escaped.forced_literal.begin() +
+                          static_cast<std::ptrdiff_t>(dot_position) + 1,
                       escaped.forced_literal.end())
                 : std::vector<bool>{};
 
@@ -299,15 +338,18 @@ std::string Interpreter::render_custom_numeric_picture_section(
     const std::string rendered_magnitude =
         fixed_half_up(magnitude, static_cast<int>(fraction_digit_count));
     const auto rendered_dot = rendered_magnitude.find('.');
-    std::string integer_digits = rendered_dot == std::string::npos
-                                      ? rendered_magnitude
-                                      : rendered_magnitude.substr(0, rendered_dot);
+    std::string integer_digits =
+        rendered_dot == std::string::npos
+            ? rendered_magnitude
+            : rendered_magnitude.substr(0, rendered_dot);
     if (integer_digits == "0") {
-        integer_digits.clear();  // a zero integer part shows no digit (`0` placeholders still pad)
+        integer_digits.clear();  // a zero integer part shows no digit (`0`
+                                 // placeholders still pad)
     }
-    const std::string fraction_digits = rendered_dot == std::string::npos
-                                             ? std::string{}
-                                             : rendered_magnitude.substr(rendered_dot + 1U);
+    const std::string fraction_digits =
+        rendered_dot == std::string::npos
+            ? std::string{}
+            : rendered_magnitude.substr(rendered_dot + 1U);
 
     // Fraction section: left to right, one placeholder per rounded
     // digit, trimming a trailing run of zero digits that came from an
@@ -317,13 +359,15 @@ std::string Interpreter::render_custom_numeric_picture_section(
     std::size_t fraction_digit_index = 0U;
     for (std::size_t index = 0U; index < fraction_pic.size(); ++index) {
         const char character = fraction_pic[index];
-        if ((character == '0' || character == '#') && !fraction_pic_forced[index]) {
+        if ((character == '0' || character == '#') &&
+            !fraction_pic_forced[index]) {
             const char digit = fraction_digit_index < fraction_digits.size()
-                                    ? fraction_digits[fraction_digit_index]
-                                    : '0';
+                                   ? fraction_digits[fraction_digit_index]
+                                   : '0';
             ++fraction_digit_index;
             fraction_output.push_back(digit);
-            fraction_is_trimmable_zero.push_back(character == '#' && digit == '0');
+            fraction_is_trimmable_zero.push_back(character == '#' &&
+                                                 digit == '0');
         } else {
             fraction_output.push_back(character);
             fraction_is_trimmable_zero.push_back(false);
@@ -374,18 +418,21 @@ std::string Interpreter::render_custom_numeric_picture_section(
     // behavior.
     std::size_t leftmost_placeholder_point = 0U;
     bool seen_placeholder = false;
-    for (std::size_t reverse_index = integer_pic_digits_only.size(); reverse_index-- > 0;) {
+    for (std::size_t reverse_index = integer_pic_digits_only.size();
+         reverse_index-- > 0;) {
         const char character = integer_pic_digits_only[reverse_index];
         const bool forced = integer_pic_digits_only_forced[reverse_index];
         if (character == '0' && !forced) {
             integer_output_reversed.push_back(
-                digit_source_index > 0U ? integer_digits[--digit_source_index] : '0');
+                digit_source_index > 0U ? integer_digits[--digit_source_index]
+                                        : '0');
             integer_output_is_digit_reversed.push_back(true);
             leftmost_placeholder_point = integer_output_reversed.size();
             seen_placeholder = true;
         } else if (character == '#' && !forced) {
             if (digit_source_index > 0U) {
-                integer_output_reversed.push_back(integer_digits[--digit_source_index]);
+                integer_output_reversed.push_back(
+                    integer_digits[--digit_source_index]);
                 integer_output_is_digit_reversed.push_back(true);
             }
             leftmost_placeholder_point = integer_output_reversed.size();
@@ -401,21 +448,24 @@ std::string Interpreter::render_custom_numeric_picture_section(
             overflow_digits.push_back(integer_digits[--digit_source_index]);
         }
         const std::size_t insertion_point =
-            seen_placeholder ? leftmost_placeholder_point : integer_output_reversed.size();
+            seen_placeholder ? leftmost_placeholder_point
+                             : integer_output_reversed.size();
         integer_output_reversed.insert(insertion_point, overflow_digits);
         integer_output_is_digit_reversed.insert(
             integer_output_is_digit_reversed.begin() +
                 static_cast<std::ptrdiff_t>(insertion_point),
             overflow_digits.size(), true);
     }
-    std::string integer_output(integer_output_reversed.rbegin(), integer_output_reversed.rend());
+    std::string integer_output(integer_output_reversed.rbegin(),
+                               integer_output_reversed.rend());
     if (has_unescaped_comma) {
-        const auto total_digits = static_cast<std::size_t>(std::count(
-            integer_output_is_digit_reversed.begin(), integer_output_is_digit_reversed.end(),
-            true));
+        const auto total_digits = static_cast<std::size_t>(
+            std::count(integer_output_is_digit_reversed.begin(),
+                       integer_output_is_digit_reversed.end(), true));
         std::string grouped_reversed;
         std::size_t digits_seen = 0U;
-        for (std::size_t index = 0U; index < integer_output_reversed.size(); ++index) {
+        for (std::size_t index = 0U; index < integer_output_reversed.size();
+             ++index) {
             grouped_reversed.push_back(integer_output_reversed[index]);
             if (integer_output_is_digit_reversed[index]) {
                 ++digits_seen;
@@ -424,7 +474,8 @@ std::string Interpreter::render_custom_numeric_picture_section(
                 }
             }
         }
-        integer_output.assign(grouped_reversed.rbegin(), grouped_reversed.rend());
+        integer_output.assign(grouped_reversed.rbegin(),
+                              grouped_reversed.rend());
     }
 
     std::string rendered = integer_output;
@@ -432,19 +483,18 @@ std::string Interpreter::render_custom_numeric_picture_section(
         rendered += "." + fraction_output;
     }
     const bool all_zero =
-        std::all_of(
-            integer_digits.begin(), integer_digits.end(),
-            [](const char character) { return character == '0'; }) &&
-        std::all_of(
-            fraction_digits.begin(), fraction_digits.end(),
-            [](const char character) { return character == '0'; });
+        std::all_of(integer_digits.begin(), integer_digits.end(),
+                    [](const char character) { return character == '0'; }) &&
+        std::all_of(fraction_digits.begin(), fraction_digits.end(),
+                    [](const char character) { return character == '0'; });
     if (negative && !all_zero) {
         rendered.insert(rendered.begin(), '-');
     }
     return rendered;
 }
 
-std::string Interpreter::render_floating(const double number, const int digits) {
+std::string Interpreter::render_floating(const double number,
+                                         const int digits) {
     if (std::isnan(number) || std::isinf(number)) {
         return std::to_string(number);
     }
@@ -495,7 +545,8 @@ std::string Interpreter::render(const Value& value) {
     // unconditional static formatter; every explicit conversion path
     // that must instead raise "Invalid use of Null" (CStr, concatenation
     // of two Nulls, etc.) rejects Null before ever calling render().
-    if (std::holds_alternative<Empty>(value) || std::holds_alternative<Null>(value)) {
+    if (std::holds_alternative<Empty>(value) ||
+        std::holds_alternative<Null>(value)) {
         return "";
     }
     // Nothing, a live instance, and arrays render as empty strings here
@@ -503,7 +554,8 @@ std::string Interpreter::render(const Value& value) {
     // formatter, matching Null/Empty's convention; CStr explicitly
     // rejects an object reference (mirroring its Null rejection) before
     // ever calling render().
-    if (is_object_reference(value) || std::holds_alternative<ArrayValue>(value)) {
+    if (is_object_reference(value) ||
+        std::holds_alternative<ArrayValue>(value)) {
         return "";
     }
     return std::get<bool>(value) ? "True" : "False";

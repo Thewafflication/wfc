@@ -1,5 +1,5 @@
-#include <cstdint>
 #include "wfc/project.hpp"
+#include <cstdint>
 
 #include <algorithm>
 #include <cctype>
@@ -14,7 +14,8 @@ namespace {
 [[nodiscard]] std::string lowered(const std::string_view text) {
     std::string result;
     for (const char c : text) {
-        result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        result.push_back(
+            static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     }
     return result;
 }
@@ -22,8 +23,14 @@ namespace {
 [[nodiscard]] std::string trimmed(const std::string_view text) {
     std::size_t first = 0;
     std::size_t last = text.size();
-    while (first < last && std::isspace(static_cast<unsigned char>(text[first])) != 0) ++first;
-    while (last > first && std::isspace(static_cast<unsigned char>(text[last - 1])) != 0) --last;
+    while (first < last &&
+           std::isspace(static_cast<unsigned char>(text[first])) != 0) {
+        ++first;
+    }
+    while (last > first &&
+           std::isspace(static_cast<unsigned char>(text[last - 1])) != 0) {
+        --last;
+    }
     return std::string(text.substr(first, last - first));
 }
 
@@ -31,24 +38,32 @@ namespace {
     std::size_t i = 0;
     while (i < text.size()) {
         const auto lead = static_cast<unsigned char>(text[i]);
-        std::size_t length = lead < 0x80U ? 1U : (lead >= 0xC2U && lead < 0xE0U) ? 2U
+        std::size_t length = lead < 0x80U                      ? 1U
+                             : (lead >= 0xC2U && lead < 0xE0U) ? 2U
                              : (lead >= 0xE0U && lead < 0xF0U) ? 3U
-                             : (lead >= 0xF0U && lead < 0xF5U) ? 4U : 0U;
-        if (length == 0U || i + length > text.size()) return false;
+                             : (lead >= 0xF0U && lead < 0xF5U) ? 4U
+                                                               : 0U;
+        if (length == 0U || i + length > text.size()) {
+            return false;
+        }
         for (std::size_t k = 1; k < length; ++k) {
-            if ((static_cast<unsigned char>(text[i + k]) & 0xC0U) != 0x80U) return false;
+            if ((static_cast<unsigned char>(text[i + k]) & 0xC0U) != 0x80U) {
+                return false;
+            }
         }
         i += length;
     }
     return true;
 }
 
-// Windows-1252 bytes to UTF-8 (the 0x80-0x9F block maps to its typographic characters).
+// Windows-1252 bytes to UTF-8 (the 0x80-0x9F block maps to its typographic
+// characters).
 [[nodiscard]] std::string ansi_to_utf8(const std::string_view text) {
     static constexpr std::uint16_t table[32] = {
-        0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160,
-        0x2039, 0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022,
-        0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178};
+        0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+        0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+        0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+        0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178};
     std::string result;
     result.reserve(text.size());
     for (const char character : text) {
@@ -70,12 +85,14 @@ namespace {
     return result;
 }
 
-[[nodiscard]] bool read_file(const std::filesystem::path& path, std::string& out) {
+[[nodiscard]] bool read_file(const std::filesystem::path& path,
+                             std::string& out) {
     std::ifstream stream(path, std::ios::binary);
     if (!stream) {
         return false;
     }
-    out.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+    out.assign(std::istreambuf_iterator<char>(stream),
+               std::istreambuf_iterator<char>());
     if (!is_valid_utf8(out)) {
         out = ansi_to_utf8(out);  // classic VB6 source files are Windows-1252
     }
@@ -83,7 +100,8 @@ namespace {
 }
 
 // Blanks VERSION / BEGIN..END / Attribute lines; returns the VB_Name if any.
-[[nodiscard]] std::string strip_file_header(std::string& text, const bool keep_vb_name = false) {
+[[nodiscard]] std::string strip_file_header(std::string& text,
+                                            const bool keep_vb_name = false) {
     std::string name;
     std::string result;
     std::istringstream stream(text);
@@ -170,35 +188,46 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
             if (!read_file(path, text)) {
                 return fail("cannot read project file: " + path.string());
             }
-            const auto directory = path.has_parent_path() ? path.parent_path() : std::filesystem::path(".");
+            const auto directory = path.has_parent_path()
+                                       ? path.parent_path()
+                                       : std::filesystem::path(".");
             std::istringstream stream(text);
             std::string line;
             while (std::getline(stream, line)) {
                 line = trimmed(line);
                 const auto equals = line.find('=');
-                if (equals == std::string::npos) continue;
-                const std::string key = lowered(trimmed(line.substr(0, equals)));
+                if (equals == std::string::npos) {
+                    continue;
+                }
+                const std::string key =
+                    lowered(trimmed(line.substr(0, equals)));
                 std::string value = trimmed(line.substr(equals + 1));
                 if (key == "module" || key == "class") {
                     const auto semicolon = value.find(';');
                     if (semicolon == std::string::npos) {
                         return fail("malformed " + key + " entry: " + line);
                     }
-                    const std::string name = trimmed(value.substr(0, semicolon));
-                    const auto file = directory / normalize(trimmed(value.substr(semicolon + 1)));
+                    const std::string name =
+                        trimmed(value.substr(0, semicolon));
+                    const auto file =
+                        directory /
+                        normalize(trimmed(value.substr(semicolon + 1)));
                     if (key == "module") {
                         modules.push_back(file);
                     } else {
                         classes.emplace_back(name, file);
                     }
-                } else if (key == "form" || key == "usercontrol" || key == "propertypage" ||
-                           key == "designer") {
-                    return fail("unsupported project item (visual designer): " + line);
+                } else if (key == "form" || key == "usercontrol" ||
+                           key == "propertypage" || key == "designer") {
+                    return fail("unsupported project item (visual designer): " +
+                                line);
                 } else if (key == "startup") {
                     if (!value.empty() && value.front() == '"') {
-                        value = value.substr(1, value.size() >= 2 ? value.size() - 2 : 0);
+                        value = value.substr(
+                            1, value.size() >= 2 ? value.size() - 2 : 0);
                     }
-                    startup_sub_main = lowered(value) == "sub main" || value.empty();
+                    startup_sub_main =
+                        lowered(value) == "sub main" || value.empty();
                     if (!startup_sub_main && lowered(value) != "(none)") {
                         return fail("unsupported Startup object: " + value);
                     }
@@ -222,9 +251,10 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         static_cast<void>(strip_file_header(text, /*keep_vb_name=*/true));
         has_main = has_main || declares_sub_main(text);
         project.module_spans.push_back(LoadedProject::ModuleSpan{
-            module_path.string(),
-            static_cast<std::size_t>(std::count(
-                project.module_source.begin(), project.module_source.end(), '\n')) + 1U});
+            module_path.string(), static_cast<std::size_t>(std::count(
+                                      project.module_source.begin(),
+                                      project.module_source.end(), '\n')) +
+                                      1U});
         project.module_source += text;
         project.module_source += "\n";
     }

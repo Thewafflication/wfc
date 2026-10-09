@@ -53,7 +53,8 @@ jobs:
             if ($entry) { return ($entry -split '=', 2)[1] }
             return $null
           }
-          $compilerFile = Get-ChildItem 'out/build/${{ matrix.preset }}/CMakeFiles' `
+          $cmakeFiles = 'out/build/${{ matrix.preset }}/CMakeFiles'
+          $compilerFile = Get-ChildItem $cmakeFiles `
               -Filter CMakeCXXCompiler.cmake -File -Recurse |
             Select-Object -First 1
           function Get-CMakeSetValue([string]$Name) {
@@ -99,7 +100,8 @@ jobs:
       - name: Test
         shell: pwsh
         run: |
-          $result = Join-Path $PWD 'out/test-results/${{ matrix.arch }}/ctest.xml'
+          $result = Join-Path $PWD `
+            'out/test-results/${{ matrix.arch }}/ctest.xml'
           ctest --preset '${{ matrix.preset }}' --output-junit $result
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -111,7 +113,8 @@ jobs:
           New-Item -ItemType Directory -Force $directory | Out-Null
           $binaryDirectory = 'out/build/${{ matrix.preset }}/Debug'
           $artifacts = @(
-            Get-ChildItem -LiteralPath $binaryDirectory -File -ErrorAction SilentlyContinue |
+            Get-ChildItem -LiteralPath $binaryDirectory -File `
+                -ErrorAction SilentlyContinue |
               Where-Object Extension -In '.exe', '.lib', '.pdb' |
               Sort-Object Name |
               ForEach-Object {

@@ -11,74 +11,84 @@ namespace {
 
 int failures = 0;
 
-void expect_success(const std::string_view source, const std::string_view expected) {
+void expect_success(const std::string_view source,
+                    const std::string_view expected) {
     const auto result = wfc::evaluate_print_statement(source);
-    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
+    if (!result.success || result.output != expected ||
+        !result.diagnostic.empty()) {
         std::cerr << "expected success for [" << source << "] but got ["
                   << result.diagnostic << "]\n";
         ++failures;
     }
 }
 
-void expect_failure(const std::string_view source, const std::string_view code) {
+void expect_failure(const std::string_view source,
+                    const std::string_view code) {
     const auto result = wfc::evaluate_print_statement(source);
-    if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
+    if (result.success || !result.output.empty() ||
+        !result.diagnostic.starts_with(code)) {
         std::cerr << "expected " << code << " for [" << source << "] but got ["
                   << result.diagnostic << "]\n";
         ++failures;
     }
 }
 
-void expect_program_success_vb6_print(
-    const std::string_view source, const std::string_view expected) {
+void expect_program_success_vb6_print(const std::string_view source,
+                                      const std::string_view expected) {
     wfc::EvaluationOptions options;
     options.vb6_print_spacing = true;
     const auto result = wfc::evaluate_program(source, {}, options);
-    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
-        std::cerr << "expected VB6-print success for [" << source << "] but got ["
-                  << result.diagnostic << "] output [" << result.output << "]\n";
+    if (!result.success || result.output != expected ||
+        !result.diagnostic.empty()) {
+        std::cerr << "expected VB6-print success for [" << source
+                  << "] but got [" << result.diagnostic << "] output ["
+                  << result.output << "]\n";
         ++failures;
     }
 }
 
-void expect_program_success(const std::string_view source, const std::string_view expected) {
+void expect_program_success(const std::string_view source,
+                            const std::string_view expected) {
     const auto result = wfc::evaluate_program(source);
-    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
+    if (!result.success || result.output != expected ||
+        !result.diagnostic.empty()) {
         std::cerr << "expected program success for [" << source << "] but got ["
                   << result.diagnostic << "]\n";
         ++failures;
     }
 }
 
-void expect_program_failure(const std::string_view source, const std::string_view code) {
+void expect_program_failure(const std::string_view source,
+                            const std::string_view code) {
     const auto result = wfc::evaluate_program(source);
-    if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
-        std::cerr << "expected " << code << " for program [" << source << "] but got ["
-                  << result.diagnostic << "]\n";
+    if (result.success || !result.output.empty() ||
+        !result.diagnostic.starts_with(code)) {
+        std::cerr << "expected " << code << " for program [" << source
+                  << "] but got [" << result.diagnostic << "]\n";
         ++failures;
     }
 }
 
-void expect_classes_success(
-    const std::vector<wfc::ClassModuleSource>& classes,
-    const std::string_view source,
-    const std::string_view expected) {
+void expect_classes_success(const std::vector<wfc::ClassModuleSource>& classes,
+                            const std::string_view source,
+                            const std::string_view expected) {
     const auto result = wfc::evaluate_program(source, classes);
-    if (!result.success || result.output != expected || !result.diagnostic.empty()) {
-        std::cerr << "expected success for [" << source << "] with classes but got ["
-                  << result.diagnostic << "]\n";
+    if (!result.success || result.output != expected ||
+        !result.diagnostic.empty()) {
+        std::cerr << "expected success for [" << source
+                  << "] with classes but got [" << result.diagnostic << "]\n";
         ++failures;
     }
 }
 
-void expect_classes_failure(
-    const std::vector<wfc::ClassModuleSource>& classes,
-    const std::string_view source,
-    const std::string_view code) {
+void expect_classes_failure(const std::vector<wfc::ClassModuleSource>& classes,
+                            const std::string_view source,
+                            const std::string_view code) {
     const auto result = wfc::evaluate_program(source, classes);
-    if (result.success || !result.output.empty() || !result.diagnostic.starts_with(code)) {
-        std::cerr << "expected " << code << " for [" << source << "] with classes but got ["
-                  << result.diagnostic << "]\n";
+    if (result.success || !result.output.empty() ||
+        !result.diagnostic.starts_with(code)) {
+        std::cerr << "expected " << code << " for [" << source
+                  << "] with classes but got [" << result.diagnostic << "]\n";
         ++failures;
     }
 }
@@ -132,7 +142,8 @@ int main() {
     expect_success("Print InStr(\"\", \"\")", "0");
     expect_success("Print InStr(4, \"abc\", \"a\")", "0");
     expect_success("Print InStr(\"aXbXc\", \"x\")", "0");
-    expect_program_success("Option Compare Text\nPrint InStr(\"aXbXc\", \"x\")", "2");
+    expect_program_success("Option Compare Text\nPrint InStr(\"aXbXc\", \"x\")",
+                           "2");
     expect_success("Print InStrRev(\"abcabc\", \"bc\")", "5");
     expect_success("Print InStrRev(\"abcabc\", \"bc\", 4)", "2");
     expect_success("Print InStrRev(\"abcabc\", \"bc\", 2)", "0");
@@ -143,19 +154,20 @@ int main() {
         "Option Compare Binary\n"
         "Print InStrRev(\"aXbXcX\", \"x\", -1, vbTextCompare)",
         "6");
-    expect_program_success("Option Compare Text\nPrint InStrRev(\"aXbXc\", \"x\")", "4");
+    expect_program_success(
+        "Option Compare Text\nPrint InStrRev(\"aXbXc\", \"x\")", "4");
     expect_success("Print StrComp(\"abc\", \"abc\")", "0");
     expect_success("Print StrComp(\"abc\", \"abd\")", "-1");
     expect_success("Print StrComp(\"abd\", \"abc\")", "1");
     expect_success("Print StrComp(\"abc\", \"ABC\")", "1");
     expect_success("Print StrComp(\"abc\", \"ab\")", "1");
-    expect_program_success("Option Compare Text\nPrint StrComp(\"abc\", \"ABC\")", "0");
+    expect_program_success(
+        "Option Compare Text\nPrint StrComp(\"abc\", \"ABC\")", "0");
     expect_success("Print vbBinaryCompare", "0");
     expect_success("Print vbTextCompare", "1");
     expect_success("Print vbDatabaseCompare", "2");
     expect_program_success(
-        "Const comparison As Long = vbTextCompare\nPrint comparison",
-        "1");
+        "Const comparison As Long = vbTextCompare\nPrint comparison", "1");
     expect_success("Print InStr(1, \"aXbXc\", \"x\", vbTextCompare)", "2");
     expect_program_success(
         "Option Compare Text\n"
@@ -166,14 +178,21 @@ int main() {
     expect_success("Print Replace(\"abcabc\", \"b\", \"X\")", "aXcaXc");
     expect_success("Print Replace(\"aaa\", \"a\", \"bb\")", "bbbbbb");
     expect_success("Print Replace(\"abc\", \"z\", \"Y\")", "abc");
-    expect_success("Print \"[\" & Replace(\"abc\", \"\", \"Y\") & \"]\"", "[abc]");
-    expect_success("Print \"[\" & Replace(\"abab\", \"ab\", \"\") & \"]\"", "[]");
+    expect_success("Print \"[\" & Replace(\"abc\", \"\", \"Y\") & \"]\"",
+                   "[abc]");
+    expect_success("Print \"[\" & Replace(\"abab\", \"ab\", \"\") & \"]\"",
+                   "[]");
     expect_success("Print Replace(\"aXbXc\", \"x\", \"-\")", "aXbXc");
-    expect_program_success("Option Compare Text\nPrint Replace(\"aXbXc\", \"x\", \"-\")", "a-b-c");
-    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8)", "X X");
-    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8, 1)", "X abc");
-    expect_success("Print Replace(\"prefix abc\", \"abc\", \"X\", 8, 0)", "abc");
-    expect_success("Print \"[\" & Replace(\"abc\", \"a\", \"X\", 9) & \"]\"", "[]");
+    expect_program_success(
+        "Option Compare Text\nPrint Replace(\"aXbXc\", \"x\", \"-\")", "a-b-c");
+    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8)",
+                   "X X");
+    expect_success("Print Replace(\"prefix abc abc\", \"abc\", \"X\", 8, 1)",
+                   "X abc");
+    expect_success("Print Replace(\"prefix abc\", \"abc\", \"X\", 8, 0)",
+                   "abc");
+    expect_success("Print \"[\" & Replace(\"abc\", \"a\", \"X\", 9) & \"]\"",
+                   "[]");
     expect_success(
         "Print Replace(\"aXbXc\", \"x\", \"-\", 1, -1, vbTextCompare)",
         "a-b-c");
@@ -190,10 +209,12 @@ int main() {
     expect_success("Print Oct$(0)", "0");
     expect_success("Print Oct(-1)", "177777");
     expect_success("Print Oct(-1&)", "37777777777");
-    expect_success("Print Hex(15.5) & \" \" & Hex(17.5) & \" \" & Oct(7.5)", "10 12 10");
+    expect_success("Print Hex(15.5) & \" \" & Hex(17.5) & \" \" & Oct(7.5)",
+                   "10 12 10");
     expect_success("Print Hex(-1.5) & \" \" & Oct(8.5)", "FFFFFFFE 10");
     expect_success(
-        "Print Hex(\" 15.5 \" ) & \" \" & Hex(\"+17.5\") & \" \" & Oct(\"7.5\")",
+        "Print Hex(\" 15.5 \" ) & \" \" & Hex(\"+17.5\") & \" \" & "
+        "Oct(\"7.5\")",
         "10 12 10");
     expect_success("Print Hex(\"2.55e2\") & \" \" & Oct(\"8e0\")", "FF 10");
     expect_success("Print \"&H\" & Hex(Asc(\"A\"))", "&H41");
@@ -201,8 +222,10 @@ int main() {
     expect_success("Print \"[\" & Str$(-42) & \"]\"", "[-42]");
     expect_success("Print \"[\" & Str(0) & \"]\"", "[ 0]");
     expect_success("Print Len(Str(100))", "4");
-    expect_success("Print \"[\" & Str(2.5) & \"] [\" & Str$(-2.5) & \"]\"", "[ 2.5] [-2.5]");
-    expect_success("Print \"[\" & Str(-0.0) & \"] [\" & Str(1e3) & \"]\"", "[ 0] [ 1000]");
+    expect_success("Print \"[\" & Str(2.5) & \"] [\" & Str$(-2.5) & \"]\"",
+                   "[ 2.5] [-2.5]");
+    expect_success("Print \"[\" & Str(-0.0) & \"] [\" & Str(1e3) & \"]\"",
+                   "[ 0] [ 1000]");
     expect_success("Print Val(\"2457\")", "2457");
     expect_success("Print Val(\" 2 45 7th Street\")", "2457");
     expect_success("Print Val(\"- 42 trailing\")", "-42");
@@ -210,14 +233,20 @@ int main() {
     expect_success("Print Val(\"words 42\")", "0");
     expect_success("Print Val(\"12,345\")", "12");
     expect_success("Print Val(\"   \")", "0");
-    expect_success("Print Val(\"&HFF\") & \" \" & Val(\"&HFFFF\") & \" \" & Val(\"&H10000\")", "255 -1 65536");
+    expect_success(
+        "Print Val(\"&HFF\") & \" \" & Val(\"&HFFFF\") & \" \" & "
+        "Val(\"&H10000\")",
+        "255 -1 65536");
     expect_success("Print Val(\"&O10\") & \" \" & Val(\"&O177777\")", "8 -1");
     expect_success("Print Abs(-42)", "42");
     expect_success("Print Abs(0) + Abs(7)", "7");
-    expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)", "-1 0 1");
+    expect_success("Print Sgn(-42) & \" \" & Sgn(0) & \" \" & Sgn(42)",
+                   "-1 0 1");
     expect_success("Print Abs(Sgn(-100))", "1");
-    expect_success("Print Abs(-2.5) & \" \" & Sgn(-0.25) & \" \" & Sgn(0.0)", "2.5 -1 0");
-    expect_success("Print TypeName(Abs(-2.5)) & \" \" & TypeName(Sgn(-2.5))", "Double Long");
+    expect_success("Print Abs(-2.5) & \" \" & Sgn(-0.25) & \" \" & Sgn(0.0)",
+                   "2.5 -1 0");
+    expect_success("Print TypeName(Abs(-2.5)) & \" \" & TypeName(Sgn(-2.5))",
+                   "Double Long");
     expect_success("Print \"[\" & CStr(42) & \"]\"", "[42]");
     expect_success("Print CStr(True) & \" \" & CStr(False)", "True False");
     expect_success("Print CStr(\"already text\")", "already text");
@@ -226,61 +255,90 @@ int main() {
     expect_success("Print CLng(True) & \" \" & CLng(False)", "-1 0");
     expect_success("Print CLng(\"  -42  \")", "-42");
     expect_success("Print CLng(\"+17\")", "17");
-    expect_success("Print CLng(\"2.5\") & \" \" & CLng(\"3.5\") & \" \" & CLng(\"-2.6e1\")", "2 4 -26");
+    expect_success(
+        "Print CLng(\"2.5\") & \" \" & CLng(\"3.5\") & \" \" & "
+        "CLng(\"-2.6e1\")",
+        "2 4 -26");
     expect_success("Print CLng(CStr(123)) + 1", "124");
-    expect_program_success("Print CBool(True): Print CBool(False)", "True\nFalse");
-    expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)", "True\nFalse\nTrue");
-    expect_program_success("Print CBool(\"1.5\"): Print CBool(\"-2e-3\"): Print CBool(\"0.0\")", "True\nTrue\nFalse");
-    expect_program_success("Print CBool(\" true \"): Print CBool(\"FALSE\")", "True\nFalse");
-    expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")", "True\nFalse");
+    expect_program_success("Print CBool(True): Print CBool(False)",
+                           "True\nFalse");
+    expect_program_success("Print CBool(42): Print CBool(0): Print CBool(-1)",
+                           "True\nFalse\nTrue");
+    expect_program_success(
+        "Print CBool(\"1.5\"): Print CBool(\"-2e-3\"): Print CBool(\"0.0\")",
+        "True\nTrue\nFalse");
+    expect_program_success("Print CBool(\" true \"): Print CBool(\"FALSE\")",
+                           "True\nFalse");
+    expect_program_success("Print CBool(\"-2\"): Print CBool(\"+0\")",
+                           "True\nFalse");
     expect_success("Print CByte(0) & \" \" & CByte(255)", "0 255");
     expect_success("Print CByte(42) + 1", "43");
     expect_success("Print CByte(True) & \" \" & CByte(False)", "255 0");
-    expect_success("Print CByte(2.5) & \" \" & CByte(3.5) & \" \" & CByte(254.6)", "2 4 255");
     expect_success(
-        "Print CByte(\" 2.5 \" ) & \" \" & CByte(\"+3.5\") & \" \" & CByte(\"2.546e2\")",
+        "Print CByte(2.5) & \" \" & CByte(3.5) & \" \" & CByte(254.6)",
         "2 4 255");
     expect_success(
-        "Print TypeName(CVar(42)) & \" \" & TypeName(CVar(2.5)) & \" \" & TypeName(CVar(True)) & \" \" & TypeName(CVar(\"x\"))",
+        "Print CByte(\" 2.5 \" ) & \" \" & CByte(\"+3.5\") & \" \" & "
+        "CByte(\"2.546e2\")",
+        "2 4 255");
+    expect_success(
+        "Print TypeName(CVar(42)) & \" \" & TypeName(CVar(2.5)) & \" \" & "
+        "TypeName(CVar(True)) & \" \" & TypeName(CVar(\"x\"))",
         "Integer Double Boolean String");
     expect_success("Print CVar(42) + 1 & \" \" & CVar(\"value\")", "43 value");
-    expect_success("Print Hex(MacID(\"TEXT\")) & \" \" & Hex(MacID(\"XLS8\"))", "54455854 584C5338");
+    expect_success("Print Hex(MacID(\"TEXT\")) & \" \" & Hex(MacID(\"XLS8\"))",
+                   "54455854 584C5338");
     expect_success("Print MacID(\"ABCD\")", "1094861636");
-    expect_success("Print Error(5) & \" | \" & Error$(11)", "Invalid procedure call or argument | Division by zero");
+    expect_success("Print Error(5) & \" | \" & Error$(11)",
+                   "Invalid procedure call or argument | Division by zero");
     expect_program_success(
-        "Print Error(6): Print Error(7): Print Error(9): Print Error(13): Print Error(28)",
-        "Overflow\nOut of memory\nSubscript out of range\nType mismatch\nOut of stack space");
+        "Print Error(6): Print Error(7): Print Error(9): Print Error(13): "
+        "Print Error(28)",
+        "Overflow\nOut of memory\nSubscript out of range\nType mismatch\nOut "
+        "of stack space");
     expect_program_success(
         "Print Error(53): Print Error(70): Print Error(76): Print Error(91)",
-        "File not found\nPermission denied\nPath not found\nObject variable or With block variable not set");
-    expect_success("Print \"[\" & Error() & \"] [\" & Error(0) & \"]\"", "[] []");
-    expect_success("Print Error(1000)", "Application-defined or object-defined error");
-    expect_success("Print Error(65535)", "Application-defined or object-defined error");
+        "File not found\nPermission denied\nPath not found\nObject variable or "
+        "With block variable not set");
+    expect_success("Print \"[\" & Error() & \"] [\" & Error(0) & \"]\"",
+                   "[] []");
+    expect_success("Print Error(1000)",
+                   "Application-defined or object-defined error");
+    expect_success("Print Error(65535)",
+                   "Application-defined or object-defined error");
     expect_success("Print CInt(-32768) & \" \" & CInt(32767)", "-32768 32767");
     expect_success("Print CInt(True) & \" \" & CInt(False)", "-1 0");
     expect_success("Print CInt(\"  -17  \") & \" \" & CInt(\"+42\")", "-17 42");
     expect_success("Print CInt(CStr(1000)) + 1", "1001");
-    expect_success("Print CInt(\"-2.5\") & \" \" & CInt(\"2.6\") & \" \" & CInt(\"3e2\")", "-2 3 300");
+    expect_success(
+        "Print CInt(\"-2.5\") & \" \" & CInt(\"2.6\") & \" \" & CInt(\"3e2\")",
+        "-2 3 300");
     expect_program_success(
-        "Print IsNumeric(42): Print IsNumeric(True): Print IsNumeric(\"  -17 \")",
+        "Print IsNumeric(42): Print IsNumeric(True): Print IsNumeric(\"  -17 "
+        "\")",
         "True\nTrue\nTrue");
     expect_program_success(
-        "Print IsNumeric(\"\"): Print IsNumeric(\"12x\"): Print IsNumeric(\"abc\")",
+        "Print IsNumeric(\"\"): Print IsNumeric(\"12x\"): Print "
+        "IsNumeric(\"abc\")",
         "False\nFalse\nFalse");
     expect_program_success(
-        "Print IsNumeric(\" -3.14 \"): Print IsNumeric(\"+2e3\"): Print IsNumeric(\".5\")",
+        "Print IsNumeric(\" -3.14 \"): Print IsNumeric(\"+2e3\"): Print "
+        "IsNumeric(\".5\")",
         "True\nTrue\nTrue");
     expect_program_success(
-        "Print IsNumeric(\"1e\"): Print IsNumeric(\"NaN\"): Print IsNumeric(\"+\")",
+        "Print IsNumeric(\"1e\"): Print IsNumeric(\"NaN\"): Print "
+        "IsNumeric(\"+\")",
         "False\nFalse\nFalse");
     expect_success(
         "Print TypeName(42) & \" \" & TypeName(True) & \" \" & TypeName(\"x\")",
         "Integer Boolean String");
-    expect_success("Print TypeName(1 = 1) & \" \" & TypeName(Len(\"ab\"))", "Boolean Long");
+    expect_success("Print TypeName(1 = 1) & \" \" & TypeName(Len(\"ab\"))",
+                   "Boolean Long");
     expect_success(
         "Print VarType(42) & \" \" & VarType(True) & \" \" & VarType(\"x\")",
         "2 11 8");
-    expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString", "3 11 8");
+    expect_success("Print vbLong & \" \" & vbBoolean & \" \" & vbString",
+                   "3 11 8");
     expect_success("Print VarType(\"y\") = vbString", "True");
     expect_success("Print TypeName(3.14) & \" \" & VarType(3.14)", "Double 5");
     expect_success("Print IIf(1 < 2, \"yes\", \"no\")", "yes");
@@ -288,44 +346,66 @@ int main() {
     expect_success("Print IIf(True, 10, 20) + 1", "11");
     expect_success("Print Choose(2, \"a\", \"b\", \"c\")", "b");
     expect_success("Print Choose(1, 10, 20) + Choose(3, 1, 2, 3)", "13");
-    expect_success("Print Switch(1 > 2, \"a\", 2 > 1, \"b\", True, \"c\")", "b");
+    expect_success("Print Switch(1 > 2, \"a\", 2 > 1, \"b\", True, \"c\")",
+                   "b");
     expect_success("Print Switch(False, 1, True, 42) + 1", "43");
-    expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)", "-7 -7 42");
+    expect_success("Print Int(-7) & \" \" & Fix(-7) & \" \" & Int(42)",
+                   "-7 -7 42");
     expect_success("Print Int(Val(\"100\")) + Fix(5)", "105");
-    expect_success("Print Int(2.5) & \" \" & Fix(2.5) & \" \" & Int(-2.5) & \" \" & Fix(-2.5)",
-                   "2 2 -3 -2");
-    expect_success("Print TypeName(Int(2.5)) & \" \" & TypeName(Fix(-2.5))", "Double Double");
-    expect_success("Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
-                   "42 -7 100");
-    expect_success("Print Round(2.5) & \" \" & Round(3.5) & \" \" & Round(-2.5)", "2 4 -2");
-    expect_success("Print Round(1.25, 1) & \" \" & Round(1.35, 1) & \" \" & Round(-1.25, 1)",
-                   "1.2 1.4 -1.2");
-    expect_success("Print TypeName(Round(2.0)) & \" \" & Round(1.234567890123456, 20)",
-                   "Double 1.23456789012346");
-    expect_success("Print Format(42) & \" \" & Format(3.5) & \" \" & Format(\"hi\")",
-                   "42 3.5 hi");
-    expect_program_success("Print Format(True): Print Format(False)", "True\nFalse");
     expect_success(
-        "Print Format(1234.5678, \"General Number\") & \" \" & Format(1234, \"General Number\")",
+        "Print Int(2.5) & \" \" & Fix(2.5) & \" \" & Int(-2.5) & \" \" & "
+        "Fix(-2.5)",
+        "2 2 -3 -2");
+    expect_success("Print TypeName(Int(2.5)) & \" \" & TypeName(Fix(-2.5))",
+                   "Double Double");
+    expect_success(
+        "Print Round(42) & \" \" & Round(-7, 0) & \" \" & Round(100, 3)",
+        "42 -7 100");
+    expect_success(
+        "Print Round(2.5) & \" \" & Round(3.5) & \" \" & Round(-2.5)",
+        "2 4 -2");
+    expect_success(
+        "Print Round(1.25, 1) & \" \" & Round(1.35, 1) & \" \" & Round(-1.25, "
+        "1)",
+        "1.2 1.4 -1.2");
+    expect_success(
+        "Print TypeName(Round(2.0)) & \" \" & Round(1.234567890123456, 20)",
+        "Double 1.23456789012346");
+    expect_success(
+        "Print Format(42) & \" \" & Format(3.5) & \" \" & Format(\"hi\")",
+        "42 3.5 hi");
+    expect_program_success("Print Format(True): Print Format(False)",
+                           "True\nFalse");
+    expect_success(
+        "Print Format(1234.5678, \"General Number\") & \" \" & Format(1234, "
+        "\"General Number\")",
         "1234.5678 1234");
-    expect_success("Print Format(True, \"General Number\") & \" \" & Format(False, \"General Number\")",
-                   "-1 0");
-    expect_success("Print Format(3, \"Fixed\") & \" \" & Format(-3.456, \"Fixed\")",
-                   "3.00 -3.46");
-    expect_success("Print Format(-0.001, \"Fixed\") & \" \" & Format(-0.0, \"Fixed\")",
-                   "0.00 0.00");
     expect_success(
-        "Print Format(1234.5, \"Standard\") & \" \" & Format(-1234567.891, \"Standard\")",
+        "Print Format(True, \"General Number\") & \" \" & Format(False, "
+        "\"General Number\")",
+        "-1 0");
+    expect_success(
+        "Print Format(3, \"Fixed\") & \" \" & Format(-3.456, \"Fixed\")",
+        "3.00 -3.46");
+    expect_success(
+        "Print Format(-0.001, \"Fixed\") & \" \" & Format(-0.0, \"Fixed\")",
+        "0.00 0.00");
+    expect_success(
+        "Print Format(1234.5, \"Standard\") & \" \" & Format(-1234567.891, "
+        "\"Standard\")",
         "1,234.50 -1,234,567.89");
     expect_success("Print Format(100, \"Standard\")", "100.00");
     expect_success(
-        "Print Format(1234.5, \"Currency\") & \" \" & Format(-1234.5, \"Currency\")",
+        "Print Format(1234.5, \"Currency\") & \" \" & Format(-1234.5, "
+        "\"Currency\")",
         "$1,234.50 -$1,234.50");
-    expect_success("Print Format(0, \"Currency\") & \" \" & Format(5, \"currency\")",
-                   "$0.00 $5.00");
+    expect_success(
+        "Print Format(0, \"Currency\") & \" \" & Format(5, \"currency\")",
+        "$0.00 $5.00");
     expect_success("Print Format(0.5, \"Percent\")", "50.00%");
     expect_success(
-        "Print Format(1234.5678, \"Scientific\") & \" \" & Format(0, \"Scientific\") & \" \" & "
+        "Print Format(1234.5678, \"Scientific\") & \" \" & Format(0, "
+        "\"Scientific\") & \" \" & "
         "Format(0.0001234, \"Scientific\")",
         "1.23E+03 0.00E+00 1.23E-04");
     expect_program_success(
@@ -341,9 +421,12 @@ int main() {
     expect_success("Print Format(1234.5, \"0.00\")", "1234.50");
     expect_success("Print Format(1234567.891, \"#,##0.00\")", "1,234,567.89");
     expect_success("Print Format(-42, \"0000\")", "-0042");
-    expect_success("Print Format(1.5, \"0.0#\") & \" \" & Format(1.55, \"0.0#\")", "1.5 1.55");
-    expect_success("Print Format(0, \"0.00\") & \" \" & Format(-0.001, \"0.00\")",
-                   "0.00 0.00");
+    expect_success(
+        "Print Format(1.5, \"0.0#\") & \" \" & Format(1.55, \"0.0#\")",
+        "1.5 1.55");
+    expect_success(
+        "Print Format(0, \"0.00\") & \" \" & Format(-0.001, \"0.00\")",
+        "0.00 0.00");
     expect_success("Print Format(5, \"###0\")", "5");
     expect_success("Print Format(1234.5, \"\")", "1234.5");
     expect_success("Print Format(5, \"Value: 0\")", "Value: 5");
@@ -359,7 +442,8 @@ int main() {
     // its own dedicated section uses its magnitude with no automatic '-'
     // (the section's own literal characters supply any sign).
     expect_success(
-        "Print Format(1234.5, \"0.00;(0.00)\") & \" \" & Format(-1234.5, \"0.00;(0.00)\")",
+        "Print Format(1234.5, \"0.00;(0.00)\") & \" \" & Format(-1234.5, "
+        "\"0.00;(0.00)\")",
         "1234.50 (1234.50)");
     expect_success(
         "Print Format(-5, \"0;-0\") & \" \" & Format(5, \"0;-0\") & \" \" & "
@@ -381,7 +465,8 @@ int main() {
     // the `$1,234,567`/`($1,234,567)` case above): the grouping only
     // counts actual digit positions, not the trailing literal, so it does
     // not shift the group boundaries.
-    expect_success("Print Format(-7654321, \"$#,##0;($#,##0)\")", "($7,654,321)");
+    expect_success("Print Format(-7654321, \"$#,##0;($#,##0)\")",
+                   "($7,654,321)");
     // `\`-escaped picture characters (REQ-0221): the character right after
     // a `\` is always a literal, even when it would otherwise be a digit
     // placeholder, decimal point, grouping comma, or section separator.
@@ -394,7 +479,8 @@ int main() {
     expect_success("Print Format(5, \"0\\.0\")", "0.5");
     expect_success("Print Format(5, \"\\\\0\")", "\\5");
     expect_success(
-        "Print Format(5, \"0\\;0;(0)\") & \" \" & Format(-5, \"0\\;0;(0)\")", "0;5 (5)");
+        "Print Format(5, \"0\\;0;(0)\") & \" \" & Format(-5, \"0\\;0;(0)\")",
+        "0;5 (5)");
     // `"`-quoted literal text (REQ-0222): every character between a pair
     // of `"` is a plain literal, including one of this picture format's
     // own special characters -- the quote delimiters themselves never
@@ -413,36 +499,31 @@ int main() {
     // special handling to appear in the output, since it was never one
     // of this format's own special characters. An escaped `\%` or a
     // quoted `"%"` is a plain literal `%` with no scaling.
-    expect_success("Print Format(0.5, \"0.00%\") & \" \" & Format(-0.256, \"0.0%\")",
-                   "50.00% -25.6%");
-    expect_success("Print Format(0.4, \"0\\%\") & \" \" & Format(0.4, \"0\"\"%\"\"\")",
-                   "0% 0%");
+    expect_success(
+        "Print Format(0.5, \"0.00%\") & \" \" & Format(-0.256, \"0.0%\")",
+        "50.00% -25.6%");
+    expect_success(
+        "Print Format(0.4, \"0\\%\") & \" \" & Format(0.4, \"0\"\"%\"\"\")",
+        "0% 0%");
     expect_success(
         "Print Format(1.5, \"0%;(0%)\") & \" \" & Format(-1.5, \"0%;(0%)\")",
         "150% (150%)");
-    expect_success(
-        "Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
-        "0.7055475 0.533424 0.5795186");
-    expect_program_success(
-        "Print Rnd(): Print Rnd(): Print Rnd(0)",
-        "0.7055475\n0.533424\n0.533424");
+    expect_success("Print Rnd() & \" \" & Rnd() & \" \" & Rnd()",
+                   "0.7055475 0.533424 0.5795186");
+    expect_program_success("Print Rnd(): Print Rnd(): Print Rnd(0)",
+                           "0.7055475\n0.533424\n0.533424");
     expect_success("Print Rnd(0)", "0");
-    expect_success(
-        "Print Rnd(1) & \" \" & Rnd(2) & \" \" & Rnd(3)",
-        "0.7055475 0.533424 0.5795186");
+    expect_success("Print Rnd(1) & \" \" & Rnd(2) & \" \" & Rnd(3)",
+                   "0.7055475 0.533424 0.5795186");
     expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.08105588 0.08105588");
-    expect_program_success(
-        "Print Rnd(-5): Print Rnd(1)",
-        "0.08105588\n0.3073506");
+    expect_program_success("Print Rnd(-5): Print Rnd(1)",
+                           "0.08105588\n0.3073506");
     expect_program_success(
         "Randomize 42\nPrint Rnd()\nPrint Rnd()\nRandomize 42\nPrint Rnd()",
         "0.215606\n0.5267472\n0.215606");
-    expect_program_success(
-        "Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
-        "0.1196129\n0.7612116");
-    expect_program_success(
-        "Randomize\nPrint Rnd() >= 0 And Rnd() < 1",
-        "True");
+    expect_program_success("Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
+                           "0.1196129\n0.7612116");
+    expect_program_success("Randomize\nPrint Rnd() >= 0 And Rnd() < 1", "True");
     expect_success("Print TypeName(Rnd())", "Single");
     // Single literals, declarations, arithmetic promotion, and conversion.
     expect_success("Print 3.5!", "3.5");
@@ -452,27 +533,34 @@ int main() {
     expect_program_success(
         "Dim x As Single: x = 2.5: Print x & \" \" & TypeName(x)",
         "2.5 Single");
-    expect_program_success(
-        "Dim x!: x = 2.5: Print x & \" \" & TypeName(x)",
-        "2.5 Single");
+    expect_program_success("Dim x!: x = 2.5: Print x & \" \" & TypeName(x)",
+                           "2.5 Single");
     expect_program_success(
         "Const pi As Single = 3.14: Print pi & \" \" & TypeName(pi)",
         "3.14 Single");
     expect_program_success(
-        "Dim y As Single\nDim z As Double\ny = 2.5\nz = y\nPrint z & \" \" & TypeName(z)",
+        "Dim y As Single\nDim z As Double\ny = 2.5\nz = y\nPrint z & \" \" & "
+        "TypeName(z)",
         "2.5 Double");
-    expect_success("Print CSng(2.25) & \" \" & TypeName(CSng(2.25))", "2.25 Single");
+    expect_success("Print CSng(2.25) & \" \" & TypeName(CSng(2.25))",
+                   "2.25 Single");
     expect_success("Print TypeName(2.5! + 1)", "Single");
     expect_success("Print TypeName(2.5! + 1.0#)", "Double");
-    expect_success("Print 2.5! + 1.5! & \" \" & TypeName(2.5! + 1.5!)", "4 Single");
+    expect_success("Print 2.5! + 1.5! & \" \" & TypeName(2.5! + 1.5!)",
+                   "4 Single");
     expect_success("Print 5! / 2!", "2.5");
-    expect_success("Print Abs(-3.5!) & \" \" & TypeName(Abs(-3.5!))", "3.5 Single");
-    expect_success("Print Int(-2.5!) & \" \" & TypeName(Int(-2.5!))", "-3 Single");
-    expect_success("Print Fix(-2.5!) & \" \" & TypeName(Fix(-2.5!))", "-2 Single");
+    expect_success("Print Abs(-3.5!) & \" \" & TypeName(Abs(-3.5!))",
+                   "3.5 Single");
+    expect_success("Print Int(-2.5!) & \" \" & TypeName(Int(-2.5!))",
+                   "-3 Single");
+    expect_success("Print Fix(-2.5!) & \" \" & TypeName(Fix(-2.5!))",
+                   "-2 Single");
     expect_success("Print Sgn(-3.5!)", "-1");
-    expect_success("Print Round(2.5!) & \" \" & TypeName(Round(2.5!))", "2 Single");
+    expect_success("Print Round(2.5!) & \" \" & TypeName(Round(2.5!))",
+                   "2 Single");
     expect_success(
-        "Print CLng(3.5!) & \" \" & CInt(3.5!) & \" \" & CByte(3.5!) & \" \" & CDbl(3.5!)",
+        "Print CLng(3.5!) & \" \" & CInt(3.5!) & \" \" & CByte(3.5!) & \" \" & "
+        "CDbl(3.5!)",
         "4 4 4 3.5");
     expect_success("Print CBool(0!)", "False");
     expect_success("Print CStr(3.5!)", "3.5");
@@ -491,14 +579,14 @@ int main() {
     expect_program_success(
         "Dim x As Currency: x = 10.5: Print x & \" \" & TypeName(x)",
         "10.5 Currency");
-    expect_program_success(
-        "Dim x@: x = 10.5: Print x & \" \" & TypeName(x)",
-        "10.5 Currency");
+    expect_program_success("Dim x@: x = 10.5: Print x & \" \" & TypeName(x)",
+                           "10.5 Currency");
     expect_program_success(
         "Const c As Currency = 10.5: Print c & \" \" & TypeName(c)",
         "10.5 Currency");
     expect_program_success(
-        "Dim x As Currency\nDim y As Double\nx = 10.5\ny = x\nPrint y & \" \" & TypeName(y)",
+        "Dim x As Currency\nDim y As Double\nx = 10.5\ny = x\nPrint y & \" \" "
+        "& TypeName(y)",
         "10.5 Double");
     expect_success("Print CCur(5) & \" \" & TypeName(CCur(5))", "5 Currency");
     expect_success("Print CCur(\"10.5\")", "10.5");
@@ -509,16 +597,20 @@ int main() {
     expect_success("Print 10@ / 4@", "2.5");
     expect_success("Print 10@ / 3@", "3.3333");
     expect_success("Print TypeName(5@ + 3)", "Currency");
-    expect_success("Print 5@ + 3.5! & \" \" & TypeName(5@ + 3.5!)", "8.5 Single");
+    expect_success("Print 5@ + 3.5! & \" \" & TypeName(5@ + 3.5!)",
+                   "8.5 Single");
     expect_success("Print 5@ + 3.5 & \" \" & TypeName(5@ + 3.5)", "8.5 Double");
-    expect_success("Print Abs(-5.5@) & \" \" & TypeName(Abs(-5.5@))", "5.5 Currency");
+    expect_success("Print Abs(-5.5@) & \" \" & TypeName(Abs(-5.5@))",
+                   "5.5 Currency");
     expect_success("Print Int(-2.5@) & \" \" & Fix(-2.5@)", "-3 -2");
     expect_success(
         "Print Round(1.2345@, 2) & \" \" & TypeName(Round(1.2345@, 2))",
         "1.23 Currency");
     expect_success("Print CLng(5.5@)", "6");
-    expect_success("Print CDbl(10.5@) & \" \" & TypeName(CDbl(10.5@))", "10.5 Double");
-    expect_success("Print CSng(10.5@) & \" \" & TypeName(CSng(10.5@))", "10.5 Single");
+    expect_success("Print CDbl(10.5@) & \" \" & TypeName(CDbl(10.5@))",
+                   "10.5 Double");
+    expect_success("Print CSng(10.5@) & \" \" & TypeName(CSng(10.5@))",
+                   "10.5 Single");
     expect_success("Print IsNumeric(5@)", "True");
     expect_success("Print CStr(5@)", "5");
     expect_success("Print Str(1.5@)", " 1.5");
@@ -543,13 +635,14 @@ int main() {
     expect_success("Print TypeName(5%) & \" \" & VarType(5%)", "Integer 2");
     expect_program_success(
         "Dim x As Integer: x = 5: Print x & \" \" & TypeName(x)", "5 Integer");
-    expect_program_success(
-        "Dim x%: x = 5: Print x & \" \" & TypeName(x)", "5 Integer");
+    expect_program_success("Dim x%: x = 5: Print x & \" \" & TypeName(x)",
+                           "5 Integer");
     expect_program_success(
         "Const c As Integer = 5: Print c & \" \" & TypeName(c)", "5 Integer");
     expect_program_failure("Dim x As Integer: x = 40000", "WFC0009");
     expect_program_success("Dim x As Integer: x = 3.5: Print x", "4");
-    expect_success("Print TypeName(CInt(5)) & \" \" & VarType(CInt(5))", "Integer 2");
+    expect_success("Print TypeName(CInt(5)) & \" \" & VarType(CInt(5))",
+                   "Integer 2");
     expect_success("Print CInt(\"5\") & \" \" & CInt(3.5!)", "5 4");
     expect_success("Print 5% + 3%", "8");
     expect_success("Print TypeName(5% + 3%)", "Integer");
@@ -563,12 +656,13 @@ int main() {
     expect_success("Print 5% \\ 2% & \" \" & 5% Mod 3%", "2 2");
     expect_success("Print Abs(-5%) & \" \" & TypeName(Abs(-5%))", "5 Integer");
     expect_success("Print Int(-2%) & \" \" & Fix(-2%)", "-2 -2");
-    expect_success(
-        "Print Round(5%) & \" \" & TypeName(Round(5%))", "5 Integer");
+    expect_success("Print Round(5%) & \" \" & TypeName(Round(5%))",
+                   "5 Integer");
     expect_success("Print CLng(5%) & \" \" & TypeName(CLng(5%))", "5 Long");
     expect_success("Print CByte(5%)", "5");
     expect_program_success("Print CBool(0%): Print CBool(5%)", "False\nTrue");
-    expect_success("Print CDbl(5%) & \" \" & CSng(5%) & \" \" & CCur(5%)", "5 5 5");
+    expect_success("Print CDbl(5%) & \" \" & CSng(5%) & \" \" & CCur(5%)",
+                   "5 5 5");
     expect_success("Print CDec(5%)", "5");
     expect_success("Print CStr(5%)", "5");
     expect_success("Print IsNumeric(5%)", "True");
@@ -580,22 +674,27 @@ int main() {
     // Fixed-size one-dimensional arrays: Dim arr(n)/arr(lo To hi), indexed
     // read/write, LBound/UBound, IsArray, TypeName/VarType.
     expect_program_success(
-        "Dim arr(3) As Long\narr(0) = 10\narr(3) = 40\nPrint arr(0) & \" \" & arr(3)",
+        "Dim arr(3) As Long\narr(0) = 10\narr(3) = 40\nPrint arr(0) & \" \" & "
+        "arr(3)",
         "10 40");
     expect_program_success(
         "Dim arr(1 To 5) As String\narr(1) = \"a\"\narr(5) = \"z\"\n"
         "Print arr(1) & arr(5)",
         "az");
     expect_program_success(
-        "Dim arr(-2 To 2) As Long\narr(-2) = 42\nPrint arr(-2) & \" \" & LBound(arr) & "
+        "Dim arr(-2 To 2) As Long\narr(-2) = 42\nPrint arr(-2) & \" \" & "
+        "LBound(arr) & "
         "\" \" & UBound(arr)",
         "42 -2 2");
-    expect_program_success("Dim arr(3) As Long\nPrint CStr(IsArray(arr))", "True");
+    expect_program_success("Dim arr(3) As Long\nPrint CStr(IsArray(arr))",
+                           "True");
     expect_success("Print CStr(IsArray(5))", "False");
     expect_program_success(
-        "Dim arr(3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr)", "Long() 8195");
+        "Dim arr(3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr)",
+        "Long() 8195");
     expect_program_success(
-        "Const n As Long = 3\nDim arr(n) As Long\nDim i As Long\nFor i = 0 To n\n"
+        "Const n As Long = 3\nDim arr(n) As Long\nDim i As Long\nFor i = 0 To "
+        "n\n"
         "arr(i) = i * i\nNext i\nFor i = 0 To n\nPrint arr(i)\nNext i",
         "0\n1\n4\n9");
     expect_program_failure("Dim arr(3) As Long\nPrint arr(4)", "WFC0111");
@@ -613,16 +712,20 @@ int main() {
     expect_program_failure("Dim arr() As Long\narr(0) = 1", "WFC0111");
     expect_program_success(
         "Dim arr() As Long\nReDim arr(3)\narr(0) = 10\narr(3) = 40\n"
-        "Print arr(0) & \" \" & arr(3) & \" \" & LBound(arr) & \" \" & UBound(arr)",
+        "Print arr(0) & \" \" & arr(3) & \" \" & LBound(arr) & \" \" & "
+        "UBound(arr)",
         "10 40 0 3");
     expect_program_success(
-        "Dim arr() As String\nReDim arr(1 To 3)\narr(1) = \"a\"\narr(3) = \"c\"\n"
+        "Dim arr() As String\nReDim arr(1 To 3)\narr(1) = \"a\"\narr(3) = "
+        "\"c\"\n"
         "Print arr(1) & arr(3) & \" \" & LBound(arr) & \" \" & UBound(arr)",
         "ac 1 3");
     expect_program_success(
-        "Dim arr() As Long\nReDim arr(3)\narr(0) = 1\narr(1) = 2\narr(2) = 3\narr(3) = 4\n"
+        "Dim arr() As Long\nReDim arr(3)\narr(0) = 1\narr(1) = 2\narr(2) = "
+        "3\narr(3) = 4\n"
         "ReDim Preserve arr(5)\n"
-        "Print arr(0) & \" \" & arr(3) & \" \" & arr(4) & \" \" & arr(5) & \" \" & UBound(arr)",
+        "Print arr(0) & \" \" & arr(3) & \" \" & arr(4) & \" \" & arr(5) & \" "
+        "\" & UBound(arr)",
         "1 4 0 0 5");
     expect_program_success(
         "Dim arr() As Long\nReDim arr(5)\narr(0) = 1\narr(4) = 5\narr(5) = 6\n"
@@ -630,15 +733,16 @@ int main() {
         "Print arr(0) & \" \" & arr(3) & \" \" & UBound(arr)",
         "1 0 3");
     expect_program_success(
-        "Dim arr() As Long\nReDim arr(3)\narr(2) = 9\nReDim arr(3)\nPrint arr(2)",
+        "Dim arr() As Long\nReDim arr(3)\narr(2) = 9\nReDim arr(3)\nPrint "
+        "arr(2)",
         "0");
-    expect_program_failure(
-        "Dim arr(3) As Long\nReDim arr(5)", "WFC0145");
+    expect_program_failure("Dim arr(3) As Long\nReDim arr(5)", "WFC0145");
     expect_program_failure("Option Explicit\nReDim arr(5)", "WFC0145");
     expect_program_failure("Dim x As Long\nReDim x(5)", "WFC0145");
     expect_program_failure("Dim arr() As Long\nReDim arr(5 To 2)", "WFC0300");
     expect_program_success(
-        "Dim arr() As Long\nIf True Then\nReDim arr(2)\narr(1) = 7\nEnd If\nPrint arr(1)",
+        "Dim arr() As Long\nIf True Then\nReDim arr(2)\narr(1) = 7\nEnd "
+        "If\nPrint arr(1)",
         "7");
     expect_program_success(
         "Dim arr() As Long\nReDim Preserve arr(2)\narr(0) = 5\n"
@@ -655,7 +759,8 @@ int main() {
         "Print a(0) & \" \" & b(0)",
         "0 0");
     expect_program_failure(
-        "Dim arr() As Long\nReDim arr(2)\narr(0) = 5\nErase arr\nPrint UBound(arr)",
+        "Dim arr() As Long\nReDim arr(2)\narr(0) = 5\nErase arr\nPrint "
+        "UBound(arr)",
         "WFC0111");
     expect_program_failure("Dim x As Long\nErase x", "WFC0146");
     expect_program_failure("Erase arr", "WFC0146");
@@ -668,11 +773,13 @@ int main() {
         "For Each x In arr\ntotal = total + x\nNext x\nPrint total",
         "100");
     expect_program_success(
-        "Dim v\nDim arr(2) As String\narr(0) = \"a\"\narr(1) = \"b\"\narr(2) = \"c\"\n"
+        "Dim v\nDim arr(2) As String\narr(0) = \"a\"\narr(1) = \"b\"\narr(2) = "
+        "\"c\"\n"
         "Dim s As String\nFor Each v In arr\ns = s & v\nNext\nPrint s",
         "abc");
     expect_program_success(
-        "Dim x As Long\nDim arr(5) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\n"
+        "Dim x As Long\nDim arr(5) As Long\narr(0) = 1\narr(1) = 2\narr(2) = "
+        "3\n"
         "For Each x In arr\nIf x = 2 Then\nExit For\nEnd If\nNext\nPrint x",
         "2");
     expect_program_success(
@@ -680,7 +787,8 @@ int main() {
         "For Each x In arr\nn = n + 1\nNext\nPrint n",
         "0");
     expect_program_success(
-        "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext", "0\n0\n0");
+        "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext",
+        "0\n0\n0");
     expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0147");
     expect_program_failure("Dim x As Long\nFor Each x 5\nNext", "WFC0147");
     // Multi-dimensional (fixed-size only) arrays: Dim arr(b1, b2, ...),
@@ -689,23 +797,29 @@ int main() {
     // unchanged over the flat element list (REQ-0210).
     expect_program_success(
         "Dim arr(2, 3) As Long\narr(0, 0) = 1\narr(2, 3) = 99\narr(1, 2) = 5\n"
-        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & arr(1, 2) & \" \" & LBound(arr) & "
+        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & arr(1, 2) & \" \" & "
+        "LBound(arr) & "
         "\" \" & UBound(arr) & \" \" & LBound(arr, 2) & \" \" & UBound(arr, 2)",
         "1 99 5 0 2 0 3");
     expect_program_success(
-        "Dim arr(1 To 2, 1 To 3) As String\narr(1, 1) = \"a\"\narr(2, 3) = \"z\"\n"
-        "Print arr(1, 1) & arr(2, 3) & \" \" & LBound(arr) & \" \" & UBound(arr) & "
+        "Dim arr(1 To 2, 1 To 3) As String\narr(1, 1) = \"a\"\narr(2, 3) = "
+        "\"z\"\n"
+        "Print arr(1, 1) & arr(2, 3) & \" \" & LBound(arr) & \" \" & "
+        "UBound(arr) & "
         "\" \" & LBound(arr, 2) & \" \" & UBound(arr, 2)",
         "az 1 2 1 3");
     expect_program_success(
-        "Dim arr(2, 3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr) & \" \" & "
+        "Dim arr(2, 3) As Long\nPrint TypeName(arr) & \" \" & VarType(arr) & "
+        "\" \" & "
         "CStr(IsArray(arr))",
         "Long() 8195 True");
     expect_program_failure("Dim arr(2, 3) As Long\nPrint arr(0, 4)", "WFC0111");
     expect_program_failure("Dim arr(2, 3) As Long\nPrint arr(0)", "WFC0115");
     expect_program_failure("Dim arr(2) As Long\nPrint arr(0, 1)", "WFC0115");
-    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 3)", "WFC0148");
-    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 0)", "WFC0148");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 3)",
+                           "WFC0148");
+    expect_program_failure("Dim arr(2, 3) As Long\nPrint LBound(arr, 0)",
+                           "WFC0148");
     expect_program_success(
         "Dim arr(1, 2) As Long\nDim x As Long\nDim total As Long\n"
         "arr(0, 0) = 1\narr(0, 1) = 2\narr(0, 2) = 3\n"
@@ -713,7 +827,8 @@ int main() {
         "For Each x In arr\ntotal = total + x\nNext\nPrint total",
         "21");
     expect_program_success(
-        "Dim arr(1, 1) As Long\narr(0, 0) = 9\nErase arr\nPrint arr(0, 0) & \" \" & UBound(arr)",
+        "Dim arr(1, 1) As Long\narr(0, 0) = 9\nErase arr\nPrint arr(0, 0) & \" "
+        "\" & UBound(arr)",
         "0 1");
     // Dynamic multi-dimensional arrays (REQ-0219): a plain `Dim arr()`
     // fixes its dimension count on the first ReDim; `Dim arr(,)` (etc.)
@@ -721,22 +836,28 @@ int main() {
     // and ReDim Preserve may only resize the last dimension.
     expect_program_success(
         "Dim arr() As Long\nReDim arr(2, 3)\narr(0, 0) = 1\narr(2, 3) = 9\n"
-        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & UBound(arr) & \" \" & UBound(arr, 2)",
+        "Print arr(0, 0) & \" \" & arr(2, 3) & \" \" & UBound(arr) & \" \" & "
+        "UBound(arr, 2)",
         "1 9 2 3");
     expect_program_success(
         "Dim arr(,) As Long\nReDim arr(1, 1)\narr(1, 1) = 5\nPrint arr(1, 1)",
         "5");
     expect_program_failure("Dim arr(,) As Long\nReDim arr(2)", "WFC0115");
-    // A plain `Dim arr()` may change its dimension count on a non-Preserve ReDim.
+    // A plain `Dim arr()` may change its dimension count on a non-Preserve
+    // ReDim.
     expect_program_success(
-        "Dim arr() As Long\nReDim arr(2, 3)\nReDim arr(5)\narr(5) = 7\nPrint arr(5)", "7");
+        "Dim arr() As Long\nReDim arr(2, 3)\nReDim arr(5)\narr(5) = 7\nPrint "
+        "arr(5)",
+        "7");
     expect_program_failure(
         "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(5)", "WFC0115");
     expect_program_success(
-        "Dim arr() As Long\nReDim arr(1, 2)\narr(0, 0) = 1\narr(0, 1) = 2\narr(0, 2) = 3\n"
+        "Dim arr() As Long\nReDim arr(1, 2)\narr(0, 0) = 1\narr(0, 1) = "
+        "2\narr(0, 2) = 3\n"
         "arr(1, 0) = 4\narr(1, 1) = 5\narr(1, 2) = 6\n"
         "ReDim Preserve arr(1, 4)\n"
-        "Print arr(0, 0) & \" \" & arr(1, 2) & \" \" & arr(1, 3) & \" \" & UBound(arr, 2)",
+        "Print arr(0, 0) & \" \" & arr(1, 2) & \" \" & arr(1, 3) & \" \" & "
+        "UBound(arr, 2)",
         "1 6 0 4");
     expect_program_success(
         "Dim arr() As Long\nReDim arr(1, 3)\narr(0, 0) = 1\narr(1, 3) = 9\n"
@@ -744,7 +865,8 @@ int main() {
         "Print arr(0, 0) & \" \" & UBound(arr, 2)",
         "1 1");
     expect_program_failure(
-        "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(3, 3)", "WFC0151");
+        "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(3, 3)",
+        "WFC0151");
     // Erase on a multi-dimensional dynamic array (REQ-0219 regression):
     // Erase must clear the array's per-dimension bounds along with its
     // elements, not just its elements. Before this fix, a stale
@@ -757,23 +879,29 @@ int main() {
         "Print arr(0, 0)",
         "WFC0111");
     expect_program_success(
-        "Dim arr() As Long\nReDim arr(1, 2)\nErase arr\nReDim arr(3)\nPrint arr(0)", "0");
+        "Dim arr() As Long\nReDim arr(1, 2)\nErase arr\nReDim arr(3)\nPrint "
+        "arr(0)",
+        "0");
     // Array-typed Sub/Function parameters: name() As Type, always ByRef
     // (mutations -- including a ReDim inside the callee -- write back to
     // the caller's array, reusing the existing ByRef bare-identifier
     // write-back mechanism unchanged); a multi-dimensional array binds the
     // same way, keeping its own dimension count (REQ-0211).
     expect_program_success(
-        "Function Total(nums() As Long) As Long\nDim i As Long\nDim s As Long\ns = 0\n"
-        "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nnums(i) = nums(i) * 2\nNext i\n"
+        "Function Total(nums() As Long) As Long\nDim i As Long\nDim s As "
+        "Long\ns = 0\n"
+        "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nnums(i) = "
+        "nums(i) * 2\nNext i\n"
         "Total = s\nEnd Function\n"
         "Dim arr(3) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\narr(3) = 4\n"
-        "Print Total(arr)\nPrint arr(0) & \" \" & arr(1) & \" \" & arr(2) & \" \" & arr(3)",
+        "Print Total(arr)\nPrint arr(0) & \" \" & arr(1) & \" \" & arr(2) & \" "
+        "\" & arr(3)",
         "10\n2 4 6 8");
     expect_program_success(
         "Sub Grow(nums() As Long)\nReDim Preserve nums(UBound(nums) + 1)\n"
         "nums(UBound(nums)) = 99\nEnd Sub\n"
-        "Dim arr() As Long\nReDim arr(1)\narr(0) = 1\narr(1) = 2\nCall Grow(arr)\n"
+        "Dim arr() As Long\nReDim arr(1)\narr(0) = 1\narr(1) = 2\nCall "
+        "Grow(arr)\n"
         "Print arr(0) & \" \" & arr(1) & \" \" & arr(2) & \" \" & UBound(arr)",
         "1 2 99 2");
     expect_program_success(
@@ -781,17 +909,19 @@ int main() {
         "Dim grid(1, 1) As Long\nCall Fill(grid)\nPrint grid(0, 0)",
         "100");
     expect_program_failure(
-        "Sub Foo(nums() As Long)\nEnd Sub\nDim s(2) As String\nCall Foo(s)", "WFC0016");
-    expect_program_failure(
-        "Sub Foo(ByVal nums() As Long)\nEnd Sub", "WFC0149");
-    expect_program_failure(
-        "Sub Foo(Optional nums() As Long)\nEnd Sub", "WFC0149");
+        "Sub Foo(nums() As Long)\nEnd Sub\nDim s(2) As String\nCall Foo(s)",
+        "WFC0016");
+    expect_program_failure("Sub Foo(ByVal nums() As Long)\nEnd Sub", "WFC0149");
+    expect_program_failure("Sub Foo(Optional nums() As Long)\nEnd Sub",
+                           "WFC0149");
     expect_classes_success(
-        {{"Summer", "Public Function Sum(nums() As Long) As Long\n"
-                    "Dim i As Long\nDim s As Long\n"
-                    "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nNext i\n"
-                    "Sum = s\nEnd Function"}},
-        "Dim c As New Summer\nDim arr(2) As Long\narr(0) = 1\narr(1) = 2\narr(2) = 3\n"
+        {{"Summer",
+          "Public Function Sum(nums() As Long) As Long\n"
+          "Dim i As Long\nDim s As Long\n"
+          "For i = LBound(nums) To UBound(nums)\ns = s + nums(i)\nNext i\n"
+          "Sum = s\nEnd Function"}},
+        "Dim c As New Summer\nDim arr(2) As Long\narr(0) = 1\narr(1) = "
+        "2\narr(2) = 3\n"
         "Print c.Sum(arr)",
         "6");
     // Variant- and Object-element arrays: Dim arr(...) As Variant/As
@@ -800,11 +930,13 @@ int main() {
     // (REQ-0212).
     expect_program_success(
         "Dim arr(2) As Variant\narr(0) = 5\narr(1) = \"hello\"\narr(2) = True\n"
-        "Print TypeName(arr(0)) & \" \" & TypeName(arr(1)) & \" \" & TypeName(arr(2)) & "
+        "Print TypeName(arr(0)) & \" \" & TypeName(arr(1)) & \" \" & "
+        "TypeName(arr(2)) & "
         "\" \" & TypeName(arr) & \" \" & VarType(arr)",
         "Integer String Boolean Variant() 8204");
     expect_program_success(
-        "Dim arr(1) As Object\nPrint TypeName(arr) & \" \" & VarType(arr) & \" \" & "
+        "Dim arr(1) As Object\nPrint TypeName(arr) & \" \" & VarType(arr) & \" "
+        "\" & "
         "CStr(arr(0) Is Nothing)",
         "Object() 8201 True");
     expect_classes_success(
@@ -820,23 +952,28 @@ int main() {
     expect_program_success(
         "Dim arr() As Variant\nReDim arr(1)\narr(0) = \"a\"\narr(1) = 2\n"
         "ReDim Preserve arr(3)\n"
-        "Print TypeName(arr(0)) & \" \" & TypeName(arr(2)) & \" \" & TypeName(arr(3))",
+        "Print TypeName(arr(0)) & \" \" & TypeName(arr(2)) & \" \" & "
+        "TypeName(arr(3))",
         "String Empty Empty");
     expect_program_success(
-        "Dim grid(1, 1) As Object\nPrint TypeName(grid) & \" \" & CStr(grid(0, 0) Is Nothing)",
+        "Dim grid(1, 1) As Object\nPrint TypeName(grid) & \" \" & CStr(grid(0, "
+        "0) Is Nothing)",
         "Object() True");
     expect_program_success(
-        "Dim a(1) As Variant\nDim b(1) As Variant\na(0) = 1\nb(0) = 2\na = b\nPrint a(0)",
+        "Dim a(1) As Variant\nDim b(1) As Variant\na(0) = 1\nb(0) = 2\na = "
+        "b\nPrint a(0)",
         "2");
     // Minimal object-reference stub: Nothing, Set, Is, IsObject.
-    expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)", "Nothing 9");
+    expect_success("Print TypeName(Nothing) & \" \" & VarType(Nothing)",
+                   "Nothing 9");
     expect_program_success("Dim x As Object\nPrint CStr(IsObject(x))", "True");
     expect_success("Print CStr(IsObject(5))", "False");
     expect_success("Print CStr(Nothing Is Nothing)", "True");
     expect_program_success(
         "Dim x As Object\nSet x = Nothing\nPrint CStr(x Is Nothing)", "True");
     expect_program_success(
-        "Dim x As Variant\nSet x = Nothing\nPrint TypeName(x) & \" \" & CStr(x Is Nothing)",
+        "Dim x As Variant\nSet x = Nothing\nPrint TypeName(x) & \" \" & CStr(x "
+        "Is Nothing)",
         "Nothing True");
     expect_program_failure("Dim x As Object\nx = Nothing", "WFC0108");
     expect_program_failure("Dim x As Long\nSet x = Nothing", "WFC0109");
@@ -848,11 +985,13 @@ int main() {
     // reference, recursion, ByVal/ByRef parameters, local scope, Exit
     // Sub/Function, and the Call statement.
     expect_program_success(
-        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd Function\n"
+        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd "
+        "Function\n"
         "Print Add(2, 3)",
         "5");
     expect_program_success(
-        "Print Square(5)\n\nFunction Square(x As Long) As Long\nSquare = x * x\n"
+        "Print Square(5)\n\nFunction Square(x As Long) As Long\nSquare = x * "
+        "x\n"
         "End Function",
         "25");
     expect_program_success(
@@ -890,7 +1029,8 @@ int main() {
         "Call Modify()\nPrint \"module: \" & n",
         "local: 99\nmodule: 10");
     expect_program_success(
-        "Function Greet(name As Variant) As String\nGreet = \"Hi \" & name\nEnd Function\n"
+        "Function Greet(name As Variant) As String\nGreet = \"Hi \" & "
+        "name\nEnd Function\n"
         "Print Greet(\"Bob\")\nPrint Greet(5)",
         "Hi Bob\nHi 5");
     expect_program_success(
@@ -898,11 +1038,13 @@ int main() {
         "Print NoReturn()",
         "0");
     expect_program_success(
-        "Sub EarlyExit()\nPrint \"before\"\nExit Sub\nPrint \"after\"\nEnd Sub\n"
+        "Sub EarlyExit()\nPrint \"before\"\nExit Sub\nPrint \"after\"\nEnd "
+        "Sub\n"
         "Call EarlyExit()",
         "before");
     expect_program_success(
-        "Function EarlyExit() As Long\nEarlyExit = 1\nExit Function\nEarlyExit = 2\n"
+        "Function EarlyExit() As Long\nEarlyExit = 1\nExit Function\nEarlyExit "
+        "= 2\n"
         "End Function\nPrint EarlyExit()",
         "1");
     expect_program_success(
@@ -914,61 +1056,69 @@ int main() {
         "If False Then\nPrint Foo()\nEnd If\nPrint \"done\"",
         "done");
     expect_program_success(
-        "Sub Foo()\nDim arr(3) As Long\narr(1) = 42\nPrint arr(1)\nEnd Sub\nCall Foo()",
+        "Sub Foo()\nDim arr(3) As Long\narr(1) = 42\nPrint arr(1)\nEnd "
+        "Sub\nCall Foo()",
         "42");
+    expect_program_failure("Print Foo()\n\nSub Foo()\nPrint \"hi\"\nEnd Sub",
+                           "WFC0122");
     expect_program_failure(
-        "Print Foo()\n\nSub Foo()\nPrint \"hi\"\nEnd Sub", "WFC0122");
-    expect_program_failure(
-        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd Function\n"
+        "Function Add(x As Long, y As Long) As Long\nAdd = x + y\nEnd "
+        "Function\n"
         "Print Add(1)",
         "WFC0072");
-    expect_program_failure(
-        "Sub Foo()\nEnd Sub\nSub Foo()\nEnd Sub", "WFC0119");
+    expect_program_failure("Sub Foo()\nEnd Sub\nSub Foo()\nEnd Sub", "WFC0119");
     expect_program_failure("Call Bar()", "WFC0015");
     expect_program_failure("Exit Sub", "WFC0124");
     expect_program_failure(
-        "Function Foo() As Long\nFoo = 1\nEnd Function\nExit Function", "WFC0125");
+        "Function Foo() As Long\nFoo = 1\nEnd Function\nExit Function",
+        "WFC0125");
     expect_program_failure(
         "Sub Foo(n As Long)\nExit Function\nEnd Sub\nCall Foo(1)", "WFC0125");
     // Class modules: fields, methods, Property Get/Let/Set, New, and Is
     // identity, each supplied as a separate wfc::ClassModuleSource (this
     // evaluator's stand-in for a real VB6 project's separate .cls files).
     expect_classes_success(
-        {{"Counter", "Public value As Long\n\n"
-                     "Sub Increment()\nvalue = value + 1\nEnd Sub\n\n"
-                     "Function GetValue() As Long\nGetValue = value\nEnd Function"}},
-        "Dim c As New Counter\nCall c.Increment()\nCall c.Increment()\nPrint c.GetValue()",
+        {{"Counter",
+          "Public value As Long\n\n"
+          "Sub Increment()\nvalue = value + 1\nEnd Sub\n\n"
+          "Function GetValue() As Long\nGetValue = value\nEnd Function"}},
+        "Dim c As New Counter\nCall c.Increment()\nCall c.Increment()\nPrint "
+        "c.GetValue()",
         "2");
+    expect_classes_success({{"Counter", "Public value As Long"}},
+                           "Dim c As New Counter\nc.value = 5\nPrint c.value & "
+                           "\" \" & TypeName(c) & \" \" & "
+                           "VarType(c) & \" \" & CStr(IsObject(c))",
+                           "5 Counter 9 True");
     expect_classes_success(
-        {{"Counter", "Public value As Long"}},
-        "Dim c As New Counter\nc.value = 5\nPrint c.value & \" \" & TypeName(c) & \" \" & "
-        "VarType(c) & \" \" & CStr(IsObject(c))",
-        "5 Counter 9 True");
-    expect_classes_success(
-        {{"Box", "Public m_value As Long\n\n"
-                 "Property Get Value() As Long\nValue = m_value * 2\nEnd Property\n\n"
-                 "Property Let Value(v As Long)\nm_value = v \\ 2\nEnd Property"}},
+        {{"Box",
+          "Public m_value As Long\n\n"
+          "Property Get Value() As Long\nValue = m_value * 2\nEnd Property\n\n"
+          "Property Let Value(v As Long)\nm_value = v \\ 2\nEnd Property"}},
         "Dim b As New Box\nb.Value = 20\nPrint b.Value & \" \" & b.m_value",
         "20 10");
     expect_classes_success(
-        {{"Box", "Public m_inner As Variant\n\n"
-                 "Property Set Inner(v As Object)\nSet m_inner = v\nEnd Property\n\n"
-                 "Property Get Inner() As Variant\nSet Inner = m_inner\nEnd Property"},
+        {{"Box",
+          "Public m_inner As Variant\n\n"
+          "Property Set Inner(v As Object)\nSet m_inner = v\nEnd Property\n\n"
+          "Property Get Inner() As Variant\nSet Inner = m_inner\nEnd Property"},
          {"Counter", "Public value As Long"}},
         "Dim b As New Box\nDim c As New Counter\nc.value = 5\nSet b.Inner = c\n"
-        "Dim c2 As Counter\nSet c2 = b.Inner\nc2.value = 99\nPrint c.value & \" \" & "
+        "Dim c2 As Counter\nSet c2 = b.Inner\nc2.value = 99\nPrint c.value & "
+        "\" \" & "
         "CStr(c2 Is c)",
         "99 True");
     // A method calling a sibling method of its own class unqualified
     // (including itself, for recursion) -- the implicit-Me equivalent of
     // `Me.Method(...)`.
     expect_classes_success(
-        {{"Calc", "Function Factorial(n As Long) As Long\nIf n <= 1 Then\nFactorial = 1\n"
-                  "Else\nFactorial = n * Factorial(n - 1)\nEnd If\nEnd Function\n\n"
-                  "Function DoubleFactorial(n As Long) As Long\n"
-                  "DoubleFactorial = Factorial(n) * 2\nEnd Function"}},
-        "Dim c As New Calc\nPrint c.DoubleFactorial(5)",
-        "240");
+        {{"Calc",
+          "Function Factorial(n As Long) As Long\nIf n <= 1 Then\nFactorial = "
+          "1\n"
+          "Else\nFactorial = n * Factorial(n - 1)\nEnd If\nEnd Function\n\n"
+          "Function DoubleFactorial(n As Long) As Long\n"
+          "DoubleFactorial = Factorial(n) * 2\nEnd Function"}},
+        "Dim c As New Calc\nPrint c.DoubleFactorial(5)", "240");
     // Nothing (the class-typed-variable default) rejects member access, Set
     // enforces the declared class, and `Is` compares identity.
     expect_classes_success(
@@ -976,53 +1126,61 @@ int main() {
         "Dim c As Counter\nPrint CStr(c Is Nothing)\nDim c2 As New Counter\n"
         "Print CStr(c2 Is New Counter)",
         "True\nFalse");
-    expect_classes_failure(
-        {{"Counter", "Public value As Long"}},
-        "Dim c As Counter\nCall c.Increment()", "WFC0106");
+    expect_classes_failure({{"Counter", "Public value As Long"}},
+                           "Dim c As Counter\nCall c.Increment()", "WFC0106");
     expect_classes_failure({}, "Dim x As New Nope", "WFC0134");
     expect_classes_failure(
         {{"A", "Public v As Long"}, {"B", "Public v As Long"}},
         "Dim a As A\nDim b As New B\nSet a = b", "WFC0137");
-    expect_classes_failure(
-        {{"Foo", "Sub Bar(n As Long)\nEnd Sub"}},
-        "Dim f As New Foo\nCall f.Bar()", "WFC0072");
-    expect_classes_failure(
-        {{"Foo", "Public x As Long\nSub x()\nEnd Sub"}}, "Print \"unused\"", "WFC0128");
-    expect_classes_failure(
-        {{"Foo", "Public x As Long"}}, "Dim f As New Foo\nPrint f.Nope", "WFC0300");
+    expect_classes_failure({{"Foo", "Sub Bar(n As Long)\nEnd Sub"}},
+                           "Dim f As New Foo\nCall f.Bar()", "WFC0072");
+    expect_classes_failure({{"Foo", "Public x As Long\nSub x()\nEnd Sub"}},
+                           "Print \"unused\"", "WFC0128");
+    expect_classes_failure({{"Foo", "Public x As Long"}},
+                           "Dim f As New Foo\nPrint f.Nope", "WFC0300");
     // The Me keyword and the Class_Initialize/Class_Terminate lifecycle
     // hooks. Class_Initialize runs against a fully field-initialized
     // instance at New; Class_Terminate runs when the last reference to an
     // instance is dropped -- via Set (including Set x = Nothing), at the
     // end of a Sub/Function/Property call for that call's own locals, and
     // at the end of the program for any surviving module-level variable.
-    expect_classes_success(
-        {{"Counter", "Public n As Long\n\n"
-                     "Sub Class_Initialize()\nn = 100\nEnd Sub\n\n"
-                     "Sub Bump()\nn = n + 1\nPrint Me.n\nEnd Sub"}},
-        "Dim c As New Counter\nCall c.Bump()\nCall c.Bump()",
-        "101\n102");
+    expect_classes_success({{"Counter",
+                             "Public n As Long\n\n"
+                             "Sub Class_Initialize()\nn = 100\nEnd Sub\n\n"
+                             "Sub Bump()\nn = n + 1\nPrint Me.n\nEnd Sub"}},
+                           "Dim c As New Counter\nCall c.Bump()\nCall c.Bump()",
+                           "101\n102");
     // `As New` creates the object on first use (and not at all if unused).
     expect_classes_success(
-        {{"Foo", "Sub Class_Initialize()\nPrint \"init\"\nEnd Sub\nSub Touch()\nEnd Sub"}},
+        {{"Foo",
+          "Sub Class_Initialize()\nPrint \"init\"\nEnd Sub\nSub Touch()\nEnd "
+          "Sub"}},
         "Dim x As New Foo\nPrint \"before\"\nx.Touch\nPrint \"after\"",
         "before\ninit\nafter");
     expect_classes_success(
-        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"terminated\"\nEnd Sub"}},
-        "Dim x As New Foo\nx.Touch\nPrint \"before\"\nSet x = Nothing\nPrint \"after\"",
+        {{"Foo",
+          "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint "
+          "\"terminated\"\nEnd Sub"}},
+        "Dim x As New Foo\nx.Touch\nPrint \"before\"\nSet x = Nothing\nPrint "
+        "\"after\"",
         "before\nterminated\nafter");
     expect_classes_success(
-        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"local-terminated\"\nEnd Sub"}},
+        {{"Foo",
+          "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint "
+          "\"local-terminated\"\nEnd Sub"}},
         "Sub MakeOne()\nDim x As New Foo\nx.Touch\nPrint \"inside\"\nEnd Sub\n"
         "Call MakeOne()\nPrint \"outside\"",
         "inside\nlocal-terminated\noutside");
     expect_classes_success(
-        {{"Foo", "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint \"program-end-terminated\"\nEnd Sub"}},
+        {{"Foo",
+          "Sub Touch()\nEnd Sub\nSub Class_Terminate()\nPrint "
+          "\"program-end-terminated\"\nEnd Sub"}},
         "Dim x As New Foo\nx.Touch\nPrint \"hi\"",
         "hi\nprogram-end-terminated");
     expect_classes_success(
-        {{"Foo", "Public v As Long\n\n"
-                 "Function GetSelf() As Variant\nSet GetSelf = Me\nEnd Function"}},
+        {{"Foo",
+          "Public v As Long\n\n"
+          "Function GetSelf() As Variant\nSet GetSelf = Me\nEnd Function"}},
         "Dim x As New Foo\nx.v = 7\nDim y As Variant\nSet y = x.GetSelf()\n"
         "Print y.v & \" \" & CStr(y Is x)",
         "7 True");
@@ -1048,29 +1206,31 @@ int main() {
     // (with cross-class forward references resolved regardless of --class
     // order), and indexed Property Get/Let/Set.
     expect_classes_success(
-        {{"Box", "Public m_v As Long\n\n"
-                 "Property Get V() As Long\nV = m_v\nEnd Property\n\n"
-                 "Property Let V(v As Long)\nm_v = v\nEnd Property\n\n"
-                 "Sub SetIt()\nV = 42\nEnd Sub"}},
+        {{"Box",
+          "Public m_v As Long\n\n"
+          "Property Get V() As Long\nV = m_v\nEnd Property\n\n"
+          "Property Let V(v As Long)\nm_v = v\nEnd Property\n\n"
+          "Sub SetIt()\nV = 42\nEnd Sub"}},
         "Dim b As New Box\nb.V = 99\nPrint b.V\nCall b.SetIt()\nPrint b.V",
         "99\n42");
     expect_classes_success(
         {{"Counter", "Public n As Long"},
-         {"Box", "Public m_v As Variant\n\n"
-                 "Property Set V(v As Object)\nSet m_v = v\nEnd Property\n\n"
-                 "Property Get V() As Variant\nSet V = m_v\nEnd Property\n\n"
-                 "Sub Attach()\nSet V = New Counter\nEnd Sub"}},
-        "Dim b As New Box\nCall b.Attach()\nPrint TypeName(b.V)",
-        "Counter");
+         {"Box",
+          "Public m_v As Variant\n\n"
+          "Property Set V(v As Object)\nSet m_v = v\nEnd Property\n\n"
+          "Property Get V() As Variant\nSet V = m_v\nEnd Property\n\n"
+          "Sub Attach()\nSet V = New Counter\nEnd Sub"}},
+        "Dim b As New Box\nCall b.Attach()\nPrint TypeName(b.V)", "Counter");
     expect_classes_success(
-        {{"Counter", "Public n As Long"},
-         {"Holder", "Public c As Counter"}},
+        {{"Counter", "Public n As Long"}, {"Holder", "Public c As Counter"}},
         "Dim h As New Holder\nDim c As New Counter\nc.n = 5\nSet h.c = c\n"
         "Print h.c.n & \" \" & CStr(h.c Is c)",
         "5 True");
-    expect_classes_failure(
-        {{"A", "Public v As Long"}, {"B", "Public v As Long"}, {"Holder", "Public a As A"}},
-        "Dim h As New Holder\nDim b As New B\nSet h.a = b", "WFC0137");
+    expect_classes_failure({{"A", "Public v As Long"},
+                            {"B", "Public v As Long"},
+                            {"Holder", "Public a As A"}},
+                           "Dim h As New Holder\nDim b As New B\nSet h.a = b",
+                           "WFC0137");
     expect_classes_success(
         {{"Counter", "Public n As Long"}, {"Holder", "Public obj As Object"}},
         "Dim h As New Holder\nDim c As New Counter\nSet h.obj = c\n"
@@ -1081,11 +1241,10 @@ int main() {
     // Property Set's own single value parameter to every parameter of
     // every Sub/Function/Property, via the same class-name resolver a
     // class-typed field/return type already uses.
-    expect_classes_success(
-        {{"Counter", "Public n As Long"}},
-        "Sub PrintIt(c As Counter)\nPrint c.n\nEnd Sub\n"
-        "Dim a As New Counter\na.n = 5\nCall PrintIt(a)",
-        "5");
+    expect_classes_success({{"Counter", "Public n As Long"}},
+                           "Sub PrintIt(c As Counter)\nPrint c.n\nEnd Sub\n"
+                           "Dim a As New Counter\na.n = 5\nCall PrintIt(a)",
+                           "5");
     expect_classes_success(
         {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
         "Sub PrintType(o As Object)\nPrint TypeName(o)\nEnd Sub\n"
@@ -1094,14 +1253,17 @@ int main() {
         "Counter\nWidget");
     expect_classes_failure(
         {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
-        "Sub PrintIt(c As Counter)\nEnd Sub\nDim b As New Widget\nCall PrintIt(b)",
+        "Sub PrintIt(c As Counter)\nEnd Sub\nDim b As New Widget\nCall "
+        "PrintIt(b)",
         "WFC0137");
     expect_classes_success(
         {{"Counter", "Public n As Long"},
-         {"Holder", "Private m As Counter\n\n"
-                    "Property Set C(v As Counter)\nSet m = v\nEnd Property\n\n"
-                    "Property Get C() As Counter\nSet C = m\nEnd Property"}},
-        "Dim h As New Holder\nDim a As New Counter\na.n = 42\nSet h.C = a\nPrint h.C.n",
+         {"Holder",
+          "Private m As Counter\n\n"
+          "Property Set C(v As Counter)\nSet m = v\nEnd Property\n\n"
+          "Property Get C() As Counter\nSet C = m\nEnd Property"}},
+        "Dim h As New Holder\nDim a As New Counter\na.n = 42\nSet h.C = "
+        "a\nPrint h.C.n",
         "42");
     // A ByRef object parameter (the default -- no ByVal written) writes
     // back to the caller's own variable when the callee reassigns it, and
@@ -1111,17 +1273,22 @@ int main() {
     // slot with a plain assignment, never checking whether the old value
     // there was an ObjectInstance about to lose its last reference.
     expect_classes_success(
-        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
-                     "End Sub"}},
+        {{"Counter",
+          "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & "
+          "n\n"
+          "End Sub"}},
         "Sub Replace(o As Object)\nSet o = New Counter\no.n = 99\nEnd Sub\n"
-        "Dim a As New Counter\na.n = 1\nCall Replace(a)\nPrint a.n\nSet a = Nothing",
+        "Dim a As New Counter\na.n = 1\nCall Replace(a)\nPrint a.n\nSet a = "
+        "Nothing",
         "terminated 1\n99\nterminated 99");
-    expect_classes_success(
-        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
-                     "End Sub"}},
-        "Sub NoOp(o As Object)\nEnd Sub\n"
-        "Dim a As New Counter\na.n = 7\nCall NoOp(a)\nPrint a.n\nSet a = Nothing",
-        "7\nterminated 7");
+    expect_classes_success({{"Counter",
+                             "Public n As Long\n\nSub Class_Terminate()\nPrint "
+                             "\"terminated \" & n\n"
+                             "End Sub"}},
+                           "Sub NoOp(o As Object)\nEnd Sub\n"
+                           "Dim a As New Counter\na.n = 7\nCall NoOp(a)\nPrint "
+                           "a.n\nSet a = Nothing",
+                           "7\nterminated 7");
     // Optional Object parameter: omitted binds Nothing (not the Boolean
     // fallback `zero_value_for_index` previously gave every object-typed
     // index, a second bug this requirement's own testing found), and an
@@ -1145,40 +1312,44 @@ int main() {
     // even when that member is Private (the sanctioned way to reach it).
     expect_classes_success(
         {{"IShape", "Public Sub Draw()\nEnd Sub"},
-         {"Circle", "Implements IShape\nPublic Radius As Long\n\n"
-                    "Private Sub IShape_Draw()\nPrint \"Circle with radius \" & Radius\n"
-                    "End Sub"},
-         {"Square", "Implements IShape\nPublic Side As Long\n\n"
-                    "Private Sub IShape_Draw()\nPrint \"Square with side \" & Side\n"
-                    "End Sub"}},
-        "Dim s As IShape\nDim c As New Circle\nc.Radius = 5\nSet s = c\nCall s.Draw()\n"
+         {"Circle",
+          "Implements IShape\nPublic Radius As Long\n\n"
+          "Private Sub IShape_Draw()\nPrint \"Circle with radius \" & Radius\n"
+          "End Sub"},
+         {"Square",
+          "Implements IShape\nPublic Side As Long\n\n"
+          "Private Sub IShape_Draw()\nPrint \"Square with side \" & Side\n"
+          "End Sub"}},
+        "Dim s As IShape\nDim c As New Circle\nc.Radius = 5\nSet s = c\nCall "
+        "s.Draw()\n"
         "Dim sq As New Square\nsq.Side = 3\nSet s = sq\nCall s.Draw()",
         "Circle with radius 5\nSquare with side 3");
     expect_classes_success(
         {{"IShape", "Public Sub Draw()\nEnd Sub"},
-         {"Circle", "Implements IShape\n\nPrivate Sub IShape_Draw()\nPrint \"drawing\"\n"
-                    "End Sub"}},
+         {"Circle",
+          "Implements IShape\n\nPrivate Sub IShape_Draw()\nPrint \"drawing\"\n"
+          "End Sub"}},
         "Sub RenderIt(s As IShape)\nCall s.Draw()\nEnd Sub\n"
         "Dim c As New Circle\nCall RenderIt(c)",
         "drawing");
     expect_classes_failure(
         {{"IShape", "Public Sub Draw()\nEnd Sub"},
          {"Circle", "Implements IShape\n\nPrivate Sub IShape_Draw()\nEnd Sub"}},
-        "Dim c As New Circle\nCall c.IShape_Draw()",
-        "WFC0142");
-    expect_classes_failure(
-        {{"IShape", "Public Sub Draw()\nEnd Sub"}, {"Square", "Public n As Long"}},
-        "Dim s As IShape\nDim sq As New Square\nSet s = sq",
-        "WFC0137");
-    expect_classes_failure(
-        {{"Circle", "Implements NoSuchInterface"}}, "Dim c As New Circle", "WFC0134");
+        "Dim c As New Circle\nCall c.IShape_Draw()", "WFC0142");
+    expect_classes_failure({{"IShape", "Public Sub Draw()\nEnd Sub"},
+                            {"Square", "Public n As Long"}},
+                           "Dim s As IShape\nDim sq As New Square\nSet s = sq",
+                           "WFC0137");
+    expect_classes_failure({{"Circle", "Implements NoSuchInterface"}},
+                           "Dim c As New Circle", "WFC0134");
     expect_classes_success(
         {{"IArea", "Public Property Get Area() As Long\nEnd Property"},
          {"IShape", "Public Sub Draw()\nEnd Sub"},
-         {"Circle", "Implements IShape\nImplements IArea\nPublic Radius As Long\n\n"
-                    "Private Sub IShape_Draw()\nPrint \"drawing\"\nEnd Sub\n\n"
-                    "Private Property Get IArea_Area() As Long\n"
-                    "IArea_Area = Radius * Radius\nEnd Property"}},
+         {"Circle",
+          "Implements IShape\nImplements IArea\nPublic Radius As Long\n\n"
+          "Private Sub IShape_Draw()\nPrint \"drawing\"\nEnd Sub\n\n"
+          "Private Property Get IArea_Area() As Long\n"
+          "IArea_Area = Radius * Radius\nEnd Property"}},
         "Dim s As IShape\nDim a As IArea\nDim c As New Circle\nc.Radius = 4\n"
         "Set s = c\nSet a = c\nCall s.Draw()\nPrint a.Area",
         "drawing\n16");
@@ -1194,41 +1365,53 @@ int main() {
     // field is still referenced elsewhere (it correctly does NOT terminate
     // early when a second reference to the field's instance survives).
     expect_classes_success(
-        {{"Inner", "Public tag As Long\n\nSub Class_Terminate()\n"
-                   "Print \"inner terminated \" & tag\nEnd Sub"},
-         {"Outer", "Public i As Inner\n\nSub Class_Terminate()\n"
-                   "Print \"outer terminated\"\nEnd Sub"}},
+        {{"Inner",
+          "Public tag As Long\n\nSub Class_Terminate()\n"
+          "Print \"inner terminated \" & tag\nEnd Sub"},
+         {"Outer",
+          "Public i As Inner\n\nSub Class_Terminate()\n"
+          "Print \"outer terminated\"\nEnd Sub"}},
         "Sub MakeIt()\nDim o As New Outer\nDim n As New Inner\nn.tag = 7\n"
-        "Set o.i = n\nPrint \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint \"after\"",
+        "Set o.i = n\nPrint \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint "
+        "\"after\"",
         "leaving\nouter terminated\ninner terminated 7\nafter");
     expect_classes_success(
-        {{"Inner", "Public tag As Long\n\nSub Class_Terminate()\n"
-                   "Print \"inner terminated \" & tag\nEnd Sub"},
+        {{"Inner",
+          "Public tag As Long\n\nSub Class_Terminate()\n"
+          "Print \"inner terminated \" & tag\nEnd Sub"},
          {"Outer", "Public i As Inner"}},
         "Sub MakeIt()\nDim o As New Outer\nDim n As New Inner\nn.tag = 9\n"
         "Set o.i = n\nSet n = Nothing\nPrint \"leaving\"\nEnd Sub\n"
         "Call MakeIt()\nPrint \"after\"",
         "leaving\ninner terminated 9\nafter");
     expect_classes_success(
-        {{"Deepest", "Sub Class_Terminate()\nPrint \"deepest terminated\"\nEnd Sub"},
-         {"Middle", "Public d As Deepest\n\nSub Class_Terminate()\n"
-                    "Print \"middle terminated\"\nEnd Sub"},
-         {"Top", "Public m As Middle\n\nSub Class_Terminate()\n"
-                 "Print \"top terminated\"\nEnd Sub"}},
-        "Sub MakeIt()\nDim t As New Top\nDim mm As New Middle\nDim dd As New Deepest\n"
+        {{"Deepest",
+          "Sub Class_Terminate()\nPrint \"deepest terminated\"\nEnd Sub"},
+         {"Middle",
+          "Public d As Deepest\n\nSub Class_Terminate()\n"
+          "Print \"middle terminated\"\nEnd Sub"},
+         {"Top",
+          "Public m As Middle\n\nSub Class_Terminate()\n"
+          "Print \"top terminated\"\nEnd Sub"}},
+        "Sub MakeIt()\nDim t As New Top\nDim mm As New Middle\nDim dd As New "
+        "Deepest\n"
         "Set mm.d = dd\nSet dd = Nothing\nSet t.m = mm\nSet mm = Nothing\n"
         "Print \"leaving\"\nEnd Sub\nCall MakeIt()\nPrint \"after\"",
-        "leaving\ntop terminated\nmiddle terminated\ndeepest terminated\nafter");
+        "leaving\ntop terminated\nmiddle terminated\ndeepest "
+        "terminated\nafter");
     // Chained field write (REQ-0235): `o.i.tag = 9` writes through an
     // object-typed field to the referenced instance's own field.
     expect_classes_success(
         {{"Inner", "Public tag As Long"}, {"Outer", "Public i As Inner"}},
-        "Dim o As New Outer\nDim n As New Inner\nSet o.i = n\no.i.tag = 9\nPrint n.tag",
+        "Dim o As New Outer\nDim n As New Inner\nSet o.i = n\no.i.tag = "
+        "9\nPrint n.tag",
         "9");
     // With statement (REQ-0236).
     expect_classes_success(
-        {{"Counter", "Public n As Long\nPublic m As Long\n\nSub Bump()\nn = n + 1\nEnd Sub\n\n"
-                     "Function Dbl() As Long\nDbl = n * 2\nEnd Function"}},
+        {{"Counter",
+          "Public n As Long\nPublic m As Long\n\nSub Bump()\nn = n + 1\nEnd "
+          "Sub\n\n"
+          "Function Dbl() As Long\nDbl = n * 2\nEnd Function"}},
         "Dim c As New Counter\nWith c\n.n = 3\n.m = .n + 4\n.Bump\n"
         "Print .n & \" \" & .m & \" \" & .Dbl()\nEnd With",
         "4 7 8");
@@ -1239,146 +1422,204 @@ int main() {
         "0 5 6");
     // Error handling (REQ-0238).
     expect_program_success(
-        "Sub W2()\nOn Error GoTo h\nDim a As Long\na = 1 / 0\nPrint \"resumed\"\nExit Sub\n"
+        "Sub W2()\nOn Error GoTo h\nDim a As Long\na = 1 / 0\nPrint "
+        "\"resumed\"\nExit Sub\n"
         "h:\nPrint \"caught \" & Err.Description\nResume Next\nEnd Sub\n"
         "Sub Inner()\nDim z As Long\nz = 5 / 0\nEnd Sub\n"
-        "Sub Outer()\nOn Error Resume Next\nInner\nPrint \"outer ok \" & Err.Number\nEnd Sub\n"
+        "Sub Outer()\nOn Error Resume Next\nInner\nPrint \"outer ok \" & "
+        "Err.Number\nEnd Sub\n"
         "Call W2()\nCall Outer()\nDim n As Long\nn = 0\ntop:\nn = n + 1\n"
         "If n < 3 Then GoTo top\nPrint n",
         "caught Division by zero\nresumed\nouter ok 11\n3");
     expect_program_success(
         "On Error Resume Next\nErr.Raise 1000, \"s\", \"boom\"\n"
-        "Print Err.Number & \" \" & Err.Description\nErr.Clear\nPrint Err.Number",
+        "Print Err.Number & \" \" & Err.Description\nErr.Clear\nPrint "
+        "Err.Number",
         "1000 boom\n0");
     expect_program_failure("Dim a As Long\na = 1 / 0", "WFC0008");
     // Array/Split/Join/Filter (REQ-0239).
     expect_program_success(
         "Dim a() As String\na = Split(\"a,b,,c\", \",\")\n"
         "Print UBound(a) & \" \" & a(3) & \"|\" & Join(a, \"-\")\n"
-        "Dim v As Variant\nv = Array(1, \"x\", 3)\nPrint UBound(v) & Join(v, \"+\")\n"
+        "Dim v As Variant\nv = Array(1, \"x\", 3)\nPrint UBound(v) & Join(v, "
+        "\"+\")\n"
         "Print UBound(Split(\"\"))\nDim f() As String\nf = Filter(a, \"b\")\n"
         "Print Join(f, \",\") & UBound(Filter(a, \"b\", False))",
         "3 c|a-b--c\n21+x+3\n-1\nb2");
     // Conditional compilation (REQ-0240).
     expect_program_success(
-        "#Const Debug = True\n#If Debug And Win32 Then\nPrint \"debug\"\n#ElseIf 1 = 1 Then\n"
-        "Print \"no\"\n#Else\nPrint \"else\"\n#End If\n#If Not Debug Then\nPrint \"x\n#End If\nPrint \"end\"",
+        "#Const Debug = True\n#If Debug And Win32 Then\nPrint "
+        "\"debug\"\n#ElseIf 1 = 1 Then\n"
+        "Print \"no\"\n#Else\nPrint \"else\"\n#End If\n#If Not Debug "
+        "Then\nPrint \"x\n#End If\nPrint \"end\"",
         "debug\nend");
     expect_program_failure("#If True Then\nPrint 1", "WFC0310");
     // User-defined types (REQ-0241).
     expect_program_success(
-        "Type Pt\nx As Long\ny As Long\nEnd Type\nType Line2\na As Pt\nb As Pt\nEnd Type\n"
-        "Dim l As Line2\nl.a.x = 5\nl.b = l.a\nl.b.x = 7\nPrint l.a.x & \" \" & l.b.x\n"
+        "Type Pt\nx As Long\ny As Long\nEnd Type\nType Line2\na As Pt\nb As "
+        "Pt\nEnd Type\n"
+        "Dim l As Line2\nl.a.x = 5\nl.b = l.a\nl.b.x = 7\nPrint l.a.x & \" \" "
+        "& l.b.x\n"
         "Dim arr(2) As Pt\narr(1).x = 4\narr(2) = arr(1)\narr(2).x = 8\n"
         "Print arr(1).x & arr(0).x & arr(2).x\n"
-        "Sub Bump(ByVal v As Pt)\nv.x = 100\nEnd Sub\nSub BumpR(v As Pt)\nv.x = 200\nEnd Sub\n"
-        "Dim p As Pt\np.x = 1\nCall Bump(p)\nPrint p.x\nCall BumpR(p)\nPrint p.x",
+        "Sub Bump(ByVal v As Pt)\nv.x = 100\nEnd Sub\nSub BumpR(v As Pt)\nv.x "
+        "= 200\nEnd Sub\n"
+        "Dim p As Pt\np.x = 1\nCall Bump(p)\nPrint p.x\nCall BumpR(p)\nPrint "
+        "p.x",
         "5 7\n408\n1\n200");
     // Date type and functions (REQ-0242).
     expect_program_success(
         "Dim d As Date\nd = #1/15/2000 3:04:05 PM#\nPrint d\n"
         "Print Year(d) & \"-\" & Month(d) & \"-\" & Day(d) & \" \" & Hour(d)\n"
-        "Print Weekday(d) & \" \" & WeekdayName(Weekday(d)) & \" \" & MonthName(Month(d), True)\n"
-        "Print DateAdd(\"m\", 1, #1/31/2000#)\nPrint DateDiff(\"d\", #1/1/2000#, #3/1/2000#)\n"
-        "Print DateSerial(2000, 14, 35)\nPrint #3/1/2000# - #1/1/2000#\nPrint d > #1/1/2000#\n"
-        "Print TypeName(d) & VarType(d)\nPrint Format(d, \"yyyy-mm-dd hh:nn:ss\")\n"
+        "Print Weekday(d) & \" \" & WeekdayName(Weekday(d)) & \" \" & "
+        "MonthName(Month(d), True)\n"
+        "Print DateAdd(\"m\", 1, #1/31/2000#)\nPrint DateDiff(\"d\", "
+        "#1/1/2000#, #3/1/2000#)\n"
+        "Print DateSerial(2000, 14, 35)\nPrint #3/1/2000# - #1/1/2000#\nPrint "
+        "d > #1/1/2000#\n"
+        "Print TypeName(d) & VarType(d)\nPrint Format(d, \"yyyy-mm-dd "
+        "hh:nn:ss\")\n"
         "Print CStr(IsDate(\"13/45/2000\")) & CStr(IsDate(\"1/1/2000\"))",
-        "1/15/2000 3:04:05 PM\n2000-1-15 15\n7 Saturday Jan\n2/29/2000\n60\n3/7/2001\n60\nTrue\n"
+        "1/15/2000 3:04:05 PM\n2000-1-15 15\n7 Saturday "
+        "Jan\n2/29/2000\n60\n3/7/2001\n60\nTrue\n"
         "Date7\n2000-01-15 15:04:05\nFalseTrue");
     // Collection, bare-argument calls, and fixes (REQ-0243).
     expect_program_success(
-        "Dim c As New Collection\nc.Add 10\nc.Add 20, \"b\"\nDim v As Variant\nDim t As Long\n"
-        "For Each v In c\nt = t + v\nNext\nPrint t & \" \" & c.Count & \" \" & c.Item(\"B\")\n"
-        "c.Remove 1\nPrint c.Count & \" \" & c.Item(1)\nOn Error Resume Next\nPrint c.Item(9)\nPrint Err.Number",
+        "Dim c As New Collection\nc.Add 10\nc.Add 20, \"b\"\nDim v As "
+        "Variant\nDim t As Long\n"
+        "For Each v In c\nt = t + v\nNext\nPrint t & \" \" & c.Count & \" \" & "
+        "c.Item(\"B\")\n"
+        "c.Remove 1\nPrint c.Count & \" \" & c.Item(1)\nOn Error Resume "
+        "Next\nPrint c.Item(9)\nPrint Err.Number",
         "30 2 20\n1 20\n9");
     expect_program_success(
-        "Sub Show(x As Long, y As Long)\nPrint x & \",\" & y\nEnd Sub\nShow 5, 6",
+        "Sub Show(x As Long, y As Long)\nPrint x & \",\" & y\nEnd Sub\nShow 5, "
+        "6",
         "5,6");
     expect_program_success(
-        "Function F() As Long\nDim i As Long\nDo While i < 5\nF = 3\nExit Function\nLoop\n"
+        "Function F() As Long\nDim i As Long\nDo While i < 5\nF = 3\nExit "
+        "Function\nLoop\n"
         "End Function\nPrint F()",
         "3");
     // Operators and literals (REQ-0244).
     expect_program_success(
-        "Print 2 ^ 3 ^ 2\nPrint -2 ^ 2\nPrint 7 \\ 2 * 2\nPrint 10 Mod 4 + 1\nPrint 6 And 3\n"
-        "Print 6 Or 1\nPrint 5 Xor 1\nPrint Not 5\nPrint &HFF\nPrint &HFFFF\nPrint &H10000\n"
-        "Print \"ab\" + \"cd\"\nPrint \"a\" & True & 1\nPrint \"abc\" Like \"a*\"\n"
+        "Print 2 ^ 3 ^ 2\nPrint -2 ^ 2\nPrint 7 \\ 2 * 2\nPrint 10 Mod 4 + "
+        "1\nPrint 6 And 3\n"
+        "Print 6 Or 1\nPrint 5 Xor 1\nPrint Not 5\nPrint &HFF\nPrint "
+        "&HFFFF\nPrint &H10000\n"
+        "Print \"ab\" + \"cd\"\nPrint \"a\" & True & 1\nPrint \"abc\" Like "
+        "\"a*\"\n"
         "Print \"a5\" Like \"[a-c]#\"\nPrint \"x\" Like \"[!a-c]\"",
-        "64\n-4\n1\n3\n2\n7\n4\n-6\n255\n-1\n65536\nabcd\naTrue1\nTrue\nTrue\nTrue");
+        "64\n-4\n1\n3\n2\n7\n4\n-6\n255\n-"
+        "1\n65536\nabcd\naTrue1\nTrue\nTrue\nTrue");
     // File I/O and Print lists (REQ-0245).
     {
         const std::string path =
-            (std::filesystem::temp_directory_path() / "wfc_fileio_test.txt").string();
+            (std::filesystem::temp_directory_path() / "wfc_fileio_test.txt")
+                .string();
         expect_program_success(
-            "Dim f As Long\nf = FreeFile\nOpen \"" + path + "\" For Output As #f\n"
-            "Print #f, \"hello\"; \" world\"\nWrite #f, \"q\", 5, True\nClose #f\n"
-            "Open \"" + path + "\" For Input As #1\nDim l As String\nLine Input #1, l\nPrint l\n"
-            "Dim s As String\nDim n As Long\nDim b As Boolean\nInput #1, s, n, b\n"
-            "Print s & n & CStr(b)\nPrint EOF(1)\nClose #1\nKill \"" + path + "\"\n"
-            "Print \"a\"; \"b\", \"c\"\nPrint \"x\";\nPrint \"y\"",
+            "Dim f As Long\nf = FreeFile\nOpen \"" + path +
+                "\" For Output As #f\n"
+                "Print #f, \"hello\"; \" world\"\nWrite #f, \"q\", 5, "
+                "True\nClose #f\n"
+                "Open \"" +
+                path +
+                "\" For Input As #1\nDim l As String\nLine Input #1, l\nPrint "
+                "l\n"
+                "Dim s As String\nDim n As Long\nDim b As Boolean\nInput #1, "
+                "s, n, b\n"
+                "Print s & n & CStr(b)\nPrint EOF(1)\nClose #1\nKill \"" +
+                path +
+                "\"\n"
+                "Print \"a\"; \"b\", \"c\"\nPrint \"x\";\nPrint \"y\"",
             "hello world\nq5True\nTrue\nab            c\nxy");
     }
     // Mid statement, financial, FormatNumber, Partition (REQ-0246).
     expect_program_success(
         "Dim s As String\ns = \"abcdef\"\nMid$(s, 2, 2) = \"XYZ\"\nPrint s\n"
-        "Print Round(Pmt(0.1/12, 360, 100000), 2)\nPrint Round(FV(0.05, 10, -100), 2)\n"
+        "Print Round(Pmt(0.1/12, 360, 100000), 2)\nPrint Round(FV(0.05, 10, "
+        "-100), 2)\n"
         "Print SLN(1000, 100, 9) & \" \" & SYD(1000, 100, 9, 1)\n"
-        "Print FormatNumber(1234.567, 2) & \" \" & FormatCurrency(-1234.5) & \" \" & FormatPercent(0.256, 1)\n"
+        "Print FormatNumber(1234.567, 2) & \" \" & FormatCurrency(-1234.5) & "
+        "\" \" & FormatPercent(0.256, 1)\n"
         "Print Partition(25, 0, 100, 10)\nDebug.Print \"quiet\"\nDoEvents",
-        "aXYdef\n-877.57\n1257.79\n100 180\n1,234.57 ($1,234.50) 25.6%\n 20: 29");
+        "aXYdef\n-877.57\n1257.79\n100 180\n1,234.57 ($1,234.50) 25.6%\n 20: "
+        "29");
     // Byte type (REQ-0247).
     expect_program_success(
-        "Dim b As Byte\nb = 250\nb = b + 5\nPrint b & \" \" & TypeName(b) & VarType(b)\n"
-        "Dim c As Byte\nc = CByte(7)\nPrint c * 3 & \" \" & (c And 5) & \" \" & (Not c) & \" \" & -c\n"
-        "Dim a(2) As Byte\na(1) = 200\nPrint a(1) + a(0) & \" \" & Hex(a(1))\nDim v As Variant\nv = c\nPrint TypeName(v)",
+        "Dim b As Byte\nb = 250\nb = b + 5\nPrint b & \" \" & TypeName(b) & "
+        "VarType(b)\n"
+        "Dim c As Byte\nc = CByte(7)\nPrint c * 3 & \" \" & (c And 5) & \" \" "
+        "& (Not c) & \" \" & -c\n"
+        "Dim a(2) As Byte\na(1) = 200\nPrint a(1) + a(0) & \" \" & "
+        "Hex(a(1))\nDim v As Variant\nv = c\nPrint TypeName(v)",
         "255 Byte17\n21 5 248 -7\n200 C8\nByte");
     expect_program_failure("Dim b As Byte\nb = 255\nb = b + 1", "WFC0009");
     // Declaration forms and program flow (REQ-0248).
     expect_program_success(
-        "Public x As Long, z As Long\nPrivate y As String\nGlobal g As Long\nx = 1: y = \"a\": z = 2: g = 3\n"
-        "Public Const K = 3, L = 4\nPrint x & y & z & g & K & L\nDim i As Long, j As Long\n"
+        "Public x As Long, z As Long\nPrivate y As String\nGlobal g As Long\nx "
+        "= 1: y = \"a\": z = 2: g = 3\n"
+        "Public Const K = 3, L = 4\nPrint x & y & z & g & K & L\nDim i As "
+        "Long, j As Long\n"
         "For i = 1 To 2\nFor j = 1 To 2\nPrint i & j\nNext j, i\n"
         "Dim s As String * 4\ns = \"abcdefg\"\nPrint s & \"|\" & Len(s)\n"
-        "Function F(ParamArray a()) As Long\nDim n As Long, t As Long\nFor n = 0 To UBound(a)\nt = t + a(n)\nNext n\nF = t\nEnd Function\n"
+        "Function F(ParamArray a()) As Long\nDim n As Long, t As Long\nFor n = "
+        "0 To UBound(a)\nt = t + a(n)\nNext n\nF = t\nEnd Function\n"
         "Print F(1, 2, 3)\n"
-        "Sub T()\nGoSub foo\nPrint \"x\"\nExit Sub\nfoo:\nPrint \"sub\"\nReturn\nEnd Sub\nCall T\n"
-        "Sub U()\nDim k As Long\nk = 2\nOn k GoTo a, b\na:\nPrint \"a\"\nb:\nPrint \"b\"\nEnd Sub\nCall U\n"
+        "Sub T()\nGoSub foo\nPrint \"x\"\nExit Sub\nfoo:\nPrint "
+        "\"sub\"\nReturn\nEnd Sub\nCall T\n"
+        "Sub U()\nDim k As Long\nk = 2\nOn k GoTo a, b\na:\nPrint "
+        "\"a\"\nb:\nPrint \"b\"\nEnd Sub\nCall U\n"
         "Print \"end\"\nEnd\nPrint \"never\"",
         "1a2334\n11\n12\n21\n22\nabcd|4\n6\nsub\nx\nb\nend");
     // TypeOf, Error, LSet/RSet, Erl, Command (REQ-0250).
     expect_classes_success(
         {{"A", "Public x As Long"}, {"B", "Public y As Long"}},
-        "Dim o As Object\nSet o = New A\nPrint TypeOf o Is A\nPrint TypeOf o Is B\n"
+        "Dim o As Object\nSet o = New A\nPrint TypeOf o Is A\nPrint TypeOf o "
+        "Is B\n"
         "Set o = Nothing\nPrint TypeOf o Is A\nOn Error Resume Next\nError 11\n"
         "Print Err.Number & \" \" & Err.Description & \" \" & Erl\n"
-        "Dim s As String\ns = \"ab  \"\nRSet s = \"x\"\nPrint \"[\" & s & \"]\"\nLSet s = \"yz\"\nPrint \"[\" & s & \"]\"",
+        "Dim s As String\ns = \"ab  \"\nRSet s = \"x\"\nPrint \"[\" & s & "
+        "\"]\"\nLSet s = \"yz\"\nPrint \"[\" & s & \"]\"",
         "True\nFalse\nFalse\n11 Division by zero 0\n[   x]\n[yz  ]");
     // Class array fields (REQ-0251).
     expect_classes_success(
-        {{"Stack", "Private items() As Long\nPrivate n As Long\nPublic Sub Push(v As Long)\nn = n + 1\n"
-                   "ReDim Preserve items(1 To n)\nitems(n) = v\nEnd Sub\n"
-                   "Public Function Pop() As Long\nPop = items(n)\nn = n - 1\nEnd Function\n"
-                   "Public Property Get Count() As Long\nCount = n\nEnd Property"},
-         {"Grid", "Public cells(1 To 2, 1 To 2) As Long\nPublic names(2) As String"}},
-        "Dim s As New Stack\ns.Push 1\ns.Push 2\nPrint s.Pop() & s.Pop() & s.Count\n"
-        "Dim g As New Grid\ng.cells(2, 1) = 5\ng.names(1) = \"x\"\nPrint g.cells(2, 1) & g.names(1) & UBound(g.names)",
+        {{"Stack",
+          "Private items() As Long\nPrivate n As Long\nPublic Sub Push(v As "
+          "Long)\nn = n + 1\n"
+          "ReDim Preserve items(1 To n)\nitems(n) = v\nEnd Sub\n"
+          "Public Function Pop() As Long\nPop = items(n)\nn = n - 1\nEnd "
+          "Function\n"
+          "Public Property Get Count() As Long\nCount = n\nEnd Property"},
+         {"Grid",
+          "Public cells(1 To 2, 1 To 2) As Long\nPublic names(2) As String"}},
+        "Dim s As New Stack\ns.Push 1\ns.Push 2\nPrint s.Pop() & s.Pop() & "
+        "s.Count\n"
+        "Dim g As New Grid\ng.cells(2, 1) = 5\ng.names(1) = \"x\"\nPrint "
+        "g.cells(2, 1) & g.names(1) & UBound(g.names)",
         "210\n5x2");
     // GoTo inside loops and Case with colon (REQ-0252).
     expect_program_success(
-        "Dim i As Long, total As Long\nDo While i < 10\ni = i + 1\nIf i Mod 2 = 0 Then GoTo skip\ntotal = total + i\n"
-        "skip:\nLoop\nPrint total\nDim j As Long\nFor j = 1 To 5\nIf j = 3 Then GoTo nxt\nPrint j\nnxt:\nNext j\n"
-        "Function Nm(c As Long) As String\nSelect Case c\nCase 1: Nm = \"one\"\nCase Else: Nm = \"many\"\nEnd Select\nEnd Function\n"
+        "Dim i As Long, total As Long\nDo While i < 10\ni = i + 1\nIf i Mod 2 "
+        "= 0 Then GoTo skip\ntotal = total + i\n"
+        "skip:\nLoop\nPrint total\nDim j As Long\nFor j = 1 To 5\nIf j = 3 "
+        "Then GoTo nxt\nPrint j\nnxt:\nNext j\n"
+        "Function Nm(c As Long) As String\nSelect Case c\nCase 1: Nm = "
+        "\"one\"\nCase Else: Nm = \"many\"\nEnd Select\nEnd Function\n"
         "Print Nm(1) & Nm(2)",
         "25\n1\n2\n4\n5\nonemany");
     // Collection default member and UDT ReDim (REQ-0253).
     expect_program_success(
-        "Dim c As New Collection\nc.Add 5\nc.Add \"v\", \"k\"\nPrint c(1) & c(\"k\") & c.Count\n"
-        "Type Pt\nx As Long\nEnd Type\nDim a() As Pt\nReDim a(1 To 2)\na(2).x = 4\nReDim Preserve a(1 To 3)\n"
+        "Dim c As New Collection\nc.Add 5\nc.Add \"v\", \"k\"\nPrint c(1) & "
+        "c(\"k\") & c.Count\n"
+        "Type Pt\nx As Long\nEnd Type\nDim a() As Pt\nReDim a(1 To 2)\na(2).x "
+        "= 4\nReDim Preserve a(1 To 3)\n"
         "a(3).x = 9\nPrint a(2).x & a(3).x & a(1).x",
         "5v2\n490");
     // Decimal declarations (REQ-0254).
     expect_program_success(
-        "Dim d As Decimal\nd = 0.1\nDim e As Decimal\ne = CDec(0.2)\nPrint d + e\nPrint d * 3\n"
+        "Dim d As Decimal\nd = 0.1\nDim e As Decimal\ne = CDec(0.2)\nPrint d + "
+        "e\nPrint d * 3\n"
         "Dim a(1) As Decimal\na(0) = 5\nPrint TypeName(a(0)) & a(0) + 1",
         "0.3\n0.3\nDecimal6");
     // Name and ChDir (REQ-0255).
@@ -1387,46 +1628,67 @@ int main() {
         const std::string from = (base / "wfc_name_a.txt").string();
         const std::string to = (base / "wfc_name_b.txt").string();
         expect_program_success(
-            "Open \"" + from + "\" For Output As #1\nPrint #1, \"x\"\nClose #1\n"
-            "Name \"" + from + "\" As \"" + to + "\"\nDim name As String\nname = \"v\"\n"
-            "Print Dir(\"" + to + "\") <> \"\"\nPrint name\nKill \"" + to + "\"",
+            "Open \"" + from +
+                "\" For Output As #1\nPrint #1, \"x\"\nClose #1\n"
+                "Name \"" +
+                from + "\" As \"" + to +
+                "\"\nDim name As String\nname = \"v\"\n"
+                "Print Dir(\"" +
+                to + "\") <> \"\"\nPrint name\nKill \"" + to + "\"",
             "True\nv");
     }
     // Binary and Random files (REQ-0256).
     {
         const std::string path =
-            (std::filesystem::temp_directory_path() / "wfc_binary_test.dat").string();
+            (std::filesystem::temp_directory_path() / "wfc_binary_test.dat")
+                .string();
         expect_program_success(
-            "Dim a As Long, b As Double, s As String\na = 123456: b = 2.5: s = \"hello\"\n"
-            "Open \"" + path + "\" For Binary As #1\nPut #1, , a\nPut #1, , b\nPut #1, , s\nPrint LOF(1)\n"
-            "Dim a2 As Long, b2 As Double, s2 As String\ns2 = Space(5)\nGet #1, 1, a2\nGet #1, , b2\nGet #1, , s2\n"
-            "Print a2 & \" \" & b2 & \" \" & s2 & \" \" & Seek(1)\nClose #1\n"
-            "Open \"" + path + "\" For Random As #2 Len = 16\nDim n As Long\nn = 10\nPut #2, 1, n\nn = 20\nPut #2, 3, n\n"
-            "Dim r As Long\nGet #2, 3, r\nPrint r\nClose\nKill \"" + path + "\"",
+            "Dim a As Long, b As Double, s As String\na = 123456: b = 2.5: s = "
+            "\"hello\"\n"
+            "Open \"" +
+                path +
+                "\" For Binary As #1\nPut #1, , a\nPut #1, , b\nPut #1, , "
+                "s\nPrint LOF(1)\n"
+                "Dim a2 As Long, b2 As Double, s2 As String\ns2 = "
+                "Space(5)\nGet #1, 1, a2\nGet #1, , b2\nGet #1, , s2\n"
+                "Print a2 & \" \" & b2 & \" \" & s2 & \" \" & Seek(1)\nClose "
+                "#1\n"
+                "Open \"" +
+                path +
+                "\" For Random As #2 Len = 16\nDim n As Long\nn = 10\nPut #2, "
+                "1, n\nn = 20\nPut #2, 3, n\n"
+                "Dim r As Long\nGet #2, 3, r\nPrint r\nClose\nKill \"" +
+                path + "\"",
             "17\n123456 2.5 hello 18\n20");
     }
     // Default members (REQ-0257).
-    expect_classes_success(
-        {{"Lst", "Private a As Long\nPrivate b As Long\nPublic Function Item(i As Long) As Long\n"
-                 "Attribute Item.VB_UserMemId = 0\nIf i = 1 Then Item = a Else Item = b\nEnd Function\n"
-                 "Public Sub Init()\na = 10: b = 20\nEnd Sub"}},
-        "Dim l As New Lst\nl.Init\nPrint l(1) + l(2)",
-        "30");
+    expect_classes_success({{"Lst",
+                             "Private a As Long\nPrivate b As Long\nPublic "
+                             "Function Item(i As Long) As Long\n"
+                             "Attribute Item.VB_UserMemId = 0\nIf i = 1 Then "
+                             "Item = a Else Item = b\nEnd Function\n"
+                             "Public Sub Init()\na = 10: b = 20\nEnd Sub"}},
+                           "Dim l As New Lst\nl.Init\nPrint l(1) + l(2)", "30");
     // CVErr and IsError (REQ-0259).
     expect_program_success(
-        "Function Half(x As Variant) As Variant\nIf x Mod 2 <> 0 Then\nHalf = CVErr(2001)\nElse\nHalf = x / 2\nEnd If\nEnd Function\n"
-        "Dim v As Variant\nv = Half(7)\nPrint IsError(v) & TypeName(v) & VarType(v) & \" \" & CStr(v)\n"
-        "v = Half(8)\nPrint IsError(v) & \" \" & v\nDim e As Variant\ne = CVErr(5)\nPrint e = CVErr(5)",
+        "Function Half(x As Variant) As Variant\nIf x Mod 2 <> 0 Then\nHalf = "
+        "CVErr(2001)\nElse\nHalf = x / 2\nEnd If\nEnd Function\n"
+        "Dim v As Variant\nv = Half(7)\nPrint IsError(v) & TypeName(v) & "
+        "VarType(v) & \" \" & CStr(v)\n"
+        "v = Half(8)\nPrint IsError(v) & \" \" & v\nDim e As Variant\ne = "
+        "CVErr(5)\nPrint e = CVErr(5)",
         "TrueError10 Error 2001\nFalse 4\nTrue");
     // Class-level Const, Enum, Friend (REQ-0260).
-    expect_classes_success(
-        {{"A", "Private Const MAX = 10\nPublic Const NAME = \"n\"\nPublic Enum E\nP = 1\nQ\nEnd Enum\n"
-               "Friend Function M(x As E) As Long\nM = MAX * 2 + Q + x\nEnd Function"}},
-        "Dim a As New A\nPrint a.M(1) & a.NAME",
-        "23n");
+    expect_classes_success({{"A",
+                             "Private Const MAX = 10\nPublic Const NAME = "
+                             "\"n\"\nPublic Enum E\nP = 1\nQ\nEnd Enum\n"
+                             "Friend Function M(x As E) As Long\nM = MAX * 2 + "
+                             "Q + x\nEnd Function"}},
+                           "Dim a As New A\nPrint a.M(1) & a.NAME", "23n");
     // Line continuation (REQ-0261).
     expect_program_success(
-        "Dim s As String\ns = \"a\" & _\n    \"b\" & _\n    \"c _\"\nPrint s\nIf 1 = 1 And _\n   2 = 2 Then\nPrint \"ok\"\nEnd If\n"
+        "Dim s As String\ns = \"a\" & _\n    \"b\" & _\n    \"c _\"\nPrint "
+        "s\nIf 1 = 1 And _\n   2 = 2 Then\nPrint \"ok\"\nEnd If\n"
         "Print \"x\" ' trailing _\nPrint \"y\"",
         "abc _\nok\nx\ny");
     // Robustness: Resume outside a handler is error 20, not an endless loop;
@@ -1436,67 +1698,96 @@ int main() {
     // Interaction and remaining VBA members (REQ-0262).
     expect_program_success(
         "SaveSetting \"app\", \"sec\", \"key\", \"val\"\n"
-        "Print GetSetting(\"app\", \"sec\", \"key\") & GetSetting(\"app\", \"sec\", \"nokey\", \"dflt\")\n"
-        "DeleteSetting \"app\", \"sec\", \"key\"\nPrint GetSetting(\"app\", \"sec\", \"key\", \"gone\")\n"
-        "MsgBox \"hi\"\nPrint MsgBox(\"x\", 1) & \"|\" & InputBox(\"p\", \"t\", \"def\")\n"
-        "Print Round(Rate(48, -200, 8000), 5)\nPrint CVDate(\"1/2/2000\")\nOn Error Resume Next\n"
+        "Print GetSetting(\"app\", \"sec\", \"key\") & GetSetting(\"app\", "
+        "\"sec\", \"nokey\", \"dflt\")\n"
+        "DeleteSetting \"app\", \"sec\", \"key\"\nPrint GetSetting(\"app\", "
+        "\"sec\", \"key\", \"gone\")\n"
+        "MsgBox \"hi\"\nPrint MsgBox(\"x\", 1) & \"|\" & InputBox(\"p\", "
+        "\"t\", \"def\")\n"
+        "Print Round(Rate(48, -200, 8000), 5)\nPrint CVDate(\"1/2/2000\")\nOn "
+        "Error Resume Next\n"
         "Dim o As Object\nSet o = CreateObject(\"x.y\")\nPrint Err.Number",
         "valdflt\ngone\n1|def\n0.0077\n1/2/2000\n429");
     // CallByName (REQ-0263).
     expect_classes_success(
-        {{"A", "Public x As Long\nPrivate p As Long\nPublic Function Add(a As Long, b As Long) As Long\nAdd = a + b + x\nEnd Function\n"
-               "Public Property Let Pp(v As Long)\np = v * 2\nEnd Property\nPublic Property Get Pp() As Long\nPp = p\nEnd Property"}},
-        "Dim o As New A\nPrint CallByName(o, \"Add\", 1, 2, 3)\nCallByName o, \"x\", 4, 10\nPrint CallByName(o, \"x\", 2)\n"
-        "CallByName o, \"Pp\", 4, 5\nPrint CallByName(o, \"Pp\", 2)\nOn Error Resume Next\nPrint CallByName(o, \"Nope\", 1)\nPrint Err.Number",
+        {{"A",
+          "Public x As Long\nPrivate p As Long\nPublic Function Add(a As Long, "
+          "b As Long) As Long\nAdd = a + b + x\nEnd Function\n"
+          "Public Property Let Pp(v As Long)\np = v * 2\nEnd Property\nPublic "
+          "Property Get Pp() As Long\nPp = p\nEnd Property"}},
+        "Dim o As New A\nPrint CallByName(o, \"Add\", 1, 2, 3)\nCallByName o, "
+        "\"x\", 4, 10\nPrint CallByName(o, \"x\", 2)\n"
+        "CallByName o, \"Pp\", 4, 5\nPrint CallByName(o, \"Pp\", 2)\nOn Error "
+        "Resume Next\nPrint CallByName(o, \"Nope\", 1)\nPrint Err.Number",
         "5\n10\n10\n438");
     // String Format (REQ-0264).
     expect_program_success(
-        "Print Format(\"abc\", \">\") & \"|\" & Format(\"ABC\", \"<\") & \"|\" & Format(\"abc\", \"@@@@@\") & \"|\" & "
-        "Format(\"abc\", \"!@@@@@\") & \"|\" & Format(\"5551234\", \"(&&&) &&&-&&&&\")",
+        "Print Format(\"abc\", \">\") & \"|\" & Format(\"ABC\", \"<\") & \"|\" "
+        "& Format(\"abc\", \"@@@@@\") & \"|\" & "
+        "Format(\"abc\", \"!@@@@@\") & \"|\" & Format(\"5551234\", \"(&&&) "
+        "&&&-&&&&\")",
         "ABC|abc|  abc|abc  |() 555-1234");
     // Implicit declaration (REQ-0265).
     expect_program_success(
-        "x = 5\ny$ = \"s\"\nPrint x + 1 & y$\nPrint IsEmpty(neverSet)\nSub S()\nz = 3\nPrint z\nEnd Sub\nCall S",
+        "x = 5\ny$ = \"s\"\nPrint x + 1 & y$\nPrint IsEmpty(neverSet)\nSub "
+        "S()\nz = 3\nPrint z\nEnd Sub\nCall S",
         "6s\nTrue\n3");
     expect_program_failure("Option Explicit\nx = 5", "WFC0015");
     // REQ-0282: VB6 Print number spacing is opt-in.
-    expect_program_success("Print 5, -5\nPrint \"a\"; 7; True", "5             -5\na7True");
-    expect_program_success_vb6_print(
-        "Print 5, -5\nPrint \"a\"; 7; True", " 5            -5 \na 7 True");
+    expect_program_success("Print 5, -5\nPrint \"a\"; 7; True",
+                           "5             -5\na7True");
+    expect_program_success_vb6_print("Print 5, -5\nPrint \"a\"; 7; True",
+                                     " 5            -5 \na 7 True");
     // Declare statements (REQ-0266).
     expect_program_success(
-        "Private Declare Function GetCurrentProcessId Lib \"kernel32\" () As Long\n"
-        "Public Declare PtrSafe Sub MessageBeep Lib \"user32\" (ByVal t As Long)\nOn Error Resume Next\n"
-        "Dim t As Long\nt = GetCurrentProcessId()\nPrint Err.Number\nMessageBeep 10\nPrint Err.Number & \" \" & Err.Description",
+        "Private Declare Function GetCurrentProcessId Lib \"kernel32\" () As "
+        "Long\n"
+        "Public Declare PtrSafe Sub MessageBeep Lib \"user32\" (ByVal t As "
+        "Long)\nOn Error Resume Next\n"
+        "Dim t As Long\nt = GetCurrentProcessId()\nPrint "
+        "Err.Number\nMessageBeep 10\nPrint Err.Number & \" \" & "
+        "Err.Description",
         "453\n453 Specified DLL function not found");
     // UDT arrays, results and Variant copies (REQ-0267).
     expect_program_success(
-        "Type Pt\nx As Long\nEnd Type\nSub Fill(a() As Pt)\nDim i As Long\nFor i = LBound(a) To UBound(a)\na(i).x = i * 10\nNext\nEnd Sub\n"
+        "Type Pt\nx As Long\nEnd Type\nSub Fill(a() As Pt)\nDim i As Long\nFor "
+        "i = LBound(a) To UBound(a)\na(i).x = i * 10\nNext\nEnd Sub\n"
         "Dim p(1 To 3) As Pt\nFill p\nPrint p(2).x\n"
-        "Function Make(v As Long) As Pt\nDim r As Pt\nr.x = v\nMake = r\nEnd Function\nDim q As Pt\nq = Make(7)\nPrint q.x\n"
-        "Dim c As New Collection\nq.x = 3\nc.Add q\nq.x = 9\nDim r As Pt\nr = c(1)\nPrint r.x\n"
+        "Function Make(v As Long) As Pt\nDim r As Pt\nr.x = v\nMake = r\nEnd "
+        "Function\nDim q As Pt\nq = Make(7)\nPrint q.x\n"
+        "Dim c As New Collection\nq.x = 3\nc.Add q\nq.x = 9\nDim r As Pt\nr = "
+        "c(1)\nPrint r.x\n"
         "Dim v As Variant\nv = q\nq.x = 5\nPrint v.x & q.x",
         "20\n7\n3\n95");
     // REQ-0268: Double renders with 15 significant digits, Single with 7;
     // UDT assignment inside a not-taken branch is a no-op, not a mismatch.
     expect_program_success(
-        "Print 1 / 3\nPrint Sqr(2)\nPrint 0.1 + 0.2\nPrint 1E15\nPrint 0.00001\nPrint CSng(1) / 3",
+        "Print 1 / 3\nPrint Sqr(2)\nPrint 0.1 + 0.2\nPrint 1E15\nPrint "
+        "0.00001\nPrint CSng(1) / 3",
         "0.333333333333333\n1.4142135623731\n0.3\n1E+15\n1E-05\n0.3333333");
     expect_program_success(
-        "Type P\nn As Long\nEnd Type\nDim a As P, b As P\na.n = 1\nIf a.n > 5 Then\nb = a\nEnd If\nPrint b.n",
+        "Type P\nn As Long\nEnd Type\nDim a As P, b As P\na.n = 1\nIf a.n > 5 "
+        "Then\nb = a\nEnd If\nPrint b.n",
         "0");
     // Implicit scalar conversions (REQ-0270).
     expect_program_success(
-        "Dim n As Long: n = 10 / 4: Print n\nn = 2.5: Print n\nn = 3.5: Print n\nn = \"12\": Print n\nn = True: Print n\n"
-        "Dim s As String: s = 5: Print s & TypeName(s)\nDim d As Double: d = \"1.5\": Print d\n"
-        "Dim b As Boolean: b = 2: Print b\nDim i As Integer: i = 3.5: Print i\nPrint \"3\" * \"4\" & \" \" & (\"5\" + 10)\n"
-        "On Error Resume Next\nn = \"abc\"\nPrint Err.Number\nn = 3000000000#\nPrint Err.Number",
+        "Dim n As Long: n = 10 / 4: Print n\nn = 2.5: Print n\nn = 3.5: Print "
+        "n\nn = \"12\": Print n\nn = True: Print n\n"
+        "Dim s As String: s = 5: Print s & TypeName(s)\nDim d As Double: d = "
+        "\"1.5\": Print d\n"
+        "Dim b As Boolean: b = 2: Print b\nDim i As Integer: i = 3.5: Print "
+        "i\nPrint \"3\" * \"4\" & \" \" & (\"5\" + 10)\n"
+        "On Error Resume Next\nn = \"abc\"\nPrint Err.Number\nn = "
+        "3000000000#\nPrint Err.Number",
         "2\n2\n4\n12\n-1\n5String\n1.5\nTrue\n4\n12 15\n13\n6");
     // Block declarations and inline If with colons (REQ-0271).
     expect_program_success(
-        "Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint j\n"
-        "Function F(n As Long) As String\nIf n = 0 Then F = \"zero\": Exit Function\nF = \"nonzero\"\nEnd Function\n"
-        "Print F(0) & F(1)\nIf i > 100 Then Print \"a\": Print \"b\" Else Print \"c\": Print \"d\"",
+        "Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint "
+        "j\n"
+        "Function F(n As Long) As String\nIf n = 0 Then F = \"zero\": Exit "
+        "Function\nF = \"nonzero\"\nEnd Function\n"
+        "Print F(0) & F(1)\nIf i > 100 Then Print \"a\": Print \"b\" Else "
+        "Print \"c\": Print \"d\"",
         "6\nzerononzero\nc\nd");
     // Member access on Nothing inside a not-taken If/Else branch
     // (REQ-0229 regression): a plain `Dim o As Object`, `If o Is Nothing
@@ -1512,16 +1803,22 @@ int main() {
         "Dim o As Object\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\n"
         "Print \"have \" & o.n\nEnd If",
         "nothing");
+    expect_classes_success({{"Counter",
+                             "Public n As Long\n\nProperty Let P(v As Long)\nn "
+                             "= v\nEnd Property"}},
+                           "Dim o As Counter\nIf o Is Nothing Then\nPrint "
+                           "\"nothing\"\nElse\no.P = 5\nEnd If",
+                           "nothing");
     expect_classes_success(
-        {{"Counter", "Public n As Long\n\nProperty Let P(v As Long)\nn = v\nEnd Property"}},
-        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\no.P = 5\nEnd If",
+        {{"Counter",
+          "Public n As Long\n\nProperty Set S(v As Object)\nEnd Property"}},
+        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\nSet "
+        "o.S = o\nEnd If",
         "nothing");
     expect_classes_success(
-        {{"Counter", "Public n As Long\n\nProperty Set S(v As Object)\nEnd Property"}},
-        "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\nSet o.S = o\nEnd If",
-        "nothing");
-    expect_classes_success(
-        {{"Counter", "Public n As Long\n\nSub Bump(amount As Long)\nn = n + amount\nEnd Sub"}},
+        {{"Counter",
+          "Public n As Long\n\nSub Bump(amount As Long)\nn = n + amount\nEnd "
+          "Sub"}},
         "Dim o As Counter\nIf o Is Nothing Then\nPrint \"nothing\"\nElse\n"
         "Call o.Bump(1 + 2)\nEnd If",
         "nothing");
@@ -1530,59 +1827,69 @@ int main() {
         // two-pass scan_classes (register every class name, then scan
         // every body) resolves this regardless of --class order.
         {{"Holder", "Public c As Counter"}, {"Counter", "Public n As Long"}},
-        "Dim h As New Holder\nPrint TypeName(h.c) & \" \" & CStr(h.c Is Nothing)",
+        "Dim h As New Holder\nPrint TypeName(h.c) & \" \" & CStr(h.c Is "
+        "Nothing)",
         "Nothing True");
     expect_classes_success(
         {{"Counter", "Public n As Long"}},
         "Function MakeCounter() As Counter\nSet MakeCounter = New Counter\n"
-        "MakeCounter.n = 7\nEnd Function\nDim c As Counter\nSet c = MakeCounter()\n"
+        "MakeCounter.n = 7\nEnd Function\nDim c As Counter\nSet c = "
+        "MakeCounter()\n"
         "Print c.n & \" \" & TypeName(c)",
         "7 Counter");
-    expect_classes_failure(
-        {{"Counter", "Public n As Long"}},
-        "Function MakeCounter() As Counter\nMakeCounter = New Counter\nEnd Function\n"
-        "Print MakeCounter().n",
-        "WFC0108");
+    expect_classes_failure({{"Counter", "Public n As Long"}},
+                           "Function MakeCounter() As Counter\nMakeCounter = "
+                           "New Counter\nEnd Function\n"
+                           "Print MakeCounter().n",
+                           "WFC0108");
     expect_classes_success(
-        {{"Pair", "Public a As Long\nPublic b As Long\n\n"
-                  "Property Get Item(i As Long) As Long\n"
-                  "If i = 0 Then\nItem = a\nElse\nItem = b\nEnd If\nEnd Property\n\n"
-                  "Property Let Item(i As Long, v As Long)\n"
-                  "If i = 0 Then\na = v\nElse\nb = v\nEnd If\nEnd Property"}},
+        {{"Pair",
+          "Public a As Long\nPublic b As Long\n\n"
+          "Property Get Item(i As Long) As Long\n"
+          "If i = 0 Then\nItem = a\nElse\nItem = b\nEnd If\nEnd Property\n\n"
+          "Property Let Item(i As Long, v As Long)\n"
+          "If i = 0 Then\na = v\nElse\nb = v\nEnd If\nEnd Property"}},
         "Dim p As New Pair\np.Item(0) = 10\np.Item(1) = 20\n"
         "Print p.Item(0) & \" \" & p.Item(1)",
         "10 20");
     expect_classes_success(
-        {{"Store", "Public m_v As Variant\n\n"
-                   "Property Set Item(i As Long, v As Object)\nSet m_v = v\nEnd Property\n\n"
-                   "Property Get Item(i As Long) As Variant\nSet Item = m_v\nEnd Property"},
+        {{"Store",
+          "Public m_v As Variant\n\n"
+          "Property Set Item(i As Long, v As Object)\nSet m_v = v\nEnd "
+          "Property\n\n"
+          "Property Get Item(i As Long) As Variant\nSet Item = m_v\nEnd "
+          "Property"},
          {"Counter", "Public n As Long"}},
         "Dim s As New Store\nDim c As New Counter\nc.n = 3\nSet s.Item(0) = c\n"
         "Print s.Item(0).n",
         "3");
     expect_classes_failure(
-        {{"Pair", "Public a As Long\n\n"
-                  "Property Get Item(i As Long) As Long\nItem = a\nEnd Property"}},
+        {{"Pair",
+          "Public a As Long\n\n"
+          "Property Get Item(i As Long) As Long\nItem = a\nEnd Property"}},
         "Dim p As New Pair\nPrint p.Item()", "WFC0072");
     // Optional parameters (with and without a default), ParamArray, Static
     // locals, and Public/Private class-member visibility (REQ-0206).
     expect_program_success(
-        "Function Greet(name As String, Optional greeting As String = \"Hello\") As String\n"
+        "Function Greet(name As String, Optional greeting As String = "
+        "\"Hello\") As String\n"
         "Greet = greeting & \", \" & name\nEnd Function\n"
         "Print Greet(\"World\")\nPrint Greet(\"Bob\", \"Hi\")",
         "Hello, World\nHi, Bob");
     expect_program_success(
-        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd Function\n"
+        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd "
+        "Function\n"
         "Print Add(5)\nPrint Add(5, 10)",
         "5\n15");
     expect_program_failure(
-        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd Function\n"
+        "Function Add(a As Long, Optional b As Long) As Long\nAdd = a + b\nEnd "
+        "Function\n"
         "Print Add()",
         "WFC0072");
-    expect_program_failure(
-        "Sub Foo(Optional a As Long, b As Long)\nEnd Sub", "WFC0140");
-    expect_program_failure(
-        "Sub Foo(Optional a As Long = \"text\")\nEnd Sub", "WFC0016");
+    expect_program_failure("Sub Foo(Optional a As Long, b As Long)\nEnd Sub",
+                           "WFC0140");
+    expect_program_failure("Sub Foo(Optional a As Long = \"text\")\nEnd Sub",
+                           "WFC0016");
     // IsMissing for an omitted Optional Variant argument (REQ-0224): real
     // only for that one case (a required parameter, a non-Variant
     // Optional parameter, or a name that isn't a parameter of the
@@ -1591,28 +1898,33 @@ int main() {
     // requirement).
     expect_program_success(
         "Function Test(Optional x As Variant) As String\n"
-        "If IsMissing(x) Then\nTest = \"missing\"\nElse\nTest = \"have \" & x\nEnd If\n"
+        "If IsMissing(x) Then\nTest = \"missing\"\nElse\nTest = \"have \" & "
+        "x\nEnd If\n"
         "End Function\n"
         "Print Test()\nPrint Test(5)\nPrint Test(\"hi\")",
         "missing\nhave 5\nhave hi");
     expect_program_success(
-        "Function T2(Optional x As Long) As String\nT2 = CStr(IsMissing(x))\nEnd Function\n"
+        "Function T2(Optional x As Long) As String\nT2 = "
+        "CStr(IsMissing(x))\nEnd Function\n"
         "Print T2()\nPrint T2(5)",
         "False\nFalse");
     expect_program_success(
-        "Function T3(y As Variant) As String\nT3 = CStr(IsMissing(y))\nEnd Function\n"
+        "Function T3(y As Variant) As String\nT3 = CStr(IsMissing(y))\nEnd "
+        "Function\n"
         "Print T3(5)",
         "False");
     expect_program_success("Dim v As Variant\nPrint IsMissing(v)", "False");
     expect_program_failure(
-        "Function T4(Optional x As Variant) As String\nT4 = CStr(IsMissing(x, x))\nEnd Function\n"
+        "Function T4(Optional x As Variant) As String\nT4 = CStr(IsMissing(x, "
+        "x))\nEnd Function\n"
         "Print T4()",
         "WFC0072");
     // A Variant Optional parameter *with* an explicit default reports
     // IsMissing = False even when omitted -- real VB6 treats the default
     // as having been supplied, matching REQ-0206's own documented fact.
     expect_program_success(
-        "Function T5(Optional x As Variant = 5) As String\nT5 = CStr(IsMissing(x))\n"
+        "Function T5(Optional x As Variant = 5) As String\nT5 = "
+        "CStr(IsMissing(x))\n"
         "End Function\nPrint T5()\nPrint T5(9)",
         "False\nFalse");
     expect_program_success(
@@ -1632,7 +1944,8 @@ int main() {
     expect_program_failure(
         "Sub Foo(ParamArray nums() As Long, x As Long)\nEnd Sub", "WFC0141");
     expect_program_success(
-        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter "
+        "+ 1\n"
         "NextId = counter\nEnd Function\n"
         "Print NextId()\nPrint NextId()\nPrint NextId()",
         "1\n2\n3");
@@ -1647,16 +1960,21 @@ int main() {
     // (this evaluator previously drained only the module scope at
     // program end, never any procedure's/class-member's own statics).
     expect_classes_success(
-        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
-                     "End Sub"}},
-        "Sub Track(mark As Long)\nStatic v As Variant\nSet v = New Counter\nv.n = mark\n"
+        {{"Counter",
+          "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & "
+          "n\n"
+          "End Sub"}},
+        "Sub Track(mark As Long)\nStatic v As Variant\nSet v = New "
+        "Counter\nv.n = mark\n"
         "Print \"set \" & mark\nEnd Sub\nCall Track(1)\nCall Track(2)",
         "set 1\nset 2\nterminated 1\nterminated 2");
-    expect_classes_success(
-        {{"Counter", "Public n As Long\n\nSub Class_Terminate()\nPrint \"terminated \" & n\n"
-                     "End Sub"}},
-        "Sub Track()\nStatic v As Variant\nSet v = New Counter\nv.n = 9\nEnd Sub\nCall Track()",
-        "terminated 9");
+    expect_classes_success({{"Counter",
+                             "Public n As Long\n\nSub Class_Terminate()\nPrint "
+                             "\"terminated \" & n\n"
+                             "End Sub"}},
+                           "Sub Track()\nStatic v As Variant\nSet v = New "
+                           "Counter\nv.n = 9\nEnd Sub\nCall Track()",
+                           "terminated 9");
     // Static class-typed/generic Object locals and Static arrays
     // (REQ-0231): extends Static beyond the fixed-scalar/Variant forms
     // REQ-0206 originally supported alone. A Static array is always
@@ -1664,18 +1982,20 @@ int main() {
     // its element type must be a fixed scalar (no Variant/Object
     // element). The lifetime fixes REQ-0230 already made apply to a
     // Static class-typed local automatically, with no further code.
-    expect_classes_success(
-        {{"Counter", "Public n As Long"}},
-        "Sub Track(mark As Long)\nStatic v As Counter\nIf v Is Nothing Then\nSet v = New Counter\n"
-        "End If\nv.n = v.n + mark\nPrint v.n\nEnd Sub\n"
-        "Call Track(1)\nCall Track(2)\nCall Track(3)",
-        "1\n3\n6");
+    expect_classes_success({{"Counter", "Public n As Long"}},
+                           "Sub Track(mark As Long)\nStatic v As Counter\nIf v "
+                           "Is Nothing Then\nSet v = New Counter\n"
+                           "End If\nv.n = v.n + mark\nPrint v.n\nEnd Sub\n"
+                           "Call Track(1)\nCall Track(2)\nCall Track(3)",
+                           "1\n3\n6");
     expect_classes_failure(
         {{"Counter", "Public n As Long"}, {"Widget", "Public n As Long"}},
-        "Sub Track()\nStatic v As Counter\nSet v = New Widget\nEnd Sub\nCall Track()",
+        "Sub Track()\nStatic v As Counter\nSet v = New Widget\nEnd Sub\nCall "
+        "Track()",
         "WFC0137");
     expect_program_success(
-        "Sub Track(v As Long)\nStatic history(2) As Long\nStatic count As Long\n"
+        "Sub Track(v As Long)\nStatic history(2) As Long\nStatic count As "
+        "Long\n"
         "history(count) = v\ncount = count + 1\n"
         "Print history(0) & \" \" & history(1) & \" \" & history(2)\nEnd Sub\n"
         "Call Track(10)\nCall Track(20)\nCall Track(30)",
@@ -1687,43 +2007,52 @@ int main() {
     expect_program_failure(
         "Sub Bad()\nStatic arr() As Long\nEnd Sub\nCall Bad()", "WFC0149");
     expect_program_failure(
-        "Sub Bad2()\nStatic arr(2) As Variant\nEnd Sub\nCall Bad2()", "WFC0149");
+        "Sub Bad2()\nStatic arr(2) As Variant\nEnd Sub\nCall Bad2()",
+        "WFC0149");
     expect_classes_success(
-        {{"Foo", "Dim secret As Long\n\n"
-                 "Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
-                 "Function GetSecret() As Long\nGetSecret = secret\nEnd Function"}},
-        "Dim f As New Foo\nCall f.SetSecret(42)\nPrint f.GetSecret()",
-        "42");
+        {{"Foo",
+          "Dim secret As Long\n\n"
+          "Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+          "Function GetSecret() As Long\nGetSecret = secret\nEnd Function"}},
+        "Dim f As New Foo\nCall f.SetSecret(42)\nPrint f.GetSecret()", "42");
     expect_classes_failure(
-        {{"Foo", "Dim secret As Long\nSub SetSecret(v As Long)\nsecret = v\nEnd Sub"}},
+        {{"Foo",
+          "Dim secret As Long\nSub SetSecret(v As Long)\nsecret = v\nEnd Sub"}},
         "Dim f As New Foo\nPrint f.secret", "WFC0142");
     expect_classes_failure(
-        {{"Foo", "Private secret As Long\n\n"
-                 "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
-                 "Private Function Helper() As Long\nHelper = secret * 2\nEnd Function"}},
+        {{"Foo",
+          "Private secret As Long\n\n"
+          "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+          "Private Function Helper() As Long\nHelper = secret * 2\nEnd "
+          "Function"}},
         "Dim f As New Foo\nCall f.SetSecret(10)\nPrint f.Helper()", "WFC0142");
     expect_classes_success(
-        {{"Foo", "Private secret As Long\n\n"
-                 "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
-                 "Private Function Helper() As Long\nHelper = secret * 2\nEnd Function\n\n"
-                 "Public Function DoubleSecret() As Long\nDoubleSecret = Helper()\n"
-                 "End Function"}},
-        "Dim f As New Foo\nCall f.SetSecret(10)\nPrint f.DoubleSecret()",
-        "20");
+        {{"Foo",
+          "Private secret As Long\n\n"
+          "Public Sub SetSecret(v As Long)\nsecret = v\nEnd Sub\n\n"
+          "Private Function Helper() As Long\nHelper = secret * 2\nEnd "
+          "Function\n\n"
+          "Public Function DoubleSecret() As Long\nDoubleSecret = Helper()\n"
+          "End Function"}},
+        "Dim f As New Foo\nCall f.SetSecret(10)\nPrint f.DoubleSecret()", "20");
     expect_classes_success(
         // Private is per-class, not per-instance: a Foo method may reach
         // another Foo instance's private field.
-        {{"Foo", "Private v As Long\nPublic other As Foo\n\n"
-                 "Sub SetV(n As Long)\nv = n\nEnd Sub\n\n"
-                 "Function CompareToOther() As Boolean\n"
-                 "CompareToOther = (v = other.v)\nEnd Function"}},
+        {{"Foo",
+          "Private v As Long\nPublic other As Foo\n\n"
+          "Sub SetV(n As Long)\nv = n\nEnd Sub\n\n"
+          "Function CompareToOther() As Boolean\n"
+          "CompareToOther = (v = other.v)\nEnd Function"}},
         "Dim a As New Foo\nDim b As New Foo\nCall a.SetV(5)\nCall b.SetV(5)\n"
         "Set a.other = b\nPrint a.CompareToOther()",
         "True");
     expect_classes_failure(
         {{"Foo", "Private v As Long\nSub SetV(n As Long)\nv = n\nEnd Sub"},
-         {"Bar", "Public target As Foo\nFunction Peek() As Long\nPeek = target.v\nEnd Function"}},
-        "Dim a As New Foo\nDim b As New Bar\nCall a.SetV(5)\nSet b.target = a\nPrint b.Peek()",
+         {"Bar",
+          "Public target As Foo\nFunction Peek() As Long\nPeek = target.v\nEnd "
+          "Function"}},
+        "Dim a As New Foo\nDim b As New Bar\nCall a.SetV(5)\nSet b.target = "
+        "a\nPrint b.Peek()",
         "WFC0142");
     // Double literals, arithmetic, comparison, and conversion.
     expect_success("Print 3.14", "3.14");
@@ -1734,36 +2063,44 @@ int main() {
     expect_success("Print 2 * 1.5", "3");
     expect_success("Print -3.5", "-3.5");
     expect_success("Print 1e3", "1000");
-    expect_success("Print TypeName(1#) & \" \" & VarType(1#) & \" \" & 1.25#", "Double 5 1.25");
-    expect_success("Print TypeName(42&) & \" \" & VarType(42&) & \" \" & -42&", "Long 3 -42");
+    expect_success("Print TypeName(1#) & \" \" & VarType(1#) & \" \" & 1.25#",
+                   "Double 5 1.25");
+    expect_success("Print TypeName(42&) & \" \" & VarType(42&) & \" \" & -42&",
+                   "Long 3 -42");
     expect_success("Print 2147483648#", "2147483648");
     expect_success("Print 1 & 2", "12");
     expect_success("Print 1.5 & \"!\"", "1.5!");
-    expect_program_success(
-        "Print 1.5 < 2: Print 3.0 = 3: Print 2.5 > 2.5",
-        "True\nTrue\nFalse");
-    expect_success("Print CLng(2.5) & \" \" & CLng(3.5) & \" \" & CLng(3.7)", "2 4 4");
+    expect_program_success("Print 1.5 < 2: Print 3.0 = 3: Print 2.5 > 2.5",
+                           "True\nTrue\nFalse");
+    expect_success("Print CLng(2.5) & \" \" & CLng(3.5) & \" \" & CLng(3.7)",
+                   "2 4 4");
     expect_success("Print CInt(-2.5) & \" \" & CInt(2.6)", "-2 3");
     expect_success("Print CStr(3.5) & \" \" & CStr(2.0)", "3.5 2");
-    expect_program_success("Print IsNumeric(3.14): Print CBool(1.5)", "True\nTrue");
-    expect_success("Print CDbl(3) & \" \" & CDbl(\"2.5\") & \" \" & CDbl(\"+1.5\")",
-                   "3 2.5 1.5");
-    expect_success("Print CDbl(\"  -1.5  \") + 0.5 & \" \" & CDbl(True)", "-1 -1");
+    expect_program_success("Print IsNumeric(3.14): Print CBool(1.5)",
+                           "True\nTrue");
+    expect_success(
+        "Print CDbl(3) & \" \" & CDbl(\"2.5\") & \" \" & CDbl(\"+1.5\")",
+        "3 2.5 1.5");
+    expect_success("Print CDbl(\"  -1.5  \") + 0.5 & \" \" & CDbl(True)",
+                   "-1 -1");
     expect_success("Print CSng(2.25) + CSng(0.5)", "2.75");
     expect_success("Print CLng(CDbl(\"3.5\"))", "4");
     // Floating-point math functions.
     expect_success("Print Sqr(9) & \" \" & Sqr(0.25)", "3 0.5");
     expect_success("Print Exp(0) & \" \" & Log(1)", "1 0");
-    expect_program_success("Print Sin(0): Print Cos(0): Print Tan(0)", "0\n1\n0");
+    expect_program_success("Print Sin(0): Print Cos(0): Print Tan(0)",
+                           "0\n1\n0");
     expect_success("Print CLng(Atn(1) * 4 * 1000000)", "3141593");
     expect_success("Print CLng(Log(Exp(3)))", "3");
     // Integer-division operators round Double operands (banker's rounding).
-    expect_success("Print 5.0 \\ 2 & \" \" & 7.5 \\ 2 & \" \" & 5.5 Mod 2", "2 4 0");
+    expect_success("Print 5.0 \\ 2 & \" \" & 7.5 \\ 2 & \" \" & 5.5 Mod 2",
+                   "2 4 0");
     expect_program_failure("Print \"x\" \\ 2", "WFC0007");
     expect_success("Print AscW(\"A\") & \" \" & ChrW(66)", "65 B");
     expect_success("Print ChrW(AscW(\"z\"))", "z");
-    expect_success("Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
-                   "6 65 B");
+    expect_success(
+        "Print LenB(\"WFC\") & \" \" & AscB(\"A\") & \" \" & ChrB(66)",
+        "6 65 B");
     expect_success("Print AscB(ChrB(255)) & \" \" & LenB(ChrB$(0))", "255 1");
     expect_success(
         "Print LeftB(\"WFC\", 2) & \" \" & RightB$(\"WFC\", 2) & \" \" & "
@@ -1772,17 +2109,20 @@ int main() {
         "W C 0 3 1 1");
     expect_success("Print AscB(LeftB(ChrB(255) & \"x\", 1))", "255");
     expect_success(
-        "Print StrConv(\"aBc\", vbUpperCase) & \" \" & StrConv(\"aBc\", vbLowerCase)",
+        "Print StrConv(\"aBc\", vbUpperCase) & \" \" & StrConv(\"aBc\", "
+        "vbLowerCase)",
         "ABC abc");
-    expect_success(
-        "Print StrConv(\"the quICK fox\", vbProperCase)", "The Quick Fox");
+    expect_success("Print StrConv(\"the quICK fox\", vbProperCase)",
+                   "The Quick Fox");
     expect_success("Print StrConv(\"ab1cd\", 3)", "Ab1Cd");
-    expect_success("Print vbTrue & \" \" & vbFalse & \" \" & vbUseDefault", "-1 0 -2");
+    expect_success("Print vbTrue & \" \" & vbFalse & \" \" & vbUseDefault",
+                   "-1 0 -2");
     expect_success(
         "Print vbMethod & \" \" & vbGet & \" \" & vbLet & \" \" & vbSet",
         "1 2 4 8");
     expect_success(
-        "Print vbReadOnly & \" \" & vbHidden & \" \" & vbDirectory & \" \" & vbArchive",
+        "Print vbReadOnly & \" \" & vbHidden & \" \" & vbDirectory & \" \" & "
+        "vbArchive",
         "1 2 16 32");
     expect_success("Print vbYes & \" \" & vbNo & \" \" & vbCancel", "6 7 2");
     expect_success(
@@ -1803,11 +2143,13 @@ int main() {
         "AscB(vbNullChar)",
         "9 13 10 0");
     expect_success(
-        "Print Len(vbCrLf) & \" \" & Len(vbNewLine) & \" \" & Len(vbNullString)",
+        "Print Len(vbCrLf) & \" \" & Len(vbNewLine) & \" \" & "
+        "Len(vbNullString)",
         "2 2 0");
     expect_success("Print vbObjectError", "-2147221504");
     expect_success(
-        "Print vbEmpty & \" \" & vbInteger & \" \" & vbDouble & \" \" & vbByte & "
+        "Print vbEmpty & \" \" & vbInteger & \" \" & vbDouble & \" \" & vbByte "
+        "& "
         "\" \" & vbArray",
         "0 2 5 17 8192");
     expect_success("Print VarType(42) = vbInteger", "True");
@@ -1819,12 +2161,15 @@ int main() {
         "Print IsArray(42): Print IsObject(\"x\"): Print IsNull(0)",
         "False\nFalse\nFalse");
     expect_program_success(
-        "Dim v As Variant\nPrint IsEmpty(1): Print IsError(True): Print IsMissing(v)",
+        "Dim v As Variant\nPrint IsEmpty(1): Print IsError(True): Print "
+        "IsMissing(v)",
         "False\nFalse\nFalse");
-    expect_success("Print RGB(255, 0, 0) & \" \" & RGB(0, 0, 255)", "255 16711680");
+    expect_success("Print RGB(255, 0, 0) & \" \" & RGB(0, 0, 255)",
+                   "255 16711680");
     expect_success("Print RGB(300, 128, 0)", "33023");
-    expect_success("Print QBColor(0) & \" \" & QBColor(7) & \" \" & QBColor(15)",
-                   "0 12632256 16777215");
+    expect_success(
+        "Print QBColor(0) & \" \" & QBColor(7) & \" \" & QBColor(15)",
+        "0 12632256 16777215");
     expect_success("Print QBColor(1) & \" \" & QBColor(12)", "8388608 255");
 
     expect_failure("", "WFC0001");
@@ -1834,7 +2179,8 @@ int main() {
     expect_failure("Print \"unterminated", "WFC0003");
     expect_failure("Print \"ok\" trailing", "WFC0004");
     expect_failure("Print (1 + 2", "WFC0005");
-    expect_success("Print 2147483648", "2147483648");  // beyond Long: a Double literal
+    expect_success("Print 2147483648",
+                   "2147483648");  // beyond Long: a Double literal
     expect_failure("Print -2147483649&", "WFC0006");
     expect_failure("Print 1.5&", "WFC0006");
     expect_failure("Print 1e3&", "WFC0006");
@@ -1896,20 +2242,24 @@ int main() {
         "Print label & \" \" & amount * scale & suffix & \" \" & count",
         "typed 5! 4");
     expect_program_success(
-        "Dim value As Double\nvalue# = 3\nPrint value# & \" \" & value",
-        "3 3");
+        "Dim value As Double\nvalue# = 3\nPrint value# & \" \" & value", "3 3");
     // Inferred-type Const (REQ-0227): with neither a type-declaration
     // character nor an `As Type` clause, a Const takes its type from the
     // initializer's own value -- the real-VB6 asymmetry with a bare `Dim`,
     // which instead defaults to Variant.
-    expect_program_success("Const x = 5\nPrint x & \" \" & TypeName(x)", "5 Integer");
-    expect_program_success("Const y = \"hello\"\nPrint y & \" \" & TypeName(y)", "hello String");
-    expect_program_success("Const z = True\nPrint CStr(z) & \" \" & TypeName(z)", "True Boolean");
-    expect_program_success("Const w = 3.14\nPrint w & \" \" & TypeName(w)", "3.14 Double");
+    expect_program_success("Const x = 5\nPrint x & \" \" & TypeName(x)",
+                           "5 Integer");
+    expect_program_success("Const y = \"hello\"\nPrint y & \" \" & TypeName(y)",
+                           "hello String");
     expect_program_success(
-        "Const x = 5\nConst y = x + 10\nPrint y & \" \" & TypeName(y)", "15 Integer");
-    expect_program_failure(
-        "Dim value As Long: value = 1: Const bad = value", "WFC0064");
+        "Const z = True\nPrint CStr(z) & \" \" & TypeName(z)", "True Boolean");
+    expect_program_success("Const w = 3.14\nPrint w & \" \" & TypeName(w)",
+                           "3.14 Double");
+    expect_program_success(
+        "Const x = 5\nConst y = x + 10\nPrint y & \" \" & TypeName(y)",
+        "15 Integer");
+    expect_program_failure("Dim value As Long: value = 1: Const bad = value",
+                           "WFC0064");
     expect_program_success(
         "' leading comment\n"
         "Rem another leading comment\n"
@@ -2344,13 +2694,13 @@ int main() {
     expect_program_failure("Dim value As Long: value# = 1", "WFC0016");
     expect_program_failure("Dim value#: Dim value As Double", "WFC0013");
     expect_program_failure("Dim value# As Double", "WFC0012");
-    expect_program_success("Dim value%: value = 5: Print TypeName(value)", "Integer");
+    expect_program_success("Dim value%: value = 5: Print TypeName(value)",
+                           "Integer");
     expect_program_failure("Dim Print As Long", "WFC0017");
     expect_program_failure("Dim Rem As Long", "WFC0017");
     expect_program_failure("Const answer As Long = 42: answer = 1", "WFC0062");
     expect_program_success(
-        "If True Then\nConst local As Long = 1\nPrint local\nEnd If",
-        "1");
+        "If True Then\nConst local As Long = 1\nPrint local\nEnd If", "1");
     expect_program_failure(
         "Dim value As Long: value = 1: Const snapshot As Long = value",
         "WFC0064");
@@ -2358,11 +2708,11 @@ int main() {
     expect_program_failure("Option Nope", "WFC0065");
     expect_program_failure("Dim value As Long\nOption Explicit", "WFC0066");
     expect_program_failure("Option Explicit\nOption Explicit", "WFC0067");
-    expect_program_failure(
-        "If True Then\nOption Explicit\nEnd If",
-        "WFC0068");
-    expect_program_failure("Option Compare Text\nOption Compare Binary", "WFC0069");
-    expect_program_success("Option Compare Database\nPrint \"a\" = \"A\"", "False");
+    expect_program_failure("If True Then\nOption Explicit\nEnd If", "WFC0068");
+    expect_program_failure("Option Compare Text\nOption Compare Binary",
+                           "WFC0069");
+    expect_program_success("Option Compare Database\nPrint \"a\" = \"A\"",
+                           "False");
     expect_program_failure("Option Compare Banana", "WFC0070");
     // Option Base (REQ-0226): a bound-less dimension (`Dim arr(n)`, and
     // the same for ReDim) takes its lower bound from Option Base -- 0
@@ -2371,11 +2721,13 @@ int main() {
     // unaffected.
     expect_program_success(
         "Option Base 1\nDim arr(3) As Long\narr(1) = 10\narr(3) = 30\n"
-        "Print LBound(arr) & \" \" & UBound(arr) & \" \" & arr(1) & \" \" & arr(3)",
+        "Print LBound(arr) & \" \" & UBound(arr) & \" \" & arr(1) & \" \" & "
+        "arr(3)",
         "1 3 10 30");
     expect_program_success(
         "Option Base 1\nDim m(2, 3) As Long\n"
-        "Print LBound(m) & \" \" & UBound(m) & \" \" & LBound(m, 2) & \" \" & UBound(m, 2)",
+        "Print LBound(m) & \" \" & UBound(m) & \" \" & LBound(m, 2) & \" \" & "
+        "UBound(m, 2)",
         "1 2 1 3");
     expect_program_success(
         "Option Base 1\nDim explicitBound(5 To 9) As Long\n"
@@ -2383,7 +2735,8 @@ int main() {
         "5 9");
     expect_program_success(
         "Option Base 1\n"
-        "Function Total(ParamArray nums() As Long) As Long\nTotal = LBound(nums)\nEnd Function\n"
+        "Function Total(ParamArray nums() As Long) As Long\nTotal = "
+        "LBound(nums)\nEnd Function\n"
         "Print Total(1, 2, 3)",
         "0");
     expect_program_success(
@@ -2391,8 +2744,7 @@ int main() {
         "Print LBound(arr) & \" \" & UBound(arr)",
         "1 4");
     expect_program_success(
-        "Dim arr(3) As Long\nPrint LBound(arr) & \" \" & UBound(arr)",
-        "0 3");
+        "Dim arr(3) As Long\nPrint LBound(arr) & \" \" & UBound(arr)", "0 3");
     expect_program_failure("Option Base 1\nOption Base 0", "WFC0152");
     expect_program_failure("Option Base 2", "WFC0153");
     expect_program_failure("Dim vbTextCompare As Long", "WFC0017");
@@ -2433,9 +2785,8 @@ int main() {
     expect_program_failure("Print StrComp(\"a\")", "WFC0072");
     expect_program_failure("Print StrComp(\"a\", \"b\", 0, 1)", "WFC0072");
     expect_program_failure("Print Replace(\"a\", \"b\")", "WFC0072");
-    expect_program_failure(
-        "Print Replace(\"a\", \"b\", \"c\", 1, -1, 0, 1)",
-        "WFC0072");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, -1, 0, 1)",
+                           "WFC0072");
     expect_program_success("Print Len(42)", "2");  // REQ-0277: Variant coercion
     expect_program_failure("Print LCase(True)", "WFC0073");
     expect_program_failure("Print Left(42, 1)", "WFC0073");
@@ -2458,8 +2809,10 @@ int main() {
     expect_program_failure("Print StrComp(\"a\", \"b\", \"1\")", "WFC0073");
     expect_program_failure("Print Replace(\"a\", \"b\", 3)", "WFC0073");
     expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
-    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", \"1\")", "WFC0073");
-    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, \"1\")", "WFC0073");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", \"1\")",
+                           "WFC0073");
+    expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, \"1\")",
+                           "WFC0073");
     expect_program_failure("Print CStr()", "WFC0072");
     expect_program_failure("Print CStr(1, 2)", "WFC0072");
     expect_program_failure("Print CLng()", "WFC0072");
@@ -2519,14 +2872,14 @@ int main() {
     expect_program_failure("Print Chr(-1)", "WFC0078");
     expect_program_failure("Print Chr(256)", "WFC0078");
     expect_program_failure("Print ChrB(256)", "WFC0078");
-    expect_program_failure(
-        "Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
-        "WFC0081");
+    expect_program_failure("Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
+                           "WFC0081");
     expect_program_failure("Print StrComp(\"a\", \"A\", 99)", "WFC0081");
     expect_program_failure(
         "Print Replace(\"a\", \"a\", \"b\", 1, -1, vbDatabaseCompare)",
         "WFC0081");
-    expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)", "WFC0082");
+    expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)",
+                           "WFC0082");
     expect_program_failure("Print InStrRev(\"a\", \"a\", 0)", "WFC0083");
     expect_program_failure("Print InStrRev(\"a\", \"a\", -2)", "WFC0083");
     expect_success("Print Val(\"12.5\")", "12.5");
@@ -2534,7 +2887,8 @@ int main() {
     expect_success("Print Val(\"3.14 pie\")", "3.14");
     expect_success("Print Val(\".5\")", "0.5");
     expect_success("Print Val(\"-2.5e1\")", "-25");
-    expect_success("Print Val(\"-&H10\") & \" \" & Val(\"&H2Atrail\")", "-16 42");
+    expect_success("Print Val(\"-&H10\") & \" \" & Val(\"&H2Atrail\")",
+                   "-16 42");
     expect_program_failure("Print Val(\"&H100000000\")", "WFC0009");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
     expect_program_failure("Print Abs(-2147483648)", "WFC0009");
@@ -2587,7 +2941,8 @@ int main() {
     expect_program_failure("Print CInt(\"40000\")", "WFC0009");
     expect_program_failure("Print CInt(\"\")", "WFC0088");
     expect_program_failure("Print CInt(\"12e\")", "WFC0088");
-    expect_program_success("Print IIf(42, \"a\", \"b\")", "a");  // REQ-0279: numeric condition
+    expect_program_success("Print IIf(42, \"a\", \"b\")",
+                           "a");  // REQ-0279: numeric condition
     expect_program_success("Print IsNull(Choose(0, \"a\", \"b\"))", "True");
     expect_program_success("Print IsNull(Choose(3, \"a\", \"b\"))", "True");
     expect_program_success("Print IsNull(Switch(False, 1, False, 2))", "True");
@@ -2626,9 +2981,7 @@ int main() {
     expect_program_failure("Print 922337203685478@", "WFC0006");
     expect_program_failure("Print 10@ / 0@", "WFC0008");
     expect_program_failure("Print 100000000000@ * 100000000000@", "WFC0009");
-    expect_program_failure(
-        "Print -922337203685477.5807@ - 0.0002@",
-        "WFC0009");
+    expect_program_failure("Print -922337203685477.5807@ - 0.0002@", "WFC0009");
     expect_program_failure("Dim x As Currency: x = \"text\"", "WFC0016");
     expect_program_failure("Print CCur()", "WFC0072");
     expect_program_failure("Print CCur(1, 2)", "WFC0072");
@@ -2671,23 +3024,27 @@ int main() {
     expect_program_failure("If True Then\nPrint \"no\"", "WFC0024");
     expect_program_failure("If True Then\nEnd Nope", "WFC0025");
     expect_program_failure("If True Then\nElse\nElse\nEnd If", "WFC0026");
-    expect_program_success("If True Then\nDim local As Long\nlocal = 4\nPrint local\nEnd If", "4");
-    expect_program_success("If False Then\nElseIf 1 Then\nPrint \"elseif\"\nEnd If", "elseif");
+    expect_program_success(
+        "If True Then\nDim local As Long\nlocal = 4\nPrint local\nEnd If", "4");
+    expect_program_success(
+        "If False Then\nElseIf 1 Then\nPrint \"elseif\"\nEnd If", "elseif");
     expect_program_failure("If False Then\nElseIf True\nEnd If", "WFC0029");
-    expect_program_failure(
-        "If False Then\nElse\nElseIf True Then\nEnd If",
-        "WFC0030");
+    expect_program_failure("If False Then\nElse\nElseIf True Then\nEnd If",
+                           "WFC0030");
     expect_program_success("While 0\nWend\nPrint \"after\"", "after");
     expect_program_failure("While True\nPrint \"no\"", "WFC0032");
     expect_program_failure("Wend", "WFC0033");
-    expect_program_success("While False\nDim local As Long\nWend\nPrint 1", "1");
+    expect_program_success("While False\nDim local As Long\nWend\nPrint 1",
+                           "1");
     expect_program_success("While False: Print \"no\": Wend\nPrint \"x\"", "x");
     expect_program_success("Do While 0\nLoop\nPrint \"after\"", "after");
     expect_program_failure("Do Nope\nLoop", "WFC0036");
     expect_program_failure("Do While True\nPrint \"no\"", "WFC0037");
     expect_program_failure("Loop", "WFC0038");
-    expect_program_success("Do Until True\nDim local As Long\nLoop\nPrint 1", "1");
-    expect_program_success("Do While False: Print \"no\": Loop\nPrint \"x\"", "x");
+    expect_program_success("Do Until True\nDim local As Long\nLoop\nPrint 1",
+                           "1");
+    expect_program_success("Do While False: Print \"no\": Loop\nPrint \"x\"",
+                           "x");
     expect_program_failure("Do\nPrint \"no\"\nLoop Forever", "WFC0040");
     expect_program_success("Do\nPrint \"once\"\nLoop While 0", "once");
     expect_program_failure("Exit Nope", "WFC0041");
@@ -2695,42 +3052,46 @@ int main() {
     expect_program_failure("Dim Exit As Long", "WFC0017");
     expect_program_failure("For = 1 To 2\nNext", "WFC0043");
     expect_program_failure("Dim i As Long\nFor i = 1 2\nNext", "WFC0044");
-    expect_program_failure("Dim i As Long\nFor i = \"a\" To \"b\"\nNext", "WFC0045");
+    expect_program_failure("Dim i As Long\nFor i = \"a\" To \"b\"\nNext",
+                           "WFC0045");
     expect_program_failure("Dim i As Long\nFor i = 1 To 2\nPrint i", "WFC0046");
-    expect_program_failure("Dim i As Long\nFor i = 1 To 2 Step 0\nNext", "WFC0047");
+    expect_program_failure("Dim i As Long\nFor i = 1 To 2 Step 0\nNext",
+                           "WFC0047");
     expect_program_failure("Next", "WFC0048");
     expect_program_failure(
-        "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j",
-        "WFC0049");
-    expect_program_success("Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint j", "6");
+        "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j", "WFC0049");
+    expect_program_success(
+        "Dim i As Long\nFor i = 1 To 3\nDim j As Long\nj = j + i\nNext\nPrint "
+        "j",
+        "6");
     expect_program_failure("Exit For", "WFC0052");
     expect_program_failure("Select Nope 1\nEnd Select", "WFC0054");
     expect_program_failure("Select Case 1\nPrint 1\nEnd Select", "WFC0054");
     expect_program_failure("Select Case 1\nCase 1\nEnd Nope", "WFC0055");
-    expect_program_failure(
-        "Select Case 1\nCase Else\nCase Else\nEnd Select",
-        "WFC0056");
-    expect_program_failure(
-        "Select Case 1\nCase Else\nCase 1\nEnd Select",
-        "WFC0057");
+    expect_program_failure("Select Case 1\nCase Else\nCase Else\nEnd Select",
+                           "WFC0056");
+    expect_program_failure("Select Case 1\nCase Else\nCase 1\nEnd Select",
+                           "WFC0057");
     expect_program_failure("Case 1", "WFC0058");
     expect_program_failure("Select Case 1\nCase \"1\"\nEnd Select", "WFC0053");
     expect_program_failure("Select Case 1\nCase 1,\nEnd Select", "WFC0059");
     expect_program_failure("Select Case 1\nCase , 1\nEnd Select", "WFC0059");
-    expect_program_failure("Select Case True\nCase False To True\nEnd Select", "WFC0060");
-    expect_program_failure("Select Case 1\nCase 0 To \"2\"\nEnd Select", "WFC0060");
+    expect_program_failure("Select Case True\nCase False To True\nEnd Select",
+                           "WFC0060");
+    expect_program_failure("Select Case 1\nCase 0 To \"2\"\nEnd Select",
+                           "WFC0060");
     expect_program_failure("Select Case 1\nCase Is 1\nEnd Select", "WFC0061");
-    expect_program_failure("Select Case True\nCase Is < False\nEnd Select", "WFC0018");
+    expect_program_failure("Select Case True\nCase Is < False\nEnd Select",
+                           "WFC0018");
 
     // Decimal: CDec conversion, exact 96-bit-mantissa arithmetic, and type
     // preservation through the numeric functions.
-    expect_success("Print TypeName(CDec(2)) & \" \" & VarType(CDec(2))", "Decimal 14");
+    expect_success("Print TypeName(CDec(2)) & \" \" & VarType(CDec(2))",
+                   "Decimal 14");
     expect_success("Print CDec(2) + CDec(3)", "5");
     expect_success("Print CDec(\"10.25\") * CDec(\"2\")", "20.5");
     expect_success("Print CDec(10) / CDec(4)", "2.5");
-    expect_success(
-        "Print CDec(1) / CDec(3)",
-        "0.3333333333333333333333333333");
+    expect_success("Print CDec(1) / CDec(3)", "0.3333333333333333333333333333");
     expect_success(
         "Print CDec(\"123456789012345\") * CDec(\"123456789012345\")",
         "15241578753238669120562399025");
@@ -2738,20 +3099,19 @@ int main() {
     expect_success("Print -CDec(5.5)", "-5.5");
     expect_success("Print CDec(5@)", "5");
     expect_success("Print CDec(True)", "-1");
-    expect_success(
-        "Print Abs(CDec(-5.5)) & \" \" & TypeName(Abs(CDec(-5.5)))",
-        "5.5 Decimal");
+    expect_success("Print Abs(CDec(-5.5)) & \" \" & TypeName(Abs(CDec(-5.5)))",
+                   "5.5 Decimal");
     expect_success("Print Int(CDec(-2.5)) & \" \" & Fix(CDec(-2.5))", "-3 -2");
     expect_success("Print Round(CDec(2.5), 0)", "2");
     expect_success("Print Round(CDec(1.5), 0)", "2");
     expect_success(
-        "Print Round(CDec(1.2345), 2) & \" \" & TypeName(Round(CDec(1.2345), 2))",
+        "Print Round(CDec(1.2345), 2) & \" \" & TypeName(Round(CDec(1.2345), "
+        "2))",
         "1.23 Decimal");
     expect_success("Print CLng(CDec(5.5))", "6");
     expect_success("Print CStr(CDec(10.5))", "10.5");
-    expect_success(
-        "Print CStr(CBool(CDec(0))) & \" \" & CStr(CBool(CDec(1)))",
-        "False True");
+    expect_success("Print CStr(CBool(CDec(0))) & \" \" & CStr(CBool(CDec(1)))",
+                   "False True");
     expect_success("Print IsNumeric(CDec(5))", "True");
     expect_success("Print Hex(CDec(255))", "FF");
     expect_program_failure("Print CDec(Null)", "WFC0104");
@@ -2766,43 +3126,48 @@ int main() {
     // other numeric type) Double too, in both operand orders. Verified
     // against a local VB6 6.00.8176 reference probe (see REQ-0198).
     expect_program_success(
-        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) + s) & \" \" & (CDec(1) + s)",
+        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) + s) & \" \" & "
+        "(CDec(1) + s)",
         "Decimal 2.5");
     expect_program_success(
-        "Dim s As Single\ns = 1.5\nPrint TypeName(s + CDec(1)) & \" \" & (s + CDec(1))",
+        "Dim s As Single\ns = 1.5\nPrint TypeName(s + CDec(1)) & \" \" & (s + "
+        "CDec(1))",
         "Decimal 2.5");
     expect_program_success(
-        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) * s) & \" \" & (CDec(1) * s)",
+        "Dim s As Single\ns = 1.5\nPrint TypeName(CDec(1) * s) & \" \" & "
+        "(CDec(1) * s)",
         "Decimal 1.5");
     expect_program_success(
-        "Dim c As Currency\nc = 2.5\nPrint TypeName(CDec(1) + c) & \" \" & (CDec(1) + c)",
+        "Dim c As Currency\nc = 2.5\nPrint TypeName(CDec(1) + c) & \" \" & "
+        "(CDec(1) + c)",
         "Decimal 3.5");
     expect_program_success(
-        "Dim c As Currency\nc = 2.5\nPrint TypeName(c + CDec(1)) & \" \" & (c + CDec(1))",
+        "Dim c As Currency\nc = 2.5\nPrint TypeName(c + CDec(1)) & \" \" & (c "
+        "+ CDec(1))",
         "Decimal 3.5");
-    expect_success(
-        "Print TypeName(CDec(1) + 3) & \" \" & (CDec(1) + 3)",
-        "Decimal 4");
-    expect_success(
-        "Print TypeName(3 + CDec(1)) & \" \" & (3 + CDec(1))",
-        "Decimal 4");
+    expect_success("Print TypeName(CDec(1) + 3) & \" \" & (CDec(1) + 3)",
+                   "Decimal 4");
+    expect_success("Print TypeName(3 + CDec(1)) & \" \" & (3 + CDec(1))",
+                   "Decimal 4");
     expect_success(
         "Print TypeName(CDec(1) + 1234567.89) & \" \" & (CDec(1) + 1234567.89)",
         "Decimal 1234568.89");
     expect_success(
         "Print TypeName(1234567.89 + CDec(1)) & \" \" & (1234567.89 + CDec(1))",
         "Decimal 1234568.89");
-    expect_success(
-        "Print TypeName(CDec(1) / 3) & \" \" & (CDec(1) / 3)",
-        "Decimal 0.3333333333333333333333333333");
+    expect_success("Print TypeName(CDec(1) / 3) & \" \" & (CDec(1) / 3)",
+                   "Decimal 0.3333333333333333333333333333");
 
     // Scalar Variant: Empty/Null literals, IsNull/IsEmpty, retyping
     // assignment, and three-valued-logic propagation through the operators.
     // Verified against the local VB6 6.00.8176 reference (see REQ-0197).
-    expect_success("Print TypeName(Null) & \" \" & TypeName(Empty)", "Null Empty");
+    expect_success("Print TypeName(Null) & \" \" & TypeName(Empty)",
+                   "Null Empty");
     expect_success("Print VarType(Null) & \" \" & VarType(Empty)", "1 0");
-    expect_success("Print CStr(IsNull(Null)) & \" \" & CStr(IsEmpty(Empty))", "True True");
-    expect_success("Print CStr(IsNull(Empty)) & \" \" & CStr(IsEmpty(Null))", "False False");
+    expect_success("Print CStr(IsNull(Null)) & \" \" & CStr(IsEmpty(Empty))",
+                   "True True");
+    expect_success("Print CStr(IsNull(Empty)) & \" \" & CStr(IsEmpty(Null))",
+                   "False False");
     expect_success("Print Null & \"x\"", "x");
     expect_success("Print \"x\" & Null", "x");
     expect_success("Print Empty & \"x\"", "x");
@@ -2812,30 +3177,36 @@ int main() {
     expect_program_success("Dim n: n = Empty + 5: Print n", "5");
     expect_program_success("Dim n: n = (Empty = 0): Print CStr(n)", "True");
     expect_program_success("Dim n: n = (Empty = \"\"): Print CStr(n)", "True");
-    expect_program_success("Dim n: n = Null + 5: Print CStr(IsNull(n))", "True");
-    expect_program_success("Dim n: n = (Null = 5): Print CStr(IsNull(n))", "True");
-    expect_program_success("Dim n: n = (Null And False): Print CStr(IsNull(n))", "False");
-    expect_program_success("Dim n: n = (Null And True): Print CStr(IsNull(n))", "True");
-    expect_program_success("Dim n: n = (Null Or True): Print CStr(IsNull(n))", "False");
-    expect_program_success("Dim n: n = (Null Or False): Print CStr(IsNull(n))", "True");
-    expect_program_success("Dim n: n = (Not Null): Print CStr(IsNull(n))", "True");
+    expect_program_success("Dim n: n = Null + 5: Print CStr(IsNull(n))",
+                           "True");
+    expect_program_success("Dim n: n = (Null = 5): Print CStr(IsNull(n))",
+                           "True");
+    expect_program_success("Dim n: n = (Null And False): Print CStr(IsNull(n))",
+                           "False");
+    expect_program_success("Dim n: n = (Null And True): Print CStr(IsNull(n))",
+                           "True");
+    expect_program_success("Dim n: n = (Null Or True): Print CStr(IsNull(n))",
+                           "False");
+    expect_program_success("Dim n: n = (Null Or False): Print CStr(IsNull(n))",
+                           "True");
+    expect_program_success("Dim n: n = (Not Null): Print CStr(IsNull(n))",
+                           "True");
     expect_program_success(
-        "Dim x As Long\nx = 9\nIf Null Then\nx = 1\nElse\nx = 2\nEnd If\nPrint x",
+        "Dim x As Long\nx = 9\nIf Null Then\nx = 1\nElse\nx = 2\nEnd If\nPrint "
+        "x",
         "2");
-    expect_program_success("Dim x As Variant\nx = 5\nPrint TypeName(x)", "Integer");
+    expect_program_success("Dim x As Variant\nx = 5\nPrint TypeName(x)",
+                           "Integer");
     expect_program_success(
-        "Dim x As Variant\nx = 5\nx = \"hi\"\nPrint TypeName(x)",
-        "String");
+        "Dim x As Variant\nx = 5\nx = \"hi\"\nPrint TypeName(x)", "String");
     expect_program_success(
         "Dim x As Variant\nx = 5\nx = 3.5\nx = True\nPrint TypeName(x)",
         "Boolean");
     expect_program_success("Dim x\nPrint TypeName(x)", "Empty");
     expect_program_success(
-        "Dim x As Variant\nx = 1\nDim y As Long\ny = x\nPrint y",
-        "1");
-    expect_program_failure(
-        "Dim x As Variant\nx = \"hi\"\nDim y As Long\ny = x",
-        "WFC0016");
+        "Dim x As Variant\nx = 1\nDim y As Long\ny = x\nPrint y", "1");
+    expect_program_failure("Dim x As Variant\nx = \"hi\"\nDim y As Long\ny = x",
+                           "WFC0016");
     // Parenthesis-free, zero-argument calls (REQ-0213): a bare intrinsic
     // function, a bare module-level Function, `Call name` (no parens) for
     // a module-level Sub/Function, and an unqualified bare sibling
@@ -2846,15 +3217,16 @@ int main() {
     expect_program_success("Print Rnd", "0.7055475");
     expect_program_success("Print Rnd()", "0.7055475");
     expect_program_success(
-        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter "
+        "+ 1\n"
         "NextId = counter\nEnd Function\n"
         "Print NextId\nCall NextId\nPrint NextId",
         "1\n3");
-    expect_program_success(
-        "Sub SayHi()\nPrint \"hi\"\nEnd Sub\nCall SayHi",
-        "hi");
+    expect_program_success("Sub SayHi()\nPrint \"hi\"\nEnd Sub\nCall SayHi",
+                           "hi");
     expect_program_failure("Sub SayHi()\nEnd Sub\nPrint SayHi", "WFC0122");
-    expect_program_failure("Option Explicit\nPrint someUndeclaredName", "WFC0015");
+    expect_program_failure("Option Explicit\nPrint someUndeclaredName",
+                           "WFC0015");
     expect_program_failure("Print Len", "WFC0072");
     expect_program_failure("Print Len \"hello\"", "WFC0072");
     expect_program_success(
@@ -2862,26 +3234,24 @@ int main() {
         "If IsReady Then\nPrint \"ready\"\nEnd If",
         "ready");
     expect_classes_success(
-        {{"Counter", "Function Xyz() As Long\nXyz = 5\nEnd Function\n\n"
-                     "Function Doubled() As Long\nDoubled = Xyz\nEnd Function"}},
-        "Dim c As New Counter\nPrint c.Doubled()",
-        "5");
+        {{"Counter",
+          "Function Xyz() As Long\nXyz = 5\nEnd Function\n\n"
+          "Function Doubled() As Long\nDoubled = Xyz\nEnd Function"}},
+        "Dim c As New Counter\nPrint c.Doubled()", "5");
     // Class-typed array elements: Dim arr(...) As SomeClass, the
     // element_class_name-checked counterpart of the generic As Object
     // form (REQ-0214).
     expect_classes_success(
         {{"Counter", "Public value As Long"}},
-        "Dim arr(1) As Counter\nPrint TypeName(arr) & \" \" & CStr(arr(0) Is Nothing)\n"
+        "Dim arr(1) As Counter\nPrint TypeName(arr) & \" \" & CStr(arr(0) Is "
+        "Nothing)\n"
         "Dim c As New Counter\nSet arr(0) = c\nPrint CStr(arr(0) Is c)",
         "Counter() True\nTrue");
     expect_classes_failure(
         {{"Counter", "Public value As Long"}, {"Other", "Public v As Long"}},
-        "Dim arr(1) As Counter\nDim o As New Other\nSet arr(0) = o",
-        "WFC0137");
-    expect_classes_failure(
-        {{"Counter", "Public value As Long"}},
-        "Dim arr(1) As Counter\narr(0) = 5",
-        "WFC0108");
+        "Dim arr(1) As Counter\nDim o As New Other\nSet arr(0) = o", "WFC0137");
+    expect_classes_failure({{"Counter", "Public value As Long"}},
+                           "Dim arr(1) As Counter\narr(0) = 5", "WFC0108");
     // Variant-/Object-element array-typed parameters: nums() As Variant/
     // As Object, extending REQ-0211's array parameters with REQ-0212's
     // element kinds (REQ-0215).
@@ -2892,68 +3262,76 @@ int main() {
         "String Integer");
     expect_classes_success(
         {{"Counter", "Public value As Long"}},
-        "Sub Fill(objs() As Object)\nDim c As New Counter\nSet objs(0) = c\nEnd Sub\n"
+        "Sub Fill(objs() As Object)\nDim c As New Counter\nSet objs(0) = "
+        "c\nEnd Sub\n"
         "Dim arr(1) As Object\nCall Fill(arr)\nPrint CStr(arr(0) Is Nothing)",
         "False");
     expect_program_failure(
-        "Sub Foo(nums() As Variant)\nEnd Sub\nDim arr(1) As Long\nCall Foo(arr)",
+        "Sub Foo(nums() As Variant)\nEnd Sub\nDim arr(1) As Long\nCall "
+        "Foo(arr)",
         "WFC0016");
     // Array-typed Function return: As Type() (REQ-0216). The return slot
     // starts as an unallocated dynamic array, so the body may either
     // assign a whole array to its own name or ReDim it directly.
     expect_program_success(
         "Function MakeArray() As Long()\nDim result(2) As Long\n"
-        "result(0) = 10\nresult(1) = 20\nresult(2) = 30\nMakeArray = result\nEnd Function\n"
+        "result(0) = 10\nresult(1) = 20\nresult(2) = 30\nMakeArray = "
+        "result\nEnd Function\n"
         "Dim x() As Long\nx = MakeArray()\n"
         "Print x(0) & \" \" & x(1) & \" \" & x(2) & \" \" & UBound(x)",
         "10 20 30 2");
     expect_program_success(
-        "Function BuildIt(n As Long) As Long()\nReDim BuildIt(n)\nDim i As Long\n"
+        "Function BuildIt(n As Long) As Long()\nReDim BuildIt(n)\nDim i As "
+        "Long\n"
         "For i = 0 To n\nBuildIt(i) = i * i\nNext i\nEnd Function\n"
         "Dim x() As Long\nx = BuildIt(3)\n"
         "Print x(0) & \" \" & x(1) & \" \" & x(2) & \" \" & x(3)",
         "0 1 4 9");
     expect_classes_success(
-        {{"Builder", "Public Function Build() As Long()\nDim result(1) As Long\n"
-                     "result(0) = 7\nresult(1) = 8\nBuild = result\nEnd Function"}},
-        "Dim c As New Builder\nDim x() As Long\nx = c.Build()\nPrint x(0) & \" \" & x(1)",
+        {{"Builder",
+          "Public Function Build() As Long()\nDim result(1) As Long\n"
+          "result(0) = 7\nresult(1) = 8\nBuild = result\nEnd Function"}},
+        "Dim c As New Builder\nDim x() As Long\nx = c.Build()\nPrint x(0) & \" "
+        "\" & x(1)",
         "7 8");
-    expect_program_failure("Function Foo() As Variant()\nEnd Function", "WFC0150");
-    expect_program_failure("Function Foo() As Object()\nEnd Function", "WFC0150");
-    expect_program_failure("Function Foo() As Long(5)\nEnd Function", "WFC0150");
+    expect_program_failure("Function Foo() As Variant()\nEnd Function",
+                           "WFC0150");
+    expect_program_failure("Function Foo() As Object()\nEnd Function",
+                           "WFC0150");
+    expect_program_failure("Function Foo() As Long(5)\nEnd Function",
+                           "WFC0150");
     // Remaining parenthesis-free call forms (REQ-0217): a bare `Name`
     // statement with no `Call` keyword (zero arguments), and `obj.Method`/
     // `Call obj.Method` (dotted access) with no parentheses.
     expect_program_success(
-        "Function NextId() As Long\nStatic counter As Long\ncounter = counter + 1\n"
+        "Function NextId() As Long\nStatic counter As Long\ncounter = counter "
+        "+ 1\n"
         "NextId = counter\nEnd Function\nNextId\nPrint NextId",
         "2");
-    expect_program_success(
-        "Sub SayHi()\nPrint \"hi\"\nEnd Sub\nSayHi",
-        "hi");
-    expect_program_success(
-        "Dim x As Long\nx = 5\nPrint x",
-        "5");
+    expect_program_success("Sub SayHi()\nPrint \"hi\"\nEnd Sub\nSayHi", "hi");
+    expect_program_success("Dim x As Long\nx = 5\nPrint x", "5");
     expect_classes_success(
-        {{"Counter", "Private n As Long\n\n"
-                     "Sub Increment()\nn = n + 1\nEnd Sub\n\n"
-                     "Property Get Total() As Long\nTotal = n\nEnd Property"}},
-        "Dim c As New Counter\nc.Increment\nPrint c.Total\nCall c.Increment\nPrint c.Total",
+        {{"Counter",
+          "Private n As Long\n\n"
+          "Sub Increment()\nn = n + 1\nEnd Sub\n\n"
+          "Property Get Total() As Long\nTotal = n\nEnd Property"}},
+        "Dim c As New Counter\nc.Increment\nPrint c.Total\nCall "
+        "c.Increment\nPrint c.Total",
         "1\n2");
+    expect_classes_success({{"Counter", "Public value As Long"}},
+                           "Dim c As New Counter\nc.value = 10\nPrint c.value",
+                           "10");
     expect_classes_success(
-        {{"Counter", "Public value As Long"}},
-        "Dim c As New Counter\nc.value = 10\nPrint c.value",
-        "10");
-    expect_classes_success(
-        {{"Store", "Private a As Long\n\n"
-                   "Property Get Item(i As Long) As Long\nItem = a\nEnd Property\n\n"
-                   "Property Let Item(i As Long, v As Long)\na = v\nEnd Property"}},
-        "Dim s As New Store\ns.Item(0) = 5\nPrint s.Item(0)",
-        "5");
-    expect_classes_failure(
-        {{"Counter", "Public value As Long\n\nSub Add(n As Long)\nvalue = value + n\nEnd Sub"}},
-        "Dim c As New Counter\nc.Add\nPrint c.value",
-        "WFC0072");
+        {{"Store",
+          "Private a As Long\n\n"
+          "Property Get Item(i As Long) As Long\nItem = a\nEnd Property\n\n"
+          "Property Let Item(i As Long, v As Long)\na = v\nEnd Property"}},
+        "Dim s As New Store\ns.Item(0) = 5\nPrint s.Item(0)", "5");
+    expect_classes_failure({{"Counter",
+                             "Public value As Long\n\nSub Add(n As "
+                             "Long)\nvalue = value + n\nEnd Sub"}},
+                           "Dim c As New Counter\nc.Add\nPrint c.value",
+                           "WFC0072");
 
     if (failures != 0) {
         std::cerr << failures << " evaluator test(s) failed\n";

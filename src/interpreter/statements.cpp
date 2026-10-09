@@ -1,5 +1,5 @@
-// Interpreter: Statement dispatch and control flow (If, loops, Select, With, Exit, On Error).
-// Internal to the WFC evaluator; not part of the public API.
+// Interpreter: Statement dispatch and control flow (If, loops, Select, With,
+// Exit, On Error). Internal to the WFC evaluator; not part of the public API.
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
@@ -45,8 +45,9 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
         return true;
     }
     frame.in_error_handler = true;
-    const bool in_procedure_context =
-        in_procedure_body() && current_procedure_def_ != nullptr && frame.handler_depth == 0;
+    const bool in_procedure_context = in_procedure_body() &&
+                                      current_procedure_def_ != nullptr &&
+                                      frame.handler_depth == 0;
     if (!in_procedure_context) {
         jump_pending_ = true;
         jump_target_ = frame.on_error_label;
@@ -73,7 +74,8 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
             completed = false;
             break;
         }
-        if (frame.resume_signal != 0 || exit_sub_requested_ || exit_function_requested_) {
+        if (frame.resume_signal != 0 || exit_sub_requested_ ||
+            exit_function_requested_) {
             offset_ = resume_point;
             break;
         }
@@ -94,7 +96,9 @@ bool Interpreter::parse_statement() {
     while (true) {
         const auto start = offset_;
         if (parse_statement_once()) {
-            if (!retry_statement_) return true;
+            if (!retry_statement_) {
+                return true;
+            }
             retry_statement_ = false;
             offset_ = start;
             continue;
@@ -118,7 +122,8 @@ bool Interpreter::parse_statement_once() {
         const auto saved = offset_;
         offset_ = start;
         skip_horizontal_whitespace();
-        const bool is_block = consume_keyword("if") || consume_keyword("for") ||
+        const bool is_block =
+            consume_keyword("if") || consume_keyword("for") ||
             consume_keyword("while") || consume_keyword("do") ||
             consume_keyword("select") || consume_keyword("with");
         offset_ = saved;
@@ -157,11 +162,19 @@ std::size_t Interpreter::find_label(const std::string& label) const {
             line_end = end;
         }
         std::size_t i = position;
-        while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) ++i;
-        if (!label.empty() && std::isdigit(static_cast<unsigned char>(label[0])) != 0) {
+        while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) {
+            ++i;
+        }
+        if (!label.empty() &&
+            std::isdigit(static_cast<unsigned char>(label[0])) != 0) {
             std::size_t k = i;
-            while (k < line_end && std::isdigit(static_cast<unsigned char>(source_[k])) != 0) ++k;
-            if (k > i && source_.substr(i, k - i) == label) return i;
+            while (k < line_end &&
+                   std::isdigit(static_cast<unsigned char>(source_[k])) != 0) {
+                ++k;
+            }
+            if (k > i && source_.substr(i, k - i) == label) {
+                return i;
+            }
             position = line_end + 1;
             continue;
         }
@@ -183,7 +196,8 @@ std::optional<std::string> Interpreter::parse_label_name() {
     skip_horizontal_whitespace();
     if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
         std::string digits;
-        while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
+        while (!at_end() &&
+               std::isdigit(static_cast<unsigned char>(current())) != 0) {
             digits.push_back(current());
             advance();
         }
@@ -192,7 +206,9 @@ std::optional<std::string> Interpreter::parse_label_name() {
     return parse_identifier();
 }
 
-bool Interpreter::in_procedure_body() const noexcept { return scopes_.size() > 1U; }
+bool Interpreter::in_procedure_body() const noexcept {
+    return scopes_.size() > 1U;
+}
 
 std::optional<bool> Interpreter::parse_error_handling_statement(
     const std::size_t statement_offset, const bool allow_label) {
@@ -221,7 +237,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         if (!number.has_value()) {
             return false;
         }
-        if (!coerce_numeric_value(*number, Value{Integer{}}.index(), number_offset) ||
+        if (!coerce_numeric_value(*number, Value{Integer{}}.index(),
+                                  number_offset) ||
             !std::holds_alternative<Integer>(*number)) {
             set_error("WFC0073", "Error requires a Long number", number_offset);
             return false;
@@ -231,9 +248,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         }
         const Integer raised = std::get<Integer>(*number);
         if (raised < 1 || raised > 65535) {
-            return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+            return raise_runtime(5, "Invalid procedure call or argument",
+                                 statement_offset);
         }
-        return raise_runtime(raised, vb_error_description(raised), statement_offset);
+        return raise_runtime(raised, vb_error_description(raised),
+                             statement_offset);
     }
     if (consume_keyword("lset") || consume_keyword("rset")) {
         const bool right = ascii_lower(source_[start + 0]) == 'r';
@@ -265,7 +284,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         auto* const target = std::get_if<std::string>(variable.value);
         const auto* text = std::get_if<std::string>(&*value);
         if (target == nullptr || text == nullptr) {
-            set_error("WFC0016", "LSet/RSet require String operands", variable_offset);
+            set_error("WFC0016", "LSet/RSet require String operands",
+                      variable_offset);
             return false;
         }
         const std::size_t width = utf16_length(*target);
@@ -341,9 +361,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 set_error("WFC0010", "expected GoTo or GoSub", offset_);
                 return false;
             }
-            if (!coerce_numeric_value(*selector, Value{Integer{}}.index(), statement_offset) ||
+            if (!coerce_numeric_value(*selector, Value{Integer{}}.index(),
+                                      statement_offset) ||
                 !std::holds_alternative<Integer>(*selector)) {
-                set_error("WFC0073", "On ... GoTo selector must be numeric", statement_offset);
+                set_error("WFC0073", "On ... GoTo selector must be numeric",
+                          statement_offset);
                 return false;
             }
             const Integer choice = std::get<Integer>(*selector);
@@ -366,9 +388,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 return true;
             }
             if (choice < 0 || choice > 255) {
-                return raise_runtime(5, "Invalid procedure call or argument", statement_offset);
+                return raise_runtime(5, "Invalid procedure call or argument",
+                                     statement_offset);
             }
-            if (choice == 0 || static_cast<std::size_t>(choice) > labels.size()) {
+            if (choice == 0 ||
+                static_cast<std::size_t>(choice) > labels.size()) {
                 return true;
             }
             const auto& chosen = labels[static_cast<std::size_t>(choice) - 1U];
@@ -391,7 +415,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         if (consume_keyword("resume")) {
             skip_horizontal_whitespace();
             if (!consume_keyword("next")) {
-                set_error("WFC0010", "expected Next after On Error Resume", offset_);
+                set_error("WFC0010", "expected Next after On Error Resume",
+                          offset_);
                 return false;
             }
             if (execute_) {
@@ -401,7 +426,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             return true;
         }
         if (!consume_keyword("goto")) {
-            set_error("WFC0010", "expected GoTo or Resume after On Error", offset_);
+            set_error("WFC0010", "expected GoTo or Resume after On Error",
+                      offset_);
             return false;
         }
         skip_horizontal_whitespace();
@@ -437,14 +463,15 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         std::size_t target{};
         if (consume_keyword("next")) {
             target = frame.error_resume_next;
-        } else if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-                   current() == '\'') {
+        } else if (at_end() || current() == '\r' || current() == '\n' ||
+                   current() == ':' || current() == '\'') {
             target = frame.error_retry;
         } else {
             const auto label_offset = offset_;
             auto label = parse_label_name();
             if (!label.has_value()) {
-                set_error("WFC0011", "expected label after Resume", label_offset);
+                set_error("WFC0011", "expected label after Resume",
+                          label_offset);
                 return false;
             }
             target = execute_ ? find_label(*label) : 0;
@@ -455,13 +482,16 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         }
         if (execute_) {
             if (!frame.in_error_handler) {
-                return raise_runtime(20, "Resume without error", statement_offset);
+                return raise_runtime(20, "Resume without error",
+                                     statement_offset);
             }
             frame.in_error_handler = false;
-            if (frame.handler_depth > 0 &&
-                (target == frame.error_resume_next || target == frame.error_retry)) {
+            if (frame.handler_depth > 0 && (target == frame.error_resume_next ||
+                                            target == frame.error_retry)) {
                 frame.resume_signal = target == frame.error_retry &&
-                        target != frame.error_resume_next ? 2 : 1;
+                                              target != frame.error_resume_next
+                                          ? 2
+                                          : 1;
                 skip_to_statement_end();
                 return true;
             }
@@ -517,9 +547,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             if (!number.has_value()) {
                 return false;
             }
-            if (!coerce_numeric_value(*number, Value{Integer{}}.index(), member_offset) ||
+            if (!coerce_numeric_value(*number, Value{Integer{}}.index(),
+                                      member_offset) ||
                 !std::holds_alternative<Integer>(*number)) {
-                set_error("WFC0073", "Err.Raise requires a Long number", member_offset);
+                set_error("WFC0073", "Err.Raise requires a Long number",
+                          member_offset);
                 return false;
             }
             std::string description;
@@ -553,18 +585,22 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             if (parenthesized) {
                 skip_horizontal_whitespace();
                 if (!consume(')')) {
-                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    set_error("WFC0005", "expected closing parenthesis",
+                              offset_);
                     return false;
                 }
             }
             if (execute_) {
                 const Integer raised = std::get<Integer>(*number);
                 if (raised == 0) {
-                    return raise_runtime(5, "Invalid procedure call or argument", member_offset);
+                    return raise_runtime(
+                        5, "Invalid procedure call or argument", member_offset);
                 }
                 err_number_ = raised;
                 err_source_ = source_text;
-                err_description_ = has_description ? description : vb_error_description(raised);
+                err_description_ = has_description
+                                       ? description
+                                       : vb_error_description(raised);
                 set_error("WFC0300", err_description_, statement_offset);
                 return false;
             }
@@ -597,23 +633,30 @@ bool Interpreter::parse_statement_core() {
     // A leading line number (`10  x = 1`) is a label that also feeds Erl.
     if (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
         std::size_t line_start = offset_;
-        while (line_start > 0 && (source_[line_start - 1] == ' ' || source_[line_start - 1] == '\t')) {
+        while (line_start > 0 && (source_[line_start - 1] == ' ' ||
+                                  source_[line_start - 1] == '\t')) {
             --line_start;
         }
         if (line_start == 0 || source_[line_start - 1] == '\n') {
             Integer number{};
-            while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
-                number = static_cast<Integer>(
-                    std::min<long long>(number * 10LL + (current() - '0'), 2147483647LL));
+            while (!at_end() &&
+                   std::isdigit(static_cast<unsigned char>(current())) != 0) {
+                number = static_cast<Integer>(std::min<long long>(
+                    number * 10LL + (current() - '0'), 2147483647LL));
                 advance();
             }
-            if (execute_) erl_ = number;
+            if (execute_) {
+                erl_ = number;
+            }
             if (!at_end() && current() == ':' &&
-                !(offset_ + 1 < source_.size() && source_[offset_ + 1] == '=')) {
+                !(offset_ + 1 < source_.size() &&
+                  source_[offset_ + 1] == '=')) {
                 advance();
             }
             skip_horizontal_whitespace();
-            if (at_statement_end()) return true;
+            if (at_statement_end()) {
+                return true;
+            }
         }
     }
     const auto statement_offset = offset_;
@@ -642,7 +685,8 @@ bool Interpreter::parse_statement_core() {
         // DefXxx statements were applied by scan_deftypes.
         const auto line_end = source_.find_first_of("\r\n", offset_);
         const auto length =
-            (line_end == std::string_view::npos ? source_.size() : line_end) - statement_offset;
+            (line_end == std::string_view::npos ? source_.size() : line_end) -
+            statement_offset;
         if (apply_deftype_line(source_.substr(statement_offset, length))) {
             offset_ = statement_offset + length;
             return true;
@@ -656,17 +700,22 @@ bool Interpreter::parse_statement_core() {
         if (consume_keyword("callbyname")) {
             skip_horizontal_whitespace();
             const bool parenthesized = !at_end() && current() == '(';
-            if (parenthesized) advance();
+            if (parenthesized) {
+                advance();
+            }
             std::vector<Value> values;
             skip_horizontal_whitespace();
-            while (!at_statement_end() && !(parenthesized && current() == ')')) {
+            while (!at_statement_end() &&
+                   !(parenthesized && current() == ')')) {
                 auto value = parse_expression();
                 if (!value.has_value()) {
                     return false;
                 }
                 values.push_back(std::move(*value));
                 skip_horizontal_whitespace();
-                if (!consume(',')) break;
+                if (!consume(',')) {
+                    break;
+                }
                 skip_horizontal_whitespace();
             }
             if (parenthesized && !consume(')')) {
@@ -675,11 +724,14 @@ bool Interpreter::parse_statement_core() {
             }
             skip_horizontal_whitespace();
             if (!at_statement_end()) {
-                offset_ = before_call;  // `CallByName(...).Member` etc. is not a statement
+                offset_ = before_call;  // `CallByName(...).Member` etc. is not
+                                        // a statement
                 set_error("WFC0010", "expected statement", statement_offset);
                 return false;
             }
-            return evaluate_misc_function("callbyname", values, statement_offset).has_value();
+            return evaluate_misc_function("callbyname", values,
+                                          statement_offset)
+                .has_value();
         }
     }
     if (consume_keyword("msgbox") || consume_keyword("appactivate") ||
@@ -691,33 +743,44 @@ bool Interpreter::parse_statement_core() {
                 return false;
             }
             skip_horizontal_whitespace();
-            if (!consume(',')) break;
+            if (!consume(',')) {
+                break;
+            }
             skip_horizontal_whitespace();
         }
         return true;
     }
     if (const auto shell_start = offset_; consume_keyword("shell")) {
         skip_horizontal_whitespace();
-        if (at_end() || current() == '=' || current() == '.' || at_statement_end()) {
+        if (at_end() || current() == '=' || current() == '.' ||
+            at_statement_end()) {
             offset_ = shell_start;
         } else {
             std::vector<Value> values;
             while (!at_statement_end()) {
                 auto value = parse_expression();
-                if (!value.has_value()) return false;
+                if (!value.has_value()) {
+                    return false;
+                }
                 values.push_back(std::move(*value));
                 skip_horizontal_whitespace();
-                if (!consume(',')) break;
+                if (!consume(',')) {
+                    break;
+                }
                 skip_horizontal_whitespace();
             }
-            if (!execute_) return true;
-            return evaluate_misc_function("shell", values, statement_offset).has_value();
+            if (!execute_) {
+                return true;
+            }
+            return evaluate_misc_function("shell", values, statement_offset)
+                .has_value();
         }
     }
     if (consume_keyword("savesetting") || consume_keyword("deletesetting") ||
         consume_keyword("setattr") || consume_keyword("chdrive")) {
         const std::string_view word = source_.substr(statement_offset, 4);
-        const bool is_save = ascii_lower(word[0]) == 's' && ascii_lower(word[1]) == 'a';
+        const bool is_save =
+            ascii_lower(word[0]) == 's' && ascii_lower(word[1]) == 'a';
         std::vector<Value> values;
         skip_horizontal_whitespace();
         while (!at_statement_end()) {
@@ -727,15 +790,21 @@ bool Interpreter::parse_statement_core() {
             }
             values.push_back(std::move(*value));
             skip_horizontal_whitespace();
-            if (!consume(',')) break;
+            if (!consume(',')) {
+                break;
+            }
             skip_horizontal_whitespace();
         }
-        if (execute_ && ascii_lower(word[0]) == 's' && ascii_lower(word[1]) == 'e') {
+        if (execute_ && ascii_lower(word[0]) == 's' &&
+            ascii_lower(word[1]) == 'e') {
             // SetAttr path, attributes: only the read-only bit has an effect.
-            const auto* path = values.empty() ? nullptr : std::get_if<std::string>(&values[0]);
-            const auto attributes = values.size() < 2U ? std::nullopt : whole_value(values[1]);
+            const auto* path =
+                values.empty() ? nullptr : std::get_if<std::string>(&values[0]);
+            const auto attributes =
+                values.size() < 2U ? std::nullopt : whole_value(values[1]);
             if (path == nullptr || !attributes.has_value()) {
-                set_error("WFC0073", "SetAttr requires a path and attributes", statement_offset);
+                set_error("WFC0073", "SetAttr requires a path and attributes",
+                          statement_offset);
                 return false;
             }
             std::error_code ec;
@@ -744,7 +813,8 @@ bool Interpreter::parse_statement_core() {
             }
             std::filesystem::permissions(
                 *path,
-                std::filesystem::perms::owner_write | std::filesystem::perms::group_write |
+                std::filesystem::perms::owner_write |
+                    std::filesystem::perms::group_write |
                     std::filesystem::perms::others_write,
                 (*attributes & 1) != 0 ? std::filesystem::perm_options::remove
                                        : std::filesystem::perm_options::add,
@@ -757,7 +827,9 @@ bool Interpreter::parse_statement_core() {
             for (std::size_t i = 0; i < 3U; ++i) {
                 const auto* part = std::get_if<std::string>(&values[i]);
                 strings = strings && part != nullptr;
-                if (part != nullptr) key += *part + "\x01";
+                if (part != nullptr) {
+                    key += *part + "\x01";
+                }
             }
             if (strings && is_save && values.size() == 4U) {
                 if (const auto* text = std::get_if<std::string>(&values[3])) {
@@ -772,9 +844,11 @@ bool Interpreter::parse_statement_core() {
     {
         // File width / record locking: accepted, no effect.
         const auto before_lock = offset_;
-        if (consume_keyword("width") || consume_keyword("lock") || consume_keyword("unlock")) {
+        if (consume_keyword("width") || consume_keyword("lock") ||
+            consume_keyword("unlock")) {
             skip_horizontal_whitespace();
-            if (!at_end() && current() != '=' && current() != '(' && current() != '.') {
+            if (!at_end() && current() != '=' && current() != '(' &&
+                current() != '.') {
                 skip_to_statement_end();
                 return true;
             }
@@ -783,14 +857,17 @@ bool Interpreter::parse_statement_core() {
     }
     if (consume_keyword("reset")) {
         if (execute_) {
-            for (auto& [number, file] : files_) std::fclose(file.handle);
+            for (auto& [number, file] : files_) {
+                std::fclose(file.handle);
+            }
             files_.clear();
         }
         return true;
     }
     {
         const auto before_declare = offset_;
-        static_cast<void>(consume_keyword("public") || consume_keyword("private"));
+        static_cast<void>(consume_keyword("public") ||
+                          consume_keyword("private"));
         skip_horizontal_whitespace();
         if (consume_keyword("declare")) {
             skip_comment();  // handled by scan_procedures
@@ -818,7 +895,8 @@ bool Interpreter::parse_statement_core() {
                     return ok;
                 }
                 if (consume_keyword("assert")) {
-                    // Stripped from compiled programs: the condition is not evaluated.
+                    // Stripped from compiled programs: the condition is not
+                    // evaluated.
                     skip_comment_free_statement_text();
                     return true;
                 }
@@ -860,7 +938,8 @@ bool Interpreter::parse_statement_core() {
     }
     {
         const auto pre_enum_offset = offset_;
-        static_cast<void>(consume_keyword("public") || consume_keyword("private"));
+        static_cast<void>(consume_keyword("public") ||
+                          consume_keyword("private"));
         skip_horizontal_whitespace();
         if (consume_keyword("enum")) {
             return parse_enum_statement(statement_offset);
@@ -912,14 +991,15 @@ bool Interpreter::parse_statement_core() {
                 const auto word = parse_identifier(&probe_type_character);
                 offset_ = probe;
                 if (word.has_value() && *word != "sub" && *word != "function" &&
-                    *word != "property" && *word != "declare" && *word != "static" &&
-                    *word != "enum" && *word != "type" && *word != "event" &&
-                    *word != "sub" && procedures_.find(*word) == procedures_.end()) {
+                    *word != "property" && *word != "declare" &&
+                    *word != "static" && *word != "enum" && *word != "type" &&
+                    *word != "event" && *word != "sub" &&
+                    procedures_.find(*word) == procedures_.end()) {
                     if (!allow_declarations_) {
-                        set_error(
-                            "WFC0027",
-                            "declarations are not supported in conditional blocks",
-                            statement_offset);
+                        set_error("WFC0027",
+                                  "declarations are not supported in "
+                                  "conditional blocks",
+                                  statement_offset);
                         return false;
                     }
                     return parse_declaration();
@@ -936,7 +1016,8 @@ bool Interpreter::parse_statement_core() {
         // here so `Public`/`Private` (both are reserved keywords) never
         // exists as a fully-unrecognized standalone statement.
         const auto pre_modifier_offset = offset_;
-        const bool had_modifier = consume_keyword("public") || consume_keyword("private") ||
+        const bool had_modifier = consume_keyword("public") ||
+                                  consume_keyword("private") ||
                                   consume_keyword("friend");
         skip_horizontal_whitespace();
         const bool had_static = consume_keyword("static");
@@ -974,10 +1055,16 @@ bool Interpreter::parse_statement_core() {
                                       current() != '\n' && current() != '\'';
             if (has_argument) {
                 auto value = parse_expression();
-                if (!value.has_value()) return false;
-                if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
-                    if (!execute_) return true;
-                    set_error("WFC0073", "Rnd requires a numeric argument", statement_offset);
+                if (!value.has_value()) {
+                    return false;
+                }
+                if (!is_number(*value) &&
+                    !std::holds_alternative<bool>(*value)) {
+                    if (!execute_) {
+                        return true;
+                    }
+                    set_error("WFC0073", "Rnd requires a numeric argument",
+                              statement_offset);
                     return false;
                 }
                 argument = std::holds_alternative<bool>(*value)
@@ -985,8 +1072,9 @@ bool Interpreter::parse_statement_core() {
                                : as_double(*value);
             }
             if (execute_ && !(has_argument && argument == 0.0)) {
-                rnd_state_ = (has_argument && argument < 0.0) ? seed_from_number(argument)
-                                                              : rnd_step(rnd_state_);
+                rnd_state_ = (has_argument && argument < 0.0)
+                                 ? seed_from_number(argument)
+                                 : rnd_step(rnd_state_);
                 rnd_last_value_ = static_cast<float>(rnd_value(rnd_state_));
             }
             return true;
@@ -995,7 +1083,8 @@ bool Interpreter::parse_statement_core() {
     // REQ-0271: Dim/Static/Const are legal inside blocks; a declaration
     // executed again (loop iteration) is a no-op.
     if (consume_keyword("dim")) {
-        if (current_procedure_def_ != nullptr && current_procedure_def_->static_locals) {
+        if (current_procedure_def_ != nullptr &&
+            current_procedure_def_->static_locals) {
             return parse_static_declaration(statement_offset);
         }
         return parse_declaration();
@@ -1025,7 +1114,8 @@ bool Interpreter::parse_statement_core() {
     return parse_identifier_statement(statement_offset);
 }
 
-bool Interpreter::parse_identifier_statement(const std::size_t statement_offset) {
+bool Interpreter::parse_identifier_statement(
+    const std::size_t statement_offset) {
     offset_ = statement_offset;
     const bool has_let = consume_keyword("let");
     if (has_let) {
@@ -1047,15 +1137,17 @@ bool Interpreter::parse_identifier_statement(const std::size_t statement_offset)
     // arg2` (with arguments) remains unsupported, avoiding the classic
     // ambiguity that form has with other statement shapes; see
     // REQ-0217's Scope.
-    if (const auto handled = parse_bare_call(*identifier, identifier_offset, type_character, has_let)) {
+    if (const auto handled = parse_bare_call(*identifier, identifier_offset,
+                                             type_character, has_let)) {
         return *handled;
     }
-    return parse_assignment_or_array_element(std::move(*identifier), type_character);
+    return parse_assignment_or_array_element(std::move(*identifier),
+                                             type_character);
 }
 
 bool Interpreter::at_statement_end() const noexcept {
-    return at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-           current() == '\'';
+    return at_end() || current() == '\r' || current() == '\n' ||
+           current() == ':' || current() == '\'';
 }
 
 bool Interpreter::parse_print_statement() {
@@ -1119,13 +1211,16 @@ bool Interpreter::parse_print_statement() {
                 }
                 skip_horizontal_whitespace();
                 if (!consume(')')) {
-                    set_error("WFC0005", "expected closing parenthesis", offset_);
+                    set_error("WFC0005", "expected closing parenthesis",
+                              offset_);
                     return false;
                 }
                 const auto count_value = whole_value(*amount);
-                const Integer* const count = count_value ? &*count_value : nullptr;
+                const Integer* const count =
+                    count_value ? &*count_value : nullptr;
                 if (count == nullptr) {
-                    set_error("WFC0073", "Spc/Tab requires a Long argument", offset_);
+                    set_error("WFC0073", "Spc/Tab requires a Long argument",
+                              offset_);
                     return false;
                 }
                 if (execute_ && *count > 0) {
@@ -1133,7 +1228,8 @@ bool Interpreter::parse_print_statement() {
                         text.append(static_cast<std::size_t>(*count), ' ');
                     } else if (const auto column = utf16_length(text);
                                static_cast<std::size_t>(*count - 1) > column) {
-                        text.append(static_cast<std::size_t>(*count - 1) - column, ' ');
+                        text.append(
+                            static_cast<std::size_t>(*count - 1) - column, ' ');
                     }
                 }
                 newline = true;
@@ -1150,9 +1246,12 @@ bool Interpreter::parse_print_statement() {
                 text += "Null";
             } else if (vb_number_spacing_ && is_number(*value) &&
                        !std::holds_alternative<DateValue>(*value)) {
-                // VB6 reserves a sign position before a number and adds a trailing space.
+                // VB6 reserves a sign position before a number and adds a
+                // trailing space.
                 const std::string digits = render(*value);
-                if (digits.empty() || digits.front() != '-') text.push_back(' ');
+                if (digits.empty() || digits.front() != '-') {
+                    text.push_back(' ');
+                }
                 text += digits;
                 text.push_back(' ');
             } else {
@@ -1167,11 +1266,14 @@ bool Interpreter::parse_print_statement() {
     if (discard_print_) {
         // `Debug.Print`: the Immediate window; kept apart from the output.
         debug_output_ += text;
-        if (newline) debug_output_.push_back('\n');
+        if (newline) {
+            debug_output_.push_back('\n');
+        }
         return true;
     }
     if (to_file) {
-        return write_to_file(file_number, newline ? text + "\r\n" : text, offset_);
+        return write_to_file(file_number, newline ? text + "\r\n" : text,
+                             offset_);
     }
     if (has_output_line_ && !output_line_open_) {
         output_.push_back('\n');
@@ -1182,10 +1284,11 @@ bool Interpreter::parse_print_statement() {
     return true;
 }
 
-bool Interpreter::parse_randomize_statement(const std::size_t statement_offset) {
+bool Interpreter::parse_randomize_statement(
+    const std::size_t statement_offset) {
     skip_horizontal_whitespace();
-    if (at_end() || current() == ':' || current() == '\r' || current() == '\n' ||
-        current() == '\'') {
+    if (at_end() || current() == ':' || current() == '\r' ||
+        current() == '\n' || current() == '\'') {
         if (execute_) {
             rnd_state_ = seed_from_number(entropy_seed());
         }
@@ -1196,14 +1299,17 @@ bool Interpreter::parse_randomize_statement(const std::size_t statement_offset) 
         return false;
     }
     if (!is_number(*value) && !std::holds_alternative<bool>(*value)) {
-        if (!execute_) return true;
-        set_error("WFC0073", "Randomize requires a numeric seed", statement_offset);
+        if (!execute_) {
+            return true;
+        }
+        set_error("WFC0073", "Randomize requires a numeric seed",
+                  statement_offset);
         return false;
     }
     if (execute_) {
         const double seed = std::holds_alternative<bool>(*value)
-                                 ? (std::get<bool>(*value) ? -1.0 : 0.0)
-                                 : as_double(*value);
+                                ? (std::get<bool>(*value) ? -1.0 : 0.0)
+                                : as_double(*value);
         rnd_state_ = seed_from_number(seed);
     }
     return true;
@@ -1213,7 +1319,8 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
     skip_horizontal_whitespace();
     if (consume_keyword("do")) {
         if (do_depth_ == 0U) {
-            set_error("WFC0042", "Exit Do is not inside a Do loop", statement_offset);
+            set_error("WFC0042", "Exit Do is not inside a Do loop",
+                      statement_offset);
             return false;
         }
         if (execute_) {
@@ -1223,7 +1330,8 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
     }
     if (consume_keyword("for")) {
         if (for_depth_ == 0U) {
-            set_error("WFC0052", "Exit For is not inside a For loop", statement_offset);
+            set_error("WFC0052", "Exit For is not inside a For loop",
+                      statement_offset);
             return false;
         }
         if (execute_) {
@@ -1233,7 +1341,8 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
     }
     if (consume_keyword("sub")) {
         if (!in_procedure() || current_scope().is_function_frame) {
-            set_error("WFC0124", "Exit Sub is not inside a Sub", statement_offset);
+            set_error("WFC0124", "Exit Sub is not inside a Sub",
+                      statement_offset);
             return false;
         }
         if (execute_) {
@@ -1243,7 +1352,8 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
     }
     if (consume_keyword("function")) {
         if (!in_procedure() || !current_scope().is_function_frame) {
-            set_error("WFC0125", "Exit Function is not inside a Function", statement_offset);
+            set_error("WFC0125", "Exit Function is not inside a Function",
+                      statement_offset);
             return false;
         }
         if (execute_) {
@@ -1253,7 +1363,8 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
     }
     if (consume_keyword("property")) {
         if (!in_procedure()) {
-            set_error("WFC0124", "Exit Property is not inside a Property", statement_offset);
+            set_error("WFC0124", "Exit Property is not inside a Property",
+                      statement_offset);
             return false;
         }
         if (execute_) {
@@ -1265,7 +1376,9 @@ bool Interpreter::parse_exit_statement(const std::size_t statement_offset) {
         }
         return true;
     }
-    set_error("WFC0041", "expected Do, For, Sub, Function, or Property after Exit", offset_);
+    set_error("WFC0041",
+              "expected Do, For, Sub, Function, or Property after Exit",
+              offset_);
     return false;
 }
 
@@ -1282,7 +1395,8 @@ bool Interpreter::parse_if_statement() {
         return false;
     }
     const auto boolean =
-        coerce_condition_boolean(*condition, condition_offset, "WFC0021", "If condition must be Boolean");
+        coerce_condition_boolean(*condition, condition_offset, "WFC0021",
+                                 "If condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
@@ -1295,7 +1409,8 @@ bool Interpreter::parse_if_statement() {
 
     const bool enclosing_execution = execute_;
     skip_horizontal_whitespace();
-    if (!at_end() && (current() == '\r' || current() == '\n' || current() == '\'')) {
+    if (!at_end() &&
+        (current() == '\r' || current() == '\n' || current() == '\'')) {
         return parse_block_if_statement(enclosing_execution, *boolean);
     }
     execute_ = enclosing_execution && *boolean;
@@ -1306,7 +1421,8 @@ bool Interpreter::parse_if_statement() {
 
     skip_horizontal_whitespace();
     if (consume_keyword("else")) {
-        execute_ = enclosing_execution && !*boolean && !control_exit_requested();
+        execute_ =
+            enclosing_execution && !*boolean && !control_exit_requested();
         if (!parse_inline_statement_list()) {
             execute_ = enclosing_execution;
             return false;
@@ -1334,9 +1450,10 @@ bool Interpreter::parse_inline_statement_list() {
         advance();
         skip_horizontal_whitespace();
         const auto probe = offset_;
-        if (at_end() || current() == '\r' || current() == '\n' || current() == '\'' ||
-            consume_keyword("else")) {
-            offset_ = at_end() || current() == '\r' || current() == '\n' || current() == '\''
+        if (at_end() || current() == '\r' || current() == '\n' ||
+            current() == '\'' || consume_keyword("else")) {
+            offset_ = at_end() || current() == '\r' || current() == '\n' ||
+                              current() == '\''
                           ? colon_offset
                           : probe;
             execute_ = branch_execution && !control_exit_requested();
@@ -1346,9 +1463,8 @@ bool Interpreter::parse_inline_statement_list() {
     }
 }
 
-bool Interpreter::parse_block_if_statement(
-    const bool enclosing_execution,
-    const bool condition) {
+bool Interpreter::parse_block_if_statement(const bool enclosing_execution,
+                                           const bool condition) {
     if (!consume_block_line_end()) {
         return false;
     }
@@ -1367,11 +1483,13 @@ bool Interpreter::parse_block_if_statement(
             const auto elseif_offset = offset_ - 6U;
             if (has_else) {
                 execute_ = enclosing_execution;
-                set_error("WFC0030", "ElseIf is not permitted after Else", elseif_offset);
+                set_error("WFC0030", "ElseIf is not permitted after Else",
+                          elseif_offset);
                 return false;
             }
 
-            const bool evaluate_condition = enclosing_execution && !branch_selected;
+            const bool evaluate_condition =
+                enclosing_execution && !branch_selected;
             execute_ = evaluate_condition;
             skip_horizontal_whitespace();
             const auto condition_offset = offset_;
@@ -1381,7 +1499,8 @@ bool Interpreter::parse_block_if_statement(
                 return false;
             }
             const auto elseif_boolean = coerce_condition_boolean(
-                *elseif_condition, condition_offset, "WFC0028", "ElseIf condition must be Boolean");
+                *elseif_condition, condition_offset, "WFC0028",
+                "ElseIf condition must be Boolean");
             if (!elseif_boolean.has_value()) {
                 execute_ = enclosing_execution;
                 return false;
@@ -1430,7 +1549,8 @@ bool Interpreter::parse_block_if_statement(
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
         if (!parsed_statement || !consumed_statement_end) {
             execute_ = enclosing_execution;
@@ -1450,8 +1570,9 @@ bool Interpreter::parse_while_statement() {
     if (!condition.has_value()) {
         return false;
     }
-    const auto boolean = coerce_condition_boolean(
-        *condition, condition_offset, "WFC0031", "While condition must be Boolean");
+    const auto boolean =
+        coerce_condition_boolean(*condition, condition_offset, "WFC0031",
+                                 "While condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
@@ -1490,7 +1611,8 @@ bool Interpreter::parse_while_statement() {
             return false;
         }
         const auto next_boolean = coerce_condition_boolean(
-            *next_condition, condition_offset, "WFC0031", "While condition must be Boolean");
+            *next_condition, condition_offset, "WFC0031",
+            "While condition must be Boolean");
         if (!next_boolean.has_value()) {
             execute_ = enclosing_execution;
             return false;
@@ -1516,9 +1638,10 @@ bool Interpreter::parse_with_statement(const std::size_t statement_offset) {
         return false;
     }
     const bool is_object = std::holds_alternative<ObjectInstance>(*value) ||
-        std::holds_alternative<Nothing>(*value);
+                           std::holds_alternative<Nothing>(*value);
     if (enclosing_execution && !is_object) {
-        set_error("WFC0136", "With requires an object reference", expression_offset);
+        set_error("WFC0136", "With requires an object reference",
+                  expression_offset);
         return false;
     }
     if (!consume_loop_header_end()) {
@@ -1553,7 +1676,8 @@ bool Interpreter::parse_with_statement(const std::size_t statement_offset) {
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
         if (!parsed_statement || !consumed_statement_end) {
             cleanup();
@@ -1579,13 +1703,20 @@ std::size_t Interpreter::find_loop_end(const std::size_t from) const {
             line_end = source_.size();
         }
         std::size_t i = position;
-        while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) ++i;
+        while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) {
+            ++i;
+        }
         const auto word_is = [&](const std::string_view w) {
-            if (line_end - i < w.size()) return false;
-            for (std::size_t k = 0; k < w.size(); ++k) {
-                if (ascii_lower(source_[i + k]) != w[k]) return false;
+            if (line_end - i < w.size()) {
+                return false;
             }
-            return line_end - i == w.size() || !is_identifier_part(source_[i + w.size()]);
+            for (std::size_t k = 0; k < w.size(); ++k) {
+                if (ascii_lower(source_[i + k]) != w[k]) {
+                    return false;
+                }
+            }
+            return line_end - i == w.size() ||
+                   !is_identifier_part(source_[i + w.size()]);
         };
         if (word_is("do") || word_is("while") || word_is("for")) {
             ++depth;
@@ -1596,8 +1727,11 @@ std::size_t Interpreter::find_loop_end(const std::size_t from) const {
             --depth;
             if (word_is("next")) {
                 // `Next j, i` closes several loops at once.
-                for (std::size_t k = i; k < line_end && source_[k] != '\''; ++k) {
-                    if (source_[k] == ',' && depth > 0) --depth;
+                for (std::size_t k = i; k < line_end && source_[k] != '\'';
+                     ++k) {
+                    if (source_[k] == ',' && depth > 0) {
+                        --depth;
+                    }
                 }
             }
         }
@@ -1606,8 +1740,8 @@ std::size_t Interpreter::find_loop_end(const std::size_t from) const {
     return std::string_view::npos;
 }
 
-bool Interpreter::take_local_jump(
-    const std::size_t body_start, const std::size_t statement_start) {
+bool Interpreter::take_local_jump(const std::size_t body_start,
+                                  const std::size_t statement_start) {
     if (!jump_pending_) {
         return false;
     }
@@ -1646,9 +1780,11 @@ bool Interpreter::parse_while_body(std::size_t& continuation_offset) {
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
-        if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+        if (!parsed_statement &&
+            take_local_jump(body_start, statement_offset)) {
             continue;
         }
         if (!parsed_statement || !consumed_statement_end) {
@@ -1663,7 +1799,8 @@ bool Interpreter::parse_while_body(std::size_t& continuation_offset) {
 bool Interpreter::parse_do_statement() {
     const bool enclosing_execution = execute_;
     skip_horizontal_whitespace();
-    if (!at_end() && (current() == '\r' || current() == '\n' || current() == ':' || current() == '\'')) {
+    if (!at_end() && (current() == '\r' || current() == '\n' ||
+                      current() == ':' || current() == '\'')) {
         return parse_posttest_do_statement(enclosing_execution);
     }
     bool until{};
@@ -1682,8 +1819,9 @@ bool Interpreter::parse_do_statement() {
     if (!condition.has_value()) {
         return false;
     }
-    const auto boolean = coerce_condition_boolean(
-        *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+    const auto boolean =
+        coerce_condition_boolean(*condition, condition_offset, "WFC0035",
+                                 "Do condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
@@ -1719,7 +1857,8 @@ bool Interpreter::parse_do_statement() {
             execute_ = enclosing_execution;
             return true;
         }
-        if (exit_for_requested_ || exit_sub_requested_ || exit_function_requested_) {
+        if (exit_for_requested_ || exit_sub_requested_ ||
+            exit_function_requested_) {
             offset_ = continuation_offset;
             execute_ = false;
             return true;
@@ -1732,8 +1871,9 @@ bool Interpreter::parse_do_statement() {
             execute_ = enclosing_execution;
             return false;
         }
-        const auto next_boolean = coerce_condition_boolean(
-            *next_condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+        const auto next_boolean =
+            coerce_condition_boolean(*next_condition, condition_offset,
+                                     "WFC0035", "Do condition must be Boolean");
         if (!next_boolean.has_value()) {
             execute_ = enclosing_execution;
             return false;
@@ -1769,8 +1909,9 @@ bool Interpreter::parse_posttest_do_statement(const bool enclosing_execution) {
             return false;
         }
         const bool exit_do_requested = exit_do_requested_;
-        const bool exit_for_requested =
-            exit_for_requested_ || exit_sub_requested_ || exit_function_requested_;
+        const bool exit_for_requested = exit_for_requested_ ||
+                                        exit_sub_requested_ ||
+                                        exit_function_requested_;
 
         skip_horizontal_whitespace();
         bool until{};
@@ -1802,7 +1943,8 @@ bool Interpreter::parse_posttest_do_statement(const bool enclosing_execution) {
                 return false;
             }
             const auto boolean = coerce_condition_boolean(
-                *condition, condition_offset, "WFC0035", "Do condition must be Boolean");
+                *condition, condition_offset, "WFC0035",
+                "Do condition must be Boolean");
             if (!boolean.has_value()) {
                 execute_ = enclosing_execution;
                 return false;
@@ -1814,7 +1956,8 @@ bool Interpreter::parse_posttest_do_statement(const bool enclosing_execution) {
             } else if (exit_for_requested) {
                 continue_loop = false;
             } else {
-                continue_loop = enclosing_execution && (until ? !*boolean : *boolean);
+                continue_loop =
+                    enclosing_execution && (until ? !*boolean : *boolean);
             }
         } else {
             continuation_offset = offset_;
@@ -1856,9 +1999,11 @@ bool Interpreter::parse_do_body(std::size_t& continuation_offset) {
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
-        if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+        if (!parsed_statement &&
+            take_local_jump(body_start, statement_offset)) {
             continue;
         }
         if (!parsed_statement || !consumed_statement_end) {
@@ -1885,10 +2030,12 @@ bool Interpreter::parse_for_statement() {
         set_error("WFC0015", "undeclared variable", variable_offset);
         return false;
     }
-    if (!type_character_matches(*variable.value, type_character, variable_offset)) {
+    if (!type_character_matches(*variable.value, type_character,
+                                variable_offset)) {
         return false;
     }
-    const bool is_variant_variable = variable.scope->variant_variables.contains(*identifier);
+    const bool is_variant_variable =
+        variable.scope->variant_variables.contains(*identifier);
     enum class Slot { integer, int16, byte, floating_double, floating_single };
     Slot slot{};
     if (std::holds_alternative<Integer>(*variable.value)) {
@@ -1904,7 +2051,8 @@ bool Interpreter::parse_for_statement() {
     } else if (is_variant_variable) {
         slot = Slot::integer;  // refined from the bounds below
     } else {
-        set_error("WFC0045", "For control variable must be numeric", variable_offset);
+        set_error("WFC0045", "For control variable must be numeric",
+                  variable_offset);
         return false;
     }
 
@@ -1939,29 +2087,50 @@ bool Interpreter::parse_for_statement() {
         step_value = std::move(*parsed_step);
     }
     const auto numeric = [this](const Value& value) -> std::optional<double> {
-        if (const auto* v = std::get_if<Integer>(&value)) return static_cast<double>(*v);
-        if (const auto* v = std::get_if<Int16>(&value)) return static_cast<double>(*v);
-        if (const auto* v = std::get_if<Byte>(&value)) return static_cast<double>(*v);
-        if (const auto* v = std::get_if<double>(&value)) return *v;
-        if (const auto* v = std::get_if<float>(&value)) return static_cast<double>(*v);
-        if (std::holds_alternative<Currency>(value) || std::holds_alternative<Decimal>(value)) {
+        if (const auto* v = std::get_if<Integer>(&value)) {
+            return static_cast<double>(*v);
+        }
+        if (const auto* v = std::get_if<Int16>(&value)) {
+            return static_cast<double>(*v);
+        }
+        if (const auto* v = std::get_if<Byte>(&value)) {
+            return static_cast<double>(*v);
+        }
+        if (const auto* v = std::get_if<double>(&value)) {
+            return *v;
+        }
+        if (const auto* v = std::get_if<float>(&value)) {
+            return static_cast<double>(*v);
+        }
+        if (std::holds_alternative<Currency>(value) ||
+            std::holds_alternative<Decimal>(value)) {
             return as_double(value);
         }
-        if (const auto* v = std::get_if<DateValue>(&value)) return v->serial;
-        if (std::holds_alternative<Empty>(value)) return 0.0;
-        if (const auto* v = std::get_if<bool>(&value)) return *v ? -1.0 : 0.0;
-        if (!execute_) return 0.0;  // a placeholder operand of a not-taken branch
+        if (const auto* v = std::get_if<DateValue>(&value)) {
+            return v->serial;
+        }
+        if (std::holds_alternative<Empty>(value)) {
+            return 0.0;
+        }
+        if (const auto* v = std::get_if<bool>(&value)) {
+            return *v ? -1.0 : 0.0;
+        }
+        if (!execute_) {
+            return 0.0;  // a placeholder operand of a not-taken branch
+        }
         return std::nullopt;
     };
     const auto start_number = numeric(*start_value);
     const auto end_number = numeric(*end_value);
     const auto step_number = numeric(step_value);
     if (!start_number || !end_number || !step_number) {
-        set_error("WFC0045", "For bounds and Step must be numeric", variable_offset);
+        set_error("WFC0045", "For bounds and Step must be numeric",
+                  variable_offset);
         return false;
     }
     if (is_variant_variable) {
-        const bool any_floating = std::holds_alternative<double>(*start_value) ||
+        const bool any_floating =
+            std::holds_alternative<double>(*start_value) ||
             std::holds_alternative<float>(*start_value) ||
             std::holds_alternative<double>(*end_value) ||
             std::holds_alternative<float>(*end_value) ||
@@ -1977,7 +2146,8 @@ bool Interpreter::parse_for_statement() {
         return false;
     }
 
-    const bool floating = slot == Slot::floating_double || slot == Slot::floating_single;
+    const bool floating =
+        slot == Slot::floating_double || slot == Slot::floating_single;
     std::int64_t whole_min = std::numeric_limits<Integer>::min();
     std::int64_t whole_max = std::numeric_limits<Integer>::max();
     if (slot == Slot::int16) {
@@ -1992,11 +2162,21 @@ bool Interpreter::parse_for_statement() {
     };
     const auto store = [&](const double number) {
         switch (slot) {
-        case Slot::integer: *variable.value = static_cast<Integer>(round_whole(number)); break;
-        case Slot::int16: *variable.value = static_cast<Int16>(round_whole(number)); break;
-        case Slot::byte: *variable.value = static_cast<Byte>(round_whole(number)); break;
-        case Slot::floating_double: *variable.value = number; break;
-        case Slot::floating_single: *variable.value = static_cast<float>(number); break;
+            case Slot::integer:
+                *variable.value = static_cast<Integer>(round_whole(number));
+                break;
+            case Slot::int16:
+                *variable.value = static_cast<Int16>(round_whole(number));
+                break;
+            case Slot::byte:
+                *variable.value = static_cast<Byte>(round_whole(number));
+                break;
+            case Slot::floating_double:
+                *variable.value = number;
+                break;
+            case Slot::floating_single:
+                *variable.value = static_cast<float>(number);
+                break;
         }
     };
     const auto read = [&]() -> double {
@@ -2038,7 +2218,8 @@ bool Interpreter::parse_for_statement() {
     if (!continue_loop) {
         execute_ = false;
         ++for_depth_;
-        const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
         --for_depth_;
         execute_ = enclosing_execution;
         return parsed_body;
@@ -2049,7 +2230,8 @@ bool Interpreter::parse_for_statement() {
         offset_ = body_offset;
         execute_ = enclosing_execution;
         ++for_depth_;
-        const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
         --for_depth_;
         if (!parsed_body) {
             execute_ = enclosing_execution;
@@ -2074,7 +2256,8 @@ bool Interpreter::parse_for_statement() {
         }
         if (!floating && (next < static_cast<double>(whole_min) ||
                           next > static_cast<double>(whole_max))) {
-            set_error("WFC0047", "For control variable overflow", variable_offset);
+            set_error("WFC0047", "For control variable overflow",
+                      variable_offset);
             execute_ = enclosing_execution;
             return false;
         }
@@ -2088,9 +2271,8 @@ bool Interpreter::parse_for_statement() {
     return true;
 }
 
-bool Interpreter::parse_for_body(
-    const std::string_view identifier,
-    std::size_t& continuation_offset) {
+bool Interpreter::parse_for_body(const std::string_view identifier,
+                                 std::size_t& continuation_offset) {
     pending_next_comma_ = false;
     const auto body_start = offset_;
     while (true) {
@@ -2104,7 +2286,8 @@ bool Interpreter::parse_for_body(
                 char name_type_character{};
                 auto name = parse_identifier(&name_type_character);
                 if (!name.has_value() || *name != identifier) {
-                    set_error("WFC0049", "Next variable does not match For", name_offset);
+                    set_error("WFC0049", "Next variable does not match For",
+                              name_offset);
                     return false;
                 }
                 skip_horizontal_whitespace();
@@ -2126,14 +2309,16 @@ bool Interpreter::parse_for_body(
             char next_type_character{};
             auto next_identifier = parse_identifier(&next_type_character);
             if (next_identifier.has_value() && *next_identifier != identifier) {
-                set_error("WFC0049", "Next variable does not match For", next_identifier_offset);
+                set_error("WFC0049", "Next variable does not match For",
+                          next_identifier_offset);
                 return false;
             }
             if (next_identifier.has_value()) {
                 const auto variable = find_variable(*next_identifier);
                 if (variable.value == nullptr ||
-                    !type_character_matches(
-                        *variable.value, next_type_character, next_identifier_offset)) {
+                    !type_character_matches(*variable.value,
+                                            next_type_character,
+                                            next_identifier_offset)) {
                     return false;
                 }
             }
@@ -2149,9 +2334,11 @@ bool Interpreter::parse_for_body(
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
-        if (!parsed_statement && take_local_jump(body_start, statement_offset)) {
+        if (!parsed_statement &&
+            take_local_jump(body_start, statement_offset)) {
             continue;
         }
         if (!parsed_statement || !consumed_statement_end) {
@@ -2170,7 +2357,8 @@ bool Interpreter::parse_for_each_statement() {
     char type_character{};
     auto identifier = parse_identifier(&type_character);
     if (!identifier.has_value()) {
-        set_error("WFC0043", "expected For Each control variable", variable_offset);
+        set_error("WFC0043", "expected For Each control variable",
+                  variable_offset);
         return false;
     }
     const auto variable = find_variable(*identifier);
@@ -2178,12 +2366,14 @@ bool Interpreter::parse_for_each_statement() {
         set_error("WFC0015", "undeclared variable", variable_offset);
         return false;
     }
-    if (!type_character_matches(*variable.value, type_character, variable_offset)) {
+    if (!type_character_matches(*variable.value, type_character,
+                                variable_offset)) {
         return false;
     }
     skip_horizontal_whitespace();
     if (!consume_keyword("in")) {
-        set_error("WFC0147", "expected In after For Each control variable", offset_);
+        set_error("WFC0147", "expected In after For Each control variable",
+                  offset_);
         return false;
     }
     skip_horizontal_whitespace();
@@ -2195,29 +2385,36 @@ bool Interpreter::parse_for_each_statement() {
     // REQ-0243: For Each over a Collection (or any class exposing a
     // `WfcItems` method) iterates the array that method returns.
     if (execute_) {
-        if (const auto* holder = std::get_if<ObjectInstance>(&*collection_value)) {
-            auto class_iterator = class_definitions_.find(holder->data->class_name);
-            // A class exposing a `NewEnum` method (VB_UserMemId -4): iterate what it returns.
+        if (const auto* holder =
+                std::get_if<ObjectInstance>(&*collection_value)) {
+            auto class_iterator =
+                class_definitions_.find(holder->data->class_name);
+            // A class exposing a `NewEnum` method (VB_UserMemId -4): iterate
+            // what it returns.
             if (class_iterator != class_definitions_.end() &&
                 !class_iterator->second.methods.contains("wfcitems") &&
                 class_iterator->second.methods.contains("newenum")) {
-                auto enumerator = call_class_method(
-                    *holder->data, class_iterator->second, "newenum", collection_offset,
-                    /*require_function=*/true);
+                auto enumerator =
+                    call_class_method(*holder->data, class_iterator->second,
+                                      "newenum", collection_offset,
+                                      /*require_function=*/true);
                 if (!enumerator.has_value()) {
                     return false;
                 }
                 collection_value = std::move(enumerator);
                 holder = std::get_if<ObjectInstance>(&*collection_value);
-                class_iterator = holder != nullptr
-                    ? class_definitions_.find(holder->data->class_name)
-                    : class_definitions_.end();
+                class_iterator =
+                    holder != nullptr
+                        ? class_definitions_.find(holder->data->class_name)
+                        : class_definitions_.end();
             }
-            if (holder != nullptr && class_iterator != class_definitions_.end() &&
+            if (holder != nullptr &&
+                class_iterator != class_definitions_.end() &&
                 class_iterator->second.methods.contains("wfcitems")) {
-                auto items = call_class_method(
-                    *holder->data, class_iterator->second, "wfcitems", collection_offset,
-                    /*require_function=*/true);
+                auto items =
+                    call_class_method(*holder->data, class_iterator->second,
+                                      "wfcitems", collection_offset,
+                                      /*require_function=*/true);
                 if (!items.has_value()) {
                     return false;
                 }
@@ -2227,7 +2424,8 @@ bool Interpreter::parse_for_each_statement() {
     }
     const auto* array = std::get_if<ArrayValue>(&*collection_value);
     if (array == nullptr && !execute_) {
-        static const ArrayValue empty_array{};  // a placeholder in a not-taken branch
+        static const ArrayValue
+            empty_array{};  // a placeholder in a not-taken branch
         array = &empty_array;
     }
     if (array == nullptr) {
@@ -2238,7 +2436,8 @@ bool Interpreter::parse_for_each_statement() {
         return false;
     }
 
-    const bool target_is_variant = variable.scope->variant_variables.contains(*identifier);
+    const bool target_is_variant =
+        variable.scope->variant_variables.contains(*identifier);
     const auto count = array->elements.size();
     const auto assign_element = [&](const std::size_t index) -> bool {
         Value element_value = array->elements[index];
@@ -2251,7 +2450,8 @@ bool Interpreter::parse_for_each_statement() {
             *variable.value = std::move(element_value);
             return true;
         }
-        if (!coerce_numeric_value(element_value, variable.value->index(), variable_offset)) {
+        if (!coerce_numeric_value(element_value, variable.value->index(),
+                                  variable_offset)) {
             return false;
         }
         if (element_value.index() != variable.value->index()) {
@@ -2273,7 +2473,8 @@ bool Interpreter::parse_for_each_statement() {
     if (!continue_loop) {
         execute_ = false;
         ++for_depth_;
-        const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
         --for_depth_;
         execute_ = enclosing_execution;
         return parsed_body;
@@ -2283,7 +2484,8 @@ bool Interpreter::parse_for_each_statement() {
         offset_ = body_offset;
         execute_ = enclosing_execution;
         ++for_depth_;
-        const bool parsed_body = parse_for_body(*identifier, continuation_offset);
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
         --for_depth_;
         if (!parsed_body) {
             execute_ = enclosing_execution;
@@ -2362,7 +2564,8 @@ bool Interpreter::parse_select_statement() {
             }
             if (has_else) {
                 execute_ = enclosing_execution;
-                set_error("WFC0057", "Case is not permitted after Case Else", case_offset);
+                set_error("WFC0057", "Case is not permitted after Case Else",
+                          case_offset);
                 return false;
             }
 
@@ -2389,10 +2592,9 @@ bool Interpreter::parse_select_statement() {
                         relational_operator = "=";
                     } else {
                         execute_ = enclosing_execution;
-                        set_error(
-                            "WFC0061",
-                            "expected relational operator after Case Is",
-                            operator_offset);
+                        set_error("WFC0061",
+                                  "expected relational operator after Case Is",
+                                  operator_offset);
                         return false;
                     }
                     skip_horizontal_whitespace();
@@ -2408,22 +2610,23 @@ bool Interpreter::parse_select_statement() {
                     execute_ = enclosing_execution;
                     return false;
                 }
-                const bool both_numeric = is_number(*case_value) && is_number(*selector);
+                const bool both_numeric =
+                    is_number(*case_value) && is_number(*selector);
                 if (case_value->index() != selector->index() && !both_numeric &&
-                    enclosing_execution && !std::holds_alternative<Empty>(*selector) &&
+                    enclosing_execution &&
+                    !std::holds_alternative<Empty>(*selector) &&
                     !std::holds_alternative<Empty>(*case_value)) {
                     execute_ = enclosing_execution;
-                    set_error("WFC0053", "Case value must match selector type", value_offset);
+                    set_error("WFC0053", "Case value must match selector type",
+                              value_offset);
                     return false;
                 }
                 skip_horizontal_whitespace();
                 bool item_matches{};
                 if (!relational_operator.empty()) {
-                    auto comparison = compare(
-                        *selector,
-                        *case_value,
-                        relational_operator,
-                        value_offset);
+                    auto comparison =
+                        compare(*selector, *case_value, relational_operator,
+                                value_offset);
                     if (!comparison.has_value()) {
                         execute_ = enclosing_execution;
                         return false;
@@ -2432,8 +2635,10 @@ bool Interpreter::parse_select_statement() {
                     // Null itself (three-valued logic), which is never a
                     // match, matching Select Case Null never selecting
                     // any Case clause in real VB6.
-                    const auto* comparison_boolean = std::get_if<bool>(&*comparison);
-                    item_matches = comparison_boolean != nullptr && *comparison_boolean;
+                    const auto* comparison_boolean =
+                        std::get_if<bool>(&*comparison);
+                    item_matches =
+                        comparison_boolean != nullptr && *comparison_boolean;
                 } else if (consume_keyword("to")) {
                     skip_horizontal_whitespace();
                     const auto upper_offset = offset_;
@@ -2448,10 +2653,10 @@ bool Interpreter::parse_select_statement() {
                         (!is_number(*selector) &&
                          !std::holds_alternative<std::string>(*selector))) {
                         execute_ = enclosing_execution;
-                        set_error(
-                            "WFC0060",
-                            "Case range requires same-type Long or String values",
-                            upper_offset);
+                        set_error("WFC0060",
+                                  "Case range requires same-type Long or "
+                                  "String values",
+                                  upper_offset);
                         return false;
                     }
                     if (is_number(*selector)) {
@@ -2460,20 +2665,21 @@ bool Interpreter::parse_select_statement() {
                             as_double(*case_value) <= selected_number &&
                             selected_number <= as_double(*upper_value);
                     } else {
-                        const auto& selected_string = std::get<std::string>(*selector);
+                        const auto& selected_string =
+                            std::get<std::string>(*selector);
                         item_matches =
-                            compare_strings(
-                                std::get<std::string>(*case_value),
-                                selected_string) <= 0 &&
+                            compare_strings(std::get<std::string>(*case_value),
+                                            selected_string) <= 0 &&
                             compare_strings(
                                 selected_string,
                                 std::get<std::string>(*upper_value)) <= 0;
                     }
                     skip_horizontal_whitespace();
                 } else {
-                    item_matches = both_numeric
-                        ? as_double(*case_value) == as_double(*selector)
-                        : values_equal(*case_value, *selector);
+                    item_matches =
+                        both_numeric
+                            ? as_double(*case_value) == as_double(*selector)
+                            : values_equal(*case_value, *selector);
                 }
                 case_matches = case_matches || item_matches;
                 if (!consume(',')) {
@@ -2503,14 +2709,16 @@ bool Interpreter::parse_select_statement() {
         }
         if (!has_case) {
             execute_ = enclosing_execution;
-            set_error("WFC0054", "expected Case or End Select", selector_offset);
+            set_error("WFC0054", "expected Case or End Select",
+                      selector_offset);
             return false;
         }
 
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;
         const bool parsed_statement = parse_statement();
-        const bool consumed_statement_end = parsed_statement && consume_statement_end();
+        const bool consumed_statement_end =
+            parsed_statement && consume_statement_end();
         allow_declarations_ = enclosing_declaration_permission;
         if (!parsed_statement || !consumed_statement_end) {
             execute_ = enclosing_execution;
@@ -2525,13 +2733,15 @@ bool Interpreter::parse_select_statement() {
 std::optional<bool> Interpreter::parse_bare_call(
     const std::string& identifier, const std::size_t identifier_offset,
     const char type_character, const bool has_let) {
-    if (!has_let && type_character == '\0' && find_variable(identifier).value == nullptr) {
+    if (!has_let && type_character == '\0' &&
+        find_variable(identifier).value == nullptr) {
         const auto saved_offset = offset_;
         skip_horizontal_whitespace();
-        const bool bare_statement_end = at_end() || current() == '\r' || current() == '\n' ||
-            current() == ':' || current() == '\'';
+        const bool bare_statement_end = at_end() || current() == '\r' ||
+                                        current() == '\n' || current() == ':' ||
+                                        current() == '\'';
         const bool arguments_follow = !bare_statement_end && current() != '=' &&
-            current() != '(' && current() != '.';
+                                      current() != '(' && current() != '.';
         // `Name (arg)` / `Name(a, b)` as a statement: a parenthesized
         // list ending the statement. One argument is passed by value
         // (VB evaluates `(x)` as an expression); several are an
@@ -2553,9 +2763,9 @@ std::optional<bool> Interpreter::parse_bare_call(
             if (procedures_.contains(identifier)) {
                 result = call_procedure(identifier, identifier_offset, false);
             } else {
-                result = call_class_method(
-                    *current_instance(), *current_class_def(), identifier, identifier_offset,
-                    false);
+                result =
+                    call_class_method(*current_instance(), *current_class_def(),
+                                      identifier, identifier_offset, false);
             }
             bare_call_arguments_ = false;
             return result.has_value();
@@ -2563,15 +2773,17 @@ std::optional<bool> Interpreter::parse_bare_call(
         if (bare_statement_end || arguments_follow) {
             bare_call_arguments_ = arguments_follow;
             if (procedures_.contains(identifier)) {
-                const auto result = call_procedure(identifier, identifier_offset, false);
+                const auto result =
+                    call_procedure(identifier, identifier_offset, false);
                 bare_call_arguments_ = false;
                 return result.has_value();
             }
             if (auto* const instance = current_instance()) {
                 if (const auto* const class_def = current_class_def()) {
                     if (class_def->methods.contains(identifier)) {
-                        const auto result = call_class_method(
-                            *instance, *class_def, identifier, identifier_offset, false);
+                        const auto result =
+                            call_class_method(*instance, *class_def, identifier,
+                                              identifier_offset, false);
                         bare_call_arguments_ = false;
                         return result.has_value();
                     }
@@ -2608,10 +2820,11 @@ bool Interpreter::parse_inline_statement() {
 bool Interpreter::parse_inline_statement_core() {
     skip_horizontal_whitespace();
     const auto statement_offset = offset_;
-    if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-        consume_keyword("else")) {
+    if (at_end() || current() == '\r' || current() == '\n' ||
+        current() == ':' || consume_keyword("else")) {
         offset_ = statement_offset;
-        set_error("WFC0023", "expected Print or assignment branch", statement_offset);
+        set_error("WFC0023", "expected Print or assignment branch",
+                  statement_offset);
         return false;
     }
     if (consume_keyword("print")) {
@@ -2626,7 +2839,8 @@ bool Interpreter::parse_inline_statement_core() {
     if (consume_keyword("exit")) {
         return parse_exit_statement(statement_offset);
     }
-    if (const auto handled = parse_error_handling_statement(statement_offset, false)) {
+    if (const auto handled =
+            parse_error_handling_statement(statement_offset, false)) {
         return *handled;
     }
 
@@ -2638,13 +2852,18 @@ bool Interpreter::parse_inline_statement_core() {
         const auto word = parse_identifier(&probe_type_character);
         offset_ = probe;
         static const std::set<std::string, std::less<>> delegated = {
-            "if", "goto", "gosub", "return", "resume", "redim", "erase", "open", "close",
-            "write", "input", "line", "get", "put", "seek", "kill", "name", "mkdir", "rmdir",
-            "chdir", "randomize", "lset", "rset", "end", "stop", "raiseevent", "mid",
-            "savesetting", "deletesetting", "chdrive", "unlock", "lock", "reset", "load",
-            "unload", "beep", "doevents", "date", "time", "dim", "static", "const", "error", "debug"};
+            "if",         "goto",     "gosub",       "return",        "resume",
+            "redim",      "erase",    "open",        "close",         "write",
+            "input",      "line",     "get",         "put",           "seek",
+            "kill",       "name",     "mkdir",       "rmdir",         "chdir",
+            "randomize",  "lset",     "rset",        "end",           "stop",
+            "raiseevent", "mid",      "savesetting", "deletesetting", "chdrive",
+            "unlock",     "lock",     "reset",       "load",          "unload",
+            "beep",       "doevents", "date",        "time",          "dim",
+            "static",     "const",    "error",       "debug"};
         if (word.has_value() &&
-            (probe_type_character == '\0' || (probe_type_character == '$' && *word == "mid")) &&
+            (probe_type_character == '\0' ||
+             (probe_type_character == '$' && *word == "mid")) &&
             delegated.contains(*word) && *word != "date" && *word != "time") {
             return parse_statement_core();
         }
@@ -2657,14 +2876,16 @@ bool Interpreter::parse_inline_statement_core() {
     char type_character{};
     auto identifier = parse_identifier(&type_character);
     if (!identifier.has_value() || is_reserved_identifier(*identifier)) {
-        set_error("WFC0023", "expected Print or assignment branch", statement_offset);
+        set_error("WFC0023", "expected Print or assignment branch",
+                  statement_offset);
         return false;
     }
     if (const auto handled = parse_bare_call(
             *identifier, inline_identifier_offset, type_character, has_let)) {
         return *handled;
     }
-    return parse_assignment_or_array_element(std::move(*identifier), type_character);
+    return parse_assignment_or_array_element(std::move(*identifier),
+                                             type_character);
 }
 
 bool Interpreter::parse_call_statement() {
@@ -2673,7 +2894,8 @@ bool Interpreter::parse_call_statement() {
     char type_character{};
     auto identifier = parse_identifier(&type_character);
     if (!identifier.has_value() || type_character != '\0') {
-        set_error("WFC0011", "expected procedure name after Call", identifier_offset);
+        set_error("WFC0011", "expected procedure name after Call",
+                  identifier_offset);
         return false;
     }
     // `Call Me.Method(args)`.
@@ -2711,7 +2933,8 @@ bool Interpreter::parse_call_statement() {
             // so its declared class (if any) is read directly instead
             // of needing a speculative lookahead.
             std::string declared_interface_class;
-            const auto declared_class = variable.scope->object_class_names.find(*identifier);
+            const auto declared_class =
+                variable.scope->object_class_names.find(*identifier);
             if (declared_class != variable.scope->object_class_names.end()) {
                 declared_interface_class = declared_class->second;
             }

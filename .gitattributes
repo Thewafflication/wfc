@@ -1,0 +1,8 @@
+# Line endings are controlled here (WSP-STYLE-0002): LF in the repository.
+* text=auto eol=lf
+
+# VB6 project fixtures keep the CRLF line endings VB6 itself writes.
+tests/fixtures/** -text
+
+*.png binary
+*.pdf binary

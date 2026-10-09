@@ -3,8 +3,8 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#include <windows.h>
 #include <process.h>
+#include <windows.h>
 #else
 #include <pthread.h>
 #endif
@@ -33,13 +33,13 @@ void* thread_main(void* raw) {
 
 }  // namespace
 
-bool run_on_thread_with_stack(
-    void (*entry)(void*), void* argument, const std::size_t stack_bytes) {
+bool run_on_thread_with_stack(void (*entry)(void*), void* argument,
+                              const std::size_t stack_bytes) {
     Launch launch{entry, argument};
 #if defined(_WIN32)
-    const auto handle = reinterpret_cast<HANDLE>(_beginthreadex(
-        nullptr, static_cast<unsigned>(stack_bytes), thread_main, &launch,
-        STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
+    const auto handle = reinterpret_cast<HANDLE>(
+        _beginthreadex(nullptr, static_cast<unsigned>(stack_bytes), thread_main,
+                       &launch, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
     if (handle == nullptr) {
         return false;
     }
@@ -52,8 +52,9 @@ bool run_on_thread_with_stack(
         return false;
     }
     pthread_t thread;
-    const bool created = pthread_attr_setstacksize(&attributes, stack_bytes) == 0 &&
-                         pthread_create(&thread, &attributes, thread_main, &launch) == 0;
+    const bool created =
+        pthread_attr_setstacksize(&attributes, stack_bytes) == 0 &&
+        pthread_create(&thread, &attributes, thread_main, &launch) == 0;
     pthread_attr_destroy(&attributes);
     if (!created) {
         return false;

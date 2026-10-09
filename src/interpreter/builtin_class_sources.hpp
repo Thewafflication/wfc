@@ -1,6 +1,7 @@
-// VB source text of the built-in classes (Collection, Dictionary, FileSystemObject, RegExp, ...).
-// Internal to the WFC evaluator; not part of the public API.
-// Split out of src/evaluator.cpp; see src/interpreter/README.md.
+// VB source text of the built-in classes (Collection, Dictionary,
+// FileSystemObject, RegExp, ...). Internal to the WFC evaluator; not part of
+// the public API. Split out of src/evaluator.cpp; see
+// src/interpreter/README.md.
 
 #ifndef WFC_INTERPRETER_BUILTIN_CLASS_SOURCES_HPP
 #define WFC_INTERPRETER_BUILTIN_CLASS_SOURCES_HPP
@@ -12,16 +13,20 @@ namespace wfc::detail {
 // REQ-0243: the built-in `Collection`, written in the evaluator's own VB
 // dialect and registered on demand; its storage is the native `WfcStore`.
 
-inline constexpr std::string_view kCollectionSource = R"VB(Private Sub Class_Initialize()
+inline constexpr std::string_view kCollectionSource =
+    R"VB(Private Sub Class_Initialize()
 Dim r As Long
 r = WfcStore(10, Me, 1)
 End Sub
-Public Sub Add(ByVal Item As Variant, Optional Key As String = "", Optional Before As Variant, Optional After As Variant)
+Public Sub Add(ByVal Item As Variant, Optional Key As String = "", Optional)VB"
+    R"VB( Before As Variant, Optional After As Variant)
 Dim pos As Long
 Dim k As Variant
-If Not IsMissing(Before) And Not IsMissing(After) Then Err.Raise 5, , "Invalid procedure call or argument"
+If Not IsMissing(Before) And Not IsMissing(After) Then Err.Raise 5, ,)VB"
+    R"VB( "Invalid procedure call or argument"
 If Key <> "" Then
-If WfcStore(2, Me, Key) > 0 Then Err.Raise 457, , "This key is already associated with an element of this collection"
+If WfcStore(2, Me, Key) > 0 Then Err.Raise 457, , "This key is already)VB"
+    R"VB( associated with an element of this collection"
 k = Key
 End If
 pos = 0
@@ -55,7 +60,8 @@ If p = 0 Then Err.Raise 5, , "Invalid procedure call or argument"
 Locate = p
 Exit Function
 End If
-If Index < 1 Or Index > WfcStore(1, Me) Then Err.Raise 9, , "Subscript out of range"
+If Index < 1 Or Index > WfcStore(1, Me) Then Err.Raise 9, , "Subscript out)VB"
+    R"VB( of range"
 Locate = CLng(Index)
 End Function
 Public Function NewEnum() As Object
@@ -69,13 +75,15 @@ End Function
 // Scripting.Dictionary, provided as VB source like Collection (case-sensitive
 // keys unless CompareMode = 1; reading a missing key adds an Empty entry, as
 // the real object does).
-inline constexpr std::string_view kDictionarySource = R"VB(Private mode As Long
+inline constexpr std::string_view kDictionarySource =
+    R"VB(Private mode As Long
 Public Property Get CompareMode() As Long
 CompareMode = mode
 End Property
 Public Property Let CompareMode(v As Long)
 Dim r As Long
-If WfcStore(1, Me) > 0 Then Err.Raise 5, , "Invalid procedure call or argument"
+If WfcStore(1, Me) > 0 Then Err.Raise 5, , "Invalid procedure call or)VB"
+    R"VB( argument"
 mode = v
 r = WfcStore(10, Me, v)
 End Property
@@ -87,7 +95,8 @@ IndexOf = WfcStore(2, Me, Key)
 End Function
 Public Sub Add(Key As Variant, Item As Variant)
 Dim r As Long
-If IndexOf(Key) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
+If IndexOf(Key) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key)VB"
+    R"VB( is already associated with an element of this collection"
 r = WfcStore(3, Me, Key, Item, 0)
 End Sub
 Public Function Exists(Key As Variant) As Boolean
@@ -133,7 +142,8 @@ Dim i As Long
 Dim r As Long
 i = IndexOf(OldKey)
 If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
-If IndexOf(NewKey) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key is already associated with an element of this collection"
+If IndexOf(NewKey) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This)VB"
+    R"VB( key is already associated with an element of this collection"
 r = WfcStore(7, Me, i, NewKey)
 End Property
 Public Sub Remove(Key As Variant)
@@ -158,7 +168,8 @@ End Function
 )VB";
 
 // The global `App` object (the properties a console-style program reads).
-inline constexpr std::string_view kAppSource = R"VB(Public Property Get Path() As String
+inline constexpr std::string_view kAppSource =
+    R"VB(Public Property Get Path() As String
 Path = CurDir$
 End Property
 Public Property Get Title() As String
@@ -206,7 +217,8 @@ End Sub
 
 // Scripting.FileSystemObject and its TextStream / File objects, written in VB
 // on top of the native file statements.
-inline constexpr std::string_view kTextStreamSource = R"VB(Private fnum As Integer
+inline constexpr std::string_view kTextStreamSource =
+    R"VB(Private fnum As Integer
 Private mLine As Long
 Private isOpen As Boolean
 Public Sub Init(ByVal path As String, ByVal m As Long)
@@ -271,7 +283,8 @@ If isOpen Then Close #fnum
 End Sub
 )VB";
 
-inline constexpr std::string_view kFileObjectSource = R"VB(Private mPath As String
+inline constexpr std::string_view kFileObjectSource =
+    R"VB(Private mPath As String
 Public Sub Init(ByVal path As String)
 mPath = path
 End Sub
@@ -295,7 +308,8 @@ Kill mPath
 End Sub
 )VB";
 
-inline constexpr std::string_view kFileSystemObjectSource = R"VB(Public Function FileExists(ByVal path As String) As Boolean
+inline constexpr std::string_view kFileSystemObjectSource =
+    R"VB(Public Function FileExists(ByVal path As String) As Boolean
 On Error Resume Next
 Err.Clear
 FileExists = ((GetAttr(path) And 16) = 0)
@@ -329,7 +343,8 @@ End Function
 Public Function GetParentFolderName(ByVal path As String) As String
 Dim i As Long
 i = LastSep(path)
-If i > 1 Then GetParentFolderName = Left$(path, i - 1) Else GetParentFolderName = ""
+If i > 1 Then GetParentFolderName = Left$(path, i - 1) Else)VB"
+    R"VB( GetParentFolderName = ""
 End Function
 Public Function BuildPath(ByVal a As String, ByVal b As String) As String
 If a = "" Then
@@ -341,7 +356,8 @@ BuildPath = a & "\" & b
 End If
 End Function
 Public Function GetAbsolutePathName(ByVal path As String) As String
-If Mid$(path, 2, 1) = ":" Or Left$(path, 1) = "\" Or Left$(path, 1) = "/" Then
+If Mid$(path, 2, 1) = ":" Or Left$(path, 1) = "\" Or Left$(path, 1) = "/")VB"
+    R"VB( Then
 GetAbsolutePathName = path
 Else
 GetAbsolutePathName = BuildPath(CurDir$, path)
@@ -350,29 +366,36 @@ End Function
 Public Function GetTempName() As String
 GetTempName = "rad" & Hex$(Int(Rnd * 65535)) & ".tmp"
 End Function
-Public Function CreateTextFile(ByVal path As String, Optional ByVal overwrite As Boolean = True) As Object
+Public Function CreateTextFile(ByVal path As String, Optional ByVal)VB"
+    R"VB( overwrite As Boolean = True) As Object
 Dim t As New WfcTextStream
-If Not overwrite And FileExists(path) Then Err.Raise 58, "FileSystemObject", "File already exists"
+If Not overwrite And FileExists(path) Then Err.Raise 58,)VB"
+    R"VB( "FileSystemObject", "File already exists"
 t.Init path, 2
 Set CreateTextFile = t
 End Function
-Public Function OpenTextFile(ByVal path As String, Optional ByVal mode As Long = 1, Optional ByVal create As Boolean = False) As Object
+Public Function OpenTextFile(ByVal path As String, Optional ByVal mode As)VB"
+    R"VB( Long = 1, Optional ByVal create As Boolean = False) As Object
 Dim t As New WfcTextStream
-If mode = 1 And Not FileExists(path) Then Err.Raise 53, "FileSystemObject", "File not found"
+If mode = 1 And Not FileExists(path) Then Err.Raise 53, "FileSystemObject",)VB"
+    R"VB( "File not found"
 t.Init path, mode
 Set OpenTextFile = t
 End Function
 Public Function GetFile(ByVal path As String) As Object
 Dim f As New WfcFile
-If Not FileExists(path) Then Err.Raise 53, "FileSystemObject", "File not found"
+If Not FileExists(path) Then Err.Raise 53, "FileSystemObject", "File not)VB"
+    R"VB( found"
 f.Init path
 Set GetFile = f
 End Function
 Public Sub DeleteFile(ByVal path As String)
 Kill path
 End Sub
-Public Sub CopyFile(ByVal src As String, ByVal dst As String, Optional ByVal overwrite As Boolean = True)
-If Not overwrite And FileExists(dst) Then Err.Raise 58, "FileSystemObject", "File already exists"
+Public Sub CopyFile(ByVal src As String, ByVal dst As String, Optional)VB"
+    R"VB( ByVal overwrite As Boolean = True)
+If Not overwrite And FileExists(dst) Then Err.Raise 58, "FileSystemObject",)VB"
+    R"VB( "File already exists"
 FileCopy src, dst
 End Sub
 Public Sub MoveFile(ByVal src As String, ByVal dst As String)
@@ -405,12 +428,15 @@ mc.AddRaw raw(i)
 Next i
 Set Execute = mc
 End Function
-Public Function Replace(ByVal text As String, ByVal replacement As String) As String
-Replace = WfcRegexReplace(Pattern, text, replacement, IgnoreCase, MultiLine, Global)
+Public Function Replace(ByVal text As String, ByVal replacement As String))VB"
+                                                  R"VB( As String
+Replace = WfcRegexReplace(Pattern, text, replacement, IgnoreCase,)VB"
+                                                  R"VB( MultiLine, Global)
 End Function
 )VB";
 
-inline constexpr std::string_view kMatchCollectionSource = R"VB(Private items() As Variant
+inline constexpr std::string_view kMatchCollectionSource =
+    R"VB(Private items() As Variant
 Private n As Long
 Public Sub AddRaw(raw As Variant)
 Dim m As New WfcMatch
@@ -474,7 +500,8 @@ Set SubMatches = subs
 End Property
 )VB";
 
-inline constexpr std::string_view kSubMatchesSource = R"VB(Private items() As Variant
+inline constexpr std::string_view kSubMatchesSource =
+    R"VB(Private items() As Variant
 Private n As Long
 Public Sub AddText(ByVal s As String)
 n = n + 1

@@ -15,10 +15,14 @@ namespace wfc::detail {
 // default value, and Null is produced only by the `Null` keyword or by
 // propagation through an expression that already holds Null.
 struct Empty {
-    [[nodiscard]] friend bool operator==(const Empty&, const Empty&) noexcept { return true; }
+    [[nodiscard]] friend bool operator==(const Empty&, const Empty&) noexcept {
+        return true;
+    }
 };
 struct Null {
-    [[nodiscard]] friend bool operator==(const Null&, const Null&) noexcept { return true; }
+    [[nodiscard]] friend bool operator==(const Null&, const Null&) noexcept {
+        return true;
+    }
 };
 
 // Nothing is the unset state of an object reference. This evaluator does not
@@ -26,7 +30,10 @@ struct Null {
 // object value (see REQ-0200's Scope), so Nothing is the only state an
 // Object-typed or object-holding-Variant value can ever have.
 struct Nothing {
-    [[nodiscard]] friend bool operator==(const Nothing&, const Nothing&) noexcept { return true; }
+    [[nodiscard]] friend bool operator==(const Nothing&,
+                                         const Nothing&) noexcept {
+        return true;
+    }
 };
 
 // Forward-declared so Value (below) can name it as an alternative; its body,
@@ -49,8 +56,8 @@ struct InstanceData;
 struct ObjectInstance {
     std::shared_ptr<InstanceData> data;
 
-    [[nodiscard]] friend bool operator==(
-        const ObjectInstance& left, const ObjectInstance& right) noexcept {
+    [[nodiscard]] friend bool operator==(const ObjectInstance& left,
+                                         const ObjectInstance& right) noexcept {
         return left.data == right.data;
     }
 };
@@ -61,7 +68,8 @@ struct ObjectInstance {
 struct ErrorValue {
     std::int32_t code{};
 
-    [[nodiscard]] friend bool operator==(const ErrorValue left, const ErrorValue right) noexcept {
+    [[nodiscard]] friend bool operator==(const ErrorValue left,
+                                         const ErrorValue right) noexcept {
         return left.code == right.code;
     }
 };
@@ -69,14 +77,15 @@ struct ErrorValue {
 struct DateValue {
     double serial{};
 
-    [[nodiscard]] friend bool operator==(const DateValue left, const DateValue right) noexcept {
+    [[nodiscard]] friend bool operator==(const DateValue left,
+                                         const DateValue right) noexcept {
         return left.serial == right.serial;
     }
 };
 
-using Value = std::variant<
-    Integer, std::string, bool, double, float, Currency, Decimal, Empty, Null, Int16, Nothing,
-    ArrayValue, ObjectInstance, DateValue, Byte, ErrorValue>;
+using Value = std::variant<Integer, std::string, bool, double, float, Currency,
+                           Decimal, Empty, Null, Int16, Nothing, ArrayValue,
+                           ObjectInstance, DateValue, Byte, ErrorValue>;
 
 // A fixed-size or dynamic, one-dimensional or (fixed-size only) multi-
 // dimensional array (`Dim arr(n)`, `Dim arr(lo To hi) As Type`, `Dim
@@ -147,15 +156,17 @@ struct ArrayValue {
     // beside) so every existing positional aggregate-init call site that
     // predates it keeps compiling unchanged.
     std::size_t dynamic_dimension_count{0};
-    // True when `Dim a(,)` fixed the dimension count in the declaration (a later
-    // ReDim may not change it); a plain `Dim a()` leaves it free.
+    // True when `Dim a(,)` fixed the dimension count in the declaration (a
+    // later ReDim may not change it); a plain `Dim a()` leaves it free.
     bool dimension_count_declared{false};
-    // `Dim a(n) As String * k`: every element is padded/truncated to k characters.
+    // `Dim a(n) As String * k`: every element is padded/truncated to k
+    // characters.
     std::size_t element_fixed_length{0};
 
-    [[nodiscard]] friend bool operator==(
-        const ArrayValue& left, const ArrayValue& right) noexcept {
-        return left.lower_bound == right.lower_bound && left.elements == right.elements &&
+    [[nodiscard]] friend bool operator==(const ArrayValue& left,
+                                         const ArrayValue& right) noexcept {
+        return left.lower_bound == right.lower_bound &&
+               left.elements == right.elements &&
                left.dimensions == right.dimensions;
     }
 };
@@ -170,7 +181,8 @@ struct ArrayValue {
 // typed array) rather than asserting, matching this codebase's general
 // preference for a safe placeholder over a crash when a value is only
 // needed for its type.
-[[nodiscard]] inline Value array_element_default(const std::size_t type_index) noexcept {
+[[nodiscard]] inline Value array_element_default(
+    const std::size_t type_index) noexcept {
     if (type_index == Value{std::string{}}.index()) {
         return Value{std::string{}};
     }
@@ -215,7 +227,8 @@ struct NumericStringResult {
 // Parse the strict, locale-independent numeric String form shared by the VBA
 // conversion intrinsics. Surrounding ASCII whitespace and a leading plus are
 // accepted; the entire remaining decimal/exponent spelling must be consumed.
-[[nodiscard]] inline NumericStringResult parse_numeric_string(const std::string_view text) {
+[[nodiscard]] inline NumericStringResult parse_numeric_string(
+    const std::string_view text) {
     std::size_t first{};
     std::size_t last = text.size();
     const auto is_ascii_whitespace = [](const char character) {
@@ -237,27 +250,41 @@ struct NumericStringResult {
 
     // `&H1F` / `&O17` (optionally `&`-suffixed): VB converts these too.
     if (last - first > 2U && text[first] == '&' &&
-        (text[first + 1U] == 'h' || text[first + 1U] == 'H' || text[first + 1U] == 'o' ||
-         text[first + 1U] == 'O')) {
+        (text[first + 1U] == 'h' || text[first + 1U] == 'H' ||
+         text[first + 1U] == 'o' || text[first + 1U] == 'O')) {
         const bool hex = text[first + 1U] == 'h' || text[first + 1U] == 'H';
         std::size_t end = last;
-        if (text[end - 1U] == '&') --end;
+        if (text[end - 1U] == '&') {
+            --end;
+        }
         std::uint64_t magnitude = 0;
         for (std::size_t i = first + 2U; i < end; ++i) {
             const char c = text[i];
             int digit = -1;
-            if (c >= '0' && c <= '9') digit = c - '0';
-            else if (hex && c >= 'a' && c <= 'f') digit = c - 'a' + 10;
-            else if (hex && c >= 'A' && c <= 'F') digit = c - 'A' + 10;
-            if (digit < 0 || (!hex && digit > 7) || magnitude > 0xFFFFFFFFULL) return {};
-            magnitude = magnitude * (hex ? 16U : 8U) + static_cast<std::uint64_t>(digit);
+            if (c >= '0' && c <= '9') {
+                digit = c - '0';
+            } else if (hex && c >= 'a' && c <= 'f') {
+                digit = c - 'a' + 10;
+            } else if (hex && c >= 'A' && c <= 'F') {
+                digit = c - 'A' + 10;
+            }
+            if (digit < 0 || (!hex && digit > 7) || magnitude > 0xFFFFFFFFULL) {
+                return {};
+            }
+            magnitude = magnitude * (hex ? 16U : 8U) +
+                        static_cast<std::uint64_t>(digit);
         }
-        if (magnitude > 0xFFFFFFFFULL) return {};
+        if (magnitude > 0xFFFFFFFFULL) {
+            return {};
+        }
         // 4 or fewer hex digits is an Integer (sign-extended from 16 bits).
-        const bool short_form = text[end - 1U] != '&' && (end - first - 2U) <= (hex ? 4U : 6U) &&
+        const bool short_form =
+            text[end - 1U] != '&' && (end - first - 2U) <= (hex ? 4U : 6U) &&
             magnitude <= 0xFFFFULL && text[last - 1U] != '&';
-        double result = short_form ? static_cast<double>(static_cast<std::int16_t>(magnitude))
-                                   : static_cast<double>(static_cast<std::int32_t>(magnitude));
+        double result =
+            short_form
+                ? static_cast<double>(static_cast<std::int16_t>(magnitude))
+                : static_cast<double>(static_cast<std::int32_t>(magnitude));
         return {NumericStringStatus::valid, result};
     }
     // Thousands separators between digits of the integer part: `1,000`.
@@ -266,7 +293,9 @@ struct NumericStringResult {
         bool in_integer_part = true;
         for (std::size_t i = first; i < last; ++i) {
             const char c = text[i];
-            if (c == '.' || c == 'e' || c == 'E') in_integer_part = false;
+            if (c == '.' || c == 'e' || c == 'E') {
+                in_integer_part = false;
+            }
             if (c == ',' && in_integer_part && i > first && i + 1U < last &&
                 std::isdigit(static_cast<unsigned char>(text[i - 1U])) != 0 &&
                 std::isdigit(static_cast<unsigned char>(text[i + 1U])) != 0) {
@@ -309,10 +338,17 @@ struct NumericStringResult {
 }
 
 // A whole-number value (Long, Integer or Byte) as a Long.
-[[nodiscard]] inline std::optional<Integer> whole_value(const Value& value) noexcept {
-    if (const auto* integer = std::get_if<Integer>(&value)) return *integer;
-    if (const auto* short_integer = std::get_if<Int16>(&value)) return static_cast<Integer>(*short_integer);
-    if (const auto* byte = std::get_if<Byte>(&value)) return static_cast<Integer>(*byte);
+[[nodiscard]] inline std::optional<Integer> whole_value(
+    const Value& value) noexcept {
+    if (const auto* integer = std::get_if<Integer>(&value)) {
+        return *integer;
+    }
+    if (const auto* short_integer = std::get_if<Int16>(&value)) {
+        return static_cast<Integer>(*short_integer);
+    }
+    if (const auto* byte = std::get_if<Byte>(&value)) {
+        return static_cast<Integer>(*byte);
+    }
     return std::nullopt;
 }
 
@@ -321,7 +357,8 @@ struct NumericStringResult {
 // only for Nothing, back when Nothing was the only object-reference value
 // this evaluator could produce, now checks for both.
 [[nodiscard]] inline bool is_object_reference(const Value& value) noexcept {
-    return std::holds_alternative<Nothing>(value) || std::holds_alternative<ObjectInstance>(value);
+    return std::holds_alternative<Nothing>(value) ||
+           std::holds_alternative<ObjectInstance>(value);
 }
 
 // Widen a Long, Currency, Single, Decimal, or Double value to double for
@@ -374,7 +411,8 @@ struct NumericStringResult {
 // Widen a Long, Int16, or Currency value to a Currency scaled int64 for
 // exact fixed-point evaluation. Callers must first establish that neither
 // operand is Single or Double.
-[[nodiscard]] inline std::int64_t as_currency_scaled(const Value& value) noexcept {
+[[nodiscard]] inline std::int64_t as_currency_scaled(
+    const Value& value) noexcept {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return static_cast<std::int64_t>(*integer) * 10000;
     }
@@ -406,7 +444,8 @@ enum class NumericCategory {
     decimal_precision
 };
 
-[[nodiscard]] inline NumericCategory numeric_category(const Value& value) noexcept {
+[[nodiscard]] inline NumericCategory numeric_category(
+    const Value& value) noexcept {
     if (std::holds_alternative<double>(value)) {
         return NumericCategory::double_precision;
     }
@@ -419,7 +458,8 @@ enum class NumericCategory {
     if (std::holds_alternative<Currency>(value)) {
         return NumericCategory::currency;
     }
-    if (std::holds_alternative<Int16>(value) || std::holds_alternative<Byte>(value)) {
+    if (std::holds_alternative<Int16>(value) ||
+        std::holds_alternative<Byte>(value)) {
         return NumericCategory::int16;
     }
     return NumericCategory::integer;

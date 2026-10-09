@@ -1,20 +1,27 @@
-// Interpreter: Program setup, scopes, lexing primitives, types, and runtime errors.
-// Internal to the WFC evaluator; not part of the public API.
-// Split out of src/evaluator.cpp; see src/interpreter/README.md.
+// Interpreter: Program setup, scopes, lexing primitives, types, and runtime
+// errors. Internal to the WFC evaluator; not part of the public API. Split out
+// of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
 
 namespace wfc::detail {
 
-Scope& Interpreter::current_scope() noexcept { return scopes_.back(); }
+Scope& Interpreter::current_scope() noexcept {
+    return scopes_.back();
+}
 
-Scope& Interpreter::module_scope() noexcept { return scopes_.front(); }
+Scope& Interpreter::module_scope() noexcept {
+    return scopes_.front();
+}
 
-bool Interpreter::in_procedure() const noexcept { return scopes_.size() > 1U; }
+bool Interpreter::in_procedure() const noexcept {
+    return scopes_.size() > 1U;
+}
 
 VariableLookup Interpreter::find_variable(const std::string& name) {
     auto found = find_variable_raw(name);
-    if (found.value != nullptr && execute_ && !found.scope->auto_new_variables.empty() &&
+    if (found.value != nullptr && execute_ &&
+        !found.scope->auto_new_variables.empty() &&
         found.scope->auto_new_variables.contains(name) &&
         std::holds_alternative<Nothing>(*found.value)) {
         const auto declared = found.scope->object_class_names.find(name);
@@ -65,25 +72,32 @@ bool Interpreter::in_with_identifier(const std::string& name) {
     return name.starts_with("with.");
 }
 
-void Interpreter::set_max_procedure_depth(const std::size_t depth) noexcept { max_procedure_depth_ = depth; }
+void Interpreter::set_max_procedure_depth(const std::size_t depth) noexcept {
+    max_procedure_depth_ = depth;
+}
 
-void Interpreter::set_stack_budget(const char* const base, const std::size_t budget) noexcept {
+void Interpreter::set_stack_budget(const char* const base,
+                                   const std::size_t budget) noexcept {
     stack_base_ = base;
     stack_budget_ = budget;
 }
 
 bool Interpreter::stack_nearly_exhausted() const noexcept {
-    if (stack_budget_ == 0U) return false;
+    if (stack_budget_ == 0U) {
+        return false;
+    }
     char marker = 0;
     const char* const here = &marker;
-    return stack_base_ > here && static_cast<std::size_t>(stack_base_ - here) > stack_budget_;
+    return stack_base_ > here &&
+           static_cast<std::size_t>(stack_base_ - here) > stack_budget_;
 }
 
 wfc::Evaluation Interpreter::evaluate() {
     auto result = evaluate_program_text();
     result.debug_output = debug_output_;
     if (!result.success) {
-        result.partial_output = output_;  // what the program printed before it failed
+        result.partial_output =
+            output_;  // what the program printed before it failed
         const auto saved_error = std::move(error_);
         error_ = result;
         const Integer number = runtime_error_number();
@@ -99,10 +113,13 @@ wfc::Evaluation Interpreter::evaluate() {
     return result;
 }
 
-void Interpreter::set_vb_number_spacing(const bool enabled) noexcept { vb_number_spacing_ = enabled; }
+void Interpreter::set_vb_number_spacing(const bool enabled) noexcept {
+    vb_number_spacing_ = enabled;
+}
 
 std::string Interpreter::failing_module_name() const {
-    if (error_source_data_ == nullptr || error_source_data_ == main_source_data_) {
+    if (error_source_data_ == nullptr ||
+        error_source_data_ == main_source_data_) {
         return {};
     }
     for (const auto& [name, definition] : class_definitions_) {
@@ -198,20 +215,26 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     return result;
 }
 
-bool Interpreter::at_end() const noexcept { return offset_ == source_.size(); }
+bool Interpreter::at_end() const noexcept {
+    return offset_ == source_.size();
+}
 
-char Interpreter::current() const noexcept { return source_[offset_]; }
+char Interpreter::current() const noexcept {
+    return source_[offset_];
+}
 
 char Interpreter::peek(const std::size_t ahead) const noexcept {
     const auto index = offset_ + ahead;
     return index < source_.size() ? source_[index] : '\0';
 }
 
-void Interpreter::advance() noexcept { ++offset_; }
+void Interpreter::advance() noexcept {
+    ++offset_;
+}
 
 void Interpreter::skip_horizontal_whitespace() noexcept {
-    while (!at_end() && (current() == ' ' || current() == '\t' || current() == '\f' ||
-                         current() == '\v')) {
+    while (!at_end() && (current() == ' ' || current() == '\t' ||
+                         current() == '\f' || current() == '\v')) {
         advance();
     }
 }
@@ -269,8 +292,8 @@ void Interpreter::skip_rest_of_line() noexcept {
     static_cast<void>(consume_line_break());
 }
 
-bool Interpreter::skip_to_matching_end(
-    const std::string_view keyword, std::size_t& body_end) {
+bool Interpreter::skip_to_matching_end(const std::string_view keyword,
+                                       std::size_t& body_end) {
     while (true) {
         skip_program_leading_trivia();
         if (at_end()) {
@@ -292,7 +315,8 @@ bool Interpreter::skip_to_matching_end(
             }
             offset_ = line_offset;
         }
-        // `Sub F(): Print 1: End Sub` -- look for a `: End <keyword>` on this line.
+        // `Sub F(): Print 1: End Sub` -- look for a `: End <keyword>` on this
+        // line.
         bool in_string = false;
         while (!at_end() && current() != '\r' && current() != '\n') {
             const char ch = current();
@@ -383,7 +407,8 @@ bool Interpreter::consume(const char character) noexcept {
 bool Interpreter::consume_keyword(const std::string_view keyword) {
     // Fast reject: most calls are made where some other token starts.
     if (keyword.front() != 'l' || enum_names_.empty()) {
-        if (offset_ >= source_.size() || ascii_lower(source_[offset_]) != keyword.front()) {
+        if (offset_ >= source_.size() ||
+            ascii_lower(source_[offset_]) != keyword.front()) {
             return false;
         }
     }
@@ -401,7 +426,8 @@ bool Interpreter::consume_keyword_slow(const std::string_view keyword) {
                 ++i;
             }
             if (i == enum_name.size() &&
-                (offset_ + i == source_.size() || !is_identifier_part(source_[offset_ + i]))) {
+                (offset_ + i == source_.size() ||
+                 !is_identifier_part(source_[offset_ + i]))) {
                 offset_ += i;
                 return true;
             }
@@ -424,7 +450,8 @@ bool Interpreter::consume_keyword_slow(const std::string_view keyword) {
 
 bool Interpreter::at_with_member() const noexcept {
     return !with_names_.empty() && !at_end() && current() == '.' &&
-        offset_ + 1 < source_.size() && is_identifier_start(source_[offset_ + 1]);
+           offset_ + 1 < source_.size() &&
+           is_identifier_start(source_[offset_ + 1]);
 }
 
 std::optional<std::string> Interpreter::parse_identifier(
@@ -446,18 +473,34 @@ std::optional<std::string> Interpreter::parse_identifier(
         identifier.push_back(ascii_lower(current()));
         advance();
     } while (!at_end() && is_identifier_part(current()));
-    // `VBA.Left$(...)`, `Strings.Left`, `Conversion.Int`, ...: the library qualifier is
-    // implied; drop it (and a second one: `VBA.Strings.Left`).
+    // `VBA.Left$(...)`, `Strings.Left`, `Conversion.Int`, ...: the library
+    // qualifier is implied; drop it (and a second one: `VBA.Strings.Left`).
     for (int qualifiers = 0; qualifiers < 2; ++qualifiers) {
         static const std::set<std::string, std::less<>> libraries = {
-            "vba", "strings", "math", "conversion", "datetime", "interaction", "filesystem",
-            "information", "fileio", "financial", "constants", "globals", "vbruntime", "scripting",
-            "vbscript_regexp_55", "vbscript_regexp_10"};
+            "vba",
+            "strings",
+            "math",
+            "conversion",
+            "datetime",
+            "interaction",
+            "filesystem",
+            "information",
+            "fileio",
+            "financial",
+            "constants",
+            "globals",
+            "vbruntime",
+            "scripting",
+            "vbscript_regexp_55",
+            "vbscript_regexp_10"};
         if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
-            is_identifier_start(source_[offset_ + 1]) && libraries.contains(identifier) &&
+            is_identifier_start(source_[offset_ + 1]) &&
+            libraries.contains(identifier) &&
             find_variable(identifier).value == nullptr &&
-            !(module_names_.contains(identifier)) && !class_definitions_.contains(identifier) &&
-            std::find(enum_names_.begin(), enum_names_.end(), identifier) == enum_names_.end()) {
+            !(module_names_.contains(identifier)) &&
+            !class_definitions_.contains(identifier) &&
+            std::find(enum_names_.begin(), enum_names_.end(), identifier) ==
+                enum_names_.end()) {
             advance();
             identifier.clear();
             do {
@@ -471,8 +514,10 @@ std::optional<std::string> Interpreter::parse_identifier(
     // REQ-0258: `Module1.Name` -- drop the module qualifier (standard
     // modules share one namespace), unless a variable shadows it.
     if (!module_names_.empty() && !at_end() && current() == '.' &&
-        offset_ + 1 < source_.size() && is_identifier_start(source_[offset_ + 1]) &&
-        module_names_.contains(identifier) && find_variable(identifier).value == nullptr) {
+        offset_ + 1 < source_.size() &&
+        is_identifier_start(source_[offset_ + 1]) &&
+        module_names_.contains(identifier) &&
+        find_variable(identifier).value == nullptr) {
         advance();
         identifier.clear();
         do {
@@ -490,19 +535,17 @@ std::optional<std::string> Interpreter::parse_identifier(
     return identifier;
 }
 
-bool Interpreter::validate_type_character(
-    const char type_character,
-    const std::size_t identifier_offset) {
+bool Interpreter::validate_type_character(const char type_character,
+                                          const std::size_t identifier_offset) {
     if (type_character == '\0' || type_character == '$' ||
         type_character == '&' || type_character == '#' ||
         type_character == '!' || type_character == '@' ||
         type_character == '%') {
         return true;
     }
-    set_error(
-        "WFC0097",
-        "type-declaration character requires an unsupported value type",
-        identifier_offset);
+    set_error("WFC0097",
+              "type-declaration character requires an unsupported value type",
+              identifier_offset);
     return false;
 }
 
@@ -562,20 +605,25 @@ auto Interpreter::parse_type_keyword() -> std::optional<TypeKeywordResult> {
     return std::nullopt;
 }
 
-auto Interpreter::parse_scalar_object_or_class_type() -> std::optional<ResolvedType> {
+auto Interpreter::parse_scalar_object_or_class_type()
+    -> std::optional<ResolvedType> {
     skip_horizontal_whitespace();
     if (consume_keyword("object")) {
         return ResolvedType{Value{Nothing{}}.index(), false, true, {}};
     }
     if (const auto type_result = parse_type_keyword()) {
-        return ResolvedType{type_result->default_value.index(), type_result->is_variant, false, {}};
+        return ResolvedType{type_result->default_value.index(),
+                            type_result->is_variant,
+                            false,
+                            {}};
     }
     const auto saved_offset = offset_;
     char class_type_character{};
     auto class_name = parse_identifier(&class_type_character);
     if (class_name.has_value() && class_type_character == '\0' &&
         class_definitions_.contains(*class_name)) {
-        return ResolvedType{Value{Nothing{}}.index(), false, true, std::move(*class_name)};
+        return ResolvedType{Value{Nothing{}}.index(), false, true,
+                            std::move(*class_name)};
     }
     offset_ = saved_offset;
     return std::nullopt;
@@ -588,8 +636,8 @@ std::optional<bool> Interpreter::parse_function_array_return_marker(
         return false;
     }
     if (type_result.is_variant || type_result.is_object) {
-        set_error(
-            "WFC0150", "an array return type must be a fixed scalar type", type_offset);
+        set_error("WFC0150", "an array return type must be a fixed scalar type",
+                  type_offset);
         return std::nullopt;
     }
     advance();
@@ -601,10 +649,9 @@ std::optional<bool> Interpreter::parse_function_array_return_marker(
     return true;
 }
 
-bool Interpreter::type_character_matches(
-    const Value& value,
-    const char type_character,
-    const std::size_t identifier_offset) {
+bool Interpreter::type_character_matches(const Value& value,
+                                         const char type_character,
+                                         const std::size_t identifier_offset) {
     if (type_character == '\0') {
         return true;
     }
@@ -614,17 +661,21 @@ bool Interpreter::type_character_matches(
     if (value.index() == type_character_index(type_character)) {
         return true;
     }
-    set_error("WFC0016", "identifier type-declaration character mismatch", identifier_offset);
+    set_error("WFC0016", "identifier type-declaration character mismatch",
+              identifier_offset);
     return false;
 }
 
-bool Interpreter::resolve_default_value(Value& value, const std::size_t offset) {
+bool Interpreter::resolve_default_value(Value& value,
+                                        const std::size_t offset) {
     const auto* holder = std::get_if<ObjectInstance>(&value);
     if (holder == nullptr || !execute_ || holder->data == nullptr) {
         return true;
     }
-    const auto class_iterator = class_definitions_.find(holder->data->class_name);
-    if (class_iterator == class_definitions_.end() || class_iterator->second.is_udt ||
+    const auto class_iterator =
+        class_definitions_.find(holder->data->class_name);
+    if (class_iterator == class_definitions_.end() ||
+        class_iterator->second.is_udt ||
         class_iterator->second.default_member.empty()) {
         return true;
     }
@@ -633,16 +684,18 @@ bool Interpreter::resolve_default_value(Value& value, const std::size_t offset) 
     if (const auto method = class_def.methods.find(class_def.default_member);
         method != class_def.methods.end()) {
         definition = &method->second;
-    } else if (const auto getter = class_def.property_get.find(class_def.default_member);
+    } else if (const auto getter =
+                   class_def.property_get.find(class_def.default_member);
                getter != class_def.property_get.end()) {
         definition = &getter->second;
     }
     if (definition == nullptr) {
         return true;
     }
-    const auto instance = holder->data;  // keep the object alive across the call
-    auto result = invoke_definition(
-        *definition, class_def.default_member, {}, offset, class_def.source, instance.get());
+    const auto instance =
+        holder->data;  // keep the object alive across the call
+    auto result = invoke_definition(*definition, class_def.default_member, {},
+                                    offset, class_def.source, instance.get());
     if (!result.has_value()) {
         return false;
     }
@@ -652,129 +705,246 @@ bool Interpreter::resolve_default_value(Value& value, const std::size_t offset) 
 
 std::string Interpreter::vb_error_description(const Integer number) {
     switch (number) {
-    case 0: return {};
-    case 3: return "Return without GoSub";
-    case 5: return "Invalid procedure call or argument";
-    case 6: return "Overflow";
-    case 7: return "Out of memory";
-    case 9: return "Subscript out of range";
-    case 10: return "This array is fixed or temporarily locked";
-    case 11: return "Division by zero";
-    case 13: return "Type mismatch";
-    case 14: return "Out of string space";
-    case 16: return "Expression too complex";
-    case 17: return "Can't perform requested operation";
-    case 18: return "User interrupt occurred";
-    case 20: return "Resume without error";
-    case 28: return "Out of stack space";
-    case 35: return "Sub, Function, or Property not defined";
-    case 47: return "Too many DLL application clients";
-    case 48: return "Error in loading DLL";
-    case 49: return "Bad DLL calling convention";
-    case 51: return "Internal error";
-    case 52: return "Bad file name or number";
-    case 53: return "File not found";
-    case 54: return "Bad file mode";
-    case 55: return "File already open";
-    case 57: return "Device I/O error";
-    case 58: return "File already exists";
-    case 59: return "Bad record length";
-    case 61: return "Disk full";
-    case 62: return "Input past end of file";
-    case 63: return "Bad record number";
-    case 67: return "Too many files";
-    case 68: return "Device unavailable";
-    case 70: return "Permission denied";
-    case 71: return "Disk not ready";
-    case 74: return "Can't rename with different drive";
-    case 75: return "Path/File access error";
-    case 76: return "Path not found";
-    case 91: return "Object variable or With block variable not set";
-    case 92: return "For loop not initialized";
-    case 93: return "Invalid pattern string";
-    case 94: return "Invalid use of Null";
-    case 321: return "Invalid file format";
-    case 322: return "Can't create necessary temporary file";
-    case 325: return "Invalid format in resource file";
-    case 380: return "Invalid property value";
-    case 381: return "Invalid property array index";
-    case 382: return "Set not supported at runtime";
-    case 383: return "Set not supported (read-only property)";
-    case 385: return "Need property array index";
-    case 387: return "Set not permitted";
-    case 393: return "Get not supported at runtime";
-    case 394: return "Get not supported (write-only property)";
-    case 422: return "Property not found";
-    case 423: return "Property or method not found";
-    case 424: return "Object required";
-    case 429: return "ActiveX component can't create object";
-    case 430: return "Class does not support Automation or does not support expected interface";
-    case 432: return "File name or class name not found during Automation operation";
-    case 438: return "Object doesn't support this property or method";
-    case 440: return "Automation error";
-    case 443: return "Automation object does not have a default value";
-    case 445: return "Object doesn't support this action";
-    case 446: return "Object doesn't support named arguments";
-    case 447: return "Object doesn't support current locale setting";
-    case 448: return "Named argument not found";
-    case 449: return "Argument not optional";
-    case 450: return "Wrong number of arguments or invalid property assignment";
-    case 451: return "Property let procedure not defined and property get procedure did not return an object";
-    case 452: return "Invalid ordinal";
-    case 453: return "Specified DLL function not found";
-    case 454: return "Code resource not found";
-    case 455: return "Code resource lock error";
-    case 457: return "This key is already associated with an element of this collection";
-    case 458: return "Variable uses an Automation type not supported in Visual Basic";
-    case 459: return "Object or class does not support the set of events";
-    case 460: return "Invalid clipboard format";
-    case 461: return "Method or data member not found";
-    case 462: return "The remote server machine does not exist or is unavailable";
-    case 463: return "Class not registered on local machine";
-    case 481: return "Invalid picture";
-    case 482: return "Printer error";
-    case 483: return "Printer driver does not support specified property";
-    case 485: return "Invalid picture type";
-    case 486: return "Can't print form image to this type of printer";
-    case 520: return "Can't empty Clipboard";
-    case 521: return "Can't open Clipboard";
-    case 735: return "Can't save file to TEMP";
-    case 744: return "Search text not found";
-    case 746: return "Replacements too long";
-    case 31001: return "Out of memory";
-    default: return "Application-defined or object-defined error";
+        case 0:
+            return {};
+        case 3:
+            return "Return without GoSub";
+        case 5:
+            return "Invalid procedure call or argument";
+        case 6:
+            return "Overflow";
+        case 7:
+            return "Out of memory";
+        case 9:
+            return "Subscript out of range";
+        case 10:
+            return "This array is fixed or temporarily locked";
+        case 11:
+            return "Division by zero";
+        case 13:
+            return "Type mismatch";
+        case 14:
+            return "Out of string space";
+        case 16:
+            return "Expression too complex";
+        case 17:
+            return "Can't perform requested operation";
+        case 18:
+            return "User interrupt occurred";
+        case 20:
+            return "Resume without error";
+        case 28:
+            return "Out of stack space";
+        case 35:
+            return "Sub, Function, or Property not defined";
+        case 47:
+            return "Too many DLL application clients";
+        case 48:
+            return "Error in loading DLL";
+        case 49:
+            return "Bad DLL calling convention";
+        case 51:
+            return "Internal error";
+        case 52:
+            return "Bad file name or number";
+        case 53:
+            return "File not found";
+        case 54:
+            return "Bad file mode";
+        case 55:
+            return "File already open";
+        case 57:
+            return "Device I/O error";
+        case 58:
+            return "File already exists";
+        case 59:
+            return "Bad record length";
+        case 61:
+            return "Disk full";
+        case 62:
+            return "Input past end of file";
+        case 63:
+            return "Bad record number";
+        case 67:
+            return "Too many files";
+        case 68:
+            return "Device unavailable";
+        case 70:
+            return "Permission denied";
+        case 71:
+            return "Disk not ready";
+        case 74:
+            return "Can't rename with different drive";
+        case 75:
+            return "Path/File access error";
+        case 76:
+            return "Path not found";
+        case 91:
+            return "Object variable or With block variable not set";
+        case 92:
+            return "For loop not initialized";
+        case 93:
+            return "Invalid pattern string";
+        case 94:
+            return "Invalid use of Null";
+        case 321:
+            return "Invalid file format";
+        case 322:
+            return "Can't create necessary temporary file";
+        case 325:
+            return "Invalid format in resource file";
+        case 380:
+            return "Invalid property value";
+        case 381:
+            return "Invalid property array index";
+        case 382:
+            return "Set not supported at runtime";
+        case 383:
+            return "Set not supported (read-only property)";
+        case 385:
+            return "Need property array index";
+        case 387:
+            return "Set not permitted";
+        case 393:
+            return "Get not supported at runtime";
+        case 394:
+            return "Get not supported (write-only property)";
+        case 422:
+            return "Property not found";
+        case 423:
+            return "Property or method not found";
+        case 424:
+            return "Object required";
+        case 429:
+            return "ActiveX component can't create object";
+        case 430:
+            return "Class does not support Automation or does not support "
+                   "expected interface";
+        case 432:
+            return "File name or class name not found during Automation "
+                   "operation";
+        case 438:
+            return "Object doesn't support this property or method";
+        case 440:
+            return "Automation error";
+        case 443:
+            return "Automation object does not have a default value";
+        case 445:
+            return "Object doesn't support this action";
+        case 446:
+            return "Object doesn't support named arguments";
+        case 447:
+            return "Object doesn't support current locale setting";
+        case 448:
+            return "Named argument not found";
+        case 449:
+            return "Argument not optional";
+        case 450:
+            return "Wrong number of arguments or invalid property assignment";
+        case 451:
+            return "Property let procedure not defined and property get "
+                   "procedure did not return an object";
+        case 452:
+            return "Invalid ordinal";
+        case 453:
+            return "Specified DLL function not found";
+        case 454:
+            return "Code resource not found";
+        case 455:
+            return "Code resource lock error";
+        case 457:
+            return "This key is already associated with an element of this "
+                   "collection";
+        case 458:
+            return "Variable uses an Automation type not supported in Visual "
+                   "Basic";
+        case 459:
+            return "Object or class does not support the set of events";
+        case 460:
+            return "Invalid clipboard format";
+        case 461:
+            return "Method or data member not found";
+        case 462:
+            return "The remote server machine does not exist or is unavailable";
+        case 463:
+            return "Class not registered on local machine";
+        case 481:
+            return "Invalid picture";
+        case 482:
+            return "Printer error";
+        case 483:
+            return "Printer driver does not support specified property";
+        case 485:
+            return "Invalid picture type";
+        case 486:
+            return "Can't print form image to this type of printer";
+        case 520:
+            return "Can't empty Clipboard";
+        case 521:
+            return "Can't open Clipboard";
+        case 735:
+            return "Can't save file to TEMP";
+        case 744:
+            return "Search text not found";
+        case 746:
+            return "Replacements too long";
+        case 31001:
+            return "Out of memory";
+        default:
+            return "Application-defined or object-defined error";
     }
 }
 
 Integer Interpreter::runtime_error_number() const {
-    const std::string_view code = std::string_view(error_.diagnostic).substr(0, 7);
-    if (code == "WFC0300") return err_number_;
-    if (code == "WFC0016" || code == "WFC0007" || code == "WFC0018" || code == "WFC0019" ||
-        code == "WFC0020" || code == "WFC0073" || code == "WFC0086" || code == "WFC0087" ||
-        code == "WFC0088" || code == "WFC0095" || code == "WFC0098" || code == "WFC0103" ||
+    const std::string_view code =
+        std::string_view(error_.diagnostic).substr(0, 7);
+    if (code == "WFC0300") {
+        return err_number_;
+    }
+    if (code == "WFC0016" || code == "WFC0007" || code == "WFC0018" ||
+        code == "WFC0019" || code == "WFC0020" || code == "WFC0073" ||
+        code == "WFC0086" || code == "WFC0087" || code == "WFC0088" ||
+        code == "WFC0095" || code == "WFC0098" || code == "WFC0103" ||
         code == "WFC0105" || code == "WFC0060" || code == "WFC0053") {
         return 13;  // Type mismatch
     }
-    if (code == "WFC0136" || code == "WFC0107") return 424;  // Object required
-    if (code == "WFC0008") return 11;
-    if (code == "WFC0009") return 6;
-    if (code == "WFC0111") return 9;
-    if (code == "WFC0106") return 91;
-    if (code == "WFC0104") return 94;
-    if (code == "WFC0089" || code == "WFC0101" || code == "WFC0075" || code == "WFC0078" ||
-        code == "WFC0076" || code == "WFC0077" || code == "WFC0079" ||
-        code == "WFC0080" || code == "WFC0082" || code == "WFC0083" ||
-        code == "WFC0091" || code == "WFC0092" || code == "WFC0094" ||
-        code == "WFC0096") {
+    if (code == "WFC0136" || code == "WFC0107") {
+        return 424;  // Object required
+    }
+    if (code == "WFC0008") {
+        return 11;
+    }
+    if (code == "WFC0009") {
+        return 6;
+    }
+    if (code == "WFC0111") {
+        return 9;
+    }
+    if (code == "WFC0106") {
+        return 91;
+    }
+    if (code == "WFC0104") {
+        return 94;
+    }
+    if (code == "WFC0089" || code == "WFC0101" || code == "WFC0075" ||
+        code == "WFC0078" || code == "WFC0076" || code == "WFC0077" ||
+        code == "WFC0079" || code == "WFC0080" || code == "WFC0082" ||
+        code == "WFC0083" || code == "WFC0091" || code == "WFC0092" ||
+        code == "WFC0094" || code == "WFC0096") {
         return 5;
     }
-    if (code == "WFC0148" || code == "WFC0151") return 9;
-    if (code == "WFC0123") return 28;
+    if (code == "WFC0148" || code == "WFC0151") {
+        return 9;
+    }
+    if (code == "WFC0123") {
+        return 28;
+    }
     return 0;
 }
 
-bool Interpreter::raise_runtime(
-    const Integer number, const std::string& description, const std::size_t offset) {
+bool Interpreter::raise_runtime(const Integer number,
+                                const std::string& description,
+                                const std::size_t offset) {
     err_number_ = number;
     err_description_ = description;
     err_source_.clear();
@@ -782,12 +952,12 @@ bool Interpreter::raise_runtime(
     return false;
 }
 
-void Interpreter::set_error(
-    const std::string_view code,
-    const std::string_view message,
-    const std::size_t offset) {
+void Interpreter::set_error(const std::string_view code,
+                            const std::string_view message,
+                            const std::size_t offset) {
     if (code == "WFC0135" && execute_) {
-        // An unknown member reached at run time is a catchable "Object doesn't support..."
+        // An unknown member reached at run time is a catchable "Object doesn't
+        // support..."
         err_number_ = 438;
         err_description_ = "Object doesn't support this property or method";
         err_source_.clear();

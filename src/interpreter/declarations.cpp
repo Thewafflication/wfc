@@ -11,13 +11,18 @@ void Interpreter::scan_option_explicit() {
         std::size_t position = 0;
         while (position < text.size()) {
             auto end = text.find('\n', position);
-            if (end == std::string_view::npos) end = text.size();
+            if (end == std::string_view::npos) {
+                end = text.size();
+            }
             std::string line;
             for (const char c : text.substr(position, end - position)) {
-                if (c != ' ' && c != '\t' && c != '\r') line.push_back(ascii_lower(c));
+                if (c != ' ' && c != '\t' && c != '\r') {
+                    line.push_back(ascii_lower(c));
+                }
             }
             position = end + 1;
-            if (line == "optionexplicit" || line.rfind("optionexplicit'", 0) == 0) {
+            if (line == "optionexplicit" ||
+                line.rfind("optionexplicit'", 0) == 0) {
                 return true;
             }
         }
@@ -29,17 +34,25 @@ void Interpreter::scan_option_explicit() {
     }
 }
 
-std::optional<std::size_t> Interpreter::default_type_for(const std::string& name) const {
-    if (name.empty()) return std::nullopt;
+std::optional<std::size_t> Interpreter::default_type_for(
+    const std::string& name) const {
+    if (name.empty()) {
+        return std::nullopt;
+    }
     const char c = ascii_lower(name.front());
-    if (c < 'a' || c > 'z') return std::nullopt;
+    if (c < 'a' || c > 'z') {
+        return std::nullopt;
+    }
     const auto index = default_types_[static_cast<std::size_t>(c - 'a')];
-    if (index == no_default_type) return std::nullopt;
+    if (index == no_default_type) {
+        return std::nullopt;
+    }
     return index;
 }
 
-void Interpreter::apply_implicit_return_type(
-    ProcedureDef& definition, const std::string& name, const char suffix) const {
+void Interpreter::apply_implicit_return_type(ProcedureDef& definition,
+                                             const std::string& name,
+                                             const char suffix) const {
     if (suffix != '\0') {
         definition.return_type_index = type_character_index(suffix);
         definition.return_is_variant = false;
@@ -54,40 +67,68 @@ void Interpreter::apply_implicit_return_type(
 
 bool Interpreter::apply_deftype_line(const std::string_view line) {
     std::size_t i = 0;
-    while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
-    if (line.size() < i + 6U || ascii_lower(line[i]) != 'd' || ascii_lower(line[i + 1U]) != 'e' ||
-        ascii_lower(line[i + 2U]) != 'f') {
+    while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) {
+        ++i;
+    }
+    if (line.size() < i + 6U || ascii_lower(line[i]) != 'd' ||
+        ascii_lower(line[i + 1U]) != 'e' || ascii_lower(line[i + 2U]) != 'f') {
         return false;
     }
     std::size_t j = i + 3U;
     std::string word;
-    while (j < line.size() && std::isalpha(static_cast<unsigned char>(line[j])) != 0) {
+    while (j < line.size() &&
+           std::isalpha(static_cast<unsigned char>(line[j])) != 0) {
         word.push_back(ascii_lower(line[j++]));
     }
     std::size_t type_index = no_default_type;
-    if (word == "int") type_index = Value{Int16{}}.index();
-    else if (word == "lng") type_index = Value{Integer{}}.index();
-    else if (word == "sng") type_index = Value{0.0f}.index();
-    else if (word == "dbl") type_index = Value{0.0}.index();
-    else if (word == "cur") type_index = Value{Currency{}}.index();
-    else if (word == "str") type_index = Value{std::string{}}.index();
-    else if (word == "bool") type_index = Value{false}.index();
-    else if (word == "byte") type_index = Value{Byte{}}.index();
-    else if (word == "dec") type_index = Value{Decimal{}}.index();
-    else if (word == "date") type_index = Value{DateValue{}}.index();
-    else if (word != "var" && word != "obj") return false;
-    if (j >= line.size() || (line[j] != ' ' && line[j] != '\t')) return false;
+    if (word == "int") {
+        type_index = Value{Int16{}}.index();
+    } else if (word == "lng") {
+        type_index = Value{Integer{}}.index();
+    } else if (word == "sng") {
+        type_index = Value{0.0f}.index();
+    } else if (word == "dbl") {
+        type_index = Value{0.0}.index();
+    } else if (word == "cur") {
+        type_index = Value{Currency{}}.index();
+    } else if (word == "str") {
+        type_index = Value{std::string{}}.index();
+    } else if (word == "bool") {
+        type_index = Value{false}.index();
+    } else if (word == "byte") {
+        type_index = Value{Byte{}}.index();
+    } else if (word == "dec") {
+        type_index = Value{Decimal{}}.index();
+    } else if (word == "date") {
+        type_index = Value{DateValue{}}.index();
+    } else if (word != "var" && word != "obj") {
+        return false;
+    }
+    if (j >= line.size() || (line[j] != ' ' && line[j] != '\t')) {
+        return false;
+    }
     while (j < line.size()) {
-        while (j < line.size() && (line[j] == ' ' || line[j] == '\t' || line[j] == ',')) ++j;
-        if (j >= line.size() || std::isalpha(static_cast<unsigned char>(line[j])) == 0) break;
+        while (j < line.size() &&
+               (line[j] == ' ' || line[j] == '\t' || line[j] == ',')) {
+            ++j;
+        }
+        if (j >= line.size() ||
+            std::isalpha(static_cast<unsigned char>(line[j])) == 0) {
+            break;
+        }
         const char first = ascii_lower(line[j++]);
         char last = first;
         std::size_t k = j;
-        while (k < line.size() && line[k] == ' ') ++k;
+        while (k < line.size() && line[k] == ' ') {
+            ++k;
+        }
         if (k < line.size() && line[k] == '-') {
             ++k;
-            while (k < line.size() && line[k] == ' ') ++k;
-            if (k < line.size() && std::isalpha(static_cast<unsigned char>(line[k])) != 0) {
+            while (k < line.size() && line[k] == ' ') {
+                ++k;
+            }
+            if (k < line.size() &&
+                std::isalpha(static_cast<unsigned char>(line[k])) != 0) {
                 last = ascii_lower(line[k]);
                 j = k + 1U;
             }
@@ -104,13 +145,18 @@ void Interpreter::scan_deftypes() {
         std::size_t position = 0;
         while (position < text.size()) {
             auto end = text.find('\n', position);
-            if (end == std::string_view::npos) end = text.size();
-            static_cast<void>(apply_deftype_line(text.substr(position, end - position)));
+            if (end == std::string_view::npos) {
+                end = text.size();
+            }
+            static_cast<void>(
+                apply_deftype_line(text.substr(position, end - position)));
             position = end + 1;
         }
     };
     scan(source_);
-    for (const auto& module : class_sources_) scan(module.source);
+    for (const auto& module : class_sources_) {
+        scan(module.source);
+    }
 }
 
 void Interpreter::scan_module_names() {
@@ -118,16 +164,24 @@ void Interpreter::scan_module_names() {
     std::size_t position = 0;
     while (position < text.size()) {
         auto end = text.find('\n', position);
-        if (end == std::string_view::npos) end = text.size();
+        if (end == std::string_view::npos) {
+            end = text.size();
+        }
         std::string line;
         for (const char c : text.substr(position, end - position)) {
-            if (c != '\r') line.push_back(c);
+            if (c != '\r') {
+                line.push_back(c);
+            }
         }
         position = end + 1;
         std::string lowered;
-        for (const char c : line) lowered.push_back(ascii_lower(c));
+        for (const char c : line) {
+            lowered.push_back(ascii_lower(c));
+        }
         const auto marker = lowered.find("attribute vb_name");
-        if (marker != 0) continue;
+        if (marker != 0) {
+            continue;
+        }
         const auto first = line.find('"');
         const auto last = line.rfind('"');
         if (first != std::string::npos && last > first) {
@@ -161,11 +215,14 @@ void Interpreter::scan_enum_names_in(const std::string_view text) {
         position = end + 1;
         std::size_t i = 0;
         const auto skip_space = [&] {
-            while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+            while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) {
+                ++i;
+            }
         };
         const auto word = [&](const std::string_view w) {
             if (line.compare(i, w.size(), w) == 0 &&
-                (i + w.size() == line.size() || !is_identifier_part(line[i + w.size()]))) {
+                (i + w.size() == line.size() ||
+                 !is_identifier_part(line[i + w.size()]))) {
                 i += w.size();
                 return true;
             }
@@ -193,8 +250,8 @@ void Interpreter::scan_enum_names_in(const std::string_view text) {
 bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
     skip_horizontal_whitespace();
     if (!consume('(')) {
-        set_error(
-            "WFC0005", "expected opening parenthesis after procedure name", offset_);
+        set_error("WFC0005",
+                  "expected opening parenthesis after procedure name", offset_);
         return false;
     }
     skip_horizontal_whitespace();
@@ -240,14 +297,13 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
         char type_character{};
         auto name = parse_identifier(&type_character);
         if (!name.has_value()) {
-            set_error("WFC0011", "expected parameter name", parameter_name_offset);
+            set_error("WFC0011", "expected parameter name",
+                      parameter_name_offset);
             return false;
         }
         if (is_reserved_identifier(*name)) {
-            set_error(
-                "WFC0017",
-                "reserved keyword cannot be a parameter name",
-                parameter_name_offset);
+            set_error("WFC0017", "reserved keyword cannot be a parameter name",
+                      parameter_name_offset);
             return false;
         }
         parameter.name = std::move(*name);
@@ -274,12 +330,14 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
             if (matched_as) {
                 skip_horizontal_whitespace();
             }
-            const auto type_result = matched_as ? parse_type_keyword() : std::nullopt;
+            const auto type_result =
+                matched_as ? parse_type_keyword() : std::nullopt;
             if (matched_as && !type_result.has_value()) {
                 set_error(
                     "WFC0141",
                     "ParamArray requires an element type: As Integer, As Long, "
-                    "As Double, As Single, As Currency, As String, As Boolean, or As Variant",
+                    "As Double, As Single, As Currency, As String, As Boolean, "
+                    "or As Variant",
                     element_type_offset);
                 return false;
             }
@@ -335,25 +393,27 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
                     offset_ = class_probe;
                 }
             }
-            const auto type_result =
-                (matched_as && !matched_object) ? parse_type_keyword() : std::nullopt;
+            const auto type_result = (matched_as && !matched_object)
+                                         ? parse_type_keyword()
+                                         : std::nullopt;
             if (!matched_as || (!matched_object && !type_result.has_value())) {
-                set_error(
-                    "WFC0149",
-                    "array parameter requires an explicit element type: As Integer, As "
-                    "Long, As Double, As Single, As Currency, As String, As Boolean, As "
-                    "Object, or As Variant",
-                    element_type_offset);
+                set_error("WFC0149",
+                          "array parameter requires an explicit element type: "
+                          "As Integer, As "
+                          "Long, As Double, As Single, As Currency, As String, "
+                          "As Boolean, As "
+                          "Object, or As Variant",
+                          element_type_offset);
                 return false;
             }
             if (parameter.by_val) {
-                set_error(
-                    "WFC0149", "array parameters must be passed ByRef", modifier_offset);
+                set_error("WFC0149", "array parameters must be passed ByRef",
+                          modifier_offset);
                 return false;
             }
             if (is_optional) {
-                set_error(
-                    "WFC0149", "array parameters cannot be Optional", modifier_offset);
+                set_error("WFC0149", "array parameters cannot be Optional",
+                          modifier_offset);
                 return false;
             }
             parameter.is_array_parameter = true;
@@ -366,7 +426,8 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
                 parameter.type_index = type_result->default_value.index();
             }
         } else if (type_character != '\0') {
-            if (!validate_type_character(type_character, parameter_name_offset)) {
+            if (!validate_type_character(type_character,
+                                         parameter_name_offset)) {
                 return false;
             }
             parameter.type_index = type_character_index(type_character);
@@ -381,11 +442,11 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
             // uses.
             const auto type_result = parse_scalar_object_or_class_type();
             if (!type_result.has_value()) {
-                set_error(
-                    "WFC0012",
-                    "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                    "String, As Boolean, As Object, or As Variant",
-                    type_offset);
+                set_error("WFC0012",
+                          "expected As Integer, As Long, As Double, As Single, "
+                          "As Currency, As "
+                          "String, As Boolean, As Object, or As Variant",
+                          type_offset);
                 return false;
             }
             if (type_result->is_object) {
@@ -422,13 +483,14 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
                     return false;
                 }
                 if (!parameter.is_variant) {
-                    if (!coerce_numeric_value(
-                            *default_value, parameter.type_index, default_offset)) {
+                    if (!coerce_numeric_value(*default_value,
+                                              parameter.type_index,
+                                              default_offset)) {
                         return false;
                     }
                     if (default_value->index() != parameter.type_index) {
-                        set_error(
-                            "WFC0016", "default value type mismatch", default_offset);
+                        set_error("WFC0016", "default value type mismatch",
+                                  default_offset);
                         return false;
                     }
                 }
@@ -443,7 +505,8 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
             break;
         }
         if (is_param_array) {
-            set_error("WFC0141", "ParamArray must be the last parameter", offset_);
+            set_error("WFC0141", "ParamArray must be the last parameter",
+                      offset_);
             return false;
         }
         if (!consume(',')) {
@@ -454,9 +517,12 @@ bool Interpreter::scan_procedure_parameters(ProcedureDef& definition) {
     return true;
 }
 
-bool Interpreter::class_member_name_used(const ClassDef& class_def, const std::string& name) {
-    return class_def.fields.contains(name) || class_def.methods.contains(name) ||
-           class_def.property_get.contains(name) || class_def.property_let.contains(name) ||
+bool Interpreter::class_member_name_used(const ClassDef& class_def,
+                                         const std::string& name) {
+    return class_def.fields.contains(name) ||
+           class_def.methods.contains(name) ||
+           class_def.property_get.contains(name) ||
+           class_def.property_let.contains(name) ||
            class_def.property_set.contains(name);
 }
 
@@ -473,13 +539,15 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             const auto interface_name_offset = offset_;
             char interface_type_character{};
             auto interface_name = parse_identifier(&interface_type_character);
-            if (!interface_name.has_value() || interface_type_character != '\0') {
+            if (!interface_name.has_value() ||
+                interface_type_character != '\0') {
                 set_error("WFC0011", "expected interface name after Implements",
                           interface_name_offset);
                 return false;
             }
             if (!class_definitions_.contains(*interface_name)) {
-                set_error("WFC0134", "unknown class name", interface_name_offset);
+                set_error("WFC0134", "unknown class name",
+                          interface_name_offset);
                 return false;
             }
             class_def.implements.push_back(std::move(*interface_name));
@@ -504,27 +572,34 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             const auto before_constant = offset_;
             const bool constant_is_private = consume_keyword("private");
             if (!constant_is_private) {
-                static_cast<void>(consume_keyword("public") || consume_keyword("friend"));
+                static_cast<void>(consume_keyword("public") ||
+                                  consume_keyword("friend"));
             }
             skip_horizontal_whitespace();
             const bool is_const = consume_keyword("const");
             const bool is_enum = !is_const && consume_keyword("enum");
             if (is_const || is_enum) {
                 scopes_.emplace_back();
-                const bool parsed_ok =
-                    is_const ? parse_constant_declaration() : parse_enum_statement(line_offset);
+                const bool parsed_ok = is_const
+                                           ? parse_constant_declaration()
+                                           : parse_enum_statement(line_offset);
                 Scope captured = std::move(scopes_.back());
                 scopes_.pop_back();
                 if (!parsed_ok) {
                     return false;
                 }
-                for (auto& [constant_name, constant_value] : captured.variables) {
-                    // A Public Enum/Const in a class module is visible program-wide.
+                for (auto& [constant_name, constant_value] :
+                     captured.variables) {
+                    // A Public Enum/Const in a class module is visible
+                    // program-wide.
                     if (!constant_is_private) {
-                        global_class_constants_.emplace(constant_name, constant_value);
-                        module_names_.insert(current_class_scan_name_);  // `Cls.Member`
+                        global_class_constants_.emplace(constant_name,
+                                                        constant_value);
+                        module_names_.insert(
+                            current_class_scan_name_);  // `Cls.Member`
                     }
-                    class_def.constants[constant_name] = std::move(constant_value);
+                    class_def.constants[constant_name] =
+                        std::move(constant_value);
                 }
                 if (!consume_statement_end() && !is_enum) {
                     return false;
@@ -564,14 +639,17 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
                 return false;
             }
             ProcedureDef definition;
-            if (!scan_procedure_parameters(definition) || !consume_statement_end()) {
+            if (!scan_procedure_parameters(definition) ||
+                !consume_statement_end()) {
                 return false;
             }
-            class_def.events.emplace(std::move(*event_name), std::move(definition));
+            class_def.events.emplace(std::move(*event_name),
+                                     std::move(definition));
             continue;
         }
         if (consume_keyword("property")) {
-            if (!scan_class_property_declaration(class_def, is_private, line_offset)) {
+            if (!scan_class_property_declaration(class_def, is_private,
+                                                 line_offset)) {
                 return false;
             }
             continue;
@@ -586,8 +664,8 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             matched_sub_or_function = false;
         }
         if (matched_sub_or_function) {
-            if (!scan_class_procedure_declaration(
-                    class_def, is_function, is_private, line_offset)) {
+            if (!scan_class_procedure_declaration(class_def, is_function,
+                                                  is_private, line_offset)) {
                 return false;
             }
             continue;
@@ -598,16 +676,17 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             }
             continue;
         }
-        set_error(
-            "WFC0127",
-            "expected a class member declaration (Dim, Public, Private, Sub, Function, "
-            "or Property)",
-            line_offset);
+        set_error("WFC0127",
+                  "expected a class member declaration (Dim, Public, Private, "
+                  "Sub, Function, "
+                  "or Property)",
+                  line_offset);
         return false;
     }
 }
 
-bool Interpreter::scan_class_field_declaration(ClassDef& class_def, const bool is_private) {
+bool Interpreter::scan_class_field_declaration(ClassDef& class_def,
+                                               const bool is_private) {
     bool more = true;
     while (more) {
         if (!scan_class_field_declarator(class_def, is_private, more)) {
@@ -617,8 +696,9 @@ bool Interpreter::scan_class_field_declaration(ClassDef& class_def, const bool i
     return true;
 }
 
-bool Interpreter::scan_class_field_declarator(
-    ClassDef& class_def, const bool is_private, bool& more) {
+bool Interpreter::scan_class_field_declarator(ClassDef& class_def,
+                                              const bool is_private,
+                                              bool& more) {
     skip_horizontal_whitespace();
     const bool with_events = consume_keyword("withevents");
     skip_horizontal_whitespace();
@@ -629,8 +709,10 @@ bool Interpreter::scan_class_field_declarator(
         set_error("WFC0011", "expected field name", name_offset);
         return false;
     }
-    if (is_reserved_member_name(*name) || class_member_name_used(class_def, *name)) {
-        set_error("WFC0128", "duplicate or reserved class member name", name_offset);
+    if (is_reserved_member_name(*name) ||
+        class_member_name_used(class_def, *name)) {
+        set_error("WFC0128", "duplicate or reserved class member name",
+                  name_offset);
         return false;
     }
     skip_horizontal_whitespace();
@@ -658,13 +740,15 @@ bool Interpreter::scan_class_field_declarator(
         skip_horizontal_whitespace();
         const auto type_offset = offset_;
         const auto type_result = parse_scalar_object_or_class_type();
-        if (!type_result.has_value() || (field.auto_new && !type_result->is_object)) {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, "
-                "As String, As Boolean, As Object, As Variant, or a known class "
-                "name",
-                type_offset);
+        if (!type_result.has_value() ||
+            (field.auto_new && !type_result->is_object)) {
+            set_error("WFC0012",
+                      "expected As Integer, As Long, As Double, As Single, As "
+                      "Currency, "
+                      "As String, As Boolean, As Object, As Variant, or a "
+                      "known class "
+                      "name",
+                      type_offset);
             return false;
         }
         field.type_index = type_result->type_index;
@@ -677,8 +761,10 @@ bool Interpreter::scan_class_field_declarator(
             skip_horizontal_whitespace();
             std::size_t length = 0;
             std::size_t digits = 0;
-            while (!at_end() && std::isdigit(static_cast<unsigned char>(current())) != 0) {
-                length = length * 10U + static_cast<std::size_t>(current() - '0');
+            while (!at_end() &&
+                   std::isdigit(static_cast<unsigned char>(current())) != 0) {
+                length =
+                    length * 10U + static_cast<std::size_t>(current() - '0');
                 advance();
                 ++digits;
             }
@@ -722,7 +808,8 @@ bool Interpreter::scan_class_property_declaration(
     } else if (consume_keyword("set")) {
         accessor = Accessor::set;
     } else {
-        set_error("WFC0129", "expected Get, Let, or Set after Property", offset_);
+        set_error("WFC0129", "expected Get, Let, or Set after Property",
+                  offset_);
         return false;
     }
     skip_horizontal_whitespace();
@@ -735,16 +822,16 @@ bool Interpreter::scan_class_property_declaration(
     }
     if (is_reserved_member_name(*name) || class_def.fields.contains(*name) ||
         class_def.methods.contains(*name)) {
-        set_error(
-            "WFC0128", "duplicate or reserved class member name", name_offset);
+        set_error("WFC0128", "duplicate or reserved class member name",
+                  name_offset);
         return false;
     }
     auto& accessor_table = accessor == Accessor::get   ? class_def.property_get
-                            : accessor == Accessor::let ? class_def.property_let
-                                                         : class_def.property_set;
+                           : accessor == Accessor::let ? class_def.property_let
+                                                       : class_def.property_set;
     if (accessor_table.contains(*name)) {
-        set_error(
-            "WFC0128", "duplicate Property accessor for this name", name_offset);
+        set_error("WFC0128", "duplicate Property accessor for this name",
+                  name_offset);
         return false;
     }
 
@@ -766,21 +853,22 @@ bool Interpreter::scan_class_property_declaration(
         if (!consume_keyword("as")) {
             apply_implicit_return_type(definition, *name);
         } else {
-        const auto type_offset = offset_;
-        const auto type_result = parse_scalar_object_or_class_type();
-        if (!type_result.has_value()) {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, "
-                "As String, As Boolean, As Object, As Variant, or a known class "
-                "name",
-                type_offset);
-            return false;
-        }
-        definition.return_type_index = type_result->type_index;
-        definition.return_is_variant = type_result->is_variant;
-        definition.return_is_object = type_result->is_object;
-        definition.return_class_name = type_result->class_name;
+            const auto type_offset = offset_;
+            const auto type_result = parse_scalar_object_or_class_type();
+            if (!type_result.has_value()) {
+                set_error("WFC0012",
+                          "expected As Integer, As Long, As Double, As Single, "
+                          "As Currency, "
+                          "As String, As Boolean, As Object, As Variant, or a "
+                          "known class "
+                          "name",
+                          type_offset);
+                return false;
+            }
+            definition.return_type_index = type_result->type_index;
+            definition.return_is_variant = type_result->is_variant;
+            definition.return_is_object = type_result->is_object;
+            definition.return_class_name = type_result->class_name;
         }
     } else {
         // Property Let/Set's last parameter is always the value
@@ -789,10 +877,9 @@ bool Interpreter::scan_class_property_declaration(
         // value alone, for the plain non-indexed form) is
         // required, but there is no upper bound.
         if (definition.parameters.empty()) {
-            set_error(
-                "WFC0131",
-                "Property Let/Set requires at least one parameter",
-                name_offset);
+            set_error("WFC0131",
+                      "Property Let/Set requires at least one parameter",
+                      name_offset);
             return false;
         }
         if (accessor == Accessor::set &&
@@ -829,8 +916,10 @@ bool Interpreter::scan_class_procedure_declaration(
         set_error("WFC0118", "expected procedure name", name_offset);
         return false;
     }
-    if (is_reserved_member_name(*name) || class_member_name_used(class_def, *name)) {
-        set_error("WFC0128", "duplicate or reserved class member name", name_offset);
+    if (is_reserved_member_name(*name) ||
+        class_member_name_used(class_def, *name)) {
+        set_error("WFC0128", "duplicate or reserved class member name",
+                  name_offset);
         return false;
     }
     ProcedureDef definition;
@@ -845,36 +934,38 @@ bool Interpreter::scan_class_procedure_declaration(
         if (!consume_keyword("as")) {
             apply_implicit_return_type(definition, *name, type_character);
         } else {
-        const auto type_offset = offset_;
-        const auto type_result = parse_scalar_object_or_class_type();
-        if (!type_result.has_value()) {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, "
-                "As String, As Boolean, As Object, As Variant, or a known class name",
-                type_offset);
-            return false;
-        }
-        definition.return_type_index = type_result->type_index;
-        definition.return_is_variant = type_result->is_variant;
-        definition.return_is_object = type_result->is_object;
-        definition.return_class_name = type_result->class_name;
-        const auto array_marker = parse_function_array_return_marker(*type_result, type_offset);
-        if (!array_marker.has_value()) {
-            return false;
-        }
-        definition.return_is_array = *array_marker;
+            const auto type_offset = offset_;
+            const auto type_result = parse_scalar_object_or_class_type();
+            if (!type_result.has_value()) {
+                set_error("WFC0012",
+                          "expected As Integer, As Long, As Double, As Single, "
+                          "As Currency, "
+                          "As String, As Boolean, As Object, As Variant, or a "
+                          "known class name",
+                          type_offset);
+                return false;
+            }
+            definition.return_type_index = type_result->type_index;
+            definition.return_is_variant = type_result->is_variant;
+            definition.return_is_object = type_result->is_object;
+            definition.return_class_name = type_result->class_name;
+            const auto array_marker =
+                parse_function_array_return_marker(*type_result, type_offset);
+            if (!array_marker.has_value()) {
+                return false;
+            }
+            definition.return_is_array = *array_marker;
         }
     }
     if (!consume_loop_header_end()) {
         return false;
     }
     definition.body_start = offset_;
-    if (!skip_to_matching_end(is_function ? "function" : "sub", definition.body_end)) {
-        set_error(
-            is_function ? "WFC0120" : "WFC0121",
-            is_function ? "expected End Function" : "expected End Sub",
-            line_offset);
+    if (!skip_to_matching_end(is_function ? "function" : "sub",
+                              definition.body_end)) {
+        set_error(is_function ? "WFC0120" : "WFC0121",
+                  is_function ? "expected End Function" : "expected End Sub",
+                  line_offset);
         return false;
     }
     definition.declaration_end = offset_;
@@ -912,7 +1003,8 @@ bool Interpreter::is_udt_class(const std::string& class_name) const {
     return found != class_definitions_.end() && found->second.is_udt;
 }
 
-std::shared_ptr<InstanceData> Interpreter::clone_udt(const InstanceData& source) {
+std::shared_ptr<InstanceData> Interpreter::clone_udt(
+    const InstanceData& source) {
     auto copy = std::make_shared<InstanceData>();
     copy->class_name = source.class_name;
     copy->fields = source.fields;
@@ -934,7 +1026,8 @@ void Interpreter::deep_copy_udt_values(Value& value) {
     }
 }
 
-bool Interpreter::assign_udt(Value& target, const Value& source, const std::size_t offset) {
+bool Interpreter::assign_udt(Value& target, const Value& source,
+                             const std::size_t offset) {
     if (!execute_) {
         return true;  // dry run: operands are placeholders
     }
@@ -963,28 +1056,48 @@ void Interpreter::scan_udt_types() {
         }
         std::string line;
         for (const char c : text.substr(position, end - position)) {
-            if (c == '\'') break;
-            if (c != '\r') line.push_back(c);
+            if (c == '\'') {
+                break;
+            }
+            if (c != '\r') {
+                line.push_back(c);
+            }
         }
         position = end + 1;
         std::size_t i = 0;
         const auto skip_space = [&] {
-            while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+            while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) {
+                ++i;
+            }
         };
         const auto word = [&](const std::string_view w) {
-            if (line.size() - i < w.size()) return false;
-            for (std::size_t k = 0; k < w.size(); ++k)
-                if (ascii_lower(line[i + k]) != w[k]) return false;
-            if (i + w.size() < line.size() && is_identifier_part(line[i + w.size()])) return false;
+            if (line.size() - i < w.size()) {
+                return false;
+            }
+            for (std::size_t k = 0; k < w.size(); ++k) {
+                if (ascii_lower(line[i + k]) != w[k]) {
+                    return false;
+                }
+            }
+            if (i + w.size() < line.size() &&
+                is_identifier_part(line[i + w.size()])) {
+                return false;
+            }
             i += w.size();
             return true;
         };
         skip_space();
         if (current_name.empty()) {
-            if (word("public") || word("private")) skip_space();
-            if (!word("type")) continue;
+            if (word("public") || word("private")) {
+                skip_space();
+            }
+            if (!word("type")) {
+                continue;
+            }
             skip_space();
-            while (i < line.size() && is_identifier_part(line[i])) current_name.push_back(line[i++]);
+            while (i < line.size() && is_identifier_part(line[i])) {
+                current_name.push_back(line[i++]);
+            }
             body.clear();
             continue;
         }
@@ -998,7 +1111,9 @@ void Interpreter::scan_udt_types() {
                 continue;
             }
         }
-        if (i >= line.size()) continue;
+        if (i >= line.size()) {
+            continue;
+        }
         body += "Public " + line.substr(i) + "\n";
     }
 }
@@ -1008,8 +1123,11 @@ void Interpreter::scan_builtin_classes() {
         constexpr std::string_view word = "collection";
         for (std::size_t i = 0; i + word.size() <= text.size(); ++i) {
             std::size_t k = 0;
-            while (k < word.size() && ascii_lower(text[i + k]) == word[k]) ++k;
-            if (k == word.size() && (i == 0 || !is_identifier_part(text[i - 1])) &&
+            while (k < word.size() && ascii_lower(text[i + k]) == word[k]) {
+                ++k;
+            }
+            if (k == word.size() &&
+                (i == 0 || !is_identifier_part(text[i - 1])) &&
                 (i + k == text.size() || !is_identifier_part(text[i + k]))) {
                 return true;
             }
@@ -1026,21 +1144,25 @@ void Interpreter::scan_builtin_classes() {
     if (needed) {
         class_sources_.push_back({"Collection", kCollectionSource});
     }
-    const auto text_mentions = [](const std::string_view text, const std::string_view needle,
+    const auto text_mentions = [](const std::string_view text,
+                                  const std::string_view needle,
                                   const bool whole_word) {
         for (std::size_t i = 0; i + needle.size() <= text.size(); ++i) {
             std::size_t k = 0;
-            while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) ++k;
+            while (k < needle.size() && ascii_lower(text[i + k]) == needle[k]) {
+                ++k;
+            }
             if (k == needle.size() &&
-                (!whole_word ||
-                 ((i == 0 || !is_identifier_part(text[i - 1])) &&
-                  (i + k == text.size() || !is_identifier_part(text[i + k]))))) {
+                (!whole_word || ((i == 0 || !is_identifier_part(text[i - 1])) &&
+                                 (i + k == text.size() ||
+                                  !is_identifier_part(text[i + k]))))) {
                 return true;
             }
         }
         return false;
     };
-    const auto any_source_mentions = [&](const std::string_view needle, const bool whole_word) {
+    const auto any_source_mentions = [&](const std::string_view needle,
+                                         const bool whole_word) {
         bool found = text_mentions(source_, needle, whole_word);
         for (const auto& module : class_sources_) {
             found = found || text_mentions(module.source, needle, whole_word);
@@ -1054,41 +1176,54 @@ void Interpreter::scan_builtin_classes() {
                 for (std::size_t i = 0; i < name.size(); ++i) {
                     same = same && ascii_lower(module.name[i]) == name[i];
                 }
-                if (same) return true;
+                if (same) {
+                    return true;
+                }
             }
         }
         return false;
     };
-    // Each built-in is registered under an internal `Wfc` name (what CreateObject builds)
-    // and, unless the program defines its own class of that name, the public type name too
+    // Each built-in is registered under an internal `Wfc` name (what
+    // CreateObject builds) and, unless the program defines its own class of
+    // that name, the public type name too
     // (`Dim d As New Dictionary`, `As Scripting.Dictionary`).
     if (any_source_mentions("scripting.dictionary", false) ||
         any_source_mentions("dictionary", true)) {
         const bool alias = !user_defines("dictionary");
         class_sources_.push_back({"WfcDictionary", kDictionarySource});
-        if (alias) class_sources_.push_back({"Dictionary", kDictionarySource});
+        if (alias) {
+            class_sources_.push_back({"Dictionary", kDictionarySource});
+        }
     }
     if (any_source_mentions("scripting.filesystemobject", false) ||
         any_source_mentions("filesystemobject", true)) {
         const bool alias = !user_defines("filesystemobject");
         class_sources_.push_back({"WfcTextStream", kTextStreamSource});
         class_sources_.push_back({"WfcFile", kFileObjectSource});
-        class_sources_.push_back({"WfcFileSystemObject", kFileSystemObjectSource});
-        if (alias) class_sources_.push_back({"FileSystemObject", kFileSystemObjectSource});
+        class_sources_.push_back(
+            {"WfcFileSystemObject", kFileSystemObjectSource});
+        if (alias) {
+            class_sources_.push_back(
+                {"FileSystemObject", kFileSystemObjectSource});
+        }
     }
     if (any_source_mentions("vbscript.regexp", false) ||
         any_source_mentions("vbscript_regexp_55.regexp", false) ||
         any_source_mentions("regexp", true)) {
         const bool alias = !user_defines("regexp");
         class_sources_.push_back({"WfcRegExp", kRegExpSource});
-        class_sources_.push_back({"WfcMatchCollection", kMatchCollectionSource});
+        class_sources_.push_back(
+            {"WfcMatchCollection", kMatchCollectionSource});
         class_sources_.push_back({"WfcMatch", kMatchSource});
         class_sources_.push_back({"WfcSubMatches", kSubMatchesSource});
-        if (alias) class_sources_.push_back({"RegExp", kRegExpSource});
+        if (alias) {
+            class_sources_.push_back({"RegExp", kRegExpSource});
+        }
     }
     const auto mentions_app = [](const std::string_view text) {
         for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
-            if (ascii_lower(text[i]) == 'a' && ascii_lower(text[i + 1U]) == 'p' &&
+            if (ascii_lower(text[i]) == 'a' &&
+                ascii_lower(text[i + 1U]) == 'p' &&
                 ascii_lower(text[i + 2U]) == 'p' && text[i + 3U] == '.' &&
                 (i == 0 || !is_identifier_part(text[i - 1U]))) {
                 return true;
@@ -1110,17 +1245,22 @@ void Interpreter::scan_default_member(ClassDef& class_def) {
     std::size_t position = 0;
     while (position < text.size()) {
         auto end = text.find('\n', position);
-        if (end == std::string_view::npos) end = text.size();
+        if (end == std::string_view::npos) {
+            end = text.size();
+        }
         std::string line;
         for (const char c : text.substr(position, end - position)) {
-            if (c != ' ' && c != '\t' && c != '\r') line.push_back(ascii_lower(c));
+            if (c != ' ' && c != '\t' && c != '\r') {
+                line.push_back(ascii_lower(c));
+            }
         }
         position = end + 1;
         constexpr std::string_view prefix = "attribute";
         constexpr std::string_view suffix = ".vb_usermemid=0";
         if (line.size() > prefix.size() + suffix.size() &&
             line.compare(0, prefix.size(), prefix) == 0 &&
-            line.compare(line.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            line.compare(line.size() - suffix.size(), suffix.size(), suffix) ==
+                0) {
             class_def.default_member = line.substr(
                 prefix.size(), line.size() - prefix.size() - suffix.size());
             return;
@@ -1143,11 +1283,14 @@ bool Interpreter::scan_classes() {
         ClassDef class_def;
         class_def.source = class_source.source;
         class_def.display_name = class_source.name;
-        class_definitions_.emplace(std::move(lowered_name), std::move(class_def));
+        class_definitions_.emplace(std::move(lowered_name),
+                                   std::move(class_def));
     }
     for (const auto& udt_name : udt_names_) {
         std::string lowered;
-        for (const char c : udt_name) lowered.push_back(ascii_lower(c));
+        for (const char c : udt_name) {
+            lowered.push_back(ascii_lower(c));
+        }
         class_definitions_.at(lowered).is_udt = true;
     }
     for (auto& [lowered_name, class_def] : class_definitions_) {
@@ -1203,7 +1346,8 @@ bool Interpreter::scan_procedures() {
             static_cast<void>(consume_keyword("ptrsafe"));
             skip_horizontal_whitespace();
         }
-        std::string property_prefix;  // "" for Sub/Function, else "wfclet_" / "wfcset_"
+        std::string
+            property_prefix;  // "" for Sub/Function, else "wfclet_" / "wfcset_"
         bool is_property = false;
         if (!is_declare && consume_keyword("property")) {
             skip_horizontal_whitespace();
@@ -1257,10 +1401,11 @@ bool Interpreter::scan_procedures() {
             return false;
         }
         const std::string procedure_key = property_prefix + *name;
-        if (is_reserved_identifier(*name) || procedures_.contains(procedure_key)) {
+        if (is_reserved_identifier(*name) ||
+            procedures_.contains(procedure_key)) {
             offset_ = saved_offset;
-            set_error(
-                "WFC0119", "duplicate or reserved procedure name", name_offset);
+            set_error("WFC0119", "duplicate or reserved procedure name",
+                      name_offset);
             return false;
         }
 
@@ -1276,28 +1421,29 @@ bool Interpreter::scan_procedures() {
             if (!consume_keyword("as")) {
                 apply_implicit_return_type(definition, *name, type_character);
             } else {
-            const auto type_offset = offset_;
-            const auto type_result = parse_scalar_object_or_class_type();
-            if (!type_result.has_value()) {
-                offset_ = saved_offset;
-                set_error(
-                    "WFC0012",
-                    "expected As Integer, As Long, As Double, As Single, As Currency, "
-                    "As String, As Boolean, As Object, As Variant, or a known class name",
-                    type_offset);
-                return false;
-            }
-            definition.return_type_index = type_result->type_index;
-            definition.return_is_variant = type_result->is_variant;
-            definition.return_is_object = type_result->is_object;
-            definition.return_class_name = type_result->class_name;
-            const auto array_marker =
-                parse_function_array_return_marker(*type_result, type_offset);
-            if (!array_marker.has_value()) {
-                offset_ = saved_offset;
-                return false;
-            }
-            definition.return_is_array = *array_marker;
+                const auto type_offset = offset_;
+                const auto type_result = parse_scalar_object_or_class_type();
+                if (!type_result.has_value()) {
+                    offset_ = saved_offset;
+                    set_error("WFC0012",
+                              "expected As Integer, As Long, As Double, As "
+                              "Single, As Currency, "
+                              "As String, As Boolean, As Object, As Variant, "
+                              "or a known class name",
+                              type_offset);
+                    return false;
+                }
+                definition.return_type_index = type_result->type_index;
+                definition.return_is_variant = type_result->is_variant;
+                definition.return_is_object = type_result->is_object;
+                definition.return_class_name = type_result->class_name;
+                const auto array_marker = parse_function_array_return_marker(
+                    *type_result, type_offset);
+                if (!array_marker.has_value()) {
+                    offset_ = saved_offset;
+                    return false;
+                }
+                definition.return_is_array = *array_marker;
             }
         }
         if (!consume_loop_header_end()) {
@@ -1306,15 +1452,16 @@ bool Interpreter::scan_procedures() {
         }
         definition.body_start = offset_;
 
-        if (!skip_to_matching_end(
-                is_property ? "property" : is_function ? "function" : "sub",
-                definition.body_end)) {
+        if (!skip_to_matching_end(is_property   ? "property"
+                                  : is_function ? "function"
+                                                : "sub",
+                                  definition.body_end)) {
             offset_ = saved_offset;
-            set_error(
-                is_function ? "WFC0120" : "WFC0121",
-                is_property ? "expected End Property"
-                : is_function ? "expected End Function" : "expected End Sub",
-                line_offset);
+            set_error(is_function ? "WFC0120" : "WFC0121",
+                      is_property   ? "expected End Property"
+                      : is_function ? "expected End Function"
+                                    : "expected End Sub",
+                      line_offset);
             return false;
         }
         definition.declaration_end = offset_;
@@ -1326,16 +1473,19 @@ bool Interpreter::scan_procedures() {
 
 bool Interpreter::parse_option_statement(const std::size_t statement_offset) {
     if (!allow_declarations_) {
-        set_error("WFC0068", "Option directives are only valid at module level", statement_offset);
+        set_error("WFC0068", "Option directives are only valid at module level",
+                  statement_offset);
         return false;
     }
     skip_horizontal_whitespace();
     if (module_body_started_) {
-        set_error("WFC0066", "Option directives must precede module statements", statement_offset);
+        set_error("WFC0066", "Option directives must precede module statements",
+                  statement_offset);
         return false;
     }
     if (consume_keyword("private")) {
-        // `Option Private Module`: every module is private to the project already.
+        // `Option Private Module`: every module is private to the project
+        // already.
         skip_horizontal_whitespace();
         static_cast<void>(consume_keyword("module"));
         return true;
@@ -1359,7 +1509,8 @@ bool Interpreter::parse_option_statement(const std::size_t statement_offset) {
         } else if (consume_keyword("text")) {
             option_compare_text_ = true;
         } else {
-            set_error("WFC0070", "expected Binary or Text after Option Compare", offset_);
+            set_error("WFC0070", "expected Binary or Text after Option Compare",
+                      offset_);
             return false;
         }
         option_compare_set_ = true;
@@ -1382,11 +1533,13 @@ bool Interpreter::parse_option_statement(const std::size_t statement_offset) {
         option_base_set_ = true;
         return true;
     }
-    set_error("WFC0065", "expected Explicit, Compare, or Base after Option", offset_);
+    set_error("WFC0065", "expected Explicit, Compare, or Base after Option",
+              offset_);
     return false;
 }
 
-bool Interpreter::parse_type_statement_skip(const std::size_t statement_offset) {
+bool Interpreter::parse_type_statement_skip(
+    const std::size_t statement_offset) {
     skip_rest_of_line();
     while (true) {
         skip_program_leading_trivia();
@@ -1447,17 +1600,20 @@ bool Interpreter::parse_enum_statement(const std::size_t statement_offset) {
             if (!value.has_value()) {
                 return false;
             }
-            if (!coerce_numeric_value(*value, Value{Integer{}}.index(), member_offset) ||
+            if (!coerce_numeric_value(*value, Value{Integer{}}.index(),
+                                      member_offset) ||
                 !std::holds_alternative<Integer>(*value)) {
-                set_error("WFC0016", "Enum member value must be a Long", member_offset);
+                set_error("WFC0016", "Enum member value must be a Long",
+                          member_offset);
                 return false;
             }
             next_value = std::get<Integer>(*value);
         }
         if (execute_) {
             if (current_scope().variables.contains(*member)) {
-                set_error(
-                    "WFC0013", "duplicate variable or constant declaration", member_offset);
+                set_error("WFC0013",
+                          "duplicate variable or constant declaration",
+                          member_offset);
                 return false;
             }
             current_scope().variables.emplace(*member, Value{next_value});
@@ -1470,7 +1626,8 @@ bool Interpreter::parse_enum_statement(const std::size_t statement_offset) {
     }
 }
 
-auto Interpreter::scan_statement_paren_group(const std::size_t open_offset) const -> ParenGroup {
+auto Interpreter::scan_statement_paren_group(
+    const std::size_t open_offset) const -> ParenGroup {
     ParenGroup group;
     std::size_t depth = 0;
     bool in_string = false;
@@ -1480,12 +1637,20 @@ auto Interpreter::scan_statement_paren_group(const std::size_t open_offset) cons
     std::size_t look = open_offset;
     for (; look < source_.size(); ++look) {
         const char c = source_[look];
-        if (c == '"') in_string = !in_string;
-        if (in_string) continue;
+        if (c == '"') {
+            in_string = !in_string;
+        }
+        if (in_string) {
+            continue;
+        }
         if (c == '(') {
             ++depth;
         } else if (c == ')') {
-            if (--depth == 0) { balanced = true; ++look; break; }
+            if (--depth == 0) {
+                balanced = true;
+                ++look;
+                break;
+            }
         } else if (c == ',' && depth == 1) {
             top_level_comma = true;
         } else if (c == '\r' || c == '\n') {
@@ -1495,9 +1660,13 @@ auto Interpreter::scan_statement_paren_group(const std::size_t open_offset) cons
         }
     }
     if (balanced) {
-        while (look < source_.size() && (source_[look] == ' ' || source_[look] == '\t')) ++look;
-        group.ends_statement = look >= source_.size() || source_[look] == '\r' ||
-            source_[look] == '\n' || source_[look] == ':' || source_[look] == '\'';
+        while (look < source_.size() &&
+               (source_[look] == ' ' || source_[look] == '\t')) {
+            ++look;
+        }
+        group.ends_statement = look >= source_.size() ||
+                               source_[look] == '\r' || source_[look] == '\n' ||
+                               source_[look] == ':' || source_[look] == '\'';
         group.is_list = top_level_comma || empty;
     }
     return group;
@@ -1516,11 +1685,12 @@ bool Interpreter::parse_static_declaration(const std::size_t statement_offset) {
     }
 }
 
-bool Interpreter::parse_single_static_declaration(const std::size_t statement_offset) {
+bool Interpreter::parse_single_static_declaration(
+    const std::size_t statement_offset) {
     if (current_procedure_def_ == nullptr) {
-        set_error(
-            "WFC0144", "Static is only valid inside a Sub, Function, or Property",
-            statement_offset);
+        set_error("WFC0144",
+                  "Static is only valid inside a Sub, Function, or Property",
+                  statement_offset);
         return false;
     }
     skip_horizontal_whitespace();
@@ -1532,8 +1702,8 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         return false;
     }
     if (is_reserved_identifier(*identifier)) {
-        set_error(
-            "WFC0017", "reserved keyword cannot be a variable name", identifier_offset);
+        set_error("WFC0017", "reserved keyword cannot be a variable name",
+                  identifier_offset);
         return false;
     }
     if (!validate_type_character(type_character, identifier_offset)) {
@@ -1560,7 +1730,8 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         if (!at_end() && current() == ')') {
             set_error(
                 "WFC0149",
-                "a Static array must have fixed bounds (Static arr(n) As Type)", offset_);
+                "a Static array must have fixed bounds (Static arr(n) As Type)",
+                offset_);
             return false;
         }
         auto parsed_dimensions = parse_fixed_array_bounds(identifier_offset);
@@ -1582,9 +1753,9 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
     std::string declared_class_name;
     if (type_character != '\0') {
         if (consume_keyword("as")) {
-            set_error(
-                "WFC0012", "type-declaration character cannot be combined with As",
-                offset_);
+            set_error("WFC0012",
+                      "type-declaration character cannot be combined with As",
+                      offset_);
             return false;
         }
         if (type_character == '$') {
@@ -1601,16 +1772,16 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
             element_default = Integer{};
         }
     } else if (!consume_keyword("as")) {
-        if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-            current() == '\'') {
+        if (at_end() || current() == '\r' || current() == '\n' ||
+            current() == ':' || current() == '\'') {
             element_default = Empty{};
             is_variant = true;
         } else {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                "String, As Boolean, As Object, or As Variant",
-                offset_);
+            set_error("WFC0012",
+                      "expected As Integer, As Long, As Double, As Single, As "
+                      "Currency, As "
+                      "String, As Boolean, As Object, or As Variant",
+                      offset_);
             return false;
         }
     } else {
@@ -1623,11 +1794,11 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         // originally supported alone (REQ-0206's Scope).
         const auto type_result = parse_scalar_object_or_class_type();
         if (!type_result.has_value()) {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                "String, As Boolean, As Object, or As Variant",
-                type_offset);
+            set_error("WFC0012",
+                      "expected As Integer, As Long, As Double, As Single, As "
+                      "Currency, As "
+                      "String, As Boolean, As Object, or As Variant",
+                      type_offset);
             return false;
         }
         if (type_result->is_object) {
@@ -1643,11 +1814,11 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
     }
 
     if (is_array && (is_variant || is_object)) {
-        set_error(
-            "WFC0149",
-            "a Static array's element type must be a fixed scalar type, not Variant or "
-            "Object",
-            identifier_offset);
+        set_error("WFC0149",
+                  "a Static array's element type must be a fixed scalar type, "
+                  "not Variant or "
+                  "Object",
+                  identifier_offset);
         return false;
     }
 
@@ -1657,18 +1828,25 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         if (!array_dimensions.empty()) {
             std::size_t total_size = 1U;
             for (const auto& dimension : array_dimensions) {
-                total_size *=
-                    static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                total_size *= static_cast<std::size_t>(dimension.second -
+                                                       dimension.first) +
+                              1U;
             }
-            initial_value = ArrayValue{
-                std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
-                /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                array_dimensions};
+            initial_value =
+                ArrayValue{std::vector<Value>(total_size, element_default),
+                           /*lower_bound=*/0,
+                           /*is_dynamic=*/false,
+                           /*is_allocated=*/true,
+                           element_type_index,
+                           array_dimensions};
         } else {
-            const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
-            initial_value = ArrayValue{
-                std::vector<Value>(size, std::move(element_default)), array_lower,
-                /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index};
+            const auto size =
+                static_cast<std::size_t>(array_upper - array_lower) + 1U;
+            initial_value =
+                ArrayValue{std::vector<Value>(size, std::move(element_default)),
+                           array_lower,
+                           /*is_dynamic=*/false, /*is_allocated=*/true,
+                           element_type_index};
         }
     } else {
         initial_value = std::move(element_default);
@@ -1678,12 +1856,14 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         if (!allow_declarations_) {
             return true;  // REQ-0271: re-executed declaration inside a block
         }
-        set_error("WFC0013", "duplicate variable declaration", identifier_offset);
+        set_error("WFC0013", "duplicate variable declaration",
+                  identifier_offset);
         return false;
     }
-    auto& statics = current_instance() != nullptr
-        ? current_instance()->static_scopes[current_procedure_def_]
-        : current_procedure_def_->statics;
+    auto& statics =
+        current_instance() != nullptr
+            ? current_instance()->static_scopes[current_procedure_def_]
+            : current_procedure_def_->statics;
     if (!statics.variables.contains(*identifier)) {
         statics.variables.emplace(*identifier, std::move(initial_value));
         if (is_variant) {
@@ -1692,25 +1872,29 @@ bool Interpreter::parse_single_static_declaration(const std::size_t statement_of
         if (is_object) {
             statics.object_variables.insert(*identifier);
             if (!declared_class_name.empty()) {
-                statics.object_class_names.emplace(*identifier, declared_class_name);
+                statics.object_class_names.emplace(*identifier,
+                                                   declared_class_name);
             }
         }
     }
-    current_scope().variables.emplace(*identifier, statics.variables.at(*identifier));
+    current_scope().variables.emplace(*identifier,
+                                      statics.variables.at(*identifier));
     if (is_variant) {
         current_scope().variant_variables.insert(*identifier);
     }
     if (is_object) {
         current_scope().object_variables.insert(*identifier);
         if (!declared_class_name.empty()) {
-            current_scope().object_class_names.emplace(*identifier, declared_class_name);
+            current_scope().object_class_names.emplace(*identifier,
+                                                       declared_class_name);
         }
     }
     current_scope().static_variable_names.insert(*identifier);
     return true;
 }
 
-std::optional<std::vector<std::pair<Integer, Integer>>> Interpreter::parse_fixed_array_bounds(const std::size_t identifier_offset) {
+std::optional<std::vector<std::pair<Integer, Integer>>>
+Interpreter::parse_fixed_array_bounds(const std::size_t identifier_offset) {
     std::vector<std::pair<Integer, Integer>> dimensions;
     while (true) {
         const auto first_offset = offset_;
@@ -1746,9 +1930,9 @@ std::optional<std::vector<std::pair<Integer, Integer>>> Interpreter::parse_fixed
             dimension_upper = *first_long;
         }
         if (dimension_lower > dimension_upper) {
-            set_error(
-                "WFC0117", "array lower bound must not exceed the upper bound",
-                identifier_offset);
+            set_error("WFC0117",
+                      "array lower bound must not exceed the upper bound",
+                      identifier_offset);
             return std::nullopt;
         }
         dimensions.emplace_back(dimension_lower, dimension_upper);
@@ -1794,7 +1978,8 @@ bool Interpreter::parse_single_declaration() {
     const bool repeat_in_block =
         !allow_declarations_ && current_scope().variables.contains(*identifier);
     if (is_reserved_identifier(*identifier)) {
-        set_error("WFC0017", "reserved keyword cannot be a variable name", identifier_offset);
+        set_error("WFC0017", "reserved keyword cannot be a variable name",
+                  identifier_offset);
         return false;
     }
     if (!validate_type_character(type_character, identifier_offset)) {
@@ -1856,7 +2041,8 @@ bool Interpreter::parse_single_declaration() {
             // No bounds to parse; fall through to the shared `As Type`
             // handling below.
         } else {
-            auto parsed_dimensions = parse_fixed_array_bounds(identifier_offset);
+            auto parsed_dimensions =
+                parse_fixed_array_bounds(identifier_offset);
             if (!parsed_dimensions.has_value()) {
                 return false;
             }
@@ -1876,7 +2062,9 @@ bool Interpreter::parse_single_declaration() {
     std::string declared_class_name;
     if (type_character != '\0') {
         if (consume_keyword("as")) {
-            set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
+            set_error("WFC0012",
+                      "type-declaration character cannot be combined with As",
+                      offset_);
             return false;
         }
         if (type_character == '$') {
@@ -1899,19 +2087,19 @@ bool Interpreter::parse_single_declaration() {
         // (Variant-element arrays are outside the current array scope).
         if (const auto default_type = default_type_for(*identifier);
             default_type.has_value() &&
-            (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-             current() == '\'' || current() == ',')) {
+            (at_end() || current() == '\r' || current() == '\n' ||
+             current() == ':' || current() == '\'' || current() == ',')) {
             element_default = zero_value_for_index(*default_type);
         } else if (at_end() || current() == '\r' || current() == '\n' ||
-            current() == ':' || current() == '\'' || current() == ',') {
+                   current() == ':' || current() == '\'' || current() == ',') {
             element_default = Empty{};
             is_variant = true;
         } else {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                "String, As Boolean, As Object, or As Variant",
-                offset_);
+            set_error("WFC0012",
+                      "expected As Integer, As Long, As Double, As Single, As "
+                      "Currency, As "
+                      "String, As Boolean, As Object, or As Variant",
+                      offset_);
             return false;
         }
     } else {
@@ -1948,7 +2136,9 @@ bool Interpreter::parse_single_declaration() {
                 const auto size_value = whole_value(*length);
                 const Integer* const size = size_value ? &*size_value : nullptr;
                 if (size == nullptr || *size < 1 || *size > 65526) {
-                    set_error("WFC0012", "fixed String length must be 1 to 65526", length_offset);
+                    set_error("WFC0012",
+                              "fixed String length must be 1 to 65526",
+                              length_offset);
                     return false;
                 }
                 fixed_string_length_ = static_cast<std::size_t>(*size);
@@ -2007,16 +2197,18 @@ bool Interpreter::parse_single_declaration() {
                 }
             } else {
                 offset_ = saved_offset;
-                set_error(
-                    "WFC0012",
-                    is_array
-                        ? "expected As Integer, As Long, As Double, As Single, As Currency, "
-                          "As String, As Boolean, As Object, As Variant, or a known class "
-                          "name"
-                        : "expected As Integer, As Long, As Double, As Single, As Currency, "
-                          "As String, As Boolean, As Object, As Variant, or a known class "
-                          "name",
-                    class_name_offset);
+                set_error("WFC0012",
+                          is_array ? "expected As Integer, As Long, As Double, "
+                                     "As Single, As Currency, "
+                                     "As String, As Boolean, As Object, As "
+                                     "Variant, or a known class "
+                                     "name"
+                                   : "expected As Integer, As Long, As Double, "
+                                     "As Single, As Currency, "
+                                     "As String, As Boolean, As Object, As "
+                                     "Variant, or a known class "
+                                     "name",
+                          class_name_offset);
                 return false;
             }
         }
@@ -2024,7 +2216,8 @@ bool Interpreter::parse_single_declaration() {
         if (eager_new && repeat_in_block) {
             element_default = Nothing{};
         } else if (eager_new) {
-            auto instance = instantiate_class(declared_class_name, identifier_offset);
+            auto instance =
+                instantiate_class(declared_class_name, identifier_offset);
             if (!instance.has_value()) {
                 return false;
             }
@@ -2042,7 +2235,8 @@ bool Interpreter::parse_single_declaration() {
             // Set-target class check, the same reasoning
             // is_variant/is_object already follow for
             // variant_variables/object_variables above.
-            current_scope().object_class_names.emplace(*identifier, declared_class_name);
+            current_scope().object_class_names.emplace(*identifier,
+                                                       declared_class_name);
         }
     }
 
@@ -2050,29 +2244,48 @@ bool Interpreter::parse_single_declaration() {
     if (is_array) {
         const auto element_type_index = element_default.index();
         if (is_dynamic_array) {
-            ArrayValue array_value{
-                /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
-                /*is_allocated=*/false, element_type_index, /*dimensions=*/{}, is_variant,
-                is_object, declared_class_name};
+            ArrayValue array_value{/*elements=*/{},
+                                   /*lower_bound=*/0,
+                                   /*is_dynamic=*/true,
+                                   /*is_allocated=*/false,
+                                   element_type_index,
+                                   /*dimensions=*/{},
+                                   is_variant,
+                                   is_object,
+                                   declared_class_name};
             array_value.dynamic_dimension_count = dynamic_dimension_count;
             array_value.dimension_count_declared = dynamic_dimension_count > 0U;
             initial_value = std::move(array_value);
         } else if (!array_dimensions.empty()) {
             std::size_t total_size = 1U;
             for (const auto& dimension : array_dimensions) {
-                total_size *=
-                    static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+                total_size *= static_cast<std::size_t>(dimension.second -
+                                                       dimension.first) +
+                              1U;
             }
-            initial_value = ArrayValue{
-                std::vector<Value>(total_size, element_default), /*lower_bound=*/0,
-                /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                array_dimensions, is_variant, is_object, declared_class_name};
+            initial_value =
+                ArrayValue{std::vector<Value>(total_size, element_default),
+                           /*lower_bound=*/0,
+                           /*is_dynamic=*/false,
+                           /*is_allocated=*/true,
+                           element_type_index,
+                           array_dimensions,
+                           is_variant,
+                           is_object,
+                           declared_class_name};
         } else {
-            const auto size = static_cast<std::size_t>(array_upper - array_lower) + 1U;
-            initial_value = ArrayValue{
-                std::vector<Value>(size, std::move(element_default)), array_lower,
-                /*is_dynamic=*/false, /*is_allocated=*/true, element_type_index,
-                /*dimensions=*/{}, is_variant, is_object, declared_class_name};
+            const auto size =
+                static_cast<std::size_t>(array_upper - array_lower) + 1U;
+            initial_value =
+                ArrayValue{std::vector<Value>(size, std::move(element_default)),
+                           array_lower,
+                           /*is_dynamic=*/false,
+                           /*is_allocated=*/true,
+                           element_type_index,
+                           /*dimensions=*/{},
+                           is_variant,
+                           is_object,
+                           declared_class_name};
         }
     } else {
         initial_value = std::move(element_default);
@@ -2086,7 +2299,8 @@ bool Interpreter::parse_single_declaration() {
         udt_array_ = false;
         if (auto* const array = std::get_if<ArrayValue>(&initial_value)) {
             for (auto& element : array->elements) {
-                auto instance = instantiate_class(declared_class_name, identifier_offset);
+                auto instance =
+                    instantiate_class(declared_class_name, identifier_offset);
                 if (!instance.has_value()) {
                     return false;
                 }
@@ -2095,18 +2309,20 @@ bool Interpreter::parse_single_declaration() {
         }
     }
 
-    const auto [entry, inserted] =
-        current_scope().variables.emplace(*identifier, std::move(initial_value));
+    const auto [entry, inserted] = current_scope().variables.emplace(
+        *identifier, std::move(initial_value));
     (void)entry;
     if (!inserted) {
         if (repeat_in_block) {
             return true;  // REQ-0271: re-executed declaration inside a block
         }
-        set_error("WFC0013", "duplicate variable declaration", identifier_offset);
+        set_error("WFC0013", "duplicate variable declaration",
+                  identifier_offset);
         return false;
     }
     if (fixed_string_length_ != 0U && !is_array) {
-        current_scope().fixed_string_lengths[*identifier] = fixed_string_length_;
+        current_scope().fixed_string_lengths[*identifier] =
+            fixed_string_length_;
     }
     if (pending_lazy_new_) {
         pending_lazy_new_ = false;
@@ -2213,7 +2429,8 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
             dimension_upper = *first_long;
         }
         if (execute_ && dimension_lower > dimension_upper) {
-            return raise_runtime(9, "Subscript out of range", identifier_offset);
+            return raise_runtime(9, "Subscript out of range",
+                                 identifier_offset);
         }
         new_dimensions.emplace_back(dimension_lower, dimension_upper);
         skip_horizontal_whitespace();
@@ -2247,8 +2464,8 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
     }
 
     auto variable_lookup = find_variable(*identifier);
-    if (variable_lookup.value == nullptr && member_path.empty() && !strict_declarations_ &&
-        !in_with_identifier(*identifier)) {
+    if (variable_lookup.value == nullptr && member_path.empty() &&
+        !strict_declarations_ && !in_with_identifier(*identifier)) {
         // Without Option Explicit, ReDim declares the (Variant) array too.
         current_scope().variables.emplace(*identifier, Value{Empty{}});
         current_scope().variant_variables.insert(*identifier);
@@ -2256,9 +2473,12 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
     }
     Value* redim_target = variable_lookup.value;
     for (const auto& member : member_path) {
-        auto* holder = redim_target != nullptr ? std::get_if<ObjectInstance>(redim_target) : nullptr;
+        auto* holder = redim_target != nullptr
+                           ? std::get_if<ObjectInstance>(redim_target)
+                           : nullptr;
         if (holder == nullptr) {
-            set_error("WFC0136", "member access requires an object reference", identifier_offset);
+            set_error("WFC0136", "member access requires an object reference",
+                      identifier_offset);
             return false;
         }
         const auto field = holder->data->fields.variables.find(member);
@@ -2268,7 +2488,8 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         }
         redim_target = &field->second;
     }
-    if (redim_target != nullptr && !std::holds_alternative<ArrayValue>(*redim_target) &&
+    if (redim_target != nullptr &&
+        !std::holds_alternative<ArrayValue>(*redim_target) &&
         (std::holds_alternative<Empty>(*redim_target) ||
          (member_path.empty() &&
           variable_lookup.scope->variant_variables.contains(*identifier)))) {
@@ -2290,14 +2511,17 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         }
         *redim_target = std::move(created);
     }
-    struct RedimVariable { Value* value; };
+    struct RedimVariable {
+        Value* value;
+    };
     const RedimVariable variable{redim_target};
-    if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value) ||
+    if (variable.value == nullptr ||
+        !std::holds_alternative<ArrayValue>(*variable.value) ||
         !std::get<ArrayValue>(*variable.value).is_dynamic) {
-        set_error(
-            "WFC0145",
-            "ReDim requires a previously declared dynamic array (Dim identifier())",
-            identifier_offset);
+        set_error("WFC0145",
+                  "ReDim requires a previously declared dynamic array (Dim "
+                  "identifier())",
+                  identifier_offset);
         return false;
     }
     auto& array = std::get<ArrayValue>(*variable.value);
@@ -2309,15 +2533,17 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
     // form (no pre-declared count) lets this first `ReDim` decide it.
     std::size_t required_dimension_count = new_dimensions.size();
     if (array.dimension_count_declared) {
-        required_dimension_count = array.dynamic_dimension_count;  // `Dim a(,)` fixed it
+        required_dimension_count =
+            array.dynamic_dimension_count;  // `Dim a(,)` fixed it
     } else if (array.is_allocated && preserve) {
-        required_dimension_count = array.dimensions.empty() ? 1U : array.dimensions.size();
+        required_dimension_count =
+            array.dimensions.empty() ? 1U : array.dimensions.size();
     }
     if (new_dimensions.size() != required_dimension_count) {
-        set_error(
-            "WFC0115",
-            "ReDim dimension count does not match the array's declared dimension count",
-            identifier_offset);
+        set_error("WFC0115",
+                  "ReDim dimension count does not match the array's declared "
+                  "dimension count",
+                  identifier_offset);
         return false;
     }
 
@@ -2327,13 +2553,14 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
     // (a 1-D array has no "earlier dimension" to check, so this loop
     // never runs for one).
     if (preserve && array.is_allocated && new_dimensions.size() > 1U) {
-        for (std::size_t dimension = 0; dimension + 1U < new_dimensions.size(); ++dimension) {
+        for (std::size_t dimension = 0; dimension + 1U < new_dimensions.size();
+             ++dimension) {
             if (new_dimensions[dimension] != array.dimensions[dimension]) {
-                set_error(
-                    "WFC0151",
-                    "ReDim Preserve may only change a multi-dimensional array's last "
-                    "dimension",
-                    identifier_offset);
+                set_error("WFC0151",
+                          "ReDim Preserve may only change a multi-dimensional "
+                          "array's last "
+                          "dimension",
+                          identifier_offset);
                 return false;
             }
         }
@@ -2341,13 +2568,13 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
 
     std::size_t total_size = 1U;
     for (const auto& dimension : new_dimensions) {
-        total_size *= static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
+        total_size *=
+            static_cast<std::size_t>(dimension.second - dimension.first) + 1U;
     }
     std::vector<Value> new_elements(
-        total_size,
-        array.element_fixed_length != 0U
-            ? Value{std::string(array.element_fixed_length, ' ')}
-            : array_element_default(array.element_type_index));
+        total_size, array.element_fixed_length != 0U
+                        ? Value{std::string(array.element_fixed_length, ' ')}
+                        : array_element_default(array.element_type_index));
 
     if (preserve && array.is_allocated && !array.elements.empty()) {
         // Every dimension except the last keeps identical bounds
@@ -2360,26 +2587,32 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         // dimension count, 1-D included.
         const std::pair<Integer, Integer> old_last =
             array.dimensions.empty()
-                ? std::pair<Integer, Integer>{
-                      array.lower_bound,
-                      array.lower_bound + static_cast<Integer>(array.elements.size()) - 1}
+                ? std::pair<Integer, Integer>{array.lower_bound,
+                                              array.lower_bound +
+                                                  static_cast<Integer>(
+                                                      array.elements.size()) -
+                                                  1}
                 : array.dimensions.back();
         const auto& new_last = new_dimensions.back();
         const Integer overlap_lower = std::max(old_last.first, new_last.first);
-        const Integer overlap_upper = std::min(old_last.second, new_last.second);
+        const Integer overlap_upper =
+            std::min(old_last.second, new_last.second);
         if (overlap_lower <= overlap_upper) {
             const auto old_last_size =
                 static_cast<std::size_t>(old_last.second - old_last.first) + 1U;
             const auto new_last_size =
                 static_cast<std::size_t>(new_last.second - new_last.first) + 1U;
             const auto outer_size = array.elements.size() / old_last_size;
-            for (std::size_t outer_index = 0; outer_index < outer_size; ++outer_index) {
-                for (Integer absolute_index = overlap_lower; absolute_index <= overlap_upper;
-                     ++absolute_index) {
+            for (std::size_t outer_index = 0; outer_index < outer_size;
+                 ++outer_index) {
+                for (Integer absolute_index = overlap_lower;
+                     absolute_index <= overlap_upper; ++absolute_index) {
                     const auto old_flat = outer_index * old_last_size +
-                        static_cast<std::size_t>(absolute_index - old_last.first);
+                                          static_cast<std::size_t>(
+                                              absolute_index - old_last.first);
                     const auto new_flat = outer_index * new_last_size +
-                        static_cast<std::size_t>(absolute_index - new_last.first);
+                                          static_cast<std::size_t>(
+                                              absolute_index - new_last.first);
                     new_elements[new_flat] = array.elements[old_flat];
                 }
             }
@@ -2390,7 +2623,8 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         // REQ-0241/0253: every slot of a UDT array owns its own instance.
         for (auto& slot : new_elements) {
             if (std::holds_alternative<Nothing>(slot)) {
-                auto instance = instantiate_class(array.element_class_name, identifier_offset);
+                auto instance = instantiate_class(array.element_class_name,
+                                                  identifier_offset);
                 if (!instance.has_value()) {
                     return false;
                 }
@@ -2436,8 +2670,10 @@ bool Interpreter::parse_erase_statement() {
     }
     for (const auto& target : targets) {
         const auto variable = find_variable(target.first);
-        if (variable.value == nullptr || !std::holds_alternative<ArrayValue>(*variable.value)) {
-            set_error("WFC0146", "Erase requires an array argument", target.second);
+        if (variable.value == nullptr ||
+            !std::holds_alternative<ArrayValue>(*variable.value)) {
+            set_error("WFC0146", "Erase requires an array argument",
+                      target.second);
             return false;
         }
         auto& array = std::get<ArrayValue>(*variable.value);
@@ -2456,16 +2692,16 @@ bool Interpreter::parse_erase_statement() {
             // arr()`/`Dim arr(,)`), any already-pre-declared count is
             // left exactly as it was.
             if (array.is_allocated) {
-                array.dynamic_dimension_count = array_expected_dimension_count(array);
+                array.dynamic_dimension_count =
+                    array_expected_dimension_count(array);
             }
             array.dimensions.clear();
             array.elements.clear();
             array.lower_bound = 0;
             array.is_allocated = false;
         } else {
-            std::fill(
-                array.elements.begin(), array.elements.end(),
-                array_element_default(array.element_type_index));
+            std::fill(array.elements.begin(), array.elements.end(),
+                      array_element_default(array.element_type_index));
         }
     }
     return true;
@@ -2494,7 +2730,8 @@ bool Interpreter::parse_single_constant_declaration() {
         return false;
     }
     if (is_reserved_identifier(*identifier)) {
-        set_error("WFC0017", "reserved keyword cannot be a constant name", identifier_offset);
+        set_error("WFC0017", "reserved keyword cannot be a constant name",
+                  identifier_offset);
         return false;
     }
     if (!validate_type_character(type_character, identifier_offset)) {
@@ -2503,7 +2740,8 @@ bool Interpreter::parse_single_constant_declaration() {
     const bool repeat_constant =
         !allow_declarations_ && current_scope().variables.contains(*identifier);
     if (!repeat_constant && current_scope().variables.contains(*identifier)) {
-        set_error("WFC0013", "duplicate variable or constant declaration", identifier_offset);
+        set_error("WFC0013", "duplicate variable or constant declaration",
+                  identifier_offset);
         return false;
     }
 
@@ -2519,7 +2757,9 @@ bool Interpreter::parse_single_constant_declaration() {
     skip_horizontal_whitespace();
     if (type_character != '\0') {
         if (consume_keyword("as")) {
-            set_error("WFC0012", "type-declaration character cannot be combined with As", offset_);
+            set_error("WFC0012",
+                      "type-declaration character cannot be combined with As",
+                      offset_);
             return false;
         }
         expected_type = type_character_index(type_character);
@@ -2547,11 +2787,11 @@ bool Interpreter::parse_single_constant_declaration() {
         } else if (consume_keyword("boolean")) {
             expected_type = Value{false}.index();
         } else {
-            set_error(
-                "WFC0012",
-                "expected As Integer, As Long, As Double, As Single, As Currency, As "
-                "String, or As Boolean",
-                offset_);
+            set_error("WFC0012",
+                      "expected As Integer, As Long, As Double, As Single, As "
+                      "Currency, As "
+                      "String, or As Boolean",
+                      offset_);
             return false;
         }
     }
@@ -2573,7 +2813,8 @@ bool Interpreter::parse_single_constant_declaration() {
             return false;
         }
         if (value->index() != expected_type) {
-            set_error("WFC0016", "constant initializer type mismatch", identifier_offset);
+            set_error("WFC0016", "constant initializer type mismatch",
+                      identifier_offset);
             return false;
         }
     }
@@ -2587,41 +2828,62 @@ bool Interpreter::parse_single_constant_declaration() {
 }
 
 std::size_t Interpreter::udt_byte_size(const Value& value) const {
-    if (std::holds_alternative<Integer>(value)) return 4;
-    if (std::holds_alternative<Int16>(value) || std::holds_alternative<bool>(value)) return 2;
-    if (std::holds_alternative<Byte>(value)) return 1;
-    if (std::holds_alternative<float>(value)) return 4;
-    if (std::holds_alternative<double>(value) || std::holds_alternative<Currency>(value) ||
+    if (std::holds_alternative<Integer>(value)) {
+        return 4;
+    }
+    if (std::holds_alternative<Int16>(value) ||
+        std::holds_alternative<bool>(value)) {
+        return 2;
+    }
+    if (std::holds_alternative<Byte>(value)) {
+        return 1;
+    }
+    if (std::holds_alternative<float>(value)) {
+        return 4;
+    }
+    if (std::holds_alternative<double>(value) ||
+        std::holds_alternative<Currency>(value) ||
         std::holds_alternative<DateValue>(value)) {
         return 8;
     }
     if (const auto* array = std::get_if<ArrayValue>(&value)) {
         std::size_t total = 0;
-        for (const auto& element : array->elements) total += udt_byte_size(element);
+        for (const auto& element : array->elements) {
+            total += udt_byte_size(element);
+        }
         return total;
     }
     if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
-        const auto class_iterator = class_definitions_.find(instance->data->class_name);
-        if (class_iterator == class_definitions_.end()) return 0;
+        const auto class_iterator =
+            class_definitions_.find(instance->data->class_name);
+        if (class_iterator == class_definitions_.end()) {
+            return 0;
+        }
         std::size_t total = 0;
         for (const auto& name : class_iterator->second.field_order) {
             const auto field = instance->data->fields.variables.find(name);
-            if (field == instance->data->fields.variables.end()) continue;
+            if (field == instance->data->fields.variables.end()) {
+                continue;
+            }
             if (const auto* text = std::get_if<std::string>(&field->second)) {
-                total += instance->data->fields.fixed_string_lengths.contains(name)
-                    ? text->size()
-                    : 2U + text->size();
+                total +=
+                    instance->data->fields.fixed_string_lengths.contains(name)
+                        ? text->size()
+                        : 2U + text->size();
             } else {
                 total += udt_byte_size(field->second);
             }
         }
         return total;
     }
-    if (const auto* text = std::get_if<std::string>(&value)) return text->size();
+    if (const auto* text = std::get_if<std::string>(&value)) {
+        return text->size();
+    }
     return 16;  // Variant / Decimal
 }
 
-bool Interpreter::parse_property_declaration_skip(const std::size_t statement_offset) {
+bool Interpreter::parse_property_declaration_skip(
+    const std::size_t statement_offset) {
     skip_horizontal_whitespace();
     std::string prefix;
     if (consume_keyword("get")) {
@@ -2630,7 +2892,8 @@ bool Interpreter::parse_property_declaration_skip(const std::size_t statement_of
     } else if (consume_keyword("set")) {
         prefix = "wfcset_";
     } else {
-        set_error("WFC0010", "expected Get, Let or Set after Property", offset_);
+        set_error("WFC0010", "expected Get, Let or Set after Property",
+                  offset_);
         return false;
     }
     skip_horizontal_whitespace();
@@ -2648,12 +2911,12 @@ bool Interpreter::parse_property_declaration_skip(const std::size_t statement_of
     return true;
 }
 
-bool Interpreter::parse_procedure_declaration_skip(const std::size_t statement_offset) {
+bool Interpreter::parse_procedure_declaration_skip(
+    const std::size_t statement_offset) {
     if (!allow_declarations_) {
-        set_error(
-            "WFC0027",
-            "declarations are not supported in conditional blocks",
-            statement_offset);
+        set_error("WFC0027",
+                  "declarations are not supported in conditional blocks",
+                  statement_offset);
         return false;
     }
     skip_horizontal_whitespace();

@@ -8,28 +8,28 @@
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <charconv>
 #include <cctype>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <cstring>
+#include <ctime>
 #include <deque>
 #include <exception>
 #include <filesystem>
 #include <functional>
-#include <map>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <regex>
 #include <set>
 #include <string>
-#include <thread>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -54,7 +54,8 @@ using Byte = std::uint8_t;  // REQ-0247
 struct Currency {
     std::int64_t scaled{};
 
-    [[nodiscard]] friend bool operator==(const Currency left, const Currency right) noexcept {
+    [[nodiscard]] friend bool operator==(const Currency left,
+                                         const Currency right) noexcept {
         return left.scaled == right.scaled;
     }
 };
@@ -68,7 +69,8 @@ struct UInt128 {
     std::uint64_t low{};
 };
 
-[[nodiscard]] inline UInt128 multiply_u64(const std::uint64_t left, const std::uint64_t right) noexcept {
+[[nodiscard]] inline UInt128 multiply_u64(const std::uint64_t left,
+                                          const std::uint64_t right) noexcept {
     const std::uint64_t left_lo = left & 0xFFFFFFFFULL;
     const std::uint64_t left_hi = left >> 32U;
     const std::uint64_t right_lo = right & 0xFFFFFFFFULL;
@@ -85,7 +87,8 @@ struct UInt128 {
     return result;
 }
 
-[[nodiscard]] inline int compare_u128(const UInt128 left, const UInt128 right) noexcept {
+[[nodiscard]] inline int compare_u128(const UInt128 left,
+                                      const UInt128 right) noexcept {
     if (left.high != right.high) {
         return left.high < right.high ? -1 : 1;
     }
@@ -95,7 +98,8 @@ struct UInt128 {
     return 0;
 }
 
-[[nodiscard]] inline UInt128 subtract_u128(const UInt128 left, const UInt128 right) noexcept {
+[[nodiscard]] inline UInt128 subtract_u128(const UInt128 left,
+                                           const UInt128 right) noexcept {
     UInt128 result;
     result.low = left.low - right.low;
     result.high = left.high - right.high - (left.low < right.low ? 1ULL : 0ULL);
@@ -112,18 +116,15 @@ struct UInt128 {
 // Binary long division: correct for any 128-bit dividend/divisor, at the
 // cost of 128 iterations. Currency operations are not performance-critical,
 // so simplicity and correctness are preferred over a faster algorithm.
-inline void divide_u128(
-    const UInt128 dividend,
-    const UInt128 divisor,
-    UInt128& quotient,
-    UInt128& remainder) noexcept {
+inline void divide_u128(const UInt128 dividend, const UInt128 divisor,
+                        UInt128& quotient, UInt128& remainder) noexcept {
     quotient = UInt128{};
     remainder = UInt128{};
     for (int bit = 127; bit >= 0; --bit) {
         remainder = shift_left_one_u128(remainder);
-        const bool dividend_bit = bit >= 64
-            ? (((dividend.high >> (bit - 64)) & 1ULL) != 0ULL)
-            : (((dividend.low >> bit) & 1ULL) != 0ULL);
+        const bool dividend_bit =
+            bit >= 64 ? (((dividend.high >> (bit - 64)) & 1ULL) != 0ULL)
+                      : (((dividend.low >> bit) & 1ULL) != 0ULL);
         if (dividend_bit) {
             remainder.low |= 1ULL;
         }
@@ -138,24 +139,26 @@ inline void divide_u128(
     }
 }
 
-[[nodiscard]] inline std::uint64_t magnitude_of(const std::int64_t value) noexcept {
+[[nodiscard]] inline std::uint64_t magnitude_of(
+    const std::int64_t value) noexcept {
     return value < 0 ? (~static_cast<std::uint64_t>(value) + 1ULL)
-                      : static_cast<std::uint64_t>(value);
+                     : static_cast<std::uint64_t>(value);
 }
 
 // round(left * right / 10000) computed with an exact 128-bit intermediate
 // product, using banker's rounding on the discarded remainder. Returns
 // nullopt when the mathematical result does not fit in int64_t.
 [[nodiscard]] inline std::optional<std::int64_t> currency_multiply(
-    const std::int64_t left,
-    const std::int64_t right) noexcept {
+    const std::int64_t left, const std::int64_t right) noexcept {
     const bool negative = (left < 0) != (right < 0);
-    const UInt128 product = multiply_u64(magnitude_of(left), magnitude_of(right));
+    const UInt128 product =
+        multiply_u64(magnitude_of(left), magnitude_of(right));
     const UInt128 divisor{0ULL, 10000ULL};
     UInt128 quotient{};
     UInt128 remainder{};
     divide_u128(product, divisor, quotient, remainder);
-    const int comparison = compare_u128(shift_left_one_u128(remainder), divisor);
+    const int comparison =
+        compare_u128(shift_left_one_u128(remainder), divisor);
     const bool round_up =
         comparison > 0 || (comparison == 0 && (quotient.low % 2ULL) != 0ULL);
     if (round_up) {
@@ -167,7 +170,8 @@ inline void divide_u128(
         }
     }
     if (quotient.high != 0ULL ||
-        quotient.low > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        quotient.low > static_cast<std::uint64_t>(
+                           std::numeric_limits<std::int64_t>::max())) {
         return std::nullopt;
     }
     const auto magnitude = static_cast<std::int64_t>(quotient.low);
@@ -178,15 +182,15 @@ inline void divide_u128(
 // numerator, using banker's rounding on the discarded remainder. `right`
 // must be nonzero. Returns nullopt on overflow.
 [[nodiscard]] inline std::optional<std::int64_t> currency_divide(
-    const std::int64_t left,
-    const std::int64_t right) noexcept {
+    const std::int64_t left, const std::int64_t right) noexcept {
     const bool negative = (left < 0) != (right < 0);
     const UInt128 numerator = multiply_u64(magnitude_of(left), 10000ULL);
     const UInt128 divisor{0ULL, magnitude_of(right)};
     UInt128 quotient{};
     UInt128 remainder{};
     divide_u128(numerator, divisor, quotient, remainder);
-    const int comparison = compare_u128(shift_left_one_u128(remainder), divisor);
+    const int comparison =
+        compare_u128(shift_left_one_u128(remainder), divisor);
     const bool round_up =
         comparison > 0 || (comparison == 0 && (quotient.low % 2ULL) != 0ULL);
     if (round_up) {
@@ -198,7 +202,8 @@ inline void divide_u128(
         }
     }
     if (quotient.high != 0ULL ||
-        quotient.low > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        quotient.low > static_cast<std::uint64_t>(
+                           std::numeric_limits<std::int64_t>::max())) {
         return std::nullopt;
     }
     const auto magnitude = static_cast<std::int64_t>(quotient.low);
@@ -209,13 +214,16 @@ inline void divide_u128(
 // matching this evaluator's established Double-to-integer rounding
 // convention) and check it against Currency's representable range. Returns
 // nullopt for a non-finite or out-of-range input.
-[[nodiscard]] inline std::optional<std::int64_t> currency_from_double(const double value) noexcept {
+[[nodiscard]] inline std::optional<std::int64_t> currency_from_double(
+    const double value) noexcept {
     if (!std::isfinite(value)) {
         return std::nullopt;
     }
     const double scaled = std::nearbyint(value * 10000.0);
-    constexpr double minimum = -9223372036854775808.0;  // exactly 2^63, exact in double
-    constexpr double upper_bound = 9223372036854775808.0;  // 2^63, exclusive upper bound
+    constexpr double minimum =
+        -9223372036854775808.0;  // exactly 2^63, exact in double
+    constexpr double upper_bound =
+        9223372036854775808.0;  // 2^63, exclusive upper bound
     if (!(scaled >= minimum && scaled < upper_bound)) {
         return std::nullopt;
     }
@@ -241,10 +249,13 @@ struct BigUInt {
     return true;
 }
 
-[[nodiscard]] inline int compare_big(const BigUInt& left, const BigUInt& right) noexcept {
+[[nodiscard]] inline int compare_big(const BigUInt& left,
+                                     const BigUInt& right) noexcept {
     for (int i = 7; i >= 0; --i) {
-        if (left.limb[static_cast<std::size_t>(i)] != right.limb[static_cast<std::size_t>(i)]) {
-            return left.limb[static_cast<std::size_t>(i)] < right.limb[static_cast<std::size_t>(i)]
+        if (left.limb[static_cast<std::size_t>(i)] !=
+            right.limb[static_cast<std::size_t>(i)]) {
+            return left.limb[static_cast<std::size_t>(i)] <
+                           right.limb[static_cast<std::size_t>(i)]
                        ? -1
                        : 1;
         }
@@ -252,7 +263,8 @@ struct BigUInt {
     return 0;
 }
 
-[[nodiscard]] inline BigUInt add_big(const BigUInt& left, const BigUInt& right) noexcept {
+[[nodiscard]] inline BigUInt add_big(const BigUInt& left,
+                                     const BigUInt& right) noexcept {
     BigUInt result;
     std::uint64_t carry = 0;
     for (std::size_t i = 0; i < 8; ++i) {
@@ -265,7 +277,8 @@ struct BigUInt {
 }
 
 // Requires left >= right.
-[[nodiscard]] inline BigUInt subtract_big(const BigUInt& left, const BigUInt& right) noexcept {
+[[nodiscard]] inline BigUInt subtract_big(const BigUInt& left,
+                                          const BigUInt& right) noexcept {
     BigUInt result;
     std::int64_t borrow = 0;
     for (std::size_t i = 0; i < 8; ++i) {
@@ -285,7 +298,8 @@ struct BigUInt {
 // The Decimal callers only ever multiply values already confirmed to be at
 // most 96 bits, so the product is always within 192 bits and never
 // overflows this 256-bit representation.
-[[nodiscard]] inline BigUInt multiply_big(const BigUInt& left, const BigUInt& right) noexcept {
+[[nodiscard]] inline BigUInt multiply_big(const BigUInt& left,
+                                          const BigUInt& right) noexcept {
     BigUInt result;
     for (std::size_t i = 0; i < 8; ++i) {
         if (left.limb[i] == 0U) {
@@ -293,8 +307,9 @@ struct BigUInt {
         }
         std::uint64_t carry = 0;
         for (std::size_t j = 0; j + i < 8; ++j) {
-            const std::uint64_t product = static_cast<std::uint64_t>(left.limb[i]) * right.limb[j] +
-                                           result.limb[i + j] + carry;
+            const std::uint64_t product =
+                static_cast<std::uint64_t>(left.limb[i]) * right.limb[j] +
+                result.limb[i + j] + carry;
             result.limb[i + j] = static_cast<std::uint32_t>(product);
             carry = product >> 32U;
         }
@@ -314,11 +329,8 @@ struct BigUInt {
 
 // Binary long division: 256 iterations, favoring correctness and simplicity
 // over speed. Decimal arithmetic is not performance-critical.
-inline void divide_big(
-    const BigUInt& dividend,
-    const BigUInt& divisor,
-    BigUInt& quotient,
-    BigUInt& remainder) noexcept {
+inline void divide_big(const BigUInt& dividend, const BigUInt& divisor,
+                       BigUInt& quotient, BigUInt& remainder) noexcept {
     quotient = BigUInt{};
     remainder = BigUInt{};
     for (int bit = 255; bit >= 0; --bit) {
@@ -361,12 +373,14 @@ inline void divide_big(
 // Divide `value` by 10, rounding the quotient to the nearest integer with
 // banker's rounding (round half to even), matching this evaluator's
 // established Double-to-integer rounding convention.
-[[nodiscard]] inline BigUInt divide_by_ten_rounded_big(const BigUInt& value) noexcept {
+[[nodiscard]] inline BigUInt divide_by_ten_rounded_big(
+    const BigUInt& value) noexcept {
     BigUInt quotient;
     BigUInt remainder;
     divide_big(value, big_from_u32(10U), quotient, remainder);
     const std::uint32_t digit = remainder.limb[0];
-    const bool round_up = digit > 5U || (digit == 5U && (quotient.limb[0] & 1U) != 0U);
+    const bool round_up =
+        digit > 5U || (digit == 5U && (quotient.limb[0] & 1U) != 0U);
     return round_up ? add_big(quotient, big_from_u32(1U)) : quotient;
 }
 
@@ -379,7 +393,8 @@ struct Decimal {
     std::uint8_t scale{};
     BigUInt mantissa{};
 
-    [[nodiscard]] friend bool operator==(const Decimal& left, const Decimal& right) noexcept {
+    [[nodiscard]] friend bool operator==(const Decimal& left,
+                                         const Decimal& right) noexcept {
         return left.negative == right.negative && left.scale == right.scale &&
                left.mantissa.limb == right.mantissa.limb;
     }
@@ -390,22 +405,25 @@ inline constexpr int decimal_max_scale = 28;
 // Rescale `mantissa` up by `scale_diff` decimal places (multiply by
 // 10^scale_diff). Returns nullopt if the result would exceed 96 bits.
 [[nodiscard]] inline std::optional<BigUInt> rescale_mantissa_up(
-    const BigUInt& mantissa,
-    const int scale_diff) noexcept {
+    const BigUInt& mantissa, const int scale_diff) noexcept {
     if (scale_diff == 0) {
         return mantissa;
     }
-    const BigUInt product = multiply_big(mantissa, power_of_ten_big(scale_diff));
+    const BigUInt product =
+        multiply_big(mantissa, power_of_ten_big(scale_diff));
     if (has_bits_beyond_96(product)) {
         return std::nullopt;
     }
     return product;
 }
 
-[[nodiscard]] inline std::optional<Decimal> decimal_add(const Decimal& left, const Decimal& right) noexcept {
+[[nodiscard]] inline std::optional<Decimal> decimal_add(
+    const Decimal& left, const Decimal& right) noexcept {
     const auto scale = std::max(left.scale, right.scale);
-    const auto left_mantissa = rescale_mantissa_up(left.mantissa, scale - left.scale);
-    const auto right_mantissa = rescale_mantissa_up(right.mantissa, scale - right.scale);
+    const auto left_mantissa =
+        rescale_mantissa_up(left.mantissa, scale - left.scale);
+    const auto right_mantissa =
+        rescale_mantissa_up(right.mantissa, scale - right.scale);
     if (!left_mantissa.has_value() || !right_mantissa.has_value()) {
         return std::nullopt;
     }
@@ -433,8 +451,7 @@ inline constexpr int decimal_max_scale = 28;
 }
 
 [[nodiscard]] inline std::optional<Decimal> decimal_subtract(
-    const Decimal& left,
-    const Decimal& right) noexcept {
+    const Decimal& left, const Decimal& right) noexcept {
     Decimal negated_right = right;
     if (!is_zero_big(negated_right.mantissa)) {
         negated_right.negative = !negated_right.negative;
@@ -443,11 +460,11 @@ inline constexpr int decimal_max_scale = 28;
 }
 
 [[nodiscard]] inline std::optional<Decimal> decimal_multiply(
-    const Decimal& left,
-    const Decimal& right) noexcept {
+    const Decimal& left, const Decimal& right) noexcept {
     BigUInt product = multiply_big(left.mantissa, right.mantissa);
     int scale = static_cast<int>(left.scale) + static_cast<int>(right.scale);
-    while (scale > 0 && (has_bits_beyond_96(product) || scale > decimal_max_scale)) {
+    while (scale > 0 &&
+           (has_bits_beyond_96(product) || scale > decimal_max_scale)) {
         product = divide_by_ten_rounded_big(product);
         --scale;
     }
@@ -455,7 +472,8 @@ inline constexpr int decimal_max_scale = 28;
         return std::nullopt;
     }
     Decimal result;
-    result.negative = (left.negative != right.negative) && !is_zero_big(product);
+    result.negative =
+        (left.negative != right.negative) && !is_zero_big(product);
     result.scale = static_cast<std::uint8_t>(scale);
     result.mantissa = product;
     return result;
@@ -467,9 +485,9 @@ inline constexpr int decimal_max_scale = 28;
 // mantissa, then rounded (banker's rounding) to the nearest representable
 // value. `right` must be nonzero; the caller reports WFC0008 separately.
 [[nodiscard]] inline std::optional<Decimal> decimal_divide(
-    const Decimal& left,
-    const Decimal& right) noexcept {
-    int result_scale = static_cast<int>(left.scale) - static_cast<int>(right.scale);
+    const Decimal& left, const Decimal& right) noexcept {
+    int result_scale =
+        static_cast<int>(left.scale) - static_cast<int>(right.scale);
     BigUInt numerator = left.mantissa;
     while (result_scale < decimal_max_scale) {
         numerator = multiply_big(numerator, big_from_u32(10U));
@@ -480,7 +498,8 @@ inline constexpr int decimal_max_scale = 28;
     divide_big(numerator, right.mantissa, quotient, remainder);
     const BigUInt doubled_remainder = shift_left_one_big(remainder);
     const int comparison = compare_big(doubled_remainder, right.mantissa);
-    const bool round_up = comparison > 0 || (comparison == 0 && (quotient.limb[0] & 1U) != 0U);
+    const bool round_up =
+        comparison > 0 || (comparison == 0 && (quotient.limb[0] & 1U) != 0U);
     if (round_up) {
         quotient = add_big(quotient, big_from_u32(1U));
     }
@@ -488,11 +507,13 @@ inline constexpr int decimal_max_scale = 28;
         quotient = divide_by_ten_rounded_big(quotient);
         --result_scale;
     }
-    if (has_bits_beyond_96(quotient) || result_scale < 0 || result_scale > decimal_max_scale) {
+    if (has_bits_beyond_96(quotient) || result_scale < 0 ||
+        result_scale > decimal_max_scale) {
         return std::nullopt;
     }
     Decimal result;
-    result.negative = (left.negative != right.negative) && !is_zero_big(quotient);
+    result.negative =
+        (left.negative != right.negative) && !is_zero_big(quotient);
     result.scale = static_cast<std::uint8_t>(result_scale);
     result.mantissa = quotient;
     return result;
@@ -501,7 +522,9 @@ inline constexpr int decimal_max_scale = 28;
 [[nodiscard]] inline double decimal_to_double(const Decimal& value) noexcept {
     double magnitude = 0.0;
     for (int i = 7; i >= 0; --i) {
-        magnitude = magnitude * 4294967296.0 + static_cast<double>(value.mantissa.limb[static_cast<std::size_t>(i)]);
+        magnitude = magnitude * 4294967296.0 +
+                    static_cast<double>(
+                        value.mantissa.limb[static_cast<std::size_t>(i)]);
     }
     for (int i = 0; i < value.scale; ++i) {
         magnitude /= 10.0;
@@ -529,7 +552,10 @@ inline constexpr int decimal_max_scale = 28;
         result = digits;
     } else {
         if (digits.size() <= value.scale) {
-            digits.insert(digits.begin(), static_cast<std::size_t>(value.scale) - digits.size() + 1U, '0');
+            digits.insert(
+                digits.begin(),
+                static_cast<std::size_t>(value.scale) - digits.size() + 1U,
+                '0');
         }
         const auto point = digits.size() - value.scale;
         std::string integer_part = digits.substr(0, point);
@@ -558,11 +584,13 @@ struct DecimalStringResult {
     Decimal value{};
 };
 
-[[nodiscard]] inline DecimalStringResult parse_decimal_string(const std::string_view text) {
+[[nodiscard]] inline DecimalStringResult parse_decimal_string(
+    const std::string_view text) {
     std::size_t first = 0;
     std::size_t last = text.size();
     const auto is_ascii_whitespace = [](const char character) {
-        return character == ' ' || character == '\t' || character == '\r' || character == '\n';
+        return character == ' ' || character == '\t' || character == '\r' ||
+               character == '\n';
     };
     while (first < last && is_ascii_whitespace(text[first])) {
         ++first;
@@ -591,19 +619,23 @@ struct DecimalStringResult {
     const auto consume_digit = [&](const char character) {
         any_digit = true;
         mantissa = multiply_big(mantissa, big_from_u32(10U));
-        mantissa = add_big(mantissa, big_from_u32(static_cast<std::uint32_t>(character - '0')));
+        mantissa =
+            add_big(mantissa,
+                    big_from_u32(static_cast<std::uint32_t>(character - '0')));
         if (has_bits_beyond_96(mantissa)) {
             mantissa_overflow = true;
         }
     };
     std::size_t index = first;
-    while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+    while (index < last &&
+           std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
         consume_digit(text[index]);
         ++index;
     }
     if (index < last && text[index] == '.') {
         ++index;
-        while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+        while (index < last &&
+               std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
             consume_digit(text[index]);
             ++scale;
             ++index;
@@ -622,9 +654,11 @@ struct DecimalStringResult {
         }
         const auto exponent_start = index;
         int exponent_magnitude = 0;
-        while (index < last && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+        while (index < last &&
+               std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
             if (exponent_magnitude < 1'000'000) {
-                exponent_magnitude = exponent_magnitude * 10 + (text[index] - '0');
+                exponent_magnitude =
+                    exponent_magnitude * 10 + (text[index] - '0');
             }
             ++index;
         }
@@ -665,14 +699,16 @@ struct DecimalStringResult {
 // shortest round-tripping decimal text, rather than scaling the binary
 // value directly; this avoids compounding binary-to-decimal error on top of
 // the conversion. Returns nullopt for a non-finite or out-of-range input.
-[[nodiscard]] inline std::optional<Decimal> decimal_from_double(const double value) noexcept {
+[[nodiscard]] inline std::optional<Decimal> decimal_from_double(
+    const double value) noexcept {
     if (!std::isfinite(value)) {
         return std::nullopt;
     }
     char buffer[32];
-    const auto conversion = std::to_chars(buffer, buffer + sizeof(buffer), value);
-    const auto parsed = parse_decimal_string(
-        std::string_view(buffer, static_cast<std::size_t>(conversion.ptr - buffer)));
+    const auto conversion =
+        std::to_chars(buffer, buffer + sizeof(buffer), value);
+    const auto parsed = parse_decimal_string(std::string_view(
+        buffer, static_cast<std::size_t>(conversion.ptr - buffer)));
     if (parsed.status != NumericStringStatus::valid) {
         return std::nullopt;
     }

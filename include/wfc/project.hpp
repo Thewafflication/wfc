@@ -14,8 +14,9 @@ struct LoadedProject final {
     std::string module_source;
     std::vector<std::string> class_names;
     std::vector<std::string> class_sources;
-    // Where each standard module starts inside `module_source` (1-based line), so a line
-    // number in the concatenated program maps back to a file; and each class module's file.
+    // Where each standard module starts inside `module_source` (1-based line),
+    // so a line number in the concatenated program maps back to a file; and
+    // each class module's file.
     struct ModuleSpan final {
         std::string file;
         std::size_t first_line{};
@@ -28,6 +29,7 @@ struct LoadedProject final {
 // or more `.bas`/`.cls` files given directly. Form/UserControl entries are
 // reported as unsupported. File-format header lines (`VERSION`, `BEGIN`...
 // `END`, `Attribute`) are blanked so line numbers are preserved.
-[[nodiscard]] LoadedProject load_project(const std::vector<std::filesystem::path>& paths);
+[[nodiscard]] LoadedProject load_project(
+    const std::vector<std::filesystem::path>& paths);
 
 }  // namespace wfc

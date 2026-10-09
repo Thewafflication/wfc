@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.28)
 
 project(
-    WFC
-    VERSION 0.1.0
-    DESCRIPTION "Waughtal Foundation Classes"
-    LANGUAGES CXX
+  WFC
+  VERSION 0.1.0
+  DESCRIPTION "Waughtal Foundation Classes"
+  LANGUAGES CXX
 )
 
 option(WFC_BUILD_TESTS "Build WFC automated tests" ON)
@@ -14,40 +14,39 @@ include(WfcWarnings)
 
 add_library(wfc_frontend STATIC)
 target_sources(
-    wfc_frontend
-    PRIVATE
-        src/evaluator.cpp
-        src/interpreter/assignment.cpp
-        src/interpreter/builtin_functions.cpp
-        src/interpreter/builtin_misc.cpp
-        src/interpreter/calls.cpp
-        src/interpreter/core.cpp
-        src/interpreter/declarations.cpp
-        src/interpreter/expressions.cpp
-        src/interpreter/files.cpp
-        src/interpreter/format.cpp
-        src/interpreter/statements.cpp
-        src/interpreter/builtin_class_sources.hpp
-        src/interpreter/interpreter.hpp
-        src/interpreter/vb_date.hpp
-        src/interpreter/vb_numeric.hpp
-        src/interpreter/vb_text.hpp
-        src/interpreter/vb_value.hpp
-        src/large_stack.cpp
-        src/project.cpp
-    PUBLIC
-        FILE_SET HEADERS
-        BASE_DIRS include
-        FILES
-            include/wfc/evaluator.hpp
-            include/wfc/project.hpp
-            include/wfc/version.hpp
+  wfc_frontend
+  PRIVATE
+    src/evaluator.cpp
+    src/interpreter/assignment.cpp
+    src/interpreter/builtin_functions.cpp
+    src/interpreter/builtin_misc.cpp
+    src/interpreter/calls.cpp
+    src/interpreter/core.cpp
+    src/interpreter/declarations.cpp
+    src/interpreter/expressions.cpp
+    src/interpreter/files.cpp
+    src/interpreter/format.cpp
+    src/interpreter/statements.cpp
+    src/interpreter/builtin_class_sources.hpp
+    src/interpreter/interpreter.hpp
+    src/interpreter/vb_date.hpp
+    src/interpreter/vb_numeric.hpp
+    src/interpreter/vb_text.hpp
+    src/interpreter/vb_value.hpp
+    src/large_stack.cpp
+    src/project.cpp
+  PUBLIC
+    FILE_SET HEADERS
+      BASE_DIRS include
+      FILES
+        include/wfc/evaluator.hpp
+        include/wfc/project.hpp
+        include/wfc/version.hpp
 )
 target_compile_features(wfc_frontend PUBLIC cxx_std_20)
 target_include_directories(
-    wfc_frontend
-    PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  wfc_frontend
+  PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 find_package(Threads REQUIRED)
 target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
@@ -60,215 +59,243 @@ wfc_enable_strict_warnings(wfc)
 
 include(CTest)
 if(BUILD_TESTING AND WFC_BUILD_TESTS)
-    add_executable(wfc_frontend_tests tests/evaluator_tests.cpp)
-    target_compile_features(wfc_frontend_tests PRIVATE cxx_std_20)
-    target_link_libraries(wfc_frontend_tests PRIVATE wfc_frontend)
-    wfc_enable_strict_warnings(wfc_frontend_tests)
+  add_executable(wfc_frontend_tests tests/evaluator_tests.cpp)
+  target_compile_features(wfc_frontend_tests PRIVATE cxx_std_20)
+  target_link_libraries(wfc_frontend_tests PRIVATE wfc_frontend)
+  wfc_enable_strict_warnings(wfc_frontend_tests)
 
-    add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
-    set_tests_properties(
-        TC-MP0001-evaluator
-        PROPERTIES
-            LABELS "unit;mp-0001;mp-0002;vertical-slice;expressions;statements;variables;boolean"
-    )
+  add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
+  set_tests_properties(
+    TC-MP0001-evaluator
+    PROPERTIES
+      LABELS
+        "unit;mp-0001;mp-0002;vertical-slice;expressions;statements;variables;\
+boolean"
+  )
 
-    add_test(NAME TC-MP0001-cli COMMAND wfc --eval "Print \"Hello, WFC!\"")
-    set_tests_properties(
-        TC-MP0001-cli
-        PROPERTIES
-            LABELS "integration;mp-0001;vertical-slice"
-            PASS_REGULAR_EXPRESSION "Hello, WFC!"
-    )
+  add_test(NAME TC-MP0001-cli COMMAND wfc --eval "Print \"Hello, WFC!\"")
+  set_tests_properties(
+    TC-MP0001-cli
+    PROPERTIES
+      LABELS "integration;mp-0001;vertical-slice"
+      PASS_REGULAR_EXPRESSION "Hello, WFC!"
+  )
 
-    add_test(
-        NAME TC-MP0002-expression-cli
-        COMMAND wfc --eval "Print (2 + 3) * 4 & \" items\""
-    )
-    set_tests_properties(
-        TC-MP0002-expression-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions"
-            PASS_REGULAR_EXPRESSION "20 items"
-    )
+  add_test(
+    NAME TC-MP0002-expression-cli
+    COMMAND wfc --eval "Print (2 + 3) * 4 & \" items\""
+  )
+  set_tests_properties(
+    TC-MP0002-expression-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions"
+      PASS_REGULAR_EXPRESSION "20 items"
+  )
 
-    add_test(
-        NAME TC-MP0002-program-cli
-        COMMAND wfc --eval "Dim total As Long: total = (6 + 4) * 3: Print total"
-    )
-    set_tests_properties(
-        TC-MP0002-program-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;variables"
-            PASS_REGULAR_EXPRESSION "30"
-    )
+  add_test(
+    NAME TC-MP0002-program-cli
+    COMMAND wfc --eval "Dim total As Long: total = (6 + 4) * 3: Print total"
+  )
+  set_tests_properties(
+    TC-MP0002-program-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;variables"
+      PASS_REGULAR_EXPRESSION "30"
+  )
 
-    add_test(
-        NAME TC-MP0002-boolean-cli
-        COMMAND wfc --eval "Dim ready As Boolean: ready = 2 + 3 = 5: Print ready And Not False"
-    )
-    set_tests_properties(
-        TC-MP0002-boolean-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;boolean"
-            PASS_REGULAR_EXPRESSION "True"
-    )
+  add_test(
+    NAME TC-MP0002-boolean-cli
+    COMMAND
+      wfc --eval
+      "Dim ready As Boolean: ready = 2 + 3 = 5: Print ready And Not False"
+  )
+  set_tests_properties(
+    TC-MP0002-boolean-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;boolean"
+      PASS_REGULAR_EXPRESSION "True"
+  )
 
-    add_test(
-        NAME TC-MP0002-conditional-cli
-        COMMAND wfc --eval [=[Dim total As Long: If True Then total = 6 * 7 Else total = 0
+  add_test(
+    NAME TC-MP0002-conditional-cli
+    COMMAND
+      wfc --eval
+      [=[Dim total As Long: If True Then total = 6 * 7 Else total = 0
 If total = 42 Then Print "selected" Else Print "wrong"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-conditional-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-conditional-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-partial-output-cli
-        COMMAND wfc --eval [=[Print "before the error"
+  add_test(
+    NAME TC-MP0002-partial-output-cli
+    COMMAND
+      wfc --eval
+      [=[Print "before the error"
 Print 1 / 0]=]
-    )
-    set_tests_properties(
-        TC-MP0002-partial-output-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;errors"
-            PASS_REGULAR_EXPRESSION "before the error"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-partial-output-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;errors"
+      PASS_REGULAR_EXPRESSION "before the error"
+  )
 
-    add_test(
-        NAME TC-MP0002-debug-print-cli
-        COMMAND wfc --eval [=[Debug.Print "to the immediate window"
+  add_test(
+    NAME TC-MP0002-debug-print-cli
+    COMMAND
+      wfc --eval
+      [=[Debug.Print "to the immediate window"
 Print "to the output"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-debug-print-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "to the immediate window.*to the output|to the output.*to the immediate window"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-debug-print-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION
+        "to the immediate window.*to the output|to the output.*\
+to the immediate window"
+  )
 
-    add_test(
-        NAME TC-MP0002-runtime-error-text-cli
-        COMMAND wfc --eval [=[Print 1 / 0]=]
-    )
-    set_tests_properties(
-        TC-MP0002-runtime-error-text-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;errors"
-            PASS_REGULAR_EXPRESSION "Run-time error '11': Division by zero"
-    )
+  add_test(
+    NAME TC-MP0002-runtime-error-text-cli
+    COMMAND wfc --eval [=[Print 1 / 0]=]
+  )
+  set_tests_properties(
+    TC-MP0002-runtime-error-text-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;errors"
+      PASS_REGULAR_EXPRESSION "Run-time error '11': Division by zero"
+  )
 
-    add_test(
-        NAME TC-MP0002-diagnostic-location-cli
-        COMMAND wfc --eval [=[Dim a As Long
+  add_test(
+    NAME TC-MP0002-diagnostic-location-cli
+    COMMAND
+      wfc --eval
+      [=[Dim a As Long
 a = 1 + _
     2
 a = 3 +
 Print a]=]
-    )
-    set_tests_properties(
-        TC-MP0002-diagnostic-location-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;errors"
-            PASS_REGULAR_EXPRESSION "line 4, column 8: WFC0002"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-diagnostic-location-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;errors"
+      PASS_REGULAR_EXPRESSION "line 4, column 8: WFC0002"
+  )
 
-    add_test(
-        NAME TC-MP0002-block-conditional-cli
-        COMMAND wfc --eval [=[Dim total As Long
+  add_test(
+    NAME TC-MP0002-block-conditional-cli
+    COMMAND
+      wfc --eval
+      [=[Dim total As Long
 If True Then
 total = 42
 End If
 Print total]=]
-    )
-    set_tests_properties(
-        TC-MP0002-block-conditional-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "42"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-block-conditional-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "42"
+  )
 
-    add_test(
-        NAME TC-MP0002-elseif-cli
-        COMMAND wfc --eval [=[If False Then
+  add_test(
+    NAME TC-MP0002-elseif-cli
+    COMMAND
+      wfc --eval
+      [=[If False Then
 Print "wrong"
 ElseIf 2 + 2 = 4 Then
 Print "selected"
 Else
 Print "wrong"
 End If]=]
-    )
-    set_tests_properties(
-        TC-MP0002-elseif-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-elseif-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-while-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-while-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Dim total As Long
 While index < 4
 total = total + index
 index = index + 1
 Wend
 Print total]=]
-    )
-    set_tests_properties(
-        TC-MP0002-while-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "6"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-while-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "6"
+  )
 
-    add_test(
-        NAME TC-MP0002-do-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-do-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Do Until index = 3
 Print index
 index = index + 1
 Loop]=]
-    )
-    set_tests_properties(
-        TC-MP0002-do-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-do-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "2"
+  )
 
-    add_test(
-        NAME TC-MP0002-posttest-do-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-posttest-do-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Do
 Print index
 index = index + 1
 Loop While index < 3]=]
-    )
-    set_tests_properties(
-        TC-MP0002-posttest-do-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-posttest-do-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "2"
+  )
 
-    add_test(
-        NAME TC-MP0002-rem-cli
-        COMMAND wfc --eval [=[Rem ignored
+  add_test(
+    NAME TC-MP0002-rem-cli
+    COMMAND
+      wfc --eval
+      [=[Rem ignored
 Print 42]=]
-    )
-    set_tests_properties(
-        TC-MP0002-rem-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;comments"
-            PASS_REGULAR_EXPRESSION "42"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-rem-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;comments"
+      PASS_REGULAR_EXPRESSION "42"
+  )
 
-    add_test(
-        NAME TC-MP0002-exit-do-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-exit-do-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Do While True
 index = index + 1
 If index = 3 Then
@@ -276,50 +303,56 @@ Exit Do
 End If
 Loop
 Print index]=]
-    )
-    set_tests_properties(
-        TC-MP0002-exit-do-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-exit-do-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "3"
+  )
 
-    add_test(
-        NAME TC-MP0002-for-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-for-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Dim total As Long
 For index = 1 To 4
 total = total + index
 Next index
 Print total]=]
-    )
-    set_tests_properties(
-        TC-MP0002-for-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "10"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-for-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "10"
+  )
 
-    add_test(
-        NAME TC-MP0002-exit-for-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-exit-for-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 For index = 1 To 10
 If index = 3 Then
 Exit For
 End If
 Next index
 Print index]=]
-    )
-    set_tests_properties(
-        TC-MP0002-exit-for-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-exit-for-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "3"
+  )
 
-    add_test(
-        NAME TC-MP0002-select-case-cli
-        COMMAND wfc --eval [=[Select Case 2
+  add_test(
+    NAME TC-MP0002-select-case-cli
+    COMMAND
+      wfc --eval
+      [=[Select Case 2
 Case 1
 Print "wrong"
 Case 2
@@ -327,773 +360,861 @@ Print "selected"
 Case Else
 Print "wrong"
 End Select]=]
-    )
-    set_tests_properties(
-        TC-MP0002-select-case-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-select-case-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-select-list-cli
-        COMMAND wfc --eval [=[Select Case 2
+  add_test(
+    NAME TC-MP0002-select-list-cli
+    COMMAND
+      wfc --eval
+      [=[Select Case 2
 Case 1, 2, 3
 Print "selected"
 End Select]=]
-    )
-    set_tests_properties(
-        TC-MP0002-select-list-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-select-list-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-select-range-cli
-        COMMAND wfc --eval [=[Select Case 7
+  add_test(
+    NAME TC-MP0002-select-range-cli
+    COMMAND
+      wfc --eval
+      [=[Select Case 7
 Case 1 To 3, 7 To 9
 Print "selected"
 Case Else
 Print "wrong"
 End Select]=]
-    )
-    set_tests_properties(
-        TC-MP0002-select-range-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-select-range-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-select-is-cli
-        COMMAND wfc --eval [=[Select Case 7
+  add_test(
+    NAME TC-MP0002-select-is-cli
+    COMMAND
+      wfc --eval
+      [=[Select Case 7
 Case Is < 0
 Print "wrong"
 Case Is >= 5
 Print "selected"
 End Select]=]
-    )
-    set_tests_properties(
-        TC-MP0002-select-is-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;conditionals"
-            PASS_REGULAR_EXPRESSION "selected"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-select-is-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;conditionals"
+      PASS_REGULAR_EXPRESSION "selected"
+  )
 
-    add_test(
-        NAME TC-MP0002-const-cli
-        COMMAND wfc --eval [=[Const base As Long = 6
+  add_test(
+    NAME TC-MP0002-const-cli
+    COMMAND
+      wfc --eval
+      [=[Const base As Long = 6
 Const answer As Long = base * 7
 Print answer]=]
-    )
-    set_tests_properties(
-        TC-MP0002-const-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;constants"
-            PASS_REGULAR_EXPRESSION "42"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-const-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;constants"
+      PASS_REGULAR_EXPRESSION "42"
+  )
 
-    add_test(
-        NAME TC-MP0002-option-explicit-cli
-        COMMAND wfc --eval [=[Option Explicit
+  add_test(
+    NAME TC-MP0002-option-explicit-cli
+    COMMAND
+      wfc --eval
+      [=[Option Explicit
 Dim value As Long
 value = 42
 Print value]=]
-    )
-    set_tests_properties(
-        TC-MP0002-option-explicit-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;modules"
-            PASS_REGULAR_EXPRESSION "42"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-option-explicit-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;modules"
+      PASS_REGULAR_EXPRESSION "42"
+  )
 
-    add_test(
-        NAME TC-MP0002-option-compare-cli
-        COMMAND wfc --eval [=[Option Compare Text
+  add_test(
+    NAME TC-MP0002-option-compare-cli
+    COMMAND
+      wfc --eval
+      [=[Option Compare Text
 Print "Alpha" = "alpha"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-option-compare-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;modules;strings"
-            PASS_REGULAR_EXPRESSION "True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-option-compare-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;modules;strings"
+      PASS_REGULAR_EXPRESSION "True"
+  )
 
-    add_test(
-        NAME TC-MP0002-len-cli
-        COMMAND wfc --eval [=[Print Len("Hello, WFC!")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-len-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "11"
-    )
+  add_test(
+    NAME TC-MP0002-len-cli
+    COMMAND wfc --eval [=[Print Len("Hello, WFC!")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-len-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "11"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-case-cli
-        COMMAND wfc --eval [=[Print LCase$("Hello, WFC!")
+  add_test(
+    NAME TC-MP0002-string-case-cli
+    COMMAND
+      wfc --eval
+      [=[Print LCase$("Hello, WFC!")
 Print UCase("Hello, WFC!")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-case-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "hello, wfc!.*HELLO, WFC!"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-string-case-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "hello, wfc!.*HELLO, WFC!"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-trim-cli
-        COMMAND wfc --eval [=[Print "[" & Trim$("  Hello, WFC!  ") & "]"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-trim-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "\[Hello, WFC!\]"
-    )
+  add_test(
+    NAME TC-MP0002-string-trim-cli
+    COMMAND wfc --eval [=[Print "[" & Trim$("  Hello, WFC!  ") & "]"]=]
+  )
+  set_tests_properties(
+    TC-MP0002-string-trim-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "\[Hello, WFC!\]"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-slice-cli
-        COMMAND wfc --eval [=[Print Left$("Hello", 2) & Right$("WFC!", 2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-slice-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "HeC!"
-    )
+  add_test(
+    NAME TC-MP0002-string-slice-cli
+    COMMAND wfc --eval [=[Print Left$("Hello", 2) & Right$("WFC!", 2)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-string-slice-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "HeC!"
+  )
 
-    add_test(
-        NAME TC-MP0002-mid-cli
-        COMMAND wfc --eval [=[Print Mid$("Hello, WFC!", 8, 3)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-mid-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "WFC"
-    )
+  add_test(
+    NAME TC-MP0002-mid-cli
+    COMMAND wfc --eval [=[Print Mid$("Hello, WFC!", 8, 3)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-mid-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "WFC"
+  )
 
-    add_test(
-        NAME TC-MP0002-character-code-cli
-        COMMAND wfc --eval [=[Print Chr$(Asc("W")) & Chr$(70) & Chr$(67)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-character-code-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "WFC"
-    )
+  add_test(
+    NAME TC-MP0002-character-code-cli
+    COMMAND wfc --eval [=[Print Chr$(Asc("W")) & Chr$(70) & Chr$(67)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-character-code-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "WFC"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-reverse-cli
-        COMMAND wfc --eval [=[Print StrReverse("!CFW ,olleH")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-reverse-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "Hello, WFC!"
-    )
+  add_test(
+    NAME TC-MP0002-string-reverse-cli
+    COMMAND wfc --eval [=[Print StrReverse("!CFW ,olleH")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-string-reverse-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "Hello, WFC!"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-fill-cli
-        COMMAND wfc --eval [=[Print "[" & Space$(3) & "]" & String$(3, "*")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-fill-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "\\[   \\]\\*\\*\\*"
-    )
+  add_test(
+    NAME TC-MP0002-string-fill-cli
+    COMMAND wfc --eval [=[Print "[" & Space$(3) & "]" & String$(3, "*")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-string-fill-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "\\[   \\]\\*\\*\\*"
+  )
 
-    add_test(
-        NAME TC-MP0002-instr-cli
-        COMMAND wfc --eval [=[Print InStr("Hello, WFC!", "WFC")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-instr-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "8"
-    )
+  add_test(
+    NAME TC-MP0002-instr-cli
+    COMMAND wfc --eval [=[Print InStr("Hello, WFC!", "WFC")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-instr-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "8"
+  )
 
-    add_test(
-        NAME TC-MP0002-strcomp-cli
-        COMMAND wfc --eval [=[Print StrComp("abc", "abd")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-strcomp-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "-1"
-    )
+  add_test(
+    NAME TC-MP0002-strcomp-cli
+    COMMAND wfc --eval [=[Print StrComp("abc", "abd")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-strcomp-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "-1"
+  )
 
-    add_test(
-        NAME TC-MP0002-replace-cli
-        COMMAND wfc --eval [=[Print Replace("abcabc", "b", "X")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-replace-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "aXcaXc"
-    )
+  add_test(
+    NAME TC-MP0002-replace-cli
+    COMMAND wfc --eval [=[Print Replace("abcabc", "b", "X")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-replace-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "aXcaXc"
+  )
 
-    add_test(
-        NAME TC-MP0002-radix-cli
-        COMMAND wfc --eval [=[Print Hex("15.5") & " " & Hex("+17.5") & " " & Oct("7.5")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-radix-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "10 12 10"
-    )
+  add_test(
+    NAME TC-MP0002-radix-cli
+    COMMAND
+      wfc --eval [=[Print Hex("15.5") & " " & Hex("+17.5") & " " & Oct("7.5")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-radix-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "10 12 10"
+  )
 
-    add_test(
-        NAME TC-MP0002-str-cli
-        COMMAND wfc --eval [=[Print "[" & Str(2.5) & "] [" & Str$(-2.5) & "]"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-str-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "\\[ 2.5\\] \\[-2.5\\]"
-    )
+  add_test(
+    NAME TC-MP0002-str-cli
+    COMMAND wfc --eval [=[Print "[" & Str(2.5) & "] [" & Str$(-2.5) & "]"]=]
+  )
+  set_tests_properties(
+    TC-MP0002-str-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "\\[ 2.5\\] \\[-2.5\\]"
+  )
 
-    add_test(
-        NAME TC-MP0002-compare-method-cli
-        COMMAND wfc --eval [=[Option Compare Binary
+  add_test(
+    NAME TC-MP0002-compare-method-cli
+    COMMAND
+      wfc --eval
+      [=[Option Compare Binary
 Print InStr(1, "aXbXc", "x", vbTextCompare)
 Print StrComp("abc", "ABC", vbTextCompare)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-compare-method-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings;constants"
-            PASS_REGULAR_EXPRESSION "2.*0"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-compare-method-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings;constants"
+      PASS_REGULAR_EXPRESSION "2.*0"
+  )
 
-    add_test(
-        NAME TC-MP0002-replace-options-cli
-        COMMAND wfc --eval [=[Print Replace("prefix aXbXc", "x", "-", 8, 1, vbTextCompare)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-replace-options-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "a-bXc"
-    )
+  add_test(
+    NAME TC-MP0002-replace-options-cli
+    COMMAND
+      wfc --eval
+      [=[Print Replace("prefix aXbXc", "x", "-", 8, 1, vbTextCompare)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-replace-options-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "a-bXc"
+  )
 
-    add_test(
-        NAME TC-MP0002-instrrev-cli
-        COMMAND wfc --eval [=[Print InStrRev("one two one", "one")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-instrrev-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "9"
-    )
+  add_test(
+    NAME TC-MP0002-instrrev-cli
+    COMMAND wfc --eval [=[Print InStrRev("one two one", "one")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-instrrev-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "9"
+  )
 
-    add_test(
-        NAME TC-MP0002-val-cli
-        COMMAND wfc --eval [=[Print Val(" 2 45 7th Street") & " " & Val("&HFFFF") & " " & Val("&O10")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-val-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "2457 -1 8"
-    )
+  add_test(
+    NAME TC-MP0002-val-cli
+    COMMAND
+      wfc --eval
+      [=[Print Val(" 2 45 7th Street") & " " & Val("&HFFFF") & " " _
+& Val("&O10")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-val-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "2457 -1 8"
+  )
 
-    add_test(
-        NAME TC-MP0002-integer-math-cli
-        COMMAND wfc --eval [=[Print Abs(-2.5) & " " & Sgn(-0.25)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-integer-math-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "2.5 -1"
-    )
+  add_test(
+    NAME TC-MP0002-integer-math-cli
+    COMMAND wfc --eval [=[Print Abs(-2.5) & " " & Sgn(-0.25)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-integer-math-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;math"
+      PASS_REGULAR_EXPRESSION "2.5 -1"
+  )
 
-    add_test(
-        NAME TC-MP0002-cstr-cli
-        COMMAND wfc --eval [=[Print CStr(42) & " " & CStr(True)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cstr-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "42 True"
-    )
+  add_test(
+    NAME TC-MP0002-cstr-cli
+    COMMAND wfc --eval [=[Print CStr(42) & " " & CStr(True)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cstr-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "42 True"
+  )
 
-    add_test(
-        NAME TC-MP0002-clng-cli
-        COMMAND wfc --eval [=[Print CLng("2.5") & " " & CLng("3.5")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-clng-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "2 4"
-    )
+  add_test(
+    NAME TC-MP0002-clng-cli
+    COMMAND wfc --eval [=[Print CLng("2.5") & " " & CLng("3.5")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-clng-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "2 4"
+  )
 
-    add_test(
-        NAME TC-MP0002-cbool-cli
-        COMMAND wfc --eval [=[Print CStr(CBool("1.5e2")) & " " & CStr(CBool("0.0"))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cbool-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion;boolean"
-            PASS_REGULAR_EXPRESSION "True False"
-    )
+  add_test(
+    NAME TC-MP0002-cbool-cli
+    COMMAND
+      wfc --eval [=[Print CStr(CBool("1.5e2")) & " " & CStr(CBool("0.0"))]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cbool-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion;boolean"
+      PASS_REGULAR_EXPRESSION "True False"
+  )
 
-    add_test(
-        NAME TC-MP0002-cbyte-cli
-        COMMAND wfc --eval [=[Print CByte(True) & " " & CByte(False) & " " & CByte("2.546e2")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cbyte-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "255 0 255"
-    )
+  add_test(
+    NAME TC-MP0002-cbyte-cli
+    COMMAND
+      wfc --eval
+      [=[Print CByte(True) & " " & CByte(False) & " " & CByte("2.546e2")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cbyte-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "255 0 255"
+  )
 
-    add_test(
-        NAME TC-MP0002-cvar-cli
-        COMMAND wfc --eval [=[Print TypeName(CVar(42)) & " " & TypeName(CVar(2.5)) & " " & CVar("value")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cvar-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion;variant"
-            PASS_REGULAR_EXPRESSION "Integer Double value"
-    )
+  add_test(
+    NAME TC-MP0002-cvar-cli
+    COMMAND
+      wfc --eval
+      [=[Print TypeName(CVar(42)) & " " & TypeName(CVar(2.5)) & " " _
+& CVar("value")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cvar-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion;variant"
+      PASS_REGULAR_EXPRESSION "Integer Double value"
+  )
 
-    add_test(
-        NAME TC-MP0002-macid-cli
-        COMMAND wfc --eval [=[Print Hex(MacID("TEXT")) & " " & Hex(MacID("XLS8"))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-macid-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion;macintosh"
-            PASS_REGULAR_EXPRESSION "54455854 584C5338"
-    )
+  add_test(
+    NAME TC-MP0002-macid-cli
+    COMMAND wfc --eval [=[Print Hex(MacID("TEXT")) & " " & Hex(MacID("XLS8"))]=]
+  )
+  set_tests_properties(
+    TC-MP0002-macid-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion;macintosh"
+      PASS_REGULAR_EXPRESSION "54455854 584C5338"
+  )
 
-    add_test(
-        NAME TC-MP0002-error-function-cli
-        COMMAND wfc --eval [=[Print Error(5) & " | " & Error$(11) & " | " & Error(1000)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-error-function-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion;errors"
-            PASS_REGULAR_EXPRESSION "Invalid procedure call or argument.*Division by zero.*Application-defined or object-defined error"
-    )
+  add_test(
+    NAME TC-MP0002-error-function-cli
+    COMMAND
+      wfc --eval [=[Print Error(5) & " | " & Error$(11) & " | " & Error(1000)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-error-function-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion;errors"
+      PASS_REGULAR_EXPRESSION
+        "Invalid procedure call or argument.*Division by zero.*\
+Application-defined or object-defined error"
+  )
 
-    add_test(
-        NAME TC-MP0002-cint-cli
-        COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cint-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "-32768 32767"
-    )
+  add_test(
+    NAME TC-MP0002-cint-cli
+    COMMAND wfc --eval [=[Print CInt(-32768) & " " & CInt("32767")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cint-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "-32768 32767"
+  )
 
-    add_test(
-        NAME TC-MP0002-isnumeric-cli
-        COMMAND wfc --eval [=[Print CStr(IsNumeric(" -3.14e2 ")) & " " & CStr(IsNumeric("1e"))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-isnumeric-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "True False"
-    )
+  add_test(
+    NAME TC-MP0002-isnumeric-cli
+    COMMAND
+      wfc --eval
+      [=[Print CStr(IsNumeric(" -3.14e2 ")) & " " & CStr(IsNumeric("1e"))]=]
+  )
+  set_tests_properties(
+    TC-MP0002-isnumeric-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "True False"
+  )
 
-    add_test(
-        NAME TC-MP0002-typename-cli
-        COMMAND wfc --eval [=[Print TypeName(42) & " " & TypeName(True) & " " & TypeName("x")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-typename-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "Integer Boolean String"
-    )
+  add_test(
+    NAME TC-MP0002-typename-cli
+    COMMAND
+      wfc --eval
+      [=[Print TypeName(42) & " " & TypeName(True) & " " & TypeName("x")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-typename-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "Integer Boolean String"
+  )
 
-    add_test(
-        NAME TC-MP0002-vartype-cli
-        COMMAND wfc --eval [=[Print VarType(42) & " " & VarType(True) & " " & VarType("x")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-vartype-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "2 11 8"
-    )
+  add_test(
+    NAME TC-MP0002-vartype-cli
+    COMMAND
+      wfc --eval
+      [=[Print VarType(42) & " " & VarType(True) & " " & VarType("x")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-vartype-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "2 11 8"
+  )
 
-    add_test(
-        NAME TC-MP0002-iif-cli
-        COMMAND wfc --eval [=[Print IIf(1 < 2, "low", "high")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-iif-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "low"
-    )
+  add_test(
+    NAME TC-MP0002-iif-cli
+    COMMAND wfc --eval [=[Print IIf(1 < 2, "low", "high")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-iif-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "low"
+  )
 
-    add_test(
-        NAME TC-MP0002-choose-cli
-        COMMAND wfc --eval [=[Print Choose(2, "red", "green", "blue")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-choose-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "green"
-    )
+  add_test(
+    NAME TC-MP0002-choose-cli
+    COMMAND wfc --eval [=[Print Choose(2, "red", "green", "blue")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-choose-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "green"
+  )
 
-    add_test(
-        NAME TC-MP0002-switch-cli
-        COMMAND wfc --eval [=[Print Switch(1 > 2, "a", 2 > 1, "b")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-switch-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "b"
-    )
+  add_test(
+    NAME TC-MP0002-switch-cli
+    COMMAND wfc --eval [=[Print Switch(1 > 2, "a", 2 > 1, "b")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-switch-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "b"
+  )
 
-    add_test(
-        NAME TC-MP0002-int-fix-cli
-        COMMAND wfc --eval [=[Print Int(-2.5) & " " & Fix(-2.5)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-int-fix-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "-3 -2"
-    )
+  add_test(
+    NAME TC-MP0002-int-fix-cli
+    COMMAND wfc --eval [=[Print Int(-2.5) & " " & Fix(-2.5)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-int-fix-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;math"
+      PASS_REGULAR_EXPRESSION "-3 -2"
+  )
 
-    add_test(
-        NAME TC-MP0002-ascw-chrw-cli
-        COMMAND wfc --eval [=[Print AscW("A") & " " & ChrW(66)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-ascw-chrw-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "65 B"
-    )
+  add_test(
+    NAME TC-MP0002-ascw-chrw-cli
+    COMMAND wfc --eval [=[Print AscW("A") & " " & ChrW(66)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-ascw-chrw-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "65 B"
+  )
 
-    add_test(
-        NAME TC-MP0002-info-predicates-cli
-        COMMAND wfc --eval [=[Print CStr(IsArray(1)) & " " & CStr(IsObject(1)) & " " & CStr(IsNull(1))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-info-predicates-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information"
-            PASS_REGULAR_EXPRESSION "False False False"
-    )
+  add_test(
+    NAME TC-MP0002-info-predicates-cli
+    COMMAND
+      wfc --eval
+      [=[Print CStr(IsArray(1)) & " " & CStr(IsObject(1)) & " " _
+& CStr(IsNull(1))]=]
+  )
+  set_tests_properties(
+    TC-MP0002-info-predicates-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information"
+      PASS_REGULAR_EXPRESSION "False False False"
+  )
 
-    add_test(
-        NAME TC-MP0002-rgb-cli
-        COMMAND wfc --eval [=[Print RGB(255, 0, 0) & " " & RGB(0, 0, 255)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-rgb-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information;color"
-            PASS_REGULAR_EXPRESSION "255 16711680"
-    )
+  add_test(
+    NAME TC-MP0002-rgb-cli
+    COMMAND wfc --eval [=[Print RGB(255, 0, 0) & " " & RGB(0, 0, 255)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-rgb-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information;color"
+      PASS_REGULAR_EXPRESSION "255 16711680"
+  )
 
-    add_test(
-        NAME TC-MP0002-qbcolor-cli
-        COMMAND wfc --eval [=[Print QBColor(1) & " " & QBColor(12) & " " & QBColor(15)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-qbcolor-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;information;color"
-            PASS_REGULAR_EXPRESSION "8388608 255 16777215"
-    )
+  add_test(
+    NAME TC-MP0002-qbcolor-cli
+    COMMAND
+      wfc --eval [=[Print QBColor(1) & " " & QBColor(12) & " " & QBColor(15)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-qbcolor-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;information;color"
+      PASS_REGULAR_EXPRESSION "8388608 255 16777215"
+  )
 
-    add_test(
-        NAME TC-MP0002-byte-string-cli
-        COMMAND wfc --eval [=[Print LenB("WFC") & " " & AscB("A") & " " & ChrB(66)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-byte-string-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings;bytes"
-            PASS_REGULAR_EXPRESSION "6 65 B"
-    )
+  add_test(
+    NAME TC-MP0002-byte-string-cli
+    COMMAND
+      wfc --eval [=[Print LenB("WFC") & " " & AscB("A") & " " & ChrB(66)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-byte-string-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings;bytes"
+      PASS_REGULAR_EXPRESSION "6 65 B"
+  )
 
-    add_test(
-        NAME TC-MP0002-byte-slice-cli
-        COMMAND wfc --eval [=[Print LeftB("WFC", 2) & " " & RightB("WFC", 2) & " " & AscB(MidB("WFC", 2, 1)) & " " & InStrB("WFC", "FC")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-byte-slice-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings;bytes"
-            PASS_REGULAR_EXPRESSION "W C 0 3"
-    )
+  add_test(
+    NAME TC-MP0002-byte-slice-cli
+    COMMAND
+      wfc --eval
+      [=[Print LeftB("WFC", 2) & " " & RightB("WFC", 2) & " " _
+& AscB(MidB("WFC", 2, 1)) & " " & InStrB("WFC", "FC")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-byte-slice-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings;bytes"
+      PASS_REGULAR_EXPRESSION "W C 0 3"
+  )
 
-    add_test(
-        NAME TC-MP0002-strconv-cli
-        COMMAND wfc --eval [=[Print StrConv("the quICK fox", vbProperCase)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-strconv-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;strings"
-            PASS_REGULAR_EXPRESSION "The Quick Fox"
-    )
+  add_test(
+    NAME TC-MP0002-strconv-cli
+    COMMAND wfc --eval [=[Print StrConv("the quICK fox", vbProperCase)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-strconv-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;strings"
+      PASS_REGULAR_EXPRESSION "The Quick Fox"
+  )
 
-    add_test(
-        NAME TC-MP0002-vba-constants-cli
-        COMMAND wfc --eval [=[Print vbTrue & " " & vbYes & " " & vbReadOnly & " " & vbSaturday]=]
-    )
-    set_tests_properties(
-        TC-MP0002-vba-constants-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;constants"
-            PASS_REGULAR_EXPRESSION "-1 6 1 7"
-    )
+  add_test(
+    NAME TC-MP0002-vba-constants-cli
+    COMMAND
+      wfc --eval
+      [=[Print vbTrue & " " & vbYes & " " & vbReadOnly & " " & vbSaturday]=]
+  )
+  set_tests_properties(
+    TC-MP0002-vba-constants-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;constants"
+      PASS_REGULAR_EXPRESSION "-1 6 1 7"
+  )
 
-    add_test(
-        NAME TC-MP0002-vba-string-constants-cli
-        COMMAND wfc --eval [=[Print AscB(vbTab) & " " & AscB(vbCr) & " " & AscB(vbLf) & " " & Len(vbCrLf) & " " & vbObjectError]=]
-    )
-    set_tests_properties(
-        TC-MP0002-vba-string-constants-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;constants"
-            PASS_REGULAR_EXPRESSION "9 13 10 2 -2147221504"
-    )
+  add_test(
+    NAME TC-MP0002-vba-string-constants-cli
+    COMMAND
+      wfc --eval
+      [=[Print AscB(vbTab) & " " & AscB(vbCr) & " " & AscB(vbLf) & " " _
+& Len(vbCrLf) & " " & vbObjectError]=]
+  )
+  set_tests_properties(
+    TC-MP0002-vba-string-constants-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;constants"
+      PASS_REGULAR_EXPRESSION "9 13 10 2 -2147221504"
+  )
 
-    add_test(
-        NAME TC-MP0002-round-cli
-        COMMAND wfc --eval [=[Print Round(2.5) & " " & Round(3.5) & " " & Round(1.25, 1)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-round-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math"
-            PASS_REGULAR_EXPRESSION "2 4 1.2"
-    )
+  add_test(
+    NAME TC-MP0002-round-cli
+    COMMAND
+      wfc --eval
+      [=[Print Round(2.5) & " " & Round(3.5) & " " & Round(1.25, 1)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-round-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;math"
+      PASS_REGULAR_EXPRESSION "2 4 1.2"
+  )
 
-    add_test(
-        NAME TC-MP0002-double-cli
-        COMMAND wfc --eval [=[Print 5 / 2 & " " & (1.5 + 2.5) & " " & CLng(2.5)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-double-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;numeric;double"
-            PASS_REGULAR_EXPRESSION "2.5 4 2"
-    )
+  add_test(
+    NAME TC-MP0002-double-cli
+    COMMAND wfc --eval [=[Print 5 / 2 & " " & (1.5 + 2.5) & " " & CLng(2.5)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-double-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;numeric;double"
+      PASS_REGULAR_EXPRESSION "2.5 4 2"
+  )
 
-    add_test(
-        NAME TC-MP0002-cdbl-cli
-        COMMAND wfc --eval [=[Print CDbl("2.5") + CDbl(3) & " " & CSng(2.25)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cdbl-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;numeric;conversion"
-            PASS_REGULAR_EXPRESSION "5.5 2.25"
-    )
+  add_test(
+    NAME TC-MP0002-cdbl-cli
+    COMMAND wfc --eval [=[Print CDbl("2.5") + CDbl(3) & " " & CSng(2.25)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-cdbl-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;numeric;conversion"
+      PASS_REGULAR_EXPRESSION "5.5 2.25"
+  )
 
-    add_test(
-        NAME TC-MP0002-float-math-cli
-        COMMAND wfc --eval [=[Print Sqr(9) & " " & Exp(0) & " " & CLng(Atn(1) * 4 * 1000000)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-float-math-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math;double"
-            PASS_REGULAR_EXPRESSION "3 1 3141593"
-    )
+  add_test(
+    NAME TC-MP0002-float-math-cli
+    COMMAND
+      wfc --eval
+      [=[Print Sqr(9) & " " & Exp(0) & " " & CLng(Atn(1) * 4 * 1000000)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-float-math-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;math;double"
+      PASS_REGULAR_EXPRESSION "3 1 3141593"
+  )
 
-    add_test(
-        NAME TC-MP0002-double-declarations-cli
-        COMMAND wfc --eval [=[Dim value As Double
+  add_test(
+    NAME TC-MP0002-double-declarations-cli
+    COMMAND
+      wfc --eval
+      [=[Dim value As Double
 value = 5
 Const divisor As Double = 2
 Print TypeName(value) & " " & VarType(value) & " " & (value / divisor)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-double-declarations-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;numeric;double"
-            PASS_REGULAR_EXPRESSION "Double 5 2.5"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-double-declarations-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;numeric;double"
+      PASS_REGULAR_EXPRESSION "Double 5 2.5"
+  )
 
-    add_test(
-        NAME TC-MP0002-numeric-literal-suffixes-cli
-        COMMAND wfc --eval [=[Print TypeName(1#) & " " & VarType(1#) & " " & TypeName(42&)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-numeric-literal-suffixes-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;numeric;literals"
-            PASS_REGULAR_EXPRESSION "Double 5 Long"
-    )
+  add_test(
+    NAME TC-MP0002-numeric-literal-suffixes-cli
+    COMMAND
+      wfc --eval
+      [=[Print TypeName(1#) & " " & VarType(1#) & " " & TypeName(42&)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-numeric-literal-suffixes-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;numeric;literals"
+      PASS_REGULAR_EXPRESSION "Double 5 Long"
+  )
 
-    add_test(
-        NAME TC-MP0002-identifier-type-characters-cli
-        COMMAND wfc --eval [=[Dim value#
+  add_test(
+    NAME TC-MP0002-identifier-type-characters-cli
+    COMMAND
+      wfc --eval
+      [=[Dim value#
 value = 2.5
 Const label$ = "value="
 Print label & value# & " " & TypeName(value)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-identifier-type-characters-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;numeric;variables;constants"
-            PASS_REGULAR_EXPRESSION "value=2.5 Double"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-identifier-type-characters-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;numeric;variables;constants"
+      PASS_REGULAR_EXPRESSION "value=2.5 Double"
+  )
 
-    add_test(
-        NAME TC-MP0002-format-cli
-        COMMAND wfc --eval [=[Print Format(1234.5, "Standard") & " " & Format(0.5, "Percent") & " " & Format(True, "Yes/No") & " " & Format(-1234.5, "Currency") & " " & Format(7, "0000") & " " & Format(1234567.891, "#,##0.00")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-format-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "1,234.50 50.00% Yes -\\$1,234.50 0007 1,234,567.89"
-    )
+  add_test(
+    NAME TC-MP0002-format-cli
+    COMMAND
+      wfc --eval
+      [=[Print Format(1234.5, "Standard") & " " & Format(0.5, "Percent") & " " _
+& Format(True, "Yes/No") & " " & Format(-1234.5, "Currency") & " " & Format(7, _
+"0000") & " " & Format(1234567.891, "#,##0.00")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-format-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION
+        "1,234.50 50.00% Yes -\\$1,234.50 0007 1,234,567.89"
+  )
 
-    add_test(
-        NAME TC-MP0002-rnd-randomize-cli
-        COMMAND wfc --eval [=[Randomize 42
+  add_test(
+    NAME TC-MP0002-rnd-randomize-cli
+    COMMAND
+      wfc --eval
+      [=[Randomize 42
 Print Rnd()
 Print Rnd()
 Randomize 42
 Print Rnd()]=]
-    )
-    set_tests_properties(
-        TC-MP0002-rnd-randomize-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;math;single"
-            PASS_REGULAR_EXPRESSION "0.215606.*0.5267472.*0.215606"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-rnd-randomize-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;math;single"
+      PASS_REGULAR_EXPRESSION "0.215606.*0.5267472.*0.215606"
+  )
 
-    add_test(
-        NAME TC-MP0002-single-cli
-        COMMAND wfc --eval [=[Dim x As Single
+  add_test(
+    NAME TC-MP0002-single-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Single
 x = 2.5
-Print x & " " & TypeName(x) & " " & (x + 1) & " " & TypeName(x + 1) & " " & (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-single-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;numeric;variables;single"
-            PASS_REGULAR_EXPRESSION "2.5 Single 3.5 Single 3.5 Double"
-    )
+Print x & " " & TypeName(x) & " " & (x + 1) & " " & TypeName(x + 1) & " " _
+& (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-single-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;numeric;variables;single"
+      PASS_REGULAR_EXPRESSION "2.5 Single 3.5 Single 3.5 Double"
+  )
 
-    add_test(
-        NAME TC-MP0002-currency-cli
-        COMMAND wfc --eval [=[Dim x As Currency
+  add_test(
+    NAME TC-MP0002-currency-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Currency
 x = 10.5
 Print x & " " & TypeName(x) & " " & (10@ / 3@) & " " & (100.5@ * 3@)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-currency-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;numeric;variables;currency"
-            PASS_REGULAR_EXPRESSION "10.5 Currency 3.3333 301.5"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-currency-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;numeric;variables;currency"
+      PASS_REGULAR_EXPRESSION "10.5 Currency 3.3333 301.5"
+  )
 
-    add_test(
-        NAME TC-MP0002-decimal-cli
-        COMMAND wfc --eval [=[Dim x As Variant
+  add_test(
+    NAME TC-MP0002-decimal-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Variant
 x = CDec("10.25")
 Print x & " " & TypeName(x) & " " & (x * CDec(2)) & " " & (CDec(1) / CDec(3))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-decimal-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;numeric;variables;decimal;variant"
-            PASS_REGULAR_EXPRESSION "10.25 Decimal 20.5 0.3333333333333333333333333333"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-decimal-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;numeric;variables;decimal;variant"
+      PASS_REGULAR_EXPRESSION
+        "10.25 Decimal 20.5 0.3333333333333333333333333333"
+  )
 
-    add_test(
-        NAME TC-MP0002-variant-cli
-        COMMAND wfc --eval [=[Dim x As Variant
+  add_test(
+    NAME TC-MP0002-variant-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Variant
 x = 5
 Print TypeName(x) & " " & CStr(IsNull(x)) & " " & CStr(IsEmpty(x))
 x = Null
 Print TypeName(x) & " " & CStr(IsNull(x)) & " " & (x + 1 & "|" & x & "|")
 x = "hello"
 Print TypeName(x) & " " & x]=]
-    )
-    set_tests_properties(
-        TC-MP0002-variant-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;variables;variant"
-            PASS_REGULAR_EXPRESSION "Integer False False.*Null True \\|\\|.*String hello"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-variant-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;variables;variant"
+      PASS_REGULAR_EXPRESSION
+        "Integer False False.*Null True \\|\\|.*String hello"
+  )
 
-    add_test(
-        NAME TC-MP0002-integer-cli
-        COMMAND wfc --eval [=[Dim x As Integer
+  add_test(
+    NAME TC-MP0002-integer-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Integer
 x = 5
-Print x & " " & TypeName(x) & " " & (x + 3&) & " " & TypeName(x + 3&) & " " & (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-integer-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;numeric;variables;integer"
-            PASS_REGULAR_EXPRESSION "5 Integer 8 Long 6 Double"
-    )
+Print x & " " & TypeName(x) & " " & (x + 3&) & " " & TypeName(x + 3&) & " " _
+& (x + 1.0#) & " " & TypeName(x + 1.0#)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-integer-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;numeric;variables;integer"
+      PASS_REGULAR_EXPRESSION "5 Integer 8 Long 6 Double"
+  )
 
-    add_test(
-        NAME TC-MP0002-array-cli
-        COMMAND wfc --eval [=[Dim arr(3) As Long
+  add_test(
+    NAME TC-MP0002-array-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr(3) As Long
 arr(0) = 10
 arr(3) = 40
-Print arr(0) & " " & arr(3) & " " & LBound(arr) & " " & UBound(arr) & " " & CStr(IsArray(arr))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-array-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;variables;array"
-            PASS_REGULAR_EXPRESSION "10 40 0 3 True"
-    )
+Print arr(0) & " " & arr(3) & " " & LBound(arr) & " " & UBound(arr) & " " _
+& CStr(IsArray(arr))]=]
+  )
+  set_tests_properties(
+    TC-MP0002-array-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;variables;array"
+      PASS_REGULAR_EXPRESSION "10 40 0 3 True"
+  )
 
-    add_test(
-        NAME TC-MP0002-object-cli
-        COMMAND wfc --eval [=[Dim x As Object
+  add_test(
+    NAME TC-MP0002-object-cli
+    COMMAND
+      wfc --eval
+      [=[Dim x As Object
 Print TypeName(Nothing) & " " & CStr(IsObject(x))
 Set x = Nothing
 Print CStr(x Is Nothing)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-object-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;variables;object"
-            PASS_REGULAR_EXPRESSION "Nothing True.*True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-object-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;variables;object"
+      PASS_REGULAR_EXPRESSION "Nothing True.*True"
+  )
 
-    add_test(
-        NAME TC-MP0002-procedure-cli
-        COMMAND wfc --eval [=[Function Factorial(n As Long) As Long
+  add_test(
+    NAME TC-MP0002-procedure-cli
+    COMMAND
+      wfc --eval
+      [=[Function Factorial(n As Long) As Long
 If n <= 1 Then
 Factorial = 1
 Else
@@ -1110,18 +1231,19 @@ Dim n As Long
 n = 10
 Call Increment(n)
 Print n]=]
-    )
-    set_tests_properties(
-        TC-MP0002-procedure-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures"
-            PASS_REGULAR_EXPRESSION "120.*11"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-procedure-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures"
+      PASS_REGULAR_EXPRESSION "120.*11"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-cli
-        COMMAND wfc
-            --class Counter [=[Public value As Long
+  add_test(
+    NAME TC-MP0002-class-cli
+    COMMAND
+      wfc --class Counter
+      [=[Public value As Long
 
 Sub Increment()
 value = value + 1
@@ -1138,7 +1260,8 @@ End Property
 Property Let Doubled(v As Long)
 value = v \ 2
 End Property]=]
-            --eval [=[Dim c As New Counter
+      --eval
+      [=[Dim c As New Counter
 Call c.Increment()
 Call c.Increment()
 Print c.GetValue()
@@ -1151,18 +1274,19 @@ Print CStr(d Is Nothing)
 Set d = c
 Print CStr(d Is c)
 Print CStr(c Is New Counter)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "2.*4.*10.*Counter 9 True.*True.*True.*False"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "2.*4.*10.*Counter 9 True.*True.*True.*False"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-lifecycle-cli
-        COMMAND wfc
-            --class Foo [=[Public n As Long
+  add_test(
+    NAME TC-MP0002-class-lifecycle-cli
+    COMMAND
+      wfc --class Foo
+      [=[Public n As Long
 
 Sub Class_Initialize()
 n = 100
@@ -1177,62 +1301,66 @@ Sub Bump()
 n = n + 1
 Print Me.n
 End Sub]=]
-            --eval [=[Dim x As New Foo
+      --eval
+      [=[Dim x As New Foo
 Call x.Bump()
 Call x.Bump()
 Set x = Nothing
 Print "after"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-lifecycle-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "init.*101.*102.*term 102.*after"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-lifecycle-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "init.*101.*102.*term 102.*after"
+  )
 
-    add_test(
-        NAME TC-MP0002-chained-field-write-cli
-        COMMAND wfc
-            --class Inner [=[Public tag As Long]=]
-            --class Outer [=[Public i As Inner]=]
-            --eval [=[Dim o As New Outer
+  add_test(
+    NAME TC-MP0002-chained-field-write-cli
+    COMMAND
+      wfc --class Inner [=[Public tag As Long]=] --class Outer
+      [=[Public i As Inner]=] --eval
+      [=[Dim o As New Outer
 Dim n As New Inner
 Set o.i = n
 o.i.tag = 9
 Print n.tag]=]
-    )
-    set_tests_properties(
-        TC-MP0002-chained-field-write-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "^9"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-chained-field-write-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "^9"
+  )
 
-    add_test(
-        NAME TC-MP0002-with-statement-cli
-        COMMAND wfc
-            --class Counter [=[Public n As Long
+  add_test(
+    NAME TC-MP0002-with-statement-cli
+    COMMAND
+      wfc --class Counter
+      [=[Public n As Long
 Sub Bump()
 n = n + 1
 End Sub]=]
-            --eval [=[Dim c As New Counter
+      --eval
+      [=[Dim c As New Counter
 With c
 .n = 3
 .Bump
 Print .n
 End With]=]
-    )
-    set_tests_properties(
-        TC-MP0002-with-statement-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "^4"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-with-statement-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "^4"
+  )
 
-    add_test(
-        NAME TC-MP0002-enum-cli
-        COMMAND wfc
-            --eval [=[Enum Color
+  add_test(
+    NAME TC-MP0002-enum-cli
+    COMMAND
+      wfc --eval
+      [=[Enum Color
 Red
 Green = 5
 Blue
@@ -1240,66 +1368,70 @@ End Enum
 Dim c As Color
 c = Blue
 Print Red & " " & Green & " " & c]=]
-    )
-    set_tests_properties(
-        TC-MP0002-enum-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^0 5 6"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-enum-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^0 5 6"
+  )
 
-    add_test(
-        NAME TC-MP0002-error-handling-cli
-        COMMAND wfc
-            --eval [=[On Error Resume Next
+  add_test(
+    NAME TC-MP0002-error-handling-cli
+    COMMAND
+      wfc --eval
+      [=[On Error Resume Next
 Dim x As Long
 x = 1 / 0
 Print Err.Number & " " & Err.Description
 Err.Raise 1000, "s", "boom"
 Print Err.Number]=]
-    )
-    set_tests_properties(
-        TC-MP0002-error-handling-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^11 Division by zero.*1000"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-error-handling-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^11 Division by zero.*1000"
+  )
 
-    add_test(
-        NAME TC-MP0002-array-split-join-cli
-        COMMAND wfc
-            --eval [=[Dim a() As String
+  add_test(
+    NAME TC-MP0002-array-split-join-cli
+    COMMAND
+      wfc --eval
+      [=[Dim a() As String
 a = Split("a,b,,c", ",")
 Print UBound(a) & " " & Join(a, "-")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-array-split-join-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^3 a-b--c"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-array-split-join-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^3 a-b--c"
+  )
 
-    add_test(
-        NAME TC-MP0002-conditional-compilation-cli
-        COMMAND wfc
-            --eval [=[#Const Debug = True
+  add_test(
+    NAME TC-MP0002-conditional-compilation-cli
+    COMMAND
+      wfc --eval
+      [=[#Const Debug = True
 #If Debug Then
 Print "debug"
 #Else
 Print "release"
 #End If]=]
-    )
-    set_tests_properties(
-        TC-MP0002-conditional-compilation-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^debug"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-conditional-compilation-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^debug"
+  )
 
-    add_test(
-        NAME TC-MP0002-udt-cli
-        COMMAND wfc
-            --eval [=[Type Pt
+  add_test(
+    NAME TC-MP0002-udt-cli
+    COMMAND
+      wfc --eval
+      [=[Type Pt
 x As Long
 End Type
 Dim p As Pt
@@ -1308,104 +1440,109 @@ p.x = 3
 q = p
 q.x = 9
 Print p.x & " " & q.x]=]
-    )
-    set_tests_properties(
-        TC-MP0002-udt-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^3 9"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-udt-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^3 9"
+  )
 
-    add_test(
-        NAME TC-MP0002-date-cli
-        COMMAND wfc
-            --eval [=[Dim d As Date
+  add_test(
+    NAME TC-MP0002-date-cli
+    COMMAND
+      wfc --eval
+      [=[Dim d As Date
 d = #1/15/2000 3:04:05 PM#
 Print d
 Print DateAdd("m", 1, #1/31/2000#)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-date-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^1/15/2000 3:04:05 PM.*2/29/2000"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-date-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^1/15/2000 3:04:05 PM.*2/29/2000"
+  )
 
-    add_test(
-        NAME TC-MP0002-collection-cli
-        COMMAND wfc
-            --eval [=[Dim c As New Collection
+  add_test(
+    NAME TC-MP0002-collection-cli
+    COMMAND
+      wfc --eval
+      [=[Dim c As New Collection
 c.Add 10
 c.Add 20, "b"
 Print c.Count & " " & c.Item("b")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-collection-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^2 20"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-collection-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^2 20"
+  )
 
-    add_test(
-        NAME TC-MP0002-operators-cli
-        COMMAND wfc
-            --eval [=[Print 2 ^ 3 & " " & (6 And 3) & " " & &HFF]=]
-    )
-    set_tests_properties(
-        TC-MP0002-operators-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^8 2 255"
-    )
+  add_test(
+    NAME TC-MP0002-operators-cli
+    COMMAND wfc --eval [=[Print 2 ^ 3 & " " & (6 And 3) & " " & &HFF]=]
+  )
+  set_tests_properties(
+    TC-MP0002-operators-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^8 2 255"
+  )
 
-    add_test(
-        NAME TC-MP0002-file-io-cli
-        COMMAND wfc
-            --eval [=[Print "a"; "b", "c"
+  add_test(
+    NAME TC-MP0002-file-io-cli
+    COMMAND
+      wfc --eval
+      [=[Print "a"; "b", "c"
 Print "x";
 Print "y"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-file-io-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^ab            c.*xy"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-file-io-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^ab            c.*xy"
+  )
 
-    add_test(
-        NAME TC-MP0002-misc-intrinsics-cli
-        COMMAND wfc
-            --eval [=[Dim s As String
+  add_test(
+    NAME TC-MP0002-misc-intrinsics-cli
+    COMMAND
+      wfc --eval
+      [=[Dim s As String
 s = "abcdef"
 Mid$(s, 2, 2) = "XYZ"
 Print s & " " & FormatNumber(1234.567, 2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-misc-intrinsics-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^aXYdef 1,234.57"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-misc-intrinsics-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^aXYdef 1,234.57"
+  )
 
-    add_test(
-        NAME TC-MP0002-byte-cli
-        COMMAND wfc
-            --eval [=[Dim b As Byte
+  add_test(
+    NAME TC-MP0002-byte-cli
+    COMMAND
+      wfc --eval
+      [=[Dim b As Byte
 b = 250
 b = b + 5
 Print b & " " & TypeName(b)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-byte-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^255 Byte"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-byte-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^255 Byte"
+  )
 
-    add_test(
-        NAME TC-MP0002-flow-and-declarations-cli
-        COMMAND wfc
-            --eval [=[Public x As Long, z As Long
+  add_test(
+    NAME TC-MP0002-flow-and-declarations-cli
+    COMMAND
+      wfc --eval
+      [=[Public x As Long, z As Long
 x = 1: z = 2
 Dim i As Long, j As Long
 For i = 1 To 2
@@ -1415,282 +1552,292 @@ Next j, i
 Print x + z
 End
 Print "never"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-flow-and-declarations-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^1.*2.*2.*4.*3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-flow-and-declarations-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^1.*2.*2.*4.*3"
+  )
 
-    add_test(
-        NAME TC-MP0002-vbp-project-cli
-        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/project/Hello.vbp"
-    )
-    set_tests_properties(
-        TC-MP0002-vbp-project-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;project"
-            PASS_REGULAR_EXPRESSION "Hello, WFC"
-    )
+  add_test(
+    NAME TC-MP0002-vbp-project-cli
+    COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/project/Hello.vbp"
+  )
+  set_tests_properties(
+    TC-MP0002-vbp-project-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;project"
+      PASS_REGULAR_EXPRESSION "Hello, WFC"
+  )
 
-    add_test(
-        NAME TC-MP0002-typeof-error-lset-cli
-        COMMAND wfc
-            --eval [=[Dim s As String
+  add_test(
+    NAME TC-MP0002-typeof-error-lset-cli
+    COMMAND
+      wfc --eval
+      [=[Dim s As String
 s = "ab  "
 RSet s = "x"
 Print "[" & s & "]"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-typeof-error-lset-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^\\[   x\\]"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-typeof-error-lset-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^\\[   x\\]"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-array-fields-cli
-        COMMAND wfc
-            --class Grid [=[Public cells(1 To 2) As Long]=]
-            --eval [=[Dim g As New Grid
+  add_test(
+    NAME TC-MP0002-class-array-fields-cli
+    COMMAND
+      wfc --class Grid [=[Public cells(1 To 2) As Long]=] --eval
+      [=[Dim g As New Grid
 g.cells(2) = 7
 Print g.cells(2) + g.cells(1)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-array-fields-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^7"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-array-fields-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^7"
+  )
 
-    add_test(
-        NAME TC-MP0002-loop-goto-cli
-        COMMAND wfc
-            --eval [=[Dim j As Long
+  add_test(
+    NAME TC-MP0002-loop-goto-cli
+    COMMAND
+      wfc --eval
+      [=[Dim j As Long
 For j = 1 To 3
 If j = 2 Then GoTo nxt
 Print j
 nxt:
 Next j]=]
-    )
-    set_tests_properties(
-        TC-MP0002-loop-goto-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^1.*3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-loop-goto-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^1.*3"
+  )
 
-    add_test(
-        NAME TC-MP0002-vbp-shapes-cli
-        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/shapes/Shapes.vbp"
-    )
-    set_tests_properties(
-        TC-MP0002-vbp-shapes-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;project;classes"
-            PASS_REGULAR_EXPRESSION "Circle r=2 area=12.57.*Rect 3x4 area=12.00.*total=24.566.*circle!.*bye rect"
-    )
+  add_test(
+    NAME TC-MP0002-vbp-shapes-cli
+    COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/shapes/Shapes.vbp"
+  )
+  set_tests_properties(
+    TC-MP0002-vbp-shapes-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;project;classes"
+      PASS_REGULAR_EXPRESSION
+        "Circle r=2 area=12.57.*Rect 3x4 area=12.00.*total=24.566.*circle!.*\
+bye rect"
+  )
 
-    add_test(
-        NAME TC-MP0002-collection-default-cli
-        COMMAND wfc
-            --eval [=[Dim c As New Collection
+  add_test(
+    NAME TC-MP0002-collection-default-cli
+    COMMAND
+      wfc --eval
+      [=[Dim c As New Collection
 c.Add 5
 Print c(1)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-collection-default-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^5"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-collection-default-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^5"
+  )
 
-    add_test(
-        NAME TC-MP0002-decimal-type-cli
-        COMMAND wfc
-            --eval [=[Dim d As Decimal
+  add_test(
+    NAME TC-MP0002-decimal-type-cli
+    COMMAND
+      wfc --eval
+      [=[Dim d As Decimal
 d = 0.1
 Print d + CDec(0.2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-decimal-type-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^0.3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-decimal-type-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^0.3"
+  )
 
-    add_test(
-        NAME TC-MP0002-name-chdir-cli
-        COMMAND wfc
-            --eval [=[Dim name As String
+  add_test(
+    NAME TC-MP0002-name-chdir-cli
+    COMMAND
+      wfc --eval
+      [=[Dim name As String
 name = "v"
 Print name]=]
-    )
-    set_tests_properties(
-        TC-MP0002-name-chdir-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^v"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-name-chdir-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^v"
+  )
 
-    add_test(
-        NAME TC-MP0002-binary-random-cli
-        COMMAND wfc
-            --eval [=[Print 1]=]
-    )
-    set_tests_properties(
-        TC-MP0002-binary-random-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^1"
-    )
+  add_test(NAME TC-MP0002-binary-random-cli COMMAND wfc --eval [=[Print 1]=])
+  set_tests_properties(
+    TC-MP0002-binary-random-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^1"
+  )
 
-    add_test(
-        NAME TC-MP0002-default-member-cli
-        COMMAND wfc
-            --class Lst [=[Public Function Item(i As Long) As Long
+  add_test(
+    NAME TC-MP0002-default-member-cli
+    COMMAND
+      wfc --class Lst
+      [=[Public Function Item(i As Long) As Long
 Attribute Item.VB_UserMemId = 0
 Item = i * 2
 End Function]=]
-            --eval [=[Dim l As New Lst
+      --eval
+      [=[Dim l As New Lst
 Print l(21)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-default-member-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^42"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-default-member-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^42"
+  )
 
-    add_test(
-        NAME TC-MP0002-vbp-modules-cli
-        COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/modules/Modules.vbp"
-    )
-    set_tests_properties(
-        TC-MP0002-vbp-modules-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;project"
-            PASS_REGULAR_EXPRESSION "^ 8 "
-    )
+  add_test(
+    NAME TC-MP0002-vbp-modules-cli
+    COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/modules/Modules.vbp"
+  )
+  set_tests_properties(
+    TC-MP0002-vbp-modules-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;project"
+      PASS_REGULAR_EXPRESSION "^ 8 "
+  )
 
-    add_test(
-        NAME TC-MP0002-cverr-cli
-        COMMAND wfc
-            --eval [=[Dim v As Variant
+  add_test(
+    NAME TC-MP0002-cverr-cli
+    COMMAND
+      wfc --eval
+      [=[Dim v As Variant
 v = CVErr(9)
 Print IsError(v)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-cverr-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-cverr-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^True"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-const-enum-cli
-        COMMAND wfc
-            --class A [=[Private Const MAX = 10
+  add_test(
+    NAME TC-MP0002-class-const-enum-cli
+    COMMAND
+      wfc --class A
+      [=[Private Const MAX = 10
 Public Function M() As Long
 M = MAX * 2
 End Function]=]
-            --eval [=[Dim a As New A
+      --eval
+      [=[Dim a As New A
 Print a.M()]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-const-enum-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^20"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-const-enum-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^20"
+  )
 
-    add_test(
-        NAME TC-MP0002-line-continuation-cli
-        COMMAND wfc
-            --eval [=[Dim s As String
+  add_test(
+    NAME TC-MP0002-line-continuation-cli
+    COMMAND
+      wfc --eval
+      [=[Dim s As String
 s = "a" & _
   "b"
 Print s]=]
-    )
-    set_tests_properties(
-        TC-MP0002-line-continuation-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^ab"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-line-continuation-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^ab"
+  )
 
-    add_test(
-        NAME TC-MP0002-vba-members-cli
-        COMMAND wfc
-            --eval [=[Print MsgBox("x") & InputBox("p", "t", "d")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-vba-members-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^1d"
-    )
+  add_test(
+    NAME TC-MP0002-vba-members-cli
+    COMMAND wfc --eval [=[Print MsgBox("x") & InputBox("p", "t", "d")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-vba-members-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^1d"
+  )
 
-    add_test(
-        NAME TC-MP0002-callbyname-cli
-        COMMAND wfc
-            --class A [=[Public x As Long]=]
-            --eval [=[Dim o As New A
+  add_test(
+    NAME TC-MP0002-callbyname-cli
+    COMMAND
+      wfc --class A [=[Public x As Long]=] --eval
+      [=[Dim o As New A
 CallByName o, "x", 4, 7
 Print CallByName(o, "x", 2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-callbyname-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^7"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-callbyname-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^7"
+  )
 
-    add_test(
-        NAME TC-MP0002-string-format-cli
-        COMMAND wfc
-            --eval [=[Print Format("abc", ">")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-string-format-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^ABC"
-    )
+  add_test(
+    NAME TC-MP0002-string-format-cli
+    COMMAND wfc --eval [=[Print Format("abc", ">")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-string-format-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^ABC"
+  )
 
-    add_test(
-        NAME TC-MP0002-implicit-declaration-cli
-        COMMAND wfc
-            --eval [=[x = 5
+  add_test(
+    NAME TC-MP0002-implicit-declaration-cli
+    COMMAND
+      wfc --eval
+      [=[x = 5
 Print x + 1]=]
-    )
-    set_tests_properties(
-        TC-MP0002-implicit-declaration-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^6"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-implicit-declaration-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^6"
+  )
 
-    add_test(
-        NAME TC-MP0002-declare-cli
-        COMMAND wfc
-            --eval [=[Declare Function F Lib "x" () As Long
+  add_test(
+    NAME TC-MP0002-declare-cli
+    COMMAND
+      wfc --eval
+      [=[Declare Function F Lib "x" () As Long
 On Error Resume Next
 Print F()
 Print Err.Number]=]
-    )
-    set_tests_properties(
-        TC-MP0002-declare-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "453"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-declare-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "453"
+  )
 
-    add_test(
-        NAME TC-MP0002-udt-arrays-results-cli
-        COMMAND wfc
-            --eval [=[Type Pt
+  add_test(
+    NAME TC-MP0002-udt-arrays-results-cli
+    COMMAND
+      wfc --eval
+      [=[Type Pt
 x As Long
 End Type
 Dim q As Pt
@@ -1699,82 +1846,96 @@ Dim v As Variant
 v = q
 q.x = 5
 Print v.x & q.x]=]
+  )
+  set_tests_properties(
+    TC-MP0002-udt-arrays-results-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^35"
+  )
+
+  # The diagnostic catalog must list exactly the WFC codes the source raises.
+  add_test(
+    NAME TC-MP0002-diagnostic-catalog
+    COMMAND
+      "${CMAKE_COMMAND}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" -P
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_diagnostic_catalog.cmake"
+  )
+  set_tests_properties(
+    TC-MP0002-diagnostic-catalog
+    PROPERTIES LABELS "integration;mp-0002;diagnostics"
+  )
+
+  # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
+  # when present) must print exactly the matching .expected text.
+  file(
+    GLOB wfc_corpus_expected
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/*.expected"
+  )
+  foreach(expected_file IN LISTS wfc_corpus_expected)
+    get_filename_component(corpus_name "${expected_file}" NAME_WE)
+    set(
+      corpus_input
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.bas"
+    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
+      set(
+        corpus_input
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp"
+      )
+    endif()
+    add_test(
+      NAME TC-MP0002-corpus-${corpus_name}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DINPUT=${corpus_input}"
+        "-DEXPECTED=${expected_file}" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
     )
     set_tests_properties(
-        TC-MP0002-udt-arrays-results-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^35"
+      TC-MP0002-corpus-${corpus_name}
+      PROPERTIES LABELS "integration;mp-0002;corpus"
     )
+  endforeach()
 
-    # The diagnostic catalog must list exactly the WFC codes the source raises.
-    add_test(
-        NAME TC-MP0002-diagnostic-catalog
-        COMMAND
-            "${CMAKE_COMMAND}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_diagnostic_catalog.cmake"
-    )
-    set_tests_properties(
-        TC-MP0002-diagnostic-catalog
-        PROPERTIES LABELS "integration;mp-0002;diagnostics")
-
-    # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
-    # when present) must print exactly the matching .expected text.
-    file(GLOB wfc_corpus_expected CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/*.expected")
-    foreach(expected_file IN LISTS wfc_corpus_expected)
-        get_filename_component(corpus_name "${expected_file}" NAME_WE)
-        set(corpus_input "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.bas")
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
-            set(corpus_input "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
-        endif()
-        add_test(
-            NAME TC-MP0002-corpus-${corpus_name}
-            COMMAND
-                "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DINPUT=${corpus_input}"
-                "-DEXPECTED=${expected_file}"
-                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
-        )
-        set_tests_properties(
-            TC-MP0002-corpus-${corpus_name}
-            PROPERTIES LABELS "integration;mp-0002;corpus")
-    endforeach()
-
-    add_test(
-        NAME TC-MP0002-implicit-conversions-cli
-        COMMAND wfc
-            --eval [=[Dim n As Long
+  add_test(
+    NAME TC-MP0002-implicit-conversions-cli
+    COMMAND
+      wfc --eval
+      [=[Dim n As Long
 n = 10 / 4
 Print n]=]
-    )
-    set_tests_properties(
-        TC-MP0002-implicit-conversions-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-implicit-conversions-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^2"
+  )
 
-    add_test(
-        NAME TC-MP0002-block-dim-inline-if-cli
-        COMMAND wfc
-            --eval [=[Dim i As Long
+  add_test(
+    NAME TC-MP0002-block-dim-inline-if-cli
+    COMMAND
+      wfc --eval
+      [=[Dim i As Long
 For i = 1 To 3
 Dim j As Long
 j = j + i
 Next
 Print j]=]
-    )
-    set_tests_properties(
-        TC-MP0002-block-dim-inline-if-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements"
-            PASS_REGULAR_EXPRESSION "^6"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-block-dim-inline-if-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements"
+      PASS_REGULAR_EXPRESSION "^6"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-refinements-cli
-        COMMAND wfc
-            --class Counter [=[Public n As Long]=]
-            --class Pair [=[Public a As Long
+  add_test(
+    NAME TC-MP0002-class-refinements-cli
+    COMMAND
+      wfc --class Counter [=[Public n As Long]=] --class Pair
+      [=[Public a As Long
 Public b As Long
 
 Property Get Item(i As Long) As Long
@@ -1792,8 +1953,8 @@ Else
 b = v
 End If
 End Property]=]
-            --class Holder [=[Public c As Counter]=]
-            --eval [=[Dim p As New Pair
+      --class Holder [=[Public c As Counter]=] --eval
+      [=[Dim p As New Pair
 p.Item(0) = 10
 p.Item(1) = 20
 Print p.Item(0) & " " & p.Item(1)
@@ -1802,18 +1963,19 @@ Dim c As New Counter
 c.n = 5
 Set h.c = c
 Print h.c.n & " " & CStr(h.c Is c)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-refinements-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "10 20.*5 True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-refinements-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "10 20.*5 True"
+  )
 
-    add_test(
-        NAME TC-MP0002-procedure-modifiers-cli
-        COMMAND wfc
-            --class Foo [=[Private secret As Long
+  add_test(
+    NAME TC-MP0002-procedure-modifiers-cli
+    COMMAND
+      wfc --class Foo
+      [=[Private secret As Long
 
 Public Sub SetSecret(v As Long)
 secret = v
@@ -1826,7 +1988,9 @@ End Function
 Public Function DoubleSecret() As Long
 DoubleSecret = Helper()
 End Function]=]
-            --eval [=[Function Greet(name As String, Optional greeting As String = "Hello") As String
+      --eval
+      [=[Function Greet(name As String, _
+Optional greeting As String = "Hello") As String
 Greet = greeting & ", " & name
 End Function
 Print Greet("World")
@@ -1854,17 +2018,19 @@ Print NextId()
 Dim f As New Foo
 Call f.SetSecret(10)
 Print f.DoubleSecret()]=]
-    )
-    set_tests_properties(
-        TC-MP0002-procedure-modifiers-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;classes"
-            PASS_REGULAR_EXPRESSION "Hello, World.*Hi, Bob.*10.*1.*2.*20"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-procedure-modifiers-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;classes"
+      PASS_REGULAR_EXPRESSION "Hello, World.*Hi, Bob.*10.*1.*2.*20"
+  )
 
-    add_test(
-        NAME TC-MP0002-redim-cli
-        COMMAND wfc --eval [=[Dim arr() As Long
+  add_test(
+    NAME TC-MP0002-redim-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr() As Long
 Print CStr(IsArray(arr)) & " " & TypeName(arr)
 ReDim arr(3)
 arr(0) = 1
@@ -1872,17 +2038,19 @@ arr(3) = 4
 Print arr(0) & " " & arr(3) & " " & LBound(arr) & " " & UBound(arr)
 ReDim Preserve arr(5)
 Print arr(0) & " " & arr(3) & " " & arr(5) & " " & UBound(arr)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-redim-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array"
-            PASS_REGULAR_EXPRESSION "True Long\\(\\).*1 4 0 3.*1 4 0 5"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-redim-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array"
+      PASS_REGULAR_EXPRESSION "True Long\\(\\).*1 4 0 3.*1 4 0 5"
+  )
 
-    add_test(
-        NAME TC-MP0002-erase-cli
-        COMMAND wfc --eval [=[Dim arr(3) As Long
+  add_test(
+    NAME TC-MP0002-erase-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr(3) As Long
 arr(0) = 1
 arr(3) = 4
 Erase arr
@@ -1892,17 +2060,19 @@ ReDim dyn(2)
 dyn(0) = 5
 Erase dyn
 Print CStr(IsArray(dyn))]=]
-    )
-    set_tests_properties(
-        TC-MP0002-erase-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array"
-            PASS_REGULAR_EXPRESSION "0 0 3.*True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-erase-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array"
+      PASS_REGULAR_EXPRESSION "0 0 3.*True"
+  )
 
-    add_test(
-        NAME TC-MP0002-for-each-cli
-        COMMAND wfc --eval [=[Dim arr(3) As Long
+  add_test(
+    NAME TC-MP0002-for-each-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr(3) As Long
 Dim x As Long
 Dim total As Long
 arr(0) = 10
@@ -1913,31 +2083,36 @@ For Each x In arr
 total = total + x
 Next x
 Print total]=]
-    )
-    set_tests_properties(
-        TC-MP0002-for-each-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops;array"
-            PASS_REGULAR_EXPRESSION "100"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-for-each-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops;array"
+      PASS_REGULAR_EXPRESSION "100"
+  )
 
-    add_test(
-        NAME TC-MP0002-multidim-array-cli
-        COMMAND wfc --eval [=[Dim arr(1 To 2, 1 To 3) As Long
+  add_test(
+    NAME TC-MP0002-multidim-array-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr(1 To 2, 1 To 3) As Long
 arr(1, 1) = 1
 arr(2, 3) = 6
-Print arr(1, 1) & " " & arr(2, 3) & " " & LBound(arr, 2) & " " & UBound(arr, 2) & " " & TypeName(arr)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-multidim-array-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array"
-            PASS_REGULAR_EXPRESSION "1 6 1 3 Long\\(\\)"
-    )
+Print arr(1, 1) & " " & arr(2, 3) & " " & LBound(arr, 2) & " " & UBound(arr, _
+2) & " " & TypeName(arr)]=]
+  )
+  set_tests_properties(
+    TC-MP0002-multidim-array-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array"
+      PASS_REGULAR_EXPRESSION "1 6 1 3 Long\\(\\)"
+  )
 
-    add_test(
-        NAME TC-MP0002-array-parameter-cli
-        COMMAND wfc --eval [=[Function Total(nums() As Long) As Long
+  add_test(
+    NAME TC-MP0002-array-parameter-cli
+    COMMAND
+      wfc --eval
+      [=[Function Total(nums() As Long) As Long
 Dim i As Long
 Dim s As Long
 s = 0
@@ -1954,34 +2129,40 @@ arr(2) = 3
 arr(3) = 4
 Print Total(arr)
 Print arr(0) & " " & arr(1) & " " & arr(2) & " " & arr(3)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-array-parameter-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;array"
-            PASS_REGULAR_EXPRESSION "10.*2 4 6 8"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-array-parameter-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;array"
+      PASS_REGULAR_EXPRESSION "10.*2 4 6 8"
+  )
 
-    add_test(
-        NAME TC-MP0002-variant-object-array-cli
-        COMMAND wfc --eval [=[Dim arr(2) As Variant
+  add_test(
+    NAME TC-MP0002-variant-object-array-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr(2) As Variant
 arr(0) = 5
 arr(1) = "hello"
 arr(2) = True
-Print TypeName(arr(0)) & " " & TypeName(arr(1)) & " " & TypeName(arr(2)) & " " & TypeName(arr)
+Print TypeName(arr(0)) & " " & TypeName(arr(1)) & " " & TypeName(arr(2)) & " " _
+& TypeName(arr)
 Dim objs(0) As Object
 Print TypeName(objs) & " " & CStr(objs(0) Is Nothing)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-variant-object-array-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array;variant;object"
-            PASS_REGULAR_EXPRESSION "Integer String Boolean Variant\\(\\).*Object\\(\\) True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-variant-object-array-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array;variant;object"
+      PASS_REGULAR_EXPRESSION
+        "Integer String Boolean Variant\\(\\).*Object\\(\\) True"
+  )
 
-    add_test(
-        NAME TC-MP0002-parenless-call-cli
-        COMMAND wfc --eval [=[Function NextId() As Long
+  add_test(
+    NAME TC-MP0002-parenless-call-cli
+    COMMAND
+      wfc --eval
+      [=[Function NextId() As Long
 Static counter As Long
 counter = counter + 1
 NextId = counter
@@ -1990,33 +2171,36 @@ Print NextId
 Call NextId
 Print NextId
 Print Rnd]=]
-    )
-    set_tests_properties(
-        TC-MP0002-parenless-call-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures"
-            PASS_REGULAR_EXPRESSION "1.*3.*0\\.7055475"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-parenless-call-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures"
+      PASS_REGULAR_EXPRESSION "1.*3.*0\\.7055475"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-typed-array-cli
-        COMMAND wfc --class Counter [=[Public value As Long]=]
-            --eval [=[Dim arr(1) As Counter
+  add_test(
+    NAME TC-MP0002-class-typed-array-cli
+    COMMAND
+      wfc --class Counter [=[Public value As Long]=] --eval
+      [=[Dim arr(1) As Counter
 Print TypeName(arr) & " " & CStr(arr(0) Is Nothing)
 Dim c As New Counter
 Set arr(0) = c
 Print CStr(arr(0) Is c)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-typed-array-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array;classes"
-            PASS_REGULAR_EXPRESSION "Counter\\(\\) True.*True"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-typed-array-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array;classes"
+      PASS_REGULAR_EXPRESSION "Counter\\(\\) True.*True"
+  )
 
-    add_test(
-        NAME TC-MP0002-array-return-cli
-        COMMAND wfc --eval [=[Function MakeArray() As Long()
+  add_test(
+    NAME TC-MP0002-array-return-cli
+    COMMAND
+      wfc --eval
+      [=[Function MakeArray() As Long()
 Dim result(2) As Long
 result(0) = 10
 result(1) = 20
@@ -2026,17 +2210,19 @@ End Function
 Dim x() As Long
 x = MakeArray()
 Print x(0) & " " & x(1) & " " & x(2) & " " & UBound(x)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-array-return-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;array"
-            PASS_REGULAR_EXPRESSION "10 20 30 2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-array-return-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;array"
+      PASS_REGULAR_EXPRESSION "10 20 30 2"
+  )
 
-    add_test(
-        NAME TC-MP0002-bare-call-cli
-        COMMAND wfc --class Counter [=[Private n As Long
+  add_test(
+    NAME TC-MP0002-bare-call-cli
+    COMMAND
+      wfc --class Counter
+      [=[Private n As Long
 
 Sub Increment()
 n = n + 1
@@ -2045,7 +2231,8 @@ End Sub
 Property Get Total() As Long
 Total = n
 End Property]=]
-            --eval [=[Function NextId() As Long
+      --eval
+      [=[Function NextId() As Long
 Static counter As Long
 counter = counter + 1
 NextId = counter
@@ -2055,17 +2242,19 @@ Print NextId
 Dim c As New Counter
 c.Increment
 Print c.Total]=]
-    )
-    set_tests_properties(
-        TC-MP0002-bare-call-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;classes"
-            PASS_REGULAR_EXPRESSION "2.*1"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-bare-call-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;classes"
+      PASS_REGULAR_EXPRESSION "2.*1"
+  )
 
-    add_test(
-        NAME TC-MP0002-dynamic-multidim-array-cli
-        COMMAND wfc --eval [=[Dim arr() As Long
+  add_test(
+    NAME TC-MP0002-dynamic-multidim-array-cli
+    COMMAND
+      wfc --eval
+      [=[Dim arr() As Long
 ReDim arr(1, 2)
 arr(0, 0) = 1
 arr(1, 2) = 6
@@ -2076,70 +2265,84 @@ Print arr(0, 0) & " " & arr(1, 4) & " " & UBound(arr, 2)
 Erase arr
 ReDim arr(2, 2)
 Print UBound(arr, 2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-dynamic-multidim-array-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array"
-            PASS_REGULAR_EXPRESSION "1 6 2.*1 9 4.*2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-dynamic-multidim-array-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array"
+      PASS_REGULAR_EXPRESSION "1 6 2.*1 9 4.*2"
+  )
 
-    add_test(
-        NAME TC-MP0002-format-sections-cli
-        COMMAND wfc --eval [=[Print Format(1234.5, "0.00;(0.00)") & " " & Format(-1234.5, "0.00;(0.00)")
-Print Format(-1234567, "$#,##0;($#,##0)") & " " & Format(1234567, "$#,##0;($#,##0)")
+  add_test(
+    NAME TC-MP0002-format-sections-cli
+    COMMAND
+      wfc --eval
+      [=[Print Format(1234.5, "0.00;(0.00)") & " " & Format(-1234.5, _
+"0.00;(0.00)")
+Print Format(-1234567, "$#,##0;($#,##0)") & " " & Format(1234567, _
+"$#,##0;($#,##0)")
 Print Format(0, "0;-0;0 Zero")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-format-sections-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "1234.50 \\(1234.50\\).*\\(\\$1,234,567\\) \\$1,234,567.*0 Zero"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-format-sections-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION
+        "1234.50 \\(1234.50\\).*\\(\\$1,234,567\\) \\$1,234,567.*0 Zero"
+  )
 
-    add_test(
-        NAME TC-MP0002-format-escape-cli
-        COMMAND wfc --eval [=[Print Format(5, "\0\0\0")
+  add_test(
+    NAME TC-MP0002-format-escape-cli
+    COMMAND
+      wfc --eval
+      [=[Print Format(5, "\0\0\0")
 Print Format(1234, "0\,000")
 Print Format(5, "0\;0")
 Print Format(5, "0\.0") & " " & Format(5, "\\0")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-format-escape-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "5000.*1,234.*0;5.*0.5 \\\\5"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-format-escape-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "5000.*1,234.*0;5.*0.5 \\\\5"
+  )
 
-    add_test(
-        NAME TC-MP0002-format-quoted-text-cli
-        COMMAND wfc --eval [=[Print Format(1234, "0 ""units""")
+  add_test(
+    NAME TC-MP0002-format-quoted-text-cli
+    COMMAND
+      wfc --eval
+      [=[Print Format(1234, "0 ""units""")
 Print Format(1234, """Total: ""0")
-Print Format(5, "0 ""pos"";0 ""neg""") & " " & Format(-5, "0 ""pos"";0 ""neg""")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-format-quoted-text-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "1234 units.*Total: 1234.*5 pos 5 neg"
-    )
+Print Format(5, "0 ""pos"";0 ""neg""") & " " & Format(-5, _
+"0 ""pos"";0 ""neg""")]=]
+  )
+  set_tests_properties(
+    TC-MP0002-format-quoted-text-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "1234 units.*Total: 1234.*5 pos 5 neg"
+  )
 
-    add_test(
-        NAME TC-MP0002-format-percent-picture-cli
-        COMMAND wfc --eval [=[Print Format(0.5, "0.00%") & " " & Format(-0.256, "0.0%")
+  add_test(
+    NAME TC-MP0002-format-percent-picture-cli
+    COMMAND
+      wfc --eval
+      [=[Print Format(0.5, "0.00%") & " " & Format(-0.256, "0.0%")
 Print Format(0.4, "0\%") & " " & Format(0.4, "0""%""")
 Print Format(1.5, "0%;(0%)") & " " & Format(-1.5, "0%;(0%)")]=]
-    )
-    set_tests_properties(
-        TC-MP0002-format-percent-picture-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;expressions;vba;conversion"
-            PASS_REGULAR_EXPRESSION "50.00% -25.6%.*0% 0%.*150% \\(150%\\)"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-format-percent-picture-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;expressions;vba;conversion"
+      PASS_REGULAR_EXPRESSION "50.00% -25.6%.*0% 0%.*150% \\(150%\\)"
+  )
 
-    add_test(
-        NAME TC-MP0002-ismissing-cli
-        COMMAND wfc --eval [=[Function Test(Optional x As Variant) As String
+  add_test(
+    NAME TC-MP0002-ismissing-cli
+    COMMAND
+      wfc --eval
+      [=[Function Test(Optional x As Variant) As String
 If IsMissing(x) Then
 Test = "missing"
 Else
@@ -2152,17 +2355,19 @@ Function T2(Optional y As Long) As String
 T2 = CStr(IsMissing(y))
 End Function
 Print T2()]=]
-    )
-    set_tests_properties(
-        TC-MP0002-ismissing-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;information"
-            PASS_REGULAR_EXPRESSION "missing.*have 5.*False"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-ismissing-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;information"
+      PASS_REGULAR_EXPRESSION "missing.*have 5.*False"
+  )
 
-    add_test(
-        NAME TC-MP0002-unconditional-do-loop-cli
-        COMMAND wfc --eval [=[Dim index As Long
+  add_test(
+    NAME TC-MP0002-unconditional-do-loop-cli
+    COMMAND
+      wfc --eval
+      [=[Dim index As Long
 Do
 index = index + 1
 If index = 3 Then
@@ -2171,17 +2376,19 @@ End If
 Print index
 Loop
 Print index]=]
-    )
-    set_tests_properties(
-        TC-MP0002-unconditional-do-loop-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;loops"
-            PASS_REGULAR_EXPRESSION "1.*2.*3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-unconditional-do-loop-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;loops"
+      PASS_REGULAR_EXPRESSION "1.*2.*3"
+  )
 
-    add_test(
-        NAME TC-MP0002-option-base-cli
-        COMMAND wfc --eval [=[Option Base 1
+  add_test(
+    NAME TC-MP0002-option-base-cli
+    COMMAND
+      wfc --eval
+      [=[Option Base 1
 Dim arr(3) As Long
 arr(1) = 10
 arr(3) = 30
@@ -2190,17 +2397,19 @@ Dim m(2, 3) As Long
 Print LBound(m) & " " & UBound(m) & " " & LBound(m, 2) & " " & UBound(m, 2)
 Dim explicitBound(5 To 9) As Long
 Print LBound(explicitBound) & " " & UBound(explicitBound)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-option-base-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;array"
-            PASS_REGULAR_EXPRESSION "1 3 10 30.*1 2 1 3.*5 9"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-option-base-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;array"
+      PASS_REGULAR_EXPRESSION "1 3 10 30.*1 2 1 3.*5 9"
+  )
 
-    add_test(
-        NAME TC-MP0002-const-inferred-type-cli
-        COMMAND wfc --eval [=[Const x = 5
+  add_test(
+    NAME TC-MP0002-const-inferred-type-cli
+    COMMAND
+      wfc --eval
+      [=[Const x = 5
 Print x & " " & TypeName(x)
 Const y = "hello"
 Print y & " " & TypeName(y)
@@ -2208,22 +2417,25 @@ Const w = 3.14
 Print w & " " & TypeName(w)
 Const z = x + 10
 Print z & " " & TypeName(z)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-const-inferred-type-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;constants"
-            PASS_REGULAR_EXPRESSION "5 Integer.*hello String.*3.14 Double.*15 Integer"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-const-inferred-type-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;constants"
+      PASS_REGULAR_EXPRESSION "5 Integer.*hello String.*3.14 Double.*15 Integer"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-typed-parameter-cli
-        COMMAND wfc --class Counter [=[Public n As Long
+  add_test(
+    NAME TC-MP0002-class-typed-parameter-cli
+    COMMAND
+      wfc --class Counter
+      [=[Public n As Long
 
 Sub Class_Terminate()
 Print "terminated " & n
 End Sub]=]
-            --eval [=[Sub PrintIt(c As Counter)
+      --eval
+      [=[Sub PrintIt(c As Counter)
 Print c.n
 End Sub
 Dim a As New Counter
@@ -2236,17 +2448,19 @@ End Sub
 Call Replace(a)
 Print a.n
 Set a = Nothing]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-typed-parameter-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;classes"
-            PASS_REGULAR_EXPRESSION "5.*terminated 5.*99.*terminated 99"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-typed-parameter-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;classes"
+      PASS_REGULAR_EXPRESSION "5.*terminated 5.*99.*terminated 99"
+  )
 
-    add_test(
-        NAME TC-MP0002-nothing-dead-branch-cli
-        COMMAND wfc --class Counter [=[Public n As Long
+  add_test(
+    NAME TC-MP0002-nothing-dead-branch-cli
+    COMMAND
+      wfc --class Counter
+      [=[Public n As Long
 
 Property Let P(v As Long)
 n = v
@@ -2255,7 +2469,8 @@ End Property
 Sub Bump(amount As Long)
 n = n + amount
 End Sub]=]
-            --eval [=[Dim o As Counter
+      --eval
+      [=[Dim o As Counter
 If o Is Nothing Then
 Print "nothing1"
 Else
@@ -2271,22 +2486,25 @@ Print "nothing3"
 Else
 Call o.Bump(1 + 2)
 End If]=]
-    )
-    set_tests_properties(
-        TC-MP0002-nothing-dead-branch-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;object;classes"
-            PASS_REGULAR_EXPRESSION "nothing1.*nothing2.*nothing3"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-nothing-dead-branch-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;object;classes"
+      PASS_REGULAR_EXPRESSION "nothing1.*nothing2.*nothing3"
+  )
 
-    add_test(
-        NAME TC-MP0002-static-object-lifetime-cli
-        COMMAND wfc --class Counter [=[Public n As Long
+  add_test(
+    NAME TC-MP0002-static-object-lifetime-cli
+    COMMAND
+      wfc --class Counter
+      [=[Public n As Long
 
 Sub Class_Terminate()
 Print "terminated " & n
 End Sub]=]
-            --eval [=[Sub Track(mark As Long)
+      --eval
+      [=[Sub Track(mark As Long)
 Static v As Variant
 Set v = New Counter
 v.n = mark
@@ -2294,18 +2512,19 @@ Print "set " & mark
 End Sub
 Call Track(1)
 Call Track(2)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-static-object-lifetime-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;object;classes"
-            PASS_REGULAR_EXPRESSION "set 1.*set 2.*terminated 1.*terminated 2"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-static-object-lifetime-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;object;classes"
+      PASS_REGULAR_EXPRESSION "set 1.*set 2.*terminated 1.*terminated 2"
+  )
 
-    add_test(
-        NAME TC-MP0002-static-array-and-class-cli
-        COMMAND wfc --class Counter [=[Public n As Long]=]
-            --eval [=[Sub Track(mark As Long)
+  add_test(
+    NAME TC-MP0002-static-array-and-class-cli
+    COMMAND
+      wfc --class Counter [=[Public n As Long]=] --eval
+      [=[Sub Track(mark As Long)
 Static v As Counter
 If v Is Nothing Then
 Set v = New Counter
@@ -2322,22 +2541,25 @@ Print history(0) & " " & history(1) & " " & history(2)
 End Sub
 Call Fill(0)
 Call Fill(1)]=]
-    )
-    set_tests_properties(
-        TC-MP0002-static-array-and-class-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;procedures;array;classes"
-            PASS_REGULAR_EXPRESSION "1.*3.*0 0 0.*0 10 0"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-static-array-and-class-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;procedures;array;classes"
+      PASS_REGULAR_EXPRESSION "1.*3.*0 0 0.*0 10 0"
+  )
 
-    add_test(
-        NAME TC-MP0002-interfaces-cli
-        COMMAND wfc
-            --class IShape [=[Public Sub Draw()
+  add_test(
+    NAME TC-MP0002-interfaces-cli
+    COMMAND
+      wfc --class IShape
+      [=[Public Sub Draw()
 End Sub]=]
-            --class IArea [=[Public Property Get Area() As Long
+      --class IArea
+      [=[Public Property Get Area() As Long
 End Property]=]
-            --class Circle [=[Implements IShape
+      --class Circle
+      [=[Implements IShape
 Implements IArea
 Public Radius As Long
 
@@ -2348,13 +2570,15 @@ End Sub
 Private Property Get IArea_Area() As Long
 IArea_Area = Radius * Radius
 End Property]=]
-            --class Square [=[Implements IShape
+      --class Square
+      [=[Implements IShape
 Public Side As Long
 
 Private Sub IShape_Draw()
 Print "Square with side " & Side
 End Sub]=]
-            --eval [=[Dim s As IShape
+      --eval
+      [=[Dim s As IShape
 Dim c As New Circle
 c.Radius = 5
 Set s = c
@@ -2366,31 +2590,35 @@ Call s.Draw()
 Dim a As IArea
 Set a = c
 Print a.Area]=]
-    )
-    set_tests_properties(
-        TC-MP0002-interfaces-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "Circle with radius 5.*Square with side 3.*25"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-interfaces-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION "Circle with radius 5.*Square with side 3.*25"
+  )
 
-    add_test(
-        NAME TC-MP0002-class-terminate-cascade-cli
-        COMMAND wfc
-            --class Deepest [=[Sub Class_Terminate()
+  add_test(
+    NAME TC-MP0002-class-terminate-cascade-cli
+    COMMAND
+      wfc --class Deepest
+      [=[Sub Class_Terminate()
 Print "deepest terminated"
 End Sub]=]
-            --class Middle [=[Public d As Deepest
+      --class Middle
+      [=[Public d As Deepest
 
 Sub Class_Terminate()
 Print "middle terminated"
 End Sub]=]
-            --class Top [=[Public m As Middle
+      --class Top
+      [=[Public m As Middle
 
 Sub Class_Terminate()
 Print "top terminated"
 End Sub]=]
-            --eval [=[Sub MakeIt()
+      --eval
+      [=[Sub MakeIt()
 Dim t As New Top
 Dim mm As New Middle
 Dim dd As New Deepest
@@ -2402,11 +2630,12 @@ Print "leaving"
 End Sub
 Call MakeIt()
 Print "after"]=]
-    )
-    set_tests_properties(
-        TC-MP0002-class-terminate-cascade-cli
-        PROPERTIES
-            LABELS "integration;mp-0002;statements;classes;object"
-            PASS_REGULAR_EXPRESSION "leaving.*top terminated.*middle terminated.*deepest terminated.*after"
-    )
+  )
+  set_tests_properties(
+    TC-MP0002-class-terminate-cascade-cli
+    PROPERTIES
+      LABELS "integration;mp-0002;statements;classes;object"
+      PASS_REGULAR_EXPRESSION
+        "leaving.*top terminated.*middle terminated.*deepest terminated.*after"
+  )
 endif()

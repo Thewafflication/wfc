@@ -1,13 +1,14 @@
-// Interpreter: Expression parsing, literals, conversions, comparison, and arithmetic.
-// Internal to the WFC evaluator; not part of the public API.
-// Split out of src/evaluator.cpp; see src/interpreter/README.md.
+// Interpreter: Expression parsing, literals, conversions, comparison, and
+// arithmetic. Internal to the WFC evaluator; not part of the public API. Split
+// out of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
 
 namespace wfc::detail {
 
-bool Interpreter::implicit_scalar_conversion(
-    Value& value, const std::size_t target_index, const std::size_t offset) {
+bool Interpreter::implicit_scalar_conversion(Value& value,
+                                             const std::size_t target_index,
+                                             const std::size_t offset) {
     const std::size_t object_index = Value{ObjectInstance{}}.index();
     if (value.index() == object_index && target_index != object_index &&
         !resolve_default_value(value, offset)) {
@@ -17,17 +18,24 @@ bool Interpreter::implicit_scalar_conversion(
     const std::size_t string_index = Value{std::string{}}.index();
     const std::size_t bool_index = Value{false}.index();
     const bool target_numeric = target_index == long_index ||
-        target_index == Value{Int16{}}.index() || target_index == Value{Byte{}}.index() ||
-        target_index == Value{0.0}.index() || target_index == Value{0.0f}.index() ||
-        target_index == Value{Currency{}}.index() || target_index == Value{Decimal{}}.index();
+                                target_index == Value{Int16{}}.index() ||
+                                target_index == Value{Byte{}}.index() ||
+                                target_index == Value{0.0}.index() ||
+                                target_index == Value{0.0f}.index() ||
+                                target_index == Value{Currency{}}.index() ||
+                                target_index == Value{Decimal{}}.index();
     const bool target_scalar = target_numeric || target_index == string_index ||
-        target_index == bool_index || target_index == Value{DateValue{}}.index();
+                               target_index == bool_index ||
+                               target_index == Value{DateValue{}}.index();
     if (!target_scalar) {
         return true;
     }
-    const bool source_scalar = is_number(value) || std::holds_alternative<bool>(value) ||
-        std::holds_alternative<std::string>(value) || std::holds_alternative<Empty>(value) ||
-        std::holds_alternative<DateValue>(value) || std::holds_alternative<Null>(value);
+    const bool source_scalar = is_number(value) ||
+                               std::holds_alternative<bool>(value) ||
+                               std::holds_alternative<std::string>(value) ||
+                               std::holds_alternative<Empty>(value) ||
+                               std::holds_alternative<DateValue>(value) ||
+                               std::holds_alternative<Null>(value);
     if (!source_scalar) {
         return true;
     }
@@ -45,7 +53,8 @@ bool Interpreter::implicit_scalar_conversion(
     }
     if (!execute_) {
         // Dry run: the operand is a placeholder; only the type matters.
-        if (target_index == bool_index || target_index == string_index || target_numeric) {
+        if (target_index == bool_index || target_index == string_index ||
+            target_numeric) {
             value = zero_value_for_index(target_index);
         }
         return true;
@@ -69,9 +78,17 @@ bool Interpreter::implicit_scalar_conversion(
         }
         if (target_index == bool_index) {
             std::string lowered;
-            for (const char c : *text) lowered.push_back(ascii_lower(c));
-            if (lowered == "true") { value = true; return true; }
-            if (lowered == "false") { value = false; return true; }
+            for (const char c : *text) {
+                lowered.push_back(ascii_lower(c));
+            }
+            if (lowered == "true") {
+                value = true;
+                return true;
+            }
+            if (lowered == "false") {
+                value = false;
+                return true;
+            }
         }
         if (target_index == Value{DateValue{}}.index()) {
             return true;  // handled by the Date branch below
@@ -131,10 +148,9 @@ bool Interpreter::implicit_scalar_conversion(
     return true;
 }
 
-bool Interpreter::coerce_numeric_value(
-    Value& value,
-    const std::size_t target_index,
-    const std::size_t offset) {
+bool Interpreter::coerce_numeric_value(Value& value,
+                                       const std::size_t target_index,
+                                       const std::size_t offset) {
     if (value.index() == target_index) {
         return true;
     }
@@ -153,7 +169,8 @@ bool Interpreter::coerce_numeric_value(
         if (const auto* integer = std::get_if<Integer>(&value)) {
             result.negative = *integer < 0;
             result.mantissa = big_from_u32(static_cast<std::uint32_t>(
-                *integer < 0 ? -static_cast<std::int64_t>(*integer) : *integer));
+                *integer < 0 ? -static_cast<std::int64_t>(*integer)
+                             : *integer));
         } else if (const auto* short_integer = std::get_if<Int16>(&value)) {
             result.negative = *short_integer < 0;
             result.mantissa = big_from_u32(static_cast<std::uint32_t>(
@@ -163,11 +180,13 @@ bool Interpreter::coerce_numeric_value(
             result.mantissa = big_from_u32(static_cast<std::uint32_t>(*byte));
         } else if (const auto* currency = std::get_if<Currency>(&value)) {
             result.negative = currency->scaled < 0;
-            const auto magnitude = currency->scaled < 0
-                ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
-                : static_cast<std::uint64_t>(currency->scaled);
+            const auto magnitude =
+                currency->scaled < 0
+                    ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
+                    : static_cast<std::uint64_t>(currency->scaled);
             result.mantissa.limb[0] = static_cast<std::uint32_t>(magnitude);
-            result.mantissa.limb[1] = static_cast<std::uint32_t>(magnitude >> 32U);
+            result.mantissa.limb[1] =
+                static_cast<std::uint32_t>(magnitude >> 32U);
             result.scale = 4U;
         } else {
             const auto converted = decimal_from_double(as_double(value));
@@ -217,8 +236,10 @@ bool Interpreter::coerce_numeric_value(
             value = render_date(date->serial);
             return true;
         }
-        if (target_index != Value{Empty{}}.index() && target_index != Value{Null{}}.index() &&
-            target_index != Value{Nothing{}}.index() && target_index != Value{false}.index()) {
+        if (target_index != Value{Empty{}}.index() &&
+            target_index != Value{Null{}}.index() &&
+            target_index != Value{Nothing{}}.index() &&
+            target_index != Value{false}.index()) {
             value = date->serial;
             return coerce_numeric_value(value, target_index, offset);
         }
@@ -284,7 +305,8 @@ bool Interpreter::coerce_numeric_value(
             return true;
         }
         if (const auto* single = std::get_if<float>(&value)) {
-            const auto scaled = currency_from_double(static_cast<double>(*single));
+            const auto scaled =
+                currency_from_double(static_cast<double>(*single));
             if (!scaled.has_value()) {
                 set_error("WFC0009", "numeric overflow", offset);
                 return false;
@@ -310,8 +332,10 @@ bool Interpreter::coerce_numeric_value(
         }
         if (const auto* number = std::get_if<double>(&value)) {
             const double rounded = std::nearbyint(*number);
-            if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
-                  rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+            if (!(rounded >=
+                      static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                  rounded <=
+                      static_cast<double>(std::numeric_limits<Int16>::max()))) {
                 set_error("WFC0009", "integer overflow", offset);
                 return false;
             }
@@ -320,8 +344,10 @@ bool Interpreter::coerce_numeric_value(
         }
         if (const auto* single = std::get_if<float>(&value)) {
             const double rounded = std::nearbyint(static_cast<double>(*single));
-            if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
-                  rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+            if (!(rounded >=
+                      static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                  rounded <=
+                      static_cast<double>(std::numeric_limits<Int16>::max()))) {
                 set_error("WFC0009", "integer overflow", offset);
                 return false;
             }
@@ -330,8 +356,10 @@ bool Interpreter::coerce_numeric_value(
         }
         if (std::holds_alternative<Currency>(value)) {
             const double rounded = std::nearbyint(as_double(value));
-            if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
-                  rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
+            if (!(rounded >=
+                      static_cast<double>(std::numeric_limits<Int16>::min()) &&
+                  rounded <=
+                      static_cast<double>(std::numeric_limits<Int16>::max()))) {
                 set_error("WFC0009", "integer overflow", offset);
                 return false;
             }
@@ -492,12 +520,13 @@ std::optional<Value> Interpreter::parse_not() {
     return Value{!operand->value};
 }
 
-bool Interpreter::like_match(
-    const std::string& text, const std::string& pattern, const bool fold) {
+bool Interpreter::like_match(const std::string& text,
+                             const std::string& pattern, const bool fold) {
     if (is_ascii_text(text) && is_ascii_text(pattern)) {
         return like_match_units(text, pattern, fold);
     }
-    return like_match_units(to_utf16_units(text), to_utf16_units(pattern), fold);
+    return like_match_units(to_utf16_units(text), to_utf16_units(pattern),
+                            fold);
 }
 
 std::optional<Value> Interpreter::parse_comparison() {
@@ -507,78 +536,83 @@ std::optional<Value> Interpreter::parse_comparison() {
     }
 
     while (true) {
-    skip_horizontal_whitespace();
-    const auto operator_offset = offset_;
-    if (consume_keyword("is")) {
+        skip_horizontal_whitespace();
+        const auto operator_offset = offset_;
+        if (consume_keyword("is")) {
+            skip_horizontal_whitespace();
+            auto right = parse_concatenation();
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
+            // `Is` compares two object references for identity: Nothing Is
+            // Nothing is always True; two live instances are the same
+            // object exactly when they share the same underlying
+            // InstanceData (Value's variant-generated operator== already
+            // does the right thing for both cases, since ObjectInstance's
+            // own operator== compares the shared_ptr, not field contents).
+            // Both operands must still be object references, matching real
+            // VB6's requirement that Is only accepts object operands.
+            if (!is_object_reference(*left) || !is_object_reference(*right)) {
+                if (!execute_) {
+                    left = Value{
+                        false};  // placeholder operand of a not-taken branch
+                    continue;
+                }
+                set_error("WFC0107", "Is requires object operands",
+                          operator_offset);
+                return std::nullopt;
+            }
+            left = Value{*left == *right};
+            continue;
+        }
+        if (consume_keyword("like")) {
+            skip_horizontal_whitespace();
+            auto pattern = parse_concatenation();
+            if (!pattern.has_value()) {
+                return std::nullopt;
+            }
+            const auto* text = std::get_if<std::string>(&*left);
+            const auto* mask = std::get_if<std::string>(&*pattern);
+            if ((text == nullptr || mask == nullptr) && !execute_) {
+                left = Value{false};
+                continue;
+            }
+            if (text == nullptr || mask == nullptr) {
+                set_error("WFC0018", "Like requires String operands",
+                          operator_offset);
+                return std::nullopt;
+            }
+            left =
+                Value{execute_ ? like_match(*text, *mask, option_compare_text_)
+                               : false};
+            continue;
+        }
+        std::string_view operation;
+        if (consume('=')) {
+            operation = "=";
+        } else if (consume('<')) {
+            if (consume('=')) {
+                operation = "<=";
+            } else if (consume('>')) {
+                operation = "<>";
+            } else {
+                operation = "<";
+            }
+        } else if (consume('>')) {
+            operation = consume('=') ? ">=" : ">";
+        } else {
+            return left;
+        }
+
         skip_horizontal_whitespace();
         auto right = parse_concatenation();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        // `Is` compares two object references for identity: Nothing Is
-        // Nothing is always True; two live instances are the same
-        // object exactly when they share the same underlying
-        // InstanceData (Value's variant-generated operator== already
-        // does the right thing for both cases, since ObjectInstance's
-        // own operator== compares the shared_ptr, not field contents).
-        // Both operands must still be object references, matching real
-        // VB6's requirement that Is only accepts object operands.
-        if (!is_object_reference(*left) || !is_object_reference(*right)) {
-            if (!execute_) {
-                left = Value{false};  // placeholder operand of a not-taken branch
-                continue;
-            }
-            set_error("WFC0107", "Is requires object operands", operator_offset);
+        left = compare(*left, *right, operation, operator_offset);
+        if (!left.has_value()) {
             return std::nullopt;
         }
-        left = Value{*left == *right};
-        continue;
-    }
-    if (consume_keyword("like")) {
-        skip_horizontal_whitespace();
-        auto pattern = parse_concatenation();
-        if (!pattern.has_value()) {
-            return std::nullopt;
-        }
-        const auto* text = std::get_if<std::string>(&*left);
-        const auto* mask = std::get_if<std::string>(&*pattern);
-        if ((text == nullptr || mask == nullptr) && !execute_) {
-            left = Value{false};
-            continue;
-        }
-        if (text == nullptr || mask == nullptr) {
-            set_error("WFC0018", "Like requires String operands", operator_offset);
-            return std::nullopt;
-        }
-        left = Value{execute_ ? like_match(*text, *mask, option_compare_text_) : false};
-        continue;
-    }
-    std::string_view operation;
-    if (consume('=')) {
-        operation = "=";
-    } else if (consume('<')) {
-        if (consume('=')) {
-            operation = "<=";
-        } else if (consume('>')) {
-            operation = "<>";
-        } else {
-            operation = "<";
-        }
-    } else if (consume('>')) {
-        operation = consume('=') ? ">=" : ">";
-    } else {
-        return left;
-    }
-
-    skip_horizontal_whitespace();
-    auto right = parse_concatenation();
-    if (!right.has_value()) {
-        return std::nullopt;
-    }
-    left = compare(*left, *right, operation, operator_offset);
-    if (!left.has_value()) {
-        return std::nullopt;
-    }
     }
 }
 
@@ -621,14 +655,16 @@ std::optional<Value> Interpreter::parse_concatenation() {
         if (is_object_reference(*left) || is_object_reference(*right) ||
             std::holds_alternative<ArrayValue>(*left) ||
             std::holds_alternative<ArrayValue>(*right)) {
-            set_error(
-                "WFC0020", "concatenation requires String or Long operands", operator_offset);
+            set_error("WFC0020",
+                      "concatenation requires String or Long operands",
+                      operator_offset);
             return std::nullopt;
         }
         if (auto* text = std::get_if<std::string>(&*left)) {
             if (const auto* tail = std::get_if<std::string>(&*right)) {
                 const auto left_size = text->size();
-                text->append(*tail);  // extend in place instead of copying `left` again
+                text->append(
+                    *tail);  // extend in place instead of copying `left` again
                 merge_byte_halves(*text, left_size);
                 continue;
             }
@@ -692,8 +728,8 @@ std::optional<Value> Interpreter::parse_star_slash() {
             return std::nullopt;
         }
         left = integer_only
-            ? integer_binary(*left, *right, operation, operator_offset)
-            : numeric_binary(*left, *right, operation, operator_offset);
+                   ? integer_binary(*left, *right, operation, operator_offset)
+                   : numeric_binary(*left, *right, operation, operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
@@ -787,7 +823,8 @@ std::optional<Value> Interpreter::parse_unary() {
             const auto literal_start = offset_;
             const bool parsed_literal = parse_number().has_value();
             skip_horizontal_whitespace();
-            const bool followed_by_power = parsed_literal && !at_end() && current() == '^';
+            const bool followed_by_power =
+                parsed_literal && !at_end() && current() == '^';
             offset_ = literal_start;
             error_ = wfc::Evaluation{};
             if (!followed_by_power) {
@@ -803,7 +840,8 @@ std::optional<Value> Interpreter::parse_unary() {
             value = Value{static_cast<Int16>(*flag ? -1 : 0)};
         }
         if (const auto* byte = std::get_if<Byte>(&*value)) {
-            value = Value{static_cast<Int16>(*byte)};  // negated below as an Integer
+            value = Value{
+                static_cast<Int16>(*byte)};  // negated below as an Integer
         }
         if (std::holds_alternative<Null>(*value)) {
             return value;
@@ -890,20 +928,28 @@ std::optional<Value> Interpreter::parse_power() {
         if (!right.has_value()) {
             return std::nullopt;
         }
-        if (std::holds_alternative<Null>(*left) || std::holds_alternative<Null>(*right)) {
+        if (std::holds_alternative<Null>(*left) ||
+            std::holds_alternative<Null>(*right)) {
             left = Value{Null{}};
             continue;
         }
         const auto operand = [](const Value& v) -> std::optional<double> {
-            if (std::holds_alternative<Empty>(v)) return 0.0;
-            if (is_number(v)) return as_double(v);
-            if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
+            if (std::holds_alternative<Empty>(v)) {
+                return 0.0;
+            }
+            if (is_number(v)) {
+                return as_double(v);
+            }
+            if (const auto* d = std::get_if<DateValue>(&v)) {
+                return d->serial;
+            }
             return std::nullopt;
         };
         const auto base = operand(*left);
         auto exponent = operand(*right);
         if (!base.has_value() || !exponent.has_value()) {
-            set_error("WFC0007", "operator requires numeric operands", operator_offset);
+            set_error("WFC0007", "operator requires numeric operands",
+                      operator_offset);
             return std::nullopt;
         }
         if (negate) {
@@ -944,14 +990,18 @@ std::optional<Value> Interpreter::parse_primary() {
         skip_horizontal_whitespace();
         char lookahead_type_character{};
         auto lookahead_identifier = parse_identifier(&lookahead_type_character);
-        if (lookahead_identifier.has_value() && lookahead_type_character == '\0') {
+        if (lookahead_identifier.has_value() &&
+            lookahead_type_character == '\0') {
             const auto variable = find_variable(*lookahead_identifier);
             if (variable.value != nullptr) {
                 const auto declared_class =
-                    variable.scope->object_class_names.find(*lookahead_identifier);
-                if (declared_class != variable.scope->object_class_names.end()) {
+                    variable.scope->object_class_names.find(
+                        *lookahead_identifier);
+                if (declared_class !=
+                    variable.scope->object_class_names.end()) {
                     declared_interface_class = declared_class->second;
-                } else if (const auto* array = std::get_if<ArrayValue>(variable.value)) {
+                } else if (const auto* array =
+                               std::get_if<ArrayValue>(variable.value)) {
                     // An array of interface-typed references dispatches
                     // through the element class the same way.
                     if (array->is_object_element) {
@@ -968,16 +1018,20 @@ std::optional<Value> Interpreter::parse_primary() {
     }
     bool is_first_member_access = true;
     while (true) {
-        // `jag(2)(1)`, `Split(s)(0)`: index the array a previous primary produced.
-        if (!at_end() && current() == '(' && std::holds_alternative<ArrayValue>(*value)) {
+        // `jag(2)(1)`, `Split(s)(0)`: index the array a previous primary
+        // produced.
+        if (!at_end() && current() == '(' &&
+            std::holds_alternative<ArrayValue>(*value)) {
             value = parse_array_index(*value);
             if (!value.has_value()) {
                 return std::nullopt;
             }
             continue;
         }
-        if (!execute_ && !at_end() && current() == '(' && !is_object_reference(*value)) {
-            // A not-taken branch: the placeholder stands for an array element's array.
+        if (!execute_ && !at_end() && current() == '(' &&
+            !is_object_reference(*value)) {
+            // A not-taken branch: the placeholder stands for an array element's
+            // array.
             advance();
             if (!parse_index_list(kAnyDimensionCount).has_value()) {
                 return std::nullopt;
@@ -1002,8 +1056,8 @@ std::optional<Value> Interpreter::parse_primary() {
 
 std::optional<Value> Interpreter::parse_primary_base() {
     skip_horizontal_whitespace();
-    if (at_end() || current() == '\r' || current() == '\n' || current() == ':' ||
-        current() == '\'') {
+    if (at_end() || current() == '\r' || current() == '\n' ||
+        current() == ':' || current() == '\'') {
         set_error("WFC0002", "expected expression", offset_);
         return std::nullopt;
     }
@@ -1011,7 +1065,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
     if (current() == '"') {
         return parse_string();
     }
-    if (current() == '&' && (ascii_lower(peek(1)) == 'h' || ascii_lower(peek(1)) == 'o')) {
+    if (current() == '&' &&
+        (ascii_lower(peek(1)) == 'h' || ascii_lower(peek(1)) == 'o')) {
         // REQ-0244: `&HFF` / `&O17` (optionally `&`-suffixed for Long).
         const bool hex = ascii_lower(peek(1)) == 'h';
         const auto literal_offset = offset_;
@@ -1021,12 +1076,19 @@ std::optional<Value> Interpreter::parse_primary_base() {
         while (!at_end()) {
             const char c = ascii_lower(current());
             int digit = -1;
-            if (c >= '0' && c <= '9') digit = c - '0';
-            else if (hex && c >= 'a' && c <= 'f') digit = c - 'a' + 10;
-            if (digit < 0 || (!hex && digit > 7)) break;
-            magnitude = magnitude * (hex ? 16U : 8U) + static_cast<std::uint64_t>(digit);
+            if (c >= '0' && c <= '9') {
+                digit = c - '0';
+            } else if (hex && c >= 'a' && c <= 'f') {
+                digit = c - 'a' + 10;
+            }
+            if (digit < 0 || (!hex && digit > 7)) {
+                break;
+            }
+            magnitude = magnitude * (hex ? 16U : 8U) +
+                        static_cast<std::uint64_t>(digit);
             if (magnitude > 0xFFFFFFFFULL) {
-                set_error("WFC0006", "integer literal out of range", literal_offset);
+                set_error("WFC0006", "integer literal out of range",
+                          literal_offset);
                 return std::nullopt;
             }
             ++digits;
@@ -1041,9 +1103,11 @@ std::optional<Value> Interpreter::parse_primary_base() {
             advance();
         }
         if (!long_suffix && magnitude <= 0xFFFFULL) {
-            return Value{static_cast<Int16>(static_cast<std::uint16_t>(magnitude))};
+            return Value{
+                static_cast<Int16>(static_cast<std::uint16_t>(magnitude))};
         }
-        return Value{static_cast<Integer>(static_cast<std::uint32_t>(magnitude))};
+        return Value{
+            static_cast<Integer>(static_cast<std::uint32_t>(magnitude))};
     }
     if (current() == '#') {
         // REQ-0242: a Date literal `#m/d/yyyy h:mm:ss AM#`.
@@ -1052,13 +1116,18 @@ std::optional<Value> Interpreter::parse_primary_base() {
             // `#3` in an argument list (`Input(5, #1)`) is a file number.
             std::size_t look = offset_ + 1;
             while (look < source_.size() &&
-                   std::isdigit(static_cast<unsigned char>(source_[look])) != 0) {
+                   std::isdigit(static_cast<unsigned char>(source_[look])) !=
+                       0) {
                 ++look;
             }
             std::size_t after = look;
-            while (after < source_.size() && (source_[after] == ' ' || source_[after] == '\t')) ++after;
+            while (after < source_.size() &&
+                   (source_[after] == ' ' || source_[after] == '\t')) {
+                ++after;
+            }
             if (look > offset_ + 1 &&
-                (after >= source_.size() || source_[after] == ')' || source_[after] == ',')) {
+                (after >= source_.size() || source_[after] == ')' ||
+                 source_[after] == ',')) {
                 Integer file_number = 0;
                 for (std::size_t k = offset_ + 1; k < look; ++k) {
                     file_number = file_number * 10 + (source_[k] - '0');
@@ -1069,14 +1138,16 @@ std::optional<Value> Interpreter::parse_primary_base() {
         }
         advance();
         const auto text_start = offset_;
-        while (!at_end() && current() != '#' && current() != '\r' && current() != '\n') {
+        while (!at_end() && current() != '#' && current() != '\r' &&
+               current() != '\n') {
             advance();
         }
         if (at_end() || current() != '#') {
             set_error("WFC0006", "unterminated Date literal", literal_offset);
             return std::nullopt;
         }
-        const auto parsed = parse_date_text(source_.substr(text_start, offset_ - text_start));
+        const auto parsed =
+            parse_date_text(source_.substr(text_start, offset_ - text_start));
         advance();
         if (!parsed.has_value()) {
             set_error("WFC0006", "invalid Date literal", literal_offset);
@@ -1121,30 +1192,35 @@ std::optional<Value> Interpreter::parse_primary_base() {
             }
             skip_horizontal_whitespace();
             if (!consume_keyword("is")) {
-                set_error("WFC0010", "expected Is after TypeOf operand", offset_);
+                set_error("WFC0010", "expected Is after TypeOf operand",
+                          offset_);
                 return std::nullopt;
             }
             skip_horizontal_whitespace();
             const auto class_offset = offset_;
             auto class_name = parse_identifier();
             if (!class_name.has_value()) {
-                set_error("WFC0011", "expected class name after Is", class_offset);
+                set_error("WFC0011", "expected class name after Is",
+                          class_offset);
                 return std::nullopt;
             }
-            if (*class_name != "object" && !class_definitions_.contains(*class_name)) {
+            if (*class_name != "object" &&
+                !class_definitions_.contains(*class_name)) {
                 set_error("WFC0134", "unknown class name", class_offset);
                 return std::nullopt;
             }
             if (!is_object_reference(*operand)) {
-                set_error("WFC0107", "TypeOf requires an object operand", typeof_offset);
+                set_error("WFC0107", "TypeOf requires an object operand",
+                          typeof_offset);
                 return std::nullopt;
             }
             const auto* instance = std::get_if<ObjectInstance>(&*operand);
             if (instance == nullptr || !execute_) {
                 return Value{false};
             }
-            return Value{*class_name == "object" ||
-                         class_satisfies(instance->data->class_name, *class_name)};
+            return Value{
+                *class_name == "object" ||
+                class_satisfies(instance->data->class_name, *class_name)};
         }
         if (consume_keyword("erl")) {
             return Value{erl_};
@@ -1183,7 +1259,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
         char class_type_character{};
         auto class_name = parse_identifier(&class_type_character);
         if (!class_name.has_value() || class_type_character != '\0') {
-            set_error("WFC0011", "expected class name after New", class_name_offset);
+            set_error("WFC0011", "expected class name after New",
+                      class_name_offset);
             return std::nullopt;
         }
         return instantiate_class(*class_name, class_name_offset);
@@ -1210,17 +1287,17 @@ std::optional<Value> Interpreter::parse_primary_base() {
             if (array_variable.value != nullptr &&
                 std::holds_alternative<ArrayValue>(*array_variable.value)) {
                 if (type_character != '\0') {
-                    set_error(
-                        "WFC0016",
-                        "identifier type-declaration character mismatch",
-                        identifier_offset);
+                    set_error("WFC0016",
+                              "identifier type-declaration character mismatch",
+                              identifier_offset);
                     return std::nullopt;
                 }
                 return parse_array_index(*array_variable.value);
             }
             if (array_variable.value != nullptr && type_character == '\0') {
                 // REQ-0253/0257: a class's default member, `obj(1)`.
-                if (const auto* holder = std::get_if<ObjectInstance>(array_variable.value)) {
+                if (const auto* holder =
+                        std::get_if<ObjectInstance>(array_variable.value)) {
                     const auto class_iterator =
                         class_definitions_.find(holder->data->class_name);
                     if (class_iterator != class_definitions_.end() &&
@@ -1228,9 +1305,9 @@ std::optional<Value> Interpreter::parse_primary_base() {
                         const auto& class_def = class_iterator->second;
                         const auto& member = class_def.default_member;
                         if (class_def.methods.contains(member)) {
-                            return call_class_method(
-                                *holder->data, class_def, member, identifier_offset,
-                                /*require_function=*/true);
+                            return call_class_method(*holder->data, class_def,
+                                                     member, identifier_offset,
+                                                     /*require_function=*/true);
                         }
                         const auto getter = class_def.property_get.find(member);
                         if (getter != class_def.property_get.end()) {
@@ -1240,7 +1317,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
                             }
                             return invoke_definition(
                                 getter->second, member, std::move(*arguments),
-                                identifier_offset, class_def.source, holder->data.get());
+                                identifier_offset, class_def.source,
+                                holder->data.get());
                         }
                     }
                 }
@@ -1258,13 +1336,15 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 }
                 if (execute_) {
                     static_cast<void>(raise_runtime(
-                        91, "Object variable or With block variable not set", identifier_offset));
+                        91, "Object variable or With block variable not set",
+                        identifier_offset));
                     return std::nullopt;
                 }
                 return Value{Empty{}};
             }
             if (procedures_.contains(*identifier) &&
-                (type_character == '\0' || procedures_.at(*identifier).is_function)) {
+                (type_character == '\0' ||
+                 procedures_.at(*identifier).is_function)) {
                 return parse_procedure_call(*identifier, identifier_offset);
             }
             // An unqualified call to a sibling method of the class
@@ -1278,9 +1358,10 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 if (auto* const instance = current_instance()) {
                     if (const auto* const class_def = current_class_def()) {
                         if (class_def->methods.contains(*identifier)) {
-                            return call_class_method(
-                                *instance, *class_def, *identifier, identifier_offset,
-                                /*require_function=*/true);
+                            return call_class_method(*instance, *class_def,
+                                                     *identifier,
+                                                     identifier_offset,
+                                                     /*require_function=*/true);
                         }
                         // An unqualified indexed Property Get read
                         // (REQ-0205): `Item(0)` reaches the same
@@ -1294,8 +1375,9 @@ std::optional<Value> Interpreter::parse_primary_base() {
                                 return std::nullopt;
                             }
                             return invoke_definition(
-                                getter_iterator->second, *identifier, std::move(*arguments),
-                                identifier_offset, class_def->source, instance);
+                                getter_iterator->second, *identifier,
+                                std::move(*arguments), identifier_offset,
+                                class_def->source, instance);
                         }
                     }
                 }
@@ -1307,22 +1389,26 @@ std::optional<Value> Interpreter::parse_primary_base() {
         }
         // A declared variable shadows the built-in constants.
         const bool names_variable =
-            allow_identifiers_ && find_variable_raw(*identifier).value != nullptr;
+            allow_identifiers_ &&
+            find_variable_raw(*identifier).value != nullptr;
         if (!names_variable) {
             if (const auto global = global_class_constants_.find(*identifier);
-                global != global_class_constants_.end() && type_character == '\0') {
+                global != global_class_constants_.end() &&
+                type_character == '\0') {
                 return global->second;
             }
             if (const auto constant = vba_constant_value(*identifier)) {
                 Value value{*constant};
-                if (!type_character_matches(value, type_character, identifier_offset)) {
+                if (!type_character_matches(value, type_character,
+                                            identifier_offset)) {
                     return std::nullopt;
                 }
                 return value;
             }
             if (auto text = vba_string_constant(*identifier)) {
                 Value value{std::move(*text)};
-                if (!type_character_matches(value, type_character, identifier_offset)) {
+                if (!type_character_matches(value, type_character,
+                                            identifier_offset)) {
                     return std::nullopt;
                 }
                 return value;
@@ -1349,8 +1435,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
                             class_def->property_get.find(*identifier);
                         if (getter_iterator != class_def->property_get.end()) {
                             return invoke_definition(
-                                getter_iterator->second, *identifier, {}, identifier_offset,
-                                class_def->source, instance);
+                                getter_iterator->second, *identifier, {},
+                                identifier_offset, class_def->source, instance);
                         }
                     }
                 }
@@ -1358,7 +1444,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
             if (type_character == '\0' && *identifier == "app" &&
                 class_definitions_.contains("wfcapp")) {
                 if (!app_instance_.has_value()) {
-                    app_instance_ = instantiate_class("wfcapp", identifier_offset);
+                    app_instance_ =
+                        instantiate_class("wfcapp", identifier_offset);
                     if (!app_instance_.has_value()) {
                         return std::nullopt;
                     }
@@ -1372,16 +1459,18 @@ std::optional<Value> Interpreter::parse_primary_base() {
             // found nothing, so a local name always shadows a
             // same-named procedure, matching ordinary lexical scoping.
             if (procedures_.contains(*identifier) &&
-                (type_character == '\0' || procedures_.at(*identifier).is_function)) {
+                (type_character == '\0' ||
+                 procedures_.at(*identifier).is_function)) {
                 return parse_procedure_call(*identifier, identifier_offset);
             }
             if (type_character == '\0') {
                 if (auto* const instance = current_instance()) {
                     if (const auto* const class_def = current_class_def()) {
                         if (class_def->methods.contains(*identifier)) {
-                            return call_class_method(
-                                *instance, *class_def, *identifier, identifier_offset,
-                                /*require_function=*/true);
+                            return call_class_method(*instance, *class_def,
+                                                     *identifier,
+                                                     identifier_offset,
+                                                     /*require_function=*/true);
                         }
                     }
                 }
@@ -1402,28 +1491,31 @@ std::optional<Value> Interpreter::parse_primary_base() {
                     call_identifier.push_back(type_character);
                 }
                 const auto saved_offset = offset_;
-                auto result = parse_function_call(call_identifier, identifier_offset);
+                auto result =
+                    parse_function_call(call_identifier, identifier_offset);
                 if (result.has_value() || offset_ != saved_offset ||
                     error_.diagnostic.rfind("WFC0071 ", 0) != 0) {
                     return result;
                 }
                 error_ = wfc::Evaluation{};
             }
-            if (!strict_declarations_ && type_character == '\0' && !constant_expression_ &&
-                !in_with_identifier(*identifier)) {
-                return Value{Empty{}};  // REQ-0265: an undeclared name reads as Empty
+            if (!strict_declarations_ && type_character == '\0' &&
+                !constant_expression_ && !in_with_identifier(*identifier)) {
+                return Value{
+                    Empty{}};  // REQ-0265: an undeclared name reads as Empty
             }
             set_error("WFC0015", "undeclared variable", identifier_offset);
             return std::nullopt;
         }
-        if (!type_character_matches(*variable.value, type_character, identifier_offset)) {
+        if (!type_character_matches(*variable.value, type_character,
+                                    identifier_offset)) {
             return std::nullopt;
         }
-        if (constant_expression_ && !variable.scope->constants.contains(*identifier)) {
-            set_error(
-                "WFC0064",
-                "constant initializer cannot reference a variable",
-                identifier_offset);
+        if (constant_expression_ &&
+            !variable.scope->constants.contains(*identifier)) {
+            set_error("WFC0064",
+                      "constant initializer cannot reference a variable",
+                      identifier_offset);
             return std::nullopt;
         }
         if (variable.scope->variant_variables.contains(*identifier)) {
@@ -1479,7 +1571,8 @@ Value Interpreter::zero_value_for_index(const std::size_t type_index) {
     return Value{false};
 }
 
-std::optional<Value> Interpreter::parse_array_index(const Value& array_variable) {
+std::optional<Value> Interpreter::parse_array_index(
+    const Value& array_variable) {
     const auto& array = std::get<ArrayValue>(array_variable);
     advance();  // consume '('
     const auto dimension_count = array_expected_dimension_count(array);
@@ -1543,7 +1636,8 @@ bool Interpreter::lex_number_span() noexcept {
             advance();
         }
     }
-    if (!at_end() && (current() == 'e' || current() == 'E' || current() == 'd' || current() == 'D')) {
+    if (!at_end() && (current() == 'e' || current() == 'E' ||
+                      current() == 'd' || current() == 'D')) {
         const char sign = peek(1);
         const std::size_t digit_ahead = (sign == '+' || sign == '-') ? 2U : 1U;
         if (is_digit(peek(digit_ahead))) {
@@ -1560,70 +1654,69 @@ bool Interpreter::lex_number_span() noexcept {
     return is_float;
 }
 
-std::optional<Value> Interpreter::parse_double(
-    const std::size_t start,
-    const std::size_t end) {
+std::optional<Value> Interpreter::parse_double(const std::size_t start,
+                                               const std::size_t end) {
     double value{};
     std::string text(source_.substr(start, end - start));
     std::replace(text.begin(), text.end(), 'd', 'e');
     std::replace(text.begin(), text.end(), 'D', 'e');
-    const auto conversion = std::from_chars(text.data(), text.data() + text.size(), value);
-    if (conversion.ec != std::errc{} || conversion.ptr != text.data() + text.size()) {
+    const auto conversion =
+        std::from_chars(text.data(), text.data() + text.size(), value);
+    if (conversion.ec != std::errc{} ||
+        conversion.ptr != text.data() + text.size()) {
         set_error("WFC0006", "numeric literal is malformed", start);
         return std::nullopt;
     }
     return Value{value};
 }
 
-std::optional<Value> Interpreter::parse_single(
-    const std::size_t start,
-    const std::size_t end) {
+std::optional<Value> Interpreter::parse_single(const std::size_t start,
+                                               const std::size_t end) {
     float value{};
     std::string text(source_.substr(start, end - start));
     std::replace(text.begin(), text.end(), 'd', 'e');
     std::replace(text.begin(), text.end(), 'D', 'e');
-    const auto conversion = std::from_chars(text.data(), text.data() + text.size(), value);
-    if (conversion.ec != std::errc{} || conversion.ptr != text.data() + text.size()) {
+    const auto conversion =
+        std::from_chars(text.data(), text.data() + text.size(), value);
+    if (conversion.ec != std::errc{} ||
+        conversion.ptr != text.data() + text.size()) {
         set_error("WFC0006", "numeric literal is malformed", start);
         return std::nullopt;
     }
     return Value{value};
 }
 
-std::optional<Value> Interpreter::parse_short_integer(
-    const std::size_t start,
-    const std::size_t end) {
+std::optional<Value> Interpreter::parse_short_integer(const std::size_t start,
+                                                      const std::size_t end) {
     Int16 value{};
     const auto conversion =
         std::from_chars(source_.data() + start, source_.data() + end, value);
-    if (conversion.ec != std::errc{} || conversion.ptr != source_.data() + end) {
+    if (conversion.ec != std::errc{} ||
+        conversion.ptr != source_.data() + end) {
         set_error("WFC0006", "Integer literal is out of range", start);
         return std::nullopt;
     }
     return Value{value};
 }
 
-std::optional<Value> Interpreter::parse_currency(
-    const std::size_t start,
-    const std::size_t end) {
+std::optional<Value> Interpreter::parse_currency(const std::size_t start,
+                                                 const std::size_t end) {
     const std::string_view text = source_.substr(start, end - start);
     if (text.find_first_of("eE") != std::string_view::npos) {
-        set_error(
-            "WFC0006", "Currency literal does not support exponent notation", start);
+        set_error("WFC0006",
+                  "Currency literal does not support exponent notation", start);
         return std::nullopt;
     }
     const auto dot = text.find('.');
-    const std::string_view integer_part = dot == std::string_view::npos
-        ? text
-        : text.substr(0, dot);
+    const std::string_view integer_part =
+        dot == std::string_view::npos ? text : text.substr(0, dot);
     const std::string_view fraction_part = dot == std::string_view::npos
-        ? std::string_view{}
-        : text.substr(dot + 1U);
+                                               ? std::string_view{}
+                                               : text.substr(dot + 1U);
     if (fraction_part.size() > 4U) {
-        set_error(
-            "WFC0006",
-            "Currency literal supports at most four decimal digits",
-            start);
+        set_error("WFC0006",
+                  "Currency literal supports at most four decimal digits",
+                  start);
         return std::nullopt;
     }
     std::uint64_t integer_magnitude{};
@@ -1660,7 +1753,8 @@ std::optional<Value> Interpreter::parse_currency(
         set_error("WFC0006", "Currency literal is out of range", start);
         return std::nullopt;
     }
-    return Value{Currency{static_cast<std::int64_t>(scaled_integer + fraction_magnitude)}};
+    return Value{Currency{
+        static_cast<std::int64_t>(scaled_integer + fraction_magnitude)}};
 }
 
 std::optional<Value> Interpreter::parse_number() {
@@ -1669,8 +1763,8 @@ std::optional<Value> Interpreter::parse_number() {
     const auto end = offset_;
     char suffix = '\0';
     if (!at_end() &&
-        (current() == '#' || current() == '&' || current() == '!' || current() == '@' ||
-         current() == '%')) {
+        (current() == '#' || current() == '&' || current() == '!' ||
+         current() == '@' || current() == '%')) {
         suffix = current();
         advance();
     }
@@ -1682,11 +1776,13 @@ std::optional<Value> Interpreter::parse_number() {
     }
     if (floating_form || suffix == '#') {
         if (suffix == '&') {
-            set_error("WFC0006", "Long literal suffix requires an integer", start);
+            set_error("WFC0006", "Long literal suffix requires an integer",
+                      start);
             return std::nullopt;
         }
         if (suffix == '%') {
-            set_error("WFC0006", "Integer literal suffix requires an integer", start);
+            set_error("WFC0006", "Integer literal suffix requires an integer",
+                      start);
             return std::nullopt;
         }
         return parse_double(start, end);
@@ -1704,8 +1800,10 @@ std::optional<Value> Interpreter::parse_number() {
         set_error("WFC0006", "integer literal out of range", start);
         return std::nullopt;
     }
-    if (suffix == '\0' && integer_literals_are_integer_ && value >= -32768 && value <= 32767) {
-        return Value{static_cast<Int16>(value)};  // a small literal is an Integer
+    if (suffix == '\0' && integer_literals_are_integer_ && value >= -32768 &&
+        value <= 32767) {
+        return Value{
+            static_cast<Int16>(value)};  // a small literal is an Integer
     }
     return Value{value};
 }
@@ -1716,8 +1814,8 @@ std::optional<Value> Interpreter::parse_negative_number() {
     const auto end = offset_;
     char suffix = '\0';
     if (!at_end() &&
-        (current() == '#' || current() == '&' || current() == '!' || current() == '@' ||
-         current() == '%')) {
+        (current() == '#' || current() == '&' || current() == '!' ||
+         current() == '@' || current() == '%')) {
         suffix = current();
         advance();
     }
@@ -1737,11 +1835,13 @@ std::optional<Value> Interpreter::parse_negative_number() {
     }
     if (floating_form || suffix == '#') {
         if (suffix == '&') {
-            set_error("WFC0006", "Long literal suffix requires an integer", start);
+            set_error("WFC0006", "Long literal suffix requires an integer",
+                      start);
             return std::nullopt;
         }
         if (suffix == '%') {
-            set_error("WFC0006", "Integer literal suffix requires an integer", start);
+            set_error("WFC0006", "Integer literal suffix requires an integer",
+                      start);
             return std::nullopt;
         }
         auto value = parse_double(start, end);
@@ -1753,8 +1853,8 @@ std::optional<Value> Interpreter::parse_negative_number() {
 
     if (suffix == '%') {
         std::uint64_t magnitude{};
-        const auto conversion =
-            std::from_chars(source_.data() + start, source_.data() + end, magnitude);
+        const auto conversion = std::from_chars(
+            source_.data() + start, source_.data() + end, magnitude);
         constexpr auto maximum_magnitude =
             static_cast<std::uint64_t>(std::numeric_limits<Int16>::max()) + 1U;
         if (conversion.ec == std::errc::result_out_of_range ||
@@ -1769,15 +1869,17 @@ std::optional<Value> Interpreter::parse_negative_number() {
     }
 
     std::uint64_t magnitude{};
-    const auto conversion =
-        std::from_chars(source_.data() + start, source_.data() + end, magnitude);
+    const auto conversion = std::from_chars(source_.data() + start,
+                                            source_.data() + end, magnitude);
     constexpr auto maximum_magnitude =
         static_cast<std::uint64_t>(std::numeric_limits<Integer>::max()) + 1U;
     if (conversion.ec == std::errc::result_out_of_range ||
         magnitude > maximum_magnitude) {
         if (suffix != '&') {
             auto wide = parse_double(start, end);
-            if (!wide.has_value()) return std::nullopt;
+            if (!wide.has_value()) {
+                return std::nullopt;
+            }
             return Value{-std::get<double>(*wide)};
         }
         set_error("WFC0006", "integer literal out of range", start);
@@ -1786,16 +1888,15 @@ std::optional<Value> Interpreter::parse_negative_number() {
     if (magnitude == maximum_magnitude) {
         return Value{std::numeric_limits<Integer>::min()};
     }
-    if (suffix == '\0' && integer_literals_are_integer_ && magnitude <= 32768U) {
+    if (suffix == '\0' && integer_literals_are_integer_ &&
+        magnitude <= 32768U) {
         return Value{static_cast<Int16>(-static_cast<std::int32_t>(magnitude))};
     }
     return Value{static_cast<Integer>(-static_cast<Integer>(magnitude))};
 }
 
 std::optional<Value> Interpreter::round_double_to_long(
-    const double number,
-    const Integer minimum,
-    const Integer maximum,
+    const double number, const Integer minimum, const Integer maximum,
     const std::size_t offset) {
     const double rounded = std::nearbyint(number);
     if (!(rounded >= static_cast<double>(minimum) &&
@@ -1807,8 +1908,7 @@ std::optional<Value> Interpreter::round_double_to_long(
 }
 
 std::optional<Value> Interpreter::round_double_to_short_integer(
-    const double number,
-    const std::size_t offset) {
+    const double number, const std::size_t offset) {
     const double rounded = std::nearbyint(number);
     if (!(rounded >= static_cast<double>(std::numeric_limits<Int16>::min()) &&
           rounded <= static_cast<double>(std::numeric_limits<Int16>::max()))) {
@@ -1818,29 +1918,29 @@ std::optional<Value> Interpreter::round_double_to_short_integer(
     return Value{static_cast<Int16>(rounded)};
 }
 
-const Integer* Interpreter::require_integer(
-    const Value& value,
-    const std::size_t operator_offset) {
+const Integer* Interpreter::require_integer(const Value& value,
+                                            const std::size_t operator_offset) {
     const auto* integer = std::get_if<Integer>(&value);
     if (integer == nullptr) {
-        set_error("WFC0007", "operator requires integer operands", operator_offset);
+        set_error("WFC0007", "operator requires integer operands",
+                  operator_offset);
     }
     return integer;
 }
 
-const bool* Interpreter::require_boolean(
-    const Value& value,
-    const std::size_t operator_offset) {
+const bool* Interpreter::require_boolean(const Value& value,
+                                         const std::size_t operator_offset) {
     const auto* boolean = std::get_if<bool>(&value);
     if (boolean == nullptr) {
-        set_error("WFC0019", "logical operator requires Boolean operands", operator_offset);
+        set_error("WFC0019", "logical operator requires Boolean operands",
+                  operator_offset);
     }
     return boolean;
 }
 
-auto Interpreter::coerce_ternary_operand(
-    const Value& value,
-    const std::size_t operator_offset) -> std::optional<TernaryOperand> {
+auto Interpreter::coerce_ternary_operand(const Value& value,
+                                         const std::size_t operator_offset)
+    -> std::optional<TernaryOperand> {
     if (std::holds_alternative<Null>(value)) {
         return TernaryOperand{true, false};
     }
@@ -1848,7 +1948,8 @@ auto Interpreter::coerce_ternary_operand(
         return TernaryOperand{false, false};
     }
     if (!execute_ && !std::holds_alternative<bool>(value)) {
-        return TernaryOperand{false, false};  // placeholder operand of a not-taken branch
+        return TernaryOperand{
+            false, false};  // placeholder operand of a not-taken branch
     }
     const auto* boolean = require_boolean(value, operator_offset);
     if (boolean == nullptr) {
@@ -1858,11 +1959,10 @@ auto Interpreter::coerce_ternary_operand(
 }
 
 std::optional<bool> Interpreter::coerce_condition_boolean(
-    const Value& value,
-    const std::size_t offset,
-    const std::string_view error_code,
-    const std::string_view error_message) {
-    if (std::holds_alternative<Null>(value) || std::holds_alternative<Empty>(value)) {
+    const Value& value, const std::size_t offset,
+    const std::string_view error_code, const std::string_view error_message) {
+    if (std::holds_alternative<Null>(value) ||
+        std::holds_alternative<Empty>(value)) {
         return false;
     }
     const auto* boolean = std::get_if<bool>(&value);
@@ -1874,11 +1974,19 @@ std::optional<bool> Interpreter::coerce_condition_boolean(
         }
         if (const auto* text = std::get_if<std::string>(&value)) {
             std::string lowered;
-            for (const char c : *text) lowered.push_back(ascii_lower(c));
-            if (lowered == "true") return true;
-            if (lowered == "false") return false;
+            for (const char c : *text) {
+                lowered.push_back(ascii_lower(c));
+            }
+            if (lowered == "true") {
+                return true;
+            }
+            if (lowered == "false") {
+                return false;
+            }
             const auto parsed = parse_numeric_string(*text);
-            if (parsed.status == NumericStringStatus::valid) return parsed.value != 0.0;
+            if (parsed.status == NumericStringStatus::valid) {
+                return parsed.value != 0.0;
+            }
         }
         set_error(error_code, error_message, offset);
         return std::nullopt;
@@ -1887,9 +1995,7 @@ std::optional<bool> Interpreter::coerce_condition_boolean(
 }
 
 std::optional<Value> Interpreter::logical_binary(
-    const Value& left,
-    const Value& right,
-    const char operation,
+    const Value& left, const Value& right, const char operation,
     const std::size_t operator_offset) {
     if (execute_ && (std::holds_alternative<ObjectInstance>(left) ||
                      std::holds_alternative<ObjectInstance>(right))) {
@@ -1901,15 +2007,23 @@ std::optional<Value> Interpreter::logical_binary(
         }
         if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
             !std::holds_alternative<ObjectInstance>(resolved_right)) {
-            return logical_binary(resolved_left, resolved_right, operation, operator_offset);
+            return logical_binary(resolved_left, resolved_right, operation,
+                                  operator_offset);
         }
     }
     // REQ-0244: And/Or/Xor/Eqv/Imp on integer operands are bitwise.
     {
-        const auto integer_of = [](const Value& v) -> std::optional<std::int32_t> {
-            if (const auto* i = std::get_if<Integer>(&v)) return *i;
-            if (const auto* i = std::get_if<Int16>(&v)) return static_cast<std::int32_t>(*i);
-            if (const auto* i = std::get_if<Byte>(&v)) return static_cast<std::int32_t>(*i);
+        const auto integer_of =
+            [](const Value& v) -> std::optional<std::int32_t> {
+            if (const auto* i = std::get_if<Integer>(&v)) {
+                return *i;
+            }
+            if (const auto* i = std::get_if<Int16>(&v)) {
+                return static_cast<std::int32_t>(*i);
+            }
+            if (const auto* i = std::get_if<Byte>(&v)) {
+                return static_cast<std::int32_t>(*i);
+            }
             return std::nullopt;
         };
         const auto li = integer_of(left);
@@ -1921,17 +2035,30 @@ std::optional<Value> Interpreter::logical_binary(
             const std::int32_t b = ri ? *ri : (std::get<bool>(right) ? -1 : 0);
             std::int32_t r{};
             switch (operation) {
-            case 'A': r = a & b; break;
-            case 'O': r = a | b; break;
-            case 'X': r = a ^ b; break;
-            case 'E': r = ~(a ^ b); break;
-            default: r = ~a | b; break;
+                case 'A':
+                    r = a & b;
+                    break;
+                case 'O':
+                    r = a | b;
+                    break;
+                case 'X':
+                    r = a ^ b;
+                    break;
+                case 'E':
+                    r = ~(a ^ b);
+                    break;
+                default:
+                    r = ~a | b;
+                    break;
             }
-            if (std::holds_alternative<Byte>(left) && std::holds_alternative<Byte>(right)) {
+            if (std::holds_alternative<Byte>(left) &&
+                std::holds_alternative<Byte>(right)) {
                 return Value{static_cast<Byte>(r)};
             }
-            if (!std::holds_alternative<Integer>(left) && !std::holds_alternative<Integer>(right)) {
-                return Value{static_cast<Int16>(r)};  // Byte/Integer/Boolean mixes are Integer
+            if (!std::holds_alternative<Integer>(left) &&
+                !std::holds_alternative<Integer>(right)) {
+                return Value{static_cast<Int16>(
+                    r)};  // Byte/Integer/Boolean mixes are Integer
             }
             return Value{static_cast<Integer>(r)};
         }
@@ -1945,30 +2072,32 @@ std::optional<Value> Interpreter::logical_binary(
         return std::nullopt;
     }
     const std::optional<bool> left_ternary =
-        left_operand->is_null ? std::optional<bool>{} : std::optional<bool>{left_operand->value};
+        left_operand->is_null ? std::optional<bool>{}
+                              : std::optional<bool>{left_operand->value};
     const std::optional<bool> right_ternary =
-        right_operand->is_null ? std::optional<bool>{} : std::optional<bool>{right_operand->value};
+        right_operand->is_null ? std::optional<bool>{}
+                               : std::optional<bool>{right_operand->value};
 
     std::optional<bool> result;
     switch (operation) {
-    case 'A':
-        result = ternary_and(left_ternary, right_ternary);
-        break;
-    case 'O':
-        result = ternary_or(left_ternary, right_ternary);
-        break;
-    case 'X':
-        result = ternary_xor(left_ternary, right_ternary);
-        break;
-    case 'E':
-        result = ternary_eqv(left_ternary, right_ternary);
-        break;
-    case 'I':
-        result = ternary_imp(left_ternary, right_ternary);
-        break;
-    default:
-        set_error("WFC0004", "unsupported operator", operator_offset);
-        return std::nullopt;
+        case 'A':
+            result = ternary_and(left_ternary, right_ternary);
+            break;
+        case 'O':
+            result = ternary_or(left_ternary, right_ternary);
+            break;
+        case 'X':
+            result = ternary_xor(left_ternary, right_ternary);
+            break;
+        case 'E':
+            result = ternary_eqv(left_ternary, right_ternary);
+            break;
+        case 'I':
+            result = ternary_imp(left_ternary, right_ternary);
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
     }
     if (!result.has_value()) {
         return Value{Null{}};
@@ -1976,14 +2105,14 @@ std::optional<Value> Interpreter::logical_binary(
     return Value{*result};
 }
 
-int Interpreter::compare_strings(
-    const std::string_view left_in,
-    const std::string_view right_in) const {
+int Interpreter::compare_strings(const std::string_view left_in,
+                                 const std::string_view right_in) const {
     std::string folded_left;
     std::string folded_right;
     std::string_view left = left_in;
     std::string_view right = right_in;
-    if (option_compare_text_ && (!is_ascii_text(left) || !is_ascii_text(right))) {
+    if (option_compare_text_ &&
+        (!is_ascii_text(left) || !is_ascii_text(right))) {
         folded_left = fold_case(std::string(left));
         folded_right = fold_case(std::string(right));
         left = folded_left;
@@ -2018,16 +2147,15 @@ bool Interpreter::values_equal(const Value& left, const Value& right) const {
     return left == right;
 }
 
-std::optional<Value> Interpreter::compare(
-    const Value& left,
-    const Value& right,
-    const std::string_view operation,
-    const std::size_t operator_offset) {
+std::optional<Value> Interpreter::compare(const Value& left, const Value& right,
+                                          const std::string_view operation,
+                                          const std::size_t operator_offset) {
     // A comparison against Null yields Null itself (three-valued
     // logic), not True or False: VB6 famously cannot answer "x = Null"
     // definitively, which is why IsNull exists. Verified against the
     // local VB6 6.00.8176 reference.
-    if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
+    if (std::holds_alternative<Null>(left) ||
+        std::holds_alternative<Null>(right)) {
         return Value{Null{}};
     }
     // An object beside a value compares through its default member.
@@ -2039,8 +2167,10 @@ std::optional<Value> Interpreter::compare(
             !resolve_default_value(resolved_right, operator_offset)) {
             return std::nullopt;
         }
-        if (!is_object_reference(resolved_left) && !is_object_reference(resolved_right)) {
-            return compare(resolved_left, resolved_right, operation, operator_offset);
+        if (!is_object_reference(resolved_left) &&
+            !is_object_reference(resolved_right)) {
+            return compare(resolved_left, resolved_right, operation,
+                           operator_offset);
         }
     }
     // Object references compare only through Is, matching real VB6
@@ -2054,36 +2184,47 @@ std::optional<Value> Interpreter::compare(
     // operand expects: a number if compared against a number, an empty
     // string if compared against a String. Verified (Empty = 0 and
     // Empty = "" are both True).
-    if (std::holds_alternative<Empty>(left) || std::holds_alternative<Empty>(right)) {
+    if (std::holds_alternative<Empty>(left) ||
+        std::holds_alternative<Empty>(right)) {
         Value coerced_left = left;
         Value coerced_right = right;
         if (std::holds_alternative<Empty>(left)) {
-            coerced_left = std::holds_alternative<std::string>(right) ? Value{std::string{}}
-                                                                       : Value{Integer{0}};
+            coerced_left = std::holds_alternative<std::string>(right)
+                               ? Value{std::string{}}
+                               : Value{Integer{0}};
         }
         if (std::holds_alternative<Empty>(right)) {
-            coerced_right = std::holds_alternative<std::string>(left) ? Value{std::string{}}
-                                                                       : Value{Integer{0}};
+            coerced_right = std::holds_alternative<std::string>(left)
+                                ? Value{std::string{}}
+                                : Value{Integer{0}};
         }
         return compare(coerced_left, coerced_right, operation, operator_offset);
     }
     // REQ-0242: a Date compares by serial against a Date or a number.
-    if (std::holds_alternative<DateValue>(left) || std::holds_alternative<DateValue>(right)) {
+    if (std::holds_alternative<DateValue>(left) ||
+        std::holds_alternative<DateValue>(right)) {
         const auto serial_of = [](const Value& v) -> std::optional<double> {
-            if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
-            if (is_number(v)) return as_double(v);
+            if (const auto* d = std::get_if<DateValue>(&v)) {
+                return d->serial;
+            }
+            if (is_number(v)) {
+                return as_double(v);
+            }
             return std::nullopt;
         };
         const auto l = serial_of(left);
         const auto r = serial_of(right);
         if (!l.has_value() || !r.has_value()) {
-            set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
+            set_error("WFC0018",
+                      "comparison requires operands of the same type",
+                      operator_offset);
             return std::nullopt;
         }
         return compare(Value{*l}, Value{*r}, operation, operator_offset);
     }
     // Boolean beside a number compares as the number (True = -1).
-    if (std::holds_alternative<bool>(left) != std::holds_alternative<bool>(right)) {
+    if (std::holds_alternative<bool>(left) !=
+        std::holds_alternative<bool>(right)) {
         const auto as_small = [](const Value& v) -> Value {
             if (const auto* flag = std::get_if<bool>(&v)) {
                 return Value{static_cast<Int16>(*flag ? -1 : 0)};
@@ -2092,23 +2233,28 @@ std::optional<Value> Interpreter::compare(
         };
         const Value other = std::holds_alternative<bool>(left) ? right : left;
         if (is_number(other) && !std::holds_alternative<DateValue>(other)) {
-            return compare(as_small(left), as_small(right), operation, operator_offset);
+            return compare(as_small(left), as_small(right), operation,
+                           operator_offset);
         }
     }
-    // A String beside a number: Variant operands follow VB's Variant comparison rules.
+    // A String beside a number: Variant operands follow VB's Variant comparison
+    // rules.
     if ((std::holds_alternative<std::string>(left) && is_number(right)) ||
         (std::holds_alternative<std::string>(right) && is_number(left))) {
         if ((variant_string_seen_ || variant_number_seen_) && execute_) {
             const bool string_left = std::holds_alternative<std::string>(left);
-            const std::string& text = std::get<std::string>(string_left ? left : right);
+            const std::string& text =
+                std::get<std::string>(string_left ? left : right);
             const Value& number = string_left ? right : left;
             int ordering{};
             if (variant_string_seen_ && variant_number_seen_) {
-                ordering = string_left ? 1 : -1;  // a numeric Variant sorts before a string Variant
+                ordering = string_left ? 1 : -1;  // a numeric Variant sorts
+                                                  // before a string Variant
             } else if (variant_string_seen_) {
                 const auto parsed = parse_numeric_string(text);
                 if (parsed.status != NumericStringStatus::valid) {
-                    set_error("WFC0018", "comparison requires operands of the same type",
+                    set_error("WFC0018",
+                              "comparison requires operands of the same type",
                               operator_offset);
                     return std::nullopt;
                 }
@@ -2120,11 +2266,21 @@ std::optional<Value> Interpreter::compare(
                 ordering = string_left ? compare_strings(text, rendered)
                                        : compare_strings(rendered, text);
             }
-            if (operation == "=") return Value{ordering == 0};
-            if (operation == "<>") return Value{ordering != 0};
-            if (operation == "<") return Value{ordering < 0};
-            if (operation == "<=") return Value{ordering <= 0};
-            if (operation == ">") return Value{ordering > 0};
+            if (operation == "=") {
+                return Value{ordering == 0};
+            }
+            if (operation == "<>") {
+                return Value{ordering != 0};
+            }
+            if (operation == "<") {
+                return Value{ordering < 0};
+            }
+            if (operation == "<=") {
+                return Value{ordering <= 0};
+            }
+            if (operation == ">") {
+                return Value{ordering > 0};
+            }
             return Value{ordering >= 0};
         }
     }
@@ -2159,7 +2315,8 @@ std::optional<Value> Interpreter::compare(
         if (!execute_) {
             return Value{false};  // placeholder operand of a not-taken branch
         }
-        set_error("WFC0018", "comparison requires operands of the same type", operator_offset);
+        set_error("WFC0018", "comparison requires operands of the same type",
+                  operator_offset);
         return std::nullopt;
     }
 
@@ -2170,11 +2327,13 @@ std::optional<Value> Interpreter::compare(
         return Value{!values_equal(left, right)};
     }
     if (std::holds_alternative<bool>(left)) {
-        set_error("WFC0018", "Boolean ordering is not supported", operator_offset);
+        set_error("WFC0018", "Boolean ordering is not supported",
+                  operator_offset);
         return std::nullopt;
     }
     if (!std::holds_alternative<std::string>(left)) {
-        set_error("WFC0018", "ordering is not supported for this type", operator_offset);
+        set_error("WFC0018", "ordering is not supported for this type",
+                  operator_offset);
         return std::nullopt;
     }
 
@@ -2215,9 +2374,7 @@ Value Interpreter::widen_byte(const Value& value) {
 }
 
 std::optional<Value> Interpreter::numeric_binary(
-    const Value& left_in,
-    const Value& right_in,
-    const char operation,
+    const Value& left_in, const Value& right_in, const char operation,
     const std::size_t operator_offset) {
     if (execute_ && (std::holds_alternative<ObjectInstance>(left_in) ||
                      std::holds_alternative<ObjectInstance>(right_in))) {
@@ -2229,22 +2386,28 @@ std::optional<Value> Interpreter::numeric_binary(
         }
         if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
             !std::holds_alternative<ObjectInstance>(resolved_right)) {
-            return numeric_binary(resolved_left, resolved_right, operation, operator_offset);
+            return numeric_binary(resolved_left, resolved_right, operation,
+                                  operator_offset);
         }
     }
-    // Byte/Integer operands keep their own width: Byte op Byte is a Byte, anything else
-    // small is an Integer (a Variant operand promotes instead of overflowing).
-    if ((operation == '+' || operation == '-' || operation == '*' || operation == '\\' ||
-         operation == '%') &&
-        (std::holds_alternative<Byte>(left_in) || std::holds_alternative<Int16>(left_in)) &&
-        (std::holds_alternative<Byte>(right_in) || std::holds_alternative<Int16>(right_in))) {
-        const bool both_bytes =
-            std::holds_alternative<Byte>(left_in) && std::holds_alternative<Byte>(right_in);
+    // Byte/Integer operands keep their own width: Byte op Byte is a Byte,
+    // anything else small is an Integer (a Variant operand promotes instead of
+    // overflowing).
+    if ((operation == '+' || operation == '-' || operation == '*' ||
+         operation == '\\' || operation == '%') &&
+        (std::holds_alternative<Byte>(left_in) ||
+         std::holds_alternative<Int16>(left_in)) &&
+        (std::holds_alternative<Byte>(right_in) ||
+         std::holds_alternative<Int16>(right_in))) {
+        const bool both_bytes = std::holds_alternative<Byte>(left_in) &&
+                                std::holds_alternative<Byte>(right_in);
         if (!execute_) {
             return both_bytes ? Value{Byte{}} : Value{Int16{}};
         }
         const auto small_value = [](const Value& v) -> std::int64_t {
-            if (const auto* b = std::get_if<Byte>(&v)) return *b;
+            if (const auto* b = std::get_if<Byte>(&v)) {
+                return *b;
+            }
             return std::get<Int16>(v);
         };
         const std::int64_t a = small_value(left_in);
@@ -2255,11 +2418,21 @@ std::optional<Value> Interpreter::numeric_binary(
         }
         std::int64_t result{};
         switch (operation) {
-        case '+': result = a + b; break;
-        case '-': result = a - b; break;
-        case '*': result = a * b; break;
-        case '\\': result = a / b; break;
-        default: result = a % b; break;
+            case '+':
+                result = a + b;
+                break;
+            case '-':
+                result = a - b;
+                break;
+            case '*':
+                result = a * b;
+                break;
+            case '\\':
+                result = a / b;
+                break;
+            default:
+                result = a % b;
+                break;
         }
         if (both_bytes && result >= 0 && result <= 255) {
             return Value{static_cast<Byte>(result)};
@@ -2267,7 +2440,8 @@ std::optional<Value> Interpreter::numeric_binary(
         if (!both_bytes && result >= -32768 && result <= 32767) {
             return Value{static_cast<Int16>(result)};
         }
-        if (both_bytes && result >= -32768 && result <= 32767 && variant_operand_seen_) {
+        if (both_bytes && result >= -32768 && result <= 32767 &&
+            variant_operand_seen_) {
             return Value{static_cast<Int16>(result)};
         }
         if (variant_operand_seen_) {
@@ -2280,37 +2454,47 @@ std::optional<Value> Interpreter::numeric_binary(
     const Value right = widen_byte(right_in);
     if (operation == '+' && std::holds_alternative<std::string>(left) &&
         std::holds_alternative<std::string>(right)) {
-        return Value{std::get<std::string>(left) + std::get<std::string>(right)};
+        return Value{std::get<std::string>(left) +
+                     std::get<std::string>(right)};
     }
-    if (std::holds_alternative<Null>(left) || std::holds_alternative<Null>(right)) {
+    if (std::holds_alternative<Null>(left) ||
+        std::holds_alternative<Null>(right)) {
         return Value{Null{}};
     }
-    if (std::holds_alternative<Empty>(left) || std::holds_alternative<Empty>(right)) {
+    if (std::holds_alternative<Empty>(left) ||
+        std::holds_alternative<Empty>(right)) {
         const Value coerced_left =
             std::holds_alternative<Empty>(left) ? Value{Integer{0}} : left;
         const Value coerced_right =
             std::holds_alternative<Empty>(right) ? Value{Integer{0}} : right;
-        return numeric_binary(coerced_left, coerced_right, operation, operator_offset);
+        return numeric_binary(coerced_left, coerced_right, operation,
+                              operator_offset);
     }
     {
         // REQ-0269: a numeric String beside a number (or another numeric
         // String under - * /) converts to Double, as VB does for Variants.
         const bool left_text = std::holds_alternative<std::string>(left);
         const bool right_text = std::holds_alternative<std::string>(right);
-        if ((left_text || right_text) && !(left_text && right_text && operation == '+')) {
+        if ((left_text || right_text) &&
+            !(left_text && right_text && operation == '+')) {
             const auto convert = [&](const Value& v) -> std::optional<Value> {
                 if (const auto* text = std::get_if<std::string>(&v)) {
                     const auto parsed = parse_numeric_string(*text);
-                    if (parsed.status != NumericStringStatus::valid) return std::nullopt;
+                    if (parsed.status != NumericStringStatus::valid) {
+                        return std::nullopt;
+                    }
                     return Value{parsed.value};
                 }
-                if (is_number(v) && !std::holds_alternative<DateValue>(v)) return v;
+                if (is_number(v) && !std::holds_alternative<DateValue>(v)) {
+                    return v;
+                }
                 return std::nullopt;
             };
             const auto converted_left = convert(left);
             const auto converted_right = convert(right);
             if (converted_left && converted_right) {
-                return numeric_binary(*converted_left, *converted_right, operation, operator_offset);
+                return numeric_binary(*converted_left, *converted_right,
+                                      operation, operator_offset);
             }
             if (execute_) {
                 err_number_ = 13;
@@ -2321,37 +2505,51 @@ std::optional<Value> Interpreter::numeric_binary(
             return Value{0.0};
         }
     }
-    if (std::holds_alternative<DateValue>(left) || std::holds_alternative<DateValue>(right)) {
+    if (std::holds_alternative<DateValue>(left) ||
+        std::holds_alternative<DateValue>(right)) {
         // REQ-0242: Date +/- number stays a Date; Date - Date is a
         // Double day count; everything else computes as Double.
         const auto* left_date = std::get_if<DateValue>(&left);
         const auto* right_date = std::get_if<DateValue>(&right);
         const auto to_double = [](const Value& v) -> std::optional<double> {
-            if (const auto* d = std::get_if<DateValue>(&v)) return d->serial;
-            if (is_number(v)) return as_double(v);
+            if (const auto* d = std::get_if<DateValue>(&v)) {
+                return d->serial;
+            }
+            if (is_number(v)) {
+                return as_double(v);
+            }
             return std::nullopt;
         };
         const auto l = to_double(left);
         const auto r = to_double(right);
         if (!l.has_value() || !r.has_value()) {
-            static_cast<void>(require_integer(l.has_value() ? right : left, operator_offset));
+            static_cast<void>(
+                require_integer(l.has_value() ? right : left, operator_offset));
             return std::nullopt;
         }
         double result{};
         switch (operation) {
-        case '+': result = *l + *r; break;
-        case '-': result = *l - *r; break;
-        case '*': result = *l * *r; break;
-        default:
-            if (*r == 0.0) {
-                set_error("WFC0008", "division by zero", operator_offset);
-                return std::nullopt;
-            }
-            result = *l / *r;
-            break;
+            case '+':
+                result = *l + *r;
+                break;
+            case '-':
+                result = *l - *r;
+                break;
+            case '*':
+                result = *l * *r;
+                break;
+            default:
+                if (*r == 0.0) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = *l / *r;
+                break;
         }
-        if ((operation == '+' && (left_date != nullptr) != (right_date != nullptr)) ||
-            (operation == '-' && left_date != nullptr && right_date == nullptr)) {
+        if ((operation == '+' &&
+             (left_date != nullptr) != (right_date != nullptr)) ||
+            (operation == '-' && left_date != nullptr &&
+             right_date == nullptr)) {
             return Value{DateValue{result}};
         }
         if (operation == '+' && left_date != nullptr && right_date != nullptr) {
@@ -2359,13 +2557,11 @@ std::optional<Value> Interpreter::numeric_binary(
         }
         return Value{result};
     }
-    if (operation != '/' &&
-        std::holds_alternative<Integer>(left) &&
+    if (operation != '/' && std::holds_alternative<Integer>(left) &&
         std::holds_alternative<Integer>(right)) {
         return integer_binary(left, right, operation, operator_offset);
     }
-    if (operation != '/' &&
-        std::holds_alternative<Int16>(left) &&
+    if (operation != '/' && std::holds_alternative<Int16>(left) &&
         std::holds_alternative<Int16>(right)) {
         return short_integer_binary(left, right, operation, operator_offset);
     }
@@ -2378,8 +2574,8 @@ std::optional<Value> Interpreter::numeric_binary(
     }
 
     auto category = std::max(numeric_category(left), numeric_category(right));
-    if (operation != '/' &&
-        (category == NumericCategory::integer || category == NumericCategory::int16)) {
+    if (operation != '/' && (category == NumericCategory::integer ||
+                             category == NumericCategory::int16)) {
         // Both-Long and both-Int16 were already short-circuited above, so
         // reaching here with an integral-only category means one operand
         // is Int16 and the other Long: widen the Int16 side exactly (it
@@ -2391,10 +2587,11 @@ std::optional<Value> Interpreter::numeric_binary(
             }
             return value;
         };
-        return integer_binary(
-            widen_to_long(left), widen_to_long(right), operation, operator_offset);
+        return integer_binary(widen_to_long(left), widen_to_long(right),
+                              operation, operator_offset);
     }
-    if (category == NumericCategory::integer || category == NumericCategory::int16) {
+    if (category == NumericCategory::integer ||
+        category == NumericCategory::int16) {
         // Only reachable for `/` between any combination of Long/Int16,
         // which always promotes to Double under the pre-existing rule.
         category = NumericCategory::double_precision;
@@ -2402,14 +2599,14 @@ std::optional<Value> Interpreter::numeric_binary(
 
     if (!execute_) {
         switch (category) {
-        case NumericCategory::currency:
-            return Value{Currency{}};
-        case NumericCategory::single:
-            return Value{0.0f};
-        case NumericCategory::decimal_precision:
-            return Value{Decimal{}};
-        default:
-            return Value{0.0};
+            case NumericCategory::currency:
+                return Value{Currency{}};
+            case NumericCategory::single:
+                return Value{0.0f};
+            case NumericCategory::decimal_precision:
+                return Value{Decimal{}};
+            default:
+                return Value{0.0};
         }
     }
 
@@ -2430,19 +2627,21 @@ std::optional<Value> Interpreter::numeric_binary(
             if (const auto* integer = std::get_if<Integer>(&value)) {
                 Decimal result;
                 result.negative = *integer < 0;
-                result.mantissa = big_from_u32(
-                    static_cast<std::uint32_t>(*integer < 0 ? -static_cast<std::int64_t>(*integer)
-                                                             : *integer));
+                result.mantissa = big_from_u32(static_cast<std::uint32_t>(
+                    *integer < 0 ? -static_cast<std::int64_t>(*integer)
+                                 : *integer));
                 return result;
             }
             if (const auto* currency = std::get_if<Currency>(&value)) {
                 Decimal result;
                 result.negative = currency->scaled < 0;
-                const auto magnitude = currency->scaled < 0
-                    ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
-                    : static_cast<std::uint64_t>(currency->scaled);
+                const auto magnitude =
+                    currency->scaled < 0
+                        ? (~static_cast<std::uint64_t>(currency->scaled) + 1ULL)
+                        : static_cast<std::uint64_t>(currency->scaled);
                 result.mantissa.limb[0] = static_cast<std::uint32_t>(magnitude);
-                result.mantissa.limb[1] = static_cast<std::uint32_t>(magnitude >> 32U);
+                result.mantissa.limb[1] =
+                    static_cast<std::uint32_t>(magnitude >> 32U);
                 result.scale = 4U;
                 return result;
             }
@@ -2452,25 +2651,25 @@ std::optional<Value> Interpreter::numeric_binary(
         const Decimal right_decimal = to_decimal(right);
         std::optional<Decimal> result;
         switch (operation) {
-        case '+':
-            result = decimal_add(left_decimal, right_decimal);
-            break;
-        case '-':
-            result = decimal_subtract(left_decimal, right_decimal);
-            break;
-        case '*':
-            result = decimal_multiply(left_decimal, right_decimal);
-            break;
-        case '/':
-            if (is_zero_big(right_decimal.mantissa)) {
-                set_error("WFC0008", "division by zero", operator_offset);
+            case '+':
+                result = decimal_add(left_decimal, right_decimal);
+                break;
+            case '-':
+                result = decimal_subtract(left_decimal, right_decimal);
+                break;
+            case '*':
+                result = decimal_multiply(left_decimal, right_decimal);
+                break;
+            case '/':
+                if (is_zero_big(right_decimal.mantissa)) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = decimal_divide(left_decimal, right_decimal);
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
                 return std::nullopt;
-            }
-            result = decimal_divide(left_decimal, right_decimal);
-            break;
-        default:
-            set_error("WFC0004", "unsupported operator", operator_offset);
-            return std::nullopt;
         }
         if (!result.has_value()) {
             set_error("WFC0009", "numeric overflow", operator_offset);
@@ -2484,41 +2683,49 @@ std::optional<Value> Interpreter::numeric_binary(
         const std::int64_t right_scaled = as_currency_scaled(right);
         std::optional<std::int64_t> result;
         switch (operation) {
-        case '+': {
-            std::int64_t sum{};
-            const bool overflowed =
-                (right_scaled > 0 && left_scaled > std::numeric_limits<std::int64_t>::max() - right_scaled) ||
-                (right_scaled < 0 && left_scaled < std::numeric_limits<std::int64_t>::min() - right_scaled);
-            if (!overflowed) {
-                sum = left_scaled + right_scaled;
-                result = sum;
+            case '+': {
+                std::int64_t sum{};
+                const bool overflowed =
+                    (right_scaled > 0 &&
+                     left_scaled > std::numeric_limits<std::int64_t>::max() -
+                                       right_scaled) ||
+                    (right_scaled < 0 &&
+                     left_scaled < std::numeric_limits<std::int64_t>::min() -
+                                       right_scaled);
+                if (!overflowed) {
+                    sum = left_scaled + right_scaled;
+                    result = sum;
+                }
+                break;
             }
-            break;
-        }
-        case '-': {
-            std::int64_t difference{};
-            const bool overflowed =
-                (right_scaled < 0 && left_scaled > std::numeric_limits<std::int64_t>::max() + right_scaled) ||
-                (right_scaled > 0 && left_scaled < std::numeric_limits<std::int64_t>::min() + right_scaled);
-            if (!overflowed) {
-                difference = left_scaled - right_scaled;
-                result = difference;
+            case '-': {
+                std::int64_t difference{};
+                const bool overflowed =
+                    (right_scaled < 0 &&
+                     left_scaled > std::numeric_limits<std::int64_t>::max() +
+                                       right_scaled) ||
+                    (right_scaled > 0 &&
+                     left_scaled < std::numeric_limits<std::int64_t>::min() +
+                                       right_scaled);
+                if (!overflowed) {
+                    difference = left_scaled - right_scaled;
+                    result = difference;
+                }
+                break;
             }
-            break;
-        }
-        case '*':
-            result = currency_multiply(left_scaled, right_scaled);
-            break;
-        case '/':
-            if (right_scaled == 0) {
-                set_error("WFC0008", "division by zero", operator_offset);
+            case '*':
+                result = currency_multiply(left_scaled, right_scaled);
+                break;
+            case '/':
+                if (right_scaled == 0) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = currency_divide(left_scaled, right_scaled);
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
                 return std::nullopt;
-            }
-            result = currency_divide(left_scaled, right_scaled);
-            break;
-        default:
-            set_error("WFC0004", "unsupported operator", operator_offset);
-            return std::nullopt;
         }
         if (!result.has_value()) {
             set_error("WFC0009", "numeric overflow", operator_offset);
@@ -2532,25 +2739,25 @@ std::optional<Value> Interpreter::numeric_binary(
         const float right_value = as_single(right);
         float result{};
         switch (operation) {
-        case '+':
-            result = left_value + right_value;
-            break;
-        case '-':
-            result = left_value - right_value;
-            break;
-        case '*':
-            result = left_value * right_value;
-            break;
-        case '/':
-            if (right_value == 0.0f) {
-                set_error("WFC0008", "division by zero", operator_offset);
+            case '+':
+                result = left_value + right_value;
+                break;
+            case '-':
+                result = left_value - right_value;
+                break;
+            case '*':
+                result = left_value * right_value;
+                break;
+            case '/':
+                if (right_value == 0.0f) {
+                    set_error("WFC0008", "division by zero", operator_offset);
+                    return std::nullopt;
+                }
+                result = left_value / right_value;
+                break;
+            default:
+                set_error("WFC0004", "unsupported operator", operator_offset);
                 return std::nullopt;
-            }
-            result = left_value / right_value;
-            break;
-        default:
-            set_error("WFC0004", "unsupported operator", operator_offset);
-            return std::nullopt;
         }
         if (!std::isfinite(result)) {
             set_error("WFC0009", "numeric overflow", operator_offset);
@@ -2563,25 +2770,25 @@ std::optional<Value> Interpreter::numeric_binary(
     const double right_value = as_double(right);
     double result{};
     switch (operation) {
-    case '+':
-        result = left_value + right_value;
-        break;
-    case '-':
-        result = left_value - right_value;
-        break;
-    case '*':
-        result = left_value * right_value;
-        break;
-    case '/':
-        if (right_value == 0.0) {
-            set_error("WFC0008", "division by zero", operator_offset);
+        case '+':
+            result = left_value + right_value;
+            break;
+        case '-':
+            result = left_value - right_value;
+            break;
+        case '*':
+            result = left_value * right_value;
+            break;
+        case '/':
+            if (right_value == 0.0) {
+                set_error("WFC0008", "division by zero", operator_offset);
+                return std::nullopt;
+            }
+            result = left_value / right_value;
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
             return std::nullopt;
-        }
-        result = left_value / right_value;
-        break;
-    default:
-        set_error("WFC0004", "unsupported operator", operator_offset);
-        return std::nullopt;
     }
     if (!std::isfinite(result)) {
         set_error("WFC0009", "numeric overflow", operator_offset);
@@ -2591,8 +2798,7 @@ std::optional<Value> Interpreter::numeric_binary(
 }
 
 std::optional<Integer> Interpreter::coerce_long(
-    const Value& value,
-    const std::size_t operator_offset) {
+    const Value& value, const std::size_t operator_offset) {
     if (const auto* integer = std::get_if<Integer>(&value)) {
         return *integer;
     }
@@ -2601,8 +2807,10 @@ std::optional<Integer> Interpreter::coerce_long(
     }
     if (const auto* number = std::get_if<double>(&value)) {
         const double rounded = std::nearbyint(*number);
-        if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
-              rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+        if (!(rounded >=
+                  static_cast<double>(std::numeric_limits<Integer>::min()) &&
+              rounded <=
+                  static_cast<double>(std::numeric_limits<Integer>::max()))) {
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
@@ -2610,17 +2818,22 @@ std::optional<Integer> Interpreter::coerce_long(
     }
     if (const auto* single = std::get_if<float>(&value)) {
         const double rounded = std::nearbyint(static_cast<double>(*single));
-        if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
-              rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+        if (!(rounded >=
+                  static_cast<double>(std::numeric_limits<Integer>::min()) &&
+              rounded <=
+                  static_cast<double>(std::numeric_limits<Integer>::max()))) {
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
         return static_cast<Integer>(rounded);
     }
-    if (std::holds_alternative<Currency>(value) || std::holds_alternative<Decimal>(value)) {
+    if (std::holds_alternative<Currency>(value) ||
+        std::holds_alternative<Decimal>(value)) {
         const double rounded = std::nearbyint(as_double(value));
-        if (!(rounded >= static_cast<double>(std::numeric_limits<Integer>::min()) &&
-              rounded <= static_cast<double>(std::numeric_limits<Integer>::max()))) {
+        if (!(rounded >=
+                  static_cast<double>(std::numeric_limits<Integer>::min()) &&
+              rounded <=
+                  static_cast<double>(std::numeric_limits<Integer>::max()))) {
             set_error("WFC0009", "integer overflow", operator_offset);
             return std::nullopt;
         }
@@ -2635,7 +2848,8 @@ std::optional<Integer> Interpreter::coerce_long(
     if (std::holds_alternative<Empty>(value)) {
         return Integer{0};
     }
-    if (const auto* text = std::get_if<std::string>(&value); text != nullptr && execute_) {
+    if (const auto* text = std::get_if<std::string>(&value);
+        text != nullptr && execute_) {
         const auto parsed = parse_numeric_string(*text);
         if (parsed.status == NumericStringStatus::valid &&
             std::fabs(parsed.value) < 2147483647.5) {
@@ -2653,9 +2867,7 @@ std::optional<Integer> Interpreter::coerce_long(
 }
 
 std::optional<Value> Interpreter::integer_binary(
-    const Value& left_in,
-    const Value& right_in,
-    const char operation,
+    const Value& left_in, const Value& right_in, const char operation,
     const std::size_t operator_offset) {
     if (execute_ && (std::holds_alternative<ObjectInstance>(left_in) ||
                      std::holds_alternative<ObjectInstance>(right_in))) {
@@ -2667,11 +2879,14 @@ std::optional<Value> Interpreter::integer_binary(
         }
         if (!std::holds_alternative<ObjectInstance>(resolved_left) &&
             !std::holds_alternative<ObjectInstance>(resolved_right)) {
-            return integer_binary(resolved_left, resolved_right, operation, operator_offset);
+            return integer_binary(resolved_left, resolved_right, operation,
+                                  operator_offset);
         }
     }
-    if ((std::holds_alternative<Byte>(left_in) || std::holds_alternative<Int16>(left_in)) &&
-        (std::holds_alternative<Byte>(right_in) || std::holds_alternative<Int16>(right_in))) {
+    if ((std::holds_alternative<Byte>(left_in) ||
+         std::holds_alternative<Int16>(left_in)) &&
+        (std::holds_alternative<Byte>(right_in) ||
+         std::holds_alternative<Int16>(right_in))) {
         return numeric_binary(left_in, right_in, operation, operator_offset);
     }
     const Value left = widen_byte(left_in);
@@ -2695,36 +2910,38 @@ std::optional<Value> Interpreter::integer_binary(
         return std::nullopt;
     }
     if ((operation == '\\' || operation == '%') &&
-        left_integer == std::numeric_limits<Integer>::min() && right_integer == -1) {
+        left_integer == std::numeric_limits<Integer>::min() &&
+        right_integer == -1) {
         set_error("WFC0009", "integer overflow", operator_offset);
         return std::nullopt;
     }
 
     std::int64_t result{};
     switch (operation) {
-    case '+':
-        result = static_cast<std::int64_t>(left_integer) + right_integer;
-        break;
-    case '-':
-        result = static_cast<std::int64_t>(left_integer) - right_integer;
-        break;
-    case '*':
-        result = static_cast<std::int64_t>(left_integer) * right_integer;
-        break;
-    case '\\':
-        result = left_integer / right_integer;
-        break;
-    case '%':
-        result = left_integer % right_integer;
-        break;
-    default:
-        set_error("WFC0004", "unsupported operator", operator_offset);
-        return std::nullopt;
+        case '+':
+            result = static_cast<std::int64_t>(left_integer) + right_integer;
+            break;
+        case '-':
+            result = static_cast<std::int64_t>(left_integer) - right_integer;
+            break;
+        case '*':
+            result = static_cast<std::int64_t>(left_integer) * right_integer;
+            break;
+        case '\\':
+            result = left_integer / right_integer;
+            break;
+        case '%':
+            result = left_integer % right_integer;
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
     }
 
     if (result < std::numeric_limits<Integer>::min() ||
         result > std::numeric_limits<Integer>::max()) {
-        if (variant_operand_seen_ && (operation == '+' || operation == '-' || operation == '*')) {
+        if (variant_operand_seen_ &&
+            (operation == '+' || operation == '-' || operation == '*')) {
             return Value{static_cast<double>(result)};
         }
         set_error("WFC0009", "integer overflow", operator_offset);
@@ -2734,9 +2951,7 @@ std::optional<Value> Interpreter::integer_binary(
 }
 
 std::optional<Value> Interpreter::short_integer_binary(
-    const Value& left,
-    const Value& right,
-    const char operation,
+    const Value& left, const Value& right, const char operation,
     const std::size_t operator_offset) {
     const Int16 left_integer = std::get<Int16>(left);
     const Int16 right_integer = std::get<Int16>(right);
@@ -2746,18 +2961,18 @@ std::optional<Value> Interpreter::short_integer_binary(
 
     std::int32_t result{};
     switch (operation) {
-    case '+':
-        result = static_cast<std::int32_t>(left_integer) + right_integer;
-        break;
-    case '-':
-        result = static_cast<std::int32_t>(left_integer) - right_integer;
-        break;
-    case '*':
-        result = static_cast<std::int32_t>(left_integer) * right_integer;
-        break;
-    default:
-        set_error("WFC0004", "unsupported operator", operator_offset);
-        return std::nullopt;
+        case '+':
+            result = static_cast<std::int32_t>(left_integer) + right_integer;
+            break;
+        case '-':
+            result = static_cast<std::int32_t>(left_integer) - right_integer;
+            break;
+        case '*':
+            result = static_cast<std::int32_t>(left_integer) * right_integer;
+            break;
+        default:
+            set_error("WFC0004", "unsupported operator", operator_offset);
+            return std::nullopt;
     }
 
     if (result < std::numeric_limits<Int16>::min() ||

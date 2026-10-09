@@ -5,20 +5,20 @@
 #ifndef WFC_INTERPRETER_INTERPRETER_HPP
 #define WFC_INTERPRETER_INTERPRETER_HPP
 
-#include "vb_text.hpp"
-#include "builtin_class_sources.hpp"
-#include "wfc/evaluator.hpp"
 #include "../large_stack.hpp"
+#include "builtin_class_sources.hpp"
+#include "vb_text.hpp"
+#include "wfc/evaluator.hpp"
 
 namespace wfc::detail {
 
-[[nodiscard]] inline wfc::Evaluation failure(
-    const std::string_view code,
-    const std::string_view message,
-    const std::size_t offset) {
+[[nodiscard]] inline wfc::Evaluation failure(const std::string_view code,
+                                             const std::string_view message,
+                                             const std::size_t offset) {
     wfc::Evaluation result;
     result.diagnostic = std::string(code) + " at byte " +
-                        std::to_string(offset + 1) + ": " + std::string(message);
+                        std::to_string(offset + 1) + ": " +
+                        std::string(message);
     result.error_offset = offset;
     return result;
 }
@@ -150,7 +150,8 @@ struct ProcedureParameter {
 struct ProcedureDef {
     std::vector<ProcedureParameter> parameters;
     bool is_function{};
-    // `Static Sub|Function|Property`: every local variable keeps its value between calls.
+    // `Static Sub|Function|Property`: every local variable keeps its value
+    // between calls.
     bool static_locals{};
     std::size_t return_type_index{};
     bool return_is_variant{};
@@ -278,12 +279,14 @@ struct ClassDef {
 // wrapping the raw InstanceData* instance_scopes_ tracks in a *new*
 // shared_ptr would create a second, independent control block, leading to a
 // double-free once both reached zero).
-// Native key/value storage behind the built-in Collection and Dictionary classes (reached
-// through the hidden `WfcStore` function): ordered entries plus a hash index of the keys.
+// Native key/value storage behind the built-in Collection and Dictionary
+// classes (reached through the hidden `WfcStore` function): ordered entries
+// plus a hash index of the keys.
 struct NativeStore {
     std::vector<Value> keys;
     std::vector<Value> values;
-    std::unordered_map<std::string, std::size_t> index;  // canonical key -> 0-based position
+    std::unordered_map<std::string, std::size_t>
+        index;  // canonical key -> 0-based position
     bool dirty{true};
     bool text_compare{false};
 };
@@ -295,7 +298,8 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
     // Objects handling this instance's events: the sink instance (weak, so
     // a handler does not keep itself alive through its source) and the
     // WithEvents field name that holds this instance.
-    std::vector<std::pair<std::weak_ptr<InstanceData>, std::string>> event_sinks;
+    std::vector<std::pair<std::weak_ptr<InstanceData>, std::string>>
+        event_sinks;
     // `Static` locals of this instance's methods (VB6 keeps them per object).
     std::map<const void*, Scope> static_scopes;
 };
@@ -330,15 +334,19 @@ public:
     Interpreter(const Interpreter&) = delete;
     Interpreter& operator=(const Interpreter&) = delete;
 
-    explicit Interpreter(const std::string_view source, const bool allow_identifiers = true)
-        : source_(source), allow_identifiers_(allow_identifiers), main_source_data_(source.data()) {}
+    explicit Interpreter(const std::string_view source,
+                         const bool allow_identifiers = true)
+        : source_(source),
+          allow_identifiers_(allow_identifiers),
+          main_source_data_(source.data()) {}
 
-    Interpreter(
-        const std::string_view source,
-        std::vector<wfc::ClassModuleSource> classes,
-        const bool allow_identifiers = true)
-        : source_(source), allow_identifiers_(allow_identifiers),
-          main_source_data_(source.data()), class_sources_(std::move(classes)) {}
+    Interpreter(const std::string_view source,
+                std::vector<wfc::ClassModuleSource> classes,
+                const bool allow_identifiers = true)
+        : source_(source),
+          allow_identifiers_(allow_identifiers),
+          main_source_data_(source.data()),
+          class_sources_(std::move(classes)) {}
 
     [[nodiscard]] Scope& current_scope() noexcept;
     [[nodiscard]] Scope& module_scope() noexcept;
@@ -375,12 +383,14 @@ public:
         return table;
     }();
 
-    [[nodiscard]] std::optional<std::size_t> default_type_for(const std::string& name) const;
+    [[nodiscard]] std::optional<std::size_t> default_type_for(
+        const std::string& name) const;
 
     // A Function/Property Get declared without `As Type`: Variant, or the
     // DefXxx type for its first letter.
-    void apply_implicit_return_type(
-        ProcedureDef& definition, const std::string& name, const char suffix = '\0') const;
+    void apply_implicit_return_type(ProcedureDef& definition,
+                                    const std::string& name,
+                                    const char suffix = '\0') const;
 
     // Parses one `DefXxx letters` line starting at `text[position]`; returns
     // false if the line is not a Def statement.
@@ -399,14 +409,15 @@ public:
     // Native stack accounting for deep recursion: `base` is an address near
     // the top of the (downward-growing) stack, `budget` the bytes that may be
     // used before a call reports "Out of stack space".
-    void set_stack_budget(const char* const base, const std::size_t budget) noexcept;
+    void set_stack_budget(const char* const base,
+                          const std::size_t budget) noexcept;
 
     [[nodiscard]] bool stack_nearly_exhausted() const noexcept;
 
     [[nodiscard]] wfc::Evaluation evaluate();
 
-    // The class module (display name) whose source was executing when the last error was
-    // raised; empty for the standard module(s).
+    // The class module (display name) whose source was executing when the last
+    // error was raised; empty for the standard module(s).
     void set_vb_number_spacing(const bool enabled) noexcept;
 
     [[nodiscard]] std::string failing_module_name() const;
@@ -423,7 +434,8 @@ private:
 
     [[nodiscard]] bool consume_line_break() noexcept;
 
-    // Skips to the end of the current statement (a ':' or line end outside a string).
+    // Skips to the end of the current statement (a ':' or line end outside a
+    // string).
     void skip_comment_free_statement_text() noexcept;
 
     void skip_comment() noexcept;
@@ -444,8 +456,8 @@ private:
     // On success, `body_end` is set to the offset where "End" begins (after
     // any leading blank lines/comments) and the cursor is left right after
     // consuming the terminator's own line break.
-    [[nodiscard]] bool skip_to_matching_end(
-        const std::string_view keyword, std::size_t& body_end);
+    [[nodiscard]] bool skip_to_matching_end(const std::string_view keyword,
+                                            std::size_t& body_end);
 
     // Parses `(` [`ByVal`|`ByRef`] name [`As` Type] {`,` ...} `)` into
     // `definition.parameters`, used by `scan_procedures` for both `Sub` and
@@ -458,7 +470,8 @@ private:
     // member. A Property accessor's own duplicate check is narrower (see
     // scan_class_body): Get/Let/Set of the *same* property name are meant
     // to coexist.
-    [[nodiscard]] static bool class_member_name_used(const ClassDef& class_def, const std::string& name);
+    [[nodiscard]] static bool class_member_name_used(const ClassDef& class_def,
+                                                     const std::string& name);
 
     // Parses one already-installed class module source (see scan_classes)
     // top-to-bottom, finding its field declarations, `Sub`/`Function`
@@ -484,16 +497,19 @@ private:
     // already been consumed by scan_class_body, which also determined
     // `is_private`.
     // `Private a As Long, b As String` declares several fields on one line.
-    [[nodiscard]] bool scan_class_field_declaration(ClassDef& class_def, const bool is_private);
+    [[nodiscard]] bool scan_class_field_declaration(ClassDef& class_def,
+                                                    const bool is_private);
 
-    [[nodiscard]] bool scan_class_field_declarator(
-        ClassDef& class_def, const bool is_private, bool& more);
+    [[nodiscard]] bool scan_class_field_declarator(ClassDef& class_def,
+                                                   const bool is_private,
+                                                   bool& more);
 
     // `Property Get|Let|Set name(...) [As Type] ... End Property` -- the
     // `Property` keyword has already been consumed by scan_class_body,
     // which also determined `is_private`.
     [[nodiscard]] bool scan_class_property_declaration(
-        ClassDef& class_def, const bool is_private, const std::size_t line_offset);
+        ClassDef& class_def, const bool is_private,
+        const std::size_t line_offset);
 
     // `Sub|Function name(...) [As Type] ... End Sub|Function` -- the
     // `Sub`/`Function` keyword has already been consumed by scan_class_body,
@@ -529,14 +545,16 @@ private:
 
     // Deep-copies a UDT instance's fields (nested UDT fields get their own
     // fresh copies, matching value semantics).
-    [[nodiscard]] std::shared_ptr<InstanceData> clone_udt(const InstanceData& source);
+    [[nodiscard]] std::shared_ptr<InstanceData> clone_udt(
+        const InstanceData& source);
 
     // Gives every UDT instance inside `value` (itself, or the elements of an
     // array) its own copy, so value semantics hold for arrays of UDTs.
     void deep_copy_udt_values(Value& value);
 
     // `target = source` where both are UDT instances of the same type.
-    [[nodiscard]] bool assign_udt(Value& target, const Value& source, const std::size_t offset);
+    [[nodiscard]] bool assign_udt(Value& target, const Value& source,
+                                  const std::size_t offset);
 
     // Finds `[Public|Private] Type Name ... End Type` blocks in the main
     // source and registers each as a value-semantics class (REQ-0241).
@@ -587,10 +605,10 @@ private:
         char* const type_character = nullptr);
 
     [[nodiscard]] bool validate_type_character(
-        const char type_character,
-        const std::size_t identifier_offset);
+        const char type_character, const std::size_t identifier_offset);
 
-    [[nodiscard]] std::size_t type_character_index(const char type_character) const;
+    [[nodiscard]] std::size_t type_character_index(
+        const char type_character) const;
 
     // Recognizes one `As Type` keyword (Integer/Long/Double/Single/
     // Currency/String/Boolean/Variant) for a procedure parameter or
@@ -621,7 +639,8 @@ private:
     // (leaving offset_ at the unconsumed type token), so each caller can
     // report its own "expected ..." message listing exactly the forms it
     // accepts.
-    [[nodiscard]] std::optional<ResolvedType> parse_scalar_object_or_class_type();
+    [[nodiscard]] std::optional<ResolvedType>
+    parse_scalar_object_or_class_type();
 
     // Checks for a trailing `()` immediately after a `Function`'s own
     // return type (REQ-0216: `As Type()` returns an array of `Type`),
@@ -637,21 +656,22 @@ private:
         const ResolvedType& type_result, const std::size_t type_offset);
 
     [[nodiscard]] bool type_character_matches(
-        const Value& value,
-        const char type_character,
+        const Value& value, const char type_character,
         const std::size_t identifier_offset);
 
     // An object reference used where a value is expected stands for its class's
-    // default member (`Attribute Name.VB_UserMemId = 0`): `s = obj`, `"x" & obj`,
-    // `Print obj`. Replaces `value` with that member's result; leaves it unchanged
-    // (returning true) when it is not an instance of a class with a default
-    // member. Returns false only after the default member itself failed.
-    [[nodiscard]] bool resolve_default_value(Value& value, const std::size_t offset);
+    // default member (`Attribute Name.VB_UserMemId = 0`): `s = obj`, `"x" &
+    // obj`, `Print obj`. Replaces `value` with that member's result; leaves it
+    // unchanged (returning true) when it is not an instance of a class with a
+    // default member. Returns false only after the default member itself
+    // failed.
+    [[nodiscard]] bool resolve_default_value(Value& value,
+                                             const std::size_t offset);
 
     // Attempt Integer/Long/Single/Double/Currency widening or checked
-    // narrowing so `value` matches `target_index`. Leaves `value` unchanged, and returns
-    // true, when no numeric conversion applies (including when it already
-    // matches) -- the caller still compares `value->index()` against
+    // narrowing so `value` matches `target_index`. Leaves `value` unchanged,
+    // and returns true, when no numeric conversion applies (including when it
+    // already matches) -- the caller still compares `value->index()` against
     // `target_index` afterward, since a non-numeric mismatch (e.g. a String
     // assigned to a Double target) is not this function's concern. Returns
     // false only after reporting WFC0009 for a narrowing conversion whose
@@ -664,10 +684,9 @@ private:
     [[nodiscard]] bool implicit_scalar_conversion(
         Value& value, const std::size_t target_index, const std::size_t offset);
 
-    [[nodiscard]] bool coerce_numeric_value(
-        Value& value,
-        const std::size_t target_index,
-        const std::size_t offset);
+    [[nodiscard]] bool coerce_numeric_value(Value& value,
+                                            const std::size_t target_index,
+                                            const std::size_t offset);
 
     [[nodiscard]] static std::string vb_error_description(const Integer number);
 
@@ -710,39 +729,50 @@ private:
     [[nodiscard]] bool parse_statement_core();
 
     // `[Let] name ...`: an assignment, array/member write, or a bare call.
-    [[nodiscard]] bool parse_identifier_statement(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_identifier_statement(
+        const std::size_t statement_offset);
 
     // ---- File I/O (REQ-0245) ---------------------------------------------
 
     struct OpenFile {
         std::FILE* handle{};
-        int mode{};  // 1 = Input, 2 = Output, 3 = Append, 4 = Binary, 5 = Random
+        int mode{};  // 1 = Input, 2 = Output, 3 = Append, 4 = Binary, 5 =
+                     // Random
         long record_length{128};
     };
 
-    [[nodiscard]] static std::FILE* open_file(const std::string& path, const char* mode);
+    [[nodiscard]] static std::FILE* open_file(const std::string& path,
+                                              const char* mode);
 
-    [[nodiscard]] static std::string environment_variable(const std::string& name);
+    [[nodiscard]] static std::string environment_variable(
+        const std::string& name);
 
-    [[nodiscard]] bool raise_runtime(
-        const Integer number, const std::string& description, const std::size_t offset);
+    [[nodiscard]] bool raise_runtime(const Integer number,
+                                     const std::string& description,
+                                     const std::size_t offset);
 
-    [[nodiscard]] OpenFile* find_open_file(const Integer number, const std::size_t offset);
+    [[nodiscard]] OpenFile* find_open_file(const Integer number,
+                                           const std::size_t offset);
 
-    [[nodiscard]] bool write_to_file(
-        const Integer number, const std::string& text, const std::size_t offset);
+    [[nodiscard]] bool write_to_file(const Integer number,
+                                     const std::string& text,
+                                     const std::size_t offset);
 
     // Reads one line (without the terminator) into `line`; false at EOF.
-    [[nodiscard]] static bool read_file_line(std::FILE* handle, std::string& line);
+    [[nodiscard]] static bool read_file_line(std::FILE* handle,
+                                             std::string& line);
 
     [[nodiscard]] static bool file_at_eof(std::FILE* handle);
 
     // Reads one `Input #` field: a quoted string or a run up to ',' / newline.
-    [[nodiscard]] static bool read_input_field(std::FILE* handle, std::string& token, bool& quoted);
+    [[nodiscard]] static bool read_input_field(std::FILE* handle,
+                                               std::string& token,
+                                               bool& quoted);
 
-    [[nodiscard]] bool store_input_token(
-        Value& target, const bool is_variant, const std::string& token, const bool quoted,
-        const std::size_t offset);
+    [[nodiscard]] bool store_input_token(Value& target, const bool is_variant,
+                                         const std::string& token,
+                                         const bool quoted,
+                                         const std::size_t offset);
 
     [[nodiscard]] std::string write_item_text(const Value& value);
 
@@ -750,9 +780,11 @@ private:
 
     // `Mid[$](var, start[, length]) = expression` (REQ-0246): overwrites part
     // of a String variable in place, never changing its length.
-    [[nodiscard]] std::optional<bool> parse_mid_statement(const std::size_t statement_offset);
+    [[nodiscard]] std::optional<bool> parse_mid_statement(
+        const std::size_t statement_offset);
 
-    // Positions a Binary/Random file for `Get`/`Put`/`Seek` (1-based `position`).
+    // Positions a Binary/Random file for `Get`/`Put`/`Seek` (1-based
+    // `position`).
     static void seek_record(OpenFile& file, const long position);
 
     // `Get|Put [#]n, [position], variable` and `Seek [#]n, position`.
@@ -764,19 +796,24 @@ private:
     // `name`, `name(i, ...)`, `.field` chains: a storage location for Get.
     [[nodiscard]] bool parse_lvalue_path(LValue& result);
 
-    [[nodiscard]] std::optional<bool> parse_binary_statement(const std::size_t statement_offset);
+    [[nodiscard]] std::optional<bool> parse_binary_statement(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] std::optional<bool> parse_file_statement(const std::size_t statement_offset);
+    [[nodiscard]] std::optional<bool> parse_file_statement(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] static bool is_file_function_name(const std::string_view name);
+    [[nodiscard]] static bool is_file_function_name(
+        const std::string_view name);
 
     [[nodiscard]] std::optional<Value> evaluate_file_function(
-        const std::string_view name, std::vector<Value>& arguments, const std::size_t offset);
+        const std::string_view name, std::vector<Value>& arguments,
+        const std::size_t offset);
 
     // Consumes `#n,` (file number) when present; `file_number` < 0 means
     // "standard output". A `#` followed by digits and a comma is a file
     // number, anything else (`Print #1/1/2000#`) is an expression.
-    [[nodiscard]] bool parse_file_number_prefix(Integer& file_number, bool& found);
+    [[nodiscard]] bool parse_file_number_prefix(Integer& file_number,
+                                                bool& found);
 
     [[nodiscard]] bool at_statement_end() const noexcept;
 
@@ -785,9 +822,11 @@ private:
     // `Spc(n)` and `Tab(n)` pad (REQ-0245).
     [[nodiscard]] bool parse_print_statement();
 
-    [[nodiscard]] bool parse_randomize_statement(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_randomize_statement(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] bool parse_option_statement(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_option_statement(
+        const std::size_t statement_offset);
 
     [[nodiscard]] bool parse_exit_statement(const std::size_t statement_offset);
 
@@ -799,15 +838,15 @@ private:
     // after Then / Else all belong to that branch.
     [[nodiscard]] bool parse_inline_statement_list();
 
-    [[nodiscard]] bool parse_block_if_statement(
-        const bool enclosing_execution,
-        const bool condition);
+    [[nodiscard]] bool parse_block_if_statement(const bool enclosing_execution,
+                                                const bool condition);
 
     [[nodiscard]] bool parse_while_statement();
 
     // `Type Name ... End Type` was registered as a class by scan_udt_types
     // (REQ-0241); at run time the block is just skipped.
-    [[nodiscard]] bool parse_type_statement_skip(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_type_statement_skip(
+        const std::size_t statement_offset);
 
     // `Enum Name` ... `End Enum` (REQ-0237): each member becomes a Long
     // module constant; `As Name` is accepted wherever `As Long` is.
@@ -826,22 +865,22 @@ private:
     // A pending `GoTo`/`GoSub`/`Resume` jump whose label lies inside the loop
     // body currently being parsed is taken in place, keeping the block
     // context (`GoTo skip` ... `skip:` ... `Next`).
-    [[nodiscard]] bool take_local_jump(
-        const std::size_t body_start, const std::size_t statement_start);
+    [[nodiscard]] bool take_local_jump(const std::size_t body_start,
+                                       const std::size_t statement_start);
 
     [[nodiscard]] bool parse_while_body(std::size_t& continuation_offset);
 
     [[nodiscard]] bool parse_do_statement();
 
-    [[nodiscard]] bool parse_posttest_do_statement(const bool enclosing_execution);
+    [[nodiscard]] bool parse_posttest_do_statement(
+        const bool enclosing_execution);
 
     [[nodiscard]] bool parse_do_body(std::size_t& continuation_offset);
 
     [[nodiscard]] bool parse_for_statement();
 
-    [[nodiscard]] bool parse_for_body(
-        const std::string_view identifier,
-        std::size_t& continuation_offset);
+    [[nodiscard]] bool parse_for_body(const std::string_view identifier,
+                                      std::size_t& continuation_offset);
 
     // `For Each identifier In arrayExpr ... Next [identifier]` (REQ-0209).
     // Only an array is an iterable collection in this evaluator (no other
@@ -869,7 +908,8 @@ private:
         bool is_list{};         // empty, or has a top-level comma
     };
 
-    [[nodiscard]] ParenGroup scan_statement_paren_group(const std::size_t open_offset) const;
+    [[nodiscard]] ParenGroup scan_statement_paren_group(
+        const std::size_t open_offset) const;
 
     [[nodiscard]] std::optional<bool> parse_bare_call(
         const std::string& identifier, const std::size_t identifier_offset,
@@ -893,9 +933,11 @@ private:
     // `Object`/class types (a Static array or object reference would need
     // the same persistent-storage treatment `ArrayValue`/`ObjectInstance`
     // do not yet have outside a Scope's ordinary variables map).
-    [[nodiscard]] bool parse_static_declaration(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_static_declaration(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] bool parse_single_static_declaration(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_single_static_declaration(
+        const std::size_t statement_offset);
 
     // Parses a comma-separated list of fixed-size array bounds (`<bound>`
     // or `<lower> To <upper>`, REQ-0201/REQ-0210), with the opening `(`
@@ -950,21 +992,24 @@ private:
 
     enum class AppendOutcome { not_applicable, done, failed };
 
-    // `s = s & expr [& expr...]` extends the variable's string in place instead of building
-    // and copying a new string each time (quadratic in loops that accumulate text). Used only
-    // when the rest of the statement is a plain concatenation of side-effect-free operands.
+    // `s = s & expr [& expr...]` extends the variable's string in place instead
+    // of building and copying a new string each time (quadratic in loops that
+    // accumulate text). Used only when the rest of the statement is a plain
+    // concatenation of side-effect-free operands.
     [[nodiscard]] bool append_statement_eligible(const std::string& identifier);
 
-    [[nodiscard]] AppendOutcome try_append_assignment(const std::string& identifier, std::string& target);
+    [[nodiscard]] AppendOutcome try_append_assignment(
+        const std::string& identifier, std::string& target);
 
-    // Whether the parenthesised group opening at `open_offset` is followed by a '.'.
-    [[nodiscard]] bool paren_followed_by_dot(const std::size_t open_offset) const noexcept;
+    // Whether the parenthesised group opening at `open_offset` is followed by a
+    // '.'.
+    [[nodiscard]] bool paren_followed_by_dot(
+        const std::size_t open_offset) const noexcept;
 
     std::size_t chain_counter_{};
 
-    [[nodiscard]] bool parse_assignment(
-        std::string identifier,
-        const char type_character = '\0');
+    [[nodiscard]] bool parse_assignment(std::string identifier,
+                                        const char type_character = '\0');
 
     // Assigns an object reference into `target`, the way `Set` always does:
     // `source` must itself be Nothing or a live instance (`WFC0106`
@@ -985,12 +1030,11 @@ private:
     // target/parameter accepts an implementing instance the same way it
     // already accepts an exact match.
     [[nodiscard]] bool class_satisfies(
-        const std::string& actual_class_name, const std::string& declared_class_name) const;
+        const std::string& actual_class_name,
+        const std::string& declared_class_name) const;
 
     [[nodiscard]] bool assign_object_reference(
-        Value& target,
-        const std::string& declared_class_name,
-        Value source,
+        Value& target, const std::string& declared_class_name, Value source,
         const std::size_t offset);
 
     // Parses the remainder of a Property Let/Set-routed assignment once
@@ -1004,10 +1048,8 @@ private:
     // expr` (parse_member_assignment), and `Set obj.Prop[(args)] = expr`
     // (parse_member_set_assignment).
     [[nodiscard]] bool invoke_property_let_or_set(
-        InstanceData& instance,
-        const ClassDef& class_def,
-        const ProcedureDef& definition,
-        const std::string& property_name,
+        InstanceData& instance, const ClassDef& class_def,
+        const ProcedureDef& definition, const std::string& property_name,
         const std::size_t property_offset);
 
     // `Set obj.Prop = expression` assigns through a Property Set accessor
@@ -1017,7 +1059,8 @@ private:
     // since it is always read/written through ordinary `=`). `base` is the
     // already-evaluated object reference the member is accessed on; its
     // own '.' has already been consumed.
-    [[nodiscard]] bool parse_member_set_assignment(const Value base, const std::size_t base_offset);
+    [[nodiscard]] bool parse_member_set_assignment(
+        const Value base, const std::size_t base_offset);
 
     // `Set identifier = expression` is the only legal way to assign an
     // object reference (see REQ-0200): the target must be a fixed
@@ -1034,15 +1077,13 @@ private:
     // but a WithEvents field also moves the instance's event subscription
     // from the old referent to the new one.
     [[nodiscard]] bool assign_field_reference(
-        InstanceData& owner,
-        const std::string& field_name,
-        Value& slot,
-        const std::string& declared_class_name,
-        Value source,
+        InstanceData& owner, const std::string& field_name, Value& slot,
+        const std::string& declared_class_name, Value source,
         const std::size_t offset);
 
     // `RaiseEvent Name[(args)]`: runs every subscribed `field_Name` handler.
-    [[nodiscard]] bool parse_raise_event_statement(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_raise_event_statement(
+        const std::size_t statement_offset);
 
     // `identifier.member = expression` writes through a Property Let
     // accessor when the class declares one for `member`, otherwise directly
@@ -1058,8 +1099,7 @@ private:
     // member assignment, or ordinary scalar assignment, in that order,
     // based on what immediately follows `identifier`.
     [[nodiscard]] bool parse_assignment_or_array_element(
-        std::string identifier,
-        const char type_character = '\0');
+        std::string identifier, const char type_character = '\0');
 
     // The number of dimensions `array` currently has, or (REQ-0219) will
     // have once its first `ReDim` allocates it. Once allocated,
@@ -1081,21 +1121,22 @@ private:
     // run the same way every other runtime check in this evaluator is.
     // Shared by `parse_array_index` (read) and
     // `parse_array_element_assignment` (write). REQ-0210.
-    static constexpr std::size_t kAnyDimensionCount = static_cast<std::size_t>(-1);
+    static constexpr std::size_t kAnyDimensionCount =
+        static_cast<std::size_t>(-1);
 
-    [[nodiscard]] std::optional<std::vector<std::pair<Integer, std::size_t>>> parse_index_list(
-        const std::size_t dimension_count);
+    [[nodiscard]] std::optional<std::vector<std::pair<Integer, std::size_t>>>
+    parse_index_list(const std::size_t dimension_count);
 
     // Computes the flat storage offset for `indices` into `array` (already
     // count-matched by `parse_index_list`), range-checking each dimension
     // against its declared bounds. Only meaningful under real execution --
     // callers skip this during a dry run. REQ-0210.
     [[nodiscard]] std::optional<std::size_t> array_flat_offset(
-        const ArrayValue& array, const std::vector<std::pair<Integer, std::size_t>>& indices);
+        const ArrayValue& array,
+        const std::vector<std::pair<Integer, std::size_t>>& indices);
 
     [[nodiscard]] bool parse_array_element_assignment(
-        const std::string& identifier,
-        const std::size_t identifier_offset);
+        const std::string& identifier, const std::size_t identifier_offset);
 
     // Element assignment against an array held in `slot` (a variable or a
     // class-instance array field, REQ-0251); positioned at the '('.
@@ -1118,8 +1159,9 @@ private:
 
     // VB `Like`: ? any char, * any run, # digit, [list]/[!list] with ranges.
     template <class Text>
-    [[nodiscard]] static bool like_match_units(
-        const Text& text, const Text& pattern, const bool fold) {
+    [[nodiscard]] static bool like_match_units(const Text& text,
+                                               const Text& pattern,
+                                               const bool fold) {
         using Unit = typename Text::value_type;
         const auto lower = [](const Unit c) -> Unit {
             if constexpr (sizeof(Unit) == 1U) {
@@ -1131,57 +1173,87 @@ private:
         const auto same = [&](const Unit a, const Unit b) {
             return fold ? lower(a) == lower(b) : a == b;
         };
-        std::function<bool(std::size_t, std::size_t)> match = [&](std::size_t t, std::size_t p) {
-            while (p < pattern.size()) {
-                const Unit c = pattern[p];
-                if (c == Unit{'*'}) {
-                    while (p < pattern.size() && pattern[p] == Unit{'*'}) ++p;
-                    if (p == pattern.size()) return true;
-                    for (std::size_t k = t; k <= text.size(); ++k) {
-                        if (match(k, p)) return true;
+        std::function<bool(std::size_t, std::size_t)> match =
+            [&](std::size_t t, std::size_t p) {
+                while (p < pattern.size()) {
+                    const Unit c = pattern[p];
+                    if (c == Unit{'*'}) {
+                        while (p < pattern.size() && pattern[p] == Unit{'*'}) {
+                            ++p;
+                        }
+                        if (p == pattern.size()) {
+                            return true;
+                        }
+                        for (std::size_t k = t; k <= text.size(); ++k) {
+                            if (match(k, p)) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
-                    return false;
-                }
-                if (t >= text.size()) return false;
-                if (c == Unit{'?'}) {
-                    ++t; ++p;
-                } else if (c == Unit{'#'}) {
-                    if (!(text[t] >= Unit{'0'} && text[t] <= Unit{'9'})) return false;
-                    ++t; ++p;
-                } else if (c == Unit{'['}) {
-                    const auto close = pattern.find(Unit{']'}, p + 2);
-                    if (close == Text::npos) return false;
-                    std::size_t q = p + 1;
-                    bool negate = false;
-                    if (q < close && pattern[q] == Unit{'!'}) { negate = true; ++q; }
-                    bool hit = false;
-                    while (q < close) {
-                        if (q + 2 < close && pattern[q + 1] == Unit{'-'}) {
-                            const Unit lo = fold ? lower(pattern[q]) : pattern[q];
-                            const Unit hi = fold ? lower(pattern[q + 2]) : pattern[q + 2];
-                            const Unit ch = fold ? lower(text[t]) : text[t];
-                            if (ch >= lo && ch <= hi) hit = true;
-                            q += 3;
-                        } else {
-                            if (same(pattern[q], text[t])) hit = true;
+                    if (t >= text.size()) {
+                        return false;
+                    }
+                    if (c == Unit{'?'}) {
+                        ++t;
+                        ++p;
+                    } else if (c == Unit{'#'}) {
+                        if (!(text[t] >= Unit{'0'} && text[t] <= Unit{'9'})) {
+                            return false;
+                        }
+                        ++t;
+                        ++p;
+                    } else if (c == Unit{'['}) {
+                        const auto close = pattern.find(Unit{']'}, p + 2);
+                        if (close == Text::npos) {
+                            return false;
+                        }
+                        std::size_t q = p + 1;
+                        bool negate = false;
+                        if (q < close && pattern[q] == Unit{'!'}) {
+                            negate = true;
                             ++q;
                         }
+                        bool hit = false;
+                        while (q < close) {
+                            if (q + 2 < close && pattern[q + 1] == Unit{'-'}) {
+                                const Unit lo =
+                                    fold ? lower(pattern[q]) : pattern[q];
+                                const Unit hi = fold ? lower(pattern[q + 2])
+                                                     : pattern[q + 2];
+                                const Unit ch = fold ? lower(text[t]) : text[t];
+                                if (ch >= lo && ch <= hi) {
+                                    hit = true;
+                                }
+                                q += 3;
+                            } else {
+                                if (same(pattern[q], text[t])) {
+                                    hit = true;
+                                }
+                                ++q;
+                            }
+                        }
+                        if (hit == negate) {
+                            return false;
+                        }
+                        ++t;
+                        p = close + 1;
+                    } else {
+                        if (!same(c, text[t])) {
+                            return false;
+                        }
+                        ++t;
+                        ++p;
                     }
-                    if (hit == negate) return false;
-                    ++t;
-                    p = close + 1;
-                } else {
-                    if (!same(c, text[t])) return false;
-                    ++t; ++p;
                 }
-            }
-            return t == text.size();
-        };
+                return t == text.size();
+            };
         return match(0, 0);
     }
 
-    [[nodiscard]] static bool like_match(
-        const std::string& text, const std::string& pattern, const bool fold);
+    [[nodiscard]] static bool like_match(const std::string& text,
+                                         const std::string& pattern,
+                                         const bool fold);
 
     [[nodiscard]] std::optional<Value> parse_comparison();
 
@@ -1234,7 +1306,8 @@ private:
     // The zero/default value for one of the fixed scalar type indices a
     // procedure parameter or Function return type can name (mirrors
     // `parse_type_keyword`'s non-Variant results).
-    [[nodiscard]] static Value zero_value_for_index(const std::size_t type_index);
+    [[nodiscard]] static Value zero_value_for_index(
+        const std::size_t type_index);
 
     // Parses one call argument. A bare identifier naming a declared
     // variable, with nothing else in its own argument slot, is captured as
@@ -1259,7 +1332,8 @@ private:
     // *with* arguments (`Foo 5, 6`) remains unsupported, avoiding the
     // classic ambiguity between that form and other statement/expression
     // shapes; see REQ-0213's Scope.
-    [[nodiscard]] std::optional<std::vector<CallArgument>> parse_call_argument_list();
+    [[nodiscard]] std::optional<std::vector<CallArgument>>
+    parse_call_argument_list();
 
     // Binds already-evaluated `arguments` to `definition`'s parameters into
     // a new local scope (widening/narrowing each ByVal-or-typed argument the
@@ -1278,19 +1352,16 @@ private:
     // expression for a Property Let/Set), which is why they remain separate
     // callers rather than one further-generalized entry point.
     [[nodiscard]] std::optional<Value> invoke_definition(
-        const ProcedureDef& definition,
-        const std::string& binding_name,
+        const ProcedureDef& definition, const std::string& binding_name,
         std::vector<CallArgument> arguments,
-        const std::size_t identifier_offset,
-        const std::string_view body_source,
+        const std::size_t identifier_offset, const std::string_view body_source,
         InstanceData* const instance);
 
     // Parses `(args)` for a call to the already-looked-up module-level
     // procedure `name`, then runs it via invoke_definition against the
     // module's own source and no instance scope.
     [[nodiscard]] std::optional<Value> call_procedure(
-        const std::string& name,
-        const std::size_t identifier_offset,
+        const std::string& name, const std::size_t identifier_offset,
         const bool require_function);
 
     [[nodiscard]] std::optional<Value> parse_procedure_call(
@@ -1395,10 +1466,8 @@ private:
     // parse_call_statement (an unqualified sibling call resolved via
     // current_instance/current_class_def).
     [[nodiscard]] std::optional<Value> call_class_method(
-        InstanceData& instance,
-        const ClassDef& class_def,
-        const std::string& member_name,
-        const std::size_t member_offset,
+        InstanceData& instance, const ClassDef& class_def,
+        const std::string& member_name, const std::size_t member_offset,
         const bool require_function,
         const bool bypass_for_interface_dispatch = false);
 
@@ -1412,7 +1481,8 @@ private:
     // a Property accessor under the same name (see scan_class_body), so
     // this order is unambiguous.
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(
-        const Value base, const std::size_t base_offset, const bool require_function = true,
+        const Value base, const std::size_t base_offset,
+        const bool require_function = true,
         const std::string& via_interface_class = {});
 
     // `Call name(args)` -- the only supported way to invoke a Sub as a
@@ -1428,33 +1498,38 @@ private:
     // (including its `declaration_end`) before this pass began.
     // `Property Get|Let|Set Name(...) ... End Property` in a standard module:
     // `Property` has been consumed; skips the whole declaration.
-    [[nodiscard]] bool parse_property_declaration_skip(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_property_declaration_skip(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] bool parse_procedure_declaration_skip(const std::size_t statement_offset);
+    [[nodiscard]] bool parse_procedure_declaration_skip(
+        const std::size_t statement_offset);
 
-    [[nodiscard]] std::optional<Value> parse_array_index(const Value& array_variable);
+    [[nodiscard]] std::optional<Value> parse_array_index(
+        const Value& array_variable);
 
-    [[nodiscard]] static bool is_misc_function_name(const std::string_view name);
+    [[nodiscard]] static bool is_misc_function_name(
+        const std::string_view name);
 
     // REQ-0246: financial functions, FormatNumber/Currency/Percent, Partition.
     [[nodiscard]] std::optional<Value> evaluate_misc_function(
-        const std::string_view name, std::vector<Value>& arguments, const std::size_t offset);
+        const std::string_view name, std::vector<Value>& arguments,
+        const std::size_t offset);
 
-    [[nodiscard]] static bool is_date_function_name(const std::string_view name);
+    [[nodiscard]] static bool is_date_function_name(
+        const std::string_view name);
 
     [[nodiscard]] static double current_date_serial();
 
     // REQ-0242: Date/Time intrinsics.
     [[nodiscard]] std::optional<Value> evaluate_date_function(
-        const std::string_view name, std::vector<Value>& arguments, const std::size_t offset);
+        const std::string_view name, std::vector<Value>& arguments,
+        const std::size_t offset);
 
     [[nodiscard]] std::optional<Value> parse_function_call(
-        const std::string_view identifier,
-        const std::size_t identifier_offset);
+        const std::string_view identifier, const std::size_t identifier_offset);
 
     [[nodiscard]] std::optional<Value> parse_function_call_impl(
-        const std::string_view identifier,
-        const std::size_t identifier_offset);
+        const std::string_view identifier, const std::size_t identifier_offset);
 
     [[nodiscard]] std::optional<Value> parse_string();
 
@@ -1462,26 +1537,22 @@ private:
     // returning true when a fractional or exponent part made it a Double form.
     [[nodiscard]] bool lex_number_span() noexcept;
 
-    [[nodiscard]] std::optional<Value> parse_double(
-        const std::size_t start,
-        const std::size_t end);
+    [[nodiscard]] std::optional<Value> parse_double(const std::size_t start,
+                                                    const std::size_t end);
 
-    [[nodiscard]] std::optional<Value> parse_single(
-        const std::size_t start,
-        const std::size_t end);
+    [[nodiscard]] std::optional<Value> parse_single(const std::size_t start,
+                                                    const std::size_t end);
 
     [[nodiscard]] std::optional<Value> parse_short_integer(
-        const std::size_t start,
-        const std::size_t end);
+        const std::size_t start, const std::size_t end);
 
     // Parse a non-negative decimal span into a Currency scaled int64,
     // without an intermediate floating-point conversion, so a value with
     // more significant digits than a double can represent exactly (up to
     // Currency's full 19-digit magnitude) still parses exactly. Currency
     // literals do not support exponent notation.
-    [[nodiscard]] std::optional<Value> parse_currency(
-        const std::size_t start,
-        const std::size_t end);
+    [[nodiscard]] std::optional<Value> parse_currency(const std::size_t start,
+                                                      const std::size_t end);
 
     [[nodiscard]] std::optional<Value> parse_number();
 
@@ -1490,16 +1561,13 @@ private:
     // Round a Double to the nearest Long using banker's rounding (the default
     // IEEE round-to-nearest-even, matching VB6), rejecting out-of-range values.
     [[nodiscard]] std::optional<Value> round_double_to_long(
-        const double number,
-        const Integer minimum,
-        const Integer maximum,
+        const double number, const Integer minimum, const Integer maximum,
         const std::size_t offset);
 
     // Round a Double to the nearest Int16 (VB6 Integer) using banker's
     // rounding, rejecting out-of-range values.
     [[nodiscard]] std::optional<Value> round_double_to_short_integer(
-        const double number,
-        const std::size_t offset);
+        const double number, const std::size_t offset);
 
     // Render a Currency's exact scaled value as decimal digits: the whole
     // part, then a '.' and up to four fraction digits with trailing zeros
@@ -1509,22 +1577,24 @@ private:
     // style callers, which add one for Str's sign-space convention).
     [[nodiscard]] static std::string render_currency(const std::int64_t scaled);
 
-    // Fixed-point text of a non-negative finite number with `places` decimals, rounded
-    // half-up from its 15-significant-digit decimal form (how VB's Format rounds: 2.5 -> "3",
-    // 0.285 -> "0.29"), instead of from the exact binary value.
-    [[nodiscard]] static std::string fixed_half_up(const double magnitude, const int places);
+    // Fixed-point text of a non-negative finite number with `places` decimals,
+    // rounded half-up from its 15-significant-digit decimal form (how VB's
+    // Format rounds: 2.5 -> "3", 0.285 -> "0.29"), instead of from the exact
+    // binary value.
+    [[nodiscard]] static std::string fixed_half_up(const double magnitude,
+                                                   const int places);
 
     // Render a finite double using VBA's "Fixed"/"Standard" Format styles:
     // exactly two decimal digits, an optional grouped integer part, and a
     // leading '-' only when the rounded magnitude is nonzero.
-    [[nodiscard]] static std::string render_fixed_style(
-        const double value,
-        const bool grouping);
+    [[nodiscard]] static std::string render_fixed_style(const double value,
+                                                        const bool grouping);
 
     // Render a finite double using VBA's "Scientific" Format style: one
     // mantissa digit, two fraction digits, an uppercase 'E', an explicit
     // exponent sign, and a minimum two-digit exponent.
-    [[nodiscard]] static std::string render_scientific_style(const double value);
+    [[nodiscard]] static std::string render_scientific_style(
+        const double value);
 
     // A custom numeric picture section, after expanding every `\`-escaped
     // pair (REQ-0221) and every `"`-quoted run (REQ-0222): `text` drops
@@ -1544,7 +1614,8 @@ private:
         std::vector<bool> forced_literal;
     };
 
-    [[nodiscard]] static EscapedPicture parse_picture_escapes(const std::string& section);
+    [[nodiscard]] static EscapedPicture parse_picture_escapes(
+        const std::string& section);
 
     // Splits a custom numeric picture `Format` `Style` on `;` into its
     // positive/negative/zero sections (REQ-0220) and renders `value`
@@ -1612,7 +1683,8 @@ private:
     // Advance the verified VB6-reference Rnd generator by one 24-bit linear
     // congruential step: state' = (state * 0x43FD43FD + 0xC39EC3) mod 2^24.
     // Confirmed byte-for-byte against a local VB6 6.00.8176 probe.
-    [[nodiscard]] static std::uint32_t rnd_step(const std::uint32_t state) noexcept;
+    [[nodiscard]] static std::uint32_t rnd_step(
+        const std::uint32_t state) noexcept;
 
     [[nodiscard]] static double rnd_value(const std::uint32_t state) noexcept;
 
@@ -1623,19 +1695,18 @@ private:
     // different subsequent Rnd() results), so no formula could truthfully
     // claim to match it. This hash instead guarantees a WFC-specific
     // contract: the same seed always produces the same subsequent sequence.
-    [[nodiscard]] static std::uint32_t seed_from_number(const double value) noexcept;
+    [[nodiscard]] static std::uint32_t seed_from_number(
+        const double value) noexcept;
 
     // Non-deterministic seed source for argument-less Randomize, matching
     // VB6's documented system-timer-based reseeding.
     [[nodiscard]] static double entropy_seed();
 
     [[nodiscard]] const Integer* require_integer(
-        const Value& value,
-        const std::size_t operator_offset);
+        const Value& value, const std::size_t operator_offset);
 
     [[nodiscard]] const bool* require_boolean(
-        const Value& value,
-        const std::size_t operator_offset);
+        const Value& value, const std::size_t operator_offset);
 
     // A ternary logical operand: Null and Empty are valid inputs everywhere
     // a Boolean is otherwise required for And/Or/Not/Xor/Eqv/Imp. Null
@@ -1648,35 +1719,29 @@ private:
     };
 
     [[nodiscard]] std::optional<TernaryOperand> coerce_ternary_operand(
-        const Value& value,
-        const std::size_t operator_offset);
+        const Value& value, const std::size_t operator_offset);
 
     // Coerce an If/While/Do condition value to a Boolean, treating Null and
     // Empty as False (verified: `If Null Then` takes the Else branch with
     // no runtime error, unlike CBool(Null), which does error). Returns
     // nullopt with an error already set only for a genuinely wrong type.
     [[nodiscard]] std::optional<bool> coerce_condition_boolean(
-        const Value& value,
-        const std::size_t offset,
+        const Value& value, const std::size_t offset,
         const std::string_view error_code,
         const std::string_view error_message);
 
     [[nodiscard]] std::optional<Value> logical_binary(
-        const Value& left,
-        const Value& right,
-        const char operation,
+        const Value& left, const Value& right, const char operation,
         const std::size_t operator_offset);
 
-    [[nodiscard]] int compare_strings(
-        const std::string_view left_in,
-        const std::string_view right_in) const;
+    [[nodiscard]] int compare_strings(const std::string_view left_in,
+                                      const std::string_view right_in) const;
 
-    [[nodiscard]] bool values_equal(const Value& left, const Value& right) const;
+    [[nodiscard]] bool values_equal(const Value& left,
+                                    const Value& right) const;
 
     [[nodiscard]] std::optional<Value> compare(
-        const Value& left,
-        const Value& right,
-        const std::string_view operation,
+        const Value& left, const Value& right, const std::string_view operation,
         const std::size_t operator_offset);
 
     // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
@@ -1690,43 +1755,35 @@ private:
     [[nodiscard]] static Value widen_byte(const Value& value);
 
     [[nodiscard]] std::optional<Value> numeric_binary(
-        const Value& left_in,
-        const Value& right_in,
-        const char operation,
+        const Value& left_in, const Value& right_in, const char operation,
         const std::size_t operator_offset);
 
     // Coerce a numeric operand to Long for the integer operators, rounding a
     // Double to the nearest even integer (VB6 banker's rounding). Non-numeric
     // operands and out-of-range magnitudes are rejected.
     [[nodiscard]] std::optional<Integer> coerce_long(
-        const Value& value,
-        const std::size_t operator_offset);
+        const Value& value, const std::size_t operator_offset);
 
     [[nodiscard]] std::optional<Value> integer_binary(
-        const Value& left_in,
-        const Value& right_in,
-        const char operation,
+        const Value& left_in, const Value& right_in, const char operation,
         const std::size_t operator_offset);
 
     // Exact, checked Int16 (VB6 Integer) `+`/`-`/`*` for two Int16 operands.
     // Callers guarantee both operands are already Int16 and the operation is
     // not `/` (which always promotes to Double, matching Long op Long).
     [[nodiscard]] std::optional<Value> short_integer_binary(
-        const Value& left,
-        const Value& right,
-        const char operation,
+        const Value& left, const Value& right, const char operation,
         const std::size_t operator_offset);
 
     // REQ-0268: VB6 renders a Double with 15 significant digits and a Single
     // with 7 (C's %G rules: exponent form below 1E-4 or from 1E15/1E7 up).
-    [[nodiscard]] static std::string render_floating(const double number, const int digits);
+    [[nodiscard]] static std::string render_floating(const double number,
+                                                     const int digits);
 
     [[nodiscard]] static std::string render(const Value& value);
 
-    void set_error(
-        const std::string_view code,
-        const std::string_view message,
-        const std::size_t offset);
+    void set_error(const std::string_view code, const std::string_view message,
+                   const std::size_t offset);
 
     const char* error_source_data_{};
     std::string_view source_;
@@ -1775,8 +1832,9 @@ private:
     bool retry_statement_{};
     std::unordered_set<const char*> identifier_statements_;
     std::unordered_map<const char*, bool> append_eligibility_;
-    // Set when the current statement read a Variant variable: Variant arithmetic that overflows
-    // is promoted (Integer -> Long -> Double) instead of raising Overflow.
+    // Set when the current statement read a Variant variable: Variant
+    // arithmetic that overflows is promoted (Integer -> Long -> Double) instead
+    // of raising Overflow.
     bool variant_operand_seen_{};
     bool vb_number_spacing_{};
     bool pending_static_procedure_{};
@@ -1843,7 +1901,8 @@ private:
     std::size_t procedure_depth_{};
     const char* stack_base_{};
     std::size_t stack_budget_{};
-    std::size_t max_procedure_depth_{64U};  // raised when running on a large stack
+    std::size_t max_procedure_depth_{
+        64U};  // raised when running on a large stack
     bool exit_sub_requested_{};
     bool exit_function_requested_{};
     // Rnd/Randomize generator state. 327680 is the verified default seed of

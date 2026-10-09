@@ -1,15 +1,16 @@
-# Checks that requirements/language/diagnostics.md lists exactly the WFC codes the source raises.
+# Checks that requirements/language/diagnostics.md lists exactly the WFC
+# codes the source raises.
 # Usage: cmake -DSOURCE_DIR=<repo root> -P check_diagnostic_catalog.cmake
 file(GLOB_RECURSE sources "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/src/*.hpp")
 set(raised "")
 foreach(source IN LISTS sources)
-    file(READ "${source}" text)
-    # A code in a string literal is raised (comments name codes without quotes).
-    string(REGEX MATCHALL "\"WFC[0-9][0-9][0-9][0-9]\"" found "${text}")
-    foreach(literal IN LISTS found)
-        string(REPLACE "\"" "" code "${literal}")
-        list(APPEND raised "${code}")
-    endforeach()
+  file(READ "${source}" text)
+  # A code in a string literal is raised (comments name codes without quotes).
+  string(REGEX MATCHALL "\"WFC[0-9][0-9][0-9][0-9]\"" found "${text}")
+  foreach(literal IN LISTS found)
+    string(REPLACE "\"" "" code "${literal}")
+    list(APPEND raised "${code}")
+  endforeach()
 endforeach()
 list(REMOVE_DUPLICATES raised)
 
@@ -18,7 +19,10 @@ string(FIND "${catalog}" "\n## Active codes" active_start)
 string(FIND "${catalog}" "\n## Retired codes" retired_start)
 string(FIND "${catalog}" "\n## Reserved" reserved_start)
 if(active_start EQUAL -1 OR retired_start EQUAL -1 OR reserved_start EQUAL -1)
-    message(FATAL_ERROR "diagnostics.md is missing its Active, Retired or Reserved section")
+  message(
+    FATAL_ERROR
+    "diagnostics.md is missing its Active, Retired or Reserved section"
+  )
 endif()
 math(EXPR active_length "${retired_start} - ${active_start}")
 math(EXPR retired_length "${reserved_start} - ${retired_start}")
@@ -26,34 +30,44 @@ string(SUBSTRING "${catalog}" ${active_start} ${active_length} active_text)
 string(SUBSTRING "${catalog}" ${retired_start} ${retired_length} retired_text)
 
 function(table_codes text out)
-    string(REGEX MATCHALL "\n\\| `WFC[0-9][0-9][0-9][0-9]` \\|" rows "${text}")
-    set(codes "")
-    foreach(row IN LISTS rows)
-        string(REGEX MATCH "WFC[0-9][0-9][0-9][0-9]" code "${row}")
-        list(APPEND codes "${code}")
-    endforeach()
-    set(${out} "${codes}" PARENT_SCOPE)
+  string(REGEX MATCHALL "\n\\| `WFC[0-9][0-9][0-9][0-9]` \\|" rows "${text}")
+  set(codes "")
+  foreach(row IN LISTS rows)
+    string(REGEX MATCH "WFC[0-9][0-9][0-9][0-9]" code "${row}")
+    list(APPEND codes "${code}")
+  endforeach()
+  set(${out} "${codes}" PARENT_SCOPE)
 endfunction()
 table_codes("${active_text}" active)
 table_codes("${retired_text}" retired)
 
 set(problems "")
 foreach(code IN LISTS raised)
-    if(NOT code IN_LIST active AND NOT code IN_LIST retired)
-        string(APPEND problems "\n  ${code} appears in src/ but is not in the catalog")
-    endif()
+  if(NOT code IN_LIST active AND NOT code IN_LIST retired)
+    string(
+      APPEND problems
+      "\n  ${code} appears in src/ but is not in the catalog"
+    )
+  endif()
 endforeach()
 foreach(code IN LISTS active)
-    if(NOT code IN_LIST raised)
-        string(APPEND problems "\n  ${code} is listed as active but no longer appears in src/ (move it to Retired codes)")
-    endif()
-    if(code IN_LIST retired)
-        string(APPEND problems "\n  ${code} is listed as both active and retired")
-    endif()
+  if(NOT code IN_LIST raised)
+    string(
+      APPEND problems
+      "\n  ${code} is listed as active but no longer appears in src/ \
+(move it to Retired codes)"
+    )
+  endif()
+  if(code IN_LIST retired)
+    string(APPEND problems "\n  ${code} is listed as both active and retired")
+  endif()
 endforeach()
 if(problems)
-    message(FATAL_ERROR "diagnostic catalog is out of date:${problems}")
+  message(FATAL_ERROR "diagnostic catalog is out of date:${problems}")
 endif()
 list(LENGTH active active_count)
 list(LENGTH retired retired_count)
-message(STATUS "diagnostic catalog matches: ${active_count} active, ${retired_count} retired")
+message(
+  STATUS
+  "diagnostic catalog matches: ${active_count} active, ${retired_count} retired"
+)
