@@ -743,6 +743,7 @@ identified in `planning/reference-environment.md`.
 | Defer OLE1 file save (`SaveToOle1File`, `REQ-0063`) beyond 1.0; in 1.0 the method stays declared and fails through a documented diagnostic, while OLE2 hosting (`REQ-0129`) stays in scope | Maintainer decision, 2026-10-09 | Closes the OLE1 item of the MP-0002 legacy-disposition condition | `REQ-0063`, `planning/legacy-feature-dispositions.md` §3 |
 | Defer `UserDocument`/ActiveX Documents (`REQ-0066`) beyond 1.0; in 1.0 the loader rejects `UserDocument` items and the compiler rejects `As UserDocument` with a documented diagnostic | Maintainer decision, 2026-10-09 | Closes the ActiveX Documents item of the MP-0002 legacy-disposition condition | `REQ-0066`, `planning/legacy-feature-dispositions.md` §4 |
 | Accept `PropertyPage` (`REQ-0065`) as compile-time only: pages load, compile and persist into built components, with no WFC hosting UI and a documented diagnostic for run-time show requests | Maintainer decision, 2026-10-09 | Closes the PropertyPage item of the MP-0002 legacy-disposition condition; implementation remains with MP-0005 component authoring | `REQ-0065`, `planning/legacy-feature-dispositions.md` §5 |
+| WinHelp/context help: preserve every help property and argument in 1.0; defer help display (`.chm` bridging and `.hlp`) beyond 1.0, with a documented diagnostic for help requests | Maintainer decision, 2026-10-09 | Closes the last item of the MP-0002 legacy-disposition condition; the shared `WFC9000`-series diagnostics and stub tests remain to be implemented | `REQ-0076`, `planning/legacy-feature-dispositions.md` §6 |
 
 | Item | Effect | Response | Status or owner |
 | --- | --- | --- | --- |
@@ -2189,13 +2190,13 @@ not been extended in this series.
 **Resolved during the series:** unsuffixed small integer literals are now `Integer`
 (REQ-0280) and over-`Long` literals are `Double`.
 
-**Owner decisions still open for the MP-0002 exit gate** (recommendations drafted in
-`planning/legacy-feature-dispositions.md`, each awaiting acceptance): the six legacy
-features listed in `planning/compatibility-profile-1.0.md` under "Legacy
-Features Requiring Explicit Disposition" (DDE, intrinsic `Data`/DAO, OLE1,
-ActiveX Documents, PropertyPage hosting, WinHelp) remain "Proposed; not yet
-accepted" -- these are scope decisions for the maintainer, not something this
-series changed.
+**Legacy dispositions decided (2026-10-09):** the maintainer decided all six
+legacy features in `planning/compatibility-profile-1.0.md` ("Legacy Features
+Requiring Explicit Disposition"): DDE, the intrinsic `Data` control/DAO (to
+2.0), OLE1 file save and ActiveX Documents are deferred beyond 1.0;
+PropertyPage is compile-time only; help values are preserved with help display
+deferred. Generic data binding (`REQ-0131`) was left open. The shared
+`WFC9000`-series diagnostics these decisions rely on are not yet implemented.
 
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the corpus-driven hardening under MP-0002.

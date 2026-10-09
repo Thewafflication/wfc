@@ -129,7 +129,7 @@ becomes a release gate:
 | OLE1 conversion and `SaveToOle1File` | **Deferred** beyond 1.0 (after MP-0010); `SaveToOle1File` stays declared and fails through a documented diagnostic; OLE2 hosting stays in scope — maintainer decision, 2026-10-09 | Remove only OLE1 conversion while retaining OLE2 hosting? |
 | `UserDocument`/ActiveX Documents | **Deferred** beyond 1.0 (after MP-0010); the loader and compiler report a documented unsupported-feature diagnostic — maintainer decision, 2026-10-09 | Required by the accepted application corpus or removable legacy host? |
 | `PropertyPage` hosting | **Required with approved variance**: pages load, compile and persist into built components; no WFC page-hosting UI, run-time show requests fail through a documented diagnostic — maintainer decision, 2026-10-09 | Required for component authoring or replaceable with programmatic configuration? |
-| Legacy WinHelp and context-help integration | Proposed; not yet accepted | Preserve IDs/API behavior, bridge to current help, or report unsupported UI? |
+| Legacy WinHelp and context-help integration | **Required with approved variance**: help IDs, `HelpFile` and `MsgBox`/`InputBox` help arguments are preserved; displaying help (`.chm` bridging and `.hlp`) is **deferred** beyond 1.0 (after MP-0010), and a request to show help fails through a documented diagnostic — maintainer decision, 2026-10-09 | Preserve IDs/API behavior, bridge to current help, or report unsupported UI? |
 
 Recommendations for all six, with alternatives, affected requirements, and
 acceptance records, are drafted in

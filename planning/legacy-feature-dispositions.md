@@ -2,8 +2,10 @@
 
 **Content type:** Decision proposal (for maintainer review)
 
-**Status:** Partly decided — §1–§5 decided 2026-10-09; §6 (WinHelp) still
-proposed. Each section ends with an acceptance record that stays blank until
+**Status:** Decided — all six sections decided by the maintainer on
+2026-10-09. The shared `WFC9000`–`WFC9099` diagnostic family and the
+conformance tests listed under "What happens when these are accepted" are not
+yet implemented. Each section ends with an acceptance record that stays blank until
 the maintainer fills it in. The authoritative disposition table remains the one
 in [`compatibility-profile-1.0.md`](compatibility-profile-1.0.md) ("Legacy
 Features Requiring Explicit Disposition").
@@ -56,7 +58,7 @@ unsupported-feature diagnostic").
 | 3 | OLE1 conversion / `SaveToOle1File` | ~~Remove OLE1 conversion only; keep OLE2 hosting~~ **Decided 2026-10-09: `SaveToOle1File` deferred beyond 1.0; OLE2 kept** | None — decided |
 | 4 | `UserDocument` / ActiveX Documents | ~~Remove from 1.0 (deferred, not implemented)~~ **Decided 2026-10-09: deferred beyond 1.0** | None — decided |
 | 5 | `PropertyPage` hosting | **Decided 2026-10-09: accept and persist at build time; no runtime hosting UI** | None — decided |
-| 6 | WinHelp / context help | **Preserve IDs and API values; bridge to HTML Help (`.chm`); report `.hlp` as unsupported** | Confirm `.chm` bridging is wanted in 1.0 vs. deferred |
+| 6 | WinHelp / context help | **Decided 2026-10-09: preserve IDs and API values; help display (`.chm` and `.hlp`) deferred beyond 1.0** | None — decided |
 
 ## 1. DDE links and `Link*` members
 
@@ -338,7 +340,15 @@ form and control contracts; `REQ-0076`.
 `.chm` mapping, `.hlp` diagnostic), and record the `.hlp` variance in the
 release notes.
 
-**Acceptance record:** _decision: ____  date: ____  by: ____ _
+**Acceptance record:** _decision: **Preserve values; defer help display** —
+every help property and argument (`HelpContextID`, `WhatsThisHelp`,
+`App.HelpFile`, the `MsgBox`/`InputBox` `HelpFile`/`Context` pair) is accepted,
+persisted and settable in 1.0. Displaying help is deferred beyond 1.0 (after
+MP-0010): neither the `.chm` HTML Help bridge nor any `.hlp` support is
+implemented, and a request to show help (F1, the `MsgBox` Help button,
+What's This mode) fails through one documented unsupported-feature diagnostic
+rather than appearing to succeed. The help-integration requirement is specified
+with the MP-0004 form work. date: 2026-10-09  by: maintainer_
 
 ## What happens when these are accepted
 
