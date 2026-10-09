@@ -66,11 +66,11 @@ needs their evidence; they are not reported as passing in MP-0001.
 | `WSP-LANG-0002` (C++) | Applicable — migration gap | `src/`, `tests/*.cpp`; C++20 |
 | `WSP-LANG-0004` (YAML) | Applicable — migration gap | `.github/workflows/`, `.pre-commit-config.yaml` |
 | `WSP-LANG-0005` (JSON) | Applicable | `CMakePresets.json`; generated `evidence/reference/*.json` excluded as tool output |
-| `WSP-LANG-0007` (PowerShell) | Applicable; no owned scripts yet | The retired MP-0001 discovery scripts in `tools/` are excluded (see [Owned-source exclusions](#owned-source-exclusions)); PowerShell added for the commit gate is in scope |
+| `WSP-LANG-0007` (PowerShell) | Applicable | `scripts/`, checked by PSScriptAnalyzer 1.25.0. The retired MP-0001 discovery scripts in `tools/` are excluded (see [Owned-source exclusions](#owned-source-exclusions)) |
 | `WSP-LANG-0009` (Visual Basic) | Not applicable to owned source | `.bas`/`.cls`/`.vbp` files under `tests/` are compiler test fixtures (deliberately varied VB6 input), excluded as owned fixtures |
 | `WSP-LANG-0010` (CMake) | Applicable — migration gap | `CMakeLists.txt`, `cmake/`, `tests/**/*.cmake` |
 | `WSP-LANG-0001`, `0003`, `0006`, `0008`, `0011` | Not applicable | WFC owns no C, Python, Make, C#, or other-language source |
-| `WSP-CHECK-0001`–`WSP-CHECK-0008` | Applicable — migration gap | See [WSP 1.4.0 upgrade](#wsp-140-upgrade) |
+| `WSP-CHECK-0001`–`WSP-CHECK-0008` | Applicable | [`commit-checks.md`](commit-checks.md): `.pre-commit-config.yaml`, `scripts/Invoke-{Lint,Build,Tests}.ps1`, CI lint job |
 | `WSP-SAST-0001`–`WSP-SAST-0006` | Applicable — migration gap | clang-tidy over `src/` and `tests/` |
 | `WSP-SEC-0015`–`WSP-SEC-0016` | Applicable — migration gap | MSVC hardening for `wfc.exe` and verification with `Test-PeHardening.ps1` |
 | `WSP-TEST-0019`–`WSP-TEST-0021` | Applicable | `wfc` reads VB `Input`/`Line Input` from standard input; covered when console input enters scope |
@@ -119,8 +119,8 @@ as migration gaps rather than declared compliant. Measured on 2026-10-09:
 | Overlength lines | `WSP-STYLE-0001` | 2,493 lines over 80 characters (`src/evaluator.cpp` 1,980, `tests/evaluator_tests.cpp` 405, `CMakeLists.txt` 57, others 51); `Test-SourceStyle.ps1` reports no other `WSP-STYLE` findings | **Closed 2026-10-09** (`c62755f`): `Test-SourceStyle.ps1` passes for `src`, `include`, `tests`, `cmake`, `.github`, and the root build/configuration files. Not yet enforced by a lint stage (see below) |
 | Formatter configuration | `WSP-STYLE-0004`, `WSP-LANG-0002`, `WSP-LANG-0010` | No `.clang-format`, `.editorconfig`, or gersemi configuration | **Closed 2026-10-09** (`c62755f`): `.clang-format` (clang-format 22.1.3), `.gersemirc` (gersemi 0.29.2), `.editorconfig`, `.gitattributes`; check-mode runs join the lint stage |
 | Structured documentation | `WSP-STYLE-0006`, `WSP-LANG-0002` | No `Doxyfile`; most functions lack Doxygen contracts | Add a strict `Doxyfile` and document owned C++ incrementally, file by file |
-| Commit gate | `WSP-CHECK-0001`–`0007` | No `.pre-commit-config.yaml`, no canonical lint/build/test scripts, no check inventory | Add project-owned scripts shared by hooks and CI, plus a check inventory |
-| CI lint stage | `WSP-STYLE-0007`, `WSP-CHECK-0008` | CI builds and tests on x86/x64/ARM64 but runs no lint | Add a lint job calling the canonical lint script |
+| Commit gate | `WSP-CHECK-0001`–`0007` | No `.pre-commit-config.yaml`, no canonical lint/build/test scripts, no check inventory | **Closed 2026-10-09**: see [`commit-checks.md`](commit-checks.md) |
+| CI lint stage | `WSP-STYLE-0007`, `WSP-CHECK-0008` | CI builds and tests on x86/x64/ARM64 but runs no lint | **Closed 2026-10-09**: CI lint job and build/test steps call the canonical scripts |
 | Static analysis | `WSP-SAST-0001`–`0006` | clang-tidy not configured | Ninja-based analysis preset using the WSP clang-tidy baseline |
 | Build hardening | `WSP-SEC-0015`–`0016` | MSVC defaults (`/GS`, ASLR, NX) are on; Control Flow Guard and binary verification are not | Enable `/guard:cf` and verify with `Test-PeHardening.ps1` in CI |
 

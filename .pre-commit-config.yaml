@@ -1,0 +1,31 @@
+# @file .pre-commit-config.yaml
+# @brief WFC commit gate: lint, build, then full tests (WSP-CHECK-0001).
+# @note Setup and canonical commands: planning/commit-checks.md.
+minimum_pre_commit_version: "4.6.2"
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+fail_fast: true
+repos:
+  - repo: local
+    hooks:
+      - id: wfc-lint
+        name: WFC lint
+        entry: pwsh -NoProfile -File scripts/Invoke-Lint.ps1
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: wfc-build
+        name: WFC build (windows-x64-debug)
+        entry: pwsh -NoProfile -File scripts/Invoke-Build.ps1
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: wfc-tests
+        name: WFC full test suite (windows-x64-debug)
+        entry: pwsh -NoProfile -File scripts/Invoke-Tests.ps1
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true

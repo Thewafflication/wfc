@@ -66,6 +66,16 @@ cmake --build --preset windows-x64-debug
 ctest --preset windows-x64-debug
 ```
 
+Before committing, install the commit gate, which runs lint, build, and the
+full tests on every commit (see [commit checks](planning/commit-checks.md)
+for tool versions and the canonical `scripts/Invoke-*.ps1` commands):
+
+```powershell
+python -m pip install --user --requirement requirements-dev.txt
+Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser
+pre-commit install
+```
+
 Equivalent `windows-x86-debug` and `windows-arm64-debug` presets are provided.
 ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
