@@ -55,6 +55,11 @@ without a WFC review; copying would lose upstream identity and upgrade history.
 - Keep `planning/wsp-adoption-record.md` synchronized with the gitlink.
 - Initialize `wsp` and `wcrt` in local setup and CI.
 
+## Amendments
+
+- 2026-10-09: the pinned release moved to WSP 1.4.0 (`f009399dd1406219571ac978bfee85e85bbdfeac`)
+  under the same decision; see the adoption record's baseline history.
+
 ## References
 
 - `planning/wsp-adoption-record.md`

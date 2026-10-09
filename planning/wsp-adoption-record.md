@@ -4,15 +4,16 @@
 
 **Project:** WFC — Waughtal Foundation Classes
 
-**WSP release:** 1.1.0
+**WSP release:** 1.4.0
 
-**WSP baseline:** Immutable commit `8c2adb4afb9f95a5632ec783e37a79c29b1f90f5`
+**WSP baseline:** Immutable commit `f009399dd1406219571ac978bfee85e85bbdfeac`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `8c2adb4afb9f95a5632ec783e37a79c29b1f90f5`
+**Pinned commit:** `f009399dd1406219571ac978bfee85e85bbdfeac`
 
-**Status:** Adopted for MP-0001
+**Status:** Adopted for MP-0001; upgraded to 1.4.0 on 2026-10-09 with the
+migration gaps recorded under [WSP 1.4.0 upgrade](#wsp-140-upgrade)
 
 **Approval:** Initial 0.1.0 foundation change
 
@@ -60,6 +61,21 @@ needs their evidence; they are not reported as passing in MP-0001.
 | `WSP-WINRES-0001`–`WSP-WINRES-0012` | Deferred | Generated and verified resources before the first distributed binary baseline |
 | `WSP-SIGN-0001`–`WSP-SIGN-0018` | Deferred | Signing, scanning, and trust dispositions before public release artifacts |
 | `WSP-TOOL-0001`–`WSP-TOOL-0009` | Deferred | Select and verify each common-tool invocation as build/test automation enters scope |
+| `WSP-PROC-0011` | Applicable | Upstream issues for workarounds in Thewafflication-owned dependencies (`wsp`, `wcrt`) |
+| `WSP-STYLE-0001`–`WSP-STYLE-0007` | Applicable — migration gap | See [WSP 1.4.0 upgrade](#wsp-140-upgrade) |
+| `WSP-LANG-0002` (C++) | Applicable — migration gap | `src/`, `tests/*.cpp`; C++20 |
+| `WSP-LANG-0004` (YAML) | Applicable — migration gap | `.github/workflows/`, `.pre-commit-config.yaml` |
+| `WSP-LANG-0005` (JSON) | Applicable — migration gap | `CMakePresets.json`; generated `evidence/reference/*.json` excluded as tool output |
+| `WSP-LANG-0007` (PowerShell) | Applicable — migration gap | `tools/*.ps1` |
+| `WSP-LANG-0009` (Visual Basic) | Not applicable to owned source | `.bas`/`.cls`/`.vbp` files under `tests/` are compiler test fixtures (deliberately varied VB6 input), excluded as owned fixtures |
+| `WSP-LANG-0010` (CMake) | Applicable — migration gap | `CMakeLists.txt`, `cmake/`, `tests/**/*.cmake` |
+| `WSP-LANG-0001`, `0003`, `0006`, `0008`, `0011` | Not applicable | WFC owns no C, Python, Make, C#, or other-language source |
+| `WSP-CHECK-0001`–`WSP-CHECK-0008` | Applicable — migration gap | See [WSP 1.4.0 upgrade](#wsp-140-upgrade) |
+| `WSP-SAST-0001`–`WSP-SAST-0006` | Applicable — migration gap | clang-tidy over `src/` and `tests/` |
+| `WSP-SEC-0015`–`WSP-SEC-0016` | Applicable — migration gap | MSVC hardening for `wfc.exe` and verification with `Test-PeHardening.ps1` |
+| `WSP-TEST-0019`–`WSP-TEST-0021` | Applicable | `wfc` reads VB `Input`/`Line Input` from standard input; covered when console input enters scope |
+| `WSP-INFO-*` (information for users) | Selection pending maintainer decision | WFC will ship a CLI, compiler diagnostics, and compatibility documentation |
+| `WSP-UX-*` (UX/UI) | Selection pending maintainer decision | WFC's CLI and diagnostics, and the forms runtime from MP-0004 |
 
 ## Tailoring Decisions
 
@@ -92,11 +108,30 @@ needs their evidence; they are not reported as passing in MP-0001.
   roadmap to 1.0.0
 - **Approval:** Initial 0.1.0 foundation change
 
+## WSP 1.4.0 upgrade
+
+WSP 1.2.0–1.4.0 add requirements that WFC did not meet when the pin moved.
+WSP 1.4.0 permits adoption with existing violations provided they are recorded
+as migration gaps rather than declared compliant. Measured on 2026-10-09:
+
+| Gap | Requirement | Measured state | Planned closure |
+| --- | --- | --- | --- |
+| Overlength lines | `WSP-STYLE-0001` | 2,493 lines over 80 characters (`src/evaluator.cpp` 1,980, `tests/evaluator_tests.cpp` 405, `CMakeLists.txt` 57, others 51); `Test-SourceStyle.ps1` reports no other `WSP-STYLE` findings | Controlled `clang-format` (`ColumnLimit: 80`) plus manual splits; CMake/YAML wrapped by hand |
+| Formatter configuration | `WSP-STYLE-0004`, `WSP-LANG-0002`, `WSP-LANG-0010` | No `.clang-format`, `.editorconfig`, or gersemi configuration | Add controlled configurations and check-mode runs |
+| Structured documentation | `WSP-STYLE-0006`, `WSP-LANG-0002` | No `Doxyfile`; most functions lack Doxygen contracts | Add a strict `Doxyfile` and document owned C++ incrementally, file by file |
+| Commit gate | `WSP-CHECK-0001`–`0007` | No `.pre-commit-config.yaml`, no canonical lint/build/test scripts, no check inventory | Add project-owned scripts shared by hooks and CI, plus a check inventory |
+| CI lint stage | `WSP-STYLE-0007`, `WSP-CHECK-0008` | CI builds and tests on x86/x64/ARM64 but runs no lint | Add a lint job calling the canonical lint script |
+| Static analysis | `WSP-SAST-0001`–`0006` | clang-tidy not configured | Ninja-based analysis preset using the WSP clang-tidy baseline |
+| Build hardening | `WSP-SEC-0015`–`0016` | MSVC defaults (`/GS`, ASLR, NX) are on; Control Flow Guard and binary verification are not | Enable `/guard:cf` and verify with `Test-PeHardening.ps1` in CI |
+
+Until each gap closes, the affected requirement is not reported as passing.
+
 ## Baseline History
 
 | Date | WSP baseline | Project change | Summary |
 | --- | --- | --- | --- |
 | 2026-08-27 | `1.1.0` / `8c2adb4afb9f95a5632ec783e37a79c29b1f90f5` | Initial 0.1.0 foundation change | Adopt the latest controlled WSP release and replace the earlier post-release checkout with the immutable tag. |
+| 2026-10-09 | `1.4.0` / `f009399dd1406219571ac978bfee85e85bbdfeac` | WSP upgrade (maintainer request) | Adopt WSP 1.4.0; disposition the 140 requirements added in 1.2.0–1.4.0 and record the migration gaps above. |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. Upgrades
 require a change-impact review covering new or changed requirements, profiles,

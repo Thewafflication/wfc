@@ -39,5 +39,6 @@ record update; floating branches are not permitted for a controlled baseline.
 
 ## Implementation Record
 
-WSP 1.1.0 and WCRT 1.1.1 are pinned and documented. Automated agreement
+WSP 1.4.0 (upgraded from 1.1.0 on 2026-10-09) and WCRT 1.1.1 are pinned and
+documented. Automated agreement
 checking remains to be implemented.
