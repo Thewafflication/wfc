@@ -1,6 +1,6 @@
 # Checks that requirements/language/diagnostics.md lists exactly the WFC codes the source raises.
 # Usage: cmake -DSOURCE_DIR=<repo root> -P check_diagnostic_catalog.cmake
-file(GLOB sources "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/src/*.hpp")
+file(GLOB_RECURSE sources "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/src/*.hpp")
 set(raised "")
 foreach(source IN LISTS sources)
     file(READ "${source}" text)

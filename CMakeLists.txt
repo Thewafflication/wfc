@@ -17,6 +17,22 @@ target_sources(
     wfc_frontend
     PRIVATE
         src/evaluator.cpp
+        src/interpreter/assignment.cpp
+        src/interpreter/builtin_functions.cpp
+        src/interpreter/builtin_misc.cpp
+        src/interpreter/calls.cpp
+        src/interpreter/core.cpp
+        src/interpreter/declarations.cpp
+        src/interpreter/expressions.cpp
+        src/interpreter/files.cpp
+        src/interpreter/format.cpp
+        src/interpreter/statements.cpp
+        src/interpreter/builtin_class_sources.hpp
+        src/interpreter/interpreter.hpp
+        src/interpreter/vb_date.hpp
+        src/interpreter/vb_numeric.hpp
+        src/interpreter/vb_text.hpp
+        src/interpreter/vb_value.hpp
         src/large_stack.cpp
         src/project.cpp
     PUBLIC

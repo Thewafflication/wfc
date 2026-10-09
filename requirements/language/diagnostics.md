@@ -40,7 +40,7 @@ Many codes are shared by several related failures (for example `WFC0010` covers 
 
 ## Catchable diagnostics
 
-A diagnostic with an `Err.Number` in the table below is a run-time error: an active `On Error` handler receives it with that number and VB6's standard description. Every other diagnostic stops the program and cannot be trapped. The mapping is implemented by `runtime_error_number()` in `src/evaluator.cpp`.
+A diagnostic with an `Err.Number` in the table below is a run-time error: an active `On Error` handler receives it with that number and VB6's standard description. Every other diagnostic stops the program and cannot be trapped. The mapping is implemented by `Interpreter::runtime_error_number()` in `src/interpreter/core.cpp`.
 
 ## Active codes
 
