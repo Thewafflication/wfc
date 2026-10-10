@@ -508,6 +508,15 @@ std::optional<Value> Interpreter::parse_not() {
     if (const auto* byte = std::get_if<Byte>(&*value)) {
         return Value{static_cast<Byte>(~*byte)};
     }
+    if (execute_ && !std::holds_alternative<bool>(*value)) {
+        Value widened = *value;
+        if (!widen_bitwise_operand(widened, operator_offset)) {
+            return std::nullopt;
+        }
+        if (const auto* integer = std::get_if<Integer>(&widened)) {
+            return Value{static_cast<Integer>(~*integer)};
+        }
+    }
     const auto operand = coerce_ternary_operand(*value, operator_offset);
     if (!operand.has_value()) {
         return std::nullopt;
@@ -940,6 +949,15 @@ std::optional<Value> Interpreter::parse_power() {
             }
             if (const auto* d = std::get_if<DateValue>(&v)) {
                 return d->serial;
+            }
+            if (const auto* flag = std::get_if<bool>(&v)) {
+                return *flag ? -1.0 : 0.0;
+            }
+            if (const auto* text = std::get_if<std::string>(&v)) {
+                const auto parsed = parse_numeric_string(*text);
+                if (parsed.status == NumericStringStatus::valid) {
+                    return parsed.value;
+                }
             }
             return std::nullopt;
         };
@@ -1992,6 +2010,23 @@ std::optional<bool> Interpreter::coerce_condition_boolean(
     return *boolean;
 }
 
+bool Interpreter::widen_bitwise_operand(Value& value,
+                                        const std::size_t offset) {
+    if (const auto* text = std::get_if<std::string>(&value)) {
+        const auto parsed = parse_numeric_string(*text);
+        if (parsed.status != NumericStringStatus::valid) {
+            return true;
+        }
+        value = parsed.value;
+    } else if (!(std::holds_alternative<float>(value) ||
+                 std::holds_alternative<double>(value) ||
+                 std::holds_alternative<Currency>(value) ||
+                 std::holds_alternative<Decimal>(value))) {
+        return true;
+    }
+    return coerce_numeric_value(value, Value{Integer{}}.index(), offset);
+}
+
 std::optional<Value> Interpreter::logical_binary(
     const Value& left, const Value& right, const char operation,
     const std::size_t operator_offset) {
@@ -2007,6 +2042,37 @@ std::optional<Value> Interpreter::logical_binary(
             !std::holds_alternative<ObjectInstance>(resolved_right)) {
             return logical_binary(resolved_left, resolved_right, operation,
                                   operator_offset);
+        }
+    }
+    if (execute_) {
+        const auto widens = [](const Value& v) {
+            return std::holds_alternative<float>(v) ||
+                   std::holds_alternative<double>(v) ||
+                   std::holds_alternative<Currency>(v) ||
+                   std::holds_alternative<Decimal>(v) ||
+                   std::holds_alternative<std::string>(v);
+        };
+        const auto integral = [](const Value& v) {
+            return std::holds_alternative<Integer>(v) ||
+                   std::holds_alternative<Int16>(v) ||
+                   std::holds_alternative<Byte>(v) ||
+                   std::holds_alternative<bool>(v);
+        };
+        Value widened_left = left;
+        Value widened_right = right;
+        if ((widens(left) || widens(right)) &&
+            (widens(left) || integral(left)) &&
+            (widens(right) || integral(right)) &&
+            (!std::holds_alternative<bool>(left) ||
+             !std::holds_alternative<bool>(right))) {
+            if (!widen_bitwise_operand(widened_left, operator_offset) ||
+                !widen_bitwise_operand(widened_right, operator_offset)) {
+                return std::nullopt;
+            }
+            if (integral(widened_left) && integral(widened_right)) {
+                return logical_binary(widened_left, widened_right, operation,
+                                      operator_offset);
+            }
         }
     }
     // REQ-0244: And/Or/Xor/Eqv/Imp on integer operands are bitwise.

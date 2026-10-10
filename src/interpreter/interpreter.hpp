@@ -1731,6 +1731,9 @@ private:
         const std::string_view error_code,
         const std::string_view error_message);
 
+    // Converts a non-integer numeric or numeric-String operand of a bitwise
+    // operator to Long (rounded); returns false on overflow.
+    [[nodiscard]] bool widen_bitwise_operand(Value& value, std::size_t offset);
     [[nodiscard]] std::optional<Value> logical_binary(
         const Value& left, const Value& right, const char operation,
         const std::size_t operator_offset);
