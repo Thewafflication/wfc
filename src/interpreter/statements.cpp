@@ -619,9 +619,23 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
     // `label:` (an identifier immediately followed by ':' that is not `:=`).
     {
         auto label = parse_identifier();
+        // A label starts in the first column; an indented `Name: ...` whose
+        // name is a procedure is a call followed by another statement.
+        const bool first_column = start == 0U || source_[start - 1U] == '\n';
+        bool names_procedure = false;
+        if (label.has_value() && !first_column) {
+            names_procedure = procedures_.contains(*label);
+            if (!names_procedure && !instance_scopes_.empty()) {
+                const auto owner = class_definitions_.find(
+                    instance_scopes_.back()->class_name);
+                names_procedure = owner != class_definitions_.end() &&
+                                  owner->second.methods.contains(*label);
+            }
+        }
         if (allow_label && label.has_value() && !at_end() && current() == ':' &&
             !(offset_ + 1 < source_.size() && source_[offset_ + 1] == '=') &&
-            !is_reserved_identifier(*label) && *label != "else") {
+            !is_reserved_identifier(*label) && *label != "else" &&
+            !names_procedure) {
             return true;  // the ':' is left for the statement separator
         }
         offset_ = start;

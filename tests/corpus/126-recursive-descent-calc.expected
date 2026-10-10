@@ -1,0 +1,14 @@
+1 + 2 * 3 = 7
+(1 + 2) * 3 = 9
+2 ^ 3 ^ 2 = 512
+-2 ^ 2 = 4
+10 / 4 = 2.5
+sqrt(16) + abs(-3) = 7
+pi * 2 = 6.28318530717959
+1 / 0 = error(11): Division by zero
+2 + = error(5): unexpected end
+foo(1) = error(5): unknown function foo
+3 4 = error(5): trailing 4
+((2)) = 2
+1.5 * 4 = 6
+ln(1) + sin(0) = 0
