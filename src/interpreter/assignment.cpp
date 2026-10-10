@@ -131,6 +131,7 @@ bool Interpreter::parse_lvalue_path(LValue& result) {
         return false;
     }
     result.ptr = variable.value;
+    result.variant = variable.scope->variant_variables.contains(*name);
     if (const auto fixed = variable.scope->fixed_string_lengths.find(*name);
         fixed != variable.scope->fixed_string_lengths.end()) {
         result.fixed = fixed->second;
@@ -156,6 +157,7 @@ bool Interpreter::parse_lvalue_path(LValue& result) {
                 }
                 result.ptr = &array.elements[*flat_offset];
                 result.fixed = 0;
+                result.variant = false;
             } else {
                 result.ptr = nullptr;
             }

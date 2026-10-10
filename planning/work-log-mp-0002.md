@@ -2181,7 +2181,7 @@ and `MessageBox` emulation, `file:line:col` diagnostics, and VB6 `Print` number 
 for project runs (REQ-0281, REQ-0282).
 
 **Known remaining gaps** (each documented in its requirement's Scope): `Get`/`Put` of
-Variants and dynamic-array descriptors; class inheritance; other
+dynamic-array descriptors (Variant scalars now carry a VarType tag); class inheritance; other
 `CreateObject`/`GetObject` ProgIDs and COM interop (MP-0003); visual items in `.vbp`
 files (MP-0004); real `SendKeys`; asynchronous `Shell`;
 The `*B` string functions follow VB6's UTF-16LE byte view (REQ-0177).

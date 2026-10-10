@@ -791,6 +791,7 @@ private:
     struct LValue {
         Value* ptr{};
         std::size_t fixed{};
+        bool variant{};  // a Variant variable: Get/Put carry a type tag
     };
 
     // `name`, `name(i, ...)`, `.field` chains: a storage location for Get.

@@ -338,8 +338,28 @@ std::optional<bool> Interpreter::parse_binary_statement(
     }
     skip_horizontal_whitespace();
     LValue lvalue;
-    if (!parse_lvalue_path(lvalue)) {
-        return false;
+    Value temporary;
+    const auto lvalue_offset = offset_;
+    const auto saved_error = error_;
+    bool is_lvalue = parse_lvalue_path(lvalue);
+    if (is_lvalue && is_put) {
+        skip_horizontal_whitespace();
+        is_lvalue = at_statement_end();
+    }
+    if (!is_lvalue) {
+        if (!is_put) {
+            return false;
+        }
+        // Put also writes the value of any expression, such as a literal.
+        offset_ = lvalue_offset;
+        error_ = saved_error;
+        lvalue = LValue{};
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        temporary = std::move(*value);
+        lvalue.ptr = &temporary;
     }
     if (!execute_) {
         return true;
@@ -364,9 +384,87 @@ std::optional<bool> Interpreter::parse_binary_statement(
         return is_get ? std::fread(data, 1, size, file->handle) == size
                       : std::fwrite(data, 1, size, file->handle) == size;
     };
-    const std::function<bool(Value&, std::size_t, bool)> transfer_value =
-        [&](Value& target, const std::size_t fixed, const bool nested) -> bool {
+    const std::function<bool(Value&, std::size_t, bool, bool)> transfer_value =
+        [&](Value& target, const std::size_t fixed, const bool nested,
+            const bool variant) -> bool {
         bool ok = true;
+        if (variant) {
+            // A Variant is a 2-byte VarType tag followed by the value.
+            std::int16_t tag = 0;
+            if (!is_get) {
+                if (std::holds_alternative<Int16>(target)) {
+                    tag = 2;
+                } else if (std::holds_alternative<Integer>(target)) {
+                    tag = 3;
+                } else if (std::holds_alternative<float>(target)) {
+                    tag = 4;
+                } else if (std::holds_alternative<double>(target)) {
+                    tag = 5;
+                } else if (std::holds_alternative<Currency>(target)) {
+                    tag = 6;
+                } else if (std::holds_alternative<DateValue>(target)) {
+                    tag = 7;
+                } else if (std::holds_alternative<std::string>(target)) {
+                    tag = 8;
+                } else if (std::holds_alternative<bool>(target)) {
+                    tag = 11;
+                } else if (std::holds_alternative<Byte>(target)) {
+                    tag = 17;
+                } else if (!std::holds_alternative<Empty>(target)) {
+                    return raise_runtime(5,
+                                         "Invalid procedure call or argument",
+                                         statement_offset);
+                }
+            }
+            if (!transfer(&tag, 2)) {
+                return is_get ? raise_runtime(62, "Input past end of file",
+                                              statement_offset)
+                              : raise_runtime(57, "Device I/O error",
+                                              statement_offset);
+            }
+            if (is_get) {
+                switch (tag) {
+                    case 0:
+                        target = Empty{};
+                        break;
+                    case 2:
+                        target = Int16{};
+                        break;
+                    case 3:
+                        target = Integer{};
+                        break;
+                    case 4:
+                        target = 0.0F;
+                        break;
+                    case 5:
+                        target = 0.0;
+                        break;
+                    case 6:
+                        target = Currency{};
+                        break;
+                    case 7:
+                        target = DateValue{};
+                        break;
+                    case 8:
+                        target = std::string{};
+                        break;
+                    case 11:
+                        target = false;
+                        break;
+                    case 17:
+                        target = Byte{};
+                        break;
+                    default:
+                        return raise_runtime(
+                            5, "Invalid procedure call or argument",
+                            statement_offset);
+                }
+            }
+            if (std::holds_alternative<Empty>(target)) {
+                return true;
+            }
+            return transfer_value(target, 0, tag == 8, false);
+        }
         if (auto* v1 = std::get_if<Integer>(&target)) {
             std::int32_t x = *v1;
             ok = transfer(&x, 4);
@@ -446,7 +544,7 @@ std::optional<bool> Interpreter::parse_binary_statement(
             }
         } else if (auto* array = std::get_if<ArrayValue>(&target)) {
             for (auto& element : array->elements) {
-                if (!transfer_value(element, 0, true)) {
+                if (!transfer_value(element, 0, true, false)) {
                     return false;
                 }
             }
@@ -473,7 +571,7 @@ std::optional<bool> Interpreter::parse_binary_statement(
                                             .fixed_string_lengths.end()
                             ? fixed_length->second
                             : 0U,
-                        true)) {
+                        true, false)) {
                     return false;
                 }
             }
@@ -490,7 +588,7 @@ std::optional<bool> Interpreter::parse_binary_statement(
         }
         return true;
     };
-    if (!transfer_value(*lvalue.ptr, lvalue.fixed, false)) {
+    if (!transfer_value(*lvalue.ptr, lvalue.fixed, false, lvalue.variant)) {
         return false;
     }
     if (file->mode == 5) {
