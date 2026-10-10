@@ -99,9 +99,11 @@ dates, strings, arrays, variants, and locale behavior.
   `Property Get`/`Let`/`Set` (including indexed accessors), `New`, `Me`,
   `Class_Initialize`/`Class_Terminate`, class-typed references, and
   `Public`/`Private` member visibility. This does not satisfy MP-0003 —
-  there is no inheritance, `Implements`, events/`WithEvents`, COM identity,
-  multi-file projects, or `.cls`/project-file loading (classes are supplied
-  via the `wfc --class` CLI flag, not a real VB6 project); and
+  there is no class inheritance or COM identity. (Update 2026-10-10: during
+  hardening `.vbp` loading with `.cls` and `.bas` members, `Implements`,
+  `WithEvents` events, predeclared instances, and per-module namespaces were
+  also delivered, see `REQ-0283`; MP-0003 shall be re-scoped against them.
+  `wfc --class` remains as a test aid.) and
 - disposition DDE, DAO/Data, OLE1, ActiveX Documents, PropertyPage hosting, and
   legacy help candidates before later subsystem gates.
 

@@ -29,10 +29,10 @@ proceeded increment by increment against the roadmap's outcome and principal-
 work statement, with each increment recorded as it lands:
 
 - [Work log — MP-0002](work-log-mp-0002.md) is the chronological record of
-  every increment (89 to date), grouped by theme in its own contents section.
+  every increment (89 numbered increments plus the 2026-10-10 hardening and closeout audit), grouped by theme in its own contents section.
 - [Language requirements index](../requirements/language/README.md) is the
   authoritative list of what has actually been specified and implemented —
-  `REQ-0069` through the current `REQ-0206` — each entry summarizing its own
+  `REQ-0069` through the current `REQ-0283` — each entry summarizing its own
   requirement, diagnostics, scope boundary, and verification evidence.
 
 Detailed successor milestone plans shall be baselined during predecessor

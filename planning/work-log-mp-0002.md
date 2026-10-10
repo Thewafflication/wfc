@@ -16,7 +16,7 @@ and a minimal class-module foundation.
 
 **Author:** Claude (Overlord cross-project assistant), on behalf of the owner.
 
-**Status:** Active
+**Status:** Ready for closure (pending owner approval; see "Closeout audit")
 
 This log records the chronological execution of every session's work against
 MP-0002 to date. It supplements, and does not replace, the accepted MP-0002
@@ -2216,5 +2216,27 @@ modules of a project now keep separate namespaces (colliding module-level names
 are renamed per module, `Module.Name` resolves, `Declare ... Alias` binds the
 export) with their `Option` statements merged.
 
-**Next responsible party:** the maintainer or a subsequent assistant session,
-continuing the corpus-driven hardening under MP-0002.
+**Closeout audit, 2026-10-10:** every callable member in the `REQ-0069`-
+`REQ-0079` inventories (Err, Collection, Strings, Conversion, FileSystem,
+DateTime, Information, Interaction, Math, Financial, hidden module) was checked
+against the interpreter; the audit found `IMEStatus` missing and `Calendar`
+unset before assignment, both fixed (corpus case 138). The type-library
+`_B_str_`/`_B_var_` hidden names are not source-callable and need no
+implementation. `MacScript` (Macintosh only) is intentionally unsupported. All
+118 constants in `REQ-0080`-`REQ-0094`/`REQ-0098` were evaluated and match their
+documented values. The legacy-feature dispositions required by the roadmap exit
+gate are recorded (`legacy-feature-dispositions.md`, decided 2026-10-09). At
+closeout the suite is 292/292 on windows-x64-debug.
+
+**Known limits carried forward:** real `SendKeys`; `MsgBox`/`InputBox` have no
+UI surface; `Option Explicit` is all-or-nothing across project modules;
+`VB_GlobalNameSpace` classes have no global members; `#Const` holds numeric
+values only; the interpreter re-parses statement text on each loop iteration
+(about 1 microsecond per simple statement in Release). Forms and controls
+belong to MP-0004. Multi-module `.vbp` loading, `Implements`, and events were
+delivered during MP-0002 hardening, so MP-0003 should be re-scoped against them
+(`REQ-0283`).
+
+**Next responsible party:** the owner, to approve closure of MP-0002 and
+baseline the detailed MP-0003 plan; absent that, a subsequent assistant session
+continuing the corpus-driven hardening.
