@@ -1,0 +1,13 @@
+Type=Exe
+Module=modMain; 108-app-metadata.bas
+Startup="Sub Main"
+Title="Sample App"
+ExeName32="sample.exe"
+MajorVer=2
+MinorVer=5
+RevisionVer=7
+VersionCompanyName="Acme Co"
+VersionProductName="Widget"
+VersionFileDescription="Widget tool"
+VersionLegalCopyright="(c) Acme"
+VersionComments="none"

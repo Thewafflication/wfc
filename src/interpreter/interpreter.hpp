@@ -419,6 +419,7 @@ public:
     // The class module (display name) whose source was executing when the last
     // error was raised; empty for the standard module(s).
     void set_vb_number_spacing(const bool enabled) noexcept;
+    void set_app_properties(std::map<std::string, std::string> properties);
 
     [[nodiscard]] std::string failing_module_name() const;
 
@@ -1841,6 +1842,8 @@ private:
     // of raising Overflow.
     bool variant_operand_seen_{};
     bool vb_number_spacing_{};
+    std::map<std::string, std::string> app_properties_;
+    std::string app_source_storage_;
     bool pending_static_procedure_{};
     bool variant_string_seen_{};
     bool variant_number_seen_{};

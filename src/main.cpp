@@ -85,6 +85,7 @@ int main(const int argument_count, const char* const arguments[]) {
         // Running real project files: print numbers the way VB6 does.
         wfc::EvaluationOptions options;
         options.vb6_print_spacing = true;
+        options.app_properties = project.app_properties;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

@@ -746,6 +746,7 @@ Evaluation evaluate_program(const std::string_view source,
                                     const std::size_t budget) {
         Interpreter interpreter(*processed, rewritten);
         interpreter.set_vb_number_spacing(options.vb6_print_spacing);
+        interpreter.set_app_properties(options.app_properties);
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
         auto result = interpreter.evaluate();

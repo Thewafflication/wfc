@@ -5,6 +5,7 @@
 #include <cctype>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <string_view>
 
@@ -163,6 +164,23 @@ namespace {
     return false;
 }
 
+// The `App` property a lower-cased .vbp key feeds, or empty.
+[[nodiscard]] std::string app_property_for(const std::string& key) {
+    static const std::map<std::string, std::string> keys = {
+        {"title", "title"},
+        {"exename32", "exename"},
+        {"majorver", "major"},
+        {"minorver", "minor"},
+        {"revisionver", "revision"},
+        {"versioncompanyname", "companyname"},
+        {"versionproductname", "productname"},
+        {"versionfiledescription", "filedescription"},
+        {"versioncomments", "comments"},
+        {"versionlegalcopyright", "legalcopyright"}};
+    const auto found = keys.find(key);
+    return found == keys.end() ? std::string{} : found->second;
+}
+
 [[nodiscard]] std::filesystem::path normalize(std::string text) {
     std::replace(text.begin(), text.end(), '\\', '/');
     return std::filesystem::path(text);
@@ -221,6 +239,13 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                            key == "propertypage" || key == "designer") {
                     return fail("unsupported project item (visual designer): " +
                                 line);
+                } else if (const auto app_key = app_property_for(key);
+                           !app_key.empty()) {
+                    if (value.size() >= 2U && value.front() == '"' &&
+                        value.back() == '"') {
+                        value = value.substr(1, value.size() - 2U);
+                    }
+                    project.app_properties[app_key] = value;
                 } else if (key == "startup") {
                     if (!value.empty() && value.front() == '"') {
                         value = value.substr(

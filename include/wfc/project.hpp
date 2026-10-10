@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,9 @@ struct LoadedProject final {
     };
     std::vector<ModuleSpan> module_spans;
     std::vector<std::string> class_files;
+    // `App` object metadata from the .vbp (Title, ExeName32, MajorVer, ...),
+    // keyed by lower-case `App` property name.
+    std::map<std::string, std::string> app_properties;
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -46,6 +47,11 @@ struct EvaluationOptions final {
     // space, as VB6 does
     // (` 5 `, `-5 `). Off by default: snippets print numbers compactly.
     bool vb6_print_spacing{};
+    // Project metadata surfaced through the `App` object, keyed by lower-case
+    // property name (`title`, `exename`, `major`, `minor`, `revision`,
+    // `companyname`, `productname`, `filedescription`, `comments`,
+    // `legalcopyright`). Unset properties keep their defaults.
+    std::map<std::string, std::string> app_properties;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

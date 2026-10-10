@@ -1237,7 +1237,42 @@ void Interpreter::scan_builtin_classes() {
         needs_app = needs_app || mentions_app(module.source);
     }
     if (needs_app) {
-        class_sources_.push_back({"WfcApp", kAppSource});
+        // Project metadata replaces the default value of each `App` property.
+        std::string app_source(kAppSource);
+        for (const auto& [property, value] : app_properties_) {
+            const bool numeric = property == "major" || property == "minor" ||
+                                 property == "revision";
+            std::string literal;
+            if (numeric) {
+                literal = std::to_string(std::atol(value.c_str()));
+            } else {
+                literal = "\"";
+                for (const char c : value) {
+                    literal +=
+                        c == '"' ? std::string("\"\"") : std::string(1U, c);
+                }
+                literal += "\"";
+            }
+            const std::string marker =
+                property == "title"             ? "Title = \"\""
+                : property == "exename"         ? "EXEName = \"Project1\""
+                : property == "major"           ? "Major = 1"
+                : property == "minor"           ? "Minor = 0"
+                : property == "revision"        ? "Revision = 0"
+                : property == "companyname"     ? "CompanyName = \"\""
+                : property == "productname"     ? "ProductName = \"\""
+                : property == "filedescription" ? "FileDescription = \"\""
+                : property == "comments"        ? "Comments = \"\""
+                                                : "LegalCopyright = \"\"";
+            const auto at = app_source.find(marker);
+            if (at != std::string::npos) {
+                app_source.replace(
+                    at, marker.size(),
+                    marker.substr(0, marker.find('=') + 2U) + literal);
+            }
+        }
+        app_source_storage_ = std::move(app_source);
+        class_sources_.push_back({"WfcApp", app_source_storage_});
     }
 }
 

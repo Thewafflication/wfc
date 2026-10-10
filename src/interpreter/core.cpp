@@ -117,6 +117,11 @@ void Interpreter::set_vb_number_spacing(const bool enabled) noexcept {
     vb_number_spacing_ = enabled;
 }
 
+void Interpreter::set_app_properties(
+    std::map<std::string, std::string> properties) {
+    app_properties_ = std::move(properties);
+}
+
 std::string Interpreter::failing_module_name() const {
     if (error_source_data_ == nullptr ||
         error_source_data_ == main_source_data_) {
