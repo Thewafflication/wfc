@@ -5,6 +5,8 @@
 #ifndef WFC_INTERPRETER_VB_DATE_HPP
 #define WFC_INTERPRETER_VB_DATE_HPP
 
+#include <ctime>
+
 #include "vb_value.hpp"
 
 namespace wfc::detail {
@@ -216,8 +218,15 @@ struct DateParts {
                                   std::int64_t year,
                                   const bool have_year) -> bool {
         if (!have_year) {
-            year = 2000;  // no year given: a fixed year keeps parsing
-                          // deterministic
+            // No year given: the current year, as VB does.
+            const std::time_t now = std::time(nullptr);
+            std::tm local{};
+#ifdef _WIN32
+            localtime_s(&local, &now);
+#else
+            localtime_r(&now, &local);
+#endif
+            year = local.tm_year + 1900;
         }
         if (year < 100) {
             year += year < 30 ? 2000 : 1900;
@@ -307,15 +316,34 @@ struct DateParts {
     } else if (da > 0 && i < text.size() &&
                (text[i] == '/' || text[i] == '-')) {
         const char separator = text[i++];
-        if (!read_number(b, db) || i >= text.size() || text[i] != separator) {
+        if (!read_number(b, db)) {
             return std::nullopt;
         }
-        ++i;
-        if (!read_number(c, dc)) {
+        bool month_day_only = false;
+        if (separator == '/' && da <= 2 &&
+            (i >= text.size() || text[i] == ' ')) {
+            month_day_only = true;  // "m/d": the current year
+        } else if (i >= text.size() || text[i] != separator) {
             return std::nullopt;
+        } else {
+            ++i;
+            if (!read_number(c, dc)) {
+                return std::nullopt;
+            }
         }
         std::int64_t year{}, month{}, day{};
-        if (da >= 3) {
+        if (month_day_only) {
+            const std::time_t now = std::time(nullptr);
+            std::tm local{};
+#ifdef _WIN32
+            localtime_s(&local, &now);
+#else
+            localtime_r(&now, &local);
+#endif
+            month = a;
+            day = b;
+            year = local.tm_year + 1900;
+        } else if (da >= 3) {
             year = a;
             month = b;
             day = c;
