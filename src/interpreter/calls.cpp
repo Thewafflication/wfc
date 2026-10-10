@@ -840,7 +840,7 @@ std::optional<Value> Interpreter::call_procedure(
         return std::nullopt;
     }
     return invoke_definition(definition, name, std::move(*arguments),
-                             identifier_offset, source_, nullptr);
+                             identifier_offset, main_source_, nullptr);
 }
 
 std::optional<Value> Interpreter::parse_procedure_call(

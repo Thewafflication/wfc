@@ -9,8 +9,12 @@ End Sub
 Private Sub Helper()
     Print "B.Helper"
 End Sub
+Private Function Shared1() As String
+    Shared1 = "B.Shared1"
+End Function
 Public Sub Main()
     Dim p As Pair
+    ModA.GlobalTag = "g"
     p.A = 3
     ModA.Counter = 5
     Counter = Counter + 1
@@ -22,4 +26,5 @@ Public Sub Main()
     RunA
     secret = "bs"
     Print secret, p.A, Level.Low
+    Print Shared1(), ModA.Shared1(), New Probe.Where()
 End Sub

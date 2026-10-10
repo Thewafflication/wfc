@@ -1,0 +1,3 @@
+Public Function Where() As String
+    Where = Shared1() & "/" & ModA.Dup2 & "/" & GlobalTag
+End Function

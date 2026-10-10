@@ -340,6 +340,7 @@ public:
     explicit Interpreter(const std::string_view source,
                          const bool allow_identifiers = true)
         : source_(source),
+          main_source_(source),
           allow_identifiers_(allow_identifiers),
           main_source_data_(source.data()) {}
 
@@ -347,6 +348,7 @@ public:
                 std::vector<wfc::ClassModuleSource> classes,
                 const bool allow_identifiers = true)
         : source_(source),
+          main_source_(source),
           allow_identifiers_(allow_identifiers),
           main_source_data_(source.data()),
           class_sources_(std::move(classes)) {}
@@ -1797,6 +1799,9 @@ private:
 
     const char* error_source_data_{};
     std::string_view source_;
+    // The standard-module program text: where module procedures live, even
+    // while a class member (whose own text is `source_`) is executing.
+    std::string_view main_source_;
     bool allow_identifiers_;
     const char* main_source_data_{};
     std::size_t offset_{};

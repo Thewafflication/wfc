@@ -58,7 +58,8 @@ VariableLookup Interpreter::find_variable_raw(const std::string& name) {
         if (entry != fields.variables.end()) {
             return {&entry->second, &fields};
         }
-        return {};
+        // Module-level (global) variables and constants are visible from a
+        // class member too, after the instance's own fields.
     }
     auto& module = module_scope();
     const auto entry = module.variables.find(name);

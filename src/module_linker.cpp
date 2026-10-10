@@ -202,10 +202,10 @@ void scan_module(const std::string& text, const std::size_t module,
             continue;
         }
         if (in_enum) {
+            // Enum members stay in the shared namespace: `Enum.Member`
+            // references cannot be renamed safely.
             if (is(tokens, i, "end") && is(tokens, i + 1U, "enum")) {
                 in_enum = false;
-            } else if (i < tokens.size() && tokens[i].word) {
-                add(tokens[i].text, true);
             }
             continue;
         }
@@ -333,7 +333,8 @@ struct LinkContext {
 // module source, or npos for a class module (qualified references only).
 [[nodiscard]] std::string rewrite_line(const LinkContext& context,
                                        const std::string& line,
-                                       const std::size_t module) {
+                                       const std::size_t module,
+                                       const std::set<std::string>& own) {
     const auto tokens = lex_line(line);
     struct Edit {
         std::size_t begin;
@@ -364,11 +365,11 @@ struct LinkContext {
                 continue;
             }
         }
-        if (module == std::string::npos || !colliding(context, key) ||
-            named_argument(line, token.end)) {
+        if (!colliding(context, key) || named_argument(line, token.end) ||
+            own.contains(key)) {
             continue;
         }
-        if (defines(context, key, module)) {
+        if (module != std::string::npos && defines(context, key, module)) {
             edits.push_back(
                 {token.begin, token.end,
                  mangled(token.text, context.module_names[module])});
@@ -428,13 +429,14 @@ struct LinkContext {
 [[nodiscard]] std::string rewrite_text(const LinkContext& context,
                                        const std::string& text,
                                        const std::size_t module,
-                                       const std::set<std::size_t>& skipped) {
+                                       const std::set<std::size_t>& skipped,
+                                       const std::set<std::string>& own) {
     auto lines = split_lines(text);
     for (std::size_t i = 0; i < lines.size(); ++i) {
         if (skipped.contains(i)) {
             continue;
         }
-        lines[i] = rewrite_line(context, lines[i], module);
+        lines[i] = rewrite_line(context, lines[i], module, own);
     }
     return join_lines(lines);
 }
@@ -490,12 +492,18 @@ std::string link_modules(std::vector<std::string>& modules,
     for (std::size_t i = 0; i < modules.size(); ++i) {
         scan_module(modules[i], i, context.definitions, context.scans[i]);
     }
+    const std::set<std::string> no_names;
     for (std::size_t i = 0; i < modules.size(); ++i) {
-        modules[i] =
-            rewrite_text(context, modules[i], i, context.scans[i].field_lines);
+        modules[i] = rewrite_text(context, modules[i], i,
+                                  context.scans[i].field_lines, no_names);
     }
     for (auto& cls : classes) {
-        cls = rewrite_text(context, cls, std::string::npos, {});
+        // A class's own members shadow the modules' names.
+        std::map<std::string, std::vector<Definition>> class_definitions;
+        ModuleScan class_scan;
+        scan_module(cls, 0, class_definitions, class_scan);
+        cls = rewrite_text(context, cls, std::string::npos,
+                           class_scan.field_lines, class_scan.names);
     }
 
     bool all_explicit = true;
