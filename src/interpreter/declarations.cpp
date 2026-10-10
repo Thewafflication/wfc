@@ -904,6 +904,12 @@ bool Interpreter::scan_class_property_declaration(
             definition.return_is_variant = type_result->is_variant;
             definition.return_is_object = type_result->is_object;
             definition.return_class_name = type_result->class_name;
+            const auto array_marker =
+                parse_function_array_return_marker(*type_result, type_offset);
+            if (!array_marker.has_value()) {
+                return false;
+            }
+            definition.return_is_array = *array_marker;
         }
     } else {
         // Property Let/Set's last parameter is always the value

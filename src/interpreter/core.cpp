@@ -661,11 +661,8 @@ std::optional<bool> Interpreter::parse_function_array_return_marker(
     if (at_end() || current() != '(') {
         return false;
     }
-    if (type_result.is_variant || type_result.is_object) {
-        set_error("WFC0150", "an array return type must be a fixed scalar type",
-                  type_offset);
-        return std::nullopt;
-    }
+    static_cast<void>(type_result);
+    static_cast<void>(type_offset);
     advance();
     skip_horizontal_whitespace();
     if (!consume(')')) {

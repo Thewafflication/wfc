@@ -596,11 +596,9 @@ std::optional<Value> Interpreter::invoke_definition(
                           identifier_offset);
                 return std::nullopt;
             }
-            if (argument.byref_target == nullptr) {
-                set_error("WFC0149", "array argument must be a variable",
-                          identifier_offset);
-                return std::nullopt;
-            }
+            // An array that is not a variable (a function result such as
+            // `Show Split(s)`) is a temporary the procedure may change
+            // freely.
             frame.variables.emplace(parameter.name, std::move(argument.value));
             continue;
         }
@@ -659,9 +657,22 @@ std::optional<Value> Interpreter::invoke_definition(
     if (definition.is_function) {
         frame.is_function_frame = true;
         Value initial_return_value;
-        if (definition.return_is_object &&
-            !definition.return_class_name.empty() &&
-            is_udt_class(definition.return_class_name)) {
+        if (definition.return_is_array) {
+            // Starts as an unallocated dynamic array (REQ-0216), the
+            // same as `Dim identifier() As Type`: the body may either
+            // assign a whole array to its own name (`Foo = someArray`)
+            // or `ReDim`/`ReDim Preserve` it directly, both through
+            // existing, unmodified array machinery.
+            ArrayValue returned{
+                /*elements=*/{}, /*lower_bound=*/0, /*is_dynamic=*/true,
+                /*is_allocated=*/false, definition.return_type_index};
+            returned.is_variant_element = definition.return_is_variant;
+            returned.is_object_element = definition.return_is_object;
+            returned.element_class_name = definition.return_class_name;
+            initial_return_value = std::move(returned);
+        } else if (definition.return_is_object &&
+                   !definition.return_class_name.empty() &&
+                   is_udt_class(definition.return_class_name)) {
             auto fresh = instantiate_class(definition.return_class_name,
                                            identifier_offset);
             if (!fresh.has_value()) {
@@ -686,7 +697,9 @@ std::optional<Value> Interpreter::invoke_definition(
                 zero_value_for_index(definition.return_type_index);
         }
         frame.variables.emplace(binding_name, std::move(initial_return_value));
-        if (definition.return_is_variant) {
+        if (definition.return_is_array) {
+            // The array slot is neither a Variant nor an object variable.
+        } else if (definition.return_is_variant) {
             frame.variant_variables.insert(binding_name);
         } else if (definition.return_is_object) {
             // The return-value slot behaves exactly like an Object-

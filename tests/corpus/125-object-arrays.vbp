@@ -1,0 +1,5 @@
+Type=Exe
+Class=Item; 125-object-arrays.cls.item
+Class=Inv; 125-object-arrays.cls.inv
+Module=Main; 125-object-arrays.bas
+Startup="Sub Main"

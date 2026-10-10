@@ -3301,10 +3301,19 @@ int main() {
         "Dim c As New Builder\nDim x() As Long\nx = c.Build()\nPrint x(0) & \" "
         "\" & x(1)",
         "7 8");
-    expect_program_failure("Function Foo() As Variant()\nEnd Function",
-                           "WFC0150");
-    expect_program_failure("Function Foo() As Object()\nEnd Function",
-                           "WFC0150");
+    expect_program_success(
+        "Function Foo() As Variant()\nFoo = Array(1, \"two\")\nEnd Function\n"
+        "Dim v() As Variant\nv = Foo()\nPrint v(1)",
+        "two");
+    expect_classes_success(
+        {{"Cell", "Public N As Long"},
+         {"Maker",
+          "Public Function Make() As Cell()\nDim r(1 To 2) As Cell\nSet r(1) = "
+          "New Cell\nr(1).N = 5\nSet r(2) = New Cell\nr(2).N = 6\nMake = "
+          "r\nEnd Function"}},
+        "Dim m As New Maker\nDim a() As Cell\na = m.Make()\nPrint a(1).N + "
+        "a(2).N",
+        "11");
     expect_program_failure("Function Foo() As Long(5)\nEnd Function",
                            "WFC0150");
     // Remaining parenthesis-free call forms (REQ-0217): a bare `Name`
