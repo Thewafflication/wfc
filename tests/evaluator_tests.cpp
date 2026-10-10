@@ -2791,14 +2791,14 @@ int main() {
     expect_program_success("Print Len(42)", "2");  // REQ-0277: Variant coercion
     expect_program_success("Print LCase(True)", "true");
     expect_program_success("Print Left(42, 1)", "4");
-    expect_program_failure("Print Right(\"value\", \"1\")", "WFC0073");
-    expect_program_failure("Print Mid(\"value\", \"1\")", "WFC0073");
-    expect_program_failure("Print Mid(\"value\", 1, \"2\")", "WFC0073");
+    expect_program_success("Print Right(\"value\", \"1\")", "e");
+    expect_program_success("Print Mid(\"value\", \"1\")", "value");
+    expect_program_success("Print Mid(\"value\", 1, \"2\")", "va");
     expect_program_success("Print Asc(42)", "52");
-    expect_program_failure("Print Chr(\"65\")", "WFC0073");
+    expect_program_success("Print Chr(\"65\")", "A");
     expect_program_success("Print StrReverse(False)", "eslaF");
-    expect_program_failure("Print Space(\"3\")", "WFC0073");
-    expect_program_failure("Print String(\"3\", \"*\")", "WFC0073");
+    expect_program_success("Print Space(\"3\")", "   ");
+    expect_program_success("Print String(\"3\", \"*\")", "***");
     expect_program_failure("Print String(3, True)", "WFC0073");
     expect_program_success("Print InStr(\"a\", 1)", "0");
     expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
@@ -2833,12 +2833,12 @@ int main() {
     expect_program_failure("Print Hex(\"a\")", "WFC0099");
     expect_program_failure("Print Oct(\"1e\")", "WFC0099");
     expect_program_failure("Print Hex(\"2147483648\")", "WFC0009");
-    expect_program_failure("Print Oct(True)", "WFC0073");
+    expect_program_success("Print Oct(True)", "177777");
     expect_program_failure("Print Hex(2147483648#)", "WFC0009");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_success("Print Val(42)", "42");
     expect_program_success("Print Abs(\"42\")", "42");
-    expect_program_failure("Print Sgn(False)", "WFC0073");
+    expect_program_success("Print Sgn(False)", "0");
     expect_program_failure("Print Abs()", "WFC0072");
     expect_program_failure("Print Abs(1, 2)", "WFC0072");
     expect_program_failure("Print Sgn()", "WFC0072");

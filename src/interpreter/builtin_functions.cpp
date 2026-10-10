@@ -481,6 +481,46 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
         }
     }
+    // A Boolean or Empty Variant acts as the Integer it converts to in the
+    // numeric functions; Null passes through the Variant-returning ones.
+    if (execute_ && !arguments.empty() &&
+        (is_abs || is_sgn || is_int || is_fix || is_float_math || is_hex ||
+         is_oct || is_round)) {
+        if (const auto* flag = std::get_if<bool>(&arguments[0])) {
+            arguments[0] = Value{static_cast<Int16>(*flag ? -1 : 0)};
+        } else if (std::holds_alternative<Empty>(arguments[0])) {
+            arguments[0] = Value{Int16{0}};
+        } else if (std::holds_alternative<Null>(arguments[0])) {
+            if (is_float_math || is_round) {
+                set_error("WFC0104", "Invalid use of Null", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{Null{}};
+        }
+    }
+    // Long parameters accept any value convertible to Long: a numeric String,
+    // a Boolean, Empty, or a Double (rounded), as in `Left("abc", "2")`.
+    if (execute_ && (is_left || is_right || is_mid || is_space || is_chr ||
+                     is_string || is_choose)) {
+        const std::size_t first = (is_left || is_right || is_mid) ? 1U : 0U;
+        const std::size_t last = is_mid ? 2U : first;
+        for (std::size_t index = first;
+             index <= last && index < arguments.size(); ++index) {
+            auto& argument = arguments[index];
+            if (std::holds_alternative<Integer>(argument) ||
+                std::holds_alternative<Null>(argument)) {
+                continue;
+            }
+            if (is_number(argument) || std::holds_alternative<bool>(argument) ||
+                std::holds_alternative<Empty>(argument) ||
+                std::holds_alternative<std::string>(argument)) {
+                if (!coerce_numeric_value(argument, Value{Integer{}}.index(),
+                                          identifier_offset)) {
+                    return std::nullopt;
+                }
+            }
+        }
+    }
     // REQ-0239: Array/Split/Join/Filter.
     if (is_array_fn) {
         ArrayValue result{std::move(arguments),
