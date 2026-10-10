@@ -688,7 +688,7 @@ std::optional<bool> Interpreter::parse_file_statement(
                       statement_offset);
             return false;
         }
-        if (number < 1 || number > 511) {
+        if (number < 1 || number > 511 || path_text->empty()) {
             return raise_runtime(52, "Bad file name or number",
                                  statement_offset);
         }
