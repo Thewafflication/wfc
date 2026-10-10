@@ -646,7 +646,11 @@ std::optional<bool> Interpreter::parse_file_statement(
             static_cast<void>(consume_keyword("write"));
             skip_horizontal_whitespace();
         }
+        bool shared = false;
         if (consume_keyword("shared") || consume_keyword("lock")) {
+            shared = source_.substr(offset_ - 6U, 6U) == "Shared" ||
+                     source_.substr(offset_ - 6U, 6U) == "shared" ||
+                     source_.substr(offset_ - 6U, 6U) == "SHARED";
             skip_horizontal_whitespace();
             static_cast<void>(consume_keyword("read") ||
                               consume_keyword("write"));
@@ -691,6 +695,25 @@ std::optional<bool> Interpreter::parse_file_statement(
         if (files_.contains(number)) {
             return raise_runtime(55, "File already open", statement_offset);
         }
+        // A second Open of a file this program already has open fails
+        // unless both opens say Shared.
+        std::string normalized_path;
+        {
+            std::error_code normalize_error;
+            auto absolute = std::filesystem::absolute(
+                std::filesystem::path(*path_text), normalize_error);
+            normalized_path = normalize_error ? *path_text : absolute.string();
+            for (char& c : normalized_path) {
+                c = c == '/' ? '\\' : ascii_lower(c);
+            }
+            for (const auto& [other_number, other] : files_) {
+                if (other.path == normalized_path &&
+                    !(shared && other.shared)) {
+                    return raise_runtime(55, "File already open",
+                                         statement_offset);
+                }
+            }
+        }
         std::FILE* handle = nullptr;
         if (mode >= 4) {
             handle = open_file(*path_text, "r+b");
@@ -717,7 +740,8 @@ std::optional<bool> Interpreter::parse_file_statement(
             return raise_runtime(70, "Permission denied", statement_offset);
         }
         files_[number] =
-            OpenFile{handle, mode, record_length > 0 ? record_length : 128};
+            OpenFile{handle, mode, record_length > 0 ? record_length : 128,
+                     std::move(normalized_path), shared};
         return true;
     }
     if (consume_keyword("close")) {
@@ -1263,7 +1287,10 @@ std::optional<Value> Interpreter::evaluate_file_function(
                     }
                 }
                 std::sort(dir_matches_.begin(), dir_matches_.end());
-                if (want_directories) {
+                // Only a real, non-root directory lists "." and "..".
+                if (want_directories &&
+                    std::filesystem::is_directory(directory, ec) &&
+                    directory != directory.root_path()) {
                     for (const char* dots : {"..", "."}) {
                         if (like_match(dots, mask, true)) {
                             dir_matches_.insert(dir_matches_.begin(), dots);

@@ -743,6 +743,8 @@ private:
         int mode{};  // 1 = Input, 2 = Output, 3 = Append, 4 = Binary, 5 =
                      // Random
         long record_length{128};
+        std::string path;  // normalized, for the already-open check
+        bool shared{};     // opened with the Shared clause
     };
 
     [[nodiscard]] static std::FILE* open_file(const std::string& path,
