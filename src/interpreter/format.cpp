@@ -205,6 +205,14 @@ std::string Interpreter::render_custom_numeric_picture(
     if (sections.size() == 1U) {
         return render_custom_numeric_picture_section(value, sections.front());
     }
+    // A section left empty (`0;;0`) shows nothing for its values.
+    const std::string& chosen = (sections.size() >= 3U && value == 0.0)
+                                    ? sections[2]
+                                : value < 0.0 ? sections[1]
+                                              : sections.front();
+    if (chosen.empty()) {
+        return {};
+    }
     if (sections.size() >= 3U && value == 0.0) {
         return render_custom_numeric_picture_section(0.0, sections[2]);
     }
@@ -216,7 +224,46 @@ std::string Interpreter::render_custom_numeric_picture(
 }
 
 std::string Interpreter::render_custom_numeric_picture_section(
-    const double value, const std::string& picture) {
+    const double value_in, const std::string& picture_in) {
+    // Commas right after the last digit placeholder of the integer part (or
+    // at the end of the picture) scale the value by 1000 each instead of
+    // grouping digits: `0,` shows thousands, `0.0,,` millions.
+    double value = value_in;
+    std::string picture;
+    {
+        bool in_quotes = false;
+        for (std::size_t i = 0; i < picture_in.size(); ++i) {
+            const char c = picture_in[i];
+            if (c == '\\' && i + 1U < picture_in.size()) {
+                picture.push_back(c);
+                picture.push_back(picture_in[++i]);
+                continue;
+            }
+            if (c == '"') {
+                in_quotes = !in_quotes;
+            }
+            if (!in_quotes && c == ',' && !picture.empty() &&
+                (picture.back() == '0' || picture.back() == '#' ||
+                 picture.back() == ',')) {
+                std::size_t run_end = i;
+                while (run_end < picture_in.size() &&
+                       picture_in[run_end] == ',') {
+                    ++run_end;
+                }
+                const char next =
+                    run_end < picture_in.size() ? picture_in[run_end] : '\0';
+                const bool before_placeholder = next == '0' || next == '#';
+                if (!before_placeholder && picture.back() != ',') {
+                    for (std::size_t k = i; k < run_end; ++k) {
+                        value /= 1000.0;
+                    }
+                    i = run_end - 1U;
+                    continue;
+                }
+            }
+            picture.push_back(c);
+        }
+    }
     const bool negative = value < 0.0;
 
     // Scientific picture: `0.00E+00` / `0.0e-0` (mantissa picture, then
