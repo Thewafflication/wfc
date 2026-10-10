@@ -262,6 +262,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     const Integer compare_default =
                         option_compare_text_ ? 1 : 0;
                     std::optional<Integer> default_value;
+                    std::optional<std::string> text_default;
+                    std::optional<bool> bool_default;
                     if (identifier == "replace") {
                         if (slot == 3U) {
                             default_value = 1;
@@ -290,6 +292,66 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                         } else if (slot >= 2U && slot <= 4U) {
                             default_value = -2;  // vbUseDefault
                         }
+                    } else if (identifier == "split") {
+                        if (slot == 1U) {
+                            text_default = " ";
+                        } else if (slot == 2U) {
+                            default_value = -1;
+                        } else if (slot == 3U) {
+                            default_value = compare_default;
+                        }
+                    } else if (identifier == "filter") {
+                        if (slot == 2U) {
+                            bool_default = true;
+                        } else if (slot == 3U) {
+                            default_value = compare_default;
+                        }
+                    } else if (identifier == "join") {
+                        if (slot == 1U) {
+                            text_default = " ";
+                        }
+                    } else if (identifier == "strcomp") {
+                        if (slot == 2U) {
+                            default_value = compare_default;
+                        }
+                    } else if (identifier == "datediff" ||
+                               identifier == "datepart") {
+                        // vbSunday / vbFirstJan1
+                        const std::size_t first =
+                            identifier == "datediff" ? 3U : 2U;
+                        if (slot == first || slot == first + 1U) {
+                            default_value = 1;
+                        }
+                    } else if (identifier == "weekday") {
+                        if (slot == 1U) {
+                            default_value = 1;
+                        }
+                    } else if (identifier == "weekdayname") {
+                        if (slot == 1U) {
+                            bool_default = false;
+                        } else if (slot == 2U) {
+                            default_value = 0;
+                        }
+                    } else if (identifier == "monthname") {
+                        if (slot == 1U) {
+                            bool_default = false;
+                        }
+                    } else if (identifier == "formatdatetime") {
+                        if (slot == 1U) {
+                            default_value = 0;
+                        }
+                    }
+                    if (text_default.has_value()) {
+                        arguments.push_back(Value{*text_default});
+                        advance();
+                        skip_horizontal_whitespace();
+                        continue;
+                    }
+                    if (bool_default.has_value()) {
+                        arguments.push_back(Value{*bool_default});
+                        advance();
+                        skip_horizontal_whitespace();
+                        continue;
                     }
                     if (!default_value.has_value()) {
                         set_error("WFC0072",

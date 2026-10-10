@@ -1038,10 +1038,8 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         const int places = *digits < 0.0 ? 2 : static_cast<int>(*digits);
         double scaled = percent ? *value * 100.0 : *value;
         const bool negative = scaled < 0.0;
-        char buffer[512];
-        std::snprintf(buffer, sizeof(buffer), "%.*f", places,
-                      std::fabs(scaled));
-        std::string digits_text = buffer;
+        // Rounded half away from zero on the decimal form, as Format does.
+        std::string digits_text = fixed_half_up(std::fabs(scaled), places);
         const auto point = digits_text.find('.');
         std::string whole = digits_text.substr(0, point);
         const std::string fraction =

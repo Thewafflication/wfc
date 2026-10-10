@@ -2838,6 +2838,9 @@ int main() {
     expect_program_failure("Print Str(\"a\")", "WFC0073");
     expect_program_success("Print Val(42)", "42");
     expect_program_success("Print Abs(\"42\")", "42");
+    expect_program_success("Print FormatNumber(2.5, 0)", "3");
+    expect_program_success("Print FormatPercent(0.125, 0)", "13%");
+    expect_program_success("Print Environ(100000) = \"\"", "True");
     expect_program_success("Print Sgn(False)", "0");
     expect_program_failure("Print Abs()", "WFC0072");
     expect_program_failure("Print Abs(1, 2)", "WFC0072");
