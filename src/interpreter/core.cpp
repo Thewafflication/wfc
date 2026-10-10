@@ -792,6 +792,17 @@ std::string Interpreter::vb_error_description(const Integer number) {
             return "Invalid pattern string";
         case 94:
             return "Invalid use of Null";
+        case 96:
+            return "Unable to sink events of object because the object is "
+                   "already firing events to the maximum number of event "
+                   "receivers that it supports";
+        case 97:
+            return "Can't call Friend procedure on an object that is not an "
+                   "instance of defining class";
+        case 98:
+            return "A property or method call cannot include a reference to a "
+                   "private object, either as an argument or as a return "
+                   "value";
         case 321:
             return "Invalid file format";
         case 322:
@@ -849,6 +860,10 @@ std::string Interpreter::vb_error_description(const Integer number) {
         case 451:
             return "Property let procedure not defined and property get "
                    "procedure did not return an object";
+        case 442:
+            return "Connection to type library or object library for remote "
+                   "process has been lost. Press OK for dialog to remove "
+                   "reference.";
         case 452:
             return "Invalid ordinal";
         case 453:
