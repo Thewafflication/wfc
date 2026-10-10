@@ -1558,7 +1558,13 @@ bool Interpreter::parse_block_if_statement(const bool enclosing_execution,
                 return false;
             }
             has_else = true;
-            if (!consume_block_line_end()) {
+            skip_horizontal_whitespace();
+            // `Else If cond Then` starts a nested block If (with its own
+            // End If) in the Else branch.
+            const auto after_else = offset_;
+            const bool nested_if = consume_keyword("if");
+            offset_ = after_else;
+            if (!nested_if && !consume_block_line_end()) {
                 execute_ = enclosing_execution;
                 return false;
             }
