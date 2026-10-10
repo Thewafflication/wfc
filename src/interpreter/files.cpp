@@ -1196,6 +1196,28 @@ std::optional<Value> Interpreter::evaluate_file_function(
         if (const auto* variable = std::get_if<std::string>(&arguments[0])) {
             return Value{environment_variable(*variable)};
         }
+        if (const auto position = whole_value(arguments[0])) {
+            // `Environ(n)` is the n-th "NAME=value" entry (1-based).
+            if (*position < 1) {
+                return raise_runtime(5, "Invalid procedure call or argument",
+                                     offset);
+            }
+            std::string entry;
+#ifdef _WIN32
+            char** const block = _environ;
+#else
+            extern char** environ;
+            char** const block = environ;
+#endif
+            for (Integer index = 0; block != nullptr && block[index] != nullptr;
+                 ++index) {
+                if (index + 1 == *position) {
+                    entry = block[index];
+                    break;
+                }
+            }
+            return Value{entry};
+        }
         set_error("WFC0073", "Environ requires a String name", offset);
         return std::nullopt;
     }
