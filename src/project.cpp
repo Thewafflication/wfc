@@ -232,7 +232,8 @@ namespace {
         {"versionproductname", "productname"},
         {"versionfiledescription", "filedescription"},
         {"versioncomments", "comments"},
-        {"versionlegalcopyright", "legalcopyright"}};
+        {"versionlegalcopyright", "legalcopyright"},
+        {"versionlegaltrademarks", "legaltrademarks"}};
     const auto found = keys.find(key);
     return found == keys.end() ? std::string{} : found->second;
 }

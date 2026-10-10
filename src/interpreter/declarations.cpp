@@ -1409,6 +1409,36 @@ void Interpreter::scan_builtin_classes() {
     for (const auto& module : class_sources_) {
         needs_app = needs_app || mentions_app(module.source);
     }
+    const auto mentions_object = [](const std::string_view text,
+                                    const std::string_view word) {
+        for (std::size_t i = 0; i + word.size() < text.size(); ++i) {
+            if (text[i + word.size()] != '.' ||
+                (i != 0 && is_identifier_part(text[i - 1U]))) {
+                continue;
+            }
+            bool same = true;
+            for (std::size_t k = 0; same && k < word.size(); ++k) {
+                same = ascii_lower(text[i + k]) == word[k];
+            }
+            if (same) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto needs_object = [&](const std::string_view word) {
+        bool needed = mentions_object(source_, word);
+        for (const auto& module : class_sources_) {
+            needed = needed || mentions_object(module.source, word);
+        }
+        return needed;
+    };
+    if (needs_object("clipboard")) {
+        class_sources_.push_back({"WfcClipboard", kClipboardSource});
+    }
+    if (needs_object("screen")) {
+        class_sources_.push_back({"WfcScreen", kScreenSource});
+    }
     if (needs_app) {
         // Project metadata replaces the default value of each `App` property.
         std::string app_source(kAppSource);
@@ -1436,6 +1466,7 @@ void Interpreter::scan_builtin_classes() {
                 : property == "productname"     ? "ProductName = \"\""
                 : property == "filedescription" ? "FileDescription = \"\""
                 : property == "comments"        ? "Comments = \"\""
+                : property == "legaltrademarks" ? "LegalTrademarks = \"\""
                                                 : "LegalCopyright = \"\"";
             const auto at = app_source.find(marker);
             if (at != std::string::npos) {

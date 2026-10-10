@@ -11,6 +11,80 @@
 #endif
 
 namespace wfc::detail {
+namespace {
+
+#ifdef _WIN32
+BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
+                           DWORD font_type, LPARAM param) {
+    if (font_type == TRUETYPE_FONTTYPE || font_type == 0) {
+        auto* const names = reinterpret_cast<std::vector<std::string>*>(param);
+        const std::string name = font->lfFaceName;
+        if (std::find(names->begin(), names->end(), name) == names->end()) {
+            names->push_back(name);
+        }
+    }
+    return TRUE;
+}
+
+[[nodiscard]] const std::vector<std::string>& installed_fonts() {
+    static const std::vector<std::string> fonts = [] {
+        std::vector<std::string> names;
+        if (const HDC context = GetDC(nullptr)) {
+            LOGFONTA filter{};
+            filter.lfCharSet = DEFAULT_CHARSET;
+            EnumFontFamiliesExA(context, &filter, collect_font,
+                                reinterpret_cast<LPARAM>(&names), 0);
+            ReleaseDC(nullptr, context);
+        }
+        std::sort(names.begin(), names.end());
+        return names;
+    }();
+    return fonts;
+}
+#endif
+
+// Screen metrics for the built-in Screen class: 0/1 width and height in
+// pixels, 2/3 horizontal and vertical DPI, 4 the installed font count.
+[[nodiscard]] Integer system_metric(const Integer index) {
+#ifdef _WIN32
+    if (index == 0) {
+        return GetSystemMetrics(SM_CXSCREEN);
+    }
+    if (index == 1) {
+        return GetSystemMetrics(SM_CYSCREEN);
+    }
+    if (index == 2 || index == 3) {
+        int dpi = 96;
+        if (const HDC context = GetDC(nullptr)) {
+            dpi = GetDeviceCaps(context, index == 2 ? LOGPIXELSX : LOGPIXELSY);
+            ReleaseDC(nullptr, context);
+        }
+        return dpi > 0 ? dpi : 96;
+    }
+    if (index == 4) {
+        return static_cast<Integer>(installed_fonts().size());
+    }
+    return 0;
+#else
+    static constexpr Integer defaults[] = {1920, 1080, 96, 96, 0};
+    return index >= 0 && index < 5 ? defaults[index] : 0;
+#endif
+}
+
+// The 0-based `index`th installed font, or empty when out of range.
+[[nodiscard]] std::string system_font_name(const Integer index) {
+#ifdef _WIN32
+    const auto& fonts = installed_fonts();
+    if (index >= 0 && static_cast<std::size_t>(index) < fonts.size()) {
+        return fonts[static_cast<std::size_t>(index)];
+    }
+#else
+    static_cast<void>(index);
+#endif
+    return {};
+}
+
+}  // namespace
 
 bool Interpreter::is_misc_function_name(const std::string_view name) {
     static const std::unordered_set<std::string> names{"pmt",
@@ -51,6 +125,8 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "strptr",
                                                        "wfcregexmatches",
                                                        "wfcregexreplace",
+                                                       "wfcsys",
+                                                       "wfcsysfont",
                                                        "wfcstore"};
     return names.contains(std::string(name));
 }
@@ -364,6 +440,17 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                 5017, "Syntax error in regular expression", offset));
             return std::nullopt;
         }
+    }
+    if (name == "wfcsys" || name == "wfcsysfont") {
+        // Screen metrics for the built-in Screen class.
+        if (!arity(1, 1)) {
+            return std::nullopt;
+        }
+        const auto index = whole_value(arguments[0]).value_or(0);
+        if (name == "wfcsysfont") {
+            return Value{system_font_name(index)};
+        }
+        return Value{system_metric(index)};
     }
     if (name == "wfcstore") {
         if (arguments.size() < 2U) {

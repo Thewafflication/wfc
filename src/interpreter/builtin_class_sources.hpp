@@ -168,12 +168,75 @@ End Function
 )VB";
 
 // The global `App` object (the properties a console-style program reads).
+inline constexpr std::string_view kClipboardSource =
+    R"VB(Private mText As String
+Private mHasText As Boolean
+Public Sub Clear()
+mText = ""
+mHasText = False
+End Sub
+Public Sub SetText(ByVal Str As String, Optional ByVal Format As Variant)
+mText = Str
+mHasText = True
+End Sub
+Public Function GetText(Optional ByVal Format As Variant) As String
+GetText = mText
+End Function
+Public Function GetFormat(ByVal Format As Integer) As Boolean
+GetFormat = mHasText And (Format = 1 Or Format = 13)
+End Function
+)VB";
+
+inline constexpr std::string_view kScreenSource =
+    R"VB(Private mPointer As Integer
+Public Property Get Width() As Single
+Width = WfcSys(0) * TwipsPerPixelX
+End Property
+Public Property Get Height() As Single
+Height = WfcSys(1) * TwipsPerPixelY
+End Property
+Public Property Get TwipsPerPixelX() As Single
+TwipsPerPixelX = 1440 / WfcSys(2)
+End Property
+Public Property Get TwipsPerPixelY() As Single
+TwipsPerPixelY = 1440 / WfcSys(3)
+End Property
+Public Property Get FontCount() As Integer
+FontCount = WfcSys(4)
+End Property
+Public Property Get Fonts(ByVal Index As Integer) As String
+Fonts = WfcSysFont(Index)
+End Property
+Public Property Get MousePointer() As Integer
+MousePointer = mPointer
+End Property
+Public Property Let MousePointer(ByVal v As Integer)
+mPointer = v
+End Property
+Public Property Get ActiveForm() As Object
+Set ActiveForm = Nothing
+End Property
+Public Property Get ActiveControl() As Object
+Set ActiveControl = Nothing
+End Property
+)VB";
+
 inline constexpr std::string_view kAppSource =
     R"VB(Public Property Get Path() As String
 Path = CurDir$
 End Property
+Private mTitle As String
+Private mTitleSet As Boolean
 Public Property Get Title() As String
+If mTitleSet Then
+Title = mTitle
+Else
 Title = ""
+End If
+End Property
+Public Property Let Title(ByVal v As String)
+mTitle = v
+mTitleSet = True
 End Property
 Public Property Get EXEName() As String
 EXEName = "Project1"
@@ -210,6 +273,142 @@ Comments = ""
 End Property
 Public Property Get LegalCopyright() As String
 LegalCopyright = ""
+End Property
+Public Property Get LegalTrademarks() As String
+LegalTrademarks = ""
+End Property
+Private mHelpFile As String
+Public Property Get HelpFile() As String
+HelpFile = mHelpFile
+End Property
+Public Property Let HelpFile(ByVal v As String)
+mHelpFile = v
+End Property
+Private mTaskVisible As Boolean
+Private mTaskSet As Boolean
+Public Property Get TaskVisible() As Boolean
+If mTaskSet Then
+TaskVisible = mTaskVisible
+Else
+TaskVisible = True
+End If
+End Property
+Public Property Let TaskVisible(ByVal v As Boolean)
+mTaskVisible = v
+mTaskSet = True
+End Property
+Public Property Get StartMode() As Integer
+StartMode = 0
+End Property
+Public Property Get NonModalAllowed() As Boolean
+NonModalAllowed = True
+End Property
+Public Property Get UnattendedApp() As Boolean
+UnattendedApp = False
+End Property
+Public Property Get RetainedProject() As Boolean
+RetainedProject = False
+End Property
+Private mLogMode As Long
+Private mLogPath As String
+Public Property Get LogMode() As Long
+LogMode = mLogMode
+End Property
+Public Property Get LogPath() As String
+LogPath = mLogPath
+End Property
+Public Sub StartLogging(LogTarget As String, LogModes As Long)
+mLogPath = LogTarget
+mLogMode = LogModes
+End Sub
+Private mBusyTimeout As Long
+Private mBusyTimeoutSet As Boolean
+Public Property Get OleServerBusyTimeout() As Long
+If mBusyTimeoutSet Then
+OleServerBusyTimeout = mBusyTimeout
+Else
+OleServerBusyTimeout = 10000
+End If
+End Property
+Public Property Let OleServerBusyTimeout(ByVal v As Long)
+mBusyTimeout = v
+mBusyTimeoutSet = True
+End Property
+Private mBusyRaise As Boolean
+Public Property Get OleServerBusyRaiseError() As Boolean
+OleServerBusyRaiseError = mBusyRaise
+End Property
+Public Property Let OleServerBusyRaiseError(ByVal v As Boolean)
+mBusyRaise = v
+End Property
+Private mBusyTitle As String
+Private mBusyTitleSet As Boolean
+Public Property Get OleServerBusyMsgTitle() As String
+If mBusyTitleSet Then
+OleServerBusyMsgTitle = mBusyTitle
+Else
+OleServerBusyMsgTitle = "Server Busy"
+End If
+End Property
+Public Property Let OleServerBusyMsgTitle(ByVal v As String)
+mBusyTitle = v
+mBusyTitleSet = True
+End Property
+Private mBusyText As String
+Private mBusyTextSet As Boolean
+Public Property Get OleServerBusyMsgText() As String
+If mBusyTextSet Then
+OleServerBusyMsgText = mBusyText
+Else
+OleServerBusyMsgText = "This action cannot be completed because the other " & _
+"application is busy. Choose 'Switch To' to activate the busy application " & _
+"and correct the problem."
+End If
+End Property
+Public Property Let OleServerBusyMsgText(ByVal v As String)
+mBusyText = v
+mBusyTextSet = True
+End Property
+Private mPendingTimeout As Long
+Private mPendingTimeoutSet As Boolean
+Public Property Get OleRequestPendingTimeout() As Long
+If mPendingTimeoutSet Then
+OleRequestPendingTimeout = mPendingTimeout
+Else
+OleRequestPendingTimeout = 5000
+End If
+End Property
+Public Property Let OleRequestPendingTimeout(ByVal v As Long)
+mPendingTimeout = v
+mPendingTimeoutSet = True
+End Property
+Private mPendingTitle As String
+Private mPendingTitleSet As Boolean
+Public Property Get OleRequestPendingMsgTitle() As String
+If mPendingTitleSet Then
+OleRequestPendingMsgTitle = mPendingTitle
+Else
+OleRequestPendingMsgTitle = "Component Request Pending"
+End If
+End Property
+Public Property Let OleRequestPendingMsgTitle(ByVal v As String)
+mPendingTitle = v
+mPendingTitleSet = True
+End Property
+Private mPendingText As String
+Private mPendingTextSet As Boolean
+Public Property Get OleRequestPendingMsgText() As String
+If mPendingTextSet Then
+OleRequestPendingMsgText = mPendingText
+Else
+OleRequestPendingMsgText = "An action cannot be completed because a " & _
+"component is not responding. Choose 'Switch To' to activate the " & _
+"component and correct the problem."
+End If
+End Property
+Public Property Let OleRequestPendingMsgText(ByVal v As String)
+mPendingText = v
+mPendingTextSet = True
 End Property
 Public Sub LogEvent(LogBuffer As String, Optional EventType As Long = 1)
 End Sub

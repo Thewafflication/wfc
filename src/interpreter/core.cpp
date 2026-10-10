@@ -66,6 +66,16 @@ VariableLookup Interpreter::find_variable_raw(const std::string& name) {
     if (entry != module.variables.end()) {
         return {&entry->second, &module};
     }
+    if ((name == "app" || name == "clipboard" || name == "screen") &&
+        class_definitions_.contains("wfc" + name)) {
+        // The global service objects: predeclared instances of built-in
+        // classes, created on first use unless the program declares its own.
+        module.variables.emplace(name, Value{Nothing{}});
+        module.object_variables.insert(name);
+        module.object_class_names.emplace(name, "wfc" + name);
+        module.auto_new_variables.insert(name);
+        return {&module.variables.at(name), &module};
+    }
     if (name == "calendar" && !module.constants.contains(name)) {
         // The VBA `Calendar` property (REQ-0074) reads as vbCalGreg until set.
         const auto created = module.variables.emplace(name, Value{Integer{0}});
