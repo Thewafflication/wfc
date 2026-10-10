@@ -33,6 +33,7 @@ On Windows a program can create and drive real COM Automation objects through
   `Description` (and help file and context); `DISP_E_MEMBERNOTFOUND` is 438,
   `DISP_E_TYPEMISMATCH` 13, `DISP_E_BADPARAMCOUNT` 450,
   `DISP_E_PARAMNOTOPTIONAL` 449.
+- Two references to one server object compare equal with `Is`.
 - `TypeName(obj)` is the coclass name when the server publishes
   `IProvideClassInfo`, else its dispatch interface name.
 - COM is initialized as a single-threaded apartment on the interpreter thread.
@@ -40,10 +41,9 @@ On Windows a program can create and drive real COM Automation objects through
 
 ## Known limits
 
-No early binding (`Dim x As Excel.Application` is not a known type; use
-`As Object`), no event sinks (`WithEvents` on a COM object), no `Is`
-identity between two wrappers of one server object, and no `Implements` of a
-COM interface.
+Early binding needs a project `Reference=` (`REQ-0288`); without one use
+`As Object`. There are no event sinks (`WithEvents` on a COM object) and no
+`Implements` of a COM interface.
 
 ## Verification
 

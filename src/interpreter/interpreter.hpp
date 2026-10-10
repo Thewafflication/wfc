@@ -311,6 +311,9 @@ struct ComObject {
     ComObject& operator=(const ComObject&) = delete;
     ~ComObject();
     void* dispatch{};
+    // The object's IUnknown identity: two wrappers of one server object share
+    // one InstanceData, so `Is` compares equal.
+    void* identity{};
     // Lower-cased member name -> DISPID, filled on first use.
     std::unordered_map<std::string, long> dispids;
 };

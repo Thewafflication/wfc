@@ -7,6 +7,7 @@ True
 rb
 v
 FalseTrue
+TrueFalse
  3 
  438 Object doesn't support this property or method
 TrueWshShell.RegRead

@@ -21,6 +21,10 @@ Sub Main()
         Print .getAttribute("k")
     End With
     Print doc.loadXML("<broken"); doc.parseError.errorCode <> 0
+    Dim e1 As Object, e2 As Object
+    Set e1 = doc.documentElement
+    Set e2 = doc.documentElement
+    Print e1 Is e2; e1 Is doc
     Print sh.Run("cmd /c exit 3", 0, True)
     On Error Resume Next
     doc.noSuchMethod 1

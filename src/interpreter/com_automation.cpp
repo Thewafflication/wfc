@@ -139,15 +139,44 @@ void ensure_apartment() {
     return static_cast<IDispatch*>(object.dispatch);
 }
 
-// Wraps `dispatch` (AddRef'd here) as an interpreter object value.
+// Live wrappers by the server object's IUnknown identity.
+[[nodiscard]] std::unordered_map<void*, std::weak_ptr<InstanceData>>&
+wrapper_registry() {
+    thread_local std::unordered_map<void*, std::weak_ptr<InstanceData>>
+        registry;
+    return registry;
+}
+
+// Wraps `dispatch` (AddRef'd here) as an interpreter object value; the same
+// server object always yields the same wrapper while one is alive.
 [[nodiscard]] Value wrap_dispatch(IDispatch* dispatch) {
     if (dispatch == nullptr) {
         return Value{Nothing{}};
+    }
+    void* identity = nullptr;
+    IUnknown* unknown = nullptr;
+    if (SUCCEEDED(dispatch->QueryInterface(
+            IID_IUnknown, reinterpret_cast<void**>(&unknown)))) {
+        identity = unknown;
+        unknown->Release();
+    }
+    auto& registry = wrapper_registry();
+    if (identity != nullptr) {
+        const auto found = registry.find(identity);
+        if (found != registry.end()) {
+            if (auto existing = found->second.lock()) {
+                return Value{ObjectInstance{std::move(existing)}};
+            }
+        }
     }
     dispatch->AddRef();
     auto data = std::make_shared<InstanceData>();
     data->class_name = "wfccom";
     data->com = std::make_shared<ComObject>(dispatch);
+    data->com->identity = identity;
+    if (identity != nullptr) {
+        registry[identity] = data;
+    }
     return Value{ObjectInstance{std::move(data)}};
 }
 
@@ -536,6 +565,13 @@ struct ComFailure {
 }  // namespace
 
 ComObject::~ComObject() {
+    if (identity != nullptr) {
+        auto& registry = wrapper_registry();
+        const auto found = registry.find(identity);
+        if (found != registry.end() && found->second.expired()) {
+            registry.erase(found);
+        }
+    }
     if (dispatch != nullptr) {
         static_cast<IDispatch*>(dispatch)->Release();
     }
