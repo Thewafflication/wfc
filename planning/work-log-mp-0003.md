@@ -29,3 +29,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #8 | Construction | `Reference=` type libraries: early-bound classes, interfaces and enumeration constants over COM (`REQ-0288`); corpus 147 | CTest 301/301 |
 | 2026-10-10 #9 | Construction | COM object identity: one wrapper per server object so `Is` holds (`REQ-0286`) | CTest 301/301 |
 | 2026-10-10 #10 | Construction | COM events: WithEvents over connection points, DoEvents message pump, ByRef event arguments (`REQ-0286`); corpus 148 | CTest 302/302 |
+| 2026-10-10 #11 | Design | ADR-0004: Automation server hosting decided (out-of-process local server; implementation deferred to MP-0005) | `architecture/adr-0004-automation-server.md` |

@@ -158,11 +158,11 @@ touching the emulated classes.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| Multi-file projects with classes, interfaces, events, default members, and enumerators run end to end | Corpus | Required | In progress |
-| Language limits carried from MP-0002 closed | Corpus and `REQ-0283` update | Required | Not started |
-| Non-visual `App`/`Global`/`Clipboard`/`Screen` members present | Inventory audit | Required | In progress |
-| Late-bound Automation client works against stock COM objects | CTest | Required | Not started |
-| Server decision recorded | ADR | Required | Not started |
+| Multi-file projects with classes, interfaces, events, default members, and enumerators run end to end | Corpus | Required | Pass (corpus 114–148) |
+| Language limits carried from MP-0002 closed | Corpus 139, 143, 144 and `REQ-0283` | Required | Pass |
+| Non-visual `App`/`Global`/`Clipboard`/`Screen` members present | Inventory audit; corpus 140, 141, 145, 146 | Required | Pass for non-visual members (`Load`, `Unload`, `LoadPicture`, `SavePicture`, `Printer`, `Printers`, `Licenses` deferred) |
+| Late-bound Automation client works against stock COM objects | Corpus 142, 147, 148 | Required | Pass |
+| Server decision recorded | ADR-0004 | Required | Pass |
 | Diagnostics catalog current | CTest catalog check | Required | Ongoing |
 
 ## Deferred Objectives
@@ -170,7 +170,8 @@ touching the emulated classes.
 | Objective | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
 | `VBControlExtender` (`REQ-0068`), visual `Screen` members | No control hosting | Project maintainer | MP-0004 | None | Pending |
-| COM event sinks, if the ADR defers them | Cannot handle events from real COM objects | Project maintainer | MP-0005 | Emulated classes only | Pending |
+| COM server hosting (`ADR-0004`) | WFC classes cannot be consumed as COM objects | Project maintainer | MP-0005 | None | Pending |
+| `Load`/`Unload`, `LoadPicture`/`SavePicture`, `Printer`/`Printers`, `Licenses` | Need forms, pictures, or printing | Project maintainer | MP-0004/MP-0005 | `Forms` is empty | Pending |
 
 ## Change Control
 

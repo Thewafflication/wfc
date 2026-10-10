@@ -107,6 +107,7 @@ platform-mandated variance.
 | WSP release pin and adoption | [ADR-0001](adr-0001-wsp-baseline.md) |
 | WCRT dependency and integration boundary | [ADR-0002](adr-0002-wcrt-integration.md) |
 | CMake, CTest, C++ edition, and target matrix | [ADR-0003](adr-0003-cmake-toolchain.md) |
+| Automation server hosting (implementation deferred to MP-0005) | [ADR-0004](adr-0004-automation-server.md) |
 
 ## Open MP-0001 Decisions
 
