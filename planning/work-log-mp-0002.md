@@ -2199,5 +2199,22 @@ PropertyPage is compile-time only; help values are preserved with help display
 deferred. Generic data binding (`REQ-0131`) was left open. The shared
 `WFC9000`-series diagnostics these decisions rely on are not yet implemented.
 
+**Hardening increments, 2026-10-10 (corpus cases 104-114):** binary `Get`/`Put`
+accept expressions and carry a VarType tag for Variant scalars; numeric values
+format with date/time pictures and ignore `[Red]`-style color tags; the text
+functions (`Left`, `InStr`, `Replace`, `Split`, ...), the Long-parameter
+functions, and the numeric functions (`Abs`, `Sgn`, `Hex`, ...) coerce numbers,
+Booleans, Dates, numeric Strings, and Empty as VB6 does; `And`/`Or`/`Not`/`^`
+convert Double and numeric-String operands; Variant array elements, Variant
+function results, Variant fields, and `IIf`/`CVar`/`Choose`/`Switch` compare as
+Variants; `Print` honors `Tab(n)` columns (including a bare `Tab` and continued
+lines); numeric literals accept a trailing decimal point; the `App` object
+reports `.vbp` metadata; `Scripting.Folder`, `GetFolder`, `GetSpecialFolder`,
+recursive `DeleteFolder`, and typed early binding (`As Dictionary`,
+`As FileSystemObject`) work against `CreateObject` instances; and standard
+modules of a project now keep separate namespaces (colliding module-level names
+are renamed per module, `Module.Name` resolves, `Declare ... Alias` binds the
+export) with their `Option` statements merged.
+
 **Next responsible party:** the maintainer or a subsequent assistant session,
 continuing the corpus-driven hardening under MP-0002.
