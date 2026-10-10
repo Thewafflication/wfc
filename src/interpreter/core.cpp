@@ -984,6 +984,7 @@ bool Interpreter::raise_runtime(const Integer number,
                                 const std::string& description,
                                 const std::size_t offset) {
     err_number_ = number;
+    err_erl_ = erl_;
     err_description_ = description;
     err_source_.clear();
     err_help_file_.clear();
@@ -999,6 +1000,7 @@ void Interpreter::set_error(const std::string_view code,
         // An unknown member reached at run time is a catchable "Object doesn't
         // support..."
         err_number_ = 438;
+        err_erl_ = erl_;
         err_description_ = "Object doesn't support this property or method";
         err_source_.clear();
         err_help_file_.clear();

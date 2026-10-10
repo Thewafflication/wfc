@@ -1882,7 +1882,8 @@ private:
     std::unordered_map<std::string, Value> global_class_constants_;
     // REQ-0238 error-handling state.
     Integer err_number_{};
-    Integer erl_{};  // the last numbered line executed (VB's Erl)
+    Integer erl_{};      // the last numbered line executed (VB's Erl)
+    Integer err_erl_{};  // the numbered line the pending error occurred on
     std::string err_description_;
     std::string err_source_;
     bool jump_pending_{};

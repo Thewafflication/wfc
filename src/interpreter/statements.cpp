@@ -33,6 +33,7 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
     }
     if (std::string_view(error_.diagnostic).substr(0, 7) != "WFC0300") {
         err_number_ = number;
+        err_erl_ = erl_;
         err_source_.clear();
         err_help_file_.clear();
         err_help_context_ = 0;
@@ -623,6 +624,7 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                         5, "Invalid procedure call or argument", member_offset);
                 }
                 err_number_ = raised;
+                err_erl_ = erl_;
                 err_help_file_ = raised_help_file;
                 err_help_context_ = raised_help_context;
                 err_source_ = source_text;

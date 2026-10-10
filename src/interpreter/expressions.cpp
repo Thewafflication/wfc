@@ -1258,7 +1258,8 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 class_satisfies(instance->data->class_name, *class_name)};
         }
         if (consume_keyword("erl")) {
-            return Value{erl_};
+            // Inside a handler Erl stays at the line the error occurred on.
+            return Value{err_number_ != 0 ? err_erl_ : erl_};
         }
     }
     {
@@ -2622,6 +2623,7 @@ std::optional<Value> Interpreter::numeric_binary(
             }
             if (execute_) {
                 err_number_ = 13;
+                err_erl_ = erl_;
                 err_description_ = "Type mismatch";
                 set_error("WFC0300", "Type mismatch", operator_offset);
                 return std::nullopt;
