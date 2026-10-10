@@ -259,6 +259,8 @@ struct ClassDef {
     // REQ-0241: a `Type ... End Type` user-defined type, modeled as a
     // class whose instances have value semantics.
     bool is_udt{};
+    // The class module's own text declares `Option Explicit`.
+    bool strict{};
     // REQ-0257: lowercased name of the member marked
     // `Attribute Name.VB_UserMemId = 0` (the class's default member).
     std::string default_member;
@@ -427,6 +429,11 @@ public:
     // The class module (display name) whose source was executing when the last
     // error was raised; empty for the standard module(s).
     void set_vb_number_spacing(const bool enabled) noexcept;
+    void set_option_explicit_ranges(
+        std::vector<std::pair<std::size_t, std::size_t>> ranges) {
+        per_module_explicit_ = true;
+        explicit_ranges_ = std::move(ranges);
+    }
     void set_app_properties(std::map<std::string, std::string> properties);
 
     [[nodiscard]] std::string failing_module_name() const;
@@ -579,6 +586,8 @@ private:
 
     [[nodiscard]] bool scan_classes();
     [[nodiscard]] bool check_interface_completeness();
+    // Whether Option Explicit applies at the current position.
+    [[nodiscard]] bool strict_here() const;
 
     // A lightweight pre-pass, run once before the main top-to-bottom
     // execution begins, that finds every module-level `Sub`/`Function`
@@ -1916,6 +1925,10 @@ private:
     std::string debug_output_;
     bool pending_next_comma_{};
     bool strict_declarations_{};
+    // Project mode: Option Explicit holds only inside these ranges of the
+    // main source (REQ-0283); a class module uses its own text.
+    bool per_module_explicit_{};
+    std::vector<std::pair<std::size_t, std::size_t>> explicit_ranges_;
     std::map<std::string, std::string> settings_;
     std::unordered_set<std::string> module_names_;
     bool end_requested_{};

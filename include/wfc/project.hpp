@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace wfc {
@@ -27,6 +28,12 @@ struct LoadedProject final {
     // `App` object metadata from the .vbp (Title, ExeName32, MajorVer, ...),
     // keyed by lower-case `App` property name.
     std::map<std::string, std::string> app_properties;
+    // Byte ranges of `module_source` belonging to modules that declare
+    // `Option Explicit` (REQ-0283).
+    std::vector<std::pair<std::size_t, std::size_t>> option_explicit_ranges;
+    // True when the ranges above are authoritative (a linked multi-module
+    // project); false for a single module, which carries its own Option line.
+    bool per_module_option_explicit{};
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

@@ -6,32 +6,53 @@
 
 namespace wfc::detail {
 
-void Interpreter::scan_option_explicit() {
-    const auto mentions = [](const std::string_view text) {
-        std::size_t position = 0;
-        while (position < text.size()) {
-            auto end = text.find('\n', position);
-            if (end == std::string_view::npos) {
-                end = text.size();
-            }
-            std::string line;
-            for (const char c : text.substr(position, end - position)) {
-                if (c != ' ' && c != '\t' && c != '\r') {
-                    line.push_back(ascii_lower(c));
-                }
-            }
-            position = end + 1;
-            if (line == "optionexplicit" ||
-                line.rfind("optionexplicit'", 0) == 0) {
-                return true;
+[[nodiscard]] bool mentions_option_explicit(const std::string_view text) {
+    std::size_t position = 0;
+    while (position < text.size()) {
+        auto end = text.find('\n', position);
+        if (end == std::string_view::npos) {
+            end = text.size();
+        }
+        std::string line;
+        for (const char c : text.substr(position, end - position)) {
+            if (c != ' ' && c != '\t' && c != '\r') {
+                line.push_back(ascii_lower(c));
             }
         }
-        return false;
-    };
-    strict_declarations_ = mentions(source_);
-    for (const auto& module : class_sources_) {
-        strict_declarations_ = strict_declarations_ || mentions(module.source);
+        position = end + 1;
+        if (line == "optionexplicit" || line.rfind("optionexplicit'", 0) == 0) {
+            return true;
+        }
     }
+    return false;
+}
+
+void Interpreter::scan_option_explicit() {
+    strict_declarations_ = mentions_option_explicit(source_);
+    for (const auto& module : class_sources_) {
+        strict_declarations_ =
+            strict_declarations_ || mentions_option_explicit(module.source);
+    }
+}
+
+bool Interpreter::strict_here() const {
+    if (source_.data() != main_source_.data()) {
+        for (const auto& [name, definition] : class_definitions_) {
+            if (definition.source.data() == source_.data()) {
+                return definition.strict;
+            }
+        }
+        return strict_declarations_;
+    }
+    if (!per_module_explicit_) {
+        return strict_declarations_;
+    }
+    for (const auto& [begin, end] : explicit_ranges_) {
+        if (offset_ >= begin && offset_ < end) {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::optional<std::size_t> Interpreter::default_type_for(
@@ -1471,6 +1492,7 @@ bool Interpreter::scan_classes() {
         ClassDef class_def;
         class_def.source = class_source.source;
         class_def.display_name = class_source.name;
+        class_def.strict = mentions_option_explicit(class_source.source);
         class_definitions_.emplace(std::move(lowered_name),
                                    std::move(class_def));
     }
@@ -2705,7 +2727,7 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
 
     auto variable_lookup = find_variable(*identifier);
     if (variable_lookup.value == nullptr && member_path.empty() &&
-        !strict_declarations_ && !in_with_identifier(*identifier)) {
+        !strict_here() && !in_with_identifier(*identifier)) {
         // Without Option Explicit, ReDim declares the (Variant) array too.
         current_scope().variables.emplace(*identifier, Value{Empty{}});
         current_scope().variant_variables.insert(*identifier);

@@ -479,7 +479,9 @@ struct OptionLines {
 
 std::string link_modules(std::vector<std::string>& modules,
                          const std::vector<std::string>& names,
-                         std::vector<std::string>& classes) {
+                         std::vector<std::string>& classes,
+                         std::vector<bool>& explicit_modules) {
+    explicit_modules.assign(modules.size(), false);
     if (modules.size() < 2U) {
         return {};
     }
@@ -506,21 +508,17 @@ std::string link_modules(std::vector<std::string>& modules,
                            class_scan.field_lines, class_scan.names);
     }
 
-    bool all_explicit = true;
     bool any_base = false;
     bool any_text = false;
     bool any_binary = false;
-    for (auto& module : modules) {
-        const auto options = strip_options(module);
-        all_explicit = all_explicit && options.explicit_on;
+    for (std::size_t index = 0; index < modules.size(); ++index) {
+        const auto options = strip_options(modules[index]);
+        explicit_modules[index] = options.explicit_on;
         any_base = any_base || options.base_one;
         any_text = any_text || options.compare_text;
         any_binary = any_binary || options.compare_binary;
     }
     std::string header;
-    if (all_explicit) {
-        header += "Option Explicit\n";
-    }
     if (any_base) {
         header += "Option Base 1\n";
     }

@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace wfc {
@@ -52,6 +53,11 @@ struct EvaluationOptions final {
     // `companyname`, `productname`, `filedescription`, `comments`,
     // `legalcopyright`). Unset properties keep their defaults.
     std::map<std::string, std::string> app_properties;
+    // A multi-module project: `Option Explicit` applies only inside the byte
+    // ranges of `source` listed here (the modules that declare it), instead
+    // of to the whole text. Class modules always use their own text.
+    bool per_module_option_explicit{};
+    std::vector<std::pair<std::size_t, std::size_t>> option_explicit_ranges;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

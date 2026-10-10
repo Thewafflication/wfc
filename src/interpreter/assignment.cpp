@@ -405,7 +405,7 @@ bool Interpreter::parse_assignment(std::string identifier,
                     .has_value();
             }
         }
-        if (!strict_declarations_ && !in_with_identifier(identifier) &&
+        if (!strict_here() && !in_with_identifier(identifier) &&
             !procedures_.contains(identifier)) {
             // REQ-0265: without Option Explicit an assignment declares
             // the variable implicitly (a Variant, or the suffix's type).

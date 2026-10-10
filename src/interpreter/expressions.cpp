@@ -1557,7 +1557,7 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 }
                 error_ = wfc::Evaluation{};
             }
-            if (!strict_declarations_ && type_character == '\0' &&
+            if (!strict_here() && type_character == '\0' &&
                 !constant_expression_ && !in_with_identifier(*identifier)) {
                 return Value{
                     Empty{}};  // REQ-0265: an undeclared name reads as Empty

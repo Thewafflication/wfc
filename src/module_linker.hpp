@@ -16,7 +16,8 @@ namespace wfc::detail {
 // empty). `names` holds each module's name, parallel to `modules`.
 [[nodiscard]] std::string link_modules(std::vector<std::string>& modules,
                                        const std::vector<std::string>& names,
-                                       std::vector<std::string>& classes);
+                                       std::vector<std::string>& classes,
+                                       std::vector<bool>& explicit_modules);
 
 }  // namespace wfc::detail
 

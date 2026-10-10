@@ -756,6 +756,10 @@ Evaluation evaluate_program(const std::string_view source,
         Interpreter interpreter(*processed, rewritten);
         interpreter.set_vb_number_spacing(options.vb6_print_spacing);
         interpreter.set_app_properties(options.app_properties);
+        if (options.per_module_option_explicit) {
+            interpreter.set_option_explicit_ranges(
+                options.option_explicit_ranges);
+        }
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
         auto result = interpreter.evaluate();

@@ -355,15 +355,22 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         class_texts.push_back(std::move(text));
     }
     // Modules keep separate namespaces and one merged Option header.
-    project.module_source =
-        detail::link_modules(module_texts, module_names, class_texts);
+    std::vector<bool> explicit_modules;
+    project.module_source = detail::link_modules(module_texts, module_names,
+                                                 class_texts, explicit_modules);
+    project.per_module_option_explicit = modules.size() >= 2U;
     for (std::size_t index = 0; index < modules.size(); ++index) {
         project.module_spans.push_back(LoadedProject::ModuleSpan{
             modules[index].string(), static_cast<std::size_t>(std::count(
                                          project.module_source.begin(),
                                          project.module_source.end(), '\n')) +
                                          1U});
+        const auto range_begin = project.module_source.size();
         project.module_source += module_texts[index];
+        if (explicit_modules[index]) {
+            project.option_explicit_ranges.emplace_back(
+                range_begin, project.module_source.size());
+        }
         project.module_source += "\n";
     }
     std::size_t class_index = 0;

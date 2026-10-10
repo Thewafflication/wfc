@@ -1,0 +1,4 @@
+Type=Exe
+Module=Mods; 139-per-module-explicit.mods.bas
+Module=Main; 139-per-module-explicit.main.bas
+Startup="Sub Main"
