@@ -3018,7 +3018,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
         }
         if ((had_int_digits || had_frac_digits) && pos < compact.size() &&
-            (compact[pos] == 'e' || compact[pos] == 'E')) {
+            (compact[pos] == 'e' || compact[pos] == 'E' ||
+             compact[pos] == 'd' || compact[pos] == 'D')) {
             std::size_t exponent = pos + 1U;
             if (exponent < compact.size() &&
                 (compact[exponent] == '+' || compact[exponent] == '-')) {
@@ -3039,6 +3040,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         const std::size_t conversion_start = compact[0] == '+' ? 1U : 0U;
         if (is_float) {
             double value{};
+            for (char& character : compact) {
+                if (character == 'd' || character == 'D') {
+                    character = 'e';  // D is an exponent letter too
+                }
+            }
             const auto conversion = std::from_chars(
                 compact.data() + conversion_start, compact.data() + pos, value);
             if (conversion.ec == std::errc::result_out_of_range) {

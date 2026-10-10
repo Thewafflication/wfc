@@ -241,6 +241,76 @@ struct NumericStringResult {
     while (last > first && is_ascii_whitespace(text[last - 1U])) {
         --last;
     }
+    {
+        // VB also reads a currency symbol (`$5`, `-$5`), parentheses for a
+        // negative number (`(5)`), a trailing sign (`5-`), and `D` as an
+        // exponent letter (`1D2`); rewrite those into the plain form.
+        std::string_view body = text.substr(first, last - first);
+        const auto trim_spaces = [&] {
+            while (!body.empty() && body.front() == ' ') {
+                body.remove_prefix(1U);
+            }
+            while (!body.empty() && body.back() == ' ') {
+                body.remove_suffix(1U);
+            }
+        };
+        bool negative = false;
+        bool rewritten = false;
+        if (body.size() >= 2U && body.front() == '(' && body.back() == ')') {
+            negative = true;
+            rewritten = true;
+            body = body.substr(1U, body.size() - 2U);
+            trim_spaces();
+        }
+        if (body.size() >= 2U && (body.back() == '-' || body.back() == '+') &&
+            std::isdigit(static_cast<unsigned char>(body[body.size() - 2U])) !=
+                0) {
+            negative = negative != (body.back() == '-');
+            rewritten = true;
+            body.remove_suffix(1U);
+            trim_spaces();
+        }
+        if (!body.empty() && (body.front() == '-' || body.front() == '+')) {
+            negative = negative != (body.front() == '-');
+            body.remove_prefix(1U);
+            trim_spaces();
+        }
+        if (!body.empty() && body.front() == '$') {
+            rewritten = true;
+            body.remove_prefix(1U);
+            trim_spaces();
+            if (!body.empty() && (body.front() == '-' || body.front() == '+')) {
+                negative = negative != (body.front() == '-');
+                body.remove_prefix(1U);
+                trim_spaces();
+            }
+        }
+        std::string normalized;
+        if (!body.empty() && body.front() != '&') {
+            for (std::size_t i = 0; i < body.size(); ++i) {
+                const char c = body[i];
+                if ((c == 'd' || c == 'D') && i > 0U &&
+                    std::isdigit(static_cast<unsigned char>(body[i - 1U])) !=
+                        0 &&
+                    i + 1U < body.size() &&
+                    (std::isdigit(static_cast<unsigned char>(body[i + 1U])) !=
+                         0 ||
+                     body[i + 1U] == '+' || body[i + 1U] == '-')) {
+                    rewritten = true;
+                    normalized.push_back('e');
+                } else {
+                    normalized.push_back(c);
+                }
+            }
+        } else {
+            normalized = std::string(body);
+        }
+        if (rewritten && !normalized.empty() && normalized.front() != '+' &&
+            normalized.front() != '-' && normalized.front() != '$' &&
+            normalized.front() != '(') {
+            return parse_numeric_string((negative ? "-" : "") + normalized);
+        }
+    }
     if (first < last && text[first] == '+') {
         ++first;
     }
