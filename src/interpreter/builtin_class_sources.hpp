@@ -306,6 +306,85 @@ End Property
 Public Sub Delete()
 Kill mPath
 End Sub
+Public Property Get Attributes() As Long
+Attributes = GetAttr(mPath)
+End Property
+Public Property Get DateCreated() As Date
+DateCreated = FileDateTime(mPath)
+End Property
+Public Property Get DateLastAccessed() As Date
+DateLastAccessed = FileDateTime(mPath)
+End Property
+Public Sub Copy(ByVal dst As String, Optional ByVal overwrite As Boolean = True)
+FileCopy mPath, dst
+End Sub
+Public Sub Move(ByVal dst As String)
+Name mPath As dst
+mPath = dst
+End Sub
+)VB";
+
+// A Scripting.Folder: path, name, and the files and folders directly inside.
+inline constexpr std::string_view kFolderObjectSource =
+    R"VB(Private mPath As String
+Public Sub Init(ByVal path As String)
+If Len(path) > 3 And (Right$(path, 1) = "\" Or Right$(path, 1) = "/") Then
+path = Left$(path, Len(path) - 1)
+End If
+mPath = path
+End Sub
+Public Property Get Path() As String
+Attribute Path.VB_UserMemId = 0
+Path = mPath
+End Property
+Public Property Get Name() As String
+Dim i As Long
+i = InStrRev(mPath, "\")
+If InStrRev(mPath, "/") > i Then i = InStrRev(mPath, "/")
+Name = Mid$(mPath, i + 1)
+End Property
+Public Property Get DateLastModified() As Date
+DateLastModified = FileDateTime(mPath)
+End Property
+Public Property Get Attributes() As Long
+Attributes = GetAttr(mPath)
+End Property
+Public Property Get Files() As Object
+Dim c As New Collection, n As String, f As Object
+n = Dir$(mPath & "\*", 0)
+Do While n <> ""
+Set f = New WfcFile
+f.Init mPath & "\" & n
+c.Add f
+n = Dir$
+Loop
+Set Files = c
+End Property
+Public Property Get SubFolders() As Object
+Dim c As New Collection, n As String, f As Object, names() As String
+Dim cnt As Long, i As Long
+ReDim names(0 To 0)
+n = Dir$(mPath & "\*", 16)
+Do While n <> ""
+If n <> "." And n <> ".." Then
+If (GetAttr(mPath & "\" & n) And 16) <> 0 Then
+cnt = cnt + 1
+ReDim Preserve names(0 To cnt)
+names(cnt) = n
+End If
+End If
+n = Dir$
+Loop
+For i = 1 To cnt
+Set f = New WfcFolder
+f.Init mPath & "\" & names(i)
+c.Add f
+Next i
+Set SubFolders = c
+End Property
+Public Sub Delete()
+RmDir mPath
+End Sub
 )VB";
 
 inline constexpr std::string_view kFileSystemObjectSource =
@@ -401,10 +480,45 @@ End Sub
 Public Sub MoveFile(ByVal src As String, ByVal dst As String)
 Name src As dst
 End Sub
-Public Sub CreateFolder(ByVal path As String)
+Public Function CreateFolder(ByVal path As String) As Object
+Dim f As New WfcFolder
 MkDir path
-End Sub
-Public Sub DeleteFolder(ByVal path As String)
+f.Init path
+Set CreateFolder = f
+End Function
+Public Function GetFolder(ByVal path As String) As Object
+Dim f As New WfcFolder
+If Not FolderExists(path) Then Err.Raise 76, "FileSystemObject", "Path not)VB"
+    R"VB( found"
+f.Init path
+Set GetFolder = f
+End Function
+Public Function GetSpecialFolder(ByVal which As Long) As Object
+Dim f As New WfcFolder, p As String
+Select Case which
+Case 0
+p = Environ$("SystemRoot")
+Case 1
+p = Environ$("SystemRoot") & "\System32"
+Case Else
+p = Environ$("TEMP")
+End Select
+f.Init p
+Set GetSpecialFolder = f
+End Function
+Public Function GetDriveName(ByVal path As String) As String
+If Mid$(path, 2, 1) = ":" Then GetDriveName = Left$(path, 2)
+End Function
+Public Sub DeleteFolder(ByVal path As String, Optional ByVal force As)VB"
+    R"VB( Boolean = False)
+Dim f As Object, x As Object
+Set f = GetFolder(path)
+For Each x In f.Files
+Kill x.Path
+Next x
+For Each x In f.SubFolders
+DeleteFolder x.Path
+Next x
 RmDir path
 End Sub
 )VB";

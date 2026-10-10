@@ -573,6 +573,12 @@ bool Interpreter::class_satisfies(
     if (actual_class_name == declared_class_name) {
         return true;
     }
+    // A built-in class registered under its public name (`As Dictionary`)
+    // accepts the instance CreateObject builds under its internal `Wfc` name.
+    if ("wfc" + declared_class_name == actual_class_name ||
+        "wfc" + actual_class_name == declared_class_name) {
+        return true;
+    }
     const auto class_iterator = class_definitions_.find(actual_class_name);
     if (class_iterator == class_definitions_.end()) {
         return false;

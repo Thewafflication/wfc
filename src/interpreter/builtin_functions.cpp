@@ -1510,6 +1510,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             if (shown == "WfcFile") {
                 return Value{std::string{"File"}};
             }
+            if (shown == "WfcFolder") {
+                return Value{std::string{"Folder"}};
+            }
             if (shown == "WfcRegExp") {
                 return Value{std::string{"RegExp"}};
             }

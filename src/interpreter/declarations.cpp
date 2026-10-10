@@ -1201,12 +1201,32 @@ void Interpreter::scan_builtin_classes() {
         const bool alias = !user_defines("filesystemobject");
         class_sources_.push_back({"WfcTextStream", kTextStreamSource});
         class_sources_.push_back({"WfcFile", kFileObjectSource});
+        class_sources_.push_back({"WfcFolder", kFolderObjectSource});
+        if (!user_defines("collection")) {
+            // Folder.Files / Folder.SubFolders return Collections.
+            class_sources_.push_back({"Collection", kCollectionSource});
+        }
         class_sources_.push_back(
             {"WfcFileSystemObject", kFileSystemObjectSource});
         if (alias) {
             class_sources_.push_back(
                 {"FileSystemObject", kFileSystemObjectSource});
         }
+        const auto add_alias = [&](const std::string_view type_name,
+                                   const std::string_view lowered_type,
+                                   const std::string_view source) {
+            if (!user_defines(lowered_type) &&
+                (any_source_mentions(
+                     std::string("as ") + std::string(lowered_type), true) ||
+                 any_source_mentions(
+                     std::string("scripting.") + std::string(lowered_type),
+                     true))) {
+                class_sources_.push_back({std::string(type_name), source});
+            }
+        };
+        add_alias("Folder", "folder", kFolderObjectSource);
+        add_alias("File", "file", kFileObjectSource);
+        add_alias("TextStream", "textstream", kTextStreamSource);
     }
     if (any_source_mentions("vbscript.regexp", false) ||
         any_source_mentions("vbscript_regexp_55.regexp", false) ||
