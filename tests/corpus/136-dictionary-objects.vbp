@@ -1,0 +1,4 @@
+Type=Exe
+Class=P; 136-dictionary-objects.cls.p
+Module=Main; 136-dictionary-objects.bas
+Startup="Sub Main"

@@ -1044,6 +1044,16 @@ std::optional<Value> Interpreter::parse_primary() {
             }
             continue;
         }
+        // `c(1)("b")`: parentheses after an object apply its default member.
+        if (execute_ && !at_end() && current() == '(' &&
+            std::holds_alternative<ObjectInstance>(*value)) {
+            const auto held = std::get<ObjectInstance>(*value);
+            value = call_default_member(held, base_offset);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            continue;
+        }
         if (!execute_ && !at_end() && current() == '(' &&
             !is_object_reference(*value)) {
             // A not-taken branch: the placeholder stands for an array element's
