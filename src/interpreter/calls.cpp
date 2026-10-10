@@ -391,6 +391,10 @@ std::optional<Value> Interpreter::invoke_definition(
                 return Value{Empty{}};
             }
         }
+        if (auto emulated =
+                emulate_win32_call(export_name, arguments, identifier_offset)) {
+            return emulated;
+        }
         static_cast<void>(raise_runtime(453, "Specified DLL function not found",
                                         identifier_offset));
         return std::nullopt;

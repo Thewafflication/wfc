@@ -1494,6 +1494,11 @@ private:
     // this order is unambiguous.
     // `held(args)` where `held` is an object: calls its default member
     // (a method or property Get) with the parenthesized arguments.
+    // Native stand-ins for common Win32 routines reached through `Declare`
+    // (INI files, user and path queries); nullopt when `name` is unknown.
+    [[nodiscard]] std::optional<Value> emulate_win32_call(
+        std::string name, std::vector<CallArgument>& arguments,
+        std::size_t offset);
     [[nodiscard]] std::optional<Value> call_default_member(
         const ObjectInstance& holder, std::size_t member_offset);
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(

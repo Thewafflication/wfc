@@ -1,0 +1,13 @@
+ 1 
+1024          600           Zed           dflt
+ 600           42 
+ 1            True
+True          True
+True
+|[Window]|
+|Width=1024|
+|Height=600|
+||
+|[User]|
+|Name=Zed|
+||

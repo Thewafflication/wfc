@@ -27,6 +27,7 @@ target_sources(
     src/interpreter/declarations.cpp
     src/interpreter/expressions.cpp
     src/interpreter/files.cpp
+    src/interpreter/winapi.cpp
     src/interpreter/format.cpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
