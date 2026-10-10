@@ -35,6 +35,7 @@ Many codes are shared by several related failures (for example `WFC0010` covers 
 | `WFC0001`–`WFC0299` | Language and library diagnostics (syntax, binding, type, and run-time failures) |
 | `WFC0300` | A VB run-time error carrying its own `Err.Number` and description |
 | `WFC0301`–`WFC0399` | Control transfer, file, and directive diagnostics |
+| `WFC0900`–`WFC0997` | Internal errors (an unexpected evaluator failure) |
 | `WFC0998`–`WFC0999` | Internal control signals; never reported to the user |
 | `WFC9000`–`WFC9099` | Reserved: documented unsupported legacy features (see below) |
 
@@ -180,7 +181,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0147` | Expected As in Open statement (and 3 more; see [Messages by code](#messages-by-code)) | — | `REQ-0209` |
 | `WFC0148` | LBound/UBound dimension is out of range | 9 (Subscript out of range) | `REQ-0210`, `REQ-0212` |
 | `WFC0149` | Array parameter must be declared as an array: name() (and 6 more; see [Messages by code](#messages-by-code)) | — | `REQ-0211`, `REQ-0215`, `REQ-0231` |
-| `WFC0150` | An array return type must be a fixed scalar type; expected closing parenthesis | — | `REQ-0216` |
+| `WFC0150` | Expected a closing parenthesis after an array return type (`As Type()`) | — | `REQ-0216` |
 | `WFC0151` | ReDim Preserve may only change a multi-dimensional array's last dimension | 9 (Subscript out of range) | `REQ-0219` |
 | `WFC0152` | Duplicate Option Base | — | `REQ-0226` |
 | `WFC0153` | Expected 0 or 1 after Option Base | — | `REQ-0226` |
@@ -188,7 +189,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0301` | Label not defined | — | — |
 | `WFC0310` | A conditional-compilation directive (`#If`/`#ElseIf`/`#Const`) is malformed or cannot be evaluated; the message names the problem. | — | `REQ-0240` |
 | `WFC0321` | Unsupported Open mode; expected For after Open path | — | — |
-| `WFC0900` | Internal error: the evaluator hit an unexpected condition and stopped; the message names it. Please report it. | � | � |
+| `WFC0900` | Internal error: the evaluator hit an unexpected condition and stopped; the message names it. Please report it. | — | — |
 | `WFC0998` | Internal: an `End` statement stopped the program. Never shown as an error. | — | — |
 | `WFC0999` | Internal: a pending `GoTo`/`GoSub`/`Resume` jump unwinding to its target. Never shown as an error. | — | — |
 
