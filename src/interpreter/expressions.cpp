@@ -1641,6 +1641,7 @@ bool Interpreter::lex_number_span() noexcept {
     const auto is_digit = [](const char character) {
         return std::isdigit(static_cast<unsigned char>(character)) != 0;
     };
+    const auto number_start = offset_;
     while (!at_end() && is_digit(current())) {
         advance();
     }
@@ -1649,6 +1650,18 @@ bool Interpreter::lex_number_span() noexcept {
         is_float = true;
         advance();
         while (!at_end() && is_digit(current())) {
+            advance();
+        }
+    } else if (!at_end() && current() == '.' && offset_ > number_start) {
+        // A trailing dot (`5.`, `5.E2`, `5.#`) is a Double literal, unless an
+        // identifier follows (`5.Foo`).
+        const char next = peek(1);
+        const bool exponent =
+            (next == 'e' || next == 'E' || next == 'd' || next == 'D') &&
+            (is_digit(peek(2)) ||
+             ((peek(2) == '+' || peek(2) == '-') && is_digit(peek(3))));
+        if (exponent || std::isalpha(static_cast<unsigned char>(next)) == 0) {
+            is_float = true;
             advance();
         }
     }
