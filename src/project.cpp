@@ -96,6 +96,59 @@ namespace {
     }
     out.assign(std::istreambuf_iterator<char>(stream),
                std::istreambuf_iterator<char>());
+    // A byte order mark from an editor: UTF-8 is dropped, UTF-16 is decoded.
+    if (out.size() >= 3U && static_cast<unsigned char>(out[0]) == 0xEFU &&
+        static_cast<unsigned char>(out[1]) == 0xBBU &&
+        static_cast<unsigned char>(out[2]) == 0xBFU) {
+        out.erase(0U, 3U);
+    } else if (out.size() >= 2U &&
+               ((static_cast<unsigned char>(out[0]) == 0xFFU &&
+                 static_cast<unsigned char>(out[1]) == 0xFEU) ||
+                (static_cast<unsigned char>(out[0]) == 0xFEU &&
+                 static_cast<unsigned char>(out[1]) == 0xFFU))) {
+        const bool big_endian = static_cast<unsigned char>(out[0]) == 0xFEU;
+        std::string utf8;
+        for (std::size_t i = 2U; i + 1U < out.size(); i += 2U) {
+            const auto low =
+                static_cast<unsigned char>(out[i + (big_endian ? 1U : 0U)]);
+            const auto high =
+                static_cast<unsigned char>(out[i + (big_endian ? 0U : 1U)]);
+            unsigned code = static_cast<unsigned>(low) |
+                            (static_cast<unsigned>(high) << 8U);
+            if (code >= 0xD800U && code < 0xDC00U && i + 3U < out.size()) {
+                const auto low2 = static_cast<unsigned char>(
+                    out[i + 2U + (big_endian ? 1U : 0U)]);
+                const auto high2 = static_cast<unsigned char>(
+                    out[i + 2U + (big_endian ? 0U : 1U)]);
+                const unsigned second = static_cast<unsigned>(low2) |
+                                        (static_cast<unsigned>(high2) << 8U);
+                if (second >= 0xDC00U && second < 0xE000U) {
+                    code = 0x10000U + ((code - 0xD800U) << 10U) +
+                           (second - 0xDC00U);
+                    i += 2U;
+                }
+            }
+            if (code < 0x80U) {
+                utf8.push_back(static_cast<char>(code));
+            } else if (code < 0x800U) {
+                utf8.push_back(static_cast<char>(0xC0U | (code >> 6U)));
+                utf8.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+            } else if (code < 0x10000U) {
+                utf8.push_back(static_cast<char>(0xE0U | (code >> 12U)));
+                utf8.push_back(
+                    static_cast<char>(0x80U | ((code >> 6U) & 0x3FU)));
+                utf8.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+            } else {
+                utf8.push_back(static_cast<char>(0xF0U | (code >> 18U)));
+                utf8.push_back(
+                    static_cast<char>(0x80U | ((code >> 12U) & 0x3FU)));
+                utf8.push_back(
+                    static_cast<char>(0x80U | ((code >> 6U) & 0x3FU)));
+                utf8.push_back(static_cast<char>(0x80U | (code & 0x3FU)));
+            }
+        }
+        out = std::move(utf8);
+    }
     if (!is_valid_utf8(out)) {
         out = ansi_to_utf8(out);  // classic VB6 source files are Windows-1252
     }
