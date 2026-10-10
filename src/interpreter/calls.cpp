@@ -342,7 +342,7 @@ std::optional<Value> Interpreter::invoke_definition(
     // onward is collected into it, including zero of them).
     if (definition.is_external) {
         if (!execute_) {
-            return definition.is_function ? Value{Empty{}} : Value{Empty{}};
+            return Value{Empty{}};
         }
         // A few ubiquitous Win32 timing calls are emulated natively.
         if (binding_name == "gettickcount" || binding_name == "timegettime") {

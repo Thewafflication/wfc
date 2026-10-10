@@ -2048,13 +2048,13 @@ bool Interpreter::parse_for_statement() {
         slot = Slot::floating_double;
     } else if (std::holds_alternative<float>(*variable.value)) {
         slot = Slot::floating_single;
-    } else if (is_variant_variable) {
-        slot = Slot::integer;  // refined from the bounds below
-    } else {
+    } else if (!is_variant_variable) {
         set_error("WFC0045", "For control variable must be numeric",
                   variable_offset);
         return false;
     }
+    // Otherwise a Variant holding a non-numeric value keeps slot's default,
+    // Slot::integer, and is refined from the bounds below.
 
     skip_horizontal_whitespace();
     if (!consume('=')) {

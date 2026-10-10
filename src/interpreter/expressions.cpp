@@ -120,8 +120,6 @@ bool Interpreter::implicit_scalar_conversion(Value& value,
     if (target_index == bool_index) {
         if (std::holds_alternative<DateValue>(value)) {
             value = std::get<DateValue>(value).serial != 0.0;
-        } else if (std::holds_alternative<Decimal>(value)) {
-            value = as_double(value) != 0.0;
         } else {
             value = as_double(value) != 0.0;
         }

@@ -1105,6 +1105,7 @@ void Interpreter::scan_udt_types() {
             skip_space();
             if (word("type")) {
                 udt_sources_.push_back(std::move(body));
+                body.clear();
                 class_sources_.push_back({current_name, udt_sources_.back()});
                 udt_names_.push_back(current_name);
                 current_name.clear();
@@ -2198,16 +2199,9 @@ bool Interpreter::parse_single_declaration() {
             } else {
                 offset_ = saved_offset;
                 set_error("WFC0012",
-                          is_array ? "expected As Integer, As Long, As Double, "
-                                     "As Single, As Currency, "
-                                     "As String, As Boolean, As Object, As "
-                                     "Variant, or a known class "
-                                     "name"
-                                   : "expected As Integer, As Long, As Double, "
-                                     "As Single, As Currency, "
-                                     "As String, As Boolean, As Object, As "
-                                     "Variant, or a known class "
-                                     "name",
+                          "expected As Integer, As Long, As Double, "
+                          "As Single, As Currency, As String, As Boolean, "
+                          "As Object, As Variant, or a known class name",
                           class_name_offset);
                 return false;
             }

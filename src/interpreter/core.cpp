@@ -211,7 +211,7 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
 
     wfc::Evaluation result;
     result.success = true;
-    result.output = std::move(output_);
+    result.output = std::exchange(output_, {});
     return result;
 }
 

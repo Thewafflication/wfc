@@ -916,8 +916,7 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         return finite_result(name == "ipmt" ? interest : payment - interest);
     }
     if (name == "npv" || name == "irr") {
-        if (!arity(2, name == "npv" ? 2U : 2U) &&
-            !(name == "irr" && count == 1U)) {
+        if (!arity(2, 2U) && !(name == "irr" && count == 1U)) {
             return std::nullopt;
         }
         const ArrayValue* values = nullptr;
@@ -1243,7 +1242,7 @@ std::optional<Value> Interpreter::evaluate_date_function(
             return Value{std::string{text}};
         }
         if (!execute_) {
-            return name[0] == 'n' ? Value{DateValue{}} : Value{DateValue{}};
+            return Value{DateValue{}};
         }
         const double now = current_date_serial();
         if (name == "now") {

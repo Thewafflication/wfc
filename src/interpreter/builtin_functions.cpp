@@ -433,20 +433,16 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     } else if (is_split || is_filter) {
         valid_arity =
             arguments.size() >= (is_split ? 1U : 2U) && arguments.size() <= 4U;
-    } else if (is_join) {
+    } else if (is_join || is_round || is_format || is_lbound || is_ubound) {
         valid_arity = arguments.size() == 1U || arguments.size() == 2U;
     } else if (is_error_message || is_rnd) {
         valid_arity = arguments.size() <= 1U;
-    } else if (is_mid) {
+    } else if (is_mid || is_strcomp) {
         valid_arity = arguments.size() == 2U || arguments.size() == 3U;
     } else if (is_instr || is_instr_rev) {
         valid_arity = arguments.size() >= 2U && arguments.size() <= 4U;
     } else if (is_replace) {
         valid_arity = arguments.size() >= 3U && arguments.size() <= 6U;
-    } else if (is_strcomp) {
-        valid_arity = arguments.size() == 2U || arguments.size() == 3U;
-    } else if (is_round || is_format || is_lbound || is_ubound) {
-        valid_arity = arguments.size() == 1U || arguments.size() == 2U;
     } else if (is_iif || is_rgb) {
         valid_arity = arguments.size() == 3U;
     } else if (is_choose) {
@@ -1820,7 +1816,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return Value{execute_ ? *currency : Currency{}};
         }
         if (std::holds_alternative<Empty>(arguments[0])) {
-            return Value{execute_ ? Currency{} : Currency{}};
+            return Value{Currency{}};
         }
         double value{};
         if (const auto* number = std::get_if<double>(&arguments[0])) {
