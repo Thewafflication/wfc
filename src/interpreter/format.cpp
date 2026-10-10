@@ -181,6 +181,27 @@ std::string Interpreter::render_custom_numeric_picture(
         }
     }
     sections.push_back(std::move(current_section));
+    // A leading color tag such as `[Red]` selects a color, not output text.
+    for (auto& section : sections) {
+        if (section.size() < 3U || section.front() != '[') {
+            continue;
+        }
+        const auto close = section.find(']');
+        if (close == std::string::npos) {
+            continue;
+        }
+        std::string tag = section.substr(1U, close - 1U);
+        for (char& c : tag) {
+            c = ascii_lower(c);
+        }
+        for (const char* color : {"black", "blue", "cyan", "green", "magenta",
+                                  "red", "white", "yellow"}) {
+            if (tag == color) {
+                section.erase(0U, close + 1U);
+                break;
+            }
+        }
+    }
     if (sections.size() == 1U) {
         return render_custom_numeric_picture_section(value, sections.front());
     }

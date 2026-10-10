@@ -1131,6 +1131,12 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 execute_ ? format_date_pattern(date_argument->serial, *style)
                          : std::string{}};
         }
+        if (is_number(arguments[0]) && is_date_picture(*style)) {
+            // A numeric value formatted with a date/time picture is a serial.
+            return Value{
+                execute_ ? format_date_pattern(as_double(arguments[0]), *style)
+                         : std::string{}};
+        }
         if (is_number(arguments[0]) &&
             style->find_first_of("@&") != std::string::npos &&
             style->find_first_of("0#") == std::string::npos) {

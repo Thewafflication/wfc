@@ -379,6 +379,51 @@ struct DateParts {
     return result;
 }
 
+// True when a Format picture is a date/time picture: a named date format, or
+// a picture with date/time tokens and no numeric digit placeholders.
+[[nodiscard]] inline bool is_date_picture(const std::string& style) {
+    std::string lowered;
+    for (const char c : style) {
+        lowered.push_back(c >= 'A' && c <= 'Z' ? static_cast<char>(c + 32) : c);
+    }
+    for (const char* named :
+         {"general date", "long date", "medium date", "short date", "long time",
+          "medium time", "short time"}) {
+        if (lowered == named) {
+            return true;
+        }
+    }
+    for (const char* named :
+         {"general number", "currency", "fixed", "standard", "percent",
+          "scientific", "yes/no", "true/false", "on/off"}) {
+        if (lowered == named) {
+            return false;
+        }
+    }
+    bool token = false;
+    for (std::size_t i = 0; i < lowered.size(); ++i) {
+        const char c = lowered[i];
+        if (c == '\\') {
+            ++i;
+        } else if (c == '"') {
+            const auto close = lowered.find('"', i + 1U);
+            if (close == std::string::npos) {
+                break;
+            }
+            i = close;
+        } else if (c == '0' || c == '#') {
+            return false;
+        } else if (std::string_view{"dmyhnsqwc"}.find(c) !=
+                   std::string_view::npos) {
+            token = true;
+        } else if (lowered.compare(i, 4U, "am/p") == 0 ||
+                   lowered.compare(i, 3U, "a/p") == 0) {
+            token = true;
+        }
+    }
+    return token;
+}
+
 // Custom/named date format for Format(date, style) (REQ-0242).
 [[nodiscard]] inline std::string format_date_pattern(const double serial,
                                                      const std::string& style) {
