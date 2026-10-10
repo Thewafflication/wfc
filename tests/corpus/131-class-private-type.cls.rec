@@ -1,0 +1,16 @@
+Option Explicit
+Private Type Pt
+    X As Long
+    Y As Long
+End Type
+Private mP As Pt
+Private mList(1 To 3) As Pt
+Public Sub SetP(ByVal x As Long, ByVal y As Long)
+    mP.X = x: mP.Y = y
+    mList(2) = mP
+End Sub
+Public Function Sum() As Long
+    Dim q As Pt
+    q = mList(2)
+    Sum = q.X + q.Y + mP.X
+End Function

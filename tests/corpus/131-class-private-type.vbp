@@ -1,0 +1,4 @@
+Type=Exe
+Class=Rec; 131-class-private-type.cls.rec
+Module=Main; 131-class-private-type.bas
+Startup="Sub Main"

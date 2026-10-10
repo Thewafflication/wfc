@@ -596,6 +596,31 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             continue;
         }
 
+        {
+            // `[Private|Public] Type ... End Type` in a class module: the
+            // type itself was registered up front; skip its block here.
+            const auto before_type = offset_;
+            static_cast<void>(consume_keyword("private") ||
+                              consume_keyword("public"));
+            skip_horizontal_whitespace();
+            if (consume_keyword("type")) {
+                while (!at_end()) {
+                    skip_rest_of_line();
+                    skip_program_leading_trivia();
+                    const auto line_start = offset_;
+                    if (consume_keyword("end")) {
+                        skip_horizontal_whitespace();
+                        if (consume_keyword("type")) {
+                            break;
+                        }
+                    }
+                    offset_ = line_start;
+                }
+                skip_rest_of_line();
+                continue;
+            }
+            offset_ = before_type;
+        }
         if (consume_keyword("option") || consume_keyword("attribute")) {
             // `Option Explicit` (and friends) and file-level `Attribute`
             // lines at the top of a class module file; accepted and ignored.
@@ -1137,7 +1162,16 @@ bool Interpreter::assign_udt(Value& target, const Value& source,
 }
 
 void Interpreter::scan_udt_types() {
-    const std::string_view text = source_;
+    scan_udt_types_in(source_);
+    // A class module may declare its own (private) types too.
+    const auto class_count = class_sources_.size();
+    for (std::size_t index = 0; index < class_count; ++index) {
+        const std::string_view class_text = class_sources_[index].source;
+        scan_udt_types_in(class_text);
+    }
+}
+
+void Interpreter::scan_udt_types_in(const std::string_view text) {
     std::size_t position = 0;
     std::string current_name;
     std::string body;
@@ -1196,10 +1230,16 @@ void Interpreter::scan_udt_types() {
         if (word("end")) {
             skip_space();
             if (word("type")) {
-                udt_sources_.push_back(std::move(body));
+                const bool known =
+                    std::find(udt_names_.begin(), udt_names_.end(),
+                              current_name) != udt_names_.end();
+                if (!known) {
+                    udt_sources_.push_back(std::move(body));
+                    class_sources_.push_back(
+                        {current_name, udt_sources_.back()});
+                    udt_names_.push_back(current_name);
+                }
                 body.clear();
-                class_sources_.push_back({current_name, udt_sources_.back()});
-                udt_names_.push_back(current_name);
                 current_name.clear();
                 continue;
             }

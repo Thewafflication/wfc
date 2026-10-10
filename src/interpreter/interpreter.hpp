@@ -568,6 +568,7 @@ private:
     // Finds `[Public|Private] Type Name ... End Type` blocks in the main
     // source and registers each as a value-semantics class (REQ-0241).
     void scan_udt_types();
+    void scan_udt_types_in(std::string_view text);
 
     // REQ-0243: registers the built-in Collection when the program mentions
     // it and does not define its own class of that name.
