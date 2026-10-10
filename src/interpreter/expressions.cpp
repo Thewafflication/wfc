@@ -1263,7 +1263,10 @@ std::optional<Value> Interpreter::parse_primary_base() {
     }
     {
         const auto err_start = offset_;
-        if (consume_keyword("err")) {
+        // Inside `With Err`, a leading `.Member` is `Err.Member`.
+        const bool with_err_member =
+            at_with_member() && with_names_.back() == "err";
+        if (with_err_member || consume_keyword("err")) {
             if (consume('.')) {
                 const auto member_offset = offset_;
                 const auto member = parse_identifier();
@@ -1277,9 +1280,12 @@ std::optional<Value> Interpreter::parse_primary_base() {
                     return Value{err_source_};
                 }
                 if (member == "helpfile") {
-                    return Value{std::string{}};
+                    return Value{err_help_file_};
                 }
-                if (member == "helpcontext" || member == "lastdllerror") {
+                if (member == "helpcontext") {
+                    return Value{err_help_context_};
+                }
+                if (member == "lastdllerror") {
                     return Value{Integer{0}};
                 }
                 set_error("WFC0135", "unknown member", member_offset);

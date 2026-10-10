@@ -1866,6 +1866,8 @@ private:
     // Records that `value`, read from a Variant, took part in the statement's
     // expression, so mixed comparisons and arithmetic follow Variant rules.
     void note_variant_value(const Value& value) noexcept;
+    std::string err_help_file_;
+    Integer err_help_context_{};
     bool variant_operand_seen_{};
     bool vb_number_spacing_{};
     std::map<std::string, std::string> app_properties_;

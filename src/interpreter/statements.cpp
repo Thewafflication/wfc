@@ -34,6 +34,8 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
     if (std::string_view(error_.diagnostic).substr(0, 7) != "WFC0300") {
         err_number_ = number;
         err_source_.clear();
+        err_help_file_.clear();
+        err_help_context_ = 0;
         err_description_ = vb_error_description(number);
     }
     skip_to_statement_end();
@@ -442,6 +444,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                     err_number_ = 0;
                     err_description_.clear();
                     err_source_.clear();
+                    err_help_file_.clear();
+                    err_help_context_ = 0;
                 }
             }
             return true;
@@ -530,7 +534,10 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         }
         return true;
     }
-    if (consume_keyword("err")) {
+    // Inside `With Err`, a leading `.Member` is `Err.Member`.
+    const bool with_err_member =
+        at_with_member() && with_names_.back() == "err";
+    if (with_err_member || consume_keyword("err")) {
         skip_horizontal_whitespace();
         if (!consume('.')) {
             offset_ = start;
@@ -543,6 +550,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 err_number_ = 0;
                 err_description_.clear();
                 err_source_.clear();
+                err_help_file_.clear();
+                err_help_context_ = 0;
             }
             return true;
         }
@@ -563,6 +572,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             }
             std::string description;
             std::string source_text;
+            std::string raised_help_file;
+            Integer raised_help_context = 0;
             bool has_description = false;
             for (int argument = 0; argument < 4; ++argument) {
                 skip_horizontal_whitespace();
@@ -588,6 +599,14 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                         has_description = true;
                     }
                 }
+                if (argument == 2) {
+                    if (const auto* text = std::get_if<std::string>(&*value)) {
+                        raised_help_file = *text;
+                    }
+                }
+                if (argument == 3) {
+                    raised_help_context = whole_value(*value).value_or(0);
+                }
             }
             if (parenthesized) {
                 skip_horizontal_whitespace();
@@ -604,6 +623,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                         5, "Invalid procedure call or argument", member_offset);
                 }
                 err_number_ = raised;
+                err_help_file_ = raised_help_file;
+                err_help_context_ = raised_help_context;
                 err_source_ = source_text;
                 err_description_ = has_description
                                        ? description
@@ -1689,27 +1710,47 @@ bool Interpreter::parse_with_statement(const std::size_t statement_offset) {
     const bool enclosing_execution = execute_;
     skip_horizontal_whitespace();
     const auto expression_offset = offset_;
-    auto value = parse_expression();
-    if (!value.has_value()) {
-        return false;
+    // `With Err`: the intrinsic Err object has no value of its own, so the
+    // `.Member` shorthand simply reads as `Err.Member`.
+    bool with_err = false;
+    if (consume_keyword("err")) {
+        skip_horizontal_whitespace();
+        with_err = at_statement_end();
+        if (!with_err) {
+            offset_ = expression_offset;
+        }
     }
-    const bool is_object = std::holds_alternative<ObjectInstance>(*value) ||
-                           std::holds_alternative<Nothing>(*value);
-    if (enclosing_execution && !is_object) {
-        set_error("WFC0136", "With requires an object reference",
-                  expression_offset);
-        return false;
+    std::optional<Value> value;
+    bool is_object = true;
+    if (!with_err) {
+        value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        is_object = std::holds_alternative<ObjectInstance>(*value) ||
+                    std::holds_alternative<Nothing>(*value);
+        if (enclosing_execution && !is_object) {
+            set_error("WFC0136", "With requires an object reference",
+                      expression_offset);
+            return false;
+        }
     }
     if (!consume_loop_header_end()) {
         return false;
     }
-    const std::string name = "with." + std::to_string(++with_counter_);
-    with_scope_.object_variables.insert(name);
-    with_slots_[name] = is_object ? std::move(*value) : Value{Nothing{}};
+    const std::string name = with_err
+                                 ? std::string("err")
+                                 : "with." + std::to_string(++with_counter_);
+    if (!with_err) {
+        with_scope_.object_variables.insert(name);
+        with_slots_[name] = is_object ? std::move(*value) : Value{Nothing{}};
+    }
     with_names_.push_back(name);
     const auto cleanup = [&] {
         with_names_.pop_back();
-        with_slots_.erase(name);
+        if (!with_err) {
+            with_slots_.erase(name);
+        }
     };
     while (true) {
         skip_program_leading_trivia();

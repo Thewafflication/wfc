@@ -986,6 +986,8 @@ bool Interpreter::raise_runtime(const Integer number,
     err_number_ = number;
     err_description_ = description;
     err_source_.clear();
+    err_help_file_.clear();
+    err_help_context_ = 0;
     set_error("WFC0300", description, offset);
     return false;
 }
@@ -999,6 +1001,8 @@ void Interpreter::set_error(const std::string_view code,
         err_number_ = 438;
         err_description_ = "Object doesn't support this property or method";
         err_source_.clear();
+        err_help_file_.clear();
+        err_help_context_ = 0;
         error_ = failure("WFC0300", err_description_, offset);
         error_source_data_ = source_.data();
         return;
