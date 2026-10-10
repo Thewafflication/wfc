@@ -1204,6 +1204,11 @@ private:
                         }
                         return false;
                     }
+                    if (c == Unit{'['} && p + 1 < pattern.size() &&
+                        pattern[p + 1] == Unit{']'}) {
+                        p += 2;  // `[]` is a zero-length string
+                        continue;
+                    }
                     if (t >= text.size()) {
                         return false;
                     }
