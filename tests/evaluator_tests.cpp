@@ -2839,6 +2839,9 @@ int main() {
     expect_program_success("Print Val(42)", "42");
     expect_program_success("Print Abs(\"42\")", "42");
     expect_program_success("Print FormatNumber(2.5, 0)", "3");
+    expect_program_success(
+        "On Error Resume Next\nError 5\nOn Error GoTo -1\nPrint Err.Number",
+        "0");
     expect_program_success("Print FormatPercent(0.125, 0)", "13%");
     expect_program_success("Print Environ(100000) = \"\"", "True");
     expect_program_success("Print Sgn(False)", "0");

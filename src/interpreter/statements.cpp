@@ -432,10 +432,17 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         }
         skip_horizontal_whitespace();
         if (!at_end() && (current() == '0' || current() == '-')) {
+            // `On Error GoTo -1` also clears the pending error.
+            const bool clears_error = current() == '-';
             skip_to_statement_end();
             if (execute_) {
                 frame.on_error_mode = 0;
                 frame.in_error_handler = false;
+                if (clears_error) {
+                    err_number_ = 0;
+                    err_description_.clear();
+                    err_source_.clear();
+                }
             }
             return true;
         }
