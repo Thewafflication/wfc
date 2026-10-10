@@ -188,6 +188,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0301` | Label not defined | — | — |
 | `WFC0310` | A conditional-compilation directive (`#If`/`#ElseIf`/`#Const`) is malformed or cannot be evaluated; the message names the problem. | — | `REQ-0240` |
 | `WFC0321` | Unsupported Open mode; expected For after Open path | — | — |
+| `WFC0900` | Internal error: the evaluator hit an unexpected condition and stopped; the message names it. Please report it. | � | � |
 | `WFC0998` | Internal: an `End` statement stopped the program. Never shown as an error. | — | — |
 | `WFC0999` | Internal: a pending `GoTo`/`GoSub`/`Resume` jump unwinding to its target. Never shown as an error. | — | — |
 

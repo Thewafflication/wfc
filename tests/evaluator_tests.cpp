@@ -2843,6 +2843,10 @@ int main() {
         "On Error Resume Next\nError 5\nOn Error GoTo -1\nPrint Err.Number",
         "0");
     expect_program_success("Print FormatPercent(0.125, 0)", "13%");
+    expect_program_success(
+        "Select Case Empty\nCase \"b\": Print 1\nCase Else: Print 2\nEnd "
+        "Select",
+        "2");
     expect_program_success("Print Environ(100000) = \"\"", "True");
     expect_program_success("Print Sgn(False)", "0");
     expect_program_failure("Print Abs()", "WFC0072");

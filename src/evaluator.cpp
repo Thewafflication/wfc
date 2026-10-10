@@ -640,13 +640,22 @@ void run_large_stack_task(void* raw) {
     const std::function<Evaluation(std::size_t, const char*, std::size_t)>&
         run) {
     Evaluation result;
-    const bool ran = run_on_large_stack([&] {
-        char stack_top = 0;
-        result = run(kLargeStackDepth, &stack_top,
-                     kLargeStackBytes - (std::size_t{24} << 20U));
-    });
-    if (!ran) {
-        result = run(64U, nullptr, 0U);
+    // An unexpected exception (a bug) is reported as a diagnostic instead of
+    // terminating the process.
+    try {
+        const bool ran = run_on_large_stack([&] {
+            char stack_top = 0;
+            result = run(kLargeStackDepth, &stack_top,
+                         kLargeStackBytes - (std::size_t{24} << 20U));
+        });
+        if (!ran) {
+            result = run(64U, nullptr, 0U);
+        }
+    } catch (const std::exception& exception) {
+        result = detail::failure(
+            "WFC0900", std::string("internal error: ") + exception.what(), 0U);
+    } catch (...) {
+        result = detail::failure("WFC0900", "internal error", 0U);
     }
     return result;
 }

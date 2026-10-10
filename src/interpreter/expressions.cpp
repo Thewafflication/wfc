@@ -2246,8 +2246,21 @@ int Interpreter::compare_strings(const std::string_view left_in,
 }
 
 bool Interpreter::values_equal(const Value& left, const Value& right) const {
-    if (const auto* left_string = std::get_if<std::string>(&left)) {
-        return compare_strings(*left_string, std::get<std::string>(right)) == 0;
+    const auto* left_string = std::get_if<std::string>(&left);
+    const auto* right_string = std::get_if<std::string>(&right);
+    if (left_string != nullptr || right_string != nullptr) {
+        // Empty beside a String acts as the empty String; any other mix is
+        // simply unequal.
+        static const std::string empty_text;
+        const std::string* a = left_string != nullptr ? left_string
+                               : std::holds_alternative<Empty>(left)
+                                   ? &empty_text
+                                   : nullptr;
+        const std::string* b = right_string != nullptr ? right_string
+                               : std::holds_alternative<Empty>(right)
+                                   ? &empty_text
+                                   : nullptr;
+        return a != nullptr && b != nullptr && compare_strings(*a, *b) == 0;
     }
     return left == right;
 }
