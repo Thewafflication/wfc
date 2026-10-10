@@ -1611,7 +1611,17 @@ std::optional<Value> Interpreter::parse_array_index(
     if (!flat_offset.has_value()) {
         return std::nullopt;
     }
-    return array.elements[*flat_offset];
+    const auto& element = array.elements[*flat_offset];
+    if (array.is_variant_element) {
+        // A Variant element compares and combines like a Variant variable.
+        variant_operand_seen_ = true;
+        if (std::holds_alternative<std::string>(element)) {
+            variant_string_seen_ = true;
+        } else if (is_number(element)) {
+            variant_number_seen_ = true;
+        }
+    }
+    return element;
 }
 
 std::optional<Value> Interpreter::parse_string() {
