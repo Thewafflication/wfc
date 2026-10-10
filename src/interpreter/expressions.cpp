@@ -370,6 +370,12 @@ bool Interpreter::coerce_numeric_value(Value& value,
 }
 
 std::optional<Value> Interpreter::parse_expression() {
+    // Deeply nested parentheses or calls recurse through here; stop before
+    // the native stack runs out.
+    if (stack_nearly_exhausted()) {
+        set_error("WFC0123", "expression nesting is too deep", offset_);
+        return std::nullopt;
+    }
     return parse_implication();
 }
 
