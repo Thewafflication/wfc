@@ -1341,6 +1341,11 @@ int main() {
                             {"Square", "Public n As Long"}},
                            "Dim s As IShape\nDim sq As New Square\nSet s = sq",
                            "WFC0137");
+    // REQ-0284: an implementer must define every public interface member.
+    expect_classes_failure(
+        {{"IShape", "Public Sub Draw()\nEnd Sub\nPublic Sub Move()\nEnd Sub"},
+         {"Circle", "Implements IShape\n\nPrivate Sub IShape_Draw()\nEnd Sub"}},
+        "Dim c As New Circle", "WFC0154");
     expect_classes_failure({{"Circle", "Implements NoSuchInterface"}},
                            "Dim c As New Circle", "WFC0134");
     expect_classes_success(

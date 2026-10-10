@@ -1495,6 +1495,47 @@ bool Interpreter::scan_classes() {
         }
         scan_default_member(class_def);
     }
+    return check_interface_completeness();
+}
+
+// REQ-0284: a class that `Implements` another class must define an
+// `Interface_Member` counterpart for every public member of that interface;
+// VB6 reports this as a compile error ("Class must implement ...").
+bool Interpreter::check_interface_completeness() {
+    for (const auto& [class_key, class_def] : class_definitions_) {
+        for (const auto& interface_key : class_def.implements) {
+            const auto found = class_definitions_.find(interface_key);
+            if (found == class_definitions_.end() || found->second.is_udt) {
+                continue;
+            }
+            const auto& interface_def = found->second;
+            const auto missing = [&](const auto& members, const auto& own) {
+                for (const auto& [member, definition] : members) {
+                    if (definition.is_private || member.starts_with("class_")) {
+                        continue;
+                    }
+                    if (!own.contains(interface_key + "_" + member)) {
+                        return interface_def.display_name + "_" + member;
+                    }
+                }
+                return std::string{};
+            };
+            for (const auto& name :
+                 {missing(interface_def.methods, class_def.methods),
+                  missing(interface_def.property_get, class_def.property_get),
+                  missing(interface_def.property_let, class_def.property_let),
+                  missing(interface_def.property_set,
+                          class_def.property_set)}) {
+                if (!name.empty()) {
+                    set_error("WFC0154",
+                              "class '" + class_def.display_name +
+                                  "' must implement '" + name + "'",
+                              offset_);
+                    return false;
+                }
+            }
+        }
+    }
     return true;
 }
 

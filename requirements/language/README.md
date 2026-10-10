@@ -398,3 +398,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0281 — Language fidelity sweep](req-0281-language-fidelity-sweep.md)
 - [REQ-0282 — Print number spacing](req-0282-print-number-spacing.md)
 - [REQ-0283 — Multi-module projects and class/module integration](req-0283-multi-module-projects.md)
+- [REQ-0284 — Implements interface completeness](req-0284-interface-completeness.md)

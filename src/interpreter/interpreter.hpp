@@ -578,6 +578,7 @@ private:
     static void scan_default_member(ClassDef& class_def);
 
     [[nodiscard]] bool scan_classes();
+    [[nodiscard]] bool check_interface_completeness();
 
     // A lightweight pre-pass, run once before the main top-to-bottom
     // execution begins, that finds every module-level `Sub`/`Function`

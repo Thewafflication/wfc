@@ -185,6 +185,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0151` | ReDim Preserve may only change a multi-dimensional array's last dimension | 9 (Subscript out of range) | `REQ-0219` |
 | `WFC0152` | Duplicate Option Base | — | `REQ-0226` |
 | `WFC0153` | Expected 0 or 1 after Option Base | — | `REQ-0226` |
+| `WFC0154` | A class does not implement every public member of an interface named in `Implements` | — | `REQ-0284` |
 | `WFC0300` | A VB run-time error raised by `Err.Raise`, the `Error` statement, or a run-time failure that already carries its VB error number; the message is the error description. | The raised number | — |
 | `WFC0301` | Label not defined | — | — |
 | `WFC0310` | A conditional-compilation directive (`#If`/`#ElseIf`/`#Const`) is malformed or cannot be evaluated; the message names the problem. | — | `REQ-0240` |
