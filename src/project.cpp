@@ -317,6 +317,33 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                         value = value.substr(1, value.size() - 2U);
                     }
                     project.app_properties[app_key] = value;
+                } else if (key == "reference") {
+                    // `*\G{GUID}#major.minor#lcid#path#description`
+                    const auto brace = value.find('{');
+                    const auto close = value.find('}');
+                    if (brace != std::string::npos &&
+                        close != std::string::npos && close > brace) {
+                        std::vector<std::string> parts;
+                        std::string part;
+                        for (const char c : value) {
+                            if (c == '#') {
+                                parts.push_back(part);
+                                part.clear();
+                            } else {
+                                part.push_back(c);
+                            }
+                        }
+                        parts.push_back(part);
+                        std::string spec =
+                            value.substr(brace, close - brace + 1U);
+                        spec += '#';
+                        spec += parts.size() > 1U ? parts[1] : std::string{};
+                        spec += '#';
+                        if (parts.size() > 3U && !parts[3].empty()) {
+                            spec += (directory / normalize(parts[3])).string();
+                        }
+                        project.type_libraries.push_back(std::move(spec));
+                    }
                 } else if (key == "resfile32") {
                     if (value.size() >= 2U && value.front() == '"' &&
                         value.back() == '"') {

@@ -61,6 +61,9 @@ struct EvaluationOptions final {
     // Path of a compiled `.res` file that `LoadResString` and `LoadResData`
     // read; empty when the project has none.
     std::string resource_file;
+    // Type libraries (`{GUID}#major.minor#path`) whose classes, interfaces
+    // and enumeration members the program may name (early binding).
+    std::vector<std::string> type_libraries;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

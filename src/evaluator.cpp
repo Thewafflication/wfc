@@ -814,6 +814,7 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_vb_number_spacing(options.vb6_print_spacing);
         interpreter.set_app_properties(options.app_properties);
         interpreter.set_resource_file(options.resource_file);
+        interpreter.set_type_libraries(options.type_libraries);
         if (options.per_module_option_explicit) {
             interpreter.set_option_explicit_ranges(
                 options.option_explicit_ranges);

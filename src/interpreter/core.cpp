@@ -162,6 +162,7 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     if (!scan_classes()) {
         return std::move(error_);
     }
+    register_type_libraries();
     register_predeclared_instances();
     {
         // The placeholder class behind COM Automation objects (REQ-0286).
@@ -543,7 +544,24 @@ std::optional<std::string> Interpreter::parse_identifier(
             "vbscript_regexp_10"};
         if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
             is_identifier_start(source_[offset_ + 1]) &&
-            libraries.contains(identifier) &&
+            type_library_names_.contains(identifier)) {
+            // `Lib.Class` names a class of a referenced type library.
+            std::size_t probe = offset_ + 1;
+            std::string next;
+            while (probe < source_.size() &&
+                   is_identifier_part(source_[probe])) {
+                next.push_back(ascii_lower(source_[probe++]));
+            }
+            if (class_definitions_.contains(identifier + "." + next)) {
+                identifier += "." + next;
+                offset_ = probe;
+                break;
+            }
+        }
+        if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
+            is_identifier_start(source_[offset_ + 1]) &&
+            (libraries.contains(identifier) ||
+             type_library_names_.contains(identifier)) &&
             find_variable(identifier).value == nullptr &&
             !(module_names_.contains(identifier)) &&
             !class_definitions_.contains(identifier) &&

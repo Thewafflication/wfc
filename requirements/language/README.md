@@ -402,3 +402,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0285 — Headless App, Clipboard and Screen service objects](req-0285-service-objects.md)
 - [REQ-0286 — Late-bound COM Automation client](req-0286-com-automation-client.md)
 - [REQ-0287 — Resource files and headless Global members](req-0287-resources-and-global-members.md)
+- [REQ-0288 — Type-library references and early binding](req-0288-type-library-references.md)

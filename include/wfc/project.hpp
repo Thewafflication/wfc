@@ -37,6 +37,9 @@ struct LoadedProject final {
     // The project's `ResFile32` resource file (REQ-0287), resolved against the
     // project directory; empty when none.
     std::string resource_file;
+    // The project's `Reference=` type libraries (REQ-0288), each
+    // `{GUID}#major.minor#path` (path may be empty).
+    std::vector<std::string> type_libraries;
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

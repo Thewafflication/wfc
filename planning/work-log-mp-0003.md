@@ -26,3 +26,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #5 | Construction | String-valued `#Const` symbols and string comparison in `#If` (`REQ-0283`); corpus 143 | CTest 297/297 |
 | 2026-10-10 #6 | Construction | `VB_GlobalNameSpace` classes (unqualified public members); `VERSION`/`BEGIN` header detection limited to the file header (`REQ-0283`); corpus 144 | CTest 298/298 |
 | 2026-10-10 #7 | Construction | `ResFile32` resource files with `LoadResString`/`LoadResData`; empty `Forms` collection (`REQ-0287`); corpus 145–146 | CTest 300/300 |
+| 2026-10-10 #8 | Construction | `Reference=` type libraries: early-bound classes, interfaces and enumeration constants over COM (`REQ-0288`); corpus 147 | CTest 301/301 |

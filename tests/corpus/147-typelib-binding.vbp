@@ -1,0 +1,5 @@
+Type=Exe
+Reference=*\G{F5078F18-C551-11D3-89B9-0000F81FE221}#6.0#0#C:\Windows\System32\msxml6.dll#Microsoft XML, v6.0
+Reference=*\G{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B}#1.0#0#C:\Windows\System32\wshom.ocx#Windows Script Host Object Model
+Module=Main; 147-typelib-binding.bas
+Startup="Sub Main"

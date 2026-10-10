@@ -73,6 +73,15 @@ std::optional<Value> Interpreter::instantiate_class(
                   offset);
         return std::nullopt;
     }
+    if (class_iterator->second.com_proxy) {
+        // A class imported from a type library: create the COM object.
+        if (class_iterator->second.com_clsid.empty()) {
+            static_cast<void>(raise_runtime(
+                429, "ActiveX component can't create object", offset));
+            return std::nullopt;
+        }
+        return com_create_object(class_iterator->second.com_clsid, offset);
+    }
     // A user-defined type that contains itself would otherwise recurse
     // without end while its fields are created.
     if (stack_nearly_exhausted()) {

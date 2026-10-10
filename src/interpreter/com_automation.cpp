@@ -79,6 +79,8 @@ std::string Interpreter::com_type_name(InstanceData&) {
     return "Object";
 }
 
+void Interpreter::register_type_libraries() {}
+
 #else
 
 namespace {
@@ -1078,6 +1080,154 @@ std::string Interpreter::com_type_name(InstanceData& instance) {
         info->Release();
     }
     return name;
+}
+
+void Interpreter::register_type_libraries() {
+    if (type_libraries_.empty()) {
+        return;
+    }
+    ensure_apartment();
+    // Identifiers the program mentions: only those classes and constants are
+    // imported from a (possibly huge) library.
+    std::set<std::string> mentioned;
+    const auto collect = [&](const std::string_view text) {
+        std::string word;
+        for (const char c : text) {
+            if (is_identifier_part(c)) {
+                word.push_back(ascii_lower(c));
+            } else if (!word.empty()) {
+                mentioned.insert(std::move(word));
+                word.clear();
+            }
+        }
+        if (!word.empty()) {
+            mentioned.insert(std::move(word));
+        }
+    };
+    collect(source_);
+    for (const auto& module : class_sources_) {
+        collect(module.source);
+    }
+    const auto lowered = [](std::string text) {
+        for (auto& c : text) {
+            c = ascii_lower(c);
+        }
+        return text;
+    };
+    for (const auto& spec : type_libraries_) {
+        const auto first = spec.find('#');
+        const auto second =
+            first == std::string::npos ? first : spec.find('#', first + 1U);
+        if (second == std::string::npos) {
+            continue;
+        }
+        GUID library_id{};
+        const auto guid_text = widen(spec.substr(0, first));
+        if (FAILED(CLSIDFromString(guid_text.c_str(), &library_id))) {
+            continue;
+        }
+        const std::string version =
+            spec.substr(first + 1U, second - first - 1U);
+        const auto dot = version.find('.');
+        const WORD major = static_cast<WORD>(std::atoi(version.c_str()));
+        const WORD minor =
+            dot == std::string::npos
+                ? WORD{0}
+                : static_cast<WORD>(std::atoi(version.c_str() + dot + 1U));
+        const std::string path = spec.substr(second + 1U);
+        ITypeLib* library = nullptr;
+        if (FAILED(LoadRegTypeLib(library_id, major, minor, 0, &library)) &&
+            FAILED(LoadRegTypeLib(library_id, major, 0, 0, &library))) {
+            library = nullptr;
+            if (!path.empty()) {
+                const auto wide_path = widen(path);
+                if (FAILED(LoadTypeLibEx(wide_path.c_str(), REGKIND_NONE,
+                                         &library))) {
+                    library = nullptr;
+                }
+            }
+        }
+        if (library == nullptr) {
+            continue;
+        }
+        BSTR library_name = nullptr;
+        library->GetDocumentation(-1, &library_name, nullptr, nullptr, nullptr);
+        const std::string library_key = lowered(narrow(library_name));
+        SysFreeString(library_name);
+        if (!library_key.empty()) {
+            type_library_names_.insert(library_key);
+        }
+        const UINT count = library->GetTypeInfoCount();
+        for (UINT index = 0; index < count; ++index) {
+            ITypeInfo* info = nullptr;
+            if (FAILED(library->GetTypeInfo(index, &info)) || info == nullptr) {
+                continue;
+            }
+            TYPEATTR* attributes = nullptr;
+            BSTR type_name = nullptr;
+            library->GetDocumentation(static_cast<int>(index), &type_name,
+                                      nullptr, nullptr, nullptr);
+            const std::string name = narrow(type_name);
+            SysFreeString(type_name);
+            const std::string key = lowered(name);
+            if (SUCCEEDED(info->GetTypeAttr(&attributes)) &&
+                attributes != nullptr) {
+                const auto kind = attributes->typekind;
+                if ((kind == TKIND_COCLASS || kind == TKIND_INTERFACE ||
+                     kind == TKIND_DISPATCH) &&
+                    mentioned.contains(key)) {
+                    ClassDef proxy;
+                    proxy.display_name = name;
+                    proxy.com_proxy = true;
+                    if (kind == TKIND_COCLASS) {
+                        wchar_t buffer[64];
+                        StringFromGUID2(attributes->guid, buffer, 64);
+                        proxy.com_clsid = narrow(buffer, wcslen(buffer));
+                    }
+                    if (!library_key.empty()) {
+                        class_definitions_.try_emplace(library_key + "." + key,
+                                                       proxy);
+                    }
+                    class_definitions_.try_emplace(key, proxy);
+                } else if (kind == TKIND_ENUM || kind == TKIND_MODULE) {
+                    for (WORD v = 0; v < attributes->cVars; ++v) {
+                        VARDESC* variable = nullptr;
+                        if (FAILED(info->GetVarDesc(v, &variable)) ||
+                            variable == nullptr) {
+                            continue;
+                        }
+                        if (variable->varkind == VAR_CONST &&
+                            variable->lpvarValue != nullptr) {
+                            BSTR member_name = nullptr;
+                            UINT names = 0;
+                            info->GetNames(variable->memid, &member_name, 1,
+                                           &names);
+                            const std::string member_key =
+                                lowered(narrow(member_name));
+                            SysFreeString(member_name);
+                            if (mentioned.contains(member_key) &&
+                                !vba_constant_value(member_key).has_value()) {
+                                const Value constant =
+                                    variant_to_value(*variable->lpvarValue);
+                                if (std::holds_alternative<Integer>(constant) ||
+                                    std::holds_alternative<Int16>(constant) ||
+                                    std::holds_alternative<double>(constant) ||
+                                    std::holds_alternative<std::string>(
+                                        constant)) {
+                                    global_class_constants_.try_emplace(
+                                        member_key, constant);
+                                }
+                            }
+                        }
+                        info->ReleaseVarDesc(variable);
+                    }
+                }
+                info->ReleaseTypeAttr(attributes);
+            }
+            info->Release();
+        }
+        library->Release();
+    }
 }
 
 #endif  // _WIN32

@@ -618,6 +618,14 @@ bool Interpreter::class_satisfies(
     if (actual_class_name == declared_class_name) {
         return true;
     }
+    // A COM object satisfies any class imported from a type library.
+    if (actual_class_name == "wfccom") {
+        const auto declared = class_definitions_.find(declared_class_name);
+        if (declared != class_definitions_.end() &&
+            declared->second.com_proxy) {
+            return true;
+        }
+    }
     // A built-in class registered under its public name (`As Dictionary`)
     // accepts the instance CreateObject builds under its internal `Wfc` name.
     if ("wfc" + declared_class_name == actual_class_name ||

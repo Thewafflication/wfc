@@ -89,6 +89,7 @@ int main(const int argument_count, const char* const arguments[]) {
         options.per_module_option_explicit = project.per_module_option_explicit;
         options.option_explicit_ranges = project.option_explicit_ranges;
         options.resource_file = project.resource_file;
+        options.type_libraries = project.type_libraries;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

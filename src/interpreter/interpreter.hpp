@@ -261,6 +261,10 @@ struct ClassDef {
     bool is_udt{};
     // The class module's own text declares `Option Explicit`.
     bool strict{};
+    // A class imported from a referenced type library (REQ-0288): instances
+    // are COM objects. `com_clsid` (`{GUID}`) is empty for an interface name.
+    bool com_proxy{};
+    std::string com_clsid;
     // `Attribute VB_GlobalNameSpace = True` (REQ-0283): its public members are
     // reachable unqualified.
     bool global_namespace{};
@@ -454,6 +458,9 @@ public:
     void set_app_properties(std::map<std::string, std::string> properties);
     void set_resource_file(std::string path) {
         resource_file_ = std::move(path);
+    }
+    void set_type_libraries(std::vector<std::string> libraries) {
+        type_libraries_ = std::move(libraries);
     }
 
     [[nodiscard]] std::string failing_module_name() const;
@@ -1945,6 +1952,10 @@ private:
     // `.res` file behind LoadResString/LoadResData (REQ-0287) and its parsed
     // entries, read on first use.
     std::string resource_file_;
+    // Referenced type libraries and the library names they define.
+    std::vector<std::string> type_libraries_;
+    std::set<std::string> type_library_names_;
+    void register_type_libraries();
     struct ResourceEntry {
         std::uint32_t type_id{};
         std::string type_name;
