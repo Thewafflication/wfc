@@ -1,0 +1,4 @@
+Type=Exe
+Class=T; 130-class-declare.cls.t
+Module=Main; 130-class-declare.bas
+Startup="Sub Main"

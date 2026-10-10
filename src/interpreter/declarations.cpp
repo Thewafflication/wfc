@@ -658,6 +658,56 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             skip_horizontal_whitespace();
         }
 
+        if (consume_keyword("declare")) {
+            // `Private Declare Function|Sub Name Lib "dll" [Alias "x"] ...`
+            // in a class module: an external routine local to the class.
+            skip_horizontal_whitespace();
+            static_cast<void>(consume_keyword("ptrsafe"));
+            skip_horizontal_whitespace();
+            const bool declared_function = consume_keyword("function");
+            if (!declared_function && !consume_keyword("sub")) {
+                set_error("WFC0127", "expected Function or Sub after Declare",
+                          offset_);
+                return false;
+            }
+            skip_horizontal_whitespace();
+            char declare_type_character{};
+            auto declared = parse_identifier(&declare_type_character);
+            if (!declared.has_value() ||
+                class_member_name_used(class_def, *declared)) {
+                set_error("WFC0128", "duplicate or reserved class member name",
+                          line_offset);
+                return false;
+            }
+            ProcedureDef external;
+            external.is_function = declared_function;
+            external.is_external = true;
+            external.is_private = is_private;
+            external.return_type_index = Value{Integer{}}.index();
+            external.return_is_variant = true;
+            const auto line_end =
+                std::min(source_.find('\n', offset_), source_.size());
+            std::string rest;
+            for (std::size_t k = offset_; k < line_end; ++k) {
+                rest.push_back(ascii_lower(source_[k]));
+            }
+            if (const auto alias_at = rest.find(" alias ");
+                alias_at != std::string::npos) {
+                const auto open = rest.find('"', alias_at);
+                const auto close = open == std::string::npos
+                                       ? std::string::npos
+                                       : rest.find('"', open + 1U);
+                if (close != std::string::npos) {
+                    external.external_name =
+                        rest.substr(open + 1U, close - open - 1U);
+                }
+            }
+            skip_rest_of_line();
+            class_def.methods.emplace(std::move(*declared),
+                                      std::move(external));
+            continue;
+        }
+
         if (consume_keyword("event")) {
             skip_horizontal_whitespace();
             const auto event_name_offset = offset_;
