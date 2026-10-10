@@ -460,6 +460,27 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         return std::nullopt;
     }
 
+    // Variant arguments holding a number, Boolean, Date, or Empty act as their
+    // String form in the text-taking functions (`InStr(12345, 3)`).
+    if (execute_ && (is_split || is_join || is_instr || is_instr_rev ||
+                     is_strcomp || is_replace)) {
+        const auto text_count = is_replace ? 3U : 2U;
+        const auto text_first = is_instr && arguments.size() >= 3U ? 1U : 0U;
+        const auto text_begin = is_join ? 1U : text_first;
+        for (std::size_t index = text_begin;
+             index <
+             std::min<std::size_t>(arguments.size(), text_first + text_count);
+             ++index) {
+            auto& argument = arguments[index];
+            if (std::holds_alternative<Empty>(argument)) {
+                argument = Value{std::string{}};
+            } else if (is_number(argument) ||
+                       std::holds_alternative<bool>(argument) ||
+                       std::holds_alternative<DateValue>(argument)) {
+                argument = Value{render(argument)};
+            }
+        }
+    }
     // REQ-0239: Array/Split/Join/Filter.
     if (is_array_fn) {
         ArrayValue result{std::move(arguments),
@@ -2640,6 +2661,17 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             return Value{std::move(text)};
         }
+    }
+    // A Variant argument holding a number, Boolean, Date, or Empty is converted
+    // to its String form, as the Variant-taking VB string functions do.
+    if (execute_ && !std::holds_alternative<std::string>(arguments[0]) &&
+        (is_number(arguments[0]) ||
+         std::holds_alternative<bool>(arguments[0]) ||
+         std::holds_alternative<DateValue>(arguments[0]) ||
+         std::holds_alternative<Empty>(arguments[0]))) {
+        arguments[0] = std::holds_alternative<Empty>(arguments[0])
+                           ? Value{std::string{}}
+                           : Value{render(arguments[0])};
     }
     const auto* string = std::get_if<std::string>(&arguments[0]);
     static const std::string dry_run_string;

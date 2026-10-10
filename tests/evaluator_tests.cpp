@@ -2789,27 +2789,27 @@ int main() {
     expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, -1, 0, 1)",
                            "WFC0072");
     expect_program_success("Print Len(42)", "2");  // REQ-0277: Variant coercion
-    expect_program_failure("Print LCase(True)", "WFC0073");
-    expect_program_failure("Print Left(42, 1)", "WFC0073");
+    expect_program_success("Print LCase(True)", "true");
+    expect_program_success("Print Left(42, 1)", "4");
     expect_program_failure("Print Right(\"value\", \"1\")", "WFC0073");
     expect_program_failure("Print Mid(\"value\", \"1\")", "WFC0073");
     expect_program_failure("Print Mid(\"value\", 1, \"2\")", "WFC0073");
-    expect_program_failure("Print Asc(42)", "WFC0073");
+    expect_program_success("Print Asc(42)", "52");
     expect_program_failure("Print Chr(\"65\")", "WFC0073");
-    expect_program_failure("Print StrReverse(False)", "WFC0073");
+    expect_program_success("Print StrReverse(False)", "eslaF");
     expect_program_failure("Print Space(\"3\")", "WFC0073");
     expect_program_failure("Print String(\"3\", \"*\")", "WFC0073");
     expect_program_failure("Print String(3, True)", "WFC0073");
-    expect_program_failure("Print InStr(\"a\", 1)", "WFC0073");
+    expect_program_success("Print InStr(\"a\", 1)", "0");
     expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
     expect_program_failure("Print InStr(1, \"a\", \"b\", \"1\")", "WFC0073");
-    expect_program_failure("Print InStrRev(1, \"a\")", "WFC0073");
+    expect_program_success("Print InStrRev(1, \"a\")", "0");
     expect_program_failure("Print InStrRev(\"a\", \"a\", \"1\")", "WFC0073");
-    expect_program_failure("Print StrComp(\"a\", 1)", "WFC0073");
-    expect_program_failure("Print StrComp(42, \"a\")", "WFC0073");
+    expect_program_success("Print StrComp(\"a\", 1)", "1");
+    expect_program_success("Print StrComp(42, \"a\")", "-1");
     expect_program_failure("Print StrComp(\"a\", \"b\", \"1\")", "WFC0073");
-    expect_program_failure("Print Replace(\"a\", \"b\", 3)", "WFC0073");
-    expect_program_failure("Print Replace(42, \"b\", \"c\")", "WFC0073");
+    expect_program_success("Print Replace(\"a\", \"b\", 3)", "a");
+    expect_program_success("Print Replace(42, \"b\", \"c\")", "42");
     expect_program_failure("Print Replace(\"a\", \"b\", \"c\", \"1\")",
                            "WFC0073");
     expect_program_failure("Print Replace(\"a\", \"b\", \"c\", 1, \"1\")",
@@ -2836,7 +2836,7 @@ int main() {
     expect_program_failure("Print Oct(True)", "WFC0073");
     expect_program_failure("Print Hex(2147483648#)", "WFC0009");
     expect_program_failure("Print Str(\"a\")", "WFC0073");
-    expect_program_failure("Print Val(42)", "WFC0073");
+    expect_program_success("Print Val(42)", "42");
     expect_program_success("Print Abs(\"42\")", "42");
     expect_program_failure("Print Sgn(False)", "WFC0073");
     expect_program_failure("Print Abs()", "WFC0072");
@@ -2912,7 +2912,7 @@ int main() {
     expect_program_failure("Print CVar()", "WFC0072");
     expect_program_failure("Print CVar(1, 2)", "WFC0072");
     expect_program_failure("Print MacID(\"ABC\")", "WFC0100");
-    expect_program_failure("Print MacID(42)", "WFC0073");
+    expect_program_failure("Print MacID(42)", "WFC0100");
     expect_program_failure("Print MacID()", "WFC0072");
     expect_program_failure("Print MacID(\"AB\", \"CD\")", "WFC0072");
     expect_program_failure("Print IsNumeric()", "WFC0072");
