@@ -314,6 +314,11 @@ struct ComObject {
     // The object's IUnknown identity: two wrappers of one server object share
     // one InstanceData, so `Is` compares equal.
     void* identity{};
+    // Event connection (IConnectionPoint, sink and advise cookie), made when
+    // the object is assigned to a WithEvents field.
+    void* connection_point{};
+    void* event_sink{};
+    unsigned long event_cookie{};
     // Lower-cased member name -> DISPID, filled on first use.
     std::unordered_map<std::string, long> dispids;
 };
@@ -459,6 +464,9 @@ public:
         explicit_ranges_ = std::move(ranges);
     }
     void set_app_properties(std::map<std::string, std::string> properties);
+    // Delivers an event raised by a COM object to its WithEvents handlers.
+    void deliver_com_event(InstanceData& source, const std::string& event_name,
+                           std::vector<CallArgument>& arguments);
     void set_resource_file(std::string path) {
         resource_file_ = std::move(path);
     }
@@ -1581,6 +1589,16 @@ private:
     [[nodiscard]] std::optional<ArrayValue> com_enumerate(
         InstanceData& instance, std::size_t offset);
     [[nodiscard]] std::string com_type_name(InstanceData& instance);
+    // Subscribes to a COM object's default outgoing interface.
+    bool com_connect_events(InstanceData& instance);
+    // Dispatches queued window messages (COM events, async servers).
+    void com_pump_messages();
+    // Runs every WithEvents handler of `source` for `event_name`.
+    [[nodiscard]] bool dispatch_event_to_sinks(
+        InstanceData& source, const std::string& event_name,
+        const std::vector<CallArgument>& arguments, std::size_t offset);
+    // A handler for a COM event failed; the failing call reports it.
+    bool com_event_failed_{};
     [[nodiscard]] std::optional<Value> call_default_member(
         const ObjectInstance& holder, std::size_t member_offset);
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(

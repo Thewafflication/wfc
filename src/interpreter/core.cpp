@@ -159,10 +159,10 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     scan_enum_names();
     scan_udt_types();
     scan_builtin_classes();
+    register_type_libraries();
     if (!scan_classes()) {
         return std::move(error_);
     }
-    register_type_libraries();
     register_predeclared_instances();
     {
         // The placeholder class behind COM Automation objects (REQ-0286).

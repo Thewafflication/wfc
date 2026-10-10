@@ -4,6 +4,7 @@
 // objects. Internal to the WFC evaluator; not part of the public API.
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 
 #include "interpreter.hpp"
@@ -80,6 +81,12 @@ std::string Interpreter::com_type_name(InstanceData&) {
 }
 
 void Interpreter::register_type_libraries() {}
+
+bool Interpreter::com_connect_events(InstanceData&) {
+    return false;
+}
+
+void Interpreter::com_pump_messages() {}
 
 #else
 
@@ -564,6 +571,15 @@ struct ComFailure {
 
 }  // namespace
 
+namespace {
+
+// What ComObject needs of its event sink before the sink is defined.
+struct ComEventSinkBase : IDispatch {
+    virtual void detach() noexcept = 0;
+};
+
+}  // namespace
+
 ComObject::~ComObject() {
     if (identity != nullptr) {
         auto& registry = wrapper_registry();
@@ -571,6 +587,17 @@ ComObject::~ComObject() {
         if (found != registry.end() && found->second.expired()) {
             registry.erase(found);
         }
+    }
+    if (event_sink != nullptr) {
+        static_cast<ComEventSinkBase*>(event_sink)->detach();
+    }
+    if (connection_point != nullptr) {
+        auto* const point = static_cast<IConnectionPoint*>(connection_point);
+        point->Unadvise(event_cookie);
+        point->Release();
+    }
+    if (event_sink != nullptr) {
+        static_cast<ComEventSinkBase*>(event_sink)->Release();
     }
     if (dispatch != nullptr) {
         static_cast<IDispatch*>(dispatch)->Release();
@@ -897,6 +924,10 @@ std::optional<Value> Interpreter::com_get_member(InstanceData& instance,
         err_help_context_ = outcome.failure.help_context;
         return std::nullopt;
     }
+    if (com_event_failed_) {
+        com_event_failed_ = false;  // an event handler failed during the call
+        return std::nullopt;
+    }
     return std::move(outcome.result);
 }
 
@@ -941,6 +972,10 @@ bool Interpreter::com_member_statement(const Value& base,
             if (!outcome.ok) {
                 return report(outcome);
             }
+            if (com_event_failed_) {
+                com_event_failed_ = false;
+                return false;
+            }
             child = std::move(outcome.result);
         }
         const std::string temp_name =
@@ -971,6 +1006,10 @@ bool Interpreter::com_member_statement(const Value& base,
         if (!outcome.ok) {
             return report(outcome);
         }
+        if (com_event_failed_) {
+            com_event_failed_ = false;
+            return false;
+        }
         return true;
     }
     // A method call statement: `obj.Method`, `obj.Method(args)` or
@@ -992,6 +1031,10 @@ bool Interpreter::com_member_statement(const Value& base,
                       arguments, nullptr);
     if (!outcome.ok) {
         return report(outcome);
+    }
+    if (com_event_failed_) {
+        com_event_failed_ = false;
+        return false;
     }
     return true;
 }
@@ -1028,6 +1071,10 @@ bool Interpreter::com_set_member(const Value& base, const std::string& name,
                                         outcome.failure.description,
                                         member_offset));
         err_source_ = outcome.failure.source;
+        return false;
+    }
+    if (com_event_failed_) {
+        com_event_failed_ = false;
         return false;
     }
     return true;
@@ -1141,15 +1188,17 @@ void Interpreter::register_type_libraries() {
         }
     };
     collect(source_);
-    for (const auto& module : class_sources_) {
-        collect(module.source);
-    }
+    std::set<std::string> user_classes;
     const auto lowered = [](std::string text) {
         for (auto& c : text) {
             c = ascii_lower(c);
         }
         return text;
     };
+    for (const auto& module : class_sources_) {
+        collect(module.source);
+        user_classes.insert(lowered(module.name));
+    }
     for (const auto& spec : type_libraries_) {
         const auto first = spec.find('#');
         const auto second =
@@ -1224,7 +1273,10 @@ void Interpreter::register_type_libraries() {
                         class_definitions_.try_emplace(library_key + "." + key,
                                                        proxy);
                     }
-                    class_definitions_.try_emplace(key, proxy);
+                    // A class of the program (or a built-in) keeps its name.
+                    if (!user_classes.contains(key)) {
+                        class_definitions_.try_emplace(key, proxy);
+                    }
                 } else if (kind == TKIND_ENUM || kind == TKIND_MODULE) {
                     for (WORD v = 0; v < attributes->cVars; ++v) {
                         VARDESC* variable = nullptr;
@@ -1263,6 +1315,259 @@ void Interpreter::register_type_libraries() {
             info->Release();
         }
         library->Release();
+    }
+}
+
+namespace {
+
+// The outgoing-interface sink a COM object calls to raise an event. Events
+// are delivered on the interpreter thread, while a COM call is in progress or
+// while `DoEvents` pumps messages.
+class ComEventSink final : public ComEventSinkBase {
+public:
+    ComEventSink(Interpreter* interpreter, std::weak_ptr<InstanceData> source,
+                 const IID& source_iid, ITypeInfo* events)
+        : interpreter_(interpreter),
+          source_(std::move(source)),
+          iid_(source_iid),
+          events_(events) {
+        if (events_ != nullptr) {
+            events_->AddRef();
+        }
+    }
+    ~ComEventSink() {
+        if (events_ != nullptr) {
+            events_->Release();
+        }
+    }
+    void detach() noexcept override { interpreter_ = nullptr; }
+
+    STDMETHODIMP QueryInterface(REFIID requested, void** result) override {
+        if (requested == IID_IUnknown || requested == IID_IDispatch ||
+            requested == iid_) {
+            *result = static_cast<IDispatch*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *result = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return ++references_; }
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG remaining = --references_;
+        if (remaining == 0) {
+            delete this;
+        }
+        return remaining;
+    }
+    STDMETHODIMP GetTypeInfoCount(UINT* count) override {
+        *count = 0;
+        return S_OK;
+    }
+    STDMETHODIMP GetTypeInfo(UINT, LCID, ITypeInfo**) override {
+        return E_NOTIMPL;
+    }
+    STDMETHODIMP GetIDsOfNames(REFIID, LPOLESTR*, UINT, LCID,
+                               DISPID*) override {
+        return E_NOTIMPL;
+    }
+    STDMETHODIMP Invoke(DISPID member, REFIID, LCID, WORD, DISPPARAMS* params,
+                        VARIANT*, EXCEPINFO*, UINT*) override {
+        auto source = source_.lock();
+        if (source == nullptr || interpreter_ == nullptr ||
+            events_ == nullptr) {
+            return S_OK;
+        }
+        BSTR event_name = nullptr;
+        UINT names = 0;
+        if (FAILED(events_->GetNames(member, &event_name, 1, &names)) ||
+            event_name == nullptr) {
+            return S_OK;
+        }
+        std::string name = narrow(event_name);
+        SysFreeString(event_name);
+        for (auto& c : name) {
+            c = ascii_lower(c);
+        }
+        const UINT count = params != nullptr ? params->cArgs : 0U;
+        // rgvarg is in reverse order; named arguments are not used by events.
+        std::vector<Value> storage(count);
+        std::vector<CallArgument> arguments;
+        arguments.reserve(count);
+        for (UINT i = 0; i < count; ++i) {
+            const VARIANT& raw = params->rgvarg[count - 1U - i];
+            storage[i] = variant_to_value(raw);
+        }
+        for (UINT i = 0; i < count; ++i) {
+            const VARIANT& raw = params->rgvarg[count - 1U - i];
+            const bool by_reference = (raw.vt & VT_BYREF) != 0;
+            arguments.push_back(CallArgument{
+                storage[i], by_reference ? &storage[i] : nullptr, false, {}});
+        }
+        interpreter_->deliver_com_event(*source, name, arguments);
+        // Write ByRef results back to the server's variables.
+        for (UINT i = 0; i < count; ++i) {
+            VARIANT& raw = params->rgvarg[count - 1U - i];
+            if ((raw.vt & VT_BYREF) == 0 || raw.pvarVal == nullptr) {
+                continue;
+            }
+            const Value& updated = storage[i];
+            switch (raw.vt & VT_TYPEMASK) {
+                case VT_BOOL:
+                    if (const auto* flag = std::get_if<bool>(&updated)) {
+                        *raw.pboolVal = *flag ? VARIANT_TRUE : VARIANT_FALSE;
+                    }
+                    break;
+                case VT_I2:
+                    if (const auto* number = std::get_if<Int16>(&updated)) {
+                        *raw.piVal = *number;
+                    }
+                    break;
+                case VT_I4:
+                    if (const auto* number = std::get_if<Integer>(&updated)) {
+                        *raw.plVal = *number;
+                    }
+                    break;
+                case VT_R8:
+                    if (const auto* number = std::get_if<double>(&updated)) {
+                        *raw.pdblVal = *number;
+                    }
+                    break;
+                case VT_VARIANT: {
+                    VARIANT replacement;
+                    if (value_to_variant(updated, replacement)) {
+                        VariantClear(raw.pvarVal);
+                        *raw.pvarVal = replacement;
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+        return S_OK;
+    }
+
+private:
+    std::atomic<ULONG> references_{1};
+    Interpreter* interpreter_;
+    std::weak_ptr<InstanceData> source_;
+    IID iid_;
+    ITypeInfo* events_;
+};
+
+}  // namespace
+
+bool Interpreter::com_connect_events(InstanceData& instance) {
+    ComObject& object = *instance.com;
+    if (object.connection_point != nullptr) {
+        return true;
+    }
+    ensure_apartment();
+    auto* const dispatch = dispatch_of(object);
+    IConnectionPointContainer* container = nullptr;
+    if (FAILED(
+            dispatch->QueryInterface(IID_IConnectionPointContainer,
+                                     reinterpret_cast<void**>(&container))) ||
+        container == nullptr) {
+        return false;
+    }
+    // The default outgoing interface and its type information.
+    IID source_iid{};
+    bool have_iid = false;
+    ITypeInfo* events_info = nullptr;
+    IProvideClassInfo2* provider2 = nullptr;
+    if (SUCCEEDED(
+            dispatch->QueryInterface(__uuidof(IProvideClassInfo2),
+                                     reinterpret_cast<void**>(&provider2))) &&
+        provider2 != nullptr) {
+        have_iid = SUCCEEDED(
+            provider2->GetGUID(GUIDKIND_DEFAULT_SOURCE_DISP_IID, &source_iid));
+        provider2->Release();
+    }
+    ITypeInfo* class_info = nullptr;
+    IProvideClassInfo* provider = nullptr;
+    if (SUCCEEDED(
+            dispatch->QueryInterface(__uuidof(IProvideClassInfo),
+                                     reinterpret_cast<void**>(&provider))) &&
+        provider != nullptr) {
+        provider->GetClassInfo(&class_info);
+        provider->Release();
+    }
+    if (class_info != nullptr) {
+        TYPEATTR* attributes = nullptr;
+        if (SUCCEEDED(class_info->GetTypeAttr(&attributes)) &&
+            attributes != nullptr) {
+            for (WORD i = 0; i < attributes->cImplTypes; ++i) {
+                int flags = 0;
+                class_info->GetImplTypeFlags(i, &flags);
+                if ((flags & IMPLTYPEFLAG_FSOURCE) == 0 ||
+                    (flags & IMPLTYPEFLAG_FDEFAULT) == 0) {
+                    continue;
+                }
+                HREFTYPE reference = 0;
+                ITypeInfo* candidate = nullptr;
+                if (SUCCEEDED(
+                        class_info->GetRefTypeOfImplType(i, &reference)) &&
+                    SUCCEEDED(
+                        class_info->GetRefTypeInfo(reference, &candidate))) {
+                    TYPEATTR* source_attributes = nullptr;
+                    if (SUCCEEDED(candidate->GetTypeAttr(&source_attributes))) {
+                        if (!have_iid) {
+                            source_iid = source_attributes->guid;
+                            have_iid = true;
+                        }
+                        candidate->ReleaseTypeAttr(source_attributes);
+                    }
+                    events_info = candidate;
+                }
+                break;
+            }
+            class_info->ReleaseTypeAttr(attributes);
+        }
+        if (events_info == nullptr && have_iid) {
+            ITypeLib* library = nullptr;
+            UINT index = 0;
+            if (SUCCEEDED(class_info->GetContainingTypeLib(&library, &index)) &&
+                library != nullptr) {
+                library->GetTypeInfoOfGuid(source_iid, &events_info);
+                library->Release();
+            }
+        }
+        class_info->Release();
+    }
+    bool connected = false;
+    if (have_iid && events_info != nullptr) {
+        IConnectionPoint* point = nullptr;
+        if (SUCCEEDED(container->FindConnectionPoint(source_iid, &point)) &&
+            point != nullptr) {
+            auto* const sink = new ComEventSink(this, instance.weak_from_this(),
+                                                source_iid, events_info);
+            DWORD cookie = 0;
+            if (SUCCEEDED(point->Advise(sink, &cookie))) {
+                object.connection_point = point;
+                object.event_sink = sink;
+                object.event_cookie = cookie;
+                connected = true;
+            } else {
+                sink->detach();
+                sink->Release();
+                point->Release();
+            }
+        }
+    }
+    if (events_info != nullptr) {
+        events_info->Release();
+    }
+    container->Release();
+    return connected;
+}
+
+void Interpreter::com_pump_messages() {
+    MSG message;
+    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
     }
 }
 

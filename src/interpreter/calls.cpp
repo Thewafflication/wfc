@@ -36,7 +36,14 @@ bool Interpreter::parse_raise_event_statement(
     if (!execute_) {
         return true;
     }
-    const auto sinks = source->event_sinks;  // handlers may resubscribe
+    return dispatch_event_to_sinks(*source, *event_name, arguments,
+                                   statement_offset);
+}
+
+bool Interpreter::dispatch_event_to_sinks(
+    InstanceData& source, const std::string& event_name,
+    const std::vector<CallArgument>& arguments, const std::size_t offset) {
+    const auto sinks = source.event_sinks;  // handlers may resubscribe
     for (const auto& [weak_sink, field_name] : sinks) {
         const auto sink = weak_sink.lock();
         if (sink == nullptr) {
@@ -46,19 +53,26 @@ bool Interpreter::parse_raise_event_statement(
         if (sink_class == class_definitions_.end()) {
             continue;
         }
-        const std::string handler = field_name + "_" + *event_name;
+        const std::string handler = field_name + "_" + event_name;
         const auto method = sink_class->second.methods.find(handler);
         if (method == sink_class->second.methods.end()) {
             continue;
         }
-        if (!invoke_definition(method->second, handler, arguments,
-                               statement_offset, sink_class->second.source,
-                               sink.get())
+        if (!invoke_definition(method->second, handler, arguments, offset,
+                               sink_class->second.source, sink.get())
                  .has_value()) {
             return false;
         }
     }
     return true;
+}
+
+void Interpreter::deliver_com_event(InstanceData& source,
+                                    const std::string& event_name,
+                                    std::vector<CallArgument>& arguments) {
+    if (!dispatch_event_to_sinks(source, event_name, arguments, offset_)) {
+        com_event_failed_ = true;
+    }
 }
 
 std::optional<Value> Interpreter::instantiate_class(

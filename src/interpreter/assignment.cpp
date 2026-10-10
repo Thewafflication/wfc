@@ -1035,6 +1035,9 @@ bool Interpreter::assign_field_reference(InstanceData& owner,
     }
     if (new_data != nullptr) {
         new_data->event_sinks.emplace_back(owner.weak_from_this(), field_name);
+        if (new_data->com != nullptr) {
+            static_cast<void>(com_connect_events(*new_data));
+        }
     }
     return true;
 }

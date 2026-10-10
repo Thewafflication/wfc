@@ -33,6 +33,12 @@ On Windows a program can create and drive real COM Automation objects through
   `Description` (and help file and context); `DISP_E_MEMBERNOTFOUND` is 438,
   `DISP_E_TYPEMISMATCH` 13, `DISP_E_BADPARAMCOUNT` 450,
   `DISP_E_PARAMNOTOPTIONAL` 449.
+- **Events.** Assigning a COM object to a `WithEvents` field connects the
+  object's default outgoing interface (found through `IProvideClassInfo`); the
+  `field_Event` handlers run when the server raises the event. ByRef event
+  arguments are written back to the server. Events from a server arrive while a
+  COM call is running or during `DoEvents`, which pumps the thread's window
+  messages. An error in a handler fails the COM call that was running.
 - Two references to one server object compare equal with `Is`.
 - `TypeName(obj)` is the coclass name when the server publishes
   `IProvideClassInfo`, else its dispatch interface name.
@@ -42,10 +48,11 @@ On Windows a program can create and drive real COM Automation objects through
 ## Known limits
 
 Early binding needs a project `Reference=` (`REQ-0288`); without one use
-`As Object`. There are no event sinks (`WithEvents` on a COM object) and no
-`Implements` of a COM interface.
+`As Object`. A VB class cannot implement a COM interface, and events of an
+object without a type library cannot be received.
 
 ## Verification
 
-`TC-MP0002-corpus-142-com-automation` (uses `WScript.Shell` and
+`TC-MP0002-corpus-148-com-events` (an asynchronous `DOMDocument60` load
+raising `onreadystatechange`) and `TC-MP0002-corpus-142-com-automation` (uses `WScript.Shell` and
 `MSXML2.DOMDocument.6.0`, both shipped with Windows).

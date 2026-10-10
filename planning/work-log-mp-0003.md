@@ -28,3 +28,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #7 | Construction | `ResFile32` resource files with `LoadResString`/`LoadResData`; empty `Forms` collection (`REQ-0287`); corpus 145–146 | CTest 300/300 |
 | 2026-10-10 #8 | Construction | `Reference=` type libraries: early-bound classes, interfaces and enumeration constants over COM (`REQ-0288`); corpus 147 | CTest 301/301 |
 | 2026-10-10 #9 | Construction | COM object identity: one wrapper per server object so `Is` holds (`REQ-0286`) | CTest 301/301 |
+| 2026-10-10 #10 | Construction | COM events: WithEvents over connection points, DoEvents message pump, ByRef event arguments (`REQ-0286`); corpus 148 | CTest 302/302 |

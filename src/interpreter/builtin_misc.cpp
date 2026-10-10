@@ -186,6 +186,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (!arity(0, 0)) {
             return std::nullopt;
         }
+        if (name == "doevents" && execute_) {
+            com_pump_messages();
+        }
         return Value{Integer{}};
     }
     if (name == "callbyname") {
