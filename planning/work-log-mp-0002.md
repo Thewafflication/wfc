@@ -10,13 +10,13 @@ rest of MP-0002's intrinsic-function surface, the full numeric type system,
 fixed-size arrays, a minimal object-reference stub, user-defined procedures,
 and a minimal class-module foundation.
 
-**Period:** 2026-08-29 through 2026-09-22 (spanning multiple sessions).
+**Period:** 2026-08-29 through 2026-10-10 (spanning multiple sessions).
 
 **Starting baseline:** `89aff7f` — "Pre-authorize local cmake/ctest/wfc runs".
 
 **Author:** Claude (Overlord cross-project assistant), on behalf of the owner.
 
-**Status:** Ready for closure (pending owner approval; see "Closeout audit")
+**Status:** Closed 2026-10-10 (see [MP-0002 closeout record](MP-0002-closeout.md))
 
 This log records the chronological execution of every session's work against
 MP-0002 to date. It supplements, and does not replace, the accepted MP-0002
@@ -2237,6 +2237,7 @@ belong to MP-0004. Multi-module `.vbp` loading, `Implements`, and events were
 delivered during MP-0002 hardening, so MP-0003 should be re-scoped against them
 (`REQ-0283`).
 
-**Next responsible party:** the owner, to approve closure of MP-0002 and
-baseline the detailed MP-0003 plan; absent that, a subsequent assistant session
-continuing the corpus-driven hardening.
+**Next responsible party:** work continues under MP-0003
+(`MP-0003-classes-projects-automation.md`). The limits above are allocated in
+the closeout record: MP-0003 (language), MP-0004 (dialogs, `SendKeys`), MP-0008
+(speed).

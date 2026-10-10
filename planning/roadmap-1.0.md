@@ -135,7 +135,12 @@ delivered under `REQ-0200`/`REQ-0203`–`REQ-0206`.
 - `.cls` and component project metadata, and loading a real multi-file VB6
   project (`.vbp`) instead of MP-0002's synthetic `wfc --class` CLI flag; and
 - API/behavior closure for `App`, `Global`, `Screen`, `Clipboard`, `Licenses`,
-  `Control`, and `VBControlExtender` as applicable.
+  `Control`, and `VBControlExtender` as applicable; and
+- language limits carried forward from MP-0002 (see its closeout record):
+  per-module `Option Explicit`, global members of `VB_GlobalNameSpace`
+  classes, and string-valued `#Const` conditional-compilation symbols.
+
+Detailed plan: [MP-0003](MP-0003-classes-projects-automation.md).
 
 ### Exit Gate
 
@@ -157,7 +162,9 @@ using the intrinsic-control subset retained by the 1.0 profile.
   accessibility, drawing, and printing;
 - containers, z-order, tab order, control arrays, data binding where retained,
   timers, drag/drop, and intrinsic-control families; and
-- execution of `TC-0106` through `TC-0131` plus service-class probes.
+- execution of `TC-0106` through `TC-0131` plus service-class probes; and
+- the user-interaction surface carried forward from MP-0002: `MsgBox` and
+  `InputBox` dialogs (including the preserved help arguments) and `SendKeys`.
 
 ### Exit Gate
 
@@ -246,7 +253,8 @@ paths.
 - project references, resources, manifests, icons, version information,
   deployment, registration, command-line tools, and incremental builds;
 - x86, x64, and ARM64 CI; Unicode/ANSI, DPI, accessibility, locale, security,
-  and performance matrices; and
+  and performance matrices, including interpreter execution speed carried
+  forward from MP-0002 (statement text is re-parsed on each loop pass); and
 - migration and compatibility diagnostics for removed or unsupported features.
 
 ### Exit Gate

@@ -22,18 +22,18 @@
 
 ## Active Milestone
 
-MP-0002 — Core VB/VBA Language Execution (`0.2.0`), per the
-[roadmap](roadmap-1.0.md#mp-0002--core-vbvba-language-execution-020). No
-separate detailed MP-0002 plan document has been baselined; work has instead
-proceeded increment by increment against the roadmap's outcome and principal-
-work statement, with each increment recorded as it lands:
+MP-0003 — Classes, Projects, and Automation (`0.3.0`), per the
+[MP-0003 plan](MP-0003-classes-projects-automation.md) and the
+[roadmap](roadmap-1.0.md). Progress is recorded in the
+[MP-0003 work log](work-log-mp-0003.md).
 
-- [Work log — MP-0002](work-log-mp-0002.md) is the chronological record of
-  every increment (89 numbered increments plus the 2026-10-10 hardening and closeout audit), grouped by theme in its own contents section.
-- [Language requirements index](../requirements/language/README.md) is the
-  authoritative list of what has actually been specified and implemented —
-  `REQ-0069` through the current `REQ-0283` — each entry summarizing its own
-  requirement, diagnostics, scope boundary, and verification evidence.
+MP-0002 — Core VB/VBA Language Execution (`0.2.0`) closed on 2026-10-10 with
+documented deferrals; see the [MP-0002 closeout record](MP-0002-closeout.md)
+and its [work log](work-log-mp-0002.md) (89 numbered increments plus the
+2026-10-10 hardening and closeout audit). The
+[language requirements index](../requirements/language/README.md) is the
+authoritative list of what has been specified and implemented, `REQ-0069`
+through the current `REQ-0283`.
 
 Detailed successor milestone plans shall be baselined during predecessor
 closeout. The roadmap fixes their objective, target version, dependencies, and
