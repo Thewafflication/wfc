@@ -129,6 +129,7 @@ namespace {
             // Keep `Attribute X.VB_UserMemId = 0`: the evaluator reads it as
             // the class's default member.
             blank = lower.find("vb_usermemid") == std::string::npos &&
+                    lower.find("vb_predeclaredid") == std::string::npos &&
                     !(keep_vb_name && lower.rfind("attribute vb_name", 0) == 0);
             if (lower.rfind("attribute vb_name", 0) == 0) {
                 const auto first = body.find('"');

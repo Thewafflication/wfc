@@ -194,6 +194,41 @@ void Interpreter::scan_module_names() {
     }
 }
 
+void Interpreter::register_predeclared_instances() {
+    auto& module = module_scope();
+    for (const auto& cls : class_sources_) {
+        bool predeclared = false;
+        std::size_t position = 0;
+        const std::string_view text = cls.source;
+        while (position < text.size() && !predeclared) {
+            auto end = text.find('\n', position);
+            if (end == std::string_view::npos) {
+                end = text.size();
+            }
+            std::string line;
+            for (const char c : text.substr(position, end - position)) {
+                if (c != ' ' && c != '\t' && c != '\r') {
+                    line.push_back(ascii_lower(c));
+                }
+            }
+            position = end + 1U;
+            predeclared = line == "attributevb_predeclaredid=true";
+        }
+        std::string key;
+        for (const char c : cls.name) {
+            key.push_back(ascii_lower(c));
+        }
+        if (!predeclared || !class_definitions_.contains(key) ||
+            module.variables.contains(key)) {
+            continue;
+        }
+        module.variables.emplace(key, Value{Nothing{}});
+        module.object_variables.insert(key);
+        module.object_class_names.emplace(key, key);
+        module.auto_new_variables.insert(key);
+    }
+}
+
 void Interpreter::scan_enum_names() {
     scan_enum_names_in(source_);
     for (const auto& module : class_sources_) {
@@ -561,9 +596,9 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             continue;
         }
 
-        if (consume_keyword("option")) {
-            // `Option Explicit` (and friends) at the top of a class
-            // module file; accepted and ignored.
+        if (consume_keyword("option") || consume_keyword("attribute")) {
+            // `Option Explicit` (and friends) and file-level `Attribute`
+            // lines at the top of a class module file; accepted and ignored.
             skip_rest_of_line();
             continue;
         }

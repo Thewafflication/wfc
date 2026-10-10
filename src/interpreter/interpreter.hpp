@@ -404,6 +404,9 @@ public:
     void scan_deftypes();
 
     void scan_module_names();
+    // `Attribute VB_PredeclaredId = True` classes get a global default
+    // instance named after the class.
+    void register_predeclared_instances();
 
     void scan_enum_names();
 

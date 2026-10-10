@@ -1,0 +1,4 @@
+Type=Exe
+Class=Util; 122-predeclared-class.cls.util
+Module=Main; 122-predeclared-class.bas
+Startup="Sub Main"

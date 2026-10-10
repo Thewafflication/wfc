@@ -146,6 +146,7 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     if (!scan_classes()) {
         return std::move(error_);
     }
+    register_predeclared_instances();
     if (!scan_procedures()) {
         return std::move(error_);
     }
