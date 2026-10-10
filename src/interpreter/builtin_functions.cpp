@@ -2742,11 +2742,12 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // The Variant-returning string functions propagate Null; their `$`
         // forms reject it (error 94).
         static const std::set<std::string, std::less<>> null_propagating = {
-            "trim", "ltrim",      "rtrim", "ucase",  "lcase", "left", "right",
-            "mid",  "strreverse", "space", "string", "chr",   "chrw"};
+            "trim",  "ltrim", "rtrim", "ucase",  "lcase", "left",
+            "right", "mid",   "space", "string", "chr",   "chrw"};
         static const std::set<std::string, std::less<>> null_rejecting = {
-            "trim$",  "ltrim$", "rtrim$", "ucase$",  "lcase$", "left$",
-            "right$", "mid$",   "space$", "string$", "chr$",   "chrw$"};
+            "trim$",  "ltrim$", "rtrim$", "ucase$",    "lcase$", "left$",
+            "right$", "mid$",   "space$", "string$",   "chr$",   "chrw$",
+            "asc",    "ascb",   "ascw",   "strreverse"};
         const std::string key(identifier);
         if (null_propagating.contains(key)) {
             return Value{Null{}};
