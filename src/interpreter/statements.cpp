@@ -2889,7 +2889,8 @@ bool Interpreter::parse_inline_statement_core() {
             "raiseevent", "mid",      "savesetting", "deletesetting", "chdrive",
             "unlock",     "lock",     "reset",       "load",          "unload",
             "beep",       "doevents", "date",        "time",          "dim",
-            "static",     "const",    "error",       "debug"};
+            "static",     "const",    "error",       "debug",         "for",
+            "do",         "while",    "call"};
         if (word.has_value() &&
             (probe_type_character == '\0' ||
              (probe_type_character == '$' && *word == "mid")) &&
