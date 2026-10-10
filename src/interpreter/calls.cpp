@@ -73,6 +73,12 @@ std::optional<Value> Interpreter::instantiate_class(
                   offset);
         return std::nullopt;
     }
+    // A user-defined type that contains itself would otherwise recurse
+    // without end while its fields are created.
+    if (stack_nearly_exhausted()) {
+        set_error("WFC0123", "procedure call nesting is too deep", offset);
+        return std::nullopt;
+    }
     auto instance = std::make_shared<InstanceData>();
     instance->class_name = class_name;
     for (const auto& [constant_name, constant_value] :
