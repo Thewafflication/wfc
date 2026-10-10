@@ -1066,6 +1066,7 @@ int main() {
         "Function\n"
         "Print Add(1)",
         "WFC0072");
+    expect_program_failure("Print CreateObject()", "WFC0072");
     expect_program_failure("Sub Foo()\nEnd Sub\nSub Foo()\nEnd Sub", "WFC0119");
     expect_program_failure("Call Bar()", "WFC0015");
     expect_program_failure("Exit Sub", "WFC0124");

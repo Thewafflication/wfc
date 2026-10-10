@@ -247,14 +247,16 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         return Value{fallback != nullptr ? *fallback : std::string{}};
     }
     if (name == "createobject" || name == "getobject") {
-        if (!arity(0, 2)) {
+        if (!arity(name == "createobject" ? 1U : 0U, 2U)) {
             return std::nullopt;
         }
         if (!execute_) {
             return Value{Nothing{}};
         }
         if (name == "createobject") {
-            if (const auto* progid = std::get_if<std::string>(&arguments[0])) {
+            if (const auto* progid =
+                    count > 0U ? std::get_if<std::string>(&arguments[0])
+                               : nullptr) {
                 std::string lowered;
                 for (const char c : *progid) {
                     lowered.push_back(ascii_lower(c));
