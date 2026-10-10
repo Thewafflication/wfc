@@ -751,6 +751,8 @@ private:
         long record_length{128};
         std::string path;  // normalized, for the already-open check
         bool shared{};     // opened with the Shared clause
+        long width{};      // Width # line width; 0 = unlimited
+        long column{};     // characters written on the current line
     };
 
     [[nodiscard]] static std::FILE* open_file(const std::string& path,

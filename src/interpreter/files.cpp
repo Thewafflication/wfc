@@ -50,7 +50,24 @@ bool Interpreter::write_to_file(const Integer number, const std::string& text,
     if (file->mode == 1) {
         return raise_runtime(54, "Bad file mode", offset);
     }
-    const std::string bytes = text_to_ansi_bytes(text);
+    std::string bytes = text_to_ansi_bytes(text);
+    if (file->width > 0) {
+        // Width # wraps the line once it holds `width` characters.
+        std::string wrapped;
+        for (const char c : bytes) {
+            if (c == '\n') {
+                file->column = 0;
+            } else if (c != '\r') {
+                if (file->column >= file->width) {
+                    wrapped += "\r\n";
+                    file->column = 0;
+                }
+                ++file->column;
+            }
+            wrapped.push_back(c);
+        }
+        bytes = std::move(wrapped);
+    }
     if (!bytes.empty() && std::fwrite(bytes.data(), 1, bytes.size(),
                                       file->handle) != bytes.size()) {
         return raise_runtime(57, "Device I/O error", offset);

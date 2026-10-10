@@ -888,8 +888,39 @@ bool Interpreter::parse_statement_core() {
     {
         // File width / record locking: accepted, no effect.
         const auto before_lock = offset_;
-        if (consume_keyword("width") || consume_keyword("lock") ||
-            consume_keyword("unlock")) {
+        if (consume_keyword("width")) {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '#') {
+                Integer number{};
+                if (!parse_hash_file_number(number)) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!consume(',')) {
+                    set_error("WFC0014", "expected comma after file number",
+                              offset_);
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                auto columns = parse_expression();
+                if (!columns.has_value()) {
+                    return false;
+                }
+                if (execute_) {
+                    auto* const file = find_open_file(number, before_lock);
+                    if (file == nullptr) {
+                        return false;
+                    }
+                    file->width = whole_value(*columns).value_or(0);
+                    if (file->width == 255) {
+                        file->width = 0;  // 255 means no wrapping
+                    }
+                }
+                return true;
+            }
+            offset_ = before_lock;
+        }
+        if (consume_keyword("lock") || consume_keyword("unlock")) {
             skip_horizontal_whitespace();
             if (!at_end() && current() != '=' && current() != '(' &&
                 current() != '.') {
