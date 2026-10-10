@@ -1441,6 +1441,24 @@ bool Interpreter::scan_procedures() {
                 external.is_external = true;
                 external.return_type_index = Value{Integer{}}.index();
                 external.return_is_variant = true;
+                // `Alias "Export"` names the DLL entry point that is bound.
+                const auto line_end =
+                    std::min(source_.find('\n', offset_), source_.size());
+                std::string rest;
+                for (std::size_t k = offset_; k < line_end; ++k) {
+                    rest.push_back(ascii_lower(source_[k]));
+                }
+                const auto alias_at = rest.find(" alias ");
+                if (alias_at != std::string::npos) {
+                    const auto open = rest.find('"', alias_at);
+                    const auto close = open == std::string::npos
+                                           ? std::string::npos
+                                           : rest.find('"', open + 1U);
+                    if (close != std::string::npos) {
+                        external.external_name =
+                            rest.substr(open + 1U, close - open - 1U);
+                    }
+                }
                 procedures_.emplace(*declared, std::move(external));
             }
             skip_rest_of_line();

@@ -174,6 +174,9 @@ struct ProcedureDef {
     bool return_is_array{};
     // REQ-0266: a `Declare` d external routine; calling it raises error 453.
     bool is_external{};
+    // The lower-cased export a `Declare ... Alias "name"` binds to; empty when
+    // the routine is declared under its own name.
+    std::string external_name;
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};

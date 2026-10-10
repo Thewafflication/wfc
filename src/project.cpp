@@ -1,6 +1,8 @@
 #include "wfc/project.hpp"
 #include <cstdint>
 
+#include "module_linker.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -196,6 +198,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         return project;
     };
     std::vector<std::filesystem::path> modules;
+    std::vector<std::string> module_declared_names;
     std::vector<std::pair<std::string, std::filesystem::path>> classes;
     bool startup_sub_main = true;
 
@@ -232,6 +235,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                         normalize(trimmed(value.substr(semicolon + 1)));
                     if (key == "module") {
                         modules.push_back(file);
+                        module_declared_names.push_back(name);
                     } else {
                         classes.emplace_back(name, file);
                     }
@@ -260,6 +264,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
             }
         } else if (extension == ".bas") {
             modules.push_back(path);
+            module_declared_names.emplace_back();
         } else if (extension == ".cls") {
             classes.emplace_back(std::string{}, path);
         } else {
@@ -268,26 +273,48 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
     }
 
     bool has_main = false;
-    for (const auto& module_path : modules) {
+    std::vector<std::string> module_texts;
+    std::vector<std::string> module_names;
+    for (std::size_t index = 0; index < modules.size(); ++index) {
+        const auto& module_path = modules[index];
         std::string text;
         if (!read_file(module_path, text)) {
             return fail("cannot read module: " + module_path.string());
         }
-        static_cast<void>(strip_file_header(text, /*keep_vb_name=*/true));
+        std::string name = strip_file_header(text, /*keep_vb_name=*/true);
+        if (name.empty()) {
+            name = module_declared_names[index];
+        }
+        if (name.empty()) {
+            name = module_path.stem().string();
+        }
         has_main = has_main || declares_sub_main(text);
-        project.module_spans.push_back(LoadedProject::ModuleSpan{
-            module_path.string(), static_cast<std::size_t>(std::count(
-                                      project.module_source.begin(),
-                                      project.module_source.end(), '\n')) +
-                                      1U});
-        project.module_source += text;
-        project.module_source += "\n";
+        module_texts.push_back(std::move(text));
+        module_names.push_back(std::move(name));
     }
+    std::vector<std::string> class_texts;
     for (const auto& [declared_name, class_path] : classes) {
         std::string text;
         if (!read_file(class_path, text)) {
             return fail("cannot read class: " + class_path.string());
         }
+        class_texts.push_back(std::move(text));
+    }
+    // Modules keep separate namespaces and one merged Option header.
+    project.module_source =
+        detail::link_modules(module_texts, module_names, class_texts);
+    for (std::size_t index = 0; index < modules.size(); ++index) {
+        project.module_spans.push_back(LoadedProject::ModuleSpan{
+            modules[index].string(), static_cast<std::size_t>(std::count(
+                                         project.module_source.begin(),
+                                         project.module_source.end(), '\n')) +
+                                         1U});
+        project.module_source += module_texts[index];
+        project.module_source += "\n";
+    }
+    std::size_t class_index = 0;
+    for (const auto& [declared_name, class_path] : classes) {
+        std::string text = std::move(class_texts[class_index++]);
         std::string name = strip_file_header(text);
         if (!declared_name.empty()) {
             name = declared_name;

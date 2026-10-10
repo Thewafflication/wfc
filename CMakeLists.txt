@@ -36,6 +36,7 @@ target_sources(
     src/interpreter/vb_text.hpp
     src/interpreter/vb_value.hpp
     src/large_stack.cpp
+    src/module_linker.cpp
     src/project.cpp
   PUBLIC
     FILE_SET HEADERS

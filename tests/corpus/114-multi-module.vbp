@@ -1,0 +1,4 @@
+Type=Exe
+Module=ModA; 114-multi-module.moda.bas
+Module=ModB; 114-multi-module.modb.bas
+Startup="Sub Main"
