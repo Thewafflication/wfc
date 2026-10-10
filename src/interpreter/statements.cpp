@@ -1175,6 +1175,22 @@ bool Interpreter::parse_print_statement() {
     }
     std::string text;
     bool newline = true;
+    // The print column (0-based) the next item lands in: after any text an
+    // earlier `Print ...;` left on the current console line, then `text`.
+    const auto print_column = [&]() -> std::size_t {
+        const auto last_break = text.rfind('\n');
+        if (last_break != std::string::npos) {
+            return utf16_length(text.substr(last_break + 1U));
+        }
+        std::size_t base = 0U;
+        if (!to_file && !discard_print_ && output_line_open_) {
+            const auto line_start = output_.rfind('\n');
+            base = utf16_length(line_start == std::string::npos
+                                    ? output_
+                                    : output_.substr(line_start + 1U));
+        }
+        return base + utf16_length(text);
+    };
     while (true) {
         skip_horizontal_whitespace();
         if (at_statement_end()) {
@@ -1194,7 +1210,7 @@ bool Interpreter::parse_print_statement() {
         }
         if (current() == ',') {
             advance();
-            text.append(14U - utf16_length(text) % 14U, ' ');
+            text.append(14U - print_column() % 14U, ' ');
             newline = false;
             continue;
         }
@@ -1226,13 +1242,26 @@ bool Interpreter::parse_print_statement() {
                 if (execute_ && *count > 0) {
                     if (is_spc) {
                         text.append(static_cast<std::size_t>(*count), ' ');
-                    } else if (const auto column = utf16_length(text);
-                               static_cast<std::size_t>(*count - 1) > column) {
-                        text.append(
-                            static_cast<std::size_t>(*count - 1) - column, ' ');
+                    } else {
+                        // Tab(n) moves to column n; from a column past n it
+                        // starts a new line first.
+                        const auto target =
+                            static_cast<std::size_t>(*count - 1);
+                        auto column = print_column();
+                        if (column > target) {
+                            text.push_back('\n');
+                            column = 0U;
+                        }
+                        text.append(target - column, ' ');
                     }
                 }
                 newline = true;
+                continue;
+            }
+            if (is_tab) {
+                // A bare `Tab` advances to the next print zone.
+                text.append(14U - print_column() % 14U, ' ');
+                newline = false;
                 continue;
             }
             offset_ = save;
