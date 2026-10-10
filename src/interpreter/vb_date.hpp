@@ -631,6 +631,10 @@ struct DateParts {
         } else if (lowered.compare(i, 5, "ttttt") == 0) {
             out += render_time_part(parts);
             i += 5;
+        } else if (lowered[i] == 'c' && i + 1U >= lowered.size()) {
+            // `c` alone is the general date and time (ddddd ttttt).
+            out += render_date(serial);
+            ++i;
         } else {
             out.push_back(style[i]);
             ++i;

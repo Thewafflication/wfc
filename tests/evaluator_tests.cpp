@@ -2843,6 +2843,8 @@ int main() {
         "On Error Resume Next\nError 5\nOn Error GoTo -1\nPrint Err.Number",
         "0");
     expect_program_success("Print FormatPercent(0.125, 0)", "13%");
+    expect_program_success("Print Format(#3/4/2021 5:06:07 PM#, \"c\")",
+                           "3/4/2021 5:06:07 PM");
     expect_program_success(
         "Select Case Empty\nCase \"b\": Print 1\nCase Else: Print 2\nEnd "
         "Select",
