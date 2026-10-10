@@ -1,6 +1,9 @@
 # Checks that requirements/language/diagnostics.md lists exactly the WFC
 # codes the source raises.
 # Usage: cmake -DSOURCE_DIR=<repo root> -P check_diagnostic_catalog.cmake
+# Script mode starts with the oldest policies; IN_LIST below needs CMP0057.
+cmake_policy(SET CMP0057 NEW)
+
 file(GLOB_RECURSE sources "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/src/*.hpp")
 set(raised "")
 foreach(source IN LISTS sources)
