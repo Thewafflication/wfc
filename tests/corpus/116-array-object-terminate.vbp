@@ -1,0 +1,4 @@
+Type=Exe
+Class=Probe; 116-array-object-terminate.cls.probe
+Module=Main; 116-array-object-terminate.bas
+Startup="Sub Main"

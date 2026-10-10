@@ -2700,6 +2700,13 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         }
     }
 
+    // Objects that did not survive the resize are released; ones carried
+    // into the new storage are still referenced, so they are left alone.
+    for (auto& old_element : array.elements) {
+        if (!terminate_if_last_reference(old_element)) {
+            return false;
+        }
+    }
     array.elements = std::move(new_elements);
     if (new_dimensions.size() == 1U) {
         array.lower_bound = new_dimensions.front().first;
@@ -2742,6 +2749,9 @@ bool Interpreter::parse_erase_statement() {
             set_error("WFC0146", "Erase requires an array argument",
                       target.second);
             return false;
+        }
+        if (!terminate_if_last_reference(*variable.value)) {
+            return false;  // release the objects the array holds
         }
         auto& array = std::get<ArrayValue>(*variable.value);
         if (array.is_dynamic) {

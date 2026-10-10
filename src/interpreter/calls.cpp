@@ -878,6 +878,18 @@ std::optional<Value> Interpreter::me_value(const std::size_t offset) {
 }
 
 bool Interpreter::terminate_if_last_reference(Value& value) {
+    if (auto* const array = std::get_if<ArrayValue>(&value)) {
+        // The objects an array holds are released with the array.
+        for (auto& element : array->elements) {
+            if (!terminate_if_last_reference(element)) {
+                return false;
+            }
+            if (std::holds_alternative<ObjectInstance>(element)) {
+                element = Value{Nothing{}};
+            }
+        }
+        return true;
+    }
     const auto* const instance_value = std::get_if<ObjectInstance>(&value);
     if (instance_value == nullptr || instance_value->data.use_count() != 1) {
         return true;

@@ -1,0 +1,3 @@
+Private Sub Class_Terminate()
+    Print "probe terminated"
+End Sub

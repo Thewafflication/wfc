@@ -1,0 +1,9 @@
+in Work
+probe terminated
+after Work
+probe terminated
+after Erase
+probe terminated
+after shrink
+probe terminated
+after ReDim
