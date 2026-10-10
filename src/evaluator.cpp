@@ -225,8 +225,17 @@ public:
                 if (!text.empty() && text.back() == '\r') {
                     text.pop_back();
                 }
-                if (const auto c = text.find('\''); c != std::string::npos) {
-                    text.resize(c);
+                {
+                    // A comment starts at an apostrophe outside a string.
+                    bool in_string = false;
+                    for (std::size_t c = 0; c < text.size(); ++c) {
+                        if (text[c] == '"') {
+                            in_string = !in_string;
+                        } else if (text[c] == '\'' && !in_string) {
+                            text.resize(c);
+                            break;
+                        }
+                    }
                 }
                 std::string lower;
                 for (const char ch : text) {
@@ -353,6 +362,24 @@ private:
         {"win32", -1}, {"win16", 0}, {"mac", 0},
         {"vba6", -1},  {"vba7", -1}, {"vbaver", 6}};
 
+    // String values (`#Const Name = "text"`) are interned: the expression
+    // value is `string_tag | index`, which compares equal exactly when the
+    // text is equal; two string values order by their text.
+    static constexpr long long string_tag = 1LL << 50;
+    std::vector<std::string> strings_;
+    [[nodiscard]] long long intern(const std::string& text) {
+        for (std::size_t k = 0; k < strings_.size(); ++k) {
+            if (strings_[k] == text) {
+                return string_tag | static_cast<long long>(k);
+            }
+        }
+        strings_.push_back(text);
+        return string_tag | static_cast<long long>(strings_.size() - 1U);
+    }
+    [[nodiscard]] static bool is_string(const long long value) {
+        return (value & string_tag) != 0 && value > 0;
+    }
+
     // Recursive-descent evaluation over: Or/Xor < And < Not < comparison <
     // + - < * / Mod < unary minus < primary.
     struct Parser {
@@ -459,7 +486,16 @@ private:
             if (!right) {
                 return right;
             }
-            const long long l = *left, r = *right;
+            long long l = *left, r = *right;
+            if (is_string(l) && is_string(r)) {
+                const auto& lt = owner.strings_[static_cast<std::size_t>(
+                    l & (string_tag - 1))];
+                const auto& rt = owner.strings_[static_cast<std::size_t>(
+                    r & (string_tag - 1))];
+                const int order = lt.compare(rt);
+                l = order < 0 ? -1 : (order > 0 ? 1 : 0);
+                r = 0;
+            }
             const bool result = op == 1   ? l == r
                                 : op == 2 ? l != r
                                 : op == 3 ? l < r
@@ -543,6 +579,27 @@ private:
                 }
                 ++i;
                 return r;
+            }
+            if (text[i] == '"') {
+                std::string literal;
+                ++i;
+                while (i < text.size()) {
+                    if (text[i] == '"') {
+                        if (i + 1 < text.size() && text[i + 1] == '"') {
+                            literal.push_back('"');
+                            i += 2;
+                            continue;
+                        }
+                        break;
+                    }
+                    literal.push_back(text[i++]);
+                }
+                if (i >= text.size()) {
+                    error = "unterminated string";
+                    return std::nullopt;
+                }
+                ++i;
+                return owner.intern(literal);
             }
             if (std::isdigit(static_cast<unsigned char>(text[i])) != 0) {
                 long long v = 0;

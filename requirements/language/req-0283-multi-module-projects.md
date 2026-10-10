@@ -25,6 +25,9 @@
   `RevisionVer` and the `Version*` strings of the `.vbp` are the `App` object's
   `Title`, `EXEName`, `Major`, `Minor`, `Revision`, `CompanyName`, `ProductName`,
   `FileDescription`, `Comments` and `LegalCopyright`.
+- **String conditional constants.** `#Const Name = "text"` holds a string; `#If` compares
+  strings with `=`, `<>`, `<`, `>`, `<=` and `>=` (by character code). String values
+  cannot be concatenated or combined arithmetically.
 - **Label rule.** An indented `Name:` whose name is a procedure is a call followed
   by another statement, not a label.
 
@@ -37,4 +40,5 @@
 `TC-MP0002-corpus-114-multi-module`, `-108-app-metadata`, `-121-qualified-enum-type`,
 `-122-predeclared-class`, `-124-chained-objects`, `-130-class-declare`,
 `-131-class-private-type`, `-126-recursive-descent-calc` and
-`-139-per-module-explicit`.
+`-139-per-module-explicit` and
+`-143-const-string`.
