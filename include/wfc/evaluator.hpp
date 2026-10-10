@@ -58,6 +58,9 @@ struct EvaluationOptions final {
     // of to the whole text. Class modules always use their own text.
     bool per_module_option_explicit{};
     std::vector<std::pair<std::size_t, std::size_t>> option_explicit_ranges;
+    // Path of a compiled `.res` file that `LoadResString` and `LoadResData`
+    // read; empty when the project has none.
+    std::string resource_file;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

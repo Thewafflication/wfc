@@ -379,7 +379,7 @@ bool Interpreter::parse_assignment(std::string identifier,
             if (const auto global =
                     global_namespace_instance(identifier, true)) {
                 // A public property or field of a VB_GlobalNameSpace class
-                // (REQ-0287).
+                // (REQ-0283).
                 offset_ = identifier_offset;
                 return parse_member_assignment(*global, identifier_offset);
             }

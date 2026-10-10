@@ -2928,7 +2928,7 @@ std::optional<bool> Interpreter::parse_bare_call(
                 }
             }
             if (const auto global = global_namespace_instance(identifier)) {
-                // A public method of a VB_GlobalNameSpace class (REQ-0287).
+                // A public method of a VB_GlobalNameSpace class (REQ-0283).
                 offset_ = identifier_offset;
                 const auto result = parse_member_access_after_dot(
                     *global, identifier_offset, /*require_function=*/false);

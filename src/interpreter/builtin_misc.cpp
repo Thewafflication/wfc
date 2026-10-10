@@ -125,6 +125,8 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "strptr",
                                                        "wfcregexmatches",
                                                        "wfcregexreplace",
+                                                       "loadresstring",
+                                                       "loadresdata",
                                                        "wfcsys",
                                                        "wfcsysfont",
                                                        "wfcstore"};
@@ -177,6 +179,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         }
         return Value{v};
     };
+    if (name == "loadresstring" || name == "loadresdata") {
+        return load_resource_builtin(name, arguments, offset);
+    }
     if (name == "doevents" || name == "imestatus") {
         if (!arity(0, 0)) {
             return std::nullopt;

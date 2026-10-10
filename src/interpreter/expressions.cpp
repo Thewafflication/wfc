@@ -1446,7 +1446,7 @@ std::optional<Value> Interpreter::parse_primary_base() {
             }
             if (type_character == '\0' && array_variable.value == nullptr) {
                 // `Name(args)` for a public member of a VB_GlobalNameSpace
-                // class (REQ-0287).
+                // class (REQ-0283).
                 if (const auto global =
                         global_namespace_instance(*identifier)) {
                     offset_ = identifier_offset;
@@ -1547,7 +1547,7 @@ std::optional<Value> Interpreter::parse_primary_base() {
                     }
                 }
             }
-            // A public member of a VB_GlobalNameSpace class (REQ-0287).
+            // A public member of a VB_GlobalNameSpace class (REQ-0283).
             if (type_character == '\0') {
                 if (const auto global =
                         global_namespace_instance(*identifier)) {

@@ -1,0 +1,4 @@
+Type=Exe
+Module=Main; 145-resources.bas
+ResFile32="145-resources.res"
+Startup="Sub Main"

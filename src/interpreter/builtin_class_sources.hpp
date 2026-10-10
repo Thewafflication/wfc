@@ -221,6 +221,19 @@ Set ActiveControl = Nothing
 End Property
 )VB";
 
+inline constexpr std::string_view kFormsSource =
+    R"VB(Public Property Get Count() As Long
+Count = 0
+End Property
+Public Property Get Item(ByVal Index As Long) As Object
+Attribute Item.VB_UserMemId = 0
+Err.Raise 9, , "Subscript out of range"
+End Property
+Public Function WfcItems() As Variant
+WfcItems = Array()
+End Function
+)VB";
+
 inline constexpr std::string_view kAppSource =
     R"VB(Public Property Get Path() As String
 Path = CurDir$

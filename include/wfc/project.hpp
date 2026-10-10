@@ -34,6 +34,9 @@ struct LoadedProject final {
     // True when the ranges above are authoritative (a linked multi-module
     // project); false for a single module, which carries its own Option line.
     bool per_module_option_explicit{};
+    // The project's `ResFile32` resource file (REQ-0287), resolved against the
+    // project directory; empty when none.
+    std::string resource_file;
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

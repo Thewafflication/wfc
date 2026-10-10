@@ -25,3 +25,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #4 | Construction | Late-bound COM Automation client over IDispatch: CreateObject/GetObject, members, default member, put/putref, ByRef, For Each, errors (`REQ-0286`); corpus 142 | CTest 296/296 |
 | 2026-10-10 #5 | Construction | String-valued `#Const` symbols and string comparison in `#If` (`REQ-0283`); corpus 143 | CTest 297/297 |
 | 2026-10-10 #6 | Construction | `VB_GlobalNameSpace` classes (unqualified public members); `VERSION`/`BEGIN` header detection limited to the file header (`REQ-0283`); corpus 144 | CTest 298/298 |
+| 2026-10-10 #7 | Construction | `ResFile32` resource files with `LoadResString`/`LoadResData`; empty `Forms` collection (`REQ-0287`); corpus 145–146 | CTest 300/300 |

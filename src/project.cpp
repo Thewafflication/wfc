@@ -317,6 +317,13 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                         value = value.substr(1, value.size() - 2U);
                     }
                     project.app_properties[app_key] = value;
+                } else if (key == "resfile32") {
+                    if (value.size() >= 2U && value.front() == '"' &&
+                        value.back() == '"') {
+                        value = value.substr(1, value.size() - 2U);
+                    }
+                    project.resource_file =
+                        (directory / normalize(value)).string();
                 } else if (key == "startup") {
                     if (!value.empty() && value.front() == '"') {
                         value = value.substr(

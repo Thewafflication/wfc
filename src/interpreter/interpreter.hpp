@@ -261,7 +261,7 @@ struct ClassDef {
     bool is_udt{};
     // The class module's own text declares `Option Explicit`.
     bool strict{};
-    // `Attribute VB_GlobalNameSpace = True` (REQ-0287): its public members are
+    // `Attribute VB_GlobalNameSpace = True` (REQ-0283): its public members are
     // reachable unqualified.
     bool global_namespace{};
     // REQ-0257: lowercased name of the member marked
@@ -452,6 +452,9 @@ public:
         explicit_ranges_ = std::move(ranges);
     }
     void set_app_properties(std::map<std::string, std::string> properties);
+    void set_resource_file(std::string path) {
+        resource_file_ = std::move(path);
+    }
 
     [[nodiscard]] std::string failing_module_name() const;
 
@@ -604,7 +607,7 @@ private:
     [[nodiscard]] bool scan_classes();
     [[nodiscard]] bool check_interface_completeness();
     // The predeclared instance of a `VB_GlobalNameSpace` class that has a
-    // public member `name` (REQ-0287), or nullopt.
+    // public member `name` (REQ-0283), or nullopt.
     [[nodiscard]] std::optional<Value> global_namespace_instance(
         const std::string& name, bool for_assignment = false);
     // Whether Option Explicit applies at the current position.
@@ -1535,6 +1538,10 @@ private:
     // (a method or property Get) with the parenthesized arguments.
     // Native stand-ins for common Win32 routines reached through `Declare`
     // (INI files, user and path queries); nullopt when `name` is unknown.
+    // LoadResString(id) / LoadResData(id, type) over the project's .res file.
+    [[nodiscard]] std::optional<Value> load_resource_builtin(
+        const std::string_view name, const std::vector<Value>& arguments,
+        std::size_t offset);
     [[nodiscard]] std::optional<Value> emulate_win32_call(
         std::string name, std::vector<CallArgument>& arguments,
         std::size_t offset);
@@ -1935,6 +1942,20 @@ private:
     bool variant_operand_seen_{};
     bool vb_number_spacing_{};
     std::map<std::string, std::string> app_properties_;
+    // `.res` file behind LoadResString/LoadResData (REQ-0287) and its parsed
+    // entries, read on first use.
+    std::string resource_file_;
+    struct ResourceEntry {
+        std::uint32_t type_id{};
+        std::string type_name;
+        std::uint32_t name_id{};
+        std::string name_text;
+        std::uint16_t language{};
+        std::string data;
+    };
+    bool resources_loaded_{};
+    std::vector<ResourceEntry> resources_;
+    [[nodiscard]] bool load_resources();
     std::string app_source_storage_;
     bool pending_static_procedure_{};
     bool variant_string_seen_{};

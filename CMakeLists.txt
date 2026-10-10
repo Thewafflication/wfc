@@ -28,6 +28,7 @@ target_sources(
     src/interpreter/expressions.cpp
     src/interpreter/files.cpp
     src/interpreter/winapi.cpp
+    src/interpreter/resources.cpp
     src/interpreter/com_automation.cpp
     src/interpreter/format.cpp
     src/interpreter/statements.cpp
