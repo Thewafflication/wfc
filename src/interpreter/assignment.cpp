@@ -723,6 +723,9 @@ bool Interpreter::parse_member_set_assignment(const Value base,
         return false;
     }
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
+    if (instance.com != nullptr) {
+        return com_set_member(base, *member_name, member_offset);
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
     const auto setter_iterator = class_def.property_set.find(*member_name);
@@ -1088,6 +1091,9 @@ bool Interpreter::parse_member_assignment(
         return false;
     }
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
+    if (instance.com != nullptr) {
+        return com_member_statement(base, *member_name, member_offset);
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
 
@@ -1353,6 +1359,10 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
             if (!at_end() && current() == '(') {
                 auto& instance_data =
                     *std::get<ObjectInstance>(*variable.value).data;
+                if (instance_data.com != nullptr) {
+                    return com_member_statement(*variable.value, std::string{},
+                                                saved_offset);
+                }
                 const auto class_iterator =
                     class_definitions_.find(instance_data.class_name);
                 if (class_iterator != class_definitions_.end() &&

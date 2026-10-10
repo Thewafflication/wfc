@@ -162,6 +162,12 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
         return std::move(error_);
     }
     register_predeclared_instances();
+    {
+        // The placeholder class behind COM Automation objects (REQ-0286).
+        ClassDef com_class;
+        com_class.display_name = "Object";
+        class_definitions_.try_emplace("wfccom", std::move(com_class));
+    }
     if (!scan_procedures()) {
         return std::move(error_);
     }

@@ -296,8 +296,22 @@ struct NativeStore {
     bool text_compare{false};
 };
 
+// A live COM Automation object (an `IDispatch`), held by an instance created
+// with `CreateObject`/`GetObject` or returned by one (REQ-0286).
+struct ComObject {
+    explicit ComObject(void* dispatch_pointer) : dispatch(dispatch_pointer) {}
+    ComObject(const ComObject&) = delete;
+    ComObject& operator=(const ComObject&) = delete;
+    ~ComObject();
+    void* dispatch{};
+    // Lower-cased member name -> DISPID, filled on first use.
+    std::unordered_map<std::string, long> dispids;
+};
+
 struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::string class_name;
+    // Non-null for a COM object; class_name is then "wfccom".
+    std::shared_ptr<ComObject> com;
     std::unique_ptr<NativeStore> store;
     Scope fields;
     // Objects handling this instance's events: the sink instance (weak, so
@@ -1517,6 +1531,32 @@ private:
     [[nodiscard]] std::optional<Value> emulate_win32_call(
         std::string name, std::vector<CallArgument>& arguments,
         std::size_t offset);
+    // Late-bound COM Automation client (REQ-0286); com_automation.cpp.
+    [[nodiscard]] std::optional<Value> com_create_object(
+        const std::string& progid, std::size_t offset);
+    [[nodiscard]] std::optional<Value> com_get_object(const std::string& path,
+                                                      const std::string& progid,
+                                                      std::size_t offset);
+    // `obj.member[(args)]` as an expression: the `.` and name are consumed.
+    [[nodiscard]] std::optional<Value> com_get_member(
+        InstanceData& instance, const std::string& name,
+        std::size_t member_offset);
+    // `obj.member ...` as a statement: a property assignment, a method call
+    // (with or without parentheses), or the start of a longer chain.
+    [[nodiscard]] bool com_member_statement(const Value& base,
+                                            const std::string& name,
+                                            std::size_t member_offset);
+    // `Set obj.member = expr`.
+    [[nodiscard]] bool com_set_member(const Value& base,
+                                      const std::string& name,
+                                      std::size_t member_offset);
+    // `obj(args)` / the default member.
+    [[nodiscard]] std::optional<Value> com_default_member(
+        InstanceData& instance, std::size_t member_offset);
+    // The elements `For Each` visits.
+    [[nodiscard]] std::optional<ArrayValue> com_enumerate(
+        InstanceData& instance, std::size_t offset);
+    [[nodiscard]] std::string com_type_name(InstanceData& instance);
     [[nodiscard]] std::optional<Value> call_default_member(
         const ObjectInstance& holder, std::size_t member_offset);
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(

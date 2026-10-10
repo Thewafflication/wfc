@@ -28,6 +28,7 @@ target_sources(
     src/interpreter/expressions.cpp
     src/interpreter/files.cpp
     src/interpreter/winapi.cpp
+    src/interpreter/com_automation.cpp
     src/interpreter/format.cpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
@@ -54,6 +55,9 @@ target_include_directories(
 )
 find_package(Threads REQUIRED)
 target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
+if(WIN32)
+  target_link_libraries(wfc_frontend PUBLIC ole32 oleaut32 user32 gdi32)
+endif()
 wfc_enable_strict_warnings(wfc_frontend)
 wsp_enable_hardening(wfc_frontend)
 

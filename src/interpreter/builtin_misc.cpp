@@ -359,6 +359,19 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                 }
             }
         }
+        if (name == "createobject") {
+            if (const auto* progid = std::get_if<std::string>(&arguments[0])) {
+                return com_create_object(*progid, offset);
+            }
+        } else {
+            const auto* path =
+                count > 0U ? std::get_if<std::string>(&arguments[0]) : nullptr;
+            const auto* progid =
+                count > 1U ? std::get_if<std::string>(&arguments[1]) : nullptr;
+            return com_get_object(path != nullptr ? *path : std::string{},
+                                  progid != nullptr ? *progid : std::string{},
+                                  offset);
+        }
         static_cast<void>(raise_runtime(
             429, "ActiveX component can't create object", offset));
         return std::nullopt;

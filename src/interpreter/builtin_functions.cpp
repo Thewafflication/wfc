@@ -1581,6 +1581,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // A live instance's TypeName is its own class's name (its
         // as-supplied spelling, not the lowercased lookup key).
         if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
+            if (instance->data->com != nullptr) {
+                return Value{com_type_name(*instance->data)};
+            }
             const auto& shown =
                 class_definitions_.at(instance->data->class_name).display_name;
             if (shown == "WfcDictionary") {

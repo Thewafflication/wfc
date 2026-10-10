@@ -400,3 +400,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0283 — Multi-module projects and class/module integration](req-0283-multi-module-projects.md)
 - [REQ-0284 — Implements interface completeness](req-0284-interface-completeness.md)
 - [REQ-0285 — Headless App, Clipboard and Screen service objects](req-0285-service-objects.md)
+- [REQ-0286 — Late-bound COM Automation client](req-0286-com-automation-client.md)

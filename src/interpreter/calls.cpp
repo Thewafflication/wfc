@@ -990,6 +990,9 @@ std::optional<Value> Interpreter::call_class_method(
 
 std::optional<Value> Interpreter::call_default_member(
     const ObjectInstance& holder, const std::size_t member_offset) {
+    if (holder.data->com != nullptr) {
+        return com_default_member(*holder.data, member_offset);
+    }
     const auto held_class = class_definitions_.find(holder.data->class_name);
     if (held_class == class_definitions_.end() ||
         held_class->second.default_member.empty()) {
@@ -1067,6 +1070,9 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
         return std::nullopt;
     }
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
+    if (instance.com != nullptr) {
+        return com_get_member(instance, *member_name, member_offset);
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
 

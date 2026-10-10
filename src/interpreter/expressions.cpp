@@ -1356,6 +1356,10 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 // REQ-0253/0257: a class's default member, `obj(1)`.
                 if (const auto* holder =
                         std::get_if<ObjectInstance>(array_variable.value)) {
+                    if (holder->data->com != nullptr) {
+                        return com_default_member(*holder->data,
+                                                  identifier_offset);
+                    }
                     const auto class_iterator =
                         class_definitions_.find(holder->data->class_name);
                     if (class_iterator != class_definitions_.end() &&

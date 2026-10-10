@@ -2515,8 +2515,16 @@ bool Interpreter::parse_for_each_statement() {
     // REQ-0243: For Each over a Collection (or any class exposing a
     // `WfcItems` method) iterates the array that method returns.
     if (execute_) {
-        if (const auto* holder =
-                std::get_if<ObjectInstance>(&*collection_value)) {
+        if (const auto* com_holder =
+                std::get_if<ObjectInstance>(&*collection_value);
+            com_holder != nullptr && com_holder->data->com != nullptr) {
+            auto elements = com_enumerate(*com_holder->data, collection_offset);
+            if (!elements.has_value()) {
+                return false;
+            }
+            collection_value = Value{std::move(*elements)};
+        } else if (const auto* holder =
+                       std::get_if<ObjectInstance>(&*collection_value)) {
             auto class_iterator =
                 class_definitions_.find(holder->data->class_name);
             // A class exposing a `NewEnum` method (VB_UserMemId -4): iterate
