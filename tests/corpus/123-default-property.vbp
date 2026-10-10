@@ -1,0 +1,4 @@
+Type=Exe
+Class=Box; 123-default-property.cls.box
+Module=Main; 123-default-property.bas
+Startup="Sub Main"

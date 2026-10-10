@@ -548,6 +548,24 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
         }
     }
+    // An object argument stands for its default property in every intrinsic
+    // that is not itself about objects (`Len(box)`, `UCase(box)`).
+    if (execute_) {
+        static const std::set<std::string, std::less<>> object_aware = {
+            "typename", "vartype", "isobject",  "isnull",     "isempty",
+            "isarray",  "iserror", "ismissing", "callbyname", "objptr",
+            "strptr",   "varptr",  "cvar",      "array",      "iif",
+            "choose",   "switch",  "setattr",   "isdate",     "lbound",
+            "ubound",   "wfcstore"};
+        if (!object_aware.contains(std::string(identifier))) {
+            for (auto& argument : arguments) {
+                if (std::holds_alternative<ObjectInstance>(argument) &&
+                    !resolve_default_value(argument, identifier_offset)) {
+                    return std::nullopt;
+                }
+            }
+        }
+    }
     // A Boolean or Empty Variant acts as the Integer it converts to in the
     // numeric functions; Null passes through the Variant-returning ones.
     if (execute_ && !arguments.empty() &&

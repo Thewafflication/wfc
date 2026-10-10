@@ -2264,7 +2264,7 @@ std::optional<Value> Interpreter::compare(const Value& left, const Value& right,
         return Value{Null{}};
     }
     // An object beside a value compares through its default member.
-    if (execute_ && (std::holds_alternative<ObjectInstance>(left) !=
+    if (execute_ && (std::holds_alternative<ObjectInstance>(left) ||
                      std::holds_alternative<ObjectInstance>(right))) {
         Value resolved_left = left;
         Value resolved_right = right;

@@ -453,6 +453,39 @@ bool Interpreter::parse_assignment(std::string identifier,
             }
             return assign_udt(*variable.value, *source, identifier_offset);
         }
+        // `obj = value` assigns the class's default property (a Property
+        // Let marked as the default member).
+        if (declared != variable.scope->object_class_names.end()) {
+            const auto declared_class =
+                class_definitions_.find(declared->second);
+            if (declared_class != class_definitions_.end() &&
+                !declared_class->second.default_member.empty()) {
+                const auto& class_def = declared_class->second;
+                const auto letter =
+                    class_def.property_let.find(class_def.default_member);
+                if (letter != class_def.property_let.end()) {
+                    if (!execute_) {
+                        skip_horizontal_whitespace();
+                        if (!consume('=')) {
+                            set_error("WFC0014", "expected assignment operator",
+                                      offset_);
+                            return false;
+                        }
+                        skip_horizontal_whitespace();
+                        return parse_expression().has_value();
+                    }
+                    if (const auto* instance =
+                            std::get_if<ObjectInstance>(variable.value)) {
+                        return invoke_property_let_or_set(
+                            *instance->data, class_def, letter->second,
+                            class_def.default_member, identifier_offset);
+                    }
+                    return raise_runtime(
+                        91, "Object variable or With block variable not set",
+                        identifier_offset);
+                }
+            }
+        }
         set_error("WFC0108", "object assignment requires Set",
                   identifier_offset);
         return false;
@@ -483,6 +516,11 @@ bool Interpreter::parse_assignment(std::string identifier,
         // retyping itself on each assignment (the agreed scalar-Variant
         // scope: no fixed-type enforcement for these variables).
         if (execute_) {
+            // Assigning an object with a default property to a Variant
+            // without Set takes the property's value.
+            if (!resolve_default_value(*value, identifier_offset)) {
+                return false;
+            }
             if (!terminate_if_last_reference(*variable.value)) {
                 return false;
             }
@@ -638,6 +676,13 @@ bool Interpreter::invoke_property_let_or_set(
     skip_horizontal_whitespace();
     auto value = parse_expression();
     if (!value.has_value()) {
+        return false;
+    }
+    // A Let (unlike a Set) passes an object's default value.
+    const auto let_found = class_def.property_let.find(property_name);
+    if (let_found != class_def.property_let.end() &&
+        &let_found->second == &definition &&
+        !resolve_default_value(*value, property_offset)) {
         return false;
     }
     arguments.push_back(CallArgument{std::move(*value), nullptr});

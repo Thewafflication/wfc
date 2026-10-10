@@ -918,7 +918,8 @@ bool Interpreter::scan_class_property_declaration(
             return false;
         }
         if (accessor == Accessor::set &&
-            !definition.parameters.back().is_object_reference) {
+            !definition.parameters.back().is_object_reference &&
+            !definition.parameters.back().is_variant) {
             set_error(
                 "WFC0132",
                 "Property Set's last parameter (the value) must be declared As "
