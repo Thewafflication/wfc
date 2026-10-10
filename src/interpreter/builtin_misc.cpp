@@ -4,6 +4,12 @@
 
 #include "interpreter.hpp"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace wfc::detail {
 
 bool Interpreter::is_misc_function_name(const std::string_view name) {
@@ -585,12 +591,54 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (!execute_) {
             return Value{0.0};
         }
+#ifdef _WIN32
+        // Like VB6, start the program and return at once with its process id.
+        Integer window_style = 1;  // vbNormalFocus
+        if (arguments.size() == 2U) {
+            window_style = whole_value(arguments[1]).value_or(1);
+        }
+        STARTUPINFOA startup{};
+        startup.cb = sizeof(startup);
+        startup.dwFlags = STARTF_USESHOWWINDOW;
+        switch (window_style) {
+            case 0:
+                startup.wShowWindow = SW_HIDE;
+                break;
+            case 2:
+                startup.wShowWindow = SW_SHOWMINIMIZED;
+                break;
+            case 3:
+                startup.wShowWindow = SW_SHOWMAXIMIZED;
+                break;
+            case 4:
+                startup.wShowWindow = SW_SHOWNOACTIVATE;
+                break;
+            case 6:
+                startup.wShowWindow = SW_SHOWMINNOACTIVE;
+                break;
+            default:
+                startup.wShowWindow = SW_SHOWNORMAL;
+                break;
+        }
+        PROCESS_INFORMATION process{};
+        std::string mutable_command = *command;
+        if (CreateProcessA(nullptr, mutable_command.data(), nullptr, nullptr,
+                           FALSE, window_style == 0 ? CREATE_NO_WINDOW : 0,
+                           nullptr, nullptr, &startup, &process) == 0) {
+            static_cast<void>(raise_runtime(53, "File not found", offset));
+            return std::nullopt;
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        return Value{static_cast<double>(process.dwProcessId)};
+#else
         if (std::system(command->c_str()) != 0) {
             static_cast<void>(raise_runtime(53, "File not found", offset));
             return std::nullopt;
         }
         return Value{
             1.0};  // a task id; the command has already run to completion
+#endif
     }
     if (name == "getallsettings") {
         if (!arity(2, 2)) {

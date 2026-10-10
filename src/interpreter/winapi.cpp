@@ -7,6 +7,12 @@
 #include <map>
 #include <sstream>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include "interpreter.hpp"
 
 namespace wfc::detail {
@@ -88,7 +94,11 @@ std::optional<Value> Interpreter::emulate_win32_call(
     std::string name, std::vector<CallArgument>& arguments,
     const std::size_t offset) {
     // The ANSI (`A`) and Unicode (`W`) entry points behave alike here.
-    static const std::set<std::string> known = {"getprivateprofilestring",
+    static const std::set<std::string> known = {"openprocess",
+                                                "waitforsingleobject",
+                                                "getexitcodeprocess",
+                                                "closehandle",
+                                                "getprivateprofilestring",
                                                 "writeprivateprofilestring",
                                                 "getprivateprofileint",
                                                 "getusername",
@@ -151,6 +161,39 @@ std::optional<Value> Interpreter::emulate_win32_call(
         return static_cast<Integer>(stored.size());
     };
 
+#ifdef _WIN32
+    // The "ShellAndWait" idiom: OpenProcess / WaitForSingleObject /
+    // GetExitCodeProcess / CloseHandle on the id Shell returned.
+    const auto handle_of = [&](const Integer value) {
+        return reinterpret_cast<HANDLE>(
+            static_cast<std::uintptr_t>(static_cast<std::uint32_t>(value)));
+    };
+    if (name == "openprocess" && arguments.size() == 3U) {
+        const HANDLE opened = OpenProcess(static_cast<DWORD>(argument_long(0)),
+                                          argument_long(1) != 0 ? TRUE : FALSE,
+                                          static_cast<DWORD>(argument_long(2)));
+        return Value{static_cast<Integer>(static_cast<std::int32_t>(
+            reinterpret_cast<std::uintptr_t>(opened)))};
+    }
+    if (name == "waitforsingleobject" && arguments.size() == 2U) {
+        const auto milliseconds = argument_long(1);
+        return Value{static_cast<Integer>(WaitForSingleObject(
+            handle_of(argument_long(0)),
+            milliseconds == -1 ? INFINITE : static_cast<DWORD>(milliseconds)))};
+    }
+    if (name == "getexitcodeprocess" && arguments.size() == 2U) {
+        DWORD code = 0;
+        const BOOL ok = GetExitCodeProcess(handle_of(argument_long(0)), &code);
+        if (arguments[1].byref_target != nullptr) {
+            *arguments[1].byref_target = Value{static_cast<Integer>(code)};
+        }
+        return Value{Integer{ok != 0 ? 1 : 0}};
+    }
+    if (name == "closehandle" && arguments.size() == 1U) {
+        return Value{
+            Integer{CloseHandle(handle_of(argument_long(0))) != 0 ? 1 : 0}};
+    }
+#endif
     if (name == "getprivateprofilestring" && arguments.size() == 6U) {
         const auto sections = read_ini(argument_text(5));
         const auto section_key = lower_text(argument_text(0));
