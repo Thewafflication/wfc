@@ -423,7 +423,25 @@ bool Interpreter::consume_keyword(const std::string_view keyword) {
 bool Interpreter::consume_keyword_slow(const std::string_view keyword) {
     const auto start = offset_;
     if (!enum_names_.empty() && keyword == "long") {
-        // REQ-0237: an Enum's name is a Long-typed type name.
+        // REQ-0237: an Enum's name is a Long-typed type name, optionally
+        // qualified by the module or class that declares it (`Cfg.Mode`).
+        std::size_t qualifier_end = offset_;
+        while (qualifier_end < source_.size() &&
+               is_identifier_part(source_[qualifier_end])) {
+            ++qualifier_end;
+        }
+        if (qualifier_end > offset_ && qualifier_end + 1U < source_.size() &&
+            source_[qualifier_end] == '.' &&
+            is_identifier_start(source_[qualifier_end + 1U])) {
+            std::string qualifier;
+            for (std::size_t k = offset_; k < qualifier_end; ++k) {
+                qualifier.push_back(ascii_lower(source_[k]));
+            }
+            if (module_names_.contains(qualifier) ||
+                class_definitions_.contains(qualifier)) {
+                offset_ = qualifier_end + 1U;
+            }
+        }
         for (const auto& enum_name : enum_names_) {
             std::size_t i = 0;
             while (i < enum_name.size() && offset_ + i < source_.size() &&
@@ -437,6 +455,7 @@ bool Interpreter::consume_keyword_slow(const std::string_view keyword) {
                 return true;
             }
         }
+        offset_ = start;
     }
     for (const char expected : keyword) {
         if (at_end() || ascii_lower(current()) != expected) {

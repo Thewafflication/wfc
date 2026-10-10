@@ -1,0 +1,4 @@
+Type=Exe
+Class=Cfg; 121-qualified-enum-type.cls.cfg
+Module=Main; 121-qualified-enum-type.bas
+Startup="Sub Main"
