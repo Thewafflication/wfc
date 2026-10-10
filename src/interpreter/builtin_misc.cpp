@@ -29,6 +29,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "formatpercent",
                                                        "partition",
                                                        "doevents",
+                                                       "imestatus",
                                                        "command",
                                                        "command$",
                                                        "cverr",
@@ -100,7 +101,7 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         }
         return Value{v};
     };
-    if (name == "doevents") {
+    if (name == "doevents" || name == "imestatus") {
         if (!arity(0, 0)) {
             return std::nullopt;
         }

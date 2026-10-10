@@ -66,6 +66,11 @@ VariableLookup Interpreter::find_variable_raw(const std::string& name) {
     if (entry != module.variables.end()) {
         return {&entry->second, &module};
     }
+    if (name == "calendar" && !module.constants.contains(name)) {
+        // The VBA `Calendar` property (REQ-0074) reads as vbCalGreg until set.
+        const auto created = module.variables.emplace(name, Value{Integer{0}});
+        return {&created.first->second, &module};
+    }
     return {};
 }
 
