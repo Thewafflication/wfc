@@ -1,0 +1,4 @@
+Type=Exe
+Class=Node; 124-chained-objects.cls.node
+Module=Main; 124-chained-objects.bas
+Startup="Sub Main"

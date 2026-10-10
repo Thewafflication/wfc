@@ -1492,6 +1492,10 @@ private:
     // plain field read, in that order -- a class cannot declare a field and
     // a Property accessor under the same name (see scan_class_body), so
     // this order is unambiguous.
+    // `held(args)` where `held` is an object: calls its default member
+    // (a method or property Get) with the parenthesized arguments.
+    [[nodiscard]] std::optional<Value> call_default_member(
+        const ObjectInstance& holder, std::size_t member_offset);
     [[nodiscard]] std::optional<Value> parse_member_access_after_dot(
         const Value base, const std::size_t base_offset,
         const bool require_function = true,

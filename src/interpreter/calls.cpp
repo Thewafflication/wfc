@@ -965,6 +965,35 @@ std::optional<Value> Interpreter::call_class_method(
                              class_def.source, &instance);
 }
 
+std::optional<Value> Interpreter::call_default_member(
+    const ObjectInstance& holder, const std::size_t member_offset) {
+    const auto held_class = class_definitions_.find(holder.data->class_name);
+    if (held_class == class_definitions_.end() ||
+        held_class->second.default_member.empty()) {
+        set_error("WFC0135", "unknown member", member_offset);
+        return std::nullopt;
+    }
+    const auto& default_member = held_class->second.default_member;
+    if (held_class->second.methods.contains(default_member)) {
+        return call_class_method(*holder.data, held_class->second,
+                                 default_member, member_offset,
+                                 /*require_function=*/true);
+    }
+    const auto default_getter =
+        held_class->second.property_get.find(default_member);
+    if (default_getter != held_class->second.property_get.end()) {
+        auto default_arguments = parse_call_argument_list();
+        if (!default_arguments.has_value()) {
+            return std::nullopt;
+        }
+        return invoke_definition(default_getter->second, default_member,
+                                 std::move(*default_arguments), member_offset,
+                                 held_class->second.source, holder.data.get());
+    }
+    set_error("WFC0135", "unknown member", member_offset);
+    return std::nullopt;
+}
+
 std::optional<Value> Interpreter::parse_member_access_after_dot(
     const Value base, const std::size_t base_offset,
     const bool require_function, const std::string& via_interface_class) {
@@ -1140,6 +1169,24 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
                     return std::nullopt;
                 }
                 return parse_array_index(array_field->second);
+            }
+            // `obj.collectionField(key)`: the default member of the object
+            // the field holds.
+            if (array_field != instance.fields.variables.end() &&
+                std::holds_alternative<ObjectInstance>(array_field->second)) {
+                const auto field_def_iterator =
+                    class_def.fields.find(*member_name);
+                if (field_def_iterator != class_def.fields.end() &&
+                    !member_accessible(class_def,
+                                       field_def_iterator->second.is_private)) {
+                    set_error("WFC0142",
+                              "member is not accessible outside its class",
+                              member_offset);
+                    return std::nullopt;
+                }
+                return call_default_member(
+                    std::get<ObjectInstance>(array_field->second),
+                    member_offset);
             }
         }
         set_error("WFC0135", "unknown member", member_offset);

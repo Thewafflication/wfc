@@ -1,0 +1,20 @@
+Option Explicit
+Public Name As String
+Public Child As Node
+Public Kids As New Collection
+Public Function Add(n As String) As Node
+    Dim c As New Node
+    c.Name = n
+    Kids.Add c, n
+    Set Add = c
+End Function
+Public Function Make(n As String) As Node
+    Set Make = New Node
+    Make.Name = n
+End Function
+Public Sub Rename(ByVal n As String)
+    Name = n
+End Sub
+Public Function Depth() As Long
+    If Child Is Nothing Then Depth = 1 Else Depth = 1 + Child.Depth
+End Function
