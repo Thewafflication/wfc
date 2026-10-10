@@ -163,6 +163,9 @@ namespace {
     std::istringstream stream(text);
     std::string line;
     bool in_begin_block = false;
+    // VERSION and BEGIN..END only form the file header before any code; a
+    // later `Version = 1` or `Begin = 2` is an ordinary statement.
+    bool in_header = true;
     while (std::getline(stream, line)) {
         const bool had_cr = !line.empty() && line.back() == '\r';
         std::string body = had_cr ? line.substr(0, line.size() - 1) : line;
@@ -173,9 +176,13 @@ namespace {
             if (lower == "end") {
                 in_begin_block = false;
             }
-        } else if (lower.rfind("version ", 0) == 0) {
+        } else if (in_header && lower.rfind("version ", 0) == 0 &&
+                   lower.size() > 8U &&
+                   std::isdigit(static_cast<unsigned char>(lower[8])) != 0) {
             blank = true;
-        } else if (lower == "begin" || lower.rfind("begin ", 0) == 0) {
+        } else if (in_header &&
+                   (lower == "begin" || lower.rfind("begin ", 0) == 0) &&
+                   lower.find('=') == std::string::npos) {
             blank = true;
             in_begin_block = true;
         } else if (lower.rfind("attribute ", 0) == 0) {
@@ -183,6 +190,7 @@ namespace {
             // the class's default member.
             blank = lower.find("vb_usermemid") == std::string::npos &&
                     lower.find("vb_predeclaredid") == std::string::npos &&
+                    lower.find("vb_globalnamespace") == std::string::npos &&
                     !(keep_vb_name && lower.rfind("attribute vb_name", 0) == 0);
             if (lower.rfind("attribute vb_name", 0) == 0) {
                 const auto first = body.find('"');
@@ -191,6 +199,10 @@ namespace {
                     name = body.substr(first + 1, last - first - 1);
                 }
             }
+        }
+        if (!blank && !lower.empty() && lower.front() != '\'' &&
+            lower.rfind("attribute ", 0) != 0 && lower.rfind("rem", 0) != 0) {
+            in_header = false;
         }
         if (blank) {
             body.clear();

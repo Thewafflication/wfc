@@ -1,0 +1,4 @@
+Type=Exe
+Class=Util; 144-global-namespace.cls.util
+Module=Main; 144-global-namespace.bas
+Startup="Sub Main"

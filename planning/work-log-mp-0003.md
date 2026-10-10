@@ -24,3 +24,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #3 | Construction | Contracted `App` members, headless `Clipboard` and `Screen`, clipboard/mouse-pointer constants (`REQ-0285`); corpus 140–141 | CTest 295/295 |
 | 2026-10-10 #4 | Construction | Late-bound COM Automation client over IDispatch: CreateObject/GetObject, members, default member, put/putref, ByRef, For Each, errors (`REQ-0286`); corpus 142 | CTest 296/296 |
 | 2026-10-10 #5 | Construction | String-valued `#Const` symbols and string comparison in `#If` (`REQ-0283`); corpus 143 | CTest 297/297 |
+| 2026-10-10 #6 | Construction | `VB_GlobalNameSpace` classes (unqualified public members); `VERSION`/`BEGIN` header detection limited to the file header (`REQ-0283`); corpus 144 | CTest 298/298 |

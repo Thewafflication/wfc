@@ -376,6 +376,13 @@ bool Interpreter::parse_assignment(std::string identifier,
             }
         }
         if (type_character == '\0') {
+            if (const auto global =
+                    global_namespace_instance(identifier, true)) {
+                // A public property or field of a VB_GlobalNameSpace class
+                // (REQ-0287).
+                offset_ = identifier_offset;
+                return parse_member_assignment(*global, identifier_offset);
+            }
             const auto letter = procedures_.find("wfclet_" + identifier);
             if (letter != procedures_.end()) {
                 std::vector<CallArgument> arguments;

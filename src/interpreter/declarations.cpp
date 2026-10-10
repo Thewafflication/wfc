@@ -219,9 +219,10 @@ void Interpreter::register_predeclared_instances() {
     auto& module = module_scope();
     for (const auto& cls : class_sources_) {
         bool predeclared = false;
+        bool is_global_namespace = false;
         std::size_t position = 0;
         const std::string_view text = cls.source;
-        while (position < text.size() && !predeclared) {
+        while (position < text.size()) {
             auto end = text.find('\n', position);
             if (end == std::string_view::npos) {
                 end = text.size();
@@ -233,14 +234,23 @@ void Interpreter::register_predeclared_instances() {
                 }
             }
             position = end + 1U;
-            predeclared = line == "attributevb_predeclaredid=true";
+            predeclared =
+                predeclared || line == "attributevb_predeclaredid=true";
+            is_global_namespace = is_global_namespace ||
+                                  line == "attributevb_globalnamespace=true";
         }
         std::string key;
         for (const char c : cls.name) {
             key.push_back(ascii_lower(c));
         }
-        if (!predeclared || !class_definitions_.contains(key) ||
-            module.variables.contains(key)) {
+        if (!class_definitions_.contains(key)) {
+            continue;
+        }
+        if (is_global_namespace) {
+            class_definitions_.at(key).global_namespace = true;
+            predeclared = true;
+        }
+        if (!predeclared || module.variables.contains(key)) {
             continue;
         }
         module.variables.emplace(key, Value{Nothing{}});
@@ -248,6 +258,46 @@ void Interpreter::register_predeclared_instances() {
         module.object_class_names.emplace(key, key);
         module.auto_new_variables.insert(key);
     }
+}
+
+std::optional<Value> Interpreter::global_namespace_instance(
+    const std::string& name, const bool for_assignment) {
+    for (const auto& [key, definition] : class_definitions_) {
+        if (!definition.global_namespace) {
+            continue;
+        }
+        const auto is_public = [](const auto& members, const std::string& n) {
+            const auto found = members.find(n);
+            return found != members.end() && !found->second.is_private;
+        };
+        bool has_member = false;
+        if (for_assignment) {
+            has_member = is_public(definition.property_let, name) ||
+                         is_public(definition.property_set, name);
+            const auto field = definition.fields.find(name);
+            has_member = has_member || (field != definition.fields.end() &&
+                                        !field->second.is_private);
+        } else {
+            has_member = is_public(definition.methods, name) ||
+                         is_public(definition.property_get, name);
+            const auto field = definition.fields.find(name);
+            has_member = has_member || (field != definition.fields.end() &&
+                                        !field->second.is_private);
+        }
+        if (!has_member) {
+            continue;
+        }
+        if (!execute_) {
+            return Value{Nothing{}};
+        }
+        const auto variable = find_variable(key);
+        if (variable.value == nullptr ||
+            !std::holds_alternative<ObjectInstance>(*variable.value)) {
+            continue;
+        }
+        return *variable.value;
+    }
+    return std::nullopt;
 }
 
 void Interpreter::scan_enum_names() {

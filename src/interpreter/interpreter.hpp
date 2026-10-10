@@ -261,6 +261,9 @@ struct ClassDef {
     bool is_udt{};
     // The class module's own text declares `Option Explicit`.
     bool strict{};
+    // `Attribute VB_GlobalNameSpace = True` (REQ-0287): its public members are
+    // reachable unqualified.
+    bool global_namespace{};
     // REQ-0257: lowercased name of the member marked
     // `Attribute Name.VB_UserMemId = 0` (the class's default member).
     std::string default_member;
@@ -600,6 +603,10 @@ private:
 
     [[nodiscard]] bool scan_classes();
     [[nodiscard]] bool check_interface_completeness();
+    // The predeclared instance of a `VB_GlobalNameSpace` class that has a
+    // public member `name` (REQ-0287), or nullopt.
+    [[nodiscard]] std::optional<Value> global_namespace_instance(
+        const std::string& name, bool for_assignment = false);
     // Whether Option Explicit applies at the current position.
     [[nodiscard]] bool strict_here() const;
 

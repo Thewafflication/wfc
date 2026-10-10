@@ -1444,6 +1444,16 @@ std::optional<Value> Interpreter::parse_primary_base() {
                     }
                 }
             }
+            if (type_character == '\0' && array_variable.value == nullptr) {
+                // `Name(args)` for a public member of a VB_GlobalNameSpace
+                // class (REQ-0287).
+                if (const auto global =
+                        global_namespace_instance(*identifier)) {
+                    offset_ = identifier_offset;
+                    return parse_member_access_after_dot(
+                        *global, identifier_offset, /*require_function=*/true);
+                }
+            }
             if (type_character != '\0') {
                 identifier->push_back(type_character);
             }
@@ -1535,6 +1545,15 @@ std::optional<Value> Interpreter::parse_primary_base() {
                                                      /*require_function=*/true);
                         }
                     }
+                }
+            }
+            // A public member of a VB_GlobalNameSpace class (REQ-0287).
+            if (type_character == '\0') {
+                if (const auto global =
+                        global_namespace_instance(*identifier)) {
+                    offset_ = identifier_offset;
+                    return parse_member_access_after_dot(
+                        *global, identifier_offset, /*require_function=*/true);
                 }
             }
             // A parenthesis-free, zero-argument intrinsic function call

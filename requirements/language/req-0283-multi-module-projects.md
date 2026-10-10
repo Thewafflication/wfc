@@ -28,17 +28,21 @@
 - **String conditional constants.** `#Const Name = "text"` holds a string; `#If` compares
   strings with `=`, `<>`, `<`, `>`, `<=` and `>=` (by character code). String values
   cannot be concatenated or combined arithmetically.
+- **Global-namespace classes.** `Attribute VB_GlobalNameSpace = True` makes a class
+  predeclared and its public methods, properties and fields reachable without the
+  class name (`Twice(2)`, `Greeting = "x"`); a declared variable or procedure of
+  the same name wins. The `VERSION`/`BEGIN` file-header lines are recognised only
+  before the first line of code, so a variable named `Version` or `Begin` is safe.
 - **Label rule.** An indented `Name:` whose name is a procedure is a call followed
   by another statement, not a label.
 
 ## Known limits
 
-`VB_GlobalNameSpace` classes are not given global members.
+None recorded.
 
 ## Verification
 
 `TC-MP0002-corpus-114-multi-module`, `-108-app-metadata`, `-121-qualified-enum-type`,
 `-122-predeclared-class`, `-124-chained-objects`, `-130-class-declare`,
-`-131-class-private-type`, `-126-recursive-descent-calc` and
-`-139-per-module-explicit` and
-`-143-const-string`.
+`-131-class-private-type`, `-126-recursive-descent-calc`, `-139-per-module-explicit`,
+`-143-const-string` and `-144-global-namespace`.

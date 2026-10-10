@@ -1,0 +1,21 @@
+Attribute VB_GlobalNameSpace = True
+Attribute VB_PredeclaredId = True
+Public Greeting As String
+Public Function Twice(ByVal n As Long) As Long
+    Twice = n * 2
+End Function
+Public Sub Say(ByVal s As String)
+    Print "say "; s
+End Sub
+Public Property Get Version() As String
+    Dim Begin As Long
+    Begin = 1
+    Version = "1." & (Begin + 1)
+End Property
+Public Property Let Level(ByVal v As Long)
+    mLevel = v
+End Property
+Public Property Get Level() As Long
+    Level = mLevel
+End Property
+Private mLevel As Long
