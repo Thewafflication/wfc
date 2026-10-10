@@ -1840,6 +1840,9 @@ private:
     // Set when the current statement read a Variant variable: Variant
     // arithmetic that overflows is promoted (Integer -> Long -> Double) instead
     // of raising Overflow.
+    // Records that `value`, read from a Variant, took part in the statement's
+    // expression, so mixed comparisons and arithmetic follow Variant rules.
+    void note_variant_value(const Value& value) noexcept;
     bool variant_operand_seen_{};
     bool vb_number_spacing_{};
     std::map<std::string, std::string> app_properties_;

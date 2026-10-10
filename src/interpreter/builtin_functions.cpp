@@ -50,6 +50,11 @@ std::optional<Value> Interpreter::parse_function_call(
             return Value{Integer{}};
         }
     }
+    if (result.has_value() &&
+        (identifier == "iif" || identifier == "cvar" ||
+         identifier == "choose" || identifier == "switch")) {
+        note_variant_value(*result);
+    }
     // REQ-0247: CByte's range-checked Long result is a Byte.
     if (identifier == "cbyte" && result.has_value()) {
         if (const auto* number = std::get_if<Integer>(&*result)) {

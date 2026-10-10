@@ -712,7 +712,14 @@ std::optional<Value> Interpreter::invoke_definition(
     execute_ = true;
     const bool enclosing_declaration_permission = allow_declarations_;
     allow_declarations_ = true;
+    // The callee's statements must not disturb the caller's expression state.
+    const bool saved_variant_operand = variant_operand_seen_;
+    const bool saved_variant_string = variant_string_seen_;
+    const bool saved_variant_number = variant_number_seen_;
     const bool ran_ok = run_procedure_body(definition.body_end);
+    variant_operand_seen_ = saved_variant_operand;
+    variant_string_seen_ = saved_variant_string;
+    variant_number_seen_ = saved_variant_number;
     allow_declarations_ = enclosing_declaration_permission;
     --procedure_depth_;
     execute_ = enclosing_execution;
@@ -798,6 +805,10 @@ std::optional<Value> Interpreter::invoke_definition(
     scopes_.pop_back();
     if (!drained_ok) {
         return std::nullopt;
+    }
+    if (result.has_value() && definition.is_function &&
+        definition.return_is_variant) {
+        note_variant_value(*result);
     }
     return result;
 }
@@ -1157,6 +1168,9 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
                 return parse_array_index(field_iterator->second);
             }
             offset_ = after_name;
+        }
+        if (instance.fields.variant_variables.contains(*member_name)) {
+            note_variant_value(field_iterator->second);
         }
         return field_iterator->second;
     }
