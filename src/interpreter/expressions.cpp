@@ -1141,6 +1141,25 @@ std::optional<Value> Interpreter::parse_primary_base() {
                    (source_[after] == ' ' || source_[after] == '\t')) {
                 ++after;
             }
+            // `#f` before `)` or `,` is a file number held in a variable.
+            std::size_t name_end = offset_ + 1;
+            while (name_end < source_.size() &&
+                   is_identifier_part(source_[name_end])) {
+                ++name_end;
+            }
+            std::size_t name_after = name_end;
+            while (
+                name_after < source_.size() &&
+                (source_[name_after] == ' ' || source_[name_after] == '\t')) {
+                ++name_after;
+            }
+            if (name_end > offset_ + 1 &&
+                is_identifier_start(source_[offset_ + 1]) &&
+                (name_after >= source_.size() || source_[name_after] == ')' ||
+                 source_[name_after] == ',')) {
+                advance();  // the '#'
+                return parse_primary_base();
+            }
             if (look > offset_ + 1 &&
                 (after >= source_.size() || source_[after] == ')' ||
                  source_[after] == ',')) {
