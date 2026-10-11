@@ -105,6 +105,33 @@ std::string HeadlessHost::text(const WindowId window) const {
     return target != nullptr ? target->text : std::string{};
 }
 
+void HeadlessHost::set_items(const WindowId window,
+                             const std::vector<std::string>& items) {
+    if (auto* target = find(window)) {
+        target->items = items;
+        trace_.push_back("items #" + std::to_string(window) + " " +
+                         std::to_string(items.size()));
+    }
+}
+
+void HeadlessHost::set_selection(const WindowId window, const long index) {
+    if (auto* target = find(window)) {
+        target->selection = index;
+        trace_.push_back("select #" + std::to_string(window) + " " +
+                         std::to_string(index));
+    }
+}
+
+long HeadlessHost::selection(const WindowId window) const {
+    const auto* target = find(window);
+    return target != nullptr ? target->selection : -1;
+}
+
+std::vector<std::string> HeadlessHost::items_of(const WindowId window) const {
+    const auto* target = find(window);
+    return target != nullptr ? target->items : std::vector<std::string>{};
+}
+
 void HeadlessHost::set_focus(const WindowId window) {
     if (find(window) == nullptr || focus_ == window) {
         return;

@@ -1,0 +1,10 @@
+ 4 firstitem3 99 -1 
+applemangopear
+ 3 item1
+list click 1 item2
+combo changetyped
+-1 
+list click 2 item3
+combo click 1 green
+combo changegreen
+list click 2 item3

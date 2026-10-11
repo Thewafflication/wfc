@@ -1,0 +1,4 @@
+Type=Exe
+Form=153-form-lists.frm
+Startup="Form1"
+WfcUiScript=153-form-lists.ui

@@ -162,6 +162,15 @@ public:
     bool activated{false};
     // Control arrays: the element objects by index.
     std::map<long, Value> elements;
+    // ListBox and ComboBox items (REQ-0289).
+    std::vector<std::string> items;
+    std::vector<long> item_data;
+    std::vector<bool> chosen;  // MultiSelect selection flags
+    long list_index{-1};
+    long new_index{-1};
+    [[nodiscard]] bool is_list() const {
+        return class_key == "listbox" || class_key == "combobox";
+    }
 };
 
 // A control array: `Command1(0)`, `Command1.Count`.
@@ -277,6 +286,262 @@ struct FormSupport {
                 }
             }
         }
+    }
+
+    // Pushes the list items and selection to the host.
+    static void sync_list(Interpreter& in, ControlObject& list) {
+        if (list.window == ui::kNoWindow) {
+            return;
+        }
+        auto& host = *runtime(in).host;
+        host.set_items(list.window, list.items);
+        host.set_selection(list.window, list.list_index);
+    }
+
+    [[nodiscard]] static std::string item_text(const ControlObject& list) {
+        if (list.list_index >= 0 &&
+            static_cast<std::size_t>(list.list_index) < list.items.size()) {
+            return list.items[static_cast<std::size_t>(list.list_index)];
+        }
+        return {};
+    }
+
+    // Moves the selection (from code or from the user), mirroring the text
+    // of a combo box and raising Click (and Change for a combo's text).
+    [[nodiscard]] static bool select_item(Interpreter& in, ControlObject& list,
+                                          const long index,
+                                          const bool raise_events) {
+        const long previous = list.list_index;
+        list.list_index = index;
+        if (list.class_key == "combobox") {
+            list.values["text"] = Value{item_text(list)};
+        }
+        sync_list(in, list);
+        if (list.window != ui::kNoWindow && list.class_key == "combobox") {
+            runtime(in).host->set_text(list.window, item_text(list));
+        }
+        if (!raise_events || index == previous) {
+            return true;
+        }
+        if (!raise_table_event(in, list, "Click", {}, in.offset_)) {
+            return false;
+        }
+        return list.class_key != "combobox" ||
+               raise_table_event(in, list, "Change", {}, in.offset_);
+    }
+
+    // List members of get(); false when `member` is not a list member.
+    [[nodiscard]] static bool list_get(Interpreter& in, ControlObject& self,
+                                       const std::string& member,
+                                       std::vector<CallArgument>& arguments,
+                                       Value& result, NativeFailure& failure) {
+        static_cast<void>(in);
+        const auto indexed = [&](const auto& fetch) {
+            const auto position = arguments.size() == 1U
+                                      ? whole_value(arguments[0].value)
+                                      : std::nullopt;
+            if (!position.has_value() || *position < 0 ||
+                static_cast<std::size_t>(*position) >= self.items.size()) {
+                failure = NativeFailure{381, "Invalid property array index"};
+                return true;
+            }
+            result = fetch(static_cast<std::size_t>(*position));
+            return true;
+        };
+        if (member == "listcount") {
+            result = Value{static_cast<Integer>(self.items.size())};
+            return true;
+        }
+        if (member == "listindex") {
+            result = Value{static_cast<Int16>(self.list_index)};
+            return true;
+        }
+        if (member == "newindex") {
+            result = Value{static_cast<Int16>(self.new_index)};
+            return true;
+        }
+        if (member == "list") {
+            return indexed(
+                [&](const std::size_t at) { return Value{self.items[at]}; });
+        }
+        if (member == "itemdata") {
+            return indexed([&](const std::size_t at) {
+                return Value{static_cast<Integer>(self.item_data[at])};
+            });
+        }
+        if (member == "selected") {
+            return indexed([&](const std::size_t at) {
+                const bool picked =
+                    flag_of(self, "multiselect")
+                        ? self.chosen[at] != false
+                        : static_cast<long>(at) == self.list_index;
+                return Value{picked};
+            });
+        }
+        if (member == "selcount") {
+            long count = 0;
+            for (std::size_t i = 0; i < self.items.size(); ++i) {
+                count += self.chosen[i] ? 1 : 0;
+            }
+            result = Value{static_cast<Int16>(
+                flag_of(self, "multiselect") ? count
+                                             : (self.list_index >= 0 ? 1 : 0))};
+            return true;
+        }
+        if (member == "text" && self.class_key == "listbox") {
+            result = Value{item_text(self)};
+            return true;
+        }
+        if (member == "topindex") {
+            result = Value{Int16{0}};
+            return true;
+        }
+        return false;
+    }
+
+    // List members of put(); false when `member` is not a list member.
+    [[nodiscard]] static bool list_put(Interpreter& in, ControlObject& self,
+                                       const std::string& member,
+                                       std::vector<CallArgument>& arguments,
+                                       const Value& value,
+                                       NativeFailure& failure) {
+        const auto position = [&]() -> std::optional<std::size_t> {
+            const auto at = arguments.size() == 1U
+                                ? whole_value(arguments[0].value)
+                                : std::nullopt;
+            if (!at.has_value() || *at < 0 ||
+                static_cast<std::size_t>(*at) >= self.items.size()) {
+                failure = NativeFailure{381, "Invalid property array index"};
+                return std::nullopt;
+            }
+            return static_cast<std::size_t>(*at);
+        };
+        if (member == "listindex") {
+            const auto wanted = whole_value(value);
+            if (!wanted.has_value()) {
+                failure = NativeFailure{13, "Type mismatch"};
+                return true;
+            }
+            if (*wanted < -1 ||
+                static_cast<std::size_t>(*wanted + 1) > self.items.size()) {
+                failure = NativeFailure{381, "Invalid property array index"};
+                return true;
+            }
+            if (!select_item(in, self, *wanted, true)) {
+                failure = reported();
+            }
+            return true;
+        }
+        if (member == "list") {
+            if (const auto at = position()) {
+                self.items[*at] = text_of(value);
+                sync_list(in, self);
+            }
+            return true;
+        }
+        if (member == "itemdata") {
+            if (const auto at = position()) {
+                self.item_data[*at] = whole_value(value).value_or(0);
+            }
+            return true;
+        }
+        if (member == "selected") {
+            if (const auto at = position()) {
+                self.chosen[*at] = std::get_if<bool>(&value) != nullptr
+                                       ? std::get<bool>(value)
+                                       : as_double(value) != 0.0;
+                if (!flag_of(self, "multiselect") && self.chosen[*at]) {
+                    if (!select_item(in, self, static_cast<long>(*at), true)) {
+                        failure = reported();
+                    }
+                }
+            }
+            return true;
+        }
+        if (member == "newindex" || member == "listcount" ||
+            member == "selcount" ||
+            (member == "text" && self.class_key == "listbox")) {
+            failure = NativeFailure{383, "Property is read-only"};
+            return true;
+        }
+        return false;
+    }
+
+    // AddItem, RemoveItem and Clear.
+    [[nodiscard]] static bool list_method(Interpreter& in, ControlObject& self,
+                                          const std::string& member,
+                                          std::vector<CallArgument>& arguments,
+                                          NativeFailure& failure) {
+        if (member == "additem") {
+            if (arguments.empty() || arguments.size() > 2U) {
+                failure = NativeFailure{450,
+                                        "Wrong number of arguments or "
+                                        "invalid property assignment"};
+                return true;
+            }
+            std::size_t at = self.items.size();
+            const std::string text = text_of(arguments[0].value);
+            if (arguments.size() == 2U && !arguments[1].omitted) {
+                const auto wanted = whole_value(arguments[1].value);
+                if (!wanted.has_value() || *wanted < 0 ||
+                    static_cast<std::size_t>(*wanted) > self.items.size()) {
+                    failure = NativeFailure{381,
+                                            "Invalid property array "
+                                            "index"};
+                    return true;
+                }
+                at = static_cast<std::size_t>(*wanted);
+            } else if (flag_of(self, "sorted")) {
+                at = 0;
+                while (at < self.items.size() &&
+                       lower_text(self.items[at]) <= lower_text(text)) {
+                    ++at;
+                }
+            }
+            self.items.insert(self.items.begin() + static_cast<long>(at), text);
+            self.item_data.insert(
+                self.item_data.begin() + static_cast<long>(at), 0L);
+            self.chosen.insert(self.chosen.begin() + static_cast<long>(at),
+                               false);
+            if (self.list_index >= static_cast<long>(at)) {
+                ++self.list_index;
+            }
+            self.new_index = static_cast<long>(at);
+            sync_list(in, self);
+            return true;
+        }
+        if (member == "removeitem") {
+            const auto wanted = arguments.size() == 1U
+                                    ? whole_value(arguments[0].value)
+                                    : std::nullopt;
+            if (!wanted.has_value() || *wanted < 0 ||
+                static_cast<std::size_t>(*wanted) >= self.items.size()) {
+                failure = NativeFailure{381, "Invalid property array index"};
+                return true;
+            }
+            const auto at = static_cast<std::size_t>(*wanted);
+            self.items.erase(self.items.begin() + static_cast<long>(at));
+            self.item_data.erase(self.item_data.begin() +
+                                 static_cast<long>(at));
+            self.chosen.erase(self.chosen.begin() + static_cast<long>(at));
+            if (self.list_index == static_cast<long>(at)) {
+                self.list_index = -1;
+            } else if (self.list_index > static_cast<long>(at)) {
+                --self.list_index;
+            }
+            sync_list(in, self);
+            return true;
+        }
+        if (member == "clear") {
+            self.items.clear();
+            self.item_data.clear();
+            self.chosen.clear();
+            self.list_index = -1;
+            self.new_index = -1;
+            sync_list(in, self);
+            return true;
+        }
+        return false;
     }
 
     // A Boolean property's value, falling back to its design-time default.
@@ -779,6 +1044,10 @@ struct FormSupport {
             }
             return true;
         }
+        if (self.is_list() && (member == "additem" || member == "removeitem" ||
+                               member == "clear")) {
+            return list_method(in, self, member, arguments, failure);
+        }
         if (member == "refresh" || member == "zorder" || member == "cls" ||
             member == "drag" || member == "setfocus") {
             return true;
@@ -900,6 +1169,30 @@ struct FormSupport {
                                                   source->index, in.offset_)) {
                 return false;
             }
+        }
+        if (name == "userselect") {
+            if (source->is_list() && !event.arguments.empty()) {
+                const long index = std::get<long>(event.arguments[0]);
+                if (index >= 0 &&
+                    static_cast<std::size_t>(index) < source->items.size()) {
+                    if (!focus_control(in, *form, source->name, source->index,
+                                       in.offset_)) {
+                        return false;
+                    }
+                    if (flag_of(*source, "multiselect")) {
+                        source->chosen[static_cast<std::size_t>(index)] =
+                            !source->chosen[static_cast<std::size_t>(index)];
+                    }
+                    const long previous = source->list_index;
+                    if (!select_item(in, *source, index, true)) {
+                        return false;
+                    }
+                    return previous != index ||
+                           raise_table_event(in, *source, "Click", {},
+                                             in.offset_);
+                }
+            }
+            return true;
         }
         if (name == "click" && !source->is_form) {
             if (source->class_key == "checkbox") {
@@ -1057,6 +1350,10 @@ struct FormSupport {
         } else if (command == "dblclick") {
             state.host->post_event(ui::UiEvent{object->window, "Click", {}});
             state.host->post_event(ui::UiEvent{object->window, "DblClick", {}});
+        } else if (command == "select" && object->is_list()) {
+            const long index = std::atol(rest.c_str());
+            state.host->post_event(
+                ui::UiEvent{object->window, "UserSelect", {index}});
         } else if (command == "focus") {
             return focus_control(in, *target.form, target.control, target.index,
                                  in.offset_);
@@ -1239,6 +1536,10 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         }
         return get(in, property, arguments, result, failure);
     }
+    if (is_list() &&
+        FormSupport::list_get(in, *this, member, arguments, result, failure)) {
+        return true;
+    }
     if (const auto* getter = ui::find_member(*cls, member, 'g')) {
         const auto found = values.find(member);
         if (found != values.end()) {
@@ -1271,6 +1572,10 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     std::string wanted = member;
     if (member == "_default") {
         wanted = default_property_of(class_key);
+    }
+    if (is_list() &&
+        FormSupport::list_put(in, *this, wanted, arguments, value, failure)) {
+        return true;
     }
     const auto* setter = ui::find_member(*cls, wanted, 'l');
     if (setter == nullptr) {
@@ -1542,6 +1847,9 @@ bool Interpreter::create_form_instance(
             }
         }
         const auto* row = ui::find_member(owner, property, 'l');
+        if (row == nullptr) {
+            row = ui::find_member(owner, property, 'g');
+        }
         const std::string type = row != nullptr ? row->type : "Variant";
         Value value;
         if (source.is_string || source.in_resource) {

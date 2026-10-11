@@ -56,6 +56,13 @@ public:
     virtual void set_text(WindowId window, const std::string& text) = 0;
     [[nodiscard]] virtual std::string text(WindowId window) const = 0;
 
+    // List-like windows (ListBox, ComboBox): the items and the selected index
+    // (-1 for none).
+    virtual void set_items(WindowId window,
+                           const std::vector<std::string>& items) = 0;
+    virtual void set_selection(WindowId window, long index) = 0;
+    [[nodiscard]] virtual long selection(WindowId window) const = 0;
+
     // Keyboard focus.
     virtual void set_focus(WindowId window) = 0;
     [[nodiscard]] virtual WindowId focus() const = 0;

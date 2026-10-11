@@ -26,6 +26,10 @@ public:
     [[nodiscard]] bool enabled(WindowId window) const override;
     void set_text(WindowId window, const std::string& text) override;
     [[nodiscard]] std::string text(WindowId window) const override;
+    void set_items(WindowId window,
+                   const std::vector<std::string>& items) override;
+    void set_selection(WindowId window, long index) override;
+    [[nodiscard]] long selection(WindowId window) const override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
@@ -44,6 +48,7 @@ public:
     }
 
     [[nodiscard]] WindowId parent_of(WindowId window) const;
+    [[nodiscard]] std::vector<std::string> items_of(WindowId window) const;
     [[nodiscard]] std::string kind_of(WindowId window) const;
 
 private:
@@ -54,6 +59,8 @@ private:
         bool visible{false};
         bool enabled{true};
         std::string text;
+        std::vector<std::string> items;
+        long selection{-1};
     };
     struct TimerState {
         long interval{};
