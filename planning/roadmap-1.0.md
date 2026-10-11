@@ -140,7 +140,9 @@ delivered under `REQ-0200`/`REQ-0203`–`REQ-0206`.
   per-module `Option Explicit`, global members of `VB_GlobalNameSpace`
   classes, and string-valued `#Const` conditional-compilation symbols.
 
-Detailed plan: [MP-0003](MP-0003-classes-projects-automation.md).
+Detailed plan: [MP-0003](MP-0003-classes-projects-automation.md); closed
+2026-10-11 with COM server hosting deferred to MP-0005 by
+[ADR-0004](../architecture/adr-0004-automation-server.md).
 
 ### Exit Gate
 
@@ -149,6 +151,9 @@ late-bound members, raise events, preserve lifetime, and pass the allocated
 project/class conformance suite.
 
 ## MP-0004 — Forms and Intrinsic Controls (`0.4.0`)
+
+Detailed plan: [MP-0004](MP-0004-forms-and-controls.md);
+[ADR-0005](../architecture/adr-0005-ui-platform.md).
 
 ### Outcome
 

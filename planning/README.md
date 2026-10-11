@@ -22,18 +22,23 @@
 
 ## Active Milestone
 
-MP-0003 — Classes, Projects, and Automation (`0.3.0`), per the
-[MP-0003 plan](MP-0003-classes-projects-automation.md) and the
+MP-0004 — Forms and Intrinsic Controls (`0.4.0`), per the
+[MP-0004 plan](MP-0004-forms-and-controls.md) and the
 [roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0003 work log](work-log-mp-0003.md).
+[MP-0004 work log](work-log-mp-0004.md).
 
-MP-0002 — Core VB/VBA Language Execution (`0.2.0`) closed on 2026-10-10 with
-documented deferrals; see the [MP-0002 closeout record](MP-0002-closeout.md)
-and its [work log](work-log-mp-0002.md) (89 numbered increments plus the
-2026-10-10 hardening and closeout audit). The
-[language requirements index](../requirements/language/README.md) is the
+Closed milestones:
+
+- MP-0002 — Core VB/VBA Language Execution (`0.2.0`), closed 2026-10-10; see
+  the [closeout record](MP-0002-closeout.md) and [work log](work-log-mp-0002.md).
+- MP-0003 — Classes, Projects, and Automation (`0.3.0`), closed 2026-10-11 with
+  COM server hosting deferred to MP-0005; see the
+  [closeout record](MP-0003-closeout.md), [plan](MP-0003-classes-projects-automation.md)
+  and [work log](work-log-mp-0003.md).
+
+The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`
-through the current `REQ-0283`.
+through the current `REQ-0288`.
 
 Detailed successor milestone plans shall be baselined during predecessor
 closeout. The roadmap fixes their objective, target version, dependencies, and

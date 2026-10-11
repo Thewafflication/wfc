@@ -4,9 +4,9 @@
 
 **Milestone or work package:** MP-0003 — Classes, projects, and Automation (`0.3.0`)
 
-**Status:** Proposed (awaiting owner decision)
+**Status:** Complete (with documented deferrals)
 
-**Completion date:** Not yet approved
+**Completion date:** 2026-10-11
 
 **Inherited baseline:** MP-0002 closeout (`MP-0002-closeout.md`)
 
@@ -16,7 +16,7 @@
 
 **Owner:** Project maintainer
 
-**Approval:** Pending
+**Approval:** Owner approval in session, 2026-10-11
 
 ## Outcome
 
@@ -73,18 +73,21 @@ in both directions" is met for the client direction only.
 
 | Item | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| COM server hosting | WFC classes cannot be used from other COM clients | Project maintainer | MP-0005 | `ADR-0004` design of record | Pending |
-| Pictures, printing, forms-dependent globals | `LoadPicture`, `Printer` etc. unavailable | Project maintainer | MP-0004/MP-0005 | `Forms` is empty | Pending |
-| COM tests depend on host components | A stripped Windows image could fail them | Project maintainer | MP-0008 | Components ship with Windows | Pending |
+| COM server hosting | WFC classes cannot be used from other COM clients | Project maintainer | MP-0005 | `ADR-0004` design of record | Owner, 2026-10-11 |
+| Forms-dependent globals (`Load`, `Unload`, `Printer`, `Printers`) | Unavailable until forms and printing exist | Project maintainer | MP-0004 | `Forms` is empty | Owner, 2026-10-11 |
+| Picture objects (`LoadPicture`, `SavePicture`) | Unavailable until a minimal picture object exists | Project maintainer | MP-0004 (minimal), MP-0005 (full `stdole`) | None | Owner, 2026-10-11 |
+| `Licenses` | Unavailable | Project maintainer | MP-0005 | None | Owner, 2026-10-11 |
+| COM tests depend on host components | A stripped Windows image could fail them | Project maintainer | MP-0008 | Components ship with Windows | Owner, 2026-10-11 |
 
 ## Closeout Decision
 
-- **Decision:** Pending. Recommended: Complete with documented deferrals.
+- **Decision:** Complete with documented deferrals
 - **Approver:** Project maintainer
 - **Rationale:** All planned work except the deferred server is complete and
   verified; the roadmap gate wording about two-way object exchange is met for
   the client side and deferred for the server by `ADR-0004`.
-- **Next review or release action:** Baseline the MP-0004 plan.
+- **Required gates:** All Pass except the server-dependent roadmap clause, deferred by `ADR-0004`
+- **Next review or release action:** `MP-0004-forms-and-controls.md`
 
 ## References
 

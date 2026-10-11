@@ -1,7 +1,7 @@
 # MP-0003 — Classes, Projects, and Automation
 
 **Content type:** Milestone work plan  
-**Status:** In progress  
+**Status:** Complete (see closeout record)  
 **Target baseline:** 0.3.0  
 **Planned period:** 2026-10-10 through milestone closeout  
 **Inherited baseline:** MP-0002 closeout (`MP-0002-closeout.md`), `master` at `4a8784e` plus the closeout commit  
