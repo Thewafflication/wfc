@@ -306,6 +306,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (!arity(1, 5)) {
             return std::nullopt;
         }
+        if (const auto scripted = form_dialog_answer("msgbox")) {
+            return Value{static_cast<Integer>(std::atol(scripted->c_str()))};
+        }
         // There is no UI: answer with the dialog's default button.
         std::int64_t style = 0;
         if (count >= 2U && is_number(arguments[1]) &&
@@ -335,6 +338,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
     if (name == "inputbox") {
         if (!arity(1, 7)) {
             return std::nullopt;
+        }
+        if (const auto scripted = form_dialog_answer("inputbox")) {
+            return Value{*scripted};
         }
         const auto* fallback =
             count >= 3U ? std::get_if<std::string>(&arguments[2]) : nullptr;

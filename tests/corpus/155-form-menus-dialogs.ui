@@ -1,0 +1,7 @@
+click mnuOpen
+click mnuToolbar
+click mnuToolbar
+answer msgbox 7
+answer inputbox Ann
+click Form1
+click mnuExit

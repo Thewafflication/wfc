@@ -63,12 +63,22 @@
   to a value (`Scroll`, then `Change`) and `scrollby <control> <delta>` steps
   it (`Change` only), clamped to the range.
 
+- **Menus.** `VB.Menu` entries are controls (`Caption`, `Checked`, `Enabled`,
+  ...) whose `Click` runs `mnuName_Click`; a disabled menu ignores clicks.
+  Labels, frames, timers, shapes, lines, images and menus never take the
+  keyboard focus.
+- **Modal forms.** `Form.Show vbModal` runs input until the form is hidden or
+  unloaded; if the input ends first the form is closed.
+- **Dialogs.** `MsgBox` and `InputBox` use the answers queued by
+  `answer msgbox <result>` and `answer inputbox <text>` lines of the input
+  script, falling back to the default button and default text.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
 form surface; graphics behavior, menus, MDI, drag and drop,
-validation, modal `Show` and the Win32 host are not yet implemented.
+validation and the Win32 host are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal` and the `wfc_ui_tests` units.

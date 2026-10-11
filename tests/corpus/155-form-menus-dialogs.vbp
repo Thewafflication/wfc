@@ -1,0 +1,4 @@
+Type=Exe
+Form=155-form-menus-dialogs.frm
+Startup="Form1"
+WfcUiScript=155-form-menus-dialogs.ui

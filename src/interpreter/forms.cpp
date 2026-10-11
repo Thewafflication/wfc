@@ -171,6 +171,13 @@ public:
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox";
     }
+    // Whether the control can hold the keyboard focus.
+    [[nodiscard]] bool focusable() const {
+        return class_key != "label" && class_key != "timer" &&
+               class_key != "frame" && class_key != "shape" &&
+               class_key != "line" && class_key != "image" &&
+               class_key != "menu";
+    }
     [[nodiscard]] bool is_scroll() const {
         return class_key == "hscrollbar" || class_key == "vscrollbar";
     }
@@ -863,7 +870,8 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         ControlObject* target = control_named(form, control, index);
         if (target == nullptr || target->window == ui::kNoWindow ||
-            host.focus() == target->window) {
+            host.focus() == target->window ||
+            (!target->is_form && !target->focusable())) {
             return true;
         }
         const auto previous = runtime(in).bindings.find(host.focus());
@@ -902,10 +910,7 @@ struct FormSupport {
                 return it == end || !std::holds_alternative<bool>(it->second) ||
                        std::get<bool>(it->second);
             };
-            if (object->class_key == "label" || object->class_key == "timer" ||
-                object->class_key == "frame" || object->class_key == "shape" ||
-                object->class_key == "line" || object->class_key == "image" ||
-                !flag(stop, object->values.end()) ||
+            if (!object->focusable() || !flag(stop, object->values.end()) ||
                 !flag(enabled, object->values.end()) ||
                 !flag(visible, object->values.end())) {
                 return;
@@ -1090,7 +1095,10 @@ struct FormSupport {
             return true;
         }
         if (self.is_form && member == "show") {
-            if (form == nullptr || !show(in, *form, in.offset_)) {
+            const bool modal = !arguments.empty() && !arguments[0].omitted &&
+                               whole_value(arguments[0].value).value_or(0) != 0;
+            if (form == nullptr || !show(in, *form, in.offset_) ||
+                (modal && !run_modal(in, *form))) {
                 failure = reported();
             }
             return true;
@@ -1384,6 +1392,10 @@ struct FormSupport {
             rest.erase(0, 1);
         }
         auto& state = runtime(in);
+        if (command == "answer") {
+            state.answers.emplace_back(lower_text(target_text), rest);
+            return true;
+        }
         if (command == "wait") {
             if (state.headless != nullptr) {
                 state.headless->advance_time(std::atol(target_text.c_str()));
@@ -1457,7 +1469,7 @@ struct FormSupport {
     }
 
     // Runs input until the script is exhausted; then closes every form.
-    [[nodiscard]] static bool run_loop(Interpreter& in) {
+    static void load_script(Interpreter& in) {
         auto& state = runtime(in);
         if (!state.script_loaded) {
             state.script_loaded = true;
@@ -1472,20 +1484,50 @@ struct FormSupport {
                 }
             }
         }
+    }
+
+    // Handles one queued event or one script line. `progressed` is false
+    // when there was nothing to do; the result is false on a handler error.
+    [[nodiscard]] static bool step(Interpreter& in, bool& progressed) {
+        auto& state = runtime(in);
+        load_script(in);
+        progressed = true;
+        if (const auto event = state.host->next_event(false)) {
+            return dispatch(in, *event);
+        }
+        if (state.script_next < state.script.size()) {
+            return run_script_line(in, state.script[state.script_next++]);
+        }
+        progressed = false;
+        return true;
+    }
+
+    // `Form.Show vbModal`: runs input until the form is hidden or unloaded.
+    // When the input ends the user "closes" the form.
+    [[nodiscard]] static bool run_modal(Interpreter& in, InstanceData& form) {
+        auto* object = control_of(form);
+        while (object != nullptr && object->loaded && object->shown) {
+            bool progressed = false;
+            if (!step(in, progressed)) {
+                return false;
+            }
+            if (!progressed) {
+                return unload(in, form, 0, in.offset_);
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] static bool run_loop(Interpreter& in) {
+        auto& state = runtime(in);
         while (true) {
-            if (const auto event = state.host->next_event(false)) {
-                if (!dispatch(in, *event)) {
-                    return false;
-                }
-                continue;
+            bool progressed = false;
+            if (!step(in, progressed)) {
+                return false;
             }
-            if (state.script_next < state.script.size()) {
-                if (!run_script_line(in, state.script[state.script_next++])) {
-                    return false;
-                }
-                continue;
+            if (!progressed) {
+                break;
             }
-            break;
         }
         // The user "closes" what is left.
         auto remaining = state.loaded;
@@ -2143,6 +2185,17 @@ public:
 
 std::shared_ptr<NativeObject> make_forms_collection() {
     return std::make_shared<FormsCollection>();
+}
+
+std::optional<std::string> Interpreter::form_dialog_answer(
+    const std::string& kind) {
+    if (!forms_ || forms_->answers.empty() ||
+        forms_->answers.front().first != kind) {
+        return std::nullopt;
+    }
+    std::string text = std::move(forms_->answers.front().second);
+    forms_->answers.pop_front();
+    return text;
 }
 
 bool Interpreter::pump_forms() {

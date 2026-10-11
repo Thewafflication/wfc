@@ -1688,6 +1688,9 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    // The next scripted answer for a `msgbox` or `inputbox` dialog.
+    [[nodiscard]] std::optional<std::string> form_dialog_answer(
+        const std::string& kind);
     std::shared_ptr<FormRuntime> forms_;
     std::string startup_form_;
     std::string ui_script_;

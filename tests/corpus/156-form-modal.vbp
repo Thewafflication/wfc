@@ -1,0 +1,5 @@
+Type=Exe
+Form=156-form-modal.form1.frm
+Form=156-form-modal.form2.frm
+Startup="Form1"
+WfcUiScript=156-form-modal.ui

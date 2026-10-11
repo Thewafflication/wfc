@@ -5,6 +5,7 @@
 #ifndef WFC_INTERPRETER_FORMS_HPP
 #define WFC_INTERPRETER_FORMS_HPP
 
+#include <deque>
 #include <map>
 #include <memory>
 #include <string>
@@ -32,6 +33,8 @@ struct FormRuntime {
     std::vector<std::string> script;
     std::size_t script_next{0};
     bool script_loaded{false};
+    // Answers the script queued for MsgBox / InputBox: (kind, text).
+    std::deque<std::pair<std::string, std::string>> answers;
 };
 
 }  // namespace wfc::detail

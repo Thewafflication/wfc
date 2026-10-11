@@ -25,3 +25,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #4 | Construction | Timer events, control-array option groups, live `Forms` collection (native), KeyPreview, native `For Each` (`REQ-0289`); corpus 152 | CTest 308/308 |
 | 2026-10-11 #5 | Construction | ListBox/ComboBox model (AddItem, RemoveItem, Clear, List, ItemData, ListIndex, Sorted, selection events); `UiHost` list calls (`REQ-0289`); corpus 153 | CTest 309/309 |
 | 2026-10-11 #6 | Construction | Scroll bars: range-checked `Value`, `Change`/`Scroll` events, scripted drag/step (`REQ-0289`); corpus 154 | CTest 310/310 |
+| 2026-10-11 #7 | Construction | Menus click path, non-focusable controls, scripted `MsgBox`/`InputBox` answers, modal `Show` (`REQ-0289`); corpus 155–156 | CTest 312/312 |
