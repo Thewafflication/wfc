@@ -806,7 +806,9 @@ Evaluation evaluate_program(const std::string_view source,
     std::vector<ClassModuleSource> rewritten;
     rewritten.reserve(classes.size());
     for (std::size_t index = 0; index < classes.size(); ++index) {
-        rewritten.push_back({classes[index].name, processed_classes[index]});
+        rewritten.push_back({classes[index].name, processed_classes[index],
+                             classes[index].form_description,
+                             classes[index].form_directory});
     }
     return evaluate_interpreter([&](const std::size_t depth, const char* base,
                                     const std::size_t budget) {
@@ -815,6 +817,8 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_app_properties(options.app_properties);
         interpreter.set_resource_file(options.resource_file);
         interpreter.set_type_libraries(options.type_libraries);
+        interpreter.set_startup_form(options.startup_form);
+        interpreter.set_ui_script(options.ui_script);
         if (options.per_module_option_explicit) {
             interpreter.set_option_explicit_ranges(
                 options.option_explicit_ranges);

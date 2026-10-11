@@ -1,0 +1,4 @@
+Type=Exe
+Form=151-form-basic.frm
+Startup="Form1"
+WfcUiScript=151-form-basic.ui

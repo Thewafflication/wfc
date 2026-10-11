@@ -4,6 +4,8 @@
 
 #include "interpreter.hpp"
 
+#include "../ui/control_tables.hpp"
+
 namespace wfc::detail {
 
 [[nodiscard]] bool mentions_option_explicit(const std::string_view text) {
@@ -249,6 +251,9 @@ void Interpreter::register_predeclared_instances() {
         if (is_global_namespace) {
             class_definitions_.at(key).global_namespace = true;
             predeclared = true;
+        }
+        if (class_definitions_.at(key).form != nullptr) {
+            predeclared = true;  // every form has a default instance
         }
         if (!predeclared || module.variables.contains(key)) {
             continue;
@@ -1577,6 +1582,18 @@ bool Interpreter::scan_classes() {
         class_def.source = class_source.source;
         class_def.display_name = class_source.name;
         class_def.strict = mentions_option_explicit(class_source.source);
+        if (!class_source.form_description.empty()) {
+            auto parsed = std::make_shared<ui::FrmFile>(
+                ui::parse_frm(class_source.form_description));
+            if (!parsed->ok) {
+                set_error("WFC0289",
+                          "form '" + class_source.name + "': " + parsed->error,
+                          offset_);
+                return false;
+            }
+            class_def.form = std::move(parsed);
+            class_def.form_directory = class_source.form_directory;
+        }
         class_definitions_.emplace(std::move(lowered_name),
                                    std::move(class_def));
     }
@@ -1600,6 +1617,33 @@ bool Interpreter::scan_classes() {
             return false;
         }
         scan_default_member(class_def);
+        if (class_def.form != nullptr) {
+            // Each control is a public object field of the form.
+            const auto add_controls = [&](const auto& self,
+                                          const ui::FrmObject& parent) -> void {
+                for (const auto& child : parent.children) {
+                    std::string leaf = child.type;
+                    if (leaf.rfind("VB.", 0) == 0) {
+                        leaf = leaf.substr(3);
+                    }
+                    if (ui::find_control_class(leaf) == nullptr) {
+                        continue;
+                    }
+                    std::string key;
+                    for (const char c : child.name) {
+                        key.push_back(ascii_lower(c));
+                    }
+                    if (!class_def.fields.contains(key)) {
+                        ClassFieldDef field;
+                        field.is_object = true;
+                        class_def.fields.emplace(key, field);
+                        class_def.field_order.push_back(key);
+                    }
+                    self(self, child);
+                }
+            };
+            add_controls(add_controls, class_def.form->root);
+        }
     }
     return check_interface_completeness();
 }

@@ -80,7 +80,9 @@ int main(const int argument_count, const char* const arguments[]) {
         std::vector<wfc::ClassModuleSource> project_classes;
         for (std::size_t i = 0; i < project.class_names.size(); ++i) {
             project_classes.push_back(wfc::ClassModuleSource{
-                project.class_names[i], project.class_sources[i]});
+                project.class_names[i], project.class_sources[i],
+                project.class_form_texts[i],
+                project.class_form_directories[i]});
         }
         // Running real project files: print numbers the way VB6 does.
         wfc::EvaluationOptions options;
@@ -90,6 +92,8 @@ int main(const int argument_count, const char* const arguments[]) {
         options.option_explicit_ranges = project.option_explicit_ranges;
         options.resource_file = project.resource_file;
         options.type_libraries = project.type_libraries;
+        options.startup_form = project.startup_form;
+        options.ui_script = project.ui_script;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

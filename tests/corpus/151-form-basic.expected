@@ -1,0 +1,11 @@
+loadDemostart
+label now loaded
+activate
+gotfocus text1
+label now clicked 1
+clickclicked 1
+changehello
+label now clicked 2
+clickclicked 2
+queryunload 0 
+unload

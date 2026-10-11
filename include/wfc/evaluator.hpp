@@ -39,6 +39,11 @@ struct Evaluation final {
 struct ClassModuleSource final {
     std::string name;
     std::string_view source;
+    // For a form module (.frm): the file's text (the form description and
+    // code) and the directory its .frx resources are read from. `source`
+    // then holds the code part with the description blanked.
+    std::string_view form_description;
+    std::string form_directory;
 };
 
 // Behaviors that differ between a compact one-liner snippet and a faithful VB6
@@ -64,6 +69,10 @@ struct EvaluationOptions final {
     // Type libraries (`{GUID}#major.minor#path`) whose classes, interfaces
     // and enumeration members the program may name (early binding).
     std::vector<std::string> type_libraries;
+    // The form shown when the program starts (`Startup="Form1"`), and the
+    // path of a scripted-input file for the headless UI host.
+    std::string startup_form;
+    std::string ui_script;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

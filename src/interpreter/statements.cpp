@@ -723,7 +723,19 @@ bool Interpreter::parse_statement_core() {
         return *handled;
     }
     if (consume_keyword("doevents")) {
-        return true;
+        return pump_forms();
+    }
+    {
+        // `Load Form1` / `Unload Me` (a form name follows the keyword).
+        const auto saved = offset_;
+        const bool unload = consume_keyword("unload");
+        if (unload || consume_keyword("load")) {
+            skip_horizontal_whitespace();
+            if (!at_end() && is_identifier_start(current())) {
+                return parse_load_unload_statement(unload);
+            }
+        }
+        offset_ = saved;
     }
     {
         // DefXxx statements were applied by scan_deftypes.
@@ -2926,6 +2938,14 @@ std::optional<bool> Interpreter::parse_bare_call(
                         return result.has_value();
                     }
                 }
+            }
+            if (const auto implicit = native_implicit_member(identifier)) {
+                // A method of the form the code belongs to (implicit Me).
+                offset_ = identifier_offset;
+                const auto result = parse_member_access_after_dot(
+                    *implicit, identifier_offset, /*require_function=*/false);
+                bare_call_arguments_ = false;
+                return result.has_value();
             }
             if (const auto global = global_namespace_instance(identifier)) {
                 // A public method of a VB_GlobalNameSpace class (REQ-0283).

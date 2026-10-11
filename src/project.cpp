@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "module_linker.hpp"
+#include "ui/frm_parser.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -268,6 +269,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
     std::vector<std::string> module_declared_names;
     std::vector<std::pair<std::string, std::filesystem::path>> classes;
     bool startup_sub_main = true;
+    std::vector<std::filesystem::path> form_files;
 
     for (const auto& path : paths) {
         const std::string extension = lowered(path.extension().string());
@@ -306,8 +308,12 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     } else {
                         classes.emplace_back(name, file);
                     }
-                } else if (key == "form" || key == "usercontrol" ||
-                           key == "propertypage" || key == "designer") {
+                } else if (key == "form") {
+                    form_files.push_back(directory / normalize(value));
+                } else if (key == "wfcuiscript") {
+                    project.ui_script = (directory / normalize(value)).string();
+                } else if (key == "usercontrol" || key == "propertypage" ||
+                           key == "designer") {
                     return fail("unsupported project item (visual designer): " +
                                 line);
                 } else if (const auto app_key = app_property_for(key);
@@ -359,7 +365,7 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     startup_sub_main =
                         lowered(value) == "sub main" || value.empty();
                     if (!startup_sub_main && lowered(value) != "(none)") {
-                        return fail("unsupported Startup object: " + value);
+                        project.startup_form = value;
                     }
                 }
             }
@@ -433,11 +439,35 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         project.class_names.push_back(std::move(name));
         project.class_sources.push_back(std::move(text));
         project.class_files.push_back(class_path.string());
+        project.class_form_texts.emplace_back();
+        project.class_form_directories.emplace_back();
+    }
+    for (const auto& form_path : form_files) {
+        std::string form_text;
+        if (!read_file(form_path, form_text)) {
+            return fail("cannot read form: " + form_path.string());
+        }
+        const auto parsed = ui::parse_frm(form_text);
+        if (!parsed.ok) {
+            return fail(form_path.string() + ":" +
+                        std::to_string(parsed.error_line) + ": " +
+                        parsed.error);
+        }
+        std::string code = parsed.code;
+        static_cast<void>(strip_file_header(code));
+        project.class_names.push_back(parsed.name);
+        project.class_sources.push_back(std::move(code));
+        project.class_files.push_back(form_path.string());
+        project.class_form_texts.push_back(std::move(form_text));
+        const auto parent = form_path.has_parent_path()
+                                ? form_path.parent_path()
+                                : std::filesystem::path(".");
+        project.class_form_directories.push_back(parent.string());
     }
     if (startup_sub_main && has_main) {
         project.module_source += "Call Main\n";
     }
-    if (project.module_source.empty()) {
+    if (project.module_source.empty() && form_files.empty()) {
         return fail("project has no standard module to run");
     }
     project.ok = true;

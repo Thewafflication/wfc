@@ -194,6 +194,10 @@ std::optional<Value> Interpreter::instantiate_class(
             }
         }
     }
+    if (class_iterator->second.form != nullptr &&
+        !create_form_instance(instance, class_iterator->second, offset)) {
+        return std::nullopt;
+    }
     const auto initializer_iterator =
         class_iterator->second.methods.find("class_initialize");
     if (initializer_iterator != class_iterator->second.methods.end()) {
@@ -1032,6 +1036,11 @@ std::optional<Value> Interpreter::call_default_member_with(
         return com_get_member_with(*holder.data, std::string{}, arguments,
                                    member_offset);
     }
+    if (holder.data->native != nullptr &&
+        holder.data->class_name == "wfcnative") {
+        return native_get_member_with(*holder.data, "_default", arguments,
+                                      member_offset);
+    }
     const auto held_class = class_definitions_.find(holder.data->class_name);
     if (held_class == class_definitions_.end() ||
         held_class->second.default_member.empty()) {
@@ -1060,6 +1069,10 @@ std::optional<Value> Interpreter::call_default_member(
     const ObjectInstance& holder, const std::size_t member_offset) {
     if (holder.data->com != nullptr) {
         return com_default_member(*holder.data, member_offset);
+    }
+    if (holder.data->native != nullptr &&
+        holder.data->class_name == "wfcnative") {
+        return native_get_member(*holder.data, "_default", member_offset);
     }
     const auto held_class = class_definitions_.find(holder.data->class_name);
     if (held_class == class_definitions_.end() ||
@@ -1140,6 +1153,9 @@ std::optional<Value> Interpreter::parse_member_access_after_dot(
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
     if (instance.com != nullptr) {
         return com_get_member(instance, *member_name, member_offset);
+    }
+    if (instance.native != nullptr && native_owns(instance, *member_name)) {
+        return native_get_member(instance, *member_name, member_offset);
     }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;

@@ -40,6 +40,15 @@ struct LoadedProject final {
     // The project's `Reference=` type libraries (REQ-0288), each
     // `{GUID}#major.minor#path` (path may be empty).
     std::vector<std::string> type_libraries;
+    // Form modules are class modules whose `class_form_texts` entry holds the
+    // .frm text (empty for ordinary classes) and `class_form_directories`
+    // the directory of the form's .frx; `startup_form` is `Startup="Form1"`.
+    std::vector<std::string> class_form_texts;
+    std::vector<std::string> class_form_directories;
+    std::string startup_form;
+    // Path of a scripted-input file for the headless UI host
+    // (`WfcUiScript=` in the .vbp), resolved against the project directory.
+    std::string ui_script;
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

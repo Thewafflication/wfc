@@ -169,12 +169,18 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
         ClassDef com_class;
         com_class.display_name = "Object";
         class_definitions_.try_emplace("wfccom", std::move(com_class));
+        ClassDef native_class;
+        native_class.display_name = "Object";
+        class_definitions_.try_emplace("wfcnative", std::move(native_class));
     }
     if (!scan_procedures()) {
         return std::move(error_);
     }
     skip_program_leading_trivia();
-    if (at_end()) {
+    const bool has_forms = std::any_of(
+        class_definitions_.begin(), class_definitions_.end(),
+        [](const auto& entry) { return entry.second.form != nullptr; });
+    if (at_end() && !has_forms) {
         return failure("WFC0001", "expected statement", offset_);
     }
     while (!at_end()) {
@@ -195,6 +201,9 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
         skip_program_leading_trivia();
     }
 
+    if (!run_forms_at_exit()) {
+        return std::move(error_);
+    }
     // Terminate any module-level variable still holding the last
     // reference to an instance, the same way a call frame's locals are
     // drained at the end of a call -- but only on this successful
@@ -745,6 +754,17 @@ bool Interpreter::resolve_default_value(Value& value,
     }
     if (holder->data->com != nullptr) {
         com_default_value(value);
+        return true;
+    }
+    if (holder->data->native != nullptr &&
+        holder->data->class_name == "wfcnative") {
+        const auto kept = holder->data;
+        auto resolved = native_get_member(*kept, "_default", offset);
+        if (resolved.has_value()) {
+            value = std::move(*resolved);
+        } else {
+            error_ = wfc::Evaluation{};  // no default property: keep object
+        }
         return true;
     }
     const auto class_iterator =

@@ -188,6 +188,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         }
         if (name == "doevents" && execute_) {
             com_pump_messages();
+            if (!pump_forms()) {
+                return std::nullopt;
+            }
         }
         return Value{Integer{}};
     }

@@ -1381,6 +1381,11 @@ std::optional<Value> Interpreter::parse_primary_base() {
                         return com_default_member(*holder->data,
                                                   identifier_offset);
                     }
+                    if (holder->data->native != nullptr &&
+                        holder->data->class_name == "wfcnative") {
+                        return native_get_member(*holder->data, "_default",
+                                                 identifier_offset);
+                    }
                     const auto class_iterator =
                         class_definitions_.find(holder->data->class_name);
                     if (class_iterator != class_definitions_.end() &&
@@ -1468,6 +1473,12 @@ std::optional<Value> Interpreter::parse_primary_base() {
             if (type_character == '\0' && array_variable.value == nullptr) {
                 // `Name(args)` for a public member of a VB_GlobalNameSpace
                 // class (REQ-0283).
+                if (const auto implicit = native_implicit_member(*identifier)) {
+                    offset_ = identifier_offset;
+                    return parse_member_access_after_dot(
+                        *implicit, identifier_offset,
+                        /*require_function=*/true);
+                }
                 if (const auto global =
                         global_namespace_instance(*identifier)) {
                     offset_ = identifier_offset;
@@ -1566,6 +1577,15 @@ std::optional<Value> Interpreter::parse_primary_base() {
                                                      /*require_function=*/true);
                         }
                     }
+                }
+            }
+            // A property or control of the form the code belongs to.
+            if (type_character == '\0') {
+                if (const auto implicit = native_implicit_member(*identifier)) {
+                    offset_ = identifier_offset;
+                    return parse_member_access_after_dot(
+                        *implicit, identifier_offset,
+                        /*require_function=*/true);
                 }
             }
             // A public member of a VB_GlobalNameSpace class (REQ-0283).

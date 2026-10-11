@@ -376,6 +376,11 @@ bool Interpreter::parse_assignment(std::string identifier,
             }
         }
         if (type_character == '\0') {
+            if (const auto implicit = native_implicit_member(identifier)) {
+                // A property of the form the code belongs to (implicit Me).
+                offset_ = identifier_offset;
+                return parse_member_assignment(*implicit, identifier_offset);
+            }
             if (const auto global =
                     global_namespace_instance(identifier, true)) {
                 // A public property or field of a VB_GlobalNameSpace class
@@ -741,6 +746,9 @@ bool Interpreter::parse_member_set_assignment(
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
     if (instance.com != nullptr) {
         return com_set_member(base, *member_name, member_offset);
+    }
+    if (instance.native != nullptr && native_owns(instance, *member_name)) {
+        return native_set_member(base, *member_name, member_offset);
     }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
@@ -1133,6 +1141,9 @@ bool Interpreter::parse_member_assignment(
     if (instance.com != nullptr) {
         return com_member_statement(base, *member_name, member_offset);
     }
+    if (instance.native != nullptr && native_owns(instance, *member_name)) {
+        return native_member_statement(base, *member_name, member_offset);
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
 
@@ -1418,6 +1429,11 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
                 if (instance_data.com != nullptr) {
                     return com_member_statement(*variable.value, std::string{},
                                                 saved_offset);
+                }
+                if (instance_data.native != nullptr &&
+                    instance_data.class_name == "wfcnative") {
+                    return native_member_statement(*variable.value, "_default",
+                                                   saved_offset);
                 }
                 const auto class_iterator =
                     class_definitions_.find(instance_data.class_name);

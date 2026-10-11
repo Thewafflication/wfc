@@ -403,3 +403,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0286 — Late-bound COM Automation client](req-0286-com-automation-client.md)
 - [REQ-0287 — Resource files and headless Global members](req-0287-resources-and-global-members.md)
 - [REQ-0288 — Type-library references and early binding](req-0288-type-library-references.md)
+- [REQ-0289 — Form modules and the intrinsic-control object model](req-0289-forms-and-controls-model.md)

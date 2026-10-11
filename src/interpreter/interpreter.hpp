@@ -6,6 +6,7 @@
 #define WFC_INTERPRETER_INTERPRETER_HPP
 
 #include "../large_stack.hpp"
+#include "../ui/frm_parser.hpp"
 #include "builtin_class_sources.hpp"
 #include "vb_text.hpp"
 #include "wfc/evaluator.hpp"
@@ -236,6 +237,10 @@ struct ClassFieldDef {
 // isolation (see REQ-0203's Scope).
 struct ClassDef {
     std::string_view source;
+    // A form module (REQ-0289): its parsed description and the directory of
+    // its .frx file. Its controls are fields of every instance.
+    std::shared_ptr<const ui::FrmFile> form;
+    std::string form_directory;
     // The original, as-supplied spelling (for TypeName rendering); lookups
     // themselves are keyed by the lowercased name, like every other
     // identifier in this evaluator.
@@ -303,6 +308,41 @@ struct NativeStore {
     bool text_compare{false};
 };
 
+class Interpreter;
+struct CallArgument;
+struct FormRuntime;
+struct FormSupport;
+
+// A failure a native object reports instead of a value.
+struct NativeFailure {
+    Integer number{};
+    std::string description;
+};
+
+// An object implemented inside the interpreter rather than in VB source or
+// COM -- a form or an intrinsic control (REQ-0289). Member names are
+// lower-cased.
+struct NativeObject {
+    NativeObject() = default;
+    NativeObject(const NativeObject&) = delete;
+    NativeObject& operator=(const NativeObject&) = delete;
+    virtual ~NativeObject() = default;
+    [[nodiscard]] virtual std::string type_name() const = 0;
+    [[nodiscard]] virtual bool has_member(const std::string& member) const = 0;
+    // Property Get or method call. Returns false when there is no such
+    // member; sets `failure.number` to report a run-time error.
+    [[nodiscard]] virtual bool get(Interpreter& interpreter,
+                                   const std::string& member,
+                                   std::vector<CallArgument>& arguments,
+                                   Value& result, NativeFailure& failure) = 0;
+    // Property Let/Set.
+    [[nodiscard]] virtual bool put(Interpreter& interpreter,
+                                   const std::string& member,
+                                   std::vector<CallArgument>& arguments,
+                                   const Value& value,
+                                   NativeFailure& failure) = 0;
+};
+
 // A live COM Automation object (an `IDispatch`), held by an instance created
 // with `CreateObject`/`GetObject` or returned by one (REQ-0286).
 struct ComObject {
@@ -327,6 +367,9 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::string class_name;
     // Non-null for a COM object; class_name is then "wfccom".
     std::shared_ptr<ComObject> com;
+    // Non-null for a form (alongside its VB members) or an intrinsic
+    // control (class_name "wfcnative").
+    std::shared_ptr<NativeObject> native;
     std::unique_ptr<NativeStore> store;
     Scope fields;
     // Objects handling this instance's events: the sink instance (weak, so
@@ -467,6 +510,8 @@ public:
     // Delivers an event raised by a COM object to its WithEvents handlers.
     void deliver_com_event(InstanceData& source, const std::string& event_name,
                            std::vector<CallArgument>& arguments);
+    void set_startup_form(std::string name) { startup_form_ = std::move(name); }
+    void set_ui_script(std::string path) { ui_script_ = std::move(path); }
     void set_resource_file(std::string path) {
         resource_file_ = std::move(path);
     }
@@ -1602,6 +1647,39 @@ private:
     [[nodiscard]] std::optional<ArrayValue> com_enumerate(
         InstanceData& instance, std::size_t offset);
     [[nodiscard]] std::string com_type_name(InstanceData& instance);
+    // Forms and intrinsic controls (REQ-0289); forms.cpp.
+    friend struct FormSupport;
+    // Whether `member` of `instance` is served by its native object rather
+    // than by VB members of the instance's class.
+    [[nodiscard]] bool native_owns(InstanceData& instance,
+                                   const std::string& member);
+    [[nodiscard]] std::optional<Value> native_get_member(
+        InstanceData& instance, const std::string& name,
+        std::size_t member_offset);
+    [[nodiscard]] std::optional<Value> native_get_member_with(
+        InstanceData& instance, const std::string& name,
+        std::vector<CallArgument>& arguments, std::size_t member_offset);
+    [[nodiscard]] bool native_member_statement(const Value& base,
+                                               const std::string& name,
+                                               std::size_t member_offset);
+    [[nodiscard]] bool native_set_member(const Value& base,
+                                         const std::string& name,
+                                         std::size_t member_offset);
+    // The native object a form's unqualified name refers to (implicit Me).
+    [[nodiscard]] std::optional<Value> native_implicit_member(
+        const std::string& name);
+    // Creates the form's window, controls and native object (after fields).
+    [[nodiscard]] bool create_form_instance(
+        const std::shared_ptr<InstanceData>& instance, const ClassDef& def,
+        std::size_t offset);
+    // Statements `Load Form`, `Unload Form`, and the startup/message loop.
+    [[nodiscard]] bool parse_load_unload_statement(bool unload);
+    [[nodiscard]] bool run_forms_at_exit();
+    // Dispatches the queued form events (DoEvents).
+    [[nodiscard]] bool pump_forms();
+    std::shared_ptr<FormRuntime> forms_;
+    std::string startup_form_;
+    std::string ui_script_;
     // Subscribes to a COM object's default outgoing interface.
     bool com_connect_events(InstanceData& instance);
     // Dispatches queued window messages (COM events, async servers).
