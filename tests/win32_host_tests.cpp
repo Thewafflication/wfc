@@ -110,6 +110,27 @@ int main() {
     host.set_visible(item, true);
     expect(GetMenu(host.handle_of(form)) != nullptr, "menu bar exists");
 
+    // Drawing operations reach the persistent surface without error.
+    const WindowId picture = host.create_window("PictureBox", form);
+    host.set_bounds(picture, Rect{3000, 100, 2000, 1500});
+    host.set_visible(picture, true);
+    for (const char* kind : {"cls", "pset", "line", "circle", "text"}) {
+        DrawOp operation;
+        operation.kind = kind;
+        operation.x1 = 100;
+        operation.y1 = 100;
+        operation.x2 = 900;
+        operation.y2 = 700;
+        operation.radius = 300;
+        operation.text = "hello";
+        operation.box = true;
+        operation.filled = true;
+        host.draw(picture, operation);
+        host.draw(form, operation);
+    }
+    const auto metrics = host.measure_text(form, "hello", FontSpec{});
+    expect(metrics.width > 0 && metrics.height > 0, "text is measurable");
+
     PostMessageW(host.handle_of(form), WM_CLOSE, 0, 0);
     expect(wait_for(host, "Close", event) && event.window == form,
            "closing the window becomes a Close event");

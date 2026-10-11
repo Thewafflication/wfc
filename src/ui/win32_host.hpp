@@ -17,6 +17,8 @@
 struct HWND__;
 struct HMENU__;
 struct HFONT__;
+struct HDC__;
+struct HBITMAP__;
 
 namespace wfc::ui {
 
@@ -46,6 +48,10 @@ public:
     void set_value(WindowId window, long value) override;
     void set_scroll(WindowId window, long minimum, long maximum, long value,
                     long small_change, long large_change) override;
+    void draw(WindowId window, const DrawOp& operation) override;
+    [[nodiscard]] TextMetrics measure_text(WindowId window,
+                                           const std::string& text,
+                                           const FontSpec& font) const override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
@@ -65,6 +71,11 @@ private:
     [[nodiscard]] const Entry* find(WindowId window) const;
     void queue(UiEvent event);
     void refresh_menu_bar(WindowId form);
+    // Paints the persistent surface of the window `hwnd` onto `target`;
+    // false when the window has none.
+    bool paint_surface(HWND__* hwnd, HDC__* target);
+    // The window's drawing surface, sized to its client area.
+    Entry* ensure_surface(WindowId window);
 
     std::map<WindowId, std::unique_ptr<Entry>> windows_;
     std::deque<UiEvent> queue_;

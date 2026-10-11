@@ -10,12 +10,14 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace wfc::ui {
 namespace {
 
 constexpr wchar_t kFormClass[] = L"WfcForm";
+constexpr wchar_t kPictureClass[] = L"WfcPicture";
 constexpr wchar_t kIdProperty[] = L"WfcId";
 
 [[nodiscard]] std::wstring widen(const std::string& text) {
@@ -60,6 +62,12 @@ struct Win32Host::Entry {
     bool checked{false};
     std::string caption;
     long timer_interval{0};
+    // The persistent drawing surface of a form or picture box.
+    HDC surface_dc{nullptr};
+    HBITMAP surface_bitmap{nullptr};
+    int surface_width{0};
+    int surface_height{0};
+    long surface_background{0xF0F0F0};
 };
 
 // Window procedure and helpers that need the host's internals.
@@ -93,6 +101,11 @@ struct Win32Support {
                 return 0;
             case WM_SIZE:
                 host->queue(UiEvent{form, "Resize", {}});
+                break;
+            case WM_ERASEBKGND:
+                if (host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
+                    return 1;
+                }
                 break;
             case WM_TIMER:
                 host->queue(
@@ -173,6 +186,22 @@ struct Win32Support {
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
 
+    static LRESULT CALLBACK picture_proc(HWND hwnd, UINT message, WPARAM wparam,
+                                         LPARAM lparam) {
+        if (message == WM_NCCREATE) {
+            const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lparam);
+            SetWindowLongPtrW(
+                hwnd, GWLP_USERDATA,
+                reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+        }
+        Win32Host* const host = host_of(hwnd);
+        if (host != nullptr && message == WM_ERASEBKGND &&
+            host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
+            return 1;
+        }
+        return DefWindowProcW(hwnd, message, wparam, lparam);
+    }
+
     static bool register_form_class() {
         static const bool registered = [] {
             WNDCLASSEXW window_class{};
@@ -185,6 +214,12 @@ struct Win32Support {
             window_class.hbrBackground = reinterpret_cast<HBRUSH>(
                 static_cast<INT_PTR>(COLOR_BTNFACE + 1));
             window_class.lpszClassName = kFormClass;
+            if (RegisterClassExW(&window_class) == 0) {
+                return false;
+            }
+            window_class.lpfnWndProc = picture_proc;
+            window_class.lpszClassName = kPictureClass;
+            window_class.hbrBackground = nullptr;
             return RegisterClassExW(&window_class) != 0;
         }();
         return registered;
@@ -295,7 +330,10 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "VScrollBar") {
         make_child(L"SCROLLBAR", SBS_VERT | WS_TABSTOP);
     } else if (kind == "PictureBox") {
-        make_child(L"STATIC", SS_OWNERDRAW);
+        entry->hwnd = CreateWindowExW(WS_EX_CLIENTEDGE, kPictureClass, L"",
+                                      WS_CHILD | WS_CLIPSIBLINGS, 0, 0, 0, 0,
+                                      parent_handle, id_value, instance, this);
+        entry->surface_background = 0xFFFFFF;
     } else {
         entry->lightweight = true;  // Timer, Shape, Line, Image, ...
     }
@@ -390,6 +428,10 @@ void Win32Host::destroy_window(const WindowId window) {
     const bool menu = entry->is_menu;
     WindowId form = entry->parent;
     HWND handle = entry->hwnd;
+    if (entry->surface_dc != nullptr) {
+        DeleteDC(entry->surface_dc);
+        DeleteObject(entry->surface_bitmap);
+    }
     windows_.erase(window);
     if (handle != nullptr) {
         DestroyWindow(handle);
@@ -591,6 +633,209 @@ void Win32Host::set_scroll(const WindowId window, const long minimum,
     info.nMax = static_cast<int>(std::max(minimum, maximum)) + page - 1;
     info.nPos = static_cast<int>(value);
     SetScrollInfo(entry->hwnd, SB_CTL, &info, TRUE);
+}
+
+namespace {
+
+[[nodiscard]] COLORREF to_colorref(const long color) {
+    // 0x00BBGGRR is already a COLORREF.
+    return static_cast<COLORREF>(color & 0xFFFFFFL);
+}
+
+}  // namespace
+
+Win32Host::Entry* Win32Host::ensure_surface(const WindowId window) {
+    auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr) {
+        return nullptr;
+    }
+    RECT client{};
+    GetClientRect(entry->hwnd, &client);
+    const int width = std::max(static_cast<int>(client.right), 1);
+    const int height = std::max(static_cast<int>(client.bottom), 1);
+    if (entry->surface_dc != nullptr && entry->surface_width >= width &&
+        entry->surface_height >= height) {
+        return entry;
+    }
+    // (Re)create at least as large as the client area, keeping the contents.
+    const int new_width = std::max(width, entry->surface_width);
+    const int new_height = std::max(height, entry->surface_height);
+    HDC screen = GetDC(entry->hwnd);
+    HDC memory = CreateCompatibleDC(screen);
+    HBITMAP bitmap = CreateCompatibleBitmap(screen, new_width, new_height);
+    ReleaseDC(entry->hwnd, screen);
+    HGDIOBJ previous = SelectObject(memory, bitmap);
+    static_cast<void>(previous);
+    HBRUSH background =
+        CreateSolidBrush(to_colorref(entry->surface_background));
+    RECT whole{0, 0, new_width, new_height};
+    FillRect(memory, &whole, background);
+    DeleteObject(background);
+    if (entry->surface_dc != nullptr) {
+        BitBlt(memory, 0, 0, entry->surface_width, entry->surface_height,
+               entry->surface_dc, 0, 0, SRCCOPY);
+        DeleteDC(entry->surface_dc);
+        DeleteObject(entry->surface_bitmap);
+    }
+    entry->surface_dc = memory;
+    entry->surface_bitmap = bitmap;
+    entry->surface_width = new_width;
+    entry->surface_height = new_height;
+    return entry;
+}
+
+bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
+    const WindowId window = Win32Support::id_of(hwnd);
+    auto* entry = find(window);
+    if (entry == nullptr || entry->surface_dc == nullptr) {
+        return false;
+    }
+    RECT client{};
+    GetClientRect(hwnd, &client);
+    BitBlt(target, 0, 0, std::min<int>(client.right, entry->surface_width),
+           std::min<int>(client.bottom, entry->surface_height),
+           entry->surface_dc, 0, 0, SRCCOPY);
+    return true;
+}
+
+void Win32Host::draw(const WindowId window, const DrawOp& operation) {
+    Entry* entry = ensure_surface(window);
+    if (entry == nullptr) {
+        return;
+    }
+    const auto to_x = [&](const double twips) {
+        return static_cast<int>(
+            std::lround(twips * static_cast<double>(dpi_x_) / 1440.0));
+    };
+    const auto to_y = [&](const double twips) {
+        return static_cast<int>(
+            std::lround(twips * static_cast<double>(dpi_y_) / 1440.0));
+    };
+    HDC dc = entry->surface_dc;
+    const COLORREF color = to_colorref(operation.color);
+    if (operation.kind == "cls") {
+        HBRUSH brush = CreateSolidBrush(color);
+        RECT whole{0, 0, entry->surface_width, entry->surface_height};
+        FillRect(dc, &whole, brush);
+        DeleteObject(brush);
+        entry->surface_background = operation.color;
+    } else if (operation.kind == "pset") {
+        SetPixelV(dc, to_x(operation.x1), to_y(operation.y1), color);
+    } else if (operation.kind == "line") {
+        const int x1 = to_x(operation.x1);
+        const int y1 = to_y(operation.y1);
+        const int x2 = to_x(operation.x2);
+        const int y2 = to_y(operation.y2);
+        if (operation.box && operation.filled) {
+            HBRUSH brush = CreateSolidBrush(color);
+            RECT area{std::min(x1, x2), std::min(y1, y2), std::max(x1, x2) + 1,
+                      std::max(y1, y2) + 1};
+            FillRect(dc, &area, brush);
+            DeleteObject(brush);
+        } else {
+            HPEN pen = CreatePen(PS_SOLID, operation.draw_width, color);
+            HGDIOBJ old_pen = SelectObject(dc, pen);
+            if (operation.box) {
+                HGDIOBJ old_brush =
+                    SelectObject(dc, GetStockObject(NULL_BRUSH));
+                Rectangle(dc, std::min(x1, x2), std::min(y1, y2),
+                          std::max(x1, x2) + 1, std::max(y1, y2) + 1);
+                SelectObject(dc, old_brush);
+            } else {
+                MoveToEx(dc, x1, y1, nullptr);
+                LineTo(dc, x2, y2);
+            }
+            SelectObject(dc, old_pen);
+            DeleteObject(pen);
+        }
+    } else if (operation.kind == "circle") {
+        const int cx = to_x(operation.x1);
+        const int cy = to_y(operation.y1);
+        const int rx = std::max(to_x(operation.radius), 1);
+        const int ry =
+            std::max(static_cast<int>(std::lround(static_cast<double>(rx) *
+                                                  operation.aspect)),
+                     1);
+        HPEN pen = CreatePen(PS_SOLID, operation.draw_width, color);
+        HGDIOBJ old_pen = SelectObject(dc, pen);
+        HGDIOBJ old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+        if (operation.arc) {
+            const double start = std::fabs(operation.start);
+            const double end = std::fabs(operation.end);
+            // GDI arcs run counter-clockwise from the start point to the
+            // end point; both lie on the ellipse.
+            Arc(dc, cx - rx, cy - ry, cx + rx, cy + ry,
+                cx + static_cast<int>(std::lround(rx * std::cos(start))),
+                cy - static_cast<int>(std::lround(ry * std::sin(start))),
+                cx + static_cast<int>(std::lround(rx * std::cos(end))),
+                cy - static_cast<int>(std::lround(ry * std::sin(end))));
+        } else {
+            Ellipse(dc, cx - rx, cy - ry, cx + rx, cy + ry);
+        }
+        SelectObject(dc, old_brush);
+        SelectObject(dc, old_pen);
+        DeleteObject(pen);
+    } else if (operation.kind == "text") {
+        const int height = -static_cast<int>(std::lround(
+            operation.font.size * static_cast<double>(dpi_y_) / 72.0));
+        HFONT font = CreateFontW(
+            height, 0, 0, 0, operation.font.bold ? FW_BOLD : FW_NORMAL,
+            operation.font.italic ? TRUE : FALSE,
+            operation.font.underline ? TRUE : FALSE,
+            operation.font.strikethrough ? TRUE : FALSE, DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_SWISS, widen(operation.font.name).c_str());
+        HGDIOBJ old_font = SelectObject(dc, font);
+        SetTextColor(dc, color);
+        SetBkMode(dc, TRANSPARENT);
+        const auto text = widen(operation.text);
+        TextOutW(dc, to_x(operation.x1), to_y(operation.y1), text.c_str(),
+                 static_cast<int>(text.size()));
+        SelectObject(dc, old_font);
+        DeleteObject(font);
+    }
+    InvalidateRect(entry->hwnd, nullptr, FALSE);
+}
+
+TextMetrics Win32Host::measure_text(const WindowId window,
+                                    const std::string& text,
+                                    const FontSpec& font) const {
+    const auto* entry = find(window);
+    HWND owner = entry != nullptr ? entry->hwnd : nullptr;
+    HDC dc = GetDC(owner);
+    const int height = -static_cast<int>(
+        std::lround(font.size * static_cast<double>(dpi_y_) / 72.0));
+    HFONT handle =
+        CreateFontW(height, 0, 0, 0, font.bold ? FW_BOLD : FW_NORMAL,
+                    font.italic ? TRUE : FALSE, font.underline ? TRUE : FALSE,
+                    font.strikethrough ? TRUE : FALSE, DEFAULT_CHARSET,
+                    OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                    DEFAULT_PITCH | FF_SWISS, widen(font.name).c_str());
+    HGDIOBJ old_font = SelectObject(dc, handle);
+    double widest = 0.0;
+    double total_height = 0.0;
+    std::size_t start = 0;
+    while (start <= text.size()) {
+        auto end = text.find('\n', start);
+        if (end == std::string::npos) {
+            end = text.size();
+        }
+        const auto line = widen(text.substr(start, end - start));
+        SIZE extent{};
+        GetTextExtentPoint32W(dc, line.c_str(), static_cast<int>(line.size()),
+                              &extent);
+        widest = std::max(widest, static_cast<double>(extent.cx));
+        total_height += static_cast<double>(extent.cy);
+        if (end == text.size()) {
+            break;
+        }
+        start = end + 1U;
+    }
+    SelectObject(dc, old_font);
+    DeleteObject(handle);
+    ReleaseDC(owner, dc);
+    return TextMetrics{widest * 1440.0 / static_cast<double>(dpi_x_),
+                       total_height * 1440.0 / static_cast<double>(dpi_y_)};
 }
 
 void Win32Host::set_focus(const WindowId window) {
