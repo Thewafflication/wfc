@@ -1,0 +1,4 @@
+Type=Exe
+Form=159-form-controls-collection.frm
+Startup="Form1"
+WfcUiScript=159-form-controls-collection.ui

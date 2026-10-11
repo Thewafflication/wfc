@@ -269,6 +269,10 @@ struct ClassDef {
     // A class imported from a referenced type library (REQ-0288): instances
     // are COM objects. `com_clsid` (`{GUID}`) is empty for an interface name.
     bool com_proxy{};
+    // A control or form type name usable in `As` clauses (REQ-0289): the
+    // lower-cased class (`textbox`), or `control` / `form` for the generic
+    // types.
+    std::string native_type;
     std::string com_clsid;
     // `Attribute VB_GlobalNameSpace = True` (REQ-0283): its public members are
     // reachable unqualified.
@@ -350,6 +354,9 @@ struct NativeObject {
         return false;
     }
 };
+
+// The lower-cased type name of a native object (forms.cpp).
+[[nodiscard]] std::string lower_native_type(const InstanceData& instance);
 
 // The global `Forms` collection of loaded forms (forms.cpp).
 [[nodiscard]] std::shared_ptr<NativeObject> make_forms_collection();
@@ -1689,6 +1696,13 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    [[nodiscard]] bool native_type_matches(
+        const std::string& declared_class_name,
+        const InstanceData& source) const;
+    // Registers `As TextBox`, `As Control`, ... for the names a program uses.
+    void register_native_types();
+    // `Screen.ActiveForm` (0) and `Screen.ActiveControl` (1).
+    [[nodiscard]] Value form_active(int what);
     // Drawing on forms and picture boxes (REQ-0290).
     [[nodiscard]] InstanceData* implicit_form_surface();
     [[nodiscard]] bool form_print(InstanceData& surface,

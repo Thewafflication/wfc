@@ -127,6 +127,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "wfcregexreplace",
                                                        "loadresstring",
                                                        "loadresdata",
+                                                       "wfcactive",
                                                        "wfcsys",
                                                        "wfcsysfont",
                                                        "wfcstore"};
@@ -470,6 +471,13 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                 5017, "Syntax error in regular expression", offset));
             return std::nullopt;
         }
+    }
+    if (name == "wfcactive") {
+        if (!arity(1, 1)) {
+            return std::nullopt;
+        }
+        return form_active(
+            static_cast<int>(whole_value(arguments[0]).value_or(0)));
     }
     if (name == "wfcsys" || name == "wfcsysfont") {
         // Screen metrics for the built-in Screen class.

@@ -168,6 +168,7 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     scan_udt_types();
     scan_builtin_classes();
     register_type_libraries();
+    register_native_types();
     if (!scan_classes()) {
         return std::move(error_);
     }

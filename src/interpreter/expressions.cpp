@@ -4,6 +4,8 @@
 
 #include "interpreter.hpp"
 
+#include "../ui/control_tables.hpp"
+
 namespace wfc::detail {
 
 bool Interpreter::implicit_scalar_conversion(Value& value,
@@ -1276,8 +1278,9 @@ std::optional<Value> Interpreter::parse_primary_base() {
                           class_offset);
                 return std::nullopt;
             }
-            if (*class_name != "object" &&
-                !class_definitions_.contains(*class_name)) {
+            if (*class_name != "object" && *class_name != "control" &&
+                !class_definitions_.contains(*class_name) &&
+                ui::find_control_class(*class_name) == nullptr) {
                 set_error("WFC0134", "unknown class name", class_offset);
                 return std::nullopt;
             }
@@ -1289,6 +1292,12 @@ std::optional<Value> Interpreter::parse_primary_base() {
             const auto* instance = std::get_if<ObjectInstance>(&*operand);
             if (instance == nullptr || !execute_) {
                 return Value{false};
+            }
+            if (instance->data->native != nullptr &&
+                instance->data->class_name == "wfcnative") {
+                return Value{*class_name == "object" ||
+                             *class_name == "control" ||
+                             lower_native_type(*instance->data) == *class_name};
             }
             return Value{
                 *class_name == "object" ||

@@ -171,7 +171,8 @@ public:
     std::vector<bool> chosen;  // MultiSelect selection flags
     long list_index{-1};
     long new_index{-1};
-    long order{0};  // creation order (the default TabIndex)
+    long order{0};        // creation order (the default TabIndex)
+    bool dynamic{false};  // loaded at run time (Load Control(i))
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox";
     }
@@ -284,6 +285,15 @@ struct FormSupport {
         }
         return *in.forms_;
     }
+
+    [[nodiscard]] static Value control_value(InstanceData& form,
+                                             const ControlObject& object);
+    [[nodiscard]] static bool array_element(Interpreter& in,
+                                            ControlArray& array, long index,
+                                            bool unload, std::size_t offset);
+    [[nodiscard]] static bool form_member(Interpreter& in, ControlObject& self,
+                                          const std::string& member,
+                                          Value& result);
 
     static NativeFailure reported() {
         return NativeFailure{kErrorAlreadyReported, {}};
@@ -1513,56 +1523,6 @@ struct FormSupport {
         return true;
     }
 
-    static void focus_first(Interpreter& in, InstanceData& form,
-                            const std::size_t offset) {
-        ControlObject* best = nullptr;
-        long best_order = 0;
-        long position = 0;
-        const auto consider = [&](ControlObject* object) {
-            ++position;
-            if (object == nullptr || object->is_form) {
-                return;
-            }
-            const auto stop = object->values.find("tabstop");
-            const auto enabled = object->values.find("enabled");
-            const auto visible = object->values.find("visible");
-            const auto flag = [](const auto& it, const auto& end) {
-                return it == end || !std::holds_alternative<bool>(it->second) ||
-                       std::get<bool>(it->second);
-            };
-            if (!object->focusable() || !flag(stop, object->values.end()) ||
-                !flag(enabled, object->values.end()) ||
-                !flag(visible, object->values.end())) {
-                return;
-            }
-            const auto order = object->values.find("tabindex");
-            const long key = order != object->values.end()
-                                 ? static_cast<long>(as_double(order->second))
-                                 : position;
-            if (best == nullptr || key < best_order) {
-                best = object;
-                best_order = key;
-            }
-        };
-        for (auto& [name, value] : form.fields.variables) {
-            if (auto* object = control_of(value)) {
-                consider(object);
-            } else if (const auto* holder = std::get_if<ObjectInstance>(&value);
-                       holder != nullptr && holder->data != nullptr) {
-                if (auto* array = dynamic_cast<ControlArray*>(
-                        holder->data->native.get())) {
-                    for (auto& [at, element] : array->elements) {
-                        consider(control_of(element));
-                    }
-                }
-            }
-        }
-        if (best != nullptr) {
-            static_cast<void>(
-                focus_control(in, form, best->name, best->index, offset));
-        }
-    }
-
     [[nodiscard]] static bool show(Interpreter& in, InstanceData& form,
                                    const std::size_t offset) {
         if (!ensure_loaded(in, form, offset)) {
@@ -1578,10 +1538,24 @@ struct FormSupport {
         std::vector<Value> none;
         if (!object->activated) {
             object->activated = true;
+            // The first tab stop is the active control while Activate runs;
+            // it receives GotFocus afterwards.
+            const auto stops = tab_sequence(form);
+            ControlObject* first = stops.empty() ? nullptr : stops.front();
+            auto& host = *runtime(in).host;
+            if (first != nullptr && first->window != ui::kNoWindow &&
+                host.focus() == ui::kNoWindow) {
+                host.set_focus(first->window);
+            } else {
+                first = nullptr;
+            }
             if (!raise(in, form, "", -1, "activate", none, offset)) {
                 return false;
             }
-            focus_first(in, form, offset);
+            if (first != nullptr && host.focus() == first->window &&
+                !raise_table_event(in, *first, "GotFocus", {}, offset)) {
+                return false;
+            }
         }
         return true;
     }
@@ -2339,6 +2313,21 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         }
         return get(in, property, arguments, result, failure);
     }
+    if (FormSupport::form_member(in, *this, member, result)) {
+        // `Controls("name")`: the arguments index the returned collection.
+        if (!arguments.empty()) {
+            if (const auto* holder = std::get_if<ObjectInstance>(&result);
+                holder != nullptr && holder->data->native != nullptr) {
+                Value inner;
+                const auto keep = holder->data;
+                if (keep->native->get(in, "_default", arguments, inner,
+                                      failure)) {
+                    result = inner;
+                }
+            }
+        }
+        return true;
+    }
     if (FormSupport::is_surface(*this) &&
         FormSupport::surface_get(*this, member, result)) {
         return true;
@@ -2849,6 +2838,49 @@ bool Interpreter::parse_load_unload_statement(const bool unload) {
         set_error("WFC0011", "expected a form name", offset);
         return false;
     }
+    {
+        // `Load Control(index)` / `Unload Control(index)`: a control array
+        // element.
+        const auto after_name = offset_;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '(') {
+            const auto variable = find_variable(*identifier);
+            const auto* holder =
+                variable.value != nullptr
+                    ? std::get_if<ObjectInstance>(variable.value)
+                    : nullptr;
+            auto* array =
+                holder != nullptr && holder->data != nullptr
+                    ? dynamic_cast<ControlArray*>(holder->data->native.get())
+                    : nullptr;
+            if (array != nullptr) {
+                advance();
+                skip_horizontal_whitespace();
+                auto index_value = parse_expression();
+                if (!index_value.has_value()) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (!consume(')')) {
+                    set_error("WFC0005", "expected closing parenthesis",
+                              offset_);
+                    return false;
+                }
+                if (!execute_) {
+                    return true;
+                }
+                const auto wanted = whole_value(*index_value);
+                if (!wanted.has_value()) {
+                    set_error("WFC0073", "Type mismatch", offset);
+                    return false;
+                }
+                const auto keep = holder->data;
+                return FormSupport::array_element(*this, *array, *wanted,
+                                                  unload, offset);
+            }
+        }
+        offset_ = after_name;
+    }
     Value target{Nothing{}};
     if (*identifier == "me") {
         auto me = me_value(offset);
@@ -2925,6 +2957,311 @@ public:
 };
 
 }  // namespace
+
+namespace {
+
+// The `Controls` collection of a form.
+class ControlsCollection final : public NativeObject {
+public:
+    explicit ControlsCollection(std::weak_ptr<InstanceData> owner)
+        : form(std::move(owner)) {}
+    [[nodiscard]] std::string type_name() const override { return "Controls"; }
+    [[nodiscard]] bool has_member(const std::string& member) const override {
+        return member == "count" || member == "item" || member == "_default";
+    }
+    [[nodiscard]] bool get(Interpreter& in, const std::string& member,
+                           std::vector<CallArgument>& arguments, Value& result,
+                           NativeFailure& failure) override {
+        std::vector<Value> controls;
+        static_cast<void>(enumerate(in, controls));
+        if (member == "count") {
+            result = Value{static_cast<Integer>(controls.size())};
+            return true;
+        }
+        if (member != "item" && member != "_default") {
+            return false;
+        }
+        if (arguments.size() != 1U) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        if (const auto* name = std::get_if<std::string>(&arguments[0].value)) {
+            const std::string wanted = lower_text(*name);
+            for (const auto& entry : controls) {
+                const ControlObject* object = control_of(entry);
+                if (object != nullptr && object->name == wanted) {
+                    result = entry;
+                    return true;
+                }
+            }
+            failure = NativeFailure{343, "Object not found"};
+            return true;
+        }
+        const auto position = whole_value(arguments[0].value);
+        if (!position.has_value() || *position < 0 ||
+            static_cast<std::size_t>(*position) >= controls.size()) {
+            failure = NativeFailure{9, "Subscript out of range"};
+            return true;
+        }
+        result = controls[static_cast<std::size_t>(*position)];
+        return true;
+    }
+    [[nodiscard]] bool put(Interpreter&, const std::string&,
+                           std::vector<CallArgument>&, const Value&,
+                           NativeFailure&) override {
+        return false;
+    }
+    [[nodiscard]] bool enumerate(Interpreter& in,
+                                 std::vector<Value>& items) override {
+        static_cast<void>(in);
+        const auto owner = form.lock();
+        if (owner == nullptr) {
+            return true;
+        }
+        // Creation order; array elements follow their array's position.
+        std::vector<std::pair<long, Value>> ordered;
+        FormSupport::for_each_control(*owner, [&](ControlObject& object) {
+            const Value* held = nullptr;
+            const auto direct = owner->fields.variables.find(object.name);
+            if (direct != owner->fields.variables.end() && object.index < 0) {
+                held = &direct->second;
+            } else if (direct != owner->fields.variables.end()) {
+                const auto* holder =
+                    std::get_if<ObjectInstance>(&direct->second);
+                if (holder != nullptr) {
+                    if (auto* array = dynamic_cast<ControlArray*>(
+                            holder->data->native.get())) {
+                        const auto element = array->elements.find(object.index);
+                        if (element != array->elements.end()) {
+                            held = &element->second;
+                        }
+                    }
+                }
+            }
+            if (held != nullptr) {
+                ordered.emplace_back(object.order * 100000L + object.index + 1,
+                                     *held);
+            }
+        });
+        std::sort(ordered.begin(), ordered.end(),
+                  [](const auto& left, const auto& right) {
+                      return left.first < right.first;
+                  });
+        for (auto& entry : ordered) {
+            items.push_back(std::move(entry.second));
+        }
+        return true;
+    }
+    std::weak_ptr<InstanceData> form;
+};
+
+}  // namespace
+
+Value FormSupport::control_value(InstanceData& form,
+                                 const ControlObject& object) {
+    const auto direct = form.fields.variables.find(object.name);
+    if (direct == form.fields.variables.end()) {
+        return Value{Nothing{}};
+    }
+    if (object.index < 0) {
+        return direct->second;
+    }
+    if (const auto* holder = std::get_if<ObjectInstance>(&direct->second)) {
+        if (auto* array =
+                dynamic_cast<ControlArray*>(holder->data->native.get())) {
+            const auto element = array->elements.find(object.index);
+            if (element != array->elements.end()) {
+                return element->second;
+            }
+        }
+    }
+    return Value{Nothing{}};
+}
+
+bool FormSupport::array_element(Interpreter& in, ControlArray& array,
+                                const long index, const bool unload,
+                                const std::size_t offset) {
+    ControlObject* first = array.elements.empty()
+                               ? nullptr
+                               : control_of(array.elements.begin()->second);
+    const auto fail = [&](const Integer number, const std::string& text) {
+        static_cast<void>(in.raise_runtime(number, text, offset));
+        return false;
+    };
+    if (first == nullptr) {
+        return fail(340, "Control array element doesn't exist");
+    }
+    const auto owner = first->form.lock();
+    if (owner == nullptr) {
+        return fail(340, "Control array element doesn't exist");
+    }
+    const auto existing = array.elements.find(index);
+    if (unload) {
+        if (existing == array.elements.end()) {
+            return fail(340, "Control array element '" + std::to_string(index) +
+                                 "' doesn't exist");
+        }
+        ControlObject* object = control_of(existing->second);
+        if (object == nullptr || !object->dynamic) {
+            return fail(361, "Can't load or unload this object");
+        }
+        auto& state = runtime(in);
+        if (object->window != ui::kNoWindow) {
+            state.bindings.erase(object->window);
+            state.host->destroy_window(object->window);
+        }
+        array.elements.erase(existing);
+        return true;
+    }
+    if (existing != array.elements.end()) {
+        return fail(360, "Object already loaded");
+    }
+    auto object = std::make_shared<ControlObject>(
+        first->cls, first->display_name, index, false);
+    object->form = first->form;
+    object->container = first->container;
+    object->values = first->design;
+    object->design = first->design;
+    object->values["visible"] = Value{false};
+    object->design["visible"] = Value{false};
+    object->order = first->order;
+    object->dynamic = true;
+    auto data = std::make_shared<InstanceData>();
+    data->class_name = "wfcnative";
+    data->native = object;
+    array.elements[index] = Value{ObjectInstance{std::move(data)}};
+    const ControlObject* owner_object = control_of(*owner);
+    if (owner_object != nullptr && owner_object->loaded) {
+        object->window = runtime(in).host->create_window(object->cls->name,
+                                                         owner_object->window);
+        bind(in, *object);
+        mirror_all(in, *object);
+    }
+    return true;
+}
+
+bool FormSupport::form_member(Interpreter& in, ControlObject& self,
+                              const std::string& member, Value& result) {
+    const auto form = self.form.lock();
+    if (form == nullptr) {
+        return false;
+    }
+    if (self.is_form && member == "controls") {
+        auto data = std::make_shared<InstanceData>();
+        data->class_name = "wfcnative";
+        data->native = std::make_shared<ControlsCollection>(form);
+        result = Value{ObjectInstance{std::move(data)}};
+        return true;
+    }
+    if (self.is_form && member == "activecontrol") {
+        result = Value{Nothing{}};
+        const auto& state = runtime(in);
+        const auto binding = state.bindings.find(state.host->focus());
+        if (binding != state.bindings.end() &&
+            binding->second.form.lock() == form &&
+            !binding->second.control.empty()) {
+            if (const ControlObject* focused = control_named(
+                    *form, binding->second.control, binding->second.index)) {
+                result = control_value(*form, *focused);
+            }
+        }
+        return true;
+    }
+    if (!self.is_form && member == "parent") {
+        result = Value{ObjectInstance{form}};
+        return true;
+    }
+    if (!self.is_form && member == "container") {
+        result = Value{ObjectInstance{form}};
+        if (!self.container.empty()) {
+            if (const ControlObject* holder =
+                    control_named(*form, self.container, -1)) {
+                result = control_value(*form, *holder);
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+std::string lower_native_type(const InstanceData& instance) {
+    return instance.native != nullptr ? lower_text(instance.native->type_name())
+                                      : std::string{};
+}
+
+void Interpreter::register_native_types() {
+    std::set<std::string> mentioned;
+    const auto collect = [&](const std::string_view text) {
+        std::string word;
+        for (const char c : text) {
+            if (is_identifier_part(c)) {
+                word.push_back(ascii_lower(c));
+            } else if (!word.empty()) {
+                mentioned.insert(std::move(word));
+                word.clear();
+            }
+        }
+        if (!word.empty()) {
+            mentioned.insert(std::move(word));
+        }
+    };
+    collect(source_);
+    std::set<std::string> user_classes;
+    for (const auto& module : class_sources_) {
+        collect(module.source);
+        user_classes.insert(lower_text(module.name));
+    }
+    std::vector<std::string> names = {"control", "form", "mdiform"};
+    for (const auto& control_class : ui::control_classes()) {
+        names.push_back(lower_text(control_class.name));
+    }
+    for (const auto& name : names) {
+        if (!mentioned.contains(name) || user_classes.contains(name) ||
+            class_definitions_.contains(name)) {
+            continue;
+        }
+        ClassDef proxy;
+        proxy.display_name = name;
+        proxy.native_type = name;
+        class_definitions_.emplace(name, std::move(proxy));
+    }
+}
+
+Value Interpreter::form_active(const int what) {
+    if (!forms_) {
+        return Value{Nothing{}};
+    }
+    const auto& state = *forms_;
+    std::shared_ptr<InstanceData> form;
+    const ControlObject* control = nullptr;
+    const auto binding = state.bindings.find(state.host->focus());
+    if (binding != state.bindings.end()) {
+        form = binding->second.form.lock();
+        if (form != nullptr && !binding->second.control.empty()) {
+            control = FormSupport::control_named(*form, binding->second.control,
+                                                 binding->second.index);
+        }
+    }
+    if (form == nullptr) {
+        for (auto it = state.loaded.rbegin(); it != state.loaded.rend(); ++it) {
+            const auto candidate = it->lock();
+            const ControlObject* object =
+                candidate ? control_of(*candidate) : nullptr;
+            if (object != nullptr && object->shown) {
+                form = candidate;
+                break;
+            }
+        }
+    }
+    if (form == nullptr) {
+        return Value{Nothing{}};
+    }
+    if (what == 0) {
+        return Value{ObjectInstance{form}};
+    }
+    return control != nullptr ? FormSupport::control_value(*form, *control)
+                              : Value{Nothing{}};
+}
 
 std::shared_ptr<NativeObject> make_forms_collection() {
     return std::make_shared<FormsCollection>();

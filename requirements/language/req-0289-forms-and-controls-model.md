@@ -94,6 +94,18 @@
   true, the control losing focus raises `Validate(Cancel)`; if the handler sets
   `Cancel`, the focus stays where it was.
 
+- **Collections and dynamic controls.** `Controls` lists every control of a
+  form in creation order (`Count`, `Item(index|name)`, `Controls(i)`,
+  `For Each`); `Parent` and `Container` give the form and the enclosing frame;
+  `ActiveControl` and `Screen.ActiveForm`/`ActiveControl` follow the focus (the
+  first tab stop is active while `Activate` runs). `Load Control(i)` creates a
+  new element of a control array from the lowest element's design-time values
+  (invisible until shown) and `Unload Control(i)` removes it; a design-time
+  element cannot be unloaded (361) and loading an existing index raises 360.
+  `Dim c As Control`, `As Form` and `As TextBox` (any intrinsic control type)
+  are accepted, and `TypeOf c Is TextBox` and `TypeName(c)` report the control
+  class.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
@@ -102,4 +114,4 @@ drawing, `Shape`, `Line`, `Image`) are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

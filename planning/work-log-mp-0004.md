@@ -30,3 +30,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #9 | Construction | Drawing surfaces: scale modes, `PSet`/`Line`/`Circle`/`Cls`/`Scale`/`Print` on forms and picture boxes, `UiHost::draw`/`measure_text`, headless drawing trace (`REQ-0290`); corpus 157 | CTest 314/314 |
 | 2026-10-11 #10 | Construction | Win32 host GDI drawing: persistent surfaces for forms and picture boxes, all draw operations, text measurement (`REQ-0290`) | CTest `TC-MP0004-win32-host` |
 | 2026-10-11 #11 | Construction | Keyboard navigation (Tab order, Enter/Esc default and cancel buttons, accelerators, Space), `Validate`/`CausesValidation`, scripted `press` (`REQ-0289`); corpus 158 | CTest 315/315 |
+| 2026-10-11 #12 | Construction | `Controls` collection, `Parent`/`Container`/`ActiveControl`, dynamic `Load`/`Unload Control(i)`, `As Control/Form/TextBox` types, `TypeOf`/`TypeName` for controls (`REQ-0289`); corpus 159 | CTest 317/317 |

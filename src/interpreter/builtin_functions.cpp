@@ -556,7 +556,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             "isarray",  "iserror",  "ismissing", "callbyname", "objptr",
             "strptr",   "varptr",   "cvar",      "array",      "iif",
             "choose",   "switch",   "setattr",   "isdate",     "lbound",
-            "ubound",   "wfcstore", "wfcsys",    "wfcsysfont"};
+            "ubound",   "wfcstore", "wfcsys",    "wfcsysfont", "wfcactive"};
         if (!object_aware.contains(std::string(identifier))) {
             for (auto& argument : arguments) {
                 if (std::holds_alternative<ObjectInstance>(argument) &&
@@ -1583,6 +1583,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
             if (instance->data->com != nullptr) {
                 return Value{com_type_name(*instance->data)};
+            }
+            if (instance->data->native != nullptr &&
+                instance->data->class_name == "wfcnative") {
+                return Value{instance->data->native->type_name()};
             }
             const auto& shown =
                 class_definitions_.at(instance->data->class_name).display_name;

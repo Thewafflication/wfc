@@ -1,0 +1,13 @@
+ 1 Text1TextBoxTrueForm1
+ 2 Command1CommandButtonFalseForm1
+ 3 Label1LabelFalseForm1
+ 3 
+Text1
+t
+Text1
+ 2 Copy 1  1500 
+ 4 
+Form1Text1Text1
+click 1 Copy
+unloaded 1 
+ 361 Can't load or unload this object

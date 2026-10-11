@@ -617,11 +617,36 @@ bool Interpreter::parse_assignment(std::string identifier,
     return true;
 }
 
+bool Interpreter::native_type_matches(const std::string& declared_class_name,
+                                      const InstanceData& source) const {
+    const auto declared = class_definitions_.find(declared_class_name);
+    if (declared == class_definitions_.end() ||
+        declared->second.native_type.empty() ||
+        declared->second.native_type == "control" ||
+        declared->second.native_type == "form" ||
+        declared->second.native_type == "mdiform") {
+        return true;
+    }
+    return lower_native_type(source) == declared->second.native_type;
+}
+
 bool Interpreter::class_satisfies(
     const std::string& actual_class_name,
     const std::string& declared_class_name) const {
     if (actual_class_name == declared_class_name) {
         return true;
+    }
+    // A control or form satisfies the generic control and form types.
+    if (const auto declared = class_definitions_.find(declared_class_name);
+        declared != class_definitions_.end() &&
+        !declared->second.native_type.empty()) {
+        if (declared->second.native_type == "form" ||
+            declared->second.native_type == "mdiform") {
+            const auto actual = class_definitions_.find(actual_class_name);
+            return actual != class_definitions_.end() &&
+                   actual->second.form != nullptr;
+        }
+        return actual_class_name == "wfcnative";
     }
     // A COM object satisfies any class imported from a type library.
     if (actual_class_name == "wfccom") {
@@ -659,8 +684,10 @@ bool Interpreter::assign_object_reference(
     }
     if (!declared_class_name.empty() &&
         std::holds_alternative<ObjectInstance>(source) &&
-        !class_satisfies(std::get<ObjectInstance>(source).data->class_name,
-                         declared_class_name)) {
+        (!class_satisfies(std::get<ObjectInstance>(source).data->class_name,
+                          declared_class_name) ||
+         !native_type_matches(declared_class_name,
+                              *std::get<ObjectInstance>(source).data))) {
         set_error("WFC0137",
                   "Set source does not match the target's declared class",
                   offset);

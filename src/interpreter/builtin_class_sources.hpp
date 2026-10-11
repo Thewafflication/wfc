@@ -214,10 +214,10 @@ Public Property Let MousePointer(ByVal v As Integer)
 mPointer = v
 End Property
 Public Property Get ActiveForm() As Object
-Set ActiveForm = Nothing
+Set ActiveForm = WfcActive(0)
 End Property
 Public Property Get ActiveControl() As Object
-Set ActiveControl = Nothing
+Set ActiveControl = WfcActive(1)
 End Property
 )VB";
 
