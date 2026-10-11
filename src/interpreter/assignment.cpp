@@ -1391,6 +1391,23 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
         }
         if (variable.value != nullptr &&
             std::holds_alternative<ObjectInstance>(*variable.value)) {
+            // `obj!key = value` (COM default-member write).
+            const auto bang_start = offset_;
+            skip_horizontal_whitespace();
+            if (const auto key = take_bang_key()) {
+                auto& bang_instance =
+                    *std::get<ObjectInstance>(*variable.value).data;
+                if (bang_instance.com != nullptr) {
+                    return com_member_statement(*variable.value, std::string{},
+                                                bang_start, key);
+                }
+                set_error("WFC0135", "unknown member", bang_start);
+                return false;
+            }
+            offset_ = bang_start;
+        }
+        if (variable.value != nullptr &&
+            std::holds_alternative<ObjectInstance>(*variable.value)) {
             // `obj(args) = value` through the class's default member
             // (a Property Let).
             const auto saved_offset = offset_;

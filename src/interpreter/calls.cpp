@@ -1011,6 +1011,51 @@ std::optional<Value> Interpreter::call_class_method(
                              class_def.source, &instance);
 }
 
+std::optional<std::string> Interpreter::take_bang_key() {
+    if (at_end() || current() != '!' || offset_ + 1 >= source_.size() ||
+        !is_identifier_start(source_[offset_ + 1])) {
+        return std::nullopt;
+    }
+    advance();
+    std::string key;
+    while (!at_end() && is_identifier_part(current())) {
+        key.push_back(current());
+        advance();
+    }
+    return key;
+}
+
+std::optional<Value> Interpreter::call_default_member_with(
+    const ObjectInstance& holder, std::vector<CallArgument> arguments,
+    const std::size_t member_offset) {
+    if (holder.data->com != nullptr) {
+        return com_get_member_with(*holder.data, std::string{}, arguments,
+                                   member_offset);
+    }
+    const auto held_class = class_definitions_.find(holder.data->class_name);
+    if (held_class == class_definitions_.end() ||
+        held_class->second.default_member.empty()) {
+        set_error("WFC0135", "unknown member", member_offset);
+        return std::nullopt;
+    }
+    const auto& class_def = held_class->second;
+    const auto& member = class_def.default_member;
+    if (const auto method = class_def.methods.find(member);
+        method != class_def.methods.end()) {
+        return invoke_definition(method->second, member, std::move(arguments),
+                                 member_offset, class_def.source,
+                                 holder.data.get());
+    }
+    if (const auto getter = class_def.property_get.find(member);
+        getter != class_def.property_get.end()) {
+        return invoke_definition(getter->second, member, std::move(arguments),
+                                 member_offset, class_def.source,
+                                 holder.data.get());
+    }
+    set_error("WFC0135", "unknown member", member_offset);
+    return std::nullopt;
+}
+
 std::optional<Value> Interpreter::call_default_member(
     const ObjectInstance& holder, const std::size_t member_offset) {
     if (holder.data->com != nullptr) {

@@ -1050,6 +1050,27 @@ std::optional<Value> Interpreter::parse_primary() {
             }
             continue;
         }
+        // `rs!name`: a bang after an object reads its default member with the
+        // name as a string key.
+        if (!at_end() && current() == '!' &&
+            std::holds_alternative<ObjectInstance>(*value)) {
+            if (const auto key = take_bang_key()) {
+                if (!execute_) {
+                    value = Value{Empty{}};
+                    continue;
+                }
+                const auto held = std::get<ObjectInstance>(*value);
+                std::vector<CallArgument> arguments;
+                arguments.push_back(
+                    CallArgument{Value{*key}, nullptr, false, {}});
+                value = call_default_member_with(held, std::move(arguments),
+                                                 base_offset);
+                if (!value.has_value()) {
+                    return std::nullopt;
+                }
+                continue;
+            }
+        }
         // `c(1)("b")`: parentheses after an object apply its default member.
         if (execute_ && !at_end() && current() == '(' &&
             std::holds_alternative<ObjectInstance>(*value)) {

@@ -1576,14 +1576,26 @@ private:
         std::size_t member_offset);
     // `obj.member ...` as a statement: a property assignment, a method call
     // (with or without parentheses), or the start of a longer chain.
-    [[nodiscard]] bool com_member_statement(const Value& base,
-                                            const std::string& name,
-                                            std::size_t member_offset);
+    [[nodiscard]] bool com_member_statement(
+        const Value& base, const std::string& name, std::size_t member_offset,
+        const std::optional<std::string>& bang_key = std::nullopt);
     // `Set obj.member = expr`.
     [[nodiscard]] bool com_set_member(const Value& base,
                                       const std::string& name,
                                       std::size_t member_offset);
     // `obj(args)` / the default member.
+    // `obj!key`: consumes the `!` and key when one follows, else nullopt.
+    [[nodiscard]] std::optional<std::string> take_bang_key();
+    // The default member of `holder` called with already-evaluated arguments.
+    [[nodiscard]] std::optional<Value> call_default_member_with(
+        const ObjectInstance& holder, std::vector<CallArgument> arguments,
+        std::size_t member_offset);
+    [[nodiscard]] std::optional<Value> com_get_member_with(
+        InstanceData& instance, const std::string& name,
+        std::vector<CallArgument>& arguments, std::size_t offset);
+    // Replaces a COM object by its default property value when it has one
+    // (repeating while the result is itself a COM object).
+    void com_default_value(Value& value);
     [[nodiscard]] std::optional<Value> com_default_member(
         InstanceData& instance, std::size_t member_offset);
     // The elements `For Each` visits.

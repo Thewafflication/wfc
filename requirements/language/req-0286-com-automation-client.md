@@ -39,6 +39,11 @@ On Windows a program can create and drive real COM Automation objects through
   arguments are written back to the server. Events from a server arrive while a
   COM call is running or during `DoEvents`, which pumps the thread's window
   messages. An error in a handler fails the COM call that was running.
+- **Bang access and default values.** `obj!name` reads (and, for a COM
+  object, writes) the default member with `"name"` as its key. A COM object
+  used where a value is needed (`Print`, an operator, assignment to a
+  Variant, an intrinsic's argument) is replaced by its default property, as
+  VB6 does.
 - Two references to one server object compare equal with `Is`.
 - `TypeName(obj)` is the coclass name when the server publishes
   `IProvideClassInfo`, else its dispatch interface name.
@@ -53,6 +58,7 @@ object without a type library cannot be received.
 
 ## Verification
 
+`TC-MP0002-corpus-150-com-recordset` (a disconnected `ADODB.Recordset`),
 `TC-MP0002-corpus-148-com-events` (an asynchronous `DOMDocument60` load
 raising `onreadystatechange`) and `TC-MP0002-corpus-142-com-automation` (uses `WScript.Shell` and
 `MSXML2.DOMDocument.6.0`, both shipped with Windows).

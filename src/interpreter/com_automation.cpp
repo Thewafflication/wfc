@@ -48,8 +48,17 @@ std::optional<Value> Interpreter::com_get_member(InstanceData&,
     return std::nullopt;
 }
 
+std::optional<Value> Interpreter::com_get_member_with(
+    InstanceData&, const std::string&, std::vector<CallArgument>&,
+    const std::size_t offset) {
+    static_cast<void>(raise_runtime(
+        438, "Object doesn't support this property or method", offset));
+    return std::nullopt;
+}
+
 bool Interpreter::com_member_statement(const Value&, const std::string&,
-                                       const std::size_t offset) {
+                                       const std::size_t offset,
+                                       const std::optional<std::string>&) {
     static_cast<void>(raise_runtime(
         438, "Object doesn't support this property or method", offset));
     return false;
@@ -79,6 +88,8 @@ std::optional<ArrayValue> Interpreter::com_enumerate(InstanceData&,
 std::string Interpreter::com_type_name(InstanceData&) {
     return "Object";
 }
+
+void Interpreter::com_default_value(Value&) {}
 
 void Interpreter::register_type_libraries() {}
 
@@ -910,12 +921,18 @@ std::optional<Value> Interpreter::com_get_member(InstanceData& instance,
     if (!arguments.has_value()) {
         return std::nullopt;
     }
+    return com_get_member_with(instance, name, *arguments, offset);
+}
+
+std::optional<Value> Interpreter::com_get_member_with(
+    InstanceData& instance, const std::string& name,
+    std::vector<CallArgument>& arguments, const std::size_t offset) {
     if (!execute_) {
         return Value{Empty{}};
     }
     auto outcome =
         invoke_member(instance, name, DISPATCH_METHOD | DISPATCH_PROPERTYGET,
-                      *arguments, nullptr);
+                      arguments, nullptr);
     if (!outcome.ok) {
         static_cast<void>(raise_runtime(outcome.failure.number,
                                         outcome.failure.description, offset));
@@ -931,19 +948,41 @@ std::optional<Value> Interpreter::com_get_member(InstanceData& instance,
     return std::move(outcome.result);
 }
 
+void Interpreter::com_default_value(Value& value) {
+    for (int depth = 0; depth < 4; ++depth) {
+        const auto* holder = std::get_if<ObjectInstance>(&value);
+        if (holder == nullptr || holder->data == nullptr ||
+            holder->data->com == nullptr) {
+            return;
+        }
+        std::vector<CallArgument> none;
+        // Keep the object alive across the call.
+        const auto keep = holder->data;
+        auto outcome = invoke_member(*keep, std::string{}, DISPATCH_PROPERTYGET,
+                                     none, nullptr);
+        if (!outcome.ok) {
+            return;  // no default property: the object stays as it is
+        }
+        value = std::move(outcome.result);
+    }
+}
+
 std::optional<Value> Interpreter::com_default_member(InstanceData& instance,
                                                      const std::size_t offset) {
     return com_get_member(instance, std::string{}, offset);
 }
 
-bool Interpreter::com_member_statement(const Value& base,
-                                       const std::string& name,
-                                       const std::size_t member_offset) {
+bool Interpreter::com_member_statement(
+    const Value& base, const std::string& name, const std::size_t member_offset,
+    const std::optional<std::string>& bang_key) {
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
     skip_horizontal_whitespace();
     std::vector<CallArgument> arguments;
     bool parenthesized = false;
-    if (!at_end() && current() == '(') {
+    if (bang_key.has_value()) {
+        arguments.push_back(CallArgument{Value{*bang_key}, nullptr, false, {}});
+        parenthesized = true;
+    } else if (!at_end() && current() == '(') {
         auto parsed = parse_call_argument_list();
         if (!parsed.has_value()) {
             return false;

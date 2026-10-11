@@ -593,7 +593,15 @@ std::optional<std::string> Interpreter::parse_identifier(
     }
     if (type_character != nullptr) {
         *type_character = '\0';
-        if (!at_end() && strchr("$%&!#@", current()) != nullptr) {
+        const bool bang_access =
+            !at_end() && current() == '!' && offset_ + 1 < source_.size() &&
+            is_identifier_start(source_[offset_ + 1]) && [&] {
+                const auto object = find_variable_raw(identifier);
+                return object.value != nullptr &&
+                       std::holds_alternative<ObjectInstance>(*object.value);
+            }();
+        if (!at_end() && !bang_access &&
+            strchr("$%&!#@", current()) != nullptr) {
             *type_character = current();
             advance();
         }
@@ -733,6 +741,10 @@ bool Interpreter::resolve_default_value(Value& value,
                                         const std::size_t offset) {
     const auto* holder = std::get_if<ObjectInstance>(&value);
     if (holder == nullptr || !execute_ || holder->data == nullptr) {
+        return true;
+    }
+    if (holder->data->com != nullptr) {
+        com_default_value(value);
         return true;
     }
     const auto class_iterator =
