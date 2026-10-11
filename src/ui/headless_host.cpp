@@ -4,6 +4,7 @@
 #include "headless_host.hpp"
 
 #include <algorithm>
+#include <cstdio>
 
 namespace wfc::ui {
 
@@ -130,6 +131,80 @@ long HeadlessHost::selection(const WindowId window) const {
 std::vector<std::string> HeadlessHost::items_of(const WindowId window) const {
     const auto* target = find(window);
     return target != nullptr ? target->items : std::vector<std::string>{};
+}
+
+namespace {
+
+[[nodiscard]] std::string number_text(const double value) {
+    char buffer[40];
+    std::snprintf(buffer, sizeof(buffer), "%.2f", value);
+    std::string text = buffer;
+    while (!text.empty() && text.back() == '0') {
+        text.pop_back();
+    }
+    if (!text.empty() && text.back() == '.') {
+        text.pop_back();
+    }
+    return text.empty() || text == "-0" ? "0" : text;
+}
+
+[[nodiscard]] std::string color_text(const long color) {
+    char buffer[16];
+    std::snprintf(buffer, sizeof(buffer), "%06lX",
+                  static_cast<unsigned long>(color) & 0xFFFFFFUL);
+    return buffer;
+}
+
+}  // namespace
+
+void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
+    if (find(window) == nullptr) {
+        return;
+    }
+    std::string line = operation.kind + " #" + std::to_string(window);
+    const auto add = [&](const double value) {
+        line += " " + number_text(value);
+    };
+    if (operation.kind == "pset") {
+        add(operation.x1);
+        add(operation.y1);
+        line += " " + color_text(operation.color);
+    } else if (operation.kind == "line") {
+        add(operation.x1);
+        add(operation.y1);
+        add(operation.x2);
+        add(operation.y2);
+        line += " " + color_text(operation.color);
+        if (operation.box) {
+            line += operation.filled ? " BF" : " B";
+        }
+    } else if (operation.kind == "circle") {
+        add(operation.x1);
+        add(operation.y1);
+        add(operation.radius);
+        line += " " + color_text(operation.color);
+        if (operation.arc) {
+            add(operation.start);
+            add(operation.end);
+        }
+        if (operation.aspect != 1.0) {
+            line += " aspect";
+            add(operation.aspect);
+        }
+    } else if (operation.kind == "text") {
+        add(operation.x1);
+        add(operation.y1);
+        line +=
+            " " + color_text(operation.color) + " \"" + operation.text + "\"";
+    }
+    drawing_.push_back(line);
+    trace_.push_back(line);
+}
+
+std::vector<std::string> HeadlessHost::take_drawing() {
+    std::vector<std::string> taken;
+    taken.swap(drawing_);
+    return taken;
 }
 
 void HeadlessHost::set_focus(const WindowId window) {

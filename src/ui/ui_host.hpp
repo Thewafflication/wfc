@@ -6,6 +6,7 @@
 #ifndef WFC_UI_UI_HOST_HPP
 #define WFC_UI_UI_HOST_HPP
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -33,6 +34,47 @@ struct UiEvent {
     WindowId window{kNoWindow};
     std::string name;
     std::vector<EventArgument> arguments;
+};
+
+// A font as a form or control describes it.
+struct FontSpec {
+    std::string name{"MS Sans Serif"};
+    double size{8.25};  // points
+    bool bold{false};
+    bool italic{false};
+    bool underline{false};
+    bool strikethrough{false};
+};
+
+struct TextMetrics {
+    double width{0};   // twips
+    double height{0};  // twips
+};
+
+// One drawing operation on a window surface. Coordinates are twips from the
+// surface's top-left corner; colors are 0x00BBGGRR.
+struct DrawOp {
+    // "cls", "pset", "line", "circle" or "text".
+    std::string kind;
+    double x1{0};
+    double y1{0};
+    double x2{0};
+    double y2{0};
+    double radius{0};
+    double start{0};   // circle arc start, radians (0 when absent)
+    double end{0};     // circle arc end, radians
+    bool arc{false};   // a partial circle (start/end given)
+    double aspect{1};  // circle aspect ratio
+    long color{0};
+    long fill_color{0};
+    int fill_style{1};  // 1 = transparent
+    int draw_width{1};
+    int draw_style{0};
+    bool box{false};
+    bool filled{false};
+    std::string text;
+    FontSpec font;
+    long back_color{0};
 };
 
 class UiHost {
@@ -77,6 +119,36 @@ public:
         static_cast<void>(value);
         static_cast<void>(small_change);
         static_cast<void>(large_change);
+    }
+
+    // Draws on the window's persistent surface.
+    virtual void draw(WindowId window, const DrawOp& operation) {
+        static_cast<void>(window);
+        static_cast<void>(operation);
+    }
+    // The size `text` occupies in `font` on this host. The default is a
+    // deterministic estimate (a proportional average-width model) so layouts
+    // computed headless do not depend on installed fonts.
+    [[nodiscard]] virtual TextMetrics measure_text(WindowId window,
+                                                   const std::string& text,
+                                                   const FontSpec& font) const {
+        static_cast<void>(window);
+        const double em = font.size * 20.0;  // twips per point
+        std::size_t longest = 0;
+        std::size_t current = 0;
+        std::size_t lines = 1;
+        for (const char c : text) {
+            if (c == '\n') {
+                longest = std::max(longest, current);
+                current = 0;
+                ++lines;
+            } else if ((static_cast<unsigned char>(c) & 0xC0U) != 0x80U) {
+                ++current;
+            }
+        }
+        longest = std::max(longest, current);
+        return TextMetrics{static_cast<double>(longest) * em * 0.55,
+                           static_cast<double>(lines) * em * 1.18};
     }
 
     // Keyboard focus.

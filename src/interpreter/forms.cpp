@@ -600,6 +600,345 @@ struct FormSupport {
                raise_table_event(in, bar, "Change", {}, in.offset_);
     }
 
+    // ----- Drawing surfaces (forms and picture boxes) -------------------
+
+    [[nodiscard]] static bool is_surface(const ControlObject& object) {
+        return object.is_form || object.class_key == "picturebox";
+    }
+
+    // The drawable area in twips.
+    [[nodiscard]] static double client_width(const ControlObject& object) {
+        return std::max(
+            number_of(object, object.is_form ? "clientwidth" : "width"),
+            number_of(object, "width"));
+    }
+    [[nodiscard]] static double client_height(const ControlObject& object) {
+        return std::max(
+            number_of(object, object.is_form ? "clientheight" : "height"),
+            number_of(object, "height"));
+    }
+
+    // Twips in one unit of a ScaleMode (x and y differ for characters).
+    [[nodiscard]] static double unit_x(const long mode) {
+        switch (mode) {
+            case 2:
+                return 20.0;
+            case 3:
+                return 15.0;
+            case 4:
+                return 120.0;
+            case 5:
+                return 1440.0;
+            case 6:
+                return 56.6929;
+            case 7:
+                return 566.929;
+            default:
+                return 1.0;
+        }
+    }
+    [[nodiscard]] static double unit_y(const long mode) {
+        return mode == 4 ? 240.0 : unit_x(mode);
+    }
+
+    struct Scale {
+        double left{0};
+        double top{0};
+        double width{1};
+        double height{1};
+    };
+
+    [[nodiscard]] static Scale scale_of(const ControlObject& object) {
+        const long mode = static_cast<long>(number_of(object, "scalemode"));
+        Scale scale;
+        if (mode == 0) {
+            scale.left = number_of(object, "scaleleft");
+            scale.top = number_of(object, "scaletop");
+            scale.width = number_of(object, "scalewidth");
+            scale.height = number_of(object, "scaleheight");
+            if (scale.width == 0.0) {
+                scale.width = client_width(object);
+            }
+            if (scale.height == 0.0) {
+                scale.height = client_height(object);
+            }
+            return scale;
+        }
+        scale.width = client_width(object) / unit_x(mode);
+        scale.height = client_height(object) / unit_y(mode);
+        return scale;
+    }
+
+    [[nodiscard]] static double to_twips_x(const ControlObject& object,
+                                           const double x) {
+        const Scale scale = scale_of(object);
+        return (x - scale.left) * client_width(object) / scale.width;
+    }
+    [[nodiscard]] static double to_twips_y(const ControlObject& object,
+                                           const double y) {
+        const Scale scale = scale_of(object);
+        return (y - scale.top) * client_height(object) / scale.height;
+    }
+    [[nodiscard]] static double from_twips_x(const ControlObject& object,
+                                             const double twips) {
+        const Scale scale = scale_of(object);
+        const double width = client_width(object);
+        return width == 0.0 ? 0.0 : scale.left + twips * scale.width / width;
+    }
+    [[nodiscard]] static double from_twips_y(const ControlObject& object,
+                                             const double twips) {
+        const Scale scale = scale_of(object);
+        const double height = client_height(object);
+        return height == 0.0 ? 0.0 : scale.top + twips * scale.height / height;
+    }
+
+    [[nodiscard]] static ui::FontSpec font_of(const ControlObject& object) {
+        ui::FontSpec font;
+        const auto name = object.values.find("fontname");
+        if (name != object.values.end() &&
+            std::holds_alternative<std::string>(name->second)) {
+            font.name = std::get<std::string>(name->second);
+        }
+        const double size = number_of(object, "fontsize");
+        if (size > 0.0) {
+            font.size = size;
+        }
+        font.bold = flag_of(object, "fontbold");
+        font.italic = flag_of(object, "fontitalic");
+        font.underline = flag_of(object, "fontunderline");
+        font.strikethrough = flag_of(object, "fontstrikethru");
+        return font;
+    }
+
+    // A VB color value as 0x00BBGGRR; system colors map to stock values.
+    [[nodiscard]] static long resolve_color(const long color) {
+        if ((color & 0x80000000L) == 0 || color >= 0) {
+            return color & 0xFFFFFFL;
+        }
+        switch (static_cast<unsigned long>(color) & 0xFFUL) {
+            case 5:
+                return 0xFFFFFF;  // window background
+            case 8:
+                return 0x000000;  // window text
+            case 15:
+                return 0xF0F0F0;  // button face
+            case 18:
+                return 0x000000;  // button text
+            default:
+                return 0xC0C0C0;
+        }
+    }
+    [[nodiscard]] static long color_of(const ControlObject& object,
+                                       const std::string& key) {
+        return resolve_color(static_cast<long>(number_of(object, key)));
+    }
+
+    static void draw_op(Interpreter& in, ControlObject& surface,
+                        const ui::DrawOp& operation) {
+        if (surface.window != ui::kNoWindow) {
+            runtime(in).host->draw(surface.window, operation);
+        }
+    }
+
+    [[nodiscard]] static ui::DrawOp base_op(const ControlObject& surface,
+                                            const char* kind) {
+        ui::DrawOp operation;
+        operation.kind = kind;
+        operation.color = color_of(surface, "forecolor");
+        operation.fill_color = color_of(surface, "fillcolor");
+        operation.fill_style =
+            static_cast<int>(number_of(surface, "fillstyle"));
+        operation.draw_width =
+            std::max(1, static_cast<int>(number_of(surface, "drawwidth")));
+        operation.draw_style =
+            static_cast<int>(number_of(surface, "drawstyle"));
+        operation.font = font_of(surface);
+        return operation;
+    }
+
+    // Text at CurrentX/CurrentY; advances the current position.
+    [[nodiscard]] static bool surface_print(Interpreter& in,
+                                            ControlObject& surface,
+                                            const std::string& text,
+                                            const bool newline) {
+        if (!touch_ok(in, surface)) {
+            return false;
+        }
+        auto& state = runtime(in);
+        const ui::FontSpec font = font_of(surface);
+        const Scale scale = scale_of(surface);
+        double current_x = number_of(surface, "currentx");
+        double current_y = number_of(surface, "currenty");
+        std::size_t start = 0;
+        while (start <= text.size()) {
+            auto end = text.find('\n', start);
+            const bool last = end == std::string::npos;
+            if (last) {
+                end = text.size();
+            }
+            const std::string line = text.substr(start, end - start);
+            const bool terminated = !last || newline;
+            if (!line.empty() || terminated) {
+                ui::DrawOp operation = base_op(surface, "text");
+                operation.x1 = to_twips_x(surface, current_x);
+                operation.y1 = to_twips_y(surface, current_y);
+                operation.text = line;
+                operation.back_color = color_of(surface, "backcolor");
+                const auto metrics =
+                    state.host->measure_text(surface.window, line, font);
+                if (!line.empty()) {
+                    draw_op(in, surface, operation);
+                }
+                if (terminated) {
+                    current_x = scale.left;
+                    current_y =
+                        from_twips_y(surface, operation.y1 + metrics.height);
+                } else {
+                    current_x =
+                        from_twips_x(surface, operation.x1 + metrics.width);
+                }
+            }
+            if (last) {
+                break;
+            }
+            start = end + 1U;
+        }
+        surface.values["currentx"] = Value{static_cast<float>(current_x)};
+        surface.values["currenty"] = Value{static_cast<float>(current_y)};
+        // The headless host also echoes printed text to the console, so
+        // scripted runs can be checked from their output.
+        if (state.headless != nullptr) {
+            if (in.has_output_line_ && !in.output_line_open_) {
+                in.output_.push_back('\n');
+            }
+            in.output_ += text;
+            in.has_output_line_ = true;
+            in.output_line_open_ = !newline;
+        }
+        return true;
+    }
+
+    [[nodiscard]] static bool touch_ok(Interpreter& in,
+                                       ControlObject& surface) {
+        NativeFailure failure;
+        return touch(in, surface, failure);
+    }
+
+    // Computed surface properties (ScaleLeft, ...); false for other members.
+    [[nodiscard]] static bool surface_get(const ControlObject& self,
+                                          const std::string& member,
+                                          Value& result) {
+        const Scale scale = scale_of(self);
+        if (member == "scaleleft") {
+            result = Value{static_cast<float>(scale.left)};
+        } else if (member == "scaletop") {
+            result = Value{static_cast<float>(scale.top)};
+        } else if (member == "scalewidth") {
+            result = Value{static_cast<float>(scale.width)};
+        } else if (member == "scaleheight") {
+            result = Value{static_cast<float>(scale.height)};
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    [[nodiscard]] static bool surface_put(ControlObject& self,
+                                          const std::string& member,
+                                          const Value& value,
+                                          NativeFailure& failure) {
+        if (member == "scalemode") {
+            const auto mode = whole_value(value);
+            if (!mode.has_value() || *mode < 0 || *mode > 7) {
+                failure = NativeFailure{380, "Invalid property value"};
+                return true;
+            }
+            self.values["scalemode"] = Value{static_cast<Int16>(*mode)};
+            self.values["scaleleft"] = Value{0.0F};
+            self.values["scaletop"] = Value{0.0F};
+            return true;
+        }
+        if (member == "scaleleft" || member == "scaletop" ||
+            member == "scalewidth" || member == "scaleheight") {
+            if (!is_number(value)) {
+                failure = NativeFailure{13, "Type mismatch"};
+                return true;
+            }
+            const Scale scale = scale_of(self);
+            self.values["scaleleft"] = Value{static_cast<float>(scale.left)};
+            self.values["scaletop"] = Value{static_cast<float>(scale.top)};
+            self.values["scalewidth"] = Value{static_cast<float>(scale.width)};
+            self.values["scaleheight"] =
+                Value{static_cast<float>(scale.height)};
+            self.values[member] = Value{static_cast<float>(as_double(value))};
+            self.values["scalemode"] = Value{Int16{0}};
+            return true;
+        }
+        return false;
+    }
+
+    // Methods of a drawing surface; false when `member` is not one.
+    [[nodiscard]] static bool surface_method(
+        Interpreter& in, ControlObject& surface, const std::string& member,
+        std::vector<CallArgument>& arguments, Value& result,
+        NativeFailure& failure) {
+        const auto number_at = [&](const std::size_t index,
+                                   const double fallback) {
+            if (index < arguments.size() && !arguments[index].omitted &&
+                is_number(arguments[index].value)) {
+                return as_double(arguments[index].value);
+            }
+            return fallback;
+        };
+        if (member == "cls") {
+            ui::DrawOp operation = base_op(surface, "cls");
+            operation.color = color_of(surface, "backcolor");
+            draw_op(in, surface, operation);
+            const Scale scale = scale_of(surface);
+            surface.values["currentx"] = Value{static_cast<float>(scale.left)};
+            surface.values["currenty"] = Value{static_cast<float>(scale.top)};
+            result = Value{Empty{}};
+            return true;
+        }
+        if (member == "textwidth" || member == "textheight") {
+            if (arguments.empty()) {
+                failure = NativeFailure{450, "Wrong number of arguments"};
+                return true;
+            }
+            const auto metrics = runtime(in).host->measure_text(
+                surface.window, text_of(arguments[0].value), font_of(surface));
+            result = Value{static_cast<float>(
+                member == "textwidth" ? from_twips_x(surface, metrics.width) -
+                                            from_twips_x(surface, 0.0)
+                                      : from_twips_y(surface, metrics.height) -
+                                            from_twips_y(surface, 0.0))};
+            return true;
+        }
+        if (member == "scalex" || member == "scaley") {
+            const double value = number_at(0, 0.0);
+            const double from_mode = number_at(1, scale_mode_of(surface));
+            const double to_mode = number_at(2, 1.0);
+            const bool horizontal = member == "scalex";
+            const auto unit = [&](const double mode) {
+                if (mode == 0.0) {
+                    const Scale scale = scale_of(surface);
+                    return horizontal ? client_width(surface) / scale.width
+                                      : client_height(surface) / scale.height;
+                }
+                return horizontal ? unit_x(static_cast<long>(mode))
+                                  : unit_y(static_cast<long>(mode));
+            };
+            result = Value{
+                static_cast<float>(value * unit(from_mode) / unit(to_mode))};
+            return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]] static double scale_mode_of(const ControlObject& object) {
+        return number_of(object, "scalemode");
+    }
+
     // A Boolean property's value, falling back to its design-time default.
     [[nodiscard]] static bool flag_of(const ControlObject& object,
                                       const std::string& key) {
@@ -1129,6 +1468,10 @@ struct FormSupport {
             }
             return true;
         }
+        if (is_surface(self) &&
+            surface_method(in, self, member, arguments, result, failure)) {
+            return true;
+        }
         if (self.is_list() && (member == "additem" || member == "removeitem" ||
                                member == "clear")) {
             return list_method(in, self, member, arguments, failure);
@@ -1458,6 +1801,20 @@ struct FormSupport {
             rest.erase(0, 1);
         }
         auto& state = runtime(in);
+        if (command == "trace") {
+            // Print the drawing operations since the last `trace`.
+            if (state.headless != nullptr) {
+                for (const auto& drawn : state.headless->take_drawing()) {
+                    if (in.has_output_line_ && !in.output_line_open_) {
+                        in.output_.push_back('\n');
+                    }
+                    in.output_ += drawn;
+                    in.has_output_line_ = true;
+                    in.output_line_open_ = false;
+                }
+            }
+            return true;
+        }
         if (command == "answer") {
             state.answers.emplace_back(lower_text(target_text), rest);
             return true;
@@ -1705,6 +2062,10 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         }
         return get(in, property, arguments, result, failure);
     }
+    if (FormSupport::is_surface(*this) &&
+        FormSupport::surface_get(*this, member, result)) {
+        return true;
+    }
     if (is_list() &&
         FormSupport::list_get(in, *this, member, arguments, result, failure)) {
         return true;
@@ -1741,6 +2102,10 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     std::string wanted = member;
     if (member == "_default") {
         wanted = default_property_of(class_key);
+    }
+    if (FormSupport::is_surface(*this) &&
+        FormSupport::surface_put(*this, wanted, value, failure)) {
+        return true;
     }
     if (is_list() &&
         FormSupport::list_put(in, *this, wanted, arguments, value, failure)) {
@@ -1854,6 +2219,20 @@ bool Interpreter::native_member_statement(const Value& base,
                                           const std::string& name,
                                           const std::size_t member_offset) {
     InstanceData& instance = *std::get<ObjectInstance>(base).data;
+    if (name == "line" || name == "circle" || name == "pset" ||
+        name == "scale") {
+        const ControlObject* surface = control_of(instance);
+        if (surface != nullptr && FormSupport::is_surface(*surface)) {
+            return parse_surface_statement(instance, name, member_offset);
+        }
+    }
+    if (name == "print") {
+        const ControlObject* surface = control_of(instance);
+        if (surface != nullptr && FormSupport::is_surface(*surface)) {
+            print_surface_ = &instance;
+            return parse_print_statement();
+        }
+    }
     skip_horizontal_whitespace();
     std::vector<CallArgument> arguments;
     bool parenthesized = false;
@@ -2093,6 +2472,24 @@ bool Interpreter::create_form_instance(
                 }
             }
         }
+        // A design-time scale that differs from the client area makes the
+        // scale mode "user".
+        if (FormSupport::is_surface(object) &&
+            !object.values.contains("scalemode") &&
+            (object.values.contains("scalewidth") ||
+             object.values.contains("scaleheight"))) {
+            const auto width = object.values.find("scalewidth");
+            const auto height = object.values.find("scaleheight");
+            const bool differs = (width != object.values.end() &&
+                                  as_double(width->second) !=
+                                      FormSupport::client_width(object)) ||
+                                 (height != object.values.end() &&
+                                  as_double(height->second) !=
+                                      FormSupport::client_height(object));
+            if (differs) {
+                object.values["scalemode"] = Value{Int16{0}};
+            }
+        }
         object.design = object.values;
     };
 
@@ -2263,6 +2660,327 @@ std::optional<std::string> Interpreter::form_dialog_answer(
     std::string text = std::move(forms_->answers.front().second);
     forms_->answers.pop_front();
     return text;
+}
+
+InstanceData* Interpreter::implicit_form_surface() {
+    auto* const instance = current_instance();
+    if (instance == nullptr || instance->native == nullptr ||
+        instance->class_name == "wfcnative") {
+        return nullptr;
+    }
+    const ControlObject* object = control_of(*instance);
+    return object != nullptr && object->is_form ? instance : nullptr;
+}
+
+bool Interpreter::form_print(InstanceData& surface, const std::string& text,
+                             const bool newline) {
+    ControlObject* object = control_of(surface);
+    if (object == nullptr || !FormSupport::is_surface(*object)) {
+        static_cast<void>(raise_runtime(
+            438, "Object doesn't support this property or method", offset_));
+        return false;
+    }
+    return FormSupport::surface_print(*this, *object, text, newline);
+}
+
+bool Interpreter::parse_graphics_point(double& x, double& y) {
+    skip_horizontal_whitespace();
+    if (!consume('(')) {
+        set_error("WFC0005", "expected '('", offset_);
+        return false;
+    }
+    const auto read = [&](double& out) {
+        skip_horizontal_whitespace();
+        auto value = parse_expression();
+        if (!value.has_value()) {
+            return false;
+        }
+        if (!resolve_default_value(*value, offset_)) {
+            return false;
+        }
+        if (!execute_) {
+            out = 0.0;
+            return true;
+        }
+        if (!is_number(*value)) {
+            set_error("WFC0073", "Type mismatch", offset_);
+            return false;
+        }
+        out = as_double(*value);
+        return true;
+    };
+    if (!read(x)) {
+        return false;
+    }
+    skip_horizontal_whitespace();
+    if (!consume(',')) {
+        set_error("WFC0005", "expected ','", offset_);
+        return false;
+    }
+    if (!read(y)) {
+        return false;
+    }
+    skip_horizontal_whitespace();
+    if (!consume(')')) {
+        set_error("WFC0005", "expected closing parenthesis", offset_);
+        return false;
+    }
+    return true;
+}
+
+bool Interpreter::parse_surface_statement(InstanceData& surface_instance,
+                                          const std::string& keyword,
+                                          const std::size_t offset) {
+    ControlObject* surface = control_of(surface_instance);
+    if (surface == nullptr || !FormSupport::is_surface(*surface)) {
+        static_cast<void>(raise_runtime(
+            438, "Object doesn't support this property or method", offset));
+        return false;
+    }
+    const auto keep = surface_instance.shared_from_this();
+    skip_horizontal_whitespace();
+    const auto numeric = [&](double& out, const bool required) {
+        skip_horizontal_whitespace();
+        if (!required && (at_statement_end() || current() == ',')) {
+            return true;  // omitted
+        }
+        auto value = parse_expression();
+        if (!value.has_value() || !resolve_default_value(*value, offset_)) {
+            return false;
+        }
+        if (!execute_) {
+            return true;
+        }
+        if (!is_number(*value)) {
+            set_error("WFC0073", "Type mismatch", offset_);
+            return false;
+        }
+        out = as_double(*value);
+        return true;
+    };
+    double current_x = FormSupport::number_of(*surface, "currentx");
+    double current_y = FormSupport::number_of(*surface, "currenty");
+    if (keyword == "cls") {
+        if (!execute_) {
+            return true;
+        }
+        std::vector<CallArgument> none;
+        Value ignored;
+        NativeFailure failure;
+        return FormSupport::surface_method(*this, *surface, "cls", none,
+                                           ignored, failure);
+    }
+    if (keyword == "scale") {
+        if (at_statement_end()) {
+            if (execute_) {
+                surface->values["scalemode"] = Value{Int16{1}};
+                surface->values["scaleleft"] = Value{0.0F};
+                surface->values["scaletop"] = Value{0.0F};
+            }
+            return true;
+        }
+        double x1 = 0.0;
+        double y1 = 0.0;
+        double x2 = 0.0;
+        double y2 = 0.0;
+        if (!parse_graphics_point(x1, y1)) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume('-')) {
+            set_error("WFC0005", "expected '-'", offset_);
+            return false;
+        }
+        if (!parse_graphics_point(x2, y2)) {
+            return false;
+        }
+        if (execute_) {
+            if (x2 == x1 || y2 == y1) {
+                static_cast<void>(
+                    raise_runtime(380, "Invalid property value", offset));
+                return false;
+            }
+            surface->values["scalemode"] = Value{Int16{0}};
+            surface->values["scaleleft"] = Value{static_cast<float>(x1)};
+            surface->values["scaletop"] = Value{static_cast<float>(y1)};
+            surface->values["scalewidth"] = Value{static_cast<float>(x2 - x1)};
+            surface->values["scaleheight"] = Value{static_cast<float>(y2 - y1)};
+        }
+        return true;
+    }
+    if (keyword == "pset") {
+        const bool step = consume_keyword("step");
+        double x = 0.0;
+        double y = 0.0;
+        if (!parse_graphics_point(x, y)) {
+            return false;
+        }
+        double color = FormSupport::number_of(*surface, "forecolor");
+        skip_horizontal_whitespace();
+        if (consume(',') && !numeric(color, false)) {
+            return false;
+        }
+        if (!execute_) {
+            return true;
+        }
+        if (step) {
+            x += current_x;
+            y += current_y;
+        }
+        ui::DrawOp operation = FormSupport::base_op(*surface, "pset");
+        operation.x1 = FormSupport::to_twips_x(*surface, x);
+        operation.y1 = FormSupport::to_twips_y(*surface, y);
+        operation.color = FormSupport::resolve_color(static_cast<long>(color));
+        FormSupport::draw_op(*this, *surface, operation);
+        surface->values["currentx"] = Value{static_cast<float>(x)};
+        surface->values["currenty"] = Value{static_cast<float>(y)};
+        return true;
+    }
+    if (keyword == "line") {
+        bool step_start = consume_keyword("step");
+        double x1 = current_x;
+        double y1 = current_y;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '(') {
+            if (!parse_graphics_point(x1, y1)) {
+                return false;
+            }
+            if (step_start) {
+                x1 += current_x;
+                y1 += current_y;
+            }
+        }
+        skip_horizontal_whitespace();
+        if (!consume('-')) {
+            set_error("WFC0005", "expected '-'", offset_);
+            return false;
+        }
+        skip_horizontal_whitespace();
+        const bool step_end = consume_keyword("step");
+        double x2 = 0.0;
+        double y2 = 0.0;
+        if (!parse_graphics_point(x2, y2)) {
+            return false;
+        }
+        if (step_end) {
+            x2 += x1;
+            y2 += y1;
+        }
+        double color = FormSupport::number_of(*surface, "forecolor");
+        bool box = false;
+        bool filled = false;
+        skip_horizontal_whitespace();
+        if (consume(',')) {
+            if (!numeric(color, false)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume(',')) {
+                skip_horizontal_whitespace();
+                const auto style = parse_identifier(nullptr);
+                if (!style.has_value() || (*style != "b" && *style != "bf")) {
+                    set_error("WFC0011", "expected B or BF", offset_);
+                    return false;
+                }
+                box = true;
+                filled = *style == "bf";
+            }
+        }
+        if (!execute_) {
+            return true;
+        }
+        ui::DrawOp operation = FormSupport::base_op(*surface, "line");
+        operation.x1 = FormSupport::to_twips_x(*surface, x1);
+        operation.y1 = FormSupport::to_twips_y(*surface, y1);
+        operation.x2 = FormSupport::to_twips_x(*surface, x2);
+        operation.y2 = FormSupport::to_twips_y(*surface, y2);
+        operation.color = FormSupport::resolve_color(static_cast<long>(color));
+        operation.box = box;
+        operation.filled = filled;
+        FormSupport::draw_op(*this, *surface, operation);
+        surface->values["currentx"] = Value{static_cast<float>(x2)};
+        surface->values["currenty"] = Value{static_cast<float>(y2)};
+        return true;
+    }
+    if (keyword == "circle") {
+        const bool step = consume_keyword("step");
+        double x = 0.0;
+        double y = 0.0;
+        if (!parse_graphics_point(x, y)) {
+            return false;
+        }
+        if (step) {
+            x += current_x;
+            y += current_y;
+        }
+        skip_horizontal_whitespace();
+        if (!consume(',')) {
+            set_error("WFC0005", "expected ','", offset_);
+            return false;
+        }
+        double radius = 0.0;
+        if (!numeric(radius, true)) {
+            return false;
+        }
+        double color = FormSupport::number_of(*surface, "forecolor");
+        double start = 0.0;
+        double end = 0.0;
+        double aspect = 1.0;
+        bool has_start = false;
+        bool has_end = false;
+        skip_horizontal_whitespace();
+        if (consume(',')) {
+            if (!numeric(color, false)) {
+                return false;
+            }
+            skip_horizontal_whitespace();
+            if (consume(',')) {
+                skip_horizontal_whitespace();
+                has_start = !(at_statement_end() || current() == ',');
+                if (!numeric(start, false)) {
+                    return false;
+                }
+                skip_horizontal_whitespace();
+                if (consume(',')) {
+                    skip_horizontal_whitespace();
+                    has_end = !(at_statement_end() || current() == ',');
+                    if (!numeric(end, false)) {
+                        return false;
+                    }
+                    skip_horizontal_whitespace();
+                    if (consume(',') && !numeric(aspect, false)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if (!execute_) {
+            return true;
+        }
+        if (radius < 0.0) {
+            static_cast<void>(
+                raise_runtime(5, "Invalid procedure call or argument", offset));
+            return false;
+        }
+        ui::DrawOp operation = FormSupport::base_op(*surface, "circle");
+        operation.x1 = FormSupport::to_twips_x(*surface, x);
+        operation.y1 = FormSupport::to_twips_y(*surface, y);
+        const auto scale = FormSupport::scale_of(*surface);
+        operation.radius =
+            radius * FormSupport::client_width(*surface) / scale.width;
+        operation.color = FormSupport::resolve_color(static_cast<long>(color));
+        operation.arc = has_start || has_end;
+        operation.start = start;
+        operation.end = end;
+        operation.aspect = aspect;
+        FormSupport::draw_op(*this, *surface, operation);
+        surface->values["currentx"] = Value{static_cast<float>(x)};
+        surface->values["currenty"] = Value{static_cast<float>(y)};
+        return true;
+    }
+    static_cast<void>(keep);
+    set_error("WFC0010", "expected statement", offset);
+    return false;
 }
 
 bool Interpreter::pump_forms() {

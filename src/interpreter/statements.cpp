@@ -725,6 +725,28 @@ bool Interpreter::parse_statement_core() {
     if (consume_keyword("doevents")) {
         return pump_forms();
     }
+    if (InstanceData* const form_surface = implicit_form_surface()) {
+        // Graphics statements of the form the code belongs to.
+        const auto saved = offset_;
+        for (const char* keyword : {"pset", "circle", "cls", "scale", "line"}) {
+            if (!consume_keyword(keyword)) {
+                continue;
+            }
+            const std::string name = keyword;
+            if (name == "line") {
+                skip_horizontal_whitespace();
+                const auto after_line = offset_;
+                if (consume_keyword("input")) {
+                    offset_ = saved;  // `Line Input #n, v`: a file statement
+                    break;
+                }
+                offset_ = after_line;
+            }
+            return parse_surface_statement(*form_surface, name,
+                                           statement_offset);
+        }
+        offset_ = saved;
+    }
     {
         // `Load Form1` / `Unload Me` (a form name follows the keyword).
         const auto saved = offset_;
@@ -1126,6 +1148,7 @@ bool Interpreter::parse_statement_core() {
         return parse_raise_event_statement(statement_offset);
     }
     if (consume_keyword("print")) {
+        print_surface_ = implicit_form_surface();
         return parse_print_statement();
     }
     if (consume_keyword("randomize")) {
@@ -1238,6 +1261,7 @@ bool Interpreter::at_statement_end() const noexcept {
 }
 
 bool Interpreter::parse_print_statement() {
+    InstanceData* const surface = std::exchange(print_surface_, nullptr);
     if (!allow_identifiers_) {
         // The expression-only `Print <expression>` entry point keeps its
         // original single-expression grammar.
@@ -1390,6 +1414,9 @@ bool Interpreter::parse_print_statement() {
     if (to_file) {
         return write_to_file(file_number, newline ? text + "\r\n" : text,
                              offset_);
+    }
+    if (surface != nullptr) {
+        return form_print(*surface, text, newline);
     }
     if (has_output_line_ && !output_line_open_) {
         output_.push_back('\n');
@@ -3011,6 +3038,7 @@ bool Interpreter::parse_inline_statement_core() {
         return false;
     }
     if (consume_keyword("print")) {
+        print_surface_ = implicit_form_surface();
         return parse_print_statement();
     }
     if (consume_keyword("set")) {

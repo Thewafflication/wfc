@@ -1689,6 +1689,17 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    // Drawing on forms and picture boxes (REQ-0290).
+    [[nodiscard]] InstanceData* implicit_form_surface();
+    [[nodiscard]] bool form_print(InstanceData& surface,
+                                  const std::string& text, bool newline);
+    [[nodiscard]] bool parse_graphics_point(double& x, double& y);
+    [[nodiscard]] bool parse_surface_statement(InstanceData& surface,
+                                               const std::string& keyword,
+                                               std::size_t offset);
+    // The surface the Print statement being parsed draws on, or null for the
+    // console.
+    InstanceData* print_surface_{nullptr};
     // The next scripted answer for a `msgbox` or `inputbox` dialog.
     [[nodiscard]] std::optional<std::string> form_dialog_answer(
         const std::string& kind);

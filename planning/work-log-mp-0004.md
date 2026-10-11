@@ -27,3 +27,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #6 | Construction | Scroll bars: range-checked `Value`, `Change`/`Scroll` events, scripted drag/step (`REQ-0289`); corpus 154 | CTest 310/310 |
 | 2026-10-11 #7 | Construction | Menus click path, non-focusable controls, scripted `MsgBox`/`InputBox` answers, modal `Show` (`REQ-0289`); corpus 155–156 | CTest 312/312 |
 | 2026-10-11 #8 | Construction | Win32 `UiHost` (windows, standard controls, menus, timers, message loop, `set_value`/`set_scroll`), `--gui` option, Win32 integration and real-window tests (`REQ-0289`) | CTest `TC-MP0004-win32-host`, `-gui-form-timer` |
+| 2026-10-11 #9 | Construction | Drawing surfaces: scale modes, `PSet`/`Line`/`Circle`/`Cls`/`Scale`/`Print` on forms and picture boxes, `UiHost::draw`/`measure_text`, headless drawing trace (`REQ-0290`); corpus 157 | CTest 314/314 |

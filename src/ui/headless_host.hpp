@@ -30,6 +30,7 @@ public:
                    const std::vector<std::string>& items) override;
     void set_selection(WindowId window, long index) override;
     [[nodiscard]] long selection(WindowId window) const override;
+    void draw(WindowId window, const DrawOp& operation) override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
@@ -46,6 +47,10 @@ public:
     [[nodiscard]] const std::vector<std::string>& trace() const noexcept {
         return trace_;
     }
+
+    // The drawing operations since the last call, one line each (see
+    // draw()), and forgets them.
+    [[nodiscard]] std::vector<std::string> take_drawing();
 
     [[nodiscard]] WindowId parent_of(WindowId window) const;
     [[nodiscard]] std::vector<std::string> items_of(WindowId window) const;
@@ -74,6 +79,7 @@ private:
     std::map<WindowId, TimerState> timers_;
     std::deque<UiEvent> queue_;
     std::vector<std::string> trace_;
+    std::vector<std::string> drawing_;
     WindowId next_id_{1};
     WindowId focus_{kNoWindow};
     long now_{0};

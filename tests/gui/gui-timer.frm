@@ -24,20 +24,20 @@ Attribute VB_Name = "Form1"
 Option Explicit
 Dim n As Long
 Private Sub Form_Load()
-    Print "load"; Caption; Command1.Caption
+    Debug.Print "load"; Caption; Command1.Caption
 End Sub
 Private Sub Form_Activate()
-    Print "activate"
+    Debug.Print "activate"
 End Sub
 Private Sub Timer1_Timer()
     n = n + 1
-    Print "tick"; n
+    Debug.Print "tick"; n
     If n = 1 Then Text1.Text = "set from code"
     If n = 3 Then Unload Me
 End Sub
 Private Sub Text1_Change()
-    Print "change "; Text1.Text
+    Debug.Print "change "; Text1.Text
 End Sub
 Private Sub Form_Unload(Cancel As Integer)
-    Print "unload"
+    Debug.Print "unload"
 End Sub
