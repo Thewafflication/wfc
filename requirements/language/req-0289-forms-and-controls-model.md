@@ -58,12 +58,17 @@
   `Click` (and `Change` for a combo box, whose `Text` follows the selection).
   An index outside the list raises 381.
 
+- **Scroll bars.** `Value` must lie between `Min` and `Max` (else 380) and a
+  change raises `Change`. The input script's `scroll <control> <value>` drags
+  to a value (`Scroll`, then `Change`) and `scrollby <control> <delta>` steps
+  it (`Change` only), clamped to the range.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
-form surface; scroll and graphics behavior, menus, MDI, drag and drop,
+form surface; graphics behavior, menus, MDI, drag and drop,
 validation, modal `Show` and the Win32 host are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars` and the `wfc_ui_tests` units.

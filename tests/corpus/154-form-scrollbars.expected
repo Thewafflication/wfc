@@ -1,0 +1,9 @@
+start 20  10  100  32767 
+ 380 Invalid property value
+change 50 
+scroll 70 
+change 70 
+change 65 
+vchange 32767 
+scroll 70 
+change 70 

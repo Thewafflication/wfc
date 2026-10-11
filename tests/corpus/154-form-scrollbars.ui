@@ -1,0 +1,4 @@
+scroll HScroll1 70
+scrollby HScroll1 -5
+scroll VScroll1 99999
+scroll HScroll1 70

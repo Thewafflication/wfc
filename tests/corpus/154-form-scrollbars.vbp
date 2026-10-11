@@ -1,0 +1,4 @@
+Type=Exe
+Form=154-form-scrollbars.frm
+Startup="Form1"
+WfcUiScript=154-form-scrollbars.ui

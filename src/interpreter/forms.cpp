@@ -171,6 +171,9 @@ public:
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox";
     }
+    [[nodiscard]] bool is_scroll() const {
+        return class_key == "hscrollbar" || class_key == "vscrollbar";
+    }
 };
 
 // A control array: `Command1(0)`, `Command1.Count`.
@@ -542,6 +545,40 @@ struct FormSupport {
             return true;
         }
         return false;
+    }
+
+    // A numeric property's value, falling back to its design-time default.
+    [[nodiscard]] static double number_of(const ControlObject& object,
+                                          const std::string& key) {
+        const auto found = object.values.find(key);
+        if (found != object.values.end() && is_number(found->second)) {
+            return as_double(found->second);
+        }
+        if (const auto fallback = property_default(object.class_key, key)) {
+            if (is_number(*fallback)) {
+                return as_double(*fallback);
+            }
+        }
+        return 0.0;
+    }
+
+    // Moves a scroll bar to `target` (clamped), raising Scroll when
+    // `dragging` and Change when the value changed.
+    [[nodiscard]] static bool scroll_to(Interpreter& in, ControlObject& bar,
+                                        double target, const bool dragging) {
+        const double low =
+            std::min(number_of(bar, "min"), number_of(bar, "max"));
+        const double high =
+            std::max(number_of(bar, "min"), number_of(bar, "max"));
+        target = std::clamp(target, low, high);
+        const double previous = number_of(bar, "value");
+        bar.values["value"] = Value{static_cast<Int16>(target)};
+        if (dragging && target != previous &&
+            !raise_table_event(in, bar, "Scroll", {}, in.offset_)) {
+            return false;
+        }
+        return target == previous ||
+               raise_table_event(in, bar, "Change", {}, in.offset_);
     }
 
     // A Boolean property's value, falling back to its design-time default.
@@ -1127,6 +1164,9 @@ struct FormSupport {
             mirror_all(in, self);
             return true;
         }
+        if (member == "value" && self.is_scroll() && !(now == old_value)) {
+            return report(raise_table_event(in, self, "Change", {}, offset));
+        }
         if (member == "value" && !self.is_form &&
             (self.class_key == "checkbox" || self.class_key == "optionbutton" ||
              self.class_key == "commandbutton") &&
@@ -1169,6 +1209,20 @@ struct FormSupport {
                                                   source->index, in.offset_)) {
                 return false;
             }
+        }
+        if (name == "userscroll" || name == "userscrollby") {
+            if (source->is_scroll() && !event.arguments.empty()) {
+                const double amount = std::get<double>(event.arguments[0]);
+                const double base =
+                    name == "userscroll" ? 0.0 : number_of(*source, "value");
+                if (!focus_control(in, *form, source->name, source->index,
+                                   in.offset_)) {
+                    return false;
+                }
+                return scroll_to(in, *source, base + amount,
+                                 name == "userscroll");
+            }
+            return true;
         }
         if (name == "userselect") {
             if (source->is_list() && !event.arguments.empty()) {
@@ -1350,6 +1404,12 @@ struct FormSupport {
         } else if (command == "dblclick") {
             state.host->post_event(ui::UiEvent{object->window, "Click", {}});
             state.host->post_event(ui::UiEvent{object->window, "DblClick", {}});
+        } else if ((command == "scroll" || command == "scrollby") &&
+                   object->is_scroll()) {
+            state.host->post_event(
+                ui::UiEvent{object->window,
+                            command == "scroll" ? "UserScroll" : "UserScrollBy",
+                            {static_cast<double>(std::atof(rest.c_str()))}});
         } else if (command == "select" && object->is_list()) {
             const long index = std::atol(rest.c_str());
             state.host->post_event(
@@ -1591,6 +1651,17 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     Value converted = value;
     if (!coerce_property(in, converted, setter->type, failure)) {
         return true;
+    }
+    if (is_scroll() && wanted == "value") {
+        const double low = std::min(FormSupport::number_of(*this, "min"),
+                                    FormSupport::number_of(*this, "max"));
+        const double high = std::max(FormSupport::number_of(*this, "min"),
+                                     FormSupport::number_of(*this, "max"));
+        const double wanted_value = as_double(converted);
+        if (wanted_value < low || wanted_value > high) {
+            failure = NativeFailure{380, "Invalid property value"};
+            return true;
+        }
     }
     Value previous = default_for_type(setter->type);
     if (const auto found = values.find(wanted); found != values.end()) {

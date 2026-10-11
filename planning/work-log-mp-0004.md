@@ -24,3 +24,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #3 | Construction | Stage 3 first slice: `.vbp` `Form=`/`Startup`, forms as class modules with native controls (table-driven properties), lifecycle and events, control arrays, scripted headless input (`REQ-0289`); corpus 151 | CTest 307/307 |
 | 2026-10-11 #4 | Construction | Timer events, control-array option groups, live `Forms` collection (native), KeyPreview, native `For Each` (`REQ-0289`); corpus 152 | CTest 308/308 |
 | 2026-10-11 #5 | Construction | ListBox/ComboBox model (AddItem, RemoveItem, Clear, List, ItemData, ListIndex, Sorted, selection events); `UiHost` list calls (`REQ-0289`); corpus 153 | CTest 309/309 |
+| 2026-10-11 #6 | Construction | Scroll bars: range-checked `Value`, `Change`/`Scroll` events, scripted drag/step (`REQ-0289`); corpus 154 | CTest 310/310 |
