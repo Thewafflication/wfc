@@ -1498,6 +1498,9 @@ void Interpreter::scan_builtin_classes() {
         // Project metadata replaces the default value of each `App` property.
         std::string app_source(kAppSource);
         for (const auto& [property, value] : app_properties_) {
+            if (property == "path" && value.empty()) {
+                continue;
+            }
             const bool numeric = property == "major" || property == "minor" ||
                                  property == "revision";
             std::string literal;
@@ -1521,6 +1524,7 @@ void Interpreter::scan_builtin_classes() {
                 : property == "productname"     ? "ProductName = \"\""
                 : property == "filedescription" ? "FileDescription = \"\""
                 : property == "comments"        ? "Comments = \"\""
+                : property == "path"            ? "Path = CurDir$"
                 : property == "legaltrademarks" ? "LegalTrademarks = \"\""
                                                 : "LegalCopyright = \"\"";
             const auto at = app_source.find(marker);

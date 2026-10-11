@@ -128,6 +128,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "loadresstring",
                                                        "loadresdata",
                                                        "wfcactive",
+                                                       "loadpicture",
                                                        "wfcsys",
                                                        "wfcsysfont",
                                                        "wfcstore"};
@@ -471,6 +472,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                 5017, "Syntax error in regular expression", offset));
             return std::nullopt;
         }
+    }
+    if (name == "loadpicture") {
+        return load_picture_builtin(arguments, offset);
     }
     if (name == "wfcactive") {
         if (!arity(1, 1)) {

@@ -32,3 +32,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #11 | Construction | Keyboard navigation (Tab order, Enter/Esc default and cancel buttons, accelerators, Space), `Validate`/`CausesValidation`, scripted `press` (`REQ-0289`); corpus 158 | CTest 315/315 |
 | 2026-10-11 #12 | Construction | `Controls` collection, `Parent`/`Container`/`ActiveControl`, dynamic `Load`/`Unload Control(i)`, `As Control/Form/TextBox` types, `TypeOf`/`TypeName` for controls (`REQ-0289`); corpus 159 | CTest 317/317 |
 | 2026-10-11 #13 | Construction | `End` in handlers, `Control.Font` view, form default size, `ValidateControls`/`PopupMenu`/Link*/no-op methods, `.frm` font weight fix (`REQ-0289`); corpus 160–161 | CTest 319/319 |
+| 2026-10-11 #14 | Construction | `StdPicture`, `LoadPicture`/`SavePicture`, Picture properties and display, `.frx` pictures, Win32 `OleLoadPicture` rendering, `App.Path` (`REQ-0291`); corpus 162 | CTest 320/320 |

@@ -1,0 +1,4 @@
+Type=Exe
+Form=162-form-pictures.frm
+Startup="Form1"
+WfcUiScript=162-form-pictures.ui

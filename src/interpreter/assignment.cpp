@@ -627,7 +627,18 @@ bool Interpreter::native_type_matches(const std::string& declared_class_name,
         declared->second.native_type == "mdiform") {
         return true;
     }
-    return lower_native_type(source) == declared->second.native_type;
+    // The picture and font types have several spellings.
+    const auto canonical = [](const std::string& name) {
+        if (name == "stdpicture" || name == "picture") {
+            return std::string{"ipicturedisp"};
+        }
+        if (name == "stdfont" || name == "font") {
+            return std::string{"ifontdisp"};
+        }
+        return name;
+    };
+    return canonical(lower_native_type(source)) ==
+           canonical(declared->second.native_type);
 }
 
 bool Interpreter::class_satisfies(

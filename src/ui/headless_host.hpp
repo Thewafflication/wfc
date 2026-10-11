@@ -30,6 +30,7 @@ public:
                    const std::vector<std::string>& items) override;
     void set_selection(WindowId window, long index) override;
     [[nodiscard]] long selection(WindowId window) const override;
+    [[nodiscard]] long load_picture(const std::string& bytes) override;
     void draw(WindowId window, const DrawOp& operation) override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
@@ -80,6 +81,7 @@ private:
     std::deque<UiEvent> queue_;
     std::vector<std::string> trace_;
     std::vector<std::string> drawing_;
+    std::map<std::string, long> pictures_;
     WindowId next_id_{1};
     WindowId focus_{kNoWindow};
     long now_{0};

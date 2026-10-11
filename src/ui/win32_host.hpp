@@ -48,6 +48,7 @@ public:
     void set_value(WindowId window, long value) override;
     void set_scroll(WindowId window, long minimum, long maximum, long value,
                     long small_change, long large_change) override;
+    [[nodiscard]] long load_picture(const std::string& bytes) override;
     void draw(WindowId window, const DrawOp& operation) override;
     [[nodiscard]] TextMetrics measure_text(WindowId window,
                                            const std::string& text,
@@ -85,6 +86,9 @@ private:
     long dpi_x_{96};
     long dpi_y_{96};
     HFONT__* font_{nullptr};
+    // Decoded pictures (IPicture*) by id, and the id of each byte string.
+    std::map<long, void*> pictures_;
+    std::map<std::string, long> picture_ids_;
 };
 
 }  // namespace wfc::ui

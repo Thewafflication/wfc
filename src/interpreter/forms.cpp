@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "../ui/control_tables.hpp"
+#include "pictures.hpp"
 #ifdef _WIN32
 #include "../ui/win32_host.hpp"
 #endif
@@ -309,6 +310,10 @@ struct FormSupport {
     [[nodiscard]] static bool form_member(Interpreter& in, ControlObject& self,
                                           const std::string& member,
                                           Value& result);
+
+    [[nodiscard]] static bool resolve(Interpreter& in, Value& value) {
+        return in.resolve_default_value(value, in.offset_);
+    }
 
     static NativeFailure reported() {
         return NativeFailure{kErrorAlreadyReported, {}};
@@ -840,6 +845,59 @@ struct FormSupport {
         return true;
     }
 
+    // ----- Pictures -----------------------------------------------------
+
+    [[nodiscard]] static bool is_picture_property(const std::string& key) {
+        return key == "picture" || key == "icon" || key == "mouseicon" ||
+               key == "dragicon" || key == "downpicture" ||
+               key == "disabledpicture";
+    }
+
+    // HIMETRIC (0.01 mm) to twips.
+    [[nodiscard]] static double himetric_to_twips(const long himetric) {
+        return static_cast<double>(himetric) * 1440.0 / 2540.0;
+    }
+
+    // The host's id for a picture, decoding it on first use.
+    [[nodiscard]] static long host_picture(Interpreter& in,
+                                           PictureObject& picture) {
+        if (picture.host_id == 0 && !picture.bytes.empty()) {
+            picture.host_id = runtime(in).host->load_picture(picture.bytes);
+        }
+        return picture.host_id;
+    }
+
+    // Draws `picture` into (x, y, width, height) twips of `surface`.
+    static void paint_picture(Interpreter& in, ControlObject& surface,
+                              PictureObject& picture, const double x,
+                              const double y, const double width,
+                              const double height) {
+        if (picture.bytes.empty() || surface.window == ui::kNoWindow) {
+            return;
+        }
+        ui::DrawOp operation;
+        operation.kind = "picture";
+        operation.picture = host_picture(in, picture);
+        operation.x1 = x;
+        operation.y1 = y;
+        operation.x2 = width;
+        operation.y2 = height;
+        draw_op(in, surface, operation);
+    }
+
+    // The surface's own Picture drawn at its natural size at the origin.
+    static void paint_surface_picture(Interpreter& in, ControlObject& surface) {
+        const auto found = surface.values.find("picture");
+        if (found == surface.values.end()) {
+            return;
+        }
+        if (PictureObject* picture = picture_of(found->second)) {
+            paint_picture(in, surface, *picture, 0.0, 0.0,
+                          himetric_to_twips(picture->info.width),
+                          himetric_to_twips(picture->info.height));
+        }
+    }
+
     // ----- Drawing surfaces (forms and picture boxes) -------------------
 
     [[nodiscard]] static bool is_surface(const ControlObject& object) {
@@ -1134,6 +1192,7 @@ struct FormSupport {
             ui::DrawOp operation = base_op(surface, "cls");
             operation.color = color_of(surface, "backcolor");
             draw_op(in, surface, operation);
+            paint_surface_picture(in, surface);
             const Scale scale = scale_of(surface);
             surface.values["currentx"] = Value{static_cast<float>(scale.left)};
             surface.values["currenty"] = Value{static_cast<float>(scale.top)};
@@ -1437,6 +1496,9 @@ struct FormSupport {
         if (object.class_key == "timer") {
             apply_timer(in, object);
         }
+        if (object.class_key == "picturebox") {
+            paint_surface_picture(in, object);
+        }
         push_state(in, object);
     }
 
@@ -1548,6 +1610,7 @@ struct FormSupport {
             return true;
         }
         object->shown = true;
+        paint_surface_picture(in, *object);
         object->values["visible"] = Value{true};
         runtime(in).host->set_visible(object->window, true);
         std::vector<Value> none;
@@ -1814,6 +1877,30 @@ struct FormSupport {
         }
         if (member == "interval" && live && self.class_key == "timer") {
             apply_timer(in, self);
+            return true;
+        }
+        if (is_picture_property(member) && live &&
+            (self.is_form || self.class_key == "picturebox") &&
+            member == "picture") {
+            PictureObject* picture = picture_of(now);
+            if (picture != nullptr && !picture->bytes.empty() &&
+                self.class_key == "picturebox" && flag_of(self, "autosize")) {
+                // AutoSize fits the box to the picture (plus the border).
+                const double border = flag_of(self, "borderstyle") ? 60.0 : 0.0;
+                self.values["width"] = Value{static_cast<float>(
+                    himetric_to_twips(picture->info.width) + border)};
+                self.values["height"] = Value{static_cast<float>(
+                    himetric_to_twips(picture->info.height) + border)};
+                host.set_bounds(
+                    self.window,
+                    ui::Rect{number_of(self, "left"), number_of(self, "top"),
+                             number_of(self, "width"),
+                             number_of(self, "height")});
+            }
+            ui::DrawOp clear = base_op(self, "cls");
+            clear.color = color_of(self, "backcolor");
+            draw_op(in, self, clear);
+            paint_surface_picture(in, self);
             return true;
         }
         if (member == "visible" && self.is_form) {
@@ -2525,8 +2612,14 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
             result = found->second;
         } else if (const auto fallback = property_default(class_key, member)) {
             result = *fallback;
+        } else if (getter->type == std::string("Picture")) {
+            result = make_empty_picture_value();
         } else {
             result = default_for_type(getter->type);
+        }
+        if (FormSupport::is_picture_property(member) &&
+            std::holds_alternative<Nothing>(result)) {
+            result = make_empty_picture_value();
         }
         return true;
     }
@@ -2595,7 +2688,24 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
         return false;
     }
     Value converted = value;
-    if (!coerce_property(in, converted, setter->type, failure)) {
+    const std::string setter_type = setter->type;
+    const bool object_type = setter_type == "Picture" ||
+                             setter_type == "Font" || setter_type == "Object" ||
+                             setter_type == "Control" ||
+                             setter_type == "Form" || setter_type == "Variant";
+    if (is_object_reference(converted) && !object_type &&
+        !FormSupport::resolve(in, converted)) {
+        failure = FormSupport::reported();
+        return true;
+    }
+    if (setter_type == "Picture") {
+        if (std::holds_alternative<Nothing>(converted)) {
+            converted = make_empty_picture_value();
+        } else if (picture_of(converted) == nullptr) {
+            failure = NativeFailure{13, "Type mismatch"};
+            return true;
+        }
+    } else if (!coerce_property(in, converted, setter_type, failure)) {
         return true;
     }
     if (is_scroll() && wanted == "value") {
@@ -2749,9 +2859,6 @@ bool Interpreter::native_member_statement(const Value& base,
         if (!execute_) {
             return true;
         }
-        if (!resolve_default_value(*value, member_offset)) {
-            return false;
-        }
         const auto keep = instance.shared_from_this();
         NativeFailure failure;
         const std::size_t saved_offset = offset_;
@@ -2876,6 +2983,13 @@ bool Interpreter::create_form_instance(
             } else {
                 return std::nullopt;
             }
+        }
+        if (FormSupport::is_picture_property(property)) {
+            PictureInfo info;
+            if (!raw.empty() && read_picture_header(raw, info)) {
+                return make_picture_value(raw, info);
+            }
+            return std::nullopt;
         }
         const auto* row = ui::find_member(owner, property, 'l');
         if (row == nullptr) {
@@ -3420,7 +3534,9 @@ void Interpreter::register_native_types() {
         collect(module.source);
         user_classes.insert(lower_text(module.name));
     }
-    std::vector<std::string> names = {"control", "form", "mdiform"};
+    std::vector<std::string> names = {
+        "control", "form", "mdiform",      "stdpicture", "picture",
+        "stdfont", "font", "ipicturedisp", "ifontdisp"};
     for (const auto& control_class : ui::control_classes()) {
         names.push_back(lower_text(control_class.name));
     }

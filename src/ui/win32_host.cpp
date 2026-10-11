@@ -9,9 +9,14 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <objbase.h>
+#include <ocidl.h>
+#include <olectl.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 
 namespace wfc::ui {
 namespace {
@@ -253,6 +258,9 @@ Win32Host::~Win32Host() {
     }
     for (const WindowId id : forms) {
         destroy_window(id);
+    }
+    for (auto& [id, picture] : pictures_) {
+        static_cast<IPicture*>(picture)->Release();
     }
     if (font_ != nullptr) {
         DeleteObject(font_);
@@ -698,6 +706,37 @@ bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
     return true;
 }
 
+long Win32Host::load_picture(const std::string& bytes) {
+    const auto known = picture_ids_.find(bytes);
+    if (known != picture_ids_.end()) {
+        return known->second;
+    }
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes.size());
+    if (memory == nullptr) {
+        return 0;
+    }
+    void* locked = GlobalLock(memory);
+    std::memcpy(locked, bytes.data(), bytes.size());
+    GlobalUnlock(memory);
+    IStream* stream = nullptr;
+    long id = 0;
+    if (SUCCEEDED(CreateStreamOnHGlobal(memory, TRUE, &stream))) {
+        IPicture* picture = nullptr;
+        if (SUCCEEDED(OleLoadPicture(stream, static_cast<LONG>(bytes.size()),
+                                     FALSE, IID_IPicture,
+                                     reinterpret_cast<void**>(&picture))) &&
+            picture != nullptr) {
+            id = static_cast<long>(pictures_.size()) + 1;
+            pictures_.emplace(id, picture);
+            picture_ids_.emplace(bytes, id);
+        }
+        stream->Release();
+    } else {
+        GlobalFree(memory);
+    }
+    return id;
+}
+
 void Win32Host::draw(const WindowId window, const DrawOp& operation) {
     Entry* entry = ensure_surface(window);
     if (entry == nullptr) {
@@ -775,6 +814,21 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
         SelectObject(dc, old_brush);
         SelectObject(dc, old_pen);
         DeleteObject(pen);
+    } else if (operation.kind == "picture") {
+        const auto found = pictures_.find(operation.picture);
+        if (found != pictures_.end()) {
+            auto* picture = static_cast<IPicture*>(found->second);
+            OLE_XSIZE_HIMETRIC width = 0;
+            OLE_YSIZE_HIMETRIC height = 0;
+            picture->get_Width(&width);
+            picture->get_Height(&height);
+            const int x = to_x(operation.x1);
+            const int y = to_y(operation.y1);
+            const int cx = std::max(to_x(operation.x2), 1);
+            const int cy = std::max(to_y(operation.y2), 1);
+            picture->Render(dc, x, y, cx, cy, 0, height, width, -height,
+                            nullptr);
+        }
     } else if (operation.kind == "text") {
         const int height = -static_cast<int>(std::lround(
             operation.font.size * static_cast<double>(dpi_y_) / 72.0));

@@ -725,6 +725,16 @@ bool Interpreter::parse_statement_core() {
     if (consume_keyword("doevents")) {
         return pump_forms();
     }
+    {
+        const auto before_save = offset_;
+        if (consume_keyword("savepicture")) {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() != '=' && current() != '(') {
+                return parse_savepicture_statement(statement_offset);
+            }
+        }
+        offset_ = before_save;
+    }
     if (InstanceData* const form_surface = implicit_form_surface()) {
         // Graphics statements of the form the code belongs to.
         const auto saved = offset_;

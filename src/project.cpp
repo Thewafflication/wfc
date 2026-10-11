@@ -281,6 +281,21 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
             const auto directory = path.has_parent_path()
                                        ? path.parent_path()
                                        : std::filesystem::path(".");
+            {
+                // `App.Path` is the project's folder.
+                std::error_code absolute_error;
+                auto folder =
+                    std::filesystem::absolute(directory, absolute_error);
+                if (!absolute_error) {
+                    project.app_properties["path"] =
+                        folder.lexically_normal().string();
+                    while (project.app_properties["path"].size() > 3U &&
+                           (project.app_properties["path"].back() == '\\' ||
+                            project.app_properties["path"].back() == '/')) {
+                        project.app_properties["path"].pop_back();
+                    }
+                }
+            }
             std::istringstream stream(text);
             std::string line;
             while (std::getline(stream, line)) {

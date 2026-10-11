@@ -75,6 +75,15 @@ struct DrawOp {
     std::string text;
     FontSpec font;
     long back_color{0};
+    // "picture": a host picture id (see UiHost::load_picture) drawn into the
+    // rectangle (x1, y1, x2, y2 = left, top, width, height); `source` selects
+    // a part of the image in twips when `has_source`.
+    long picture{0};
+    bool has_source{false};
+    double source_x{0};
+    double source_y{0};
+    double source_width{0};
+    double source_height{0};
 };
 
 class UiHost {
@@ -121,6 +130,12 @@ public:
         static_cast<void>(large_change);
     }
 
+    // Decodes image bytes for drawing; returns a picture id (0 on failure).
+    // The same bytes give the same id.
+    [[nodiscard]] virtual long load_picture(const std::string& bytes) {
+        static_cast<void>(bytes);
+        return 0;
+    }
     // Draws on the window's persistent surface.
     virtual void draw(WindowId window, const DrawOp& operation) {
         static_cast<void>(window);

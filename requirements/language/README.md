@@ -405,3 +405,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0288 — Type-library references and early binding](req-0288-type-library-references.md)
 - [REQ-0289 — Form modules and the intrinsic-control object model](req-0289-forms-and-controls-model.md)
 - [REQ-0290 — Drawing surfaces: coordinates, graphics statements, Print](req-0290-surface-drawing.md)
+- [REQ-0291 — Picture objects](req-0291-pictures.md)

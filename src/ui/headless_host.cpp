@@ -191,6 +191,19 @@ void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
             line += " aspect";
             add(operation.aspect);
         }
+    } else if (operation.kind == "picture") {
+        line += " pic" + std::to_string(operation.picture);
+        add(operation.x1);
+        add(operation.y1);
+        add(operation.x2);
+        add(operation.y2);
+        if (operation.has_source) {
+            line += " src";
+            add(operation.source_x);
+            add(operation.source_y);
+            add(operation.source_width);
+            add(operation.source_height);
+        }
     } else if (operation.kind == "text") {
         add(operation.x1);
         add(operation.y1);
@@ -199,6 +212,18 @@ void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
     }
     drawing_.push_back(line);
     trace_.push_back(line);
+}
+
+long HeadlessHost::load_picture(const std::string& bytes) {
+    const auto found = pictures_.find(bytes);
+    if (found != pictures_.end()) {
+        return found->second;
+    }
+    const long id = static_cast<long>(pictures_.size()) + 1;
+    pictures_.emplace(bytes, id);
+    trace_.push_back("picture " + std::to_string(id) + " " +
+                     std::to_string(bytes.size()) + " bytes");
+    return id;
 }
 
 std::vector<std::string> HeadlessHost::take_drawing() {

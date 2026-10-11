@@ -27,6 +27,8 @@ target_sources(
     src/interpreter/declarations.cpp
     src/interpreter/expressions.cpp
     src/interpreter/files.cpp
+    src/interpreter/pictures.cpp
+    src/interpreter/pictures.hpp
     src/interpreter/forms.cpp
     src/interpreter/forms.hpp
     src/interpreter/winapi.cpp

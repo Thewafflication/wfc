@@ -1696,6 +1696,10 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    // LoadPicture and SavePicture (REQ-0291); pictures.cpp.
+    [[nodiscard]] std::optional<Value> load_picture_builtin(
+        const std::vector<Value>& arguments, std::size_t offset);
+    [[nodiscard]] bool parse_savepicture_statement(std::size_t offset);
     [[nodiscard]] bool native_type_matches(
         const std::string& declared_class_name,
         const InstanceData& source) const;
