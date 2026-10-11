@@ -1,0 +1,8 @@
+Option Explicit
+Public Event Changed()
+Public Property Get Area() As Double
+End Property
+Public Property Set Owner(ByVal o As Object)
+End Property
+Public Function Describe(Optional ByVal verbose As Boolean = False) As String
+End Function

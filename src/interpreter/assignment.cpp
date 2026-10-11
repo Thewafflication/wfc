@@ -707,8 +707,9 @@ bool Interpreter::invoke_property_let_or_set(
     return result.has_value();
 }
 
-bool Interpreter::parse_member_set_assignment(const Value base,
-                                              const std::size_t base_offset) {
+bool Interpreter::parse_member_set_assignment(
+    const Value base, const std::size_t base_offset,
+    const std::string& via_interface_class) {
     skip_horizontal_whitespace();
     const auto member_offset = offset_;
     char type_character{};
@@ -743,6 +744,19 @@ bool Interpreter::parse_member_set_assignment(const Value base,
     }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
+    // Through an interface-typed reference the implementing class's
+    // `Interface_Member` accessor is the target (REQ-0233).
+    if (!via_interface_class.empty() &&
+        std::find(class_def.implements.begin(), class_def.implements.end(),
+                  via_interface_class) != class_def.implements.end()) {
+        const std::string prefixed = via_interface_class + "_" + *member_name;
+        const auto interface_setter = class_def.property_set.find(prefixed);
+        if (interface_setter != class_def.property_set.end()) {
+            return invoke_property_let_or_set(instance, class_def,
+                                              interface_setter->second,
+                                              prefixed, member_offset);
+        }
+    }
     const auto setter_iterator = class_def.property_set.find(*member_name);
     if (setter_iterator != class_def.property_set.end()) {
         if (!member_accessible(class_def, setter_iterator->second.is_private)) {
@@ -914,8 +928,15 @@ bool Interpreter::parse_set_statement() {
         (std::holds_alternative<Nothing>(*variable.value) ||
          std::holds_alternative<ObjectInstance>(*variable.value))) {
         const auto base = *variable.value;
+        std::string declared_interface;
+        if (const auto declared =
+                variable.scope->object_class_names.find(*identifier);
+            declared != variable.scope->object_class_names.end()) {
+            declared_interface = declared->second;
+        }
         advance();
-        return parse_member_set_assignment(base, identifier_offset);
+        return parse_member_set_assignment(base, identifier_offset,
+                                           declared_interface);
     }
     // `Set arrayName(index [, index...]) = expression`, the Object-
     // element-array (REQ-0212) counterpart of a plain Object variable's

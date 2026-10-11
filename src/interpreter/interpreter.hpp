@@ -1127,7 +1127,8 @@ private:
     // already-evaluated object reference the member is accessed on; its
     // own '.' has already been consumed.
     [[nodiscard]] bool parse_member_set_assignment(
-        const Value base, const std::size_t base_offset);
+        const Value base, const std::size_t base_offset,
+        const std::string& via_interface_class = {});
 
     // `Set identifier = expression` is the only legal way to assign an
     // object reference (see REQ-0200): the target must be a fixed

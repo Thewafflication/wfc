@@ -1,0 +1,25 @@
+Option Explicit
+Implements IShape
+Public Enum Unit
+    Meters = 1
+    Feet = 2
+End Enum
+Public Const Tag As String = "RECT"
+Public W As Double, H As Double
+Private mOwner As Object
+Private Static_Count As Long
+Private Property Get IShape_Area() As Double
+    IShape_Area = W * H
+End Property
+Private Property Set IShape_Owner(ByVal o As Object)
+    Set mOwner = o
+End Property
+Private Function IShape_Describe(Optional ByVal verbose As Boolean = False) As String
+    IShape_Describe = IIf(verbose, "Rectangle " & W & "x" & H, "Rect")
+    If Not mOwner Is Nothing Then IShape_Describe = IShape_Describe & " of " & mOwner.Name
+End Function
+Public Function Counter() As Long
+    Static n As Long
+    n = n + 1
+    Counter = n
+End Function

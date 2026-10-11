@@ -1,0 +1,6 @@
+Type=Exe
+Class=IShape; 149-interface-set.cls.ishape
+Class=Rect; 149-interface-set.cls.rect
+Class=Owner; 149-interface-set.cls.owner
+Module=Main; 149-interface-set.bas
+Startup="Sub Main"
