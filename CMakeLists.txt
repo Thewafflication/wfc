@@ -41,6 +41,14 @@ target_sources(
     src/large_stack.cpp
     src/module_linker.cpp
     src/project.cpp
+    src/ui/control_lookup.cpp
+    src/ui/control_tables.cpp
+    src/ui/control_tables.hpp
+    src/ui/frm_parser.cpp
+    src/ui/frm_parser.hpp
+    src/ui/headless_host.cpp
+    src/ui/headless_host.hpp
+    src/ui/ui_host.hpp
   PUBLIC
     FILE_SET HEADERS
       BASE_DIRS include
@@ -107,6 +115,31 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     PROPERTIES
       LABELS "security;hardening;negative"
       PASS_REGULAR_EXPRESSION "GUARD_CF. DllCharacteristics="
+  )
+
+  add_executable(wfc_ui_tests tests/ui_tests.cpp)
+  target_compile_features(wfc_ui_tests PRIVATE cxx_std_20)
+  target_include_directories(wfc_ui_tests PRIVATE src/ui)
+  target_link_libraries(wfc_ui_tests PRIVATE wfc_frontend)
+  wfc_enable_strict_warnings(wfc_ui_tests)
+  wsp_enable_hardening(wfc_ui_tests)
+  add_test(NAME TC-MP0004-ui-units COMMAND wfc_ui_tests)
+  set_tests_properties(
+    TC-MP0004-ui-units
+    PROPERTIES LABELS "unit;mp-0004;forms"
+  )
+  set(wfc_evidence "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference")
+  set(wfc_ui_check "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ui_tables.cmake")
+  add_test(
+    NAME TC-MP0004-ui-tables-current
+    COMMAND
+      "${CMAKE_COMMAND}" "-DEVIDENCE=${wfc_evidence}/vb-6.0-type-library.json"
+      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/control_tables.cpp" -P
+      "${wfc_ui_check}"
+  )
+  set_tests_properties(
+    TC-MP0004-ui-tables-current
+    PROPERTIES LABELS "unit;mp-0004;forms"
   )
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
