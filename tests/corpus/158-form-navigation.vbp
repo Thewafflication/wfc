@@ -1,0 +1,4 @@
+Type=Exe
+Form=158-form-navigation.frm
+Startup="Form1"
+WfcUiScript=158-form-navigation.ui

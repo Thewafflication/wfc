@@ -1,0 +1,15 @@
+start
+got1
+validate1a
+cancel nowFalse
+lost1
+got check
+got2
+OK clicked
+cancel clicked
+got1
+validate1bad
+cancel nowTrue
+lost1
+got check
+cancel clicked

@@ -171,6 +171,7 @@ public:
     std::vector<bool> chosen;  // MultiSelect selection flags
     long list_index{-1};
     long new_index{-1};
+    long order{0};  // creation order (the default TabIndex)
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox";
     }
@@ -598,6 +599,220 @@ struct FormSupport {
         }
         return target == previous ||
                raise_table_event(in, bar, "Change", {}, in.offset_);
+    }
+
+    // ----- Focus order, default keys, accelerators, validation ----------
+
+    // Tabbable controls in tab order (TabIndex, else creation order).
+    [[nodiscard]] static std::vector<ControlObject*> tab_sequence(
+        InstanceData& form) {
+        std::vector<ControlObject*> sequence;
+        for_each_control(form, [&](ControlObject& object) {
+            if (object.focusable() && flag_of(object, "tabstop") &&
+                flag_of(object, "enabled") && flag_of(object, "visible")) {
+                sequence.push_back(&object);
+            }
+        });
+        std::stable_sort(
+            sequence.begin(), sequence.end(),
+            [](const ControlObject* left, const ControlObject* right) {
+                const double a = left->values.contains("tabindex")
+                                     ? as_double(left->values.at("tabindex"))
+                                     : static_cast<double>(left->order);
+                const double b = right->values.contains("tabindex")
+                                     ? as_double(right->values.at("tabindex"))
+                                     : static_cast<double>(right->order);
+                return a != b ? a < b : left->order < right->order;
+            });
+        return sequence;
+    }
+
+    // Moves focus to the next (or previous) tab stop after `from`.
+    [[nodiscard]] static bool move_focus(Interpreter& in, InstanceData& form,
+                                         const ControlObject* from,
+                                         const bool forward) {
+        auto sequence = tab_sequence(form);
+        if (sequence.empty()) {
+            return true;
+        }
+        std::size_t at = sequence.size();
+        for (std::size_t i = 0; i < sequence.size(); ++i) {
+            if (sequence[i] == from) {
+                at = i;
+            }
+        }
+        std::size_t next = 0;
+        if (at == sequence.size()) {
+            next = forward ? 0 : sequence.size() - 1U;
+        } else if (forward) {
+            next = (at + 1U) % sequence.size();
+        } else {
+            next = (at + sequence.size() - 1U) % sequence.size();
+        }
+        return focus_control(in, form, sequence[next]->name,
+                             sequence[next]->index, in.offset_);
+    }
+
+    // The command button with the given flag (`default` or `cancel`).
+    [[nodiscard]] static ControlObject* special_button(InstanceData& form,
+                                                       const char* flag) {
+        ControlObject* found = nullptr;
+        for_each_control(form, [&](ControlObject& object) {
+            if (object.class_key == "commandbutton" && flag_of(object, flag) &&
+                flag_of(object, "enabled") && flag_of(object, "visible") &&
+                found == nullptr) {
+                found = &object;
+            }
+        });
+        return found;
+    }
+
+    static void click_later(Interpreter& in, const ControlObject& object) {
+        if (object.window != ui::kNoWindow) {
+            runtime(in).host->post_event(
+                ui::UiEvent{object.window, "Click", {}});
+        }
+    }
+
+    // The accelerator letter of a caption ("&Open" -> 'o'), or 0.
+    [[nodiscard]] static char accelerator_of(const ControlObject& object) {
+        const auto caption = object.values.find("caption");
+        if (caption == object.values.end() ||
+            !std::holds_alternative<std::string>(caption->second)) {
+            return 0;
+        }
+        const auto& text = std::get<std::string>(caption->second);
+        for (std::size_t i = 0; i + 1U < text.size(); ++i) {
+            if (text[i] == '&') {
+                if (text[i + 1U] == '&') {
+                    ++i;
+                    continue;
+                }
+                return ascii_lower(text[i + 1U]);
+            }
+        }
+        return 0;
+    }
+
+    // Alt+letter: activates the control whose caption has that accelerator.
+    [[nodiscard]] static bool accelerator(Interpreter& in, InstanceData& form,
+                                          const char letter) {
+        ControlObject* match = nullptr;
+        for_each_control(form, [&](ControlObject& object) {
+            if (match == nullptr && accelerator_of(object) == letter &&
+                flag_of(object, "enabled") && flag_of(object, "visible")) {
+                match = &object;
+            }
+        });
+        if (match == nullptr) {
+            return true;
+        }
+        if (match->class_key == "label" || match->class_key == "frame") {
+            return move_focus(in, form, match, true);
+        }
+        if (!focus_control(in, form, match->name, match->index, in.offset_)) {
+            return false;
+        }
+        if (match->class_key == "commandbutton" ||
+            match->class_key == "checkbox" ||
+            match->class_key == "optionbutton" || match->class_key == "menu") {
+            click_later(in, *match);
+        }
+        return true;
+    }
+
+    // What a key does when the program does not swallow it.
+    [[nodiscard]] static bool key_default(Interpreter& in, InstanceData& form,
+                                          ControlObject& source,
+                                          const long code, const long shift) {
+        if ((shift & 4) != 0 && code >= 'A' && code <= 'Z') {
+            return accelerator(
+                in, form,
+                static_cast<char>(ascii_lower(static_cast<char>(code))));
+        }
+        if (code == 9) {
+            return move_focus(in, form, source.is_form ? nullptr : &source,
+                              (shift & 1) == 0);
+        }
+        if (code == 13) {
+            if (source.class_key == "commandbutton") {
+                click_later(in, source);
+            } else if (const auto* fallback = special_button(form, "default")) {
+                click_later(in, *fallback);
+            }
+            return true;
+        }
+        if (code == 27) {
+            if (const auto* cancel = special_button(form, "cancel")) {
+                click_later(in, *cancel);
+            }
+            return true;
+        }
+        if (code == 32 && (source.class_key == "commandbutton" ||
+                           source.class_key == "checkbox" ||
+                           source.class_key == "optionbutton")) {
+            click_later(in, source);
+        }
+        return true;
+    }
+
+    // Key names of the input script's `press` command.
+    [[nodiscard]] static bool parse_key(const std::string& spec, long& code,
+                                        long& shift, long& ascii) {
+        shift = 0;
+        ascii = 0;
+        std::string name = lower_text(spec);
+        for (;;) {
+            if (name.rfind("shift+", 0) == 0) {
+                shift |= 1;
+                name.erase(0, 6);
+            } else if (name.rfind("ctrl+", 0) == 0) {
+                shift |= 2;
+                name.erase(0, 5);
+            } else if (name.rfind("alt+", 0) == 0) {
+                shift |= 4;
+                name.erase(0, 4);
+            } else {
+                break;
+            }
+        }
+        if (name == "tab") {
+            code = 9;
+        } else if (name == "enter" || name == "return") {
+            code = 13;
+            ascii = 13;
+        } else if (name == "esc" || name == "escape") {
+            code = 27;
+            ascii = 27;
+        } else if (name == "space") {
+            code = 32;
+            ascii = 32;
+        } else if (name == "backspace") {
+            code = 8;
+            ascii = 8;
+        } else if (name == "delete") {
+            code = 46;
+        } else if (name == "left" || name == "up" || name == "right" ||
+                   name == "down") {
+            code = name == "left"    ? 37
+                   : name == "up"    ? 38
+                   : name == "right" ? 39
+                                     : 40;
+        } else if (name.size() >= 2U && name.front() == 'f' &&
+                   std::isdigit(static_cast<unsigned char>(name[1])) != 0) {
+            code = 111 + std::atol(name.c_str() + 1);
+        } else if (name.size() == 1U &&
+                   std::isalnum(static_cast<unsigned char>(name[0])) != 0) {
+            code = std::toupper(static_cast<unsigned char>(name[0]));
+            if ((shift & 6) == 0) {
+                ascii = (shift & 1) != 0
+                            ? std::toupper(static_cast<unsigned char>(name[0]))
+                            : name[0];
+            }
+        } else {
+            return false;
+        }
+        return true;
     }
 
     // ----- Drawing surfaces (forms and picture boxes) -------------------
@@ -1257,6 +1472,29 @@ struct FormSupport {
             return true;
         }
         const auto previous = runtime(in).bindings.find(host.focus());
+        // Leaving a control validates it when the new control asks for it.
+        if (previous != runtime(in).bindings.end() &&
+            flag_of(*target, "causesvalidation")) {
+            if (const auto old_form = previous->second.form.lock()) {
+                ControlObject* old =
+                    control_named(*old_form, previous->second.control,
+                                  previous->second.index);
+                if (old != nullptr && !old->is_form &&
+                    ui::find_event(*old->cls, "Validate") != nullptr) {
+                    std::vector<Value> cancel{Value{false}};
+                    if (!raise(in, *old_form, old->name, old->index, "validate",
+                               cancel, offset)) {
+                        return false;
+                    }
+                    const auto* flag = std::get_if<bool>(&cancel[0]);
+                    if ((flag != nullptr && *flag) ||
+                        (flag == nullptr &&
+                         whole_value(cancel[0]).value_or(0) != 0)) {
+                        return true;  // the control keeps the focus
+                    }
+                }
+            }
+        }
         host.set_focus(target->window);
         if (previous != runtime(in).bindings.end()) {
             if (const auto old_form = previous->second.form.lock()) {
@@ -1700,8 +1938,21 @@ struct FormSupport {
                 }
             }
         }
-        return raise_table_event(in, *source, event.name, event.arguments,
-                                 in.offset_);
+        auto arguments = table_arguments(*source, event.name, event.arguments);
+        if (!raise(in, *form, source->is_form ? std::string{} : source->name,
+                   source->index, name, arguments, in.offset_)) {
+            return false;
+        }
+        if (name == "keydown" && !arguments.empty()) {
+            const long code = whole_value(arguments[0]).value_or(0);
+            const long shift = arguments.size() > 1U
+                                   ? whole_value(arguments[1]).value_or(0)
+                                   : 0;
+            if (code != 0) {
+                return key_default(in, *form, *source, code, shift);
+            }
+        }
+        return true;
     }
 
     static void loaded_forms(Interpreter& in, std::vector<Value>& items) {
@@ -1823,6 +2074,32 @@ struct FormSupport {
             if (state.headless != nullptr) {
                 state.headless->advance_time(std::atol(target_text.c_str()));
             }
+            return true;
+        }
+        if (command == "press") {
+            long code = 0;
+            long shift = 0;
+            long ascii = 0;
+            if (!parse_key(target_text, code, shift, ascii)) {
+                return true;
+            }
+            const ui::WindowId at = state.host->focus();
+            const ui::WindowId window =
+                at != ui::kNoWindow
+                    ? at
+                    : (state.loaded.empty() || !state.loaded.front().lock()
+                           ? ui::kNoWindow
+                           : control_of(*state.loaded.front().lock())->window);
+            if (window == ui::kNoWindow) {
+                return true;
+            }
+            state.host->post_event(
+                ui::UiEvent{window, "KeyDown", {code, shift}});
+            if (ascii != 0) {
+                state.host->post_event(
+                    ui::UiEvent{window, "KeyPress", {ascii}});
+            }
+            state.host->post_event(ui::UiEvent{window, "KeyUp", {code, shift}});
             return true;
         }
         Target target;
@@ -2508,12 +2785,14 @@ bool Interpreter::create_form_instance(
         }
         return ui::find_control_class(leaf);
     };
+    long next_order = 0;
     const auto make_control =
         [&](const ui::FrmObject& source, const ui::ControlClass& control_class,
             const long array_index, const ui::FrmObject& parent) {
             auto object = std::make_shared<ControlObject>(
                 &control_class, source.name, array_index, false);
             object->form = instance;
+            object->order = next_order++;
             if (&parent != &root) {
                 object->container = lower_text(parent.name);
             }

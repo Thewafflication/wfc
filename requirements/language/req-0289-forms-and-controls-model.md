@@ -80,13 +80,26 @@
   a window unloads its form; the program ends when no form is left. Without a
   usable desktop `--gui` falls back to the headless host.
 
+- **Keyboard navigation.** `press <key>` in the input script (`tab`, `enter`,
+  `esc`, `space`, letters, digits, `f1`..`f12`, `shift+`, `ctrl+`, `alt+`
+  prefixes) sends `KeyDown`, `KeyPress` and `KeyUp` to the focused control (or
+  the form). Unless the program zeroes `KeyCode`, `Tab` and `Shift+Tab` move
+  the focus along the tab order (`TabIndex`, else creation order; tab stops
+  must be enabled, visible and `TabStop`), `Enter` clicks the focused button or
+  else the form's `Default` button, `Esc` clicks the `Cancel` button, `Space`
+  clicks a focused button, check box or option button, and `Alt+letter`
+  activates the control whose caption has that `&letter` (a label or frame
+  moves the focus to the next tab stop).
+- **Validation.** When focus moves to a control whose `CausesValidation` is
+  true, the control losing focus raises `Validate(Cancel)`; if the handler sets
+  `Cancel`, the focus stays where it was.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
-form surface; graphics behavior, menus, MDI, drag and drop,
-validation and per-control painting in the Win32 host (pictures, `PictureBox`
+form surface; MDI, drag and drop, and per-control painting in the Win32 host (pictures, `PictureBox`
 drawing, `Shape`, `Line`, `Image`) are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
