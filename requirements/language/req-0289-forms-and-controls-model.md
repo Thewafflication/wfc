@@ -106,6 +106,18 @@
   are accepted, and `TypeOf c Is TextBox` and `TypeName(c)` report the control
   class.
 
+- **Fonts and form size.** `Control.Font` is a view of the control's font
+  properties (`Name`, `Size`, `Bold`, `Italic`, `Underline`, `Strikethrough`,
+  `Weight`) that `Set a.Font = b.Font` copies; a `.frm` `BeginProperty Font`
+  group sets them (weight 700 and up is bold). A form omitting its size has the
+  VB6 default (4800 by 3600 twips, client 4680 by 3195).
+- **End.** `End` in an event handler stops the program at once: no further
+  events run and no form is unloaded (no `Unload` or `Terminate` events).
+- **Other methods.** `ValidateControls` validates the focused control (380 if
+  cancelled), `PopupMenu` runs the scripted `answer popupmenu <item>`; `Link*`
+  members raise 282 (DDE is excluded); `PrintForm`, `Arrange`, `WhatsThisMode`,
+  `ShowWhatsThis` and `OLEDrag` are accepted and do nothing.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
@@ -114,4 +126,4 @@ drawing, `Shape`, `Line`, `Image`) are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

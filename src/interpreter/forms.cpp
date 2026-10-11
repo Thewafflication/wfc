@@ -92,6 +92,20 @@ namespace {
     if (class_name == "form" && property == "visible") {
         return Value{false};
     }
+    if (class_name == "form" || class_name == "mdiform") {
+        if (property == "width") {
+            return Value{4800.0F};
+        }
+        if (property == "height") {
+            return Value{3600.0F};
+        }
+        if (property == "clientwidth") {
+            return Value{4680.0F};
+        }
+        if (property == "clientheight") {
+            return Value{3195.0F};
+        }
+    }
     const auto found = common.find(property);
     if (found != common.end()) {
         return found->second;
@@ -154,6 +168,7 @@ public:
     bool is_form;
     std::string class_key;
     std::weak_ptr<InstanceData> form;  // the owning form (itself for a form)
+    std::weak_ptr<InstanceData> self;  // the instance this object belongs to
     std::string container;             // enclosing frame/picture box, or empty
     ui::WindowId window{ui::kNoWindow};
     std::map<std::string, Value> values;
@@ -1688,6 +1703,52 @@ struct FormSupport {
                                member == "clear")) {
             return list_method(in, self, member, arguments, failure);
         }
+        if (member == "linkexecute" || member == "linkpoke" ||
+            member == "linkrequest" || member == "linksend") {
+            // DDE is excluded from the product (REQ-0130 disposition).
+            failure = NativeFailure{
+                282, "No foreign application responded to a DDE initiate"};
+            return true;
+        }
+        if (member == "validatecontrols" && form != nullptr) {
+            // Validates the control that has the focus; a cancelled
+            // validation raises 380.
+            auto& state = runtime(in);
+            const auto binding = state.bindings.find(state.host->focus());
+            if (binding != state.bindings.end() &&
+                binding->second.form.lock() == form) {
+                ControlObject* focused = control_named(
+                    *form, binding->second.control, binding->second.index);
+                if (focused != nullptr && !focused->is_form &&
+                    ui::find_event(*focused->cls, "Validate") != nullptr) {
+                    std::vector<Value> cancel{Value{false}};
+                    if (!raise(in, *form, focused->name, focused->index,
+                               "validate", cancel, in.offset_)) {
+                        failure = reported();
+                    } else if ((std::get_if<bool>(&cancel[0]) != nullptr &&
+                                std::get<bool>(cancel[0])) ||
+                               whole_value(cancel[0]).value_or(0) != 0) {
+                        failure = NativeFailure{380, "Invalid property value"};
+                    }
+                }
+            }
+            return true;
+        }
+        if (member == "popupmenu" && form != nullptr) {
+            // The scripted `answer popupmenu <name>` picks an item.
+            if (const auto chosen = in.form_dialog_answer("popupmenu")) {
+                if (const ControlObject* item =
+                        control_named(*form, lower_text(*chosen), -1)) {
+                    click_later(in, *item);
+                }
+            }
+            return true;
+        }
+        if (member == "printform" || member == "arrange" ||
+            member == "whatsthismode" || member == "showwhatsthis" ||
+            member == "oledrag") {
+            return true;
+        }
         if (member == "refresh" || member == "zorder" || member == "cls" ||
             member == "drag" || member == "setfocus") {
             return true;
@@ -2166,15 +2227,28 @@ struct FormSupport {
         auto& state = runtime(in);
         load_script(in);
         progressed = true;
+        if (state.ended) {
+            progressed = false;
+            return true;
+        }
+        bool ok = true;
         if (const auto event = state.host->next_event(
                 state.headless == nullptr && !state.host->exhausted())) {
-            return dispatch(in, *event);
+            ok = dispatch(in, *event);
+        } else if (state.script_next < state.script.size()) {
+            ok = run_script_line(in, state.script[state.script_next++]);
+        } else {
+            progressed = false;
+            return true;
         }
-        if (state.script_next < state.script.size()) {
-            return run_script_line(in, state.script[state.script_next++]);
+        if (!ok && in.end_requested_) {
+            // `End` in a handler stops the program without unloading forms.
+            in.error_ = wfc::Evaluation{};
+            state.ended = true;
+            progressed = false;
+            return true;
         }
-        progressed = false;
-        return true;
+        return ok;
     }
 
     // `Form.Show vbModal`: runs input until the form is hidden or unloaded.
@@ -2184,6 +2258,10 @@ struct FormSupport {
         while (object != nullptr && object->loaded && object->shown) {
             bool progressed = false;
             if (!step(in, progressed)) {
+                return false;
+            }
+            if (runtime(in).ended) {
+                in.end_requested_ = true;  // keep ending the program
                 return false;
             }
             if (!progressed) {
@@ -2203,6 +2281,9 @@ struct FormSupport {
             if (!progressed) {
                 break;
             }
+        }
+        if (state.ended) {
+            return true;  // End: the forms just disappear
         }
         // The user "closes" what is left.
         auto remaining = state.loaded;
@@ -2288,6 +2369,99 @@ bool coerce_property(Interpreter& in, Value& value, const std::string& type,
 
 }  // namespace
 
+namespace {
+
+// `Control.Font`: a view of the control's font properties.
+class FontObject final : public NativeObject {
+public:
+    explicit FontObject(std::shared_ptr<InstanceData> owner_instance)
+        : owner(std::move(owner_instance)) {}
+    [[nodiscard]] std::string type_name() const override { return "IFontDisp"; }
+    [[nodiscard]] bool has_member(const std::string& member) const override {
+        return key_for(member) != nullptr;
+    }
+    [[nodiscard]] bool get(Interpreter& in, const std::string& member,
+                           std::vector<CallArgument>&, Value& result,
+                           NativeFailure&) override {
+        static_cast<void>(in);
+        const char* key = key_for(member);
+        ControlObject* object = control_of(*owner);
+        if (key == nullptr || object == nullptr) {
+            return false;
+        }
+        if (member == "weight") {
+            result = Value{static_cast<Int16>(
+                FormSupport::flag_of(*object, "fontbold") ? 700 : 400)};
+            return true;
+        }
+        const auto found = object->values.find(key);
+        if (found != object->values.end()) {
+            result = found->second;
+        } else if (const auto fallback =
+                       property_default(object->class_key, key)) {
+            result = *fallback;
+        } else {
+            result = member == "name"      ? Value{std::string{}}
+                     : member == "size"    ? Value{0.0F}
+                     : member == "charset" ? Value{Int16{0}}
+                                           : Value{false};
+        }
+        return true;
+    }
+    [[nodiscard]] bool put(Interpreter& in, const std::string& member,
+                           std::vector<CallArgument>&, const Value& value,
+                           NativeFailure& failure) override {
+        const char* key = key_for(member);
+        ControlObject* object = control_of(*owner);
+        if (key == nullptr || object == nullptr) {
+            return false;
+        }
+        Value converted = value;
+        const std::string type = member == "name"   ? "String"
+                                 : member == "size" ? "Single"
+                                 : member == "weight" || member == "charset"
+                                     ? "Integer"
+                                     : "Boolean";
+        if (!coerce_property(in, converted, type, failure)) {
+            return true;
+        }
+        if (member == "weight") {
+            converted = Value{as_double(converted) >= 700.0};
+        }
+        object->values[key] = std::move(converted);
+        return true;
+    }
+    std::shared_ptr<InstanceData> owner;
+
+private:
+    [[nodiscard]] static const char* key_for(const std::string& member) {
+        if (member == "name") {
+            return "fontname";
+        }
+        if (member == "size") {
+            return "fontsize";
+        }
+        if (member == "bold" || member == "weight") {
+            return "fontbold";
+        }
+        if (member == "italic") {
+            return "fontitalic";
+        }
+        if (member == "underline") {
+            return "fontunderline";
+        }
+        if (member == "strikethrough") {
+            return "fontstrikethru";
+        }
+        if (member == "charset") {
+            return "fontcharset";
+        }
+        return nullptr;
+    }
+};
+
+}  // namespace
+
 bool ControlObject::get(Interpreter& in, const std::string& member,
                         std::vector<CallArgument>& arguments, Value& result,
                         NativeFailure& failure) {
@@ -2312,6 +2486,15 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
             return false;
         }
         return get(in, property, arguments, result, failure);
+    }
+    if (member == "font") {
+        if (const auto owner = self.lock()) {
+            auto data = std::make_shared<InstanceData>();
+            data->class_name = "wfcnative";
+            data->native = std::make_shared<FontObject>(owner);
+            result = Value{ObjectInstance{std::move(data)}};
+            return true;
+        }
     }
     if (FormSupport::form_member(in, *this, member, result)) {
         // `Controls("name")`: the arguments index the returned collection.
@@ -2363,6 +2546,29 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     }
     if (member == "name" || member == "index") {
         failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
+    if (member == "font") {
+        // `Set a.Font = b.Font`: copy the font properties.
+        const auto* source = std::get_if<ObjectInstance>(&value);
+        const auto* view =
+            source != nullptr && source->data != nullptr
+                ? dynamic_cast<FontObject*>(source->data->native.get())
+                : nullptr;
+        const ControlObject* from =
+            view != nullptr ? control_of(*view->owner) : nullptr;
+        if (from == nullptr) {
+            failure = NativeFailure{13, "Type mismatch"};
+            return true;
+        }
+        for (const char* key :
+             {"fontname", "fontsize", "fontbold", "fontitalic", "fontunderline",
+              "fontstrikethru"}) {
+            const auto found = from->values.find(key);
+            if (found != from->values.end()) {
+                values[key] = found->second;
+            }
+        }
         return true;
     }
     std::string wanted = member;
@@ -2709,13 +2915,13 @@ bool Interpreter::create_form_instance(
                     if (target.empty()) {
                         continue;
                     }
-                    if (auto value = convert(part, *object.cls, target)) {
-                        if (part_key == "weight") {
-                            object.values[target] =
-                                Value{as_double(*value) >= 700.0};
-                        } else {
-                            object.values[target] = std::move(*value);
-                        }
+                    if (part_key == "weight") {
+                        // Weight 700 and up is bold.
+                        object.values[target] = Value{
+                            std::strtod(part.value.c_str(), nullptr) >= 700.0};
+                    } else if (auto value =
+                                   convert(part, *object.cls, target)) {
+                        object.values[target] = std::move(*value);
                     }
                 }
                 continue;
@@ -2762,6 +2968,7 @@ bool Interpreter::create_form_instance(
     auto form_object =
         std::make_shared<ControlObject>(form_class, root.name, -1L, true);
     form_object->form = instance;
+    form_object->self = instance;
     apply(*form_object, root);
     instance->native = form_object;
 
@@ -2789,6 +2996,7 @@ bool Interpreter::create_form_instance(
             auto data = std::make_shared<InstanceData>();
             data->class_name = "wfcnative";
             data->native = object;
+            object->self = data;
             return Value{ObjectInstance{std::move(data)}};
         };
     std::map<std::string, std::shared_ptr<InstanceData>> arrays;
@@ -3129,6 +3337,7 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     auto data = std::make_shared<InstanceData>();
     data->class_name = "wfcnative";
     data->native = object;
+    object->self = data;
     array.elements[index] = Value{ObjectInstance{std::move(data)}};
     const ControlObject* owner_object = control_of(*owner);
     if (owner_object != nullptr && owner_object->loaded) {
@@ -3625,6 +3834,9 @@ bool Interpreter::run_forms_at_exit() {
     }
     if (!forms_) {
         return true;
+    }
+    if (end_requested_ && !forms_->ended) {
+        return true;  // End in the main program: nothing is unloaded
     }
     return FormSupport::run_loop(*this);
 }
