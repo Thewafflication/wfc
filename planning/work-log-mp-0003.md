@@ -32,3 +32,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-10 #11 | Design | ADR-0004: Automation server hosting decided (out-of-process local server; implementation deferred to MP-0005) | `architecture/adr-0004-automation-server.md` |
 | 2026-10-11 #12 | Construction | `Set iface.Prop = obj` dispatches to the implementer's `Interface_Prop` Property Set; corpus 149 | CTest 303/303 |
 | 2026-10-11 #13 | Construction | `obj!key` bang access, default-property values for COM objects in value contexts (`REQ-0286`); corpus 150 (ADODB recordset) | CTest 304/304 |
+| 2026-10-11 #14 | Closeout | Drafted `MP-0003-closeout.md` (Proposed; owner decision pending) | `planning/MP-0003-closeout.md` |
