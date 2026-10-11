@@ -51,6 +51,8 @@ target_sources(
     src/ui/headless_host.cpp
     src/ui/headless_host.hpp
     src/ui/ui_host.hpp
+    src/ui/win32_host.cpp
+    src/ui/win32_host.hpp
   PUBLIC
     FILE_SET HEADERS
       BASE_DIRS include
@@ -125,6 +127,29 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   target_link_libraries(wfc_ui_tests PRIVATE wfc_frontend)
   wfc_enable_strict_warnings(wfc_ui_tests)
   wsp_enable_hardening(wfc_ui_tests)
+  add_executable(wfc_win32_host_tests tests/win32_host_tests.cpp)
+  target_compile_features(wfc_win32_host_tests PRIVATE cxx_std_20)
+  target_include_directories(wfc_win32_host_tests PRIVATE src/ui)
+  target_link_libraries(wfc_win32_host_tests PRIVATE wfc_frontend)
+  wfc_enable_strict_warnings(wfc_win32_host_tests)
+  wsp_enable_hardening(wfc_win32_host_tests)
+  # A program that runs in a real window and closes itself from a timer.
+  add_test(
+    NAME TC-MP0004-gui-form-timer
+    COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-timer.vbp" --gui
+  )
+  set_tests_properties(
+    TC-MP0004-gui-form-timer
+    PROPERTIES
+      LABELS "integration;windows;mp-0004;forms"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "tick 3.*unload"
+  )
+  add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
+  set_tests_properties(
+    TC-MP0004-win32-host
+    PROPERTIES LABELS "integration;windows;mp-0004;forms" SKIP_RETURN_CODE 77
+  )
   add_test(NAME TC-MP0004-ui-units COMMAND wfc_ui_tests)
   set_tests_properties(
     TC-MP0004-ui-units

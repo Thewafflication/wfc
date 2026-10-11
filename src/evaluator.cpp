@@ -819,6 +819,7 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_type_libraries(options.type_libraries);
         interpreter.set_startup_form(options.startup_form);
         interpreter.set_ui_script(options.ui_script);
+        interpreter.set_ui_mode(options.ui_mode);
         if (options.per_module_option_explicit) {
             interpreter.set_option_explicit_ranges(
                 options.option_explicit_ranges);

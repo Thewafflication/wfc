@@ -73,12 +73,20 @@
   `answer msgbox <result>` and `answer inputbox <text>` lines of the input
   script, falling back to the default button and default text.
 
+- **Win32 host.** `wfc project.vbp --gui` runs the forms in real windows
+  (top-level form windows, standard `BUTTON`, `EDIT`, `STATIC`, `LISTBOX`,
+  `COMBOBOX` and `SCROLLBAR` controls, a menu bar, timers and a message loop);
+  without `--gui`, or with an input script, the headless host is used. Closing
+  a window unloads its form; the program ends when no form is left. Without a
+  usable desktop `--gui` falls back to the headless host.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
 form surface; graphics behavior, menus, MDI, drag and drop,
-validation and the Win32 host are not yet implemented.
+validation and per-control painting in the Win32 host (pictures, `PictureBox`
+drawing, `Shape`, `Line`, `Image`) are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

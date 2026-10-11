@@ -63,6 +63,22 @@ public:
     virtual void set_selection(WindowId window, long index) = 0;
     [[nodiscard]] virtual long selection(WindowId window) const = 0;
 
+    // A check box, option button or menu item's state (0 or 1; -1 unused).
+    virtual void set_value(WindowId window, long value) {
+        static_cast<void>(window);
+        static_cast<void>(value);
+    }
+    // A scroll bar's range, position and step sizes.
+    virtual void set_scroll(WindowId window, long minimum, long maximum,
+                            long value, long small_change, long large_change) {
+        static_cast<void>(window);
+        static_cast<void>(minimum);
+        static_cast<void>(maximum);
+        static_cast<void>(value);
+        static_cast<void>(small_change);
+        static_cast<void>(large_change);
+    }
+
     // Keyboard focus.
     virtual void set_focus(WindowId window) = 0;
     [[nodiscard]] virtual WindowId focus() const = 0;

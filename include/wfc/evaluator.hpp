@@ -73,6 +73,9 @@ struct EvaluationOptions final {
     // path of a scripted-input file for the headless UI host.
     std::string startup_form;
     std::string ui_script;
+    // "win32" runs forms in real windows; anything else (the default) uses the
+    // headless host.
+    std::string ui_mode;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

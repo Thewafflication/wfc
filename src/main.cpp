@@ -69,8 +69,13 @@ int main(const int argument_count, const char* const arguments[]) {
     if (argument_count >= 2 &&
         std::string_view(arguments[1]).rfind("--", 0) != 0) {
         std::vector<std::filesystem::path> files;
+        std::string ui_mode;
         for (int i = 1; i < argument_count; ++i) {
-            files.emplace_back(arguments[i]);
+            if (std::string_view(arguments[i]) == "--gui") {
+                ui_mode = "win32";  // run forms in real windows
+            } else {
+                files.emplace_back(arguments[i]);
+            }
         }
         const auto project = wfc::load_project(files);
         if (!project.ok) {
@@ -94,6 +99,7 @@ int main(const int argument_count, const char* const arguments[]) {
         options.type_libraries = project.type_libraries;
         options.startup_form = project.startup_form;
         options.ui_script = project.ui_script;
+        options.ui_mode = ui_mode;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

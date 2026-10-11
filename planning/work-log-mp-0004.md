@@ -26,3 +26,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #5 | Construction | ListBox/ComboBox model (AddItem, RemoveItem, Clear, List, ItemData, ListIndex, Sorted, selection events); `UiHost` list calls (`REQ-0289`); corpus 153 | CTest 309/309 |
 | 2026-10-11 #6 | Construction | Scroll bars: range-checked `Value`, `Change`/`Scroll` events, scripted drag/step (`REQ-0289`); corpus 154 | CTest 310/310 |
 | 2026-10-11 #7 | Construction | Menus click path, non-focusable controls, scripted `MsgBox`/`InputBox` answers, modal `Show` (`REQ-0289`); corpus 155–156 | CTest 312/312 |
+| 2026-10-11 #8 | Construction | Win32 `UiHost` (windows, standard controls, menus, timers, message loop, `set_value`/`set_scroll`), `--gui` option, Win32 integration and real-window tests (`REQ-0289`) | CTest `TC-MP0004-win32-host`, `-gui-form-timer` |

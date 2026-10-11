@@ -523,6 +523,7 @@ public:
                            std::vector<CallArgument>& arguments);
     void set_startup_form(std::string name) { startup_form_ = std::move(name); }
     void set_ui_script(std::string path) { ui_script_ = std::move(path); }
+    void set_ui_mode(std::string mode) { ui_mode_ = std::move(mode); }
     void set_resource_file(std::string path) {
         resource_file_ = std::move(path);
     }
@@ -1694,6 +1695,7 @@ private:
     std::shared_ptr<FormRuntime> forms_;
     std::string startup_form_;
     std::string ui_script_;
+    std::string ui_mode_;
     // Subscribes to a COM object's default outgoing interface.
     bool com_connect_events(InstanceData& instance);
     // Dispatches queued window messages (COM events, async servers).

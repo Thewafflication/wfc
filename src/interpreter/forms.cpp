@@ -14,6 +14,9 @@
 #include <sstream>
 
 #include "../ui/control_tables.hpp"
+#ifdef _WIN32
+#include "../ui/win32_host.hpp"
+#endif
 
 namespace wfc::detail {
 namespace {
@@ -265,6 +268,15 @@ struct FormSupport {
     static FormRuntime& runtime(Interpreter& in) {
         if (!in.forms_) {
             in.forms_ = std::make_shared<FormRuntime>();
+#ifdef _WIN32
+            if (in.ui_mode_ == "win32" && in.ui_script_.empty()) {
+                auto native = std::make_unique<ui::Win32Host>();
+                if (native->usable()) {
+                    in.forms_->host = std::move(native);
+                    return *in.forms_;
+                }
+            }
+#endif
             auto host = std::make_unique<ui::HeadlessHost>();
             in.forms_->headless = host.get();
             in.forms_->host = std::move(host);
@@ -781,6 +793,36 @@ struct FormSupport {
         mirror_all(in, form_object);
     }
 
+    // Pushes the check state or scroll range of a control to the host.
+    static void push_state(Interpreter& in, ControlObject& object) {
+        if (object.window == ui::kNoWindow) {
+            return;
+        }
+        auto& host = *runtime(in).host;
+        if (object.class_key == "checkbox" ||
+            object.class_key == "optionbutton") {
+            const auto found = object.values.find("value");
+            long state = 0;
+            if (found != object.values.end()) {
+                if (const auto* flag = std::get_if<bool>(&found->second)) {
+                    state = *flag ? 1 : 0;
+                } else if (is_number(found->second)) {
+                    state = static_cast<long>(as_double(found->second));
+                }
+            }
+            host.set_value(object.window, state);
+        } else if (object.class_key == "menu") {
+            host.set_value(object.window, flag_of(object, "checked") ? 1 : 0);
+        } else if (object.is_scroll()) {
+            host.set_scroll(
+                object.window, static_cast<long>(number_of(object, "min")),
+                static_cast<long>(number_of(object, "max")),
+                static_cast<long>(number_of(object, "value")),
+                static_cast<long>(number_of(object, "smallchange")),
+                static_cast<long>(number_of(object, "largechange")));
+        }
+    }
+
     // Pushes every stored property to the host.
     static void mirror_all(Interpreter& in, ControlObject& object) {
         auto& host = *runtime(in).host;
@@ -816,6 +858,7 @@ struct FormSupport {
         if (object.class_key == "timer") {
             apply_timer(in, object);
         }
+        push_state(in, object);
     }
 
     static void apply_timer(Interpreter& in, ControlObject& timer) {
@@ -1121,6 +1164,11 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         const Value& now = self.values[member];
         const bool live = self.window != ui::kNoWindow;
+        if (member == "value" || member == "checked" || member == "min" ||
+            member == "max" || member == "smallchange" ||
+            member == "largechange") {
+            push_state(in, self);
+        }
         const std::size_t offset = in.offset_;
         const auto report = [&](const bool ok) {
             if (!ok) {
@@ -1202,6 +1250,22 @@ struct FormSupport {
             return true;
         }
         const std::string name = lower_text(event.name);
+        if (name == "close") {
+            return !source->is_form || unload(in, *form, 0, in.offset_);
+        }
+        if (name == "change" && state.headless == nullptr &&
+            (source->class_key == "textbox" ||
+             source->class_key == "combobox")) {
+            // An echo of a change the program made is not a user edit.
+            const std::string typed = state.host->text(source->window);
+            const auto known = source->values.find("text");
+            if (known != source->values.end() &&
+                std::holds_alternative<std::string>(known->second) &&
+                std::get<std::string>(known->second) == typed) {
+                return true;
+            }
+            source->values["text"] = Value{typed};
+        }
         const bool input = name == "click" || name == "dblclick" ||
                            name == "keydown" || name == "keyup" ||
                            name == "keypress" || name == "mousedown" ||
@@ -1270,9 +1334,11 @@ struct FormSupport {
                     if (&other != source && other.class_key == "optionbutton" &&
                         other.container == source->container) {
                         other.values["value"] = Value{false};
+                        push_state(in, other);
                     }
                 });
             }
+            push_state(in, *source);
         }
         // With KeyPreview the form sees key events first and can swallow
         // them by zeroing the key code.
@@ -1492,7 +1558,8 @@ struct FormSupport {
         auto& state = runtime(in);
         load_script(in);
         progressed = true;
-        if (const auto event = state.host->next_event(false)) {
+        if (const auto event = state.host->next_event(
+                state.headless == nullptr && !state.host->exhausted())) {
             return dispatch(in, *event);
         }
         if (state.script_next < state.script.size()) {
