@@ -45,12 +45,18 @@
   the script ends the remaining forms are unloaded in reverse load order.
   `DoEvents` runs the queued events.
 
+- **More behavior.** A `Timer` with `Enabled` and a nonzero `Interval` raises
+  `Timer` every interval of host time (`wait`). Option buttons with the same
+  container (the form or one frame) form a group. With `KeyPreview` the form
+  receives `KeyDown`/`KeyPress`/`KeyUp` first and a zero key code swallows the
+  event. `Forms` lists the loaded forms (`Count`, `Item`, `For Each`).
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
-form surface; `Timer`, list, scroll and graphics behavior, menus, MDI, drag and
-drop, validation, key preview and the Win32 host are not yet implemented.
+form surface; list, scroll and graphics behavior, menus, MDI, drag and drop,
+validation, modal `Show` and the Win32 host are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays` and the `wfc_ui_tests` units.

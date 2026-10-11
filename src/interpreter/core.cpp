@@ -66,8 +66,16 @@ VariableLookup Interpreter::find_variable_raw(const std::string& name) {
     if (entry != module.variables.end()) {
         return {&entry->second, &module};
     }
-    if ((name == "app" || name == "clipboard" || name == "screen" ||
-         name == "forms") &&
+    if (name == "forms") {
+        // The collection of loaded forms.
+        auto data = std::make_shared<InstanceData>();
+        data->class_name = "wfcnative";
+        data->native = make_forms_collection();
+        module.variables.emplace(name, Value{ObjectInstance{std::move(data)}});
+        module.object_variables.insert(name);
+        return {&module.variables.at(name), &module};
+    }
+    if ((name == "app" || name == "clipboard" || name == "screen") &&
         class_definitions_.contains("wfc" + name)) {
         // The global service objects: predeclared instances of built-in
         // classes, created on first use unless the program declares its own.

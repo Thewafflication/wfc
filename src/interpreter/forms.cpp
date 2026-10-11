@@ -151,6 +151,7 @@ public:
     bool is_form;
     std::string class_key;
     std::weak_ptr<InstanceData> form;  // the owning form (itself for a form)
+    std::string container;             // enclosing frame/picture box, or empty
     ui::WindowId window{ui::kNoWindow};
     std::map<std::string, Value> values;
     std::map<std::string, Value> design;  // values at load time
@@ -256,6 +257,45 @@ struct FormSupport {
         return NativeFailure{kErrorAlreadyReported, {}};
     }
 
+    // Calls `visit` for every control object of the form (arrays expanded).
+    template <typename Visit>
+    static void for_each_control(InstanceData& form, Visit&& visit) {
+        for (auto& [name, value] : form.fields.variables) {
+            if (auto* object = control_of(value)) {
+                if (!object->is_form) {
+                    visit(*object);
+                }
+            } else if (const auto* holder = std::get_if<ObjectInstance>(&value);
+                       holder != nullptr && holder->data != nullptr) {
+                if (auto* array = dynamic_cast<ControlArray*>(
+                        holder->data->native.get())) {
+                    for (auto& [position, element] : array->elements) {
+                        if (auto* member = control_of(element)) {
+                            visit(*member);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // A Boolean property's value, falling back to its design-time default.
+    [[nodiscard]] static bool flag_of(const ControlObject& object,
+                                      const std::string& key) {
+        const auto found = object.values.find(key);
+        if (found != object.values.end()) {
+            if (const auto* value = std::get_if<bool>(&found->second)) {
+                return *value;
+            }
+        }
+        if (const auto fallback = property_default(object.class_key, key)) {
+            if (const auto* value = std::get_if<bool>(&*fallback)) {
+                return *value;
+            }
+        }
+        return false;
+    }
+
     [[nodiscard]] static Value* find_control(InstanceData& form,
                                              const std::string& name) {
         const auto found = form.fields.variables.find(name);
@@ -359,14 +399,10 @@ struct FormSupport {
             .has_value();
     }
 
-    // Raises an event with arguments converted per the event table.
-    [[nodiscard]] static bool raise_table_event(
-        Interpreter& in, ControlObject& source, const std::string& event,
-        const std::vector<ui::EventArgument>& raw, const std::size_t offset) {
-        const auto form = source.form.lock();
-        if (form == nullptr) {
-            return true;
-        }
+    // The event's arguments converted per the event table.
+    [[nodiscard]] static std::vector<Value> table_arguments(
+        const ControlObject& source, const std::string& event,
+        const std::vector<ui::EventArgument>& raw) {
         std::vector<Value> arguments;
         if (const auto* row = ui::find_event(*source.cls, event)) {
             const auto parameters = ui::parameters_of(*row);
@@ -376,6 +412,18 @@ struct FormSupport {
                                    : default_for_type(parameters[i].type));
             }
         }
+        return arguments;
+    }
+
+    // Raises an event with arguments converted per the event table.
+    [[nodiscard]] static bool raise_table_event(
+        Interpreter& in, ControlObject& source, const std::string& event,
+        const std::vector<ui::EventArgument>& raw, const std::size_t offset) {
+        const auto form = source.form.lock();
+        if (form == nullptr) {
+            return true;
+        }
+        auto arguments = table_arguments(source, event, raw);
         return raise(in, *form, source.is_form ? std::string{} : source.name,
                      source.index, lower_text(event), arguments, offset);
     }
@@ -465,11 +513,8 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         const auto form = timer.form.lock();
         const ControlObject* owner = form ? control_of(*form) : nullptr;
-        const auto enabled = timer.values.find("enabled");
         const auto interval = timer.values.find("interval");
-        const bool on = enabled != timer.values.end() &&
-                        std::holds_alternative<bool>(enabled->second) &&
-                        std::get<bool>(enabled->second);
+        const bool on = flag_of(timer, "enabled");
         const long milliseconds =
             interval != timer.values.end()
                 ? static_cast<long>(as_double(interval->second))
@@ -866,17 +911,44 @@ struct FormSupport {
                 source->values["value"] = Value{Int16{now == 1 ? 0 : 1}};
             } else if (source->class_key == "optionbutton") {
                 source->values["value"] = Value{true};
-                for (auto& [other_name, other_value] : form->fields.variables) {
-                    if (auto* other = control_of(other_value);
-                        other != nullptr && other != source &&
-                        other->class_key == "optionbutton") {
-                        other->values["value"] = Value{false};
+                for_each_control(*form, [&](ControlObject& other) {
+                    if (&other != source && other.class_key == "optionbutton" &&
+                        other.container == source->container) {
+                        other.values["value"] = Value{false};
                     }
+                });
+            }
+        }
+        // With KeyPreview the form sees key events first and can swallow
+        // them by zeroing the key code.
+        if ((name == "keydown" || name == "keyup" || name == "keypress") &&
+            !source->is_form) {
+            ControlObject* owner = control_of(*form);
+            if (owner != nullptr && flag_of(*owner, "keypreview")) {
+                auto preview =
+                    table_arguments(*owner, event.name, event.arguments);
+                if (!raise(in, *form, "", -1, name, preview, in.offset_)) {
+                    return false;
+                }
+                if (!preview.empty() &&
+                    whole_value(preview[0]).value_or(0) == 0) {
+                    return true;
                 }
             }
         }
         return raise_table_event(in, *source, event.name, event.arguments,
                                  in.offset_);
+    }
+
+    static void loaded_forms(Interpreter& in, std::vector<Value>& items) {
+        if (!in.forms_) {
+            return;
+        }
+        for (const auto& weak : in.forms_->loaded) {
+            if (const auto form = weak.lock()) {
+                items.push_back(Value{ObjectInstance{form}});
+            }
+        }
     }
 
     [[nodiscard]] static std::shared_ptr<InstanceData> find_form(
@@ -1551,18 +1623,21 @@ bool Interpreter::create_form_instance(
         }
         return ui::find_control_class(leaf);
     };
-    const auto make_control = [&](const ui::FrmObject& source,
-                                  const ui::ControlClass& control_class,
-                                  const long array_index) {
-        auto object = std::make_shared<ControlObject>(
-            &control_class, source.name, array_index, false);
-        object->form = instance;
-        apply(*object, source);
-        auto data = std::make_shared<InstanceData>();
-        data->class_name = "wfcnative";
-        data->native = object;
-        return Value{ObjectInstance{std::move(data)}};
-    };
+    const auto make_control =
+        [&](const ui::FrmObject& source, const ui::ControlClass& control_class,
+            const long array_index, const ui::FrmObject& parent) {
+            auto object = std::make_shared<ControlObject>(
+                &control_class, source.name, array_index, false);
+            object->form = instance;
+            if (&parent != &root) {
+                object->container = lower_text(parent.name);
+            }
+            apply(*object, source);
+            auto data = std::make_shared<InstanceData>();
+            data->class_name = "wfcnative";
+            data->native = object;
+            return Value{ObjectInstance{std::move(data)}};
+        };
     std::map<std::string, std::shared_ptr<InstanceData>> arrays;
     const auto add_controls = [&](const auto& self,
                                   const ui::FrmObject& parent) -> void {
@@ -1588,10 +1663,10 @@ bool Interpreter::create_form_instance(
                 }
                 dynamic_cast<ControlArray*>(found->second->native.get())
                     ->elements[array_index] =
-                    make_control(child, *control_class, array_index);
+                    make_control(child, *control_class, array_index, parent);
             } else {
                 instance->fields.variables[key] =
-                    make_control(child, *control_class, -1L);
+                    make_control(child, *control_class, -1L, parent);
                 instance->fields.object_variables.insert(key);
             }
             self(self, child);
@@ -1639,6 +1714,56 @@ bool Interpreter::parse_load_unload_statement(const bool unload) {
     const auto keep = holder->data;
     return unload ? FormSupport::unload(*this, *keep, 1, offset)
                   : FormSupport::ensure_loaded(*this, *keep, offset);
+}
+
+namespace {
+
+// The global `Forms` collection.
+class FormsCollection final : public NativeObject {
+public:
+    [[nodiscard]] std::string type_name() const override { return "Object"; }
+    [[nodiscard]] bool has_member(const std::string& member) const override {
+        return member == "count" || member == "item" || member == "_default";
+    }
+    [[nodiscard]] bool get(Interpreter& in, const std::string& member,
+                           std::vector<CallArgument>& arguments, Value& result,
+                           NativeFailure& failure) override {
+        std::vector<Value> forms;
+        static_cast<void>(enumerate(in, forms));
+        if (member == "count") {
+            result = Value{static_cast<Integer>(forms.size())};
+            return true;
+        }
+        if (member == "item" || member == "_default") {
+            const auto wanted = arguments.size() == 1U
+                                    ? whole_value(arguments[0].value)
+                                    : std::nullopt;
+            if (!wanted.has_value() || *wanted < 0 ||
+                static_cast<std::size_t>(*wanted) >= forms.size()) {
+                failure = NativeFailure{9, "Subscript out of range"};
+                return true;
+            }
+            result = forms[static_cast<std::size_t>(*wanted)];
+            return true;
+        }
+        return false;
+    }
+    [[nodiscard]] bool put(Interpreter&, const std::string&,
+                           std::vector<CallArgument>&, const Value&,
+                           NativeFailure&) override {
+        return false;
+    }
+    [[nodiscard]] bool enumerate(Interpreter& in,
+                                 std::vector<Value>& items) override {
+        FormSupport::loaded_forms(in, items);
+        return true;
+    }
+};
+
+}  // namespace
+
+std::shared_ptr<NativeObject> make_forms_collection() {
+    return std::make_shared<FormsCollection>();
 }
 
 bool Interpreter::pump_forms() {

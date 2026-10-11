@@ -1491,9 +1491,6 @@ void Interpreter::scan_builtin_classes() {
     if (needs_object("clipboard")) {
         class_sources_.push_back({"WfcClipboard", kClipboardSource});
     }
-    if (needs_object("forms")) {
-        class_sources_.push_back({"WfcForms", kFormsSource});
-    }
     if (needs_object("screen")) {
         class_sources_.push_back({"WfcScreen", kScreenSource});
     }

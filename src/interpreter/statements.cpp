@@ -2535,6 +2535,23 @@ bool Interpreter::parse_for_each_statement() {
                 return false;
             }
             collection_value = Value{std::move(*elements)};
+        } else if (const auto* native_holder =
+                       std::get_if<ObjectInstance>(&*collection_value);
+                   native_holder != nullptr &&
+                   native_holder->data->native != nullptr && [&] {
+                       std::vector<Value> items;
+                       if (!native_holder->data->native->enumerate(*this,
+                                                                   items)) {
+                           return false;
+                       }
+                       ArrayValue listed{};
+                       listed.is_variant_element = true;
+                       listed.element_type_index = Value{Empty{}}.index();
+                       listed.elements = std::move(items);
+                       collection_value = Value{std::move(listed)};
+                       return true;
+                   }()) {
+            // A native collection (Forms): its elements are now an array.
         } else if (const auto* holder =
                        std::get_if<ObjectInstance>(&*collection_value)) {
             auto class_iterator =

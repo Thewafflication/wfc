@@ -1,0 +1,7 @@
+wait 250
+click Check1
+click Option1(1)
+type Check1 a
+click cmdOpen
+click Form2.cmdClose
+click cmdQuit

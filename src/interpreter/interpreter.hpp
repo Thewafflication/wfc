@@ -341,7 +341,18 @@ struct NativeObject {
                                    std::vector<CallArgument>& arguments,
                                    const Value& value,
                                    NativeFailure& failure) = 0;
+    // The elements `For Each` visits; false when the object is not a
+    // collection.
+    [[nodiscard]] virtual bool enumerate(Interpreter& interpreter,
+                                         std::vector<Value>& items) {
+        static_cast<void>(interpreter);
+        static_cast<void>(items);
+        return false;
+    }
 };
+
+// The global `Forms` collection of loaded forms (forms.cpp).
+[[nodiscard]] std::shared_ptr<NativeObject> make_forms_collection();
 
 // A live COM Automation object (an `IDispatch`), held by an instance created
 // with `CreateObject`/`GetObject` or returned by one (REQ-0286).
