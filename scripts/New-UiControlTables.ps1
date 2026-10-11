@@ -71,7 +71,15 @@ function Format-MemberRow {
 }
 
 $evidence = Get-Content -LiteralPath $EvidencePath -Raw | ConvertFrom-Json
-$hash = (Get-FileHash -LiteralPath $EvidencePath -Algorithm SHA256).Hash
+# Hash the evidence with line endings normalized, so a checkout that converts
+# CRLF to LF (or back) does not change the recorded value.
+$latin1 = [System.Text.Encoding]::GetEncoding(28591)
+$raw = $latin1.GetString([System.IO.File]::ReadAllBytes(
+        (Resolve-Path -LiteralPath $EvidencePath).Path))
+$normalized = $raw.Replace("`r`n", "`n")
+$sha = [System.Security.Cryptography.SHA256]::Create()
+$hash = ([System.BitConverter]::ToString(
+        $sha.ComputeHash($latin1.GetBytes($normalized)))).Replace('-', '')
 $hash = $hash.ToLowerInvariant()
 
 $text = New-Object System.Collections.Generic.List[string]
