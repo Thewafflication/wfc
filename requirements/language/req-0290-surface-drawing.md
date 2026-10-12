@@ -40,12 +40,16 @@ A form and a `PictureBox` are drawing surfaces.
   [, width1, height1 [, x2, y2, width2, height2]]` draws a picture (or part of it)
   into a rectangle in scale units.
 
+- **Fill.** `Circle` and `Line ..., B` fill their interior with `FillColor` unless
+  `FillStyle` is transparent (the default, 1); `BF` always fills with the line
+  color. `DrawWidth` is the pen width; only solid and transparent fills exist.
+
 ## Known limits
 
-`DrawWidth`, `DrawStyle`, `FillColor`, `FillStyle`, `DrawMode`, `AutoRedraw` and the `Paint`
+`DrawStyle` (dashes), hatch fill styles, `DrawMode`, `AutoRedraw` and the `Paint`
 event's repaint behavior are not implemented yet; the Win32 host draws
 persistently on a backing surface (as `AutoRedraw = True`).
 
 ## Verification
 
-`TC-MP0002-corpus-157-form-graphics` and `-165-form-point-paintpicture`.
+`TC-MP0002-corpus-157-form-graphics` `-165-form-point-paintpicture` and `-166-form-fill`.

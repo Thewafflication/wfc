@@ -1095,11 +1095,19 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
             HPEN pen = CreatePen(PS_SOLID, operation.draw_width, color);
             HGDIOBJ old_pen = SelectObject(dc, pen);
             if (operation.box) {
-                HGDIOBJ old_brush =
-                    SelectObject(dc, GetStockObject(NULL_BRUSH));
+                // A box is filled with FillColor unless FillStyle is
+                // transparent.
+                HBRUSH box_fill =
+                    operation.fill_style == 1
+                        ? static_cast<HBRUSH>(GetStockObject(NULL_BRUSH))
+                        : CreateSolidBrush(to_colorref(operation.fill_color));
+                HGDIOBJ old_brush = SelectObject(dc, box_fill);
                 Rectangle(dc, std::min(x1, x2), std::min(y1, y2),
                           std::max(x1, x2) + 1, std::max(y1, y2) + 1);
                 SelectObject(dc, old_brush);
+                if (operation.fill_style != 1) {
+                    DeleteObject(box_fill);
+                }
             } else {
                 MoveToEx(dc, x1, y1, nullptr);
                 LineTo(dc, x2, y2);
@@ -1117,7 +1125,11 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
                      1);
         HPEN pen = CreatePen(PS_SOLID, operation.draw_width, color);
         HGDIOBJ old_pen = SelectObject(dc, pen);
-        HGDIOBJ old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+        const bool fill_circle = operation.fill_style != 1 && !operation.arc;
+        HBRUSH circle_fill =
+            fill_circle ? CreateSolidBrush(to_colorref(operation.fill_color))
+                        : static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+        HGDIOBJ old_brush = SelectObject(dc, circle_fill);
         if (operation.arc) {
             const double start = std::fabs(operation.start);
             const double end = std::fabs(operation.end);
@@ -1132,6 +1144,9 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
             Ellipse(dc, cx - rx, cy - ry, cx + rx, cy + ry);
         }
         SelectObject(dc, old_brush);
+        if (fill_circle) {
+            DeleteObject(circle_fill);
+        }
         SelectObject(dc, old_pen);
         DeleteObject(pen);
     } else if (operation.kind == "shape") {

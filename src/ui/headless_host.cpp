@@ -244,6 +244,10 @@ void HeadlessHost::rasterize(Window& window, const DrawOp& operation) {
             fill(std::min(x1, x2), std::min(y1, y2), std::max(x1, x2),
                  std::max(y1, y2), operation.color);
         } else if (operation.box) {
+            if (operation.fill_style != 1) {
+                fill(std::min(x1, x2), std::min(y1, y2), std::max(x1, x2),
+                     std::max(y1, y2), operation.fill_color);
+            }
             line(x1, y1, x2, y1, operation.color);
             line(x2, y1, x2, y2, operation.color);
             line(x2, y2, x1, y2, operation.color);
@@ -253,8 +257,12 @@ void HeadlessHost::rasterize(Window& window, const DrawOp& operation) {
         }
     } else if (operation.kind == "circle") {
         const int rx = std::max(1, px(operation.radius));
-        ellipse(px(operation.x1), px(operation.y1), rx,
-                std::max(1, static_cast<int>(rx * operation.aspect)), false,
+        const int ry = std::max(1, static_cast<int>(rx * operation.aspect));
+        if (operation.fill_style != 1 && !operation.arc) {
+            ellipse(px(operation.x1), px(operation.y1), rx, ry, true,
+                    operation.fill_color);
+        }
+        ellipse(px(operation.x1), px(operation.y1), rx, ry, false,
                 operation.color);
     } else if (operation.kind == "shape") {
         const int left = px(operation.x1);

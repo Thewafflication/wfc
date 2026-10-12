@@ -73,6 +73,7 @@ namespace {
         {"fontsize", Value{8.25F}},
         {"fontname", Value{std::string{"MS Sans Serif"}}},
         {"appearance", Value{Int16{1}}},
+        {"fillstyle", Value{Int16{1}}},  // transparent
     };
     if (class_name == "textbox" && property == "backcolor") {
         return Value{Integer{-2147483643}};
