@@ -86,6 +86,56 @@ struct DrawOp {
     double source_height{0};
 };
 
+// One element of a common control (tab, panel, button, node, list item,
+// combo item or column) as the host needs it to draw the control.
+struct CommonItem {
+    std::string text;
+    std::string key;
+    bool selected{false};
+    bool checked{false};
+    bool bold{false};
+    bool expanded{false};
+    bool visible{true};
+    bool enabled{true};
+    long image{-1};
+    long style{0};
+    long value{0};
+    long width{0};
+    long alignment{0};
+    long indent{0};
+    long parent{-1};  // tree: index of the parent in the snapshot
+    long index{0};    // the 1-based index the model uses for the item
+    std::vector<std::string> cells;  // sub items; drop-down menu texts
+};
+
+// The state of an MSComctlLib control (a snapshot of its model).
+struct CommonSnapshot {
+    std::string kind;  // lower-case class name: "tabstrip", "treeview", ...
+    std::vector<CommonItem> items;
+    std::vector<CommonItem> columns;
+    long selected{-1};
+    long min{0};
+    long max{100};
+    long value{0};
+    long view{0};
+    long style{0};
+    bool vertical{false};
+    bool smooth{false};
+    bool checkboxes{false};
+    bool gridlines{false};
+    bool full_row{false};
+    long large_change{5};
+    long small_change{1};
+    long tick_frequency{1};
+    long tick_style{0};
+    long sel_start{0};
+    long sel_length{0};
+    bool select_range{false};
+    bool locked{false};
+    std::string text;
+    std::string simple_text;
+};
+
 class UiHost {
 public:
     UiHost() = default;
@@ -200,6 +250,12 @@ public:
     [[nodiscard]] virtual void* activex_object(WindowId window) {
         static_cast<void>(window);
         return nullptr;
+    }
+    // Draws a common control from its model. User input comes back as
+    // "ComctlInput" events (an action word and its argument).
+    virtual void sync_common(WindowId window, const CommonSnapshot& snapshot) {
+        static_cast<void>(window);
+        static_cast<void>(snapshot);
     }
     // Starts a mouse drag from `window` (DragMode = Automatic or `Drag`): the
     // host captures the mouse and, on release, posts a "DropOn" event to the

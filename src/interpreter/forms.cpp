@@ -442,6 +442,8 @@ public:
 
 struct ComctlSupport {
     static void init(ControlObject& control);
+    // Marks changes made while handling host input (not echoed back).
+    static void from_host(ControlObject& control, bool on);
     [[nodiscard]] static bool get(Interpreter& in, ControlObject& self,
                                   const std::string& member,
                                   std::vector<CallArgument>& arguments,
@@ -456,6 +458,9 @@ struct ComctlSupport {
                                          const std::string& action,
                                          const std::string& rest);
 };
+
+// Pushes the state of a common control to the host (comctl.inc).
+void comctl_push(Interpreter& in, ControlObject& control);
 
 // The diagnostic of a persisted control state that is not read.
 constexpr const char* kUnreadableStateCode = "WFC0293";
@@ -2580,6 +2585,7 @@ struct FormSupport {
             sync_list(in, object);
         }
         push_state(in, object);
+        comctl_push(in, object);
     }
 
     static void apply_timer(Interpreter& in, ControlObject& timer) {
@@ -3329,6 +3335,9 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         const Value& now = self.values[member];
         const bool live = self.window != ui::kNoWindow;
+        if (self.comctl != nullptr) {
+            comctl_push(in, self);
+        }
         if (is_lightweight(self) && live) {
             if (const auto owner = self.form.lock()) {
                 double dx = 0.0;
@@ -3595,6 +3604,23 @@ struct FormSupport {
                     return true;
                 }
             }
+        }
+        if (name == "comctlinput" && source->comctl != nullptr &&
+            event.arguments.size() == 2U) {
+            // User input on a common control in the Win32 host.
+            const std::string action =
+                std::holds_alternative<std::string>(event.arguments[0])
+                    ? std::get<std::string>(event.arguments[0])
+                    : std::string{};
+            const std::string rest =
+                std::holds_alternative<std::string>(event.arguments[1])
+                    ? std::get<std::string>(event.arguments[1])
+                    : std::string{};
+            ComctlSupport::from_host(*source, true);
+            const bool ok = ComctlSupport::user_input(in, *form, *source,
+                                                      lower_text(action), rest);
+            ComctlSupport::from_host(*source, false);
+            return ok;
         }
         if (name == "dropon" && event.arguments.size() == 3U) {
             // The end of a mouse drag over `source` (the drop target).
@@ -4522,6 +4548,7 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     }
     if (comctl != nullptr &&
         ComctlSupport::put(in, *this, member, arguments, value, failure)) {
+        comctl_push(in, *this);
         return true;
     }
     static_cast<void>(arguments);

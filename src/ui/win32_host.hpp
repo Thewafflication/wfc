@@ -60,6 +60,9 @@ public:
     void arrange(WindowId mdi_form, long mode) override;
     void set_button_image(WindowId window, long picture) override;
     void begin_drag(WindowId window) override;
+    void sync_common(WindowId window, const CommonSnapshot& snapshot) override;
+    // A WM_NOTIFY of a common control (true when it was handled).
+    bool common_notify(const void* header, std::intptr_t lparam);
     [[nodiscard]] void* activex_object(WindowId window) override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;

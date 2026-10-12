@@ -1362,6 +1362,11 @@ void Interpreter::register_type_libraries() {
         library->GetDocumentation(-1, &library_name, nullptr, nullptr, nullptr);
         const std::string library_key = lowered(narrow(library_name));
         SysFreeString(library_name);
+        if (library_key == "mscomctllib") {
+            // The common controls are implemented natively (ADR-0006).
+            library->Release();
+            continue;
+        }
         if (!library_key.empty()) {
             type_library_names_.insert(library_key);
         }

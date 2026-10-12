@@ -39,6 +39,17 @@
 - **Scripted input.** `ui <target> <action> [arguments]` drives user actions of a
   common control in the headless host (`ui Form1.Slider1 value 3`).
 
+## Win32 rendering
+
+In the Win32 host each control is the system common control of the same kind
+(`SysTabControl32`, `ToolbarWindow32`, `msctls_statusbar32`, `msctls_progress32`,
+`SysTreeView32`, `SysListView32`, `msctls_trackbar32`, `ComboBoxEx32`), rebuilt
+from a snapshot of the model whenever the model or a property changes; the
+`ImageList` has no window and images are not drawn yet. Clicks, selections,
+expansions, check boxes, column clicks, toolbar buttons, status panels, slider
+drags and combo edits become the same actions as the scripted `ui` input.
+`TC-MP0006-gui-comctl` shows all nine in a window (screenshot evidence).
+
 ## Known limits
 
 The behavior of each control beyond this framework is specified by `REQ-0010`

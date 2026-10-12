@@ -290,6 +290,20 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         RESOURCE_LOCK com-registration
     )
   endif()
+  add_test(
+    NAME TC-MP0006-gui-comctl
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-comctl.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+  )
+  set_tests_properties(
+    TC-MP0006-gui-comctl
+    PROPERTIES
+      RESOURCE_LOCK desktop
+      LABELS "integration;windows;mp-0006;comctl;evidence"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "closing"
+  )
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host

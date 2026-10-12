@@ -82,6 +82,7 @@ struct Win32Host::Entry {
     int surface_width{0};
     int surface_height{0};
     long surface_background{0xF0F0F0};
+    bool applying{false};  // a snapshot is being applied to a common control
 };
 
 // Window procedure and helpers that need the host's internals.
@@ -252,6 +253,15 @@ struct Win32Support {
                 host->queue(
                     UiEvent{static_cast<WindowId>(wparam), "Timer", {}});
                 return 0;
+            case WM_NOTIFY: {
+                const auto* header = reinterpret_cast<const NMHDR*>(lparam);
+                if (header != nullptr &&
+                    host->common_notify(header,
+                                        static_cast<std::intptr_t>(lparam))) {
+                    return 0;
+                }
+                break;
+            }
             case WM_COMMAND: {
                 const int code = HIWORD(wparam);
                 if (lparam == 0) {
@@ -273,6 +283,39 @@ struct Win32Support {
                 const auto* entry = host->find(control);
                 if (entry == nullptr) {
                     break;
+                }
+                if (entry->kind == "Toolbar") {
+                    host->queue(UiEvent{control,
+                                        "ComctlInput",
+                                        {std::string{"button"},
+                                         std::to_string(LOWORD(wparam))}});
+                    return 0;
+                }
+                if (entry->kind == "ImageCombo") {
+                    if (entry->applying) {
+                        return 0;
+                    }
+                    if (code == CBN_SELCHANGE) {
+                        host->queue(UiEvent{
+                            control,
+                            "ComctlInput",
+                            {std::string{"select"},
+                             std::to_string(
+                                 SendMessageW(reinterpret_cast<HWND>(lparam),
+                                              CB_GETCURSEL, 0, 0) +
+                                 1)}});
+                    } else if (code == CBN_DROPDOWN) {
+                        host->queue(
+                            UiEvent{control,
+                                    "ComctlInput",
+                                    {std::string{"dropdown"}, std::string{}}});
+                    } else if (code == CBN_EDITCHANGE) {
+                        host->queue(UiEvent{
+                            control,
+                            "ComctlInput",
+                            {std::string{"type"}, host->text(control)}});
+                    }
+                    return 0;
                 }
                 if (code == BN_CLICKED && !list_box_kind(entry->kind) &&
                     entry->kind != "ComboBox" &&
@@ -301,6 +344,15 @@ struct Win32Support {
                 const WindowId control = bar != nullptr ? id_of(bar) : 0U;
                 if (control == kNoWindow) {
                     break;
+                }
+                if (const auto* slider = host->find(control);
+                    slider != nullptr && slider->kind == "Slider") {
+                    host->queue(UiEvent{
+                        control,
+                        "ComctlInput",
+                        {std::string{"value"},
+                         std::to_string(SendMessageW(bar, TBM_GETPOS, 0, 0))}});
+                    return 0;
                 }
                 SCROLLINFO info{};
                 info.cbSize = sizeof(info);
@@ -380,6 +432,12 @@ struct Win32Support {
 };
 
 Win32Host::Win32Host() {
+    INITCOMMONCONTROLSEX controls{
+        sizeof(controls), ICC_WIN95_CLASSES | ICC_BAR_CLASSES |
+                              ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES |
+                              ICC_TAB_CLASSES | ICC_USEREX_CLASSES |
+                              ICC_PROGRESS_CLASS};
+    InitCommonControlsEx(&controls);
     // System DPI awareness: windows are laid out from twips at the system DPI
     // instead of being bitmap-scaled by Windows. (Already set is fine.)
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE);
@@ -529,6 +587,30 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "ComboBox") {
         make_child(L"COMBOBOX",
                    CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP);
+    } else if (kind == "TabStrip") {
+        make_child(L"SysTabControl32", TCS_TABS | WS_TABSTOP);
+    } else if (kind == "Toolbar") {
+        make_child(L"ToolbarWindow32", TBSTYLE_FLAT | TBSTYLE_LIST |
+                                           CCS_NOPARENTALIGN | CCS_NORESIZE |
+                                           CCS_NODIVIDER);
+    } else if (kind == "StatusBar") {
+        make_child(L"msctls_statusbar32",
+                   CCS_NOPARENTALIGN | CCS_NORESIZE | SBARS_TOOLTIPS);
+    } else if (kind == "ProgressBar") {
+        make_child(L"msctls_progress32", 0);
+    } else if (kind == "Slider") {
+        make_child(L"msctls_trackbar32", TBS_AUTOTICKS | WS_TABSTOP);
+    } else if (kind == "TreeView") {
+        make_child(L"SysTreeView32",
+                   TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
+                       TVS_SHOWSELALWAYS | WS_TABSTOP,
+                   WS_EX_CLIENTEDGE);
+    } else if (kind == "ListView") {
+        make_child(L"SysListView32",
+                   LVS_REPORT | LVS_SHOWSELALWAYS | WS_TABSTOP,
+                   WS_EX_CLIENTEDGE);
+    } else if (kind == "ImageCombo") {
+        make_child(L"ComboBoxEx32", CBS_DROPDOWN | WS_TABSTOP);
     } else if (kind == "HScrollBar") {
         make_child(L"SCROLLBAR", SBS_HORZ | WS_TABSTOP);
     } else if (kind == "VScrollBar") {
@@ -1666,6 +1748,8 @@ bool Win32Host::exhausted() const {
     }
     return true;
 }
+
+#include "win32_comctl.inc"
 
 }  // namespace wfc::ui
 

@@ -216,6 +216,7 @@ struct CItem {
 
 struct ComctlState {
     long next_id{1};
+    bool from_host{false};  // the change came from the host: do not echo it
     std::map<std::string, std::vector<std::shared_ptr<CItem>>> lists;
     std::vector<long> root_kids;  // tree: top-level node ids in order
 };
@@ -831,6 +832,9 @@ bool ComctlItem::put(Interpreter& in, const std::string& member,
         member == "_default" ? std::string(spec.default_property) : member;
     if (ComctlHooks::item_put(in, *control, ref.kind, item, ref, name, arguments,
                               value, failure)) {
+        if (failure.number == 0) {
+            ComctlHooks::changed(in, *control);
+        }
         return true;
     }
     const PropSpec* property = find_property(spec, name);
@@ -933,6 +937,12 @@ bool ComctlCollection::get(Interpreter& in, const std::string& member,
 }
 
 // ----- ComctlSupport ----------------------------------------------------------
+
+void ComctlSupport::from_host(ControlObject& control, const bool on) {
+    if (control.comctl != nullptr) {
+        control.comctl->from_host = on;
+    }
+}
 
 void ComctlSupport::init(ControlObject& control) {
     if (control.cls != nullptr && !control.is_form &&
@@ -2708,8 +2718,7 @@ bool ComctlHooks::node_add(Interpreter& in, ControlObject& control,
 }
 
 void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
-    static_cast<void>(in);
-    static_cast<void>(control);
+    comctl_push(in, control);
 }
 
 bool ComctlHooks::before_remove(Interpreter& in, ControlObject& control,
@@ -3275,4 +3284,164 @@ void comctl_load_persisted(Interpreter& in, ControlObject& control,
                                           frx_directory));
         }
     }
+}
+
+// ----- Snapshots for the host ---------------------------------------------------------
+
+namespace {
+
+[[nodiscard]] long long_of(const Value& value) {
+    return is_number(value) ? static_cast<long>(std::nearbyint(as_double(value))) : 0;
+}
+
+[[nodiscard]] ui::CommonItem common_item(const ItemPtr& item, const char* text_name) {
+    ui::CommonItem result;
+    result.text = text_of_prop(item, text_name);
+    result.key = text_of_prop(item, "key");
+    result.selected = flag(item, "selected");
+    result.checked = flag(item, "checked");
+    result.bold = flag(item, "bold");
+    result.expanded = flag(item, "expanded");
+    result.visible = !item->p.contains("visible") || flag(item, "visible");
+    result.enabled = !item->p.contains("enabled") || flag(item, "enabled");
+    if (const auto found = item->p.find("image"); found != item->p.end()) {
+        result.image = long_of(found->second) - 1;
+    }
+    if (const auto found = item->p.find("style"); found != item->p.end()) {
+        result.style = long_of(found->second);
+    }
+    if (const auto found = item->p.find("value"); found != item->p.end()) {
+        result.value = long_of(found->second);
+    }
+    if (const auto found = item->p.find("width"); found != item->p.end()) {
+        result.width = long_of(found->second);
+    }
+    if (const auto found = item->p.find("alignment"); found != item->p.end()) {
+        result.alignment = long_of(found->second);
+    }
+    return result;
+}
+
+}  // namespace
+
+ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
+    ui::CommonSnapshot snapshot;
+    snapshot.kind = control.class_key;
+    snapshot.min = static_cast<long>(number_property(control, "min"));
+    snapshot.max = static_cast<long>(number_property(control, "max"));
+    snapshot.value = static_cast<long>(number_property(control, "value"));
+    snapshot.view = static_cast<long>(number_property(control, "view"));
+    snapshot.style = static_cast<long>(number_property(control, "style"));
+    snapshot.vertical = number_property(control, "orientation") == 1.0;
+    snapshot.smooth = number_property(control, "scrolling") == 1.0;
+    snapshot.checkboxes = control_flag(control, "checkboxes");
+    snapshot.gridlines = control_flag(control, "gridlines");
+    snapshot.full_row = control_flag(control, "fullrowselect");
+    snapshot.large_change = static_cast<long>(number_property(control, "largechange"));
+    snapshot.small_change = static_cast<long>(number_property(control, "smallchange"));
+    snapshot.tick_frequency = static_cast<long>(number_property(control, "tickfrequency"));
+    snapshot.tick_style = static_cast<long>(number_property(control, "tickstyle"));
+    snapshot.sel_start = static_cast<long>(number_property(control, "selstart"));
+    snapshot.sel_length = static_cast<long>(number_property(control, "sellength"));
+    snapshot.select_range = control_flag(control, "selectrange");
+    snapshot.locked = control_flag(control, "locked");
+    const auto text = control.values.find("text");
+    if (text != control.values.end() && std::holds_alternative<std::string>(text->second)) {
+        snapshot.text = std::get<std::string>(text->second);
+    }
+    const auto simple = control.values.find("simpletext");
+    if (simple != control.values.end() &&
+        std::holds_alternative<std::string>(simple->second)) {
+        snapshot.simple_text = std::get<std::string>(simple->second);
+    }
+    const auto& lists = state_of(control).lists;
+    const auto list = [&](const char* name) -> const std::vector<ItemPtr>& {
+        static const std::vector<ItemPtr> none;
+        const auto found = lists.find(name);
+        return found == lists.end() ? none : found->second;
+    };
+    const std::string& cls = control.class_key;
+    if (cls == "tabstrip") {
+        long at = 0;
+        for (const auto& tab : list("tabs")) {
+            snapshot.items.push_back(common_item(tab, "caption"));
+            if (flag(tab, "selected")) {
+                snapshot.selected = at;
+            }
+            ++at;
+        }
+    } else if (cls == "statusbar") {
+        for (const auto& panel : list("panels")) {
+            snapshot.items.push_back(common_item(panel, "text"));
+        }
+    } else if (cls == "toolbar") {
+        for (const auto& button : list("buttons")) {
+            ui::CommonItem item = common_item(button, "caption");
+            for (const auto& menu : button->sub) {
+                item.cells.push_back(text_of_prop(menu, "text"));
+            }
+            snapshot.items.push_back(std::move(item));
+        }
+    } else if (cls == "treeview") {
+        // Pre-order, parents before children.
+        std::map<long, long> index_of;
+        const auto walk = [&](const auto& self, const std::vector<long>& kids,
+                              const long parent) -> void {
+            for (const long id : kids) {
+                const ItemPtr node = node_by_id(control, id);
+                if (node == nullptr) {
+                    continue;
+                }
+                ui::CommonItem item = common_item(node, "text");
+                item.parent = parent;
+                item.index = position_of(top_list(control, "node"), node);
+                const long here = static_cast<long>(snapshot.items.size());
+                index_of[id] = here;
+                if (flag(node, "selected")) {
+                    snapshot.selected = here;
+                }
+                snapshot.items.push_back(std::move(item));
+                self(self, node->kids, here);
+            }
+        };
+        walk(walk, state_of(control).root_kids, -1);
+    } else if (cls == "listview") {
+        for (const auto& column : list("columnheaders")) {
+            snapshot.columns.push_back(common_item(column, "text"));
+        }
+        long at = 0;
+        for (const auto& entry : list("listitems")) {
+            ui::CommonItem item = common_item(entry, "text");
+            for (const auto& sub : entry->sub) {
+                item.cells.push_back(text_of_prop(sub, "text"));
+            }
+            item.index = at + 1;
+            if (flag(entry, "selected") && snapshot.selected < 0) {
+                snapshot.selected = at;
+            }
+            snapshot.items.push_back(std::move(item));
+            ++at;
+        }
+    } else if (cls == "imagecombo") {
+        long at = 0;
+        for (const auto& entry : list("comboitems")) {
+            ui::CommonItem item = common_item(entry, "text");
+            item.indent = long_of(entry->p.at("indentation"));
+            snapshot.items.push_back(std::move(item));
+            if (flag(entry, "selected")) {
+                snapshot.selected = at;
+            }
+            ++at;
+        }
+    }
+    return snapshot;
+}
+
+// Pushes the control's state to the host (a no-op without a window).
+void comctl_push(Interpreter& in, ControlObject& control) {
+    if (control.comctl == nullptr || control.window == ui::kNoWindow ||
+        control.comctl->from_host) {
+        return;
+    }
+    FormSupport::runtime(in).host->sync_common(control.window, comctl_snapshot(control));
 }
