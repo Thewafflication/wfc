@@ -2079,6 +2079,456 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
     return true;
 }
 
+// ----- ListView -----------------------------------------------------------------
+
+[[nodiscard]] bool control_flag(ControlObject& control, const char* name) {
+    const auto found = control.values.find(name);
+    return found != control.values.end() &&
+           std::holds_alternative<bool>(found->second) &&
+           std::get<bool>(found->second);
+}
+
+[[nodiscard]] Value list_item_value(ControlObject& control, const ItemPtr& item) {
+    if (item == nullptr) {
+        return Value{Nothing{}};
+    }
+    ListRef ref;
+    ref.kind = "listitem";
+    return wrap_item(control.self.lock(), ref, item);
+}
+
+[[nodiscard]] std::string text_of_prop(const ItemPtr& item, const char* name) {
+    const auto found = item->p.find(name);
+    return found != item->p.end() &&
+                   std::holds_alternative<std::string>(found->second)
+               ? std::get<std::string>(found->second)
+               : std::string{};
+}
+
+// The text a list item sorts by: its own text (SortKey 0) or a sub item's.
+[[nodiscard]] std::string sort_text(ControlObject& control, const ItemPtr& item) {
+    const long key = static_cast<long>(number_property(control, "sortkey"));
+    if (key <= 0) {
+        return lower_text(text_of_prop(item, "text"));
+    }
+    if (static_cast<std::size_t>(key) <= item->sub.size()) {
+        return lower_text(text_of_prop(item->sub[static_cast<std::size_t>(key) - 1U], "text"));
+    }
+    return {};
+}
+
+void sort_list_items(ControlObject& control) {
+    auto& items = top_list(control, "listitem");
+    const bool descending = number_property(control, "sortorder") == 1.0;
+    std::stable_sort(items.begin(), items.end(),
+                     [&](const ItemPtr& left, const ItemPtr& right) {
+                         const std::string a = sort_text(control, left);
+                         const std::string b = sort_text(control, right);
+                         return descending ? b < a : a < b;
+                     });
+}
+
+// Positions of the items for the current view (twips).
+[[nodiscard]] std::vector<TabRect> list_layout(ControlObject& control) {
+    std::vector<TabRect> rects;
+    const long view = static_cast<long>(number_property(control, "view"));
+    const double width = number_property(control, "width");
+    const double height = number_property(control, "height");
+    const auto& items = top_list(control, "listitem");
+    double header = 0.0;
+    double row_width = 0.0;
+    if (view == 3) {
+        header = control_flag(control, "hidecolumnheaders") ? 0.0 : 240.0;
+        for (const auto& column : top_list(control, "columnheader")) {
+            row_width += item_number(column, "width");
+        }
+    }
+    const double cell_width = view == 0 ? 1200.0 : 1440.0;
+    const double cell_height = view == 0 ? 1100.0 : 240.0;
+    const long per_row = std::max<long>(1, static_cast<long>(width / cell_width));
+    const long per_column = std::max<long>(1, static_cast<long>((height > 0 ? height : 2400.0) / cell_height));
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        const long n = static_cast<long>(i);
+        if (view == 3) {
+            rects.push_back({0.0, header + 240.0 * static_cast<double>(n), row_width, 240.0});
+        } else if (view == 2) {
+            rects.push_back({cell_width * static_cast<double>(n / per_column),
+                             cell_height * static_cast<double>(n % per_column),
+                             cell_width, cell_height});
+        } else {
+            rects.push_back({cell_width * static_cast<double>(n % per_row),
+                             cell_height * static_cast<double>(n / per_row),
+                             cell_width, cell_height});
+        }
+    }
+    return rects;
+}
+
+[[nodiscard]] ItemPtr first_selected_item(ControlObject& control) {
+    for (const auto& item : top_list(control, "listitem")) {
+        if (flag(item, "selected")) {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
+void select_list_item(ControlObject& control, const ItemPtr& item, const bool extend) {
+    for (const auto& other : top_list(control, "listitem")) {
+        if (other == item) {
+            other->p["selected"] = Value{extend ? !flag(other, "selected") : true};
+        } else if (!extend) {
+            other->p["selected"] = Value{false};
+        }
+    }
+}
+
+[[nodiscard]] bool listitem_get(HookCtx& ctx, const std::string& member,
+                                std::vector<CallArgument>& arguments,
+                                Value& result, NativeFailure& failure) {
+    ControlObject& control = ctx.control;
+    const ItemPtr& item = ctx.item;
+    if (member == "subitems") {
+        if (arguments.size() != 1U || !is_number(arguments[0].value)) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        const long index = static_cast<long>(as_double(arguments[0].value));
+        if (index < 0 || static_cast<std::size_t>(index) > item->sub.size()) {
+            failure = NativeFailure{kIndexOutOfBounds, "Index out of bounds"};
+            return true;
+        }
+        result = index == 0 ? item->p.at("text")
+                            : item->sub[static_cast<std::size_t>(index) - 1U]->p.at("text");
+        arguments.clear();
+        return true;
+    }
+    if (member == "listsubitems") {
+        ListRef ref;
+        ref.kind = "listsubitem";
+        ref.parent = item;
+        result = wrap_collection(ctx.ref.owner.lock(), ref);
+        return true;
+    }
+    if (member == "left" || member == "top" || member == "width" || member == "height") {
+        const auto rects = list_layout(control);
+        const long position = position_of(top_list(control, "listitem"), item);
+        TabRect rect;
+        if (position >= 1 && static_cast<std::size_t>(position) <= rects.size()) {
+            rect = rects[static_cast<std::size_t>(position) - 1U];
+        }
+        result = Value{static_cast<float>(member == "left" ? rect.left
+                                          : member == "top" ? rect.top
+                                          : member == "width" ? rect.width
+                                                              : rect.height)};
+        return true;
+    }
+    if (member == "ensurevisible") {
+        result = Value{true};
+        return true;
+    }
+    if (member == "createdragimage") {
+        result = Value{Nothing{}};
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool listitem_put(HookCtx& ctx, const std::string& member,
+                                std::vector<CallArgument>& arguments,
+                                const Value& value, NativeFailure& failure) {
+    ControlObject& control = ctx.control;
+    const ItemPtr& item = ctx.item;
+    if (member == "subitems") {
+        if (arguments.size() != 1U || !is_number(arguments[0].value)) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        const long index = static_cast<long>(as_double(arguments[0].value));
+        if (index < 0) {
+            failure = NativeFailure{kIndexOutOfBounds, "Index out of bounds"};
+            return true;
+        }
+        Value text = value;
+        if (!coerce_property(ctx.in, text, "String", failure)) {
+            return true;
+        }
+        if (index == 0) {
+            item->p["text"] = text;
+            return true;
+        }
+        while (item->sub.size() < static_cast<std::size_t>(index)) {
+            auto created = std::make_shared<CItem>();
+            created->id = state_of(control).next_id++;
+            for (const auto& property : spec_of("listsubitem").props) {
+                created->p[property.name] = initial_value(property);
+            }
+            item->sub.push_back(created);
+        }
+        item->sub[static_cast<std::size_t>(index) - 1U]->p["text"] = text;
+        return true;
+    }
+    if (member == "left" || member == "top" || member == "width" || member == "height") {
+        failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
+    if (member == "selected") {
+        const bool on = std::holds_alternative<bool>(value)
+                            ? std::get<bool>(value)
+                            : is_number(value) && as_double(value) != 0.0;
+        if (on) {
+            if (!control_flag(control, "multiselect")) {
+                select_list_item(control, item, false);
+            }
+            item->p["selected"] = Value{true};
+        } else {
+            item->p["selected"] = Value{false};
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool column_get(HookCtx& ctx, const std::string& member,
+                              Value& result) {
+    const auto& columns = top_list(ctx.control, "columnheader");
+    if (member == "left") {
+        double x = 0.0;
+        for (const auto& column : columns) {
+            if (column == ctx.item) {
+                break;
+            }
+            x += item_number(column, "width");
+        }
+        result = Value{static_cast<float>(x)};
+        return true;
+    }
+    if (member == "position") {
+        result = Value{static_cast<Integer>(position_of(columns, ctx.item))};
+        return true;
+    }
+    if (member == "subitemindex") {
+        result = Value{static_cast<Int16>(position_of(columns, ctx.item) - 1)};
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool list_member(Interpreter& in, ControlObject& self,
+                               const std::string& member,
+                               std::vector<CallArgument>& arguments,
+                               Value& result, NativeFailure& failure) {
+    static_cast<void>(in);
+    if (member == "selecteditem") {
+        result = list_item_value(self, first_selected_item(self));
+        return true;
+    }
+    if (member == "getfirstvisible") {
+        const auto& items = top_list(self, "listitem");
+        result = list_item_value(self, items.empty() ? nullptr : items.front());
+        return true;
+    }
+    if (member == "finditem") {
+        // FindItem(String, Where, Index, Match)
+        if (arguments.empty() || arguments.size() > 4U) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        const std::string wanted = lower_text(FormSupport::text_of(arguments[0].value));
+        const long where = arguments.size() > 1U && !arguments[1].omitted
+                               ? static_cast<long>(as_double(arguments[1].value))
+                               : 0;
+        const bool partial = arguments.size() > 3U && !arguments[3].omitted &&
+                             as_double(arguments[3].value) != 0.0;
+        auto& items = top_list(self, "listitem");
+        std::size_t start = 0;
+        if (arguments.size() > 2U && !arguments[2].omitted) {
+            const ItemPtr from = find_item(items, arguments[2].value, failure);
+            if (from == nullptr) {
+                return true;
+            }
+            start = static_cast<std::size_t>(position_of(items, from)) - 1U;
+        }
+        result = Value{Nothing{}};
+        for (std::size_t i = start; i < items.size(); ++i) {
+            std::vector<std::string> candidates;
+            if (where == 0) {
+                candidates.push_back(text_of_prop(items[i], "text"));
+            } else if (where == 1) {
+                for (const auto& sub : items[i]->sub) {
+                    candidates.push_back(text_of_prop(sub, "text"));
+                }
+            } else {
+                candidates.push_back(FormSupport::text_of(items[i]->p.at("tag")));
+            }
+            for (const auto& candidate : candidates) {
+                const std::string text = lower_text(candidate);
+                if (partial ? text.rfind(wanted, 0) == 0 : text == wanted) {
+                    result = list_item_value(self, items[i]);
+                    return true;
+                }
+            }
+        }
+        return true;
+    }
+    if (member == "hittest") {
+        if (arguments.size() != 2U) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        const double x = as_double(arguments[0].value);
+        const double y = as_double(arguments[1].value);
+        const auto rects = list_layout(self);
+        const auto& items = top_list(self, "listitem");
+        result = Value{Nothing{}};
+        for (std::size_t i = 0; i < rects.size() && i < items.size(); ++i) {
+            const TabRect& rect = rects[i];
+            if (x >= rect.left && x < rect.left + rect.width && y >= rect.top &&
+                y < rect.top + rect.height) {
+                result = list_item_value(self, items[i]);
+                break;
+            }
+        }
+        return true;
+    }
+    if (member == "startlabeledit") {
+        self.values["_editing"] = Value{true};
+        result = Value{Empty{}};
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool list_put(Interpreter& in, ControlObject& self,
+                            const std::string& member, const Value& value,
+                            NativeFailure& failure) {
+    if (member == "selecteditem") {
+        const auto* holder = std::get_if<ObjectInstance>(&value);
+        const auto* object =
+            holder != nullptr && holder->data != nullptr
+                ? dynamic_cast<ComctlItem*>(holder->data->native.get())
+                : nullptr;
+        if (object == nullptr || object->ref.kind != "listitem" ||
+            position_of(top_list(self, "listitem"), object->item) == 0) {
+            if (std::holds_alternative<Nothing>(value)) {
+                for (const auto& item : top_list(self, "listitem")) {
+                    item->p["selected"] = Value{false};
+                }
+                return true;
+            }
+            failure = NativeFailure{13, "Type mismatch"};
+            return true;
+        }
+        select_list_item(self, object->item, false);
+        return true;
+    }
+    if (member == "view") {
+        Value converted = value;
+        if (!coerce_property(in, converted, "Integer", failure)) {
+            return true;
+        }
+        const double number = as_double(converted);
+        if (number < 0 || number > 3) {
+            failure = NativeFailure{380, "Invalid property value"};
+            return true;
+        }
+        self.values["view"] = converted;
+        return true;
+    }
+    if (member == "sorted" || member == "sortkey" || member == "sortorder") {
+        Value converted = value;
+        if (!coerce_property(in, converted, member == "sorted" ? "Boolean" : "Integer",
+                             failure)) {
+            return true;
+        }
+        self.values[member] = member == "sorted" ? converted
+                                                 : normalized(converted, "XConstants");
+        if (control_flag(self, "sorted")) {
+            sort_list_items(self);
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool list_input(Interpreter& in, ControlObject& self,
+                              const std::string& action, const std::string& rest) {
+    NativeFailure ignored;
+    auto& items = top_list(self, "listitem");
+    const auto pick = [&](const std::string& text) {
+        return find_item(items, selector_of(text), ignored);
+    };
+    if (action == "click" || action == "dblclick") {
+        std::istringstream words(rest);
+        std::string name;
+        std::string modifier;
+        words >> name >> modifier;
+        const ItemPtr item = pick(name);
+        if (item == nullptr) {
+            return true;
+        }
+        select_list_item(self, item, modifier == "ctrl" && control_flag(self, "multiselect"));
+        bool ok = raise_event(in, self, "ItemClick", {list_item_value(self, item)}) &&
+                  raise_event(in, self, "Click", {});
+        if (ok && action == "dblclick") {
+            ok = raise_event(in, self, "DblClick", {});
+        }
+        return ok;
+    }
+    if (action == "check") {
+        const ItemPtr item = pick(rest);
+        if (item == nullptr || !control_flag(self, "checkboxes")) {
+            return true;
+        }
+        item->p["checked"] = Value{!flag(item, "checked")};
+        return raise_event(in, self, "ItemCheck", {list_item_value(self, item)});
+    }
+    if (action == "columnclick") {
+        const ItemPtr column =
+            find_item(top_list(self, "columnheader"), selector_of(rest), ignored);
+        if (column == nullptr) {
+            return true;
+        }
+        ListRef ref;
+        ref.kind = "columnheader";
+        return raise_event(in, self, "ColumnClick",
+                           {wrap_item(self.self.lock(), ref, column)});
+    }
+    if (action == "edit") {
+        const ItemPtr item = first_selected_item(self);
+        if (item == nullptr) {
+            return true;
+        }
+        const bool manual = number_property(self, "labeledit") == 1.0;
+        if (manual && !self.values.contains("_editing")) {
+            return true;
+        }
+        self.values.erase("_editing");
+        const auto form = self.form.lock();
+        if (form == nullptr) {
+            return true;
+        }
+        std::vector<Value> before{Value{Int16{0}}};
+        if (!FormSupport::raise(in, *form, self.name, self.index, "beforelabeledit",
+                                before, FormSupport::offset_of(in))) {
+            return false;
+        }
+        if (whole_value(before[0]).value_or(0) != 0) {
+            return true;
+        }
+        std::vector<Value> after{Value{Int16{0}}, Value{rest}};
+        if (!FormSupport::raise(in, *form, self.name, self.index, "afterlabeledit",
+                                after, FormSupport::offset_of(in))) {
+            return false;
+        }
+        if (whole_value(after[0]).value_or(0) == 0) {
+            item->p["text"] = after[1];
+        }
+        return true;
+    }
+    return true;
+}
+
 // @@KINDS_MORE
 
 }  // namespace
@@ -2127,6 +2577,9 @@ bool ComctlHooks::after_add(Interpreter& in, ControlObject& control,
     if (kind == "tab" && top_list(control, "tab").size() == 1U) {
         item->p["selected"] = Value{true};  // the first tab is selected
     }
+    if (kind == "listitem" && control_flag(control, "sorted")) {
+        sort_list_items(control);
+    }
     if (kind == "listimage" && control.class_key == "imagelist") {
         // The first image sets the size of the list (pixels at 96 dpi).
         if (top_list(control, kind).size() == 1U) {
@@ -2166,6 +2619,12 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
     if (kind == "node") {
         return node_get(ctx, member, result);
     }
+    if (kind == "listitem") {
+        return listitem_get(ctx, member, arguments, result, failure);
+    }
+    if (kind == "columnheader") {
+        return column_get(ctx, member, result);
+    }
     return false;
 }
 
@@ -2174,10 +2633,18 @@ bool ComctlHooks::item_put(Interpreter& in, ControlObject& control,
                            const ListRef& ref, const std::string& member,
                            std::vector<CallArgument>& arguments,
                            const Value& value, NativeFailure& failure) {
-    static_cast<void>(arguments);
     if (kind == "node") {
         HookCtx ctx{in, control, ref, item};
         return node_put(ctx, member, value, failure);
+    }
+    if (kind == "listitem") {
+        HookCtx ctx{in, control, ref, item};
+        return listitem_put(ctx, member, arguments, value, failure);
+    }
+    if (kind == "columnheader" &&
+        (member == "left" || member == "subitemindex")) {
+        failure = NativeFailure{383, "Property is read-only"};
+        return true;
     }
     if (kind == "tab") {
         if (member == "left" || member == "top" || member == "width" ||
@@ -2251,6 +2718,10 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
     }
     if (self.class_key == "treeview" &&
         tree_member(in, self, member, arguments, result, failure)) {
+        return true;
+    }
+    if (self.class_key == "listview" &&
+        list_member(in, self, member, arguments, result, failure)) {
         return true;
     }
     if (self.class_key == "tabstrip") {
@@ -2327,6 +2798,9 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
 bool comctl_control_put(Interpreter& in, ControlObject& self,
                         const std::string& member, const Value& value,
                         NativeFailure& failure) {
+    if (self.class_key == "listview" && list_put(in, self, member, value, failure)) {
+        return true;
+    }
     if (self.class_key == "treeview") {
         if (member == "selecteditem" || member == "drophighlight") {
             const auto* holder = std::get_if<ObjectInstance>(&value);
@@ -2434,6 +2908,9 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
     }
     if (self.class_key == "treeview") {
         return tree_input(in, self, action, rest);
+    }
+    if (self.class_key == "listview") {
+        return list_input(in, self, action, rest);
     }
     if (self.class_key == "statusbar" &&
         (action == "panel" || action == "paneldbl")) {

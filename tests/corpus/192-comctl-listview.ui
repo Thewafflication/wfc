@@ -1,0 +1,5 @@
+ui Form1.List1 click c
+ui Form1.List1 check c
+ui Form1.List1 columnclick size
+ui Form1.List1 edit Carrots
+close Form1
