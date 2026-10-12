@@ -44,4 +44,8 @@ profile that identifies the affected compiled VB6 programs.
 
 ## Implementation Record
 
-Not implemented.
+`scripts/New-VbrunExports.ps1` generates `src/vbrun/wfcvbrun.def` and
+`vbrun_exports.inc` from the inventory: ordinal base 100, 1,911 slots, 635 named
+exports at their reference ordinals, empty slots left empty (ordinals 100 to
+2010). `TC-MP0007-vbrun-library` parses the built DLL's export directory and
+compares base, slot count, names, ordinals and holes with the inventory.

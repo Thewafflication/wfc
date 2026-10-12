@@ -55,4 +55,11 @@ profile that identifies the affected compiled VB6 programs.
 
 ## Implementation Record
 
-Not implemented.
+`wfcvbrun.dll` (target `wfc_vbrun`, `src/vbrun/`) is built for the architecture
+of the build and loads in a GUI-subsystem process. It does not carry the
+reference identity (hash, version, image base); it is a compatible export
+surface, not a copy. Every export is a stub (`ADR-0007`): it writes
+`wfcvbrun: runtime export <name> (ordinal N) is not implemented` to stderr and
+the debugger and ends the process with exit code `0x5642`, because the
+signatures are not known. The x86 helper process for x64 and ARM64 hosts is not
+implemented. Verified by `TC-MP0007-vbrun-library`.

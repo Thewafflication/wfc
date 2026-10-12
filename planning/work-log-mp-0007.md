@@ -14,3 +14,4 @@
 | --- | --- | --- | --- |
 | 2026-10-12 #1 | Planning | MP-0006 closed; `ADR-0007`, MP-0007 plan and work log drafted | Not applicable |
 | 2026-10-12 #2 | Construction | `wfc --build` packaged programs (`REQ-0303`, `ADR-0007`): image copy plus project payload, extraction on start-up; `TC-MP0007-package-*` | CTest 364/364 |
+| 2026-10-12 #3 | Construction | `wfcvbrun.dll`: export directory generated from the MSVBVM60 inventory (`REQ-0105`), stubs that name the reached export (`REQ-0099`); `TC-MP0007-vbrun-library` parses the built PE | CTest 365/365 |

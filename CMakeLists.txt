@@ -88,6 +88,23 @@ target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
 wsp_enable_hardening(wfc)
 
+if(WIN32)
+  # The VBRUN compatibility library (ADR-0007): the MSVBVM60 export directory.
+  add_library(
+    wfc_vbrun
+    SHARED
+    src/vbrun/vbrun_stubs.cpp
+    src/vbrun/vbrun_exports.inc
+    src/vbrun/wfcvbrun.def
+  )
+  set_target_properties(wfc_vbrun PROPERTIES OUTPUT_NAME wfcvbrun)
+  # The reference assigns ordinals to the COM entry points; keep them.
+  target_link_options(wfc_vbrun PRIVATE /IGNORE:4104 /IGNORE:4222)
+  target_compile_features(wfc_vbrun PRIVATE cxx_std_20)
+  wfc_enable_strict_warnings(wfc_vbrun)
+  wsp_enable_hardening(wfc_vbrun)
+endif()
+
 include(CTest)
 if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_executable(wfc_frontend_tests tests/evaluator_tests.cpp)
@@ -2188,6 +2205,27 @@ Print v.x & q.x]=]
       PROPERTIES LABELS "integration;mp-0002;corpus"
     )
   endforeach()
+
+  if(WIN32)
+    set(vbrun_evidence "${wfc_evidence}/msvbvm60-6.0-runtime.json")
+    add_executable(vbrun_tests tests/vbrun/vbrun_tests.cpp)
+    target_compile_features(vbrun_tests PRIVATE cxx_std_20)
+    wfc_enable_strict_warnings(vbrun_tests)
+    wsp_enable_hardening(vbrun_tests)
+    add_dependencies(vbrun_tests wfc_vbrun)
+    add_test(
+      NAME TC-MP0007-vbrun-library
+      COMMAND
+        "${CMAKE_COMMAND}" "-DTESTER=$<TARGET_FILE:vbrun_tests>"
+        "-DDLL=$<TARGET_FILE:wfc_vbrun>" "-DEVIDENCE=${vbrun_evidence}"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/vbrun-test" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/vbrun/run_vbrun_tests.cmake"
+    )
+    set_tests_properties(
+      TC-MP0007-vbrun-library
+      PROPERTIES LABELS "unit;mp-0007;vbrun"
+    )
+  endif()
 
   foreach(package_case 194-comctl-persisted 195-comctl-refine)
     set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus")
