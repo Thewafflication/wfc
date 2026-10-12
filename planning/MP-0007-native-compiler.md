@@ -25,7 +25,7 @@ corpus can resolve its runtime imports.
 
 | Requirement | Subject | Disposition |
 | --- | --- | --- |
-| `REQ-0099` | Binary identity and loader | Library builds and loads; cross-architecture bridge deferred |
+| `REQ-0099` | Binary identity and loader | Library builds and loads; no cross-architecture bridge (owner decision: native code per architecture, `ADR-0007`) |
 | `REQ-0105` | Export-directory layout | In scope; verified by parsing the built DLL |
 | `REQ-0100`–`REQ-0104` | Export categories (engine, compiler helpers, language runtime, member/memory, numeric) | Names and ordinals in scope; behavior only where a signature is confirmed (stubs elsewhere) |
 | `REQ-0303` (new) | Packaged native programs | In scope |
@@ -34,7 +34,7 @@ corpus can resolve its runtime imports.
 ### Plan decisions
 
 See [ADR-0007](../architecture/adr-0007-native-packaging-and-vbrun.md): packaged
-programs now, a generated export surface, an explicit x86 bridge deferral.
+programs now, a generated export surface, native code per architecture instead of an x86 bridge.
 
 ## Baseline and Assumptions
 
@@ -121,7 +121,8 @@ increment as a normal Git change.
 | --- | --- | --- | --- | --- | --- |
 | Machine-code generation | Programs are interpreted inside the package | Project maintainer | After 0.9 or a new milestone | Packaged runtime | Pending |
 | Export behavior and signatures | Native VB6 binaries do not run | Project maintainer | Reference machine | Stub diagnostics | Pending |
-| x86 helper process bridge on x64 and ARM64 | No legacy binary runs there | Project maintainer | MP-0008 | None | Pending |
+| Legacy x86 binaries on x64 and ARM64 | Not supported; no bridge or emulation will be built | Project maintainer | Withdrawn by owner decision | Native back ends | Owner, 2026-10-12 |
+| Native back ends for x86, AMD64 and ARM64 | See machine-code generation | Project maintainer | New milestone | None | Pending |
 
 ## Change Control
 

@@ -37,14 +37,20 @@ increment's work and cannot be verified without reference binaries.
    unimplemented helper stops with a diagnostic naming it instead of crashing.
    Helpers receive real implementations only when their signature is confirmed by
    a probe or a documented prototype.
-3. **Architecture bridge.** The library is an x86 ABI. On x64 and ARM64 a native
-   x86 program is run in an x86 helper process, never loaded in-process; the
-   helper process and its bridge are deferred until x86 helper binaries can be
-   exercised there.
+3. **Native on every architecture (owner decision, 2026-10-12).** When WFC
+   generates machine code it generates code native to the target: x86, AMD64
+   and ARM64 each get their own back end and runtime. There is no translation
+   layer and no x86 helper process on x64 or ARM64; an x86 program is not run
+   through emulation by WFC. The x86 `MSVBVM60` export surface of
+   `wfcvbrun.dll` serves only unmodified x86 VB6 binaries on x86, and its
+   x64 and ARM64 builds exist for layout verification. The native back ends
+   are future work: the planned order is an intermediate representation, then
+   one back end per architecture sharing one runtime written for all three.
 
 ## Consequences
 
 - Deployment works on all three architectures now, with the runtime embedded.
+- Programs built for x64 or ARM64 will never depend on x86 code.
 - No claim of machine-code generation is made; the roadmap gate for it is
   recorded as deferred in the MP-0007 plan.
 - The export layout can be verified on any machine by parsing the built DLL.

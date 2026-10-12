@@ -11,8 +11,9 @@
 The WFC VB6 runtime compatibility component shall provide an x86 PE DLL that
 can satisfy references to `MSVBVM60.DLL`, load in the Windows GUI subsystem,
 and provide the export ABI required by native VB6 executables. Cross-architecture
-WFC hosts shall isolate or bridge this x86 ABI explicitly rather than loading it
-in-process on x64 or ARM64.
+WFC shall not run x86 code on x64 or ARM64 through a bridge, helper process or
+emulation (owner decision, 2026-10-12, `ADR-0007`); programs for those
+architectures are generated natively.
 
 ## Reference Binary
 
@@ -61,5 +62,4 @@ reference identity (hash, version, image base); it is a compatible export
 surface, not a copy. Every export is a stub (`ADR-0007`): it writes
 `wfcvbrun: runtime export <name> (ordinal N) is not implemented` to stderr and
 the debugger and ends the process with exit code `0x5642`, because the
-signatures are not known. The x86 helper process for x64 and ARM64 hosts is not
-implemented. Verified by `TC-MP0007-vbrun-library`.
+signatures are not known. There is no x86 helper process for x64 and ARM64 hosts, by decision. Verified by `TC-MP0007-vbrun-library`.

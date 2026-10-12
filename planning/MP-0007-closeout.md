@@ -43,7 +43,7 @@ does not deliver machine-code generation or working VBRUN helpers; the plan and
 | Export library with reference layout | Complete | `REQ-0105`, `TC-MP0007-vbrun-library` |
 | Loader test, stub diagnostic | Complete (no WFC diagnostic code: the stub is not a WFC component message) | `TC-MP0007-vbrun-library` |
 | Behavior of `REQ-0100`–`REQ-0104` exports | Deferred: signatures need probes | Reference machine |
-| x86 helper process bridge on x64 and ARM64 | Deferred | MP-0008 |
+| x86 helper process bridge on x64 and ARM64 | Withdrawn: owner decision, native code per architecture (`ADR-0007`) | Native back ends milestone |
 | Machine-code generation, startup, unwind, layouts | Deferred | New milestone |
 | Legacy x86 binary corpus | Deferred: no approved corpus | Reference machine |
 
@@ -61,9 +61,9 @@ does not deliver machine-code generation or working VBRUN helpers; the plan and
 
 | Item | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| Machine-code generation | Programs are interpreted inside the package | Project maintainer | New milestone | Packaged runtime | Pending |
+| Machine-code generation: native x86, AMD64 and ARM64 back ends, no translation layer | Programs are interpreted inside the package | Project maintainer | New milestone | Packaged runtime | Pending |
 | Export behavior and signatures | Native VB6 binaries do not run | Project maintainer | Reference machine | Stub diagnostics | Pending |
-| x86 helper process bridge | No legacy binary runs on x64 or ARM64 | Project maintainer | MP-0008 | None | Pending |
+| Legacy x86 binaries on x64 and ARM64 | Not supported; no bridge or emulation | Project maintainer | Withdrawn | Native back ends | Owner, 2026-10-12 |
 | Packaged program arguments, files outside the project directory, signing | Some programs differ | Project maintainer | MP-0008 | `REQ-0303` limits | Pending |
 
 ## Closeout Decision

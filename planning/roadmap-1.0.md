@@ -242,8 +242,9 @@ profile can satisfy selected unmodified VB6 native binaries.
   architecture-specific lowering;
 - signatures and behavior for required compiler, member, language, numeric,
   project-hosting, and COM helpers documented in `REQ-0099` through `REQ-0105`;
-- x86 `MSVBVM60.DLL` import/ordinal compatibility and safe process isolation;
-  and
+- x86 `MSVBVM60.DLL` import/ordinal compatibility on x86 only: x64 and ARM64
+  get native code, never an x86 bridge or translation layer (owner decision,
+  2026-10-12, `ADR-0007`); and
 - packaging and dependency policy for x86, x64, and ARM64 native outputs.
 
 ### Exit Gate
