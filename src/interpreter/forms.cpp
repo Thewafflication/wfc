@@ -3796,6 +3796,74 @@ std::shared_ptr<NativeObject> make_forms_collection() {
     return std::make_shared<FormsCollection>();
 }
 
+namespace {
+
+// The host window a dialog belongs to: the focused form, else the first.
+ui::WindowId dialog_owner(Interpreter& in, FormRuntime& state) {
+    static_cast<void>(in);
+    const auto binding = state.bindings.find(state.host->focus());
+    if (binding != state.bindings.end()) {
+        if (const auto form = binding->second.form.lock()) {
+            if (const ControlObject* object = control_of(*form)) {
+                return object->window;
+            }
+        }
+    }
+    for (const auto& weak : state.loaded) {
+        if (const auto form = weak.lock()) {
+            if (const ControlObject* object = control_of(*form)) {
+                return object->window;
+            }
+        }
+    }
+    return ui::kNoWindow;
+}
+
+}  // namespace
+
+std::optional<long> Interpreter::ui_message_box(const std::string& text,
+                                                const std::string& title,
+                                                const long style) {
+    if (ui_mode_ != "win32" || !ui_script_.empty()) {
+        return std::nullopt;
+    }
+    auto& state = FormSupport::runtime(*this);
+    if (state.headless != nullptr) {
+        return std::nullopt;
+    }
+    const auto found = app_properties_.find("title");
+    return state.host->message_box(
+        dialog_owner(*this, state), text,
+        !title.empty() ? title
+                       : (found != app_properties_.end() ? found->second
+                                                         : std::string{"WFC"}),
+        style);
+}
+
+std::optional<std::string> Interpreter::ui_input_box(const std::string& prompt,
+                                                     const std::string& title,
+                                                     const std::string& initial,
+                                                     bool& handled) {
+    handled = false;
+    if (ui_mode_ != "win32" || !ui_script_.empty()) {
+        return std::nullopt;
+    }
+    auto& state = FormSupport::runtime(*this);
+    if (state.headless != nullptr) {
+        return std::nullopt;
+    }
+    const auto found = app_properties_.find("title");
+    bool supported = false;
+    auto answer = state.host->input_box(
+        dialog_owner(*this, state), prompt,
+        !title.empty() ? title
+                       : (found != app_properties_.end() ? found->second
+                                                         : std::string{"WFC"}),
+        initial, supported);
+    handled = supported;
+    return answer;
+}
+
 std::optional<std::string> Interpreter::form_dialog_answer(
     const std::string& kind) {
     if (!forms_ || forms_->answers.empty() ||

@@ -48,6 +48,13 @@ public:
     void set_value(WindowId window, long value) override;
     void set_scroll(WindowId window, long minimum, long maximum, long value,
                     long small_change, long large_change) override;
+    [[nodiscard]] std::optional<long> message_box(WindowId owner,
+                                                  const std::string& text,
+                                                  const std::string& title,
+                                                  long style) override;
+    [[nodiscard]] std::optional<std::string> input_box(
+        WindowId owner, const std::string& prompt, const std::string& title,
+        const std::string& initial, bool& supported) override;
     void pump() override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;

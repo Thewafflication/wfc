@@ -35,3 +35,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #14 | Construction | `StdPicture`, `LoadPicture`/`SavePicture`, Picture properties and display, `.frx` pictures, Win32 `OleLoadPicture` rendering, `App.Path` (`REQ-0291`); corpus 162 | CTest 320/320 |
 | 2026-10-11 #15 | Construction | Image, Shape and Line lightweight controls drawn on their container surface, GDI shapes (`REQ-0291`); corpus 163 | CTest 321/321 |
 | 2026-10-11 #16 | Construction | `--screenshots` PNG capture (Win32 host), showcase form test, README section "Run and Test a Form Project", z-order and container-parent window creation, client-sized form windows, combo text fix (`REQ-0289`) | CTest `TC-MP0004-gui-showcase` |
+| 2026-10-11 #17 | Construction | Win32 `MsgBox` and `InputBox` dialogs through `UiHost::message_box`/`input_box`, tested with a helper thread (`REQ-0289`) | CTest `TC-MP0004-win32-host` |

@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #include "win32_host.hpp"
 
@@ -130,6 +131,61 @@ int main() {
     }
     const auto metrics = host.measure_text(form, "hello", FontSpec{});
     expect(metrics.width > 0 && metrics.height > 0, "text is measurable");
+
+    // Dialogs: a helper thread plays the user.
+    {
+        std::thread user([] {
+            for (int i = 0; i < 100; ++i) {
+                Sleep(30);
+                const HWND box = FindWindowW(L"#32770", L"WfcBox");
+                if (box != nullptr) {
+                    SendMessageW(box, WM_COMMAND, IDYES, 0);
+                    return;
+                }
+            }
+        });
+        const auto answer = host.message_box(form, "Sure?", "WfcBox",
+                                             MB_YESNO | MB_ICONQUESTION);
+        user.join();
+        expect(answer.has_value() && *answer == IDYES,
+               "message box returns the chosen button");
+    }
+    {
+        std::thread user([] {
+            for (int i = 0; i < 100; ++i) {
+                Sleep(30);
+                const HWND box = FindWindowW(L"WfcInputBox", L"WfcInput");
+                if (box != nullptr) {
+                    SetWindowTextW(GetDlgItem(box, 101), L"typed answer");
+                    SendMessageW(box, WM_COMMAND, IDOK, 0);
+                    return;
+                }
+            }
+        });
+        bool supported = false;
+        const auto text =
+            host.input_box(form, "Name?", "WfcInput", "default", supported);
+        user.join();
+        expect(supported && text.has_value() && *text == "typed answer",
+               "input box returns the typed text");
+    }
+    {
+        std::thread user([] {
+            for (int i = 0; i < 100; ++i) {
+                Sleep(30);
+                const HWND box = FindWindowW(L"WfcInputBox", L"WfcInput2");
+                if (box != nullptr) {
+                    SendMessageW(box, WM_COMMAND, IDCANCEL, 0);
+                    return;
+                }
+            }
+        });
+        bool supported = false;
+        const auto text =
+            host.input_box(form, "Name?", "WfcInput2", "default", supported);
+        user.join();
+        expect(supported && !text.has_value(), "cancelling returns nothing");
+    }
 
     PostMessageW(host.handle_of(form), WM_CLOSE, 0, 0);
     expect(wait_for(host, "Close", event) && event.window == form,

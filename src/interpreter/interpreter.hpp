@@ -1699,6 +1699,14 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    // MsgBox / InputBox on the Win32 host; nullopt when not running GUI.
+    [[nodiscard]] std::optional<long> ui_message_box(const std::string& text,
+                                                     const std::string& title,
+                                                     long style);
+    // `handled` is false when no dialog was shown.
+    [[nodiscard]] std::optional<std::string> ui_input_box(
+        const std::string& prompt, const std::string& title,
+        const std::string& initial, bool& handled);
     // LoadPicture and SavePicture (REQ-0291); pictures.cpp.
     [[nodiscard]] std::optional<Value> load_picture_builtin(
         const std::vector<Value>& arguments, std::size_t offset);

@@ -130,6 +130,29 @@ public:
         static_cast<void>(large_change);
     }
 
+    // A message box with VB MsgBox button/icon `style` bits; returns the VB
+    // button result, or nullopt when the host shows no dialogs.
+    [[nodiscard]] virtual std::optional<long> message_box(
+        WindowId owner, const std::string& text, const std::string& title,
+        long style) {
+        static_cast<void>(owner);
+        static_cast<void>(text);
+        static_cast<void>(title);
+        static_cast<void>(style);
+        return std::nullopt;
+    }
+    // An input box; returns the text, or an empty optional when cancelled.
+    // `supported` is false when the host shows no dialogs.
+    [[nodiscard]] virtual std::optional<std::string> input_box(
+        WindowId owner, const std::string& prompt, const std::string& title,
+        const std::string& initial, bool& supported) {
+        static_cast<void>(owner);
+        static_cast<void>(prompt);
+        static_cast<void>(title);
+        static_cast<void>(initial);
+        supported = false;
+        return std::nullopt;
+    }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.
     virtual void pump() {}

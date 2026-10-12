@@ -718,6 +718,151 @@ bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
     return true;
 }
 
+std::optional<long> Win32Host::message_box(const WindowId owner,
+                                           const std::string& text,
+                                           const std::string& title,
+                                           const long style) {
+    const auto* entry = find(owner);
+    HWND parent = entry != nullptr ? entry->hwnd : nullptr;
+    // VB's button, icon, default-button and modality bits are MB_* values.
+    const int result =
+        MessageBoxW(parent, widen(text).c_str(), widen(title).c_str(),
+                    static_cast<UINT>(style) | MB_SETFOREGROUND);
+    return static_cast<long>(result);
+}
+
+namespace {
+
+struct InputDialog {
+    std::wstring prompt;
+    std::wstring initial;
+    std::wstring result;
+    bool accepted{false};
+    bool done{false};
+    HWND edit{nullptr};
+};
+
+constexpr int kEditId = 101;
+
+LRESULT CALLBACK input_proc(HWND hwnd, UINT message, WPARAM wparam,
+                            LPARAM lparam) {
+    if (message == WM_NCCREATE) {
+        const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lparam);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+                          reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+    }
+    auto* dialog =
+        reinterpret_cast<InputDialog*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (dialog == nullptr) {
+        return DefWindowProcW(hwnd, message, wparam, lparam);
+    }
+    if (message == WM_COMMAND) {
+        const int id = LOWORD(wparam);
+        if (id == IDOK || id == IDCANCEL) {
+            if (id == IDOK) {
+                const int length = GetWindowTextLengthW(dialog->edit);
+                std::wstring text(static_cast<std::size_t>(length) + 1U, L'\0');
+                GetWindowTextW(dialog->edit, text.data(), length + 1);
+                text.resize(static_cast<std::size_t>(length));
+                dialog->result = text;
+                dialog->accepted = true;
+            }
+            dialog->done = true;
+            return 0;
+        }
+    } else if (message == WM_CLOSE) {
+        dialog->done = true;
+        return 0;
+    }
+    return DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+}  // namespace
+
+std::optional<std::string> Win32Host::input_box(const WindowId owner,
+                                                const std::string& prompt,
+                                                const std::string& title,
+                                                const std::string& initial,
+                                                bool& supported) {
+    supported = true;
+    static const bool registered = [] {
+        WNDCLASSEXW window_class{};
+        window_class.cbSize = sizeof(window_class);
+        window_class.lpfnWndProc = input_proc;
+        window_class.hInstance = GetModuleHandleW(nullptr);
+        window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
+        window_class.hbrBackground =
+            reinterpret_cast<HBRUSH>(static_cast<INT_PTR>(COLOR_BTNFACE + 1));
+        window_class.lpszClassName = L"WfcInputBox";
+        return RegisterClassExW(&window_class) != 0;
+    }();
+    if (!registered) {
+        supported = false;
+        return std::nullopt;
+    }
+    InputDialog dialog;
+    dialog.prompt = widen(prompt);
+    dialog.initial = widen(initial);
+    const auto* entry = find(owner);
+    HWND parent = entry != nullptr ? entry->hwnd : nullptr;
+    const HINSTANCE instance = GetModuleHandleW(nullptr);
+    const int width = 420;
+    const int height = 190;
+    const int x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+    const int y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+    HWND window = CreateWindowExW(
+        WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"WfcInputBox",
+        widen(title).c_str(), WS_POPUP | WS_CAPTION | WS_SYSMENU, x, y, width,
+        height, parent, nullptr, instance, &dialog);
+    if (window == nullptr) {
+        supported = false;
+        return std::nullopt;
+    }
+    const auto child = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
+                           const int cx, const int cy, const int cw,
+                           const int ch, const int id) {
+        HWND control = CreateWindowExW(
+            0, cls, text, style | WS_CHILD | WS_VISIBLE, cx, cy, cw, ch, window,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), instance,
+            nullptr);
+        if (font_ != nullptr) {
+            SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font_),
+                         TRUE);
+        }
+        return control;
+    };
+    child(L"STATIC", dialog.prompt.c_str(), SS_LEFT, 12, 10, 390, 60, 100);
+    dialog.edit = child(L"EDIT", dialog.initial.c_str(),
+                        ES_AUTOHSCROLL | WS_TABSTOP | WS_BORDER, 12, 80, 390,
+                        24, kEditId);
+    child(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP, 220, 118, 85, 26,
+          IDOK);
+    child(L"BUTTON", L"Cancel", BS_PUSHBUTTON | WS_TABSTOP, 317, 118, 85, 26,
+          IDCANCEL);
+    ShowWindow(window, SW_SHOW);
+    SetForegroundWindow(window);
+    SetFocus(dialog.edit);
+    SendMessageW(dialog.edit, EM_SETSEL, 0, -1);
+    if (parent != nullptr) {
+        EnableWindow(parent, FALSE);
+    }
+    MSG message;
+    while (!dialog.done && GetMessageW(&message, nullptr, 0, 0) > 0) {
+        if (!IsDialogMessageW(window, &message)) {
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+    }
+    if (parent != nullptr) {
+        EnableWindow(parent, TRUE);
+    }
+    DestroyWindow(window);
+    if (!dialog.accepted) {
+        return std::nullopt;
+    }
+    return narrow(dialog.result);
+}
+
 void Win32Host::pump() {
     MSG message;
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {

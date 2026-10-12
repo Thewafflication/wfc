@@ -311,6 +311,23 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (const auto scripted = form_dialog_answer("msgbox")) {
             return Value{static_cast<Integer>(std::atol(scripted->c_str()))};
         }
+        if (execute_ && ui_mode_ == "win32") {
+            const std::string text =
+                std::holds_alternative<std::string>(arguments[0])
+                    ? std::get<std::string>(arguments[0])
+                    : render(arguments[0]);
+            const long box_style =
+                count >= 2U && is_number(arguments[1])
+                    ? static_cast<long>(as_double(arguments[1]))
+                    : 0L;
+            const std::string box_title =
+                count >= 3U && std::holds_alternative<std::string>(arguments[2])
+                    ? std::get<std::string>(arguments[2])
+                    : std::string{};
+            if (const auto shown = ui_message_box(text, box_title, box_style)) {
+                return Value{static_cast<Integer>(*shown)};
+            }
+        }
         // There is no UI: answer with the dialog's default button.
         std::int64_t style = 0;
         if (count >= 2U && is_number(arguments[1]) &&
@@ -343,6 +360,20 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         }
         if (const auto scripted = form_dialog_answer("inputbox")) {
             return Value{*scripted};
+        }
+        if (execute_ && ui_mode_ == "win32") {
+            const auto text_at = [&](const std::size_t index) {
+                return count > index && std::holds_alternative<std::string>(
+                                            arguments[index])
+                           ? std::get<std::string>(arguments[index])
+                           : std::string{};
+            };
+            bool handled = false;
+            const auto answer =
+                ui_input_box(text_at(0), text_at(1), text_at(2), handled);
+            if (handled) {
+                return Value{answer.value_or(std::string{})};
+            }
         }
         const auto* fallback =
             count >= 3U ? std::get_if<std::string>(&arguments[2]) : nullptr;
