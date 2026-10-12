@@ -29,7 +29,7 @@ packaged programs and the CI matrix (x86, x64, ARM64) from MP-0002 to MP-0007.
 | Project | Source | License | Size | Known needs |
 | --- | --- | --- | --- | --- |
 | Capture King (network chess) | [VB6 Game Archives](https://sourceforge.net/projects/vb6gamearchive/files/Capture%20King/) | GPL, credit to Christopher McKirgan (per its readme) | 1.8 MB | `MSWinsock`, `CommonDialog`, images, `.frx` pictures, 5,000 lines of forms |
-| Rol An Go ARENA (tactical RPG) | VB6 Game Archives, `Tactical Role Playing` | To be recorded | To be recorded | To be surveyed |
+| Rol An Go ARENA (tactical RPG) | VB6 Game Archives, `Tactical Role Playing` | **None stated**; the archive maintainer says they did not write it and the source files carry no license | 7.1 MB | **Excluded** (2026-10-12): unclear license, and it needs the DirectX 8 for Visual Basic library (`dx8vb.dll`) and bundles Microsoft binaries |
 | Further archived games | `vb6archives`, `VB 6 App Archive`, other SourceForge projects | Per project | — | Selected after the first two run |
 
 Each corpus project keeps its source unmodified in the `vb6games` repository
