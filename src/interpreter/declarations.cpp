@@ -1493,6 +1493,9 @@ void Interpreter::scan_builtin_classes() {
     if (needs_object("clipboard")) {
         class_sources_.push_back({"WfcClipboard", kClipboardSource});
     }
+    if (any_source_mentions("licenses", true)) {
+        class_sources_.push_back({"WfcLicenses", kLicensesSource});
+    }
     if (any_source_mentions("ambient", true)) {
         class_sources_.push_back({"WfcAmbient", kAmbientSource});
     }

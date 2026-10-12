@@ -2827,6 +2827,9 @@ struct FormSupport {
                     ? 1
                     : whole_value(arguments[0].value).value_or(1);
             runtime(in).drag_source = action == 1 ? self.window : ui::kNoWindow;
+            if (action == 1) {
+                runtime(in).host->begin_drag(self.window);
+            }
             return true;
         }
         if (member == "refresh" || member == "zorder" || member == "cls" ||
@@ -3442,7 +3445,53 @@ struct FormSupport {
                 }
             }
         }
-        auto arguments = table_arguments(*source, event.name, event.arguments);
+        if (name == "dropon" && event.arguments.size() == 3U) {
+            // The end of a mouse drag over `source` (the drop target).
+            const auto from = state.bindings.find(
+                static_cast<ui::WindowId>(std::get<long>(event.arguments[0])));
+            state.drag_source = ui::kNoWindow;
+            if (from == state.bindings.end()) {
+                return true;
+            }
+            Target dragged;
+            dragged.form = from->second.form.lock();
+            dragged.control = from->second.control;
+            dragged.index = from->second.index;
+            Target target;
+            target.form = form;
+            target.control = source->is_form ? std::string{} : source->name;
+            target.index = source->index;
+            if (dragged.form == nullptr) {
+                return true;
+            }
+            const ControlObject* scale_owner =
+                is_surface(*source) ? source : control_of(*form);
+            return drop_on(in, dragged, target,
+                           from_twips_x(*scale_owner,
+                                        std::get<double>(event.arguments[1])),
+                           from_twips_y(*scale_owner,
+                                        std::get<double>(event.arguments[2])));
+        }
+        std::vector<ui::EventArgument> raw_arguments = event.arguments;
+        if ((name == "mousedown" || name == "mouseup" || name == "mousemove") &&
+            raw_arguments.size() == 4U) {
+            // The host reports twips; the program sees its scale units.
+            const ControlObject* scale_owner =
+                is_surface(*source) ? source : control_of(*form);
+            if (scale_owner != nullptr) {
+                raw_arguments[2] = from_twips_x(
+                    *scale_owner, std::get<double>(raw_arguments[2]));
+                raw_arguments[3] = from_twips_y(
+                    *scale_owner, std::get<double>(raw_arguments[3]));
+            }
+            if (name == "mousedown" && !source->is_form &&
+                number_of(*source, "dragmode") == 1.0) {
+                // DragMode = Automatic: the press starts a drag.
+                state.drag_source = source->window;
+                state.host->begin_drag(source->window);
+            }
+        }
+        auto arguments = table_arguments(*source, event.name, raw_arguments);
         if (!raise(in, *form, source->is_form ? std::string{} : source->name,
                    source->index, name, arguments, in.offset_)) {
             return false;
@@ -3680,6 +3729,27 @@ struct FormSupport {
             const long index = std::atol(rest.c_str());
             state.host->post_event(
                 ui::UiEvent{object->window, "UserSelect", {index}});
+        } else if (command == "mousedown" || command == "mouseup" ||
+                   command == "mousemove") {
+            // mouse<kind> <target> [button x y]: twips inside the target.
+            std::istringstream numbers(rest);
+            long button = 1;
+            double x = 0;
+            double y = 0;
+            numbers >> button >> x >> y;
+            if (command == "mouseup" && state.drag_source != ui::kNoWindow) {
+                state.host->post_event(
+                    ui::UiEvent{object->window,
+                                "DropOn",
+                                {static_cast<long>(state.drag_source), x, y}});
+            } else {
+                state.host->post_event(
+                    ui::UiEvent{object->window,
+                                command == "mousedown" ? "MouseDown"
+                                : command == "mouseup" ? "MouseUp"
+                                                       : "MouseMove",
+                                {button, 0L, x, y}});
+            }
         } else if (command == "focus") {
             return focus_control(in, *target.form, target.control, target.index,
                                  in.offset_);

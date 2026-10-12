@@ -9,6 +9,7 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <commctrl.h>
 #include <objbase.h>
 #include <ocidl.h>
 #include <olectl.h>
@@ -105,6 +106,96 @@ struct Win32Support {
                    init() != FALSE;
         }();
         return loaded;
+    }
+
+    // Mouse input of every hosted window (subclassed): MouseDown / MouseUp /
+    // MouseMove events in twips, and the drop that ends a drag.
+    static LRESULT CALLBACK mouse_proc(HWND hwnd, UINT message, WPARAM wparam,
+                                       LPARAM lparam, UINT_PTR,
+                                       DWORD_PTR data) {
+        auto* const host = reinterpret_cast<Win32Host*>(data);
+        long button = 0;
+        bool down = false;
+        bool up = false;
+        switch (message) {
+            case WM_LBUTTONDOWN:
+                button = 1;
+                down = true;
+                break;
+            case WM_RBUTTONDOWN:
+                button = 2;
+                down = true;
+                break;
+            case WM_MBUTTONDOWN:
+                button = 4;
+                down = true;
+                break;
+            case WM_LBUTTONUP:
+                button = 1;
+                up = true;
+                break;
+            case WM_RBUTTONUP:
+                button = 2;
+                up = true;
+                break;
+            case WM_MBUTTONUP:
+                button = 4;
+                up = true;
+                break;
+            case WM_MOUSEMOVE:
+                break;
+            default:
+                return DefSubclassProc(hwnd, message, wparam, lparam);
+        }
+        const WindowId window = id_of(hwnd);
+        if (host == nullptr || window == kNoWindow) {
+            return DefSubclassProc(hwnd, message, wparam, lparam);
+        }
+        const auto to_twips = [&](const int pixels, const int dpi) {
+            return static_cast<double>(pixels) * 1440.0 /
+                   static_cast<double>(dpi);
+        };
+        if (up && host->drag_source_ != kNoWindow) {
+            // The drag ends over whichever hosted window is under the pointer.
+            const WindowId source = host->drag_source_;
+            host->drag_source_ = kNoWindow;
+            ReleaseCapture();
+            POINT screen{static_cast<LONG>(static_cast<short>(LOWORD(lparam))),
+                         static_cast<LONG>(static_cast<short>(HIWORD(lparam)))};
+            ClientToScreen(hwnd, &screen);
+            HWND target = WindowFromPoint(screen);
+            while (target != nullptr && id_of(target) == kNoWindow) {
+                target = GetParent(target);
+            }
+            if (target != nullptr) {
+                POINT inside = screen;
+                ScreenToClient(target, &inside);
+                host->queue(UiEvent{id_of(target),
+                                    "DropOn",
+                                    {static_cast<long>(source),
+                                     to_twips(inside.x, host->dpi_x_),
+                                     to_twips(inside.y, host->dpi_y_)}});
+            }
+            return 0;
+        }
+        long shift = 0;
+        shift |= (GetKeyState(VK_SHIFT) & 0x8000) != 0 ? 1 : 0;
+        shift |= (GetKeyState(VK_CONTROL) & 0x8000) != 0 ? 2 : 0;
+        shift |= (GetKeyState(VK_MENU) & 0x8000) != 0 ? 4 : 0;
+        if (message == WM_MOUSEMOVE) {
+            button = ((wparam & MK_LBUTTON) != 0 ? 1 : 0) |
+                     ((wparam & MK_RBUTTON) != 0 ? 2 : 0) |
+                     ((wparam & MK_MBUTTON) != 0 ? 4 : 0);
+        }
+        host->queue(UiEvent{
+            window,
+            down ? "MouseDown"
+            : up ? "MouseUp"
+                 : "MouseMove",
+            {button, shift,
+             to_twips(static_cast<short>(LOWORD(lparam)), host->dpi_x_),
+             to_twips(static_cast<short>(HIWORD(lparam)), host->dpi_y_)}});
+        return DefSubclassProc(hwnd, message, wparam, lparam);
     }
 
     static Win32Host* host_of(HWND hwnd) {
@@ -440,6 +531,10 @@ WindowId Win32Host::create_window(const std::string& kind,
     if (entry->hwnd != nullptr) {
         SetPropW(entry->hwnd, kIdProperty,
                  reinterpret_cast<HANDLE>(static_cast<UINT_PTR>(entry->id)));
+        if (kind.rfind("ActiveX:", 0) != 0) {
+            SetWindowSubclass(entry->hwnd, Win32Support::mouse_proc, 1,
+                              reinterpret_cast<DWORD_PTR>(this));
+        }
         if (!entry->is_form && font_ != nullptr) {
             SendMessageW(entry->hwnd, WM_SETFONT,
                          reinterpret_cast<WPARAM>(font_), TRUE);
@@ -1002,6 +1097,14 @@ void* Win32Host::activex_object(const WindowId window) {
         return nullptr;
     }
     return object;  // AtlAxGetControl added the reference
+}
+
+void Win32Host::begin_drag(const WindowId window) {
+    if (const auto* entry = find(window);
+        entry != nullptr && entry->hwnd != nullptr) {
+        drag_source_ = window;
+        SetCapture(entry->hwnd);
+    }
 }
 
 void Win32Host::set_button_image(const WindowId window, const long picture) {

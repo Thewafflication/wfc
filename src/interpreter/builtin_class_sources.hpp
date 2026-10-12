@@ -613,6 +613,62 @@ RightToLeft = False
 End Property
 )VB";
 
+inline constexpr std::string_view kLicensesSource =
+    R"VB(Private mIds() As String
+Private mKeys() As String
+Private mCount As Long
+Private Function Find(ByVal Id As String) As Long
+Dim i As Long
+For i = 1 To mCount
+If LCase$(mIds(i)) = LCase$(Id) Then
+Find = i
+Exit Function
+End If
+Next i
+End Function
+Public Property Get Count() As Long
+Count = mCount
+End Property
+Public Sub Add(ByVal ProgId As String, Optional ByVal LicenseKey As Variant)
+Dim i As Long
+If Find(ProgId) <> 0 Then
+Err.Raise 457, , "This key is already associated with an element"
+End If
+mCount = mCount + 1
+ReDim Preserve mIds(1 To mCount)
+ReDim Preserve mKeys(1 To mCount)
+mIds(mCount) = ProgId
+mKeys(mCount) = ""
+If Not IsMissing(LicenseKey) Then mKeys(mCount) = CStr(LicenseKey)
+End Sub
+Public Property Get Item(ByVal Index As Variant) As String
+Attribute Item.VB_UserMemId = 0
+Dim i As Long
+If VarType(Index) = 8 Then
+i = Find(CStr(Index))
+Else
+i = CLng(Index)
+End If
+If i < 1 Or i > mCount Then Err.Raise 5, , "Invalid procedure call or argument"
+Item = mKeys(i)
+End Property
+Public Sub Remove(ByVal Index As Variant)
+Dim i As Long
+Dim j As Long
+If VarType(Index) = 8 Then
+i = Find(CStr(Index))
+Else
+i = CLng(Index)
+End If
+If i < 1 Or i > mCount Then Err.Raise 5, , "Invalid procedure call or argument"
+For j = i To mCount - 1
+mIds(j) = mIds(j + 1)
+mKeys(j) = mKeys(j + 1)
+Next j
+mCount = mCount - 1
+End Sub
+)VB";
+
 inline constexpr std::string_view kFormsSource =
     R"VB(Public Property Get Count() As Long
 Count = 0

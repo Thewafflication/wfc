@@ -1,0 +1,7 @@
+mousedown Form1.Pic1 1 750 375
+mousemove Form1.Pic1 1 1500 750
+mouseup Form1.Pic1 1 1500 750
+mousedown Form1 1 150 300
+mousedown Form1.Item 1 15 15
+mouseup Form1.Pic1 1 300 450
+close Form1

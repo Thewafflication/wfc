@@ -7,10 +7,12 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <thread>
+#include <variant>
 
 #include "win32_host.hpp"
 
@@ -185,6 +187,36 @@ int main() {
             host.input_box(form, "Name?", "WfcInput2", "default", supported);
         user.join();
         expect(supported && !text.has_value(), "cancelling returns nothing");
+    }
+
+    {
+        // Mouse input becomes events in twips, and a drag ends in a DropOn.
+        const WindowId source = host.create_window("PictureBox", form);
+        const WindowId target = host.create_window("PictureBox", form);
+        host.set_bounds(source, Rect{100, 3000, 900, 600});
+        host.set_bounds(target, Rect{3000, 3000, 900, 600});
+        host.set_visible(source, true);
+        host.set_visible(target, true);
+        const int dpi = GetDeviceCaps(GetDC(nullptr), LOGPIXELSX);
+        const int pixel_x = 10;
+        PostMessageW(host.handle_of(source), WM_LBUTTONDOWN, MK_LBUTTON,
+                     MAKELPARAM(pixel_x, 5));
+        expect(wait_for(host, "MouseDown", event) && event.window == source &&
+                   event.arguments.size() == 4U &&
+                   std::get<long>(event.arguments[0]) == 1 &&
+                   std::abs(std::get<double>(event.arguments[2]) -
+                            pixel_x * 1440.0 / dpi) < 1.0,
+               "a button press becomes a MouseDown event in twips");
+        host.begin_drag(source);
+        PostMessageW(host.handle_of(source), WM_LBUTTONUP, 0, MAKELPARAM(2, 2));
+        // The release lands on whichever window is under the pointer, which
+        // the synthetic message cannot move, so the source is the target.
+        expect(
+            wait_for(host, "DropOn", event) && event.window != kNoWindow &&
+                std::get<long>(event.arguments[0]) == static_cast<long>(source),
+            "releasing a drag becomes a DropOn event");
+        host.destroy_window(target);
+        host.destroy_window(source);
     }
 
     PostMessageW(host.handle_of(form), WM_CLOSE, 0, 0);

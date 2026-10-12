@@ -155,8 +155,20 @@ not implemented.
 `Control.Drag vbBeginDrag` marks the control as dragged; `vbEndDrag` and
 `vbCancel` clear it. The input script command `drag <source> <destination> [x y]`
 raises `DragOver` (State `vbEnter`) then `DragDrop` on the destination control
-or form with `Source` set to the dragged control. Real mouse dragging in the
-Win32 host and OLE drag and drop are not implemented.
+or form with `Source` set to the dragged control. `Drag vbBeginDrag` also asks
+the host for a real drag.
+
+## Mouse input
+
+`MouseDown`, `MouseUp` and `MouseMove` (`Button`, `Shift`, `X`, `Y`) are raised
+for forms and controls; `X` and `Y` are in the scale units of the surface (the
+control itself for a form or picture box, the form otherwise). The Win32 host
+subclasses every hosted window to observe the mouse; the input script commands
+`mousedown`, `mouseup` and `mousemove <target> [button x y]` (twips) do the same
+headless. A control with `DragMode = Automatic` starts a drag on `MouseDown`;
+releasing the button over a control or form raises `DragOver` and `DragDrop`
+there (headless: `mouseup` on the destination). OLE drag and drop is not
+implemented.
 
 ## Printer and Printers
 
@@ -233,4 +245,4 @@ MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `-174-form-button-picture`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `-183-licenses`, `-184-form-mouse`, `-174-form-button-picture`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

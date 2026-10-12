@@ -59,6 +59,7 @@ public:
     void pump() override;
     void arrange(WindowId mdi_form, long mode) override;
     void set_button_image(WindowId window, long picture) override;
+    void begin_drag(WindowId window) override;
     [[nodiscard]] void* activex_object(WindowId window) override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;
@@ -82,6 +83,7 @@ public:
 
 private:
     struct Entry;
+    WindowId drag_source_{kNoWindow};
     friend struct Win32Support;
 
     [[nodiscard]] Entry* find(WindowId window);

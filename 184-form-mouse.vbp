@@ -1,0 +1,4 @@
+Type=Exe
+Form=184-form-mouse.frm
+Startup="Form1"
+WfcUiScript=184-form-mouse.ui

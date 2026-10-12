@@ -73,7 +73,10 @@ target_include_directories(
 find_package(Threads REQUIRED)
 target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
 if(WIN32)
-  target_link_libraries(wfc_frontend PUBLIC ole32 oleaut32 user32 gdi32)
+  target_link_libraries(
+    wfc_frontend
+    PUBLIC ole32 oleaut32 user32 gdi32 comctl32
+  )
 endif()
 wfc_enable_strict_warnings(wfc_frontend)
 wsp_enable_hardening(wfc_frontend)

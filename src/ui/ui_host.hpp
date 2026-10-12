@@ -201,6 +201,10 @@ public:
         static_cast<void>(window);
         return nullptr;
     }
+    // Starts a mouse drag from `window` (DragMode = Automatic or `Drag`): the
+    // host captures the mouse and, on release, posts a "DropOn" event to the
+    // window under the pointer: arguments (source window, x, y twips).
+    virtual void begin_drag(WindowId window) { static_cast<void>(window); }
     // Shows a picture on a graphical button (Style = 1) instead of its text.
     virtual void set_button_image(WindowId window, long picture) {
         static_cast<void>(window);
