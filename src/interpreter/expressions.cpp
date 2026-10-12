@@ -371,6 +371,17 @@ bool Interpreter::coerce_numeric_value(Value& value,
     return true;
 }
 
+bool Interpreter::form_left_is_function(const std::string& name) const {
+    if (name != "left") {
+        return false;
+    }
+    std::size_t at = offset_;
+    while (at < source_.size() && (source_[at] == ' ' || source_[at] == '\t')) {
+        ++at;
+    }
+    return at < source_.size() && source_[at] == '(';
+}
+
 std::optional<Value> Interpreter::parse_expression() {
     // Deeply nested parentheses or calls recurse through here; stop before
     // the native stack runs out.
@@ -647,6 +658,13 @@ std::optional<Value> Interpreter::parse_concatenation() {
         auto right = parse_additive();
         if (!right.has_value()) {
             return std::nullopt;
+        }
+        if (!execute_) {
+            // Skipping a branch: the operands are placeholders (an object
+            // reference stands for its default property), so nothing is
+            // checked or joined.
+            left = Value{std::string{}};
+            continue;
         }
         // Concatenating two Nulls raises "Invalid use of Null" (verified
         // against the local VB6 6.00.8176 reference); a single Null
@@ -1482,7 +1500,10 @@ std::optional<Value> Interpreter::parse_primary_base() {
             if (type_character == '\0' && array_variable.value == nullptr) {
                 // `Name(args)` for a public member of a VB_GlobalNameSpace
                 // class (REQ-0283).
-                if (const auto implicit = native_implicit_member(*identifier)) {
+                if (const auto implicit =
+                        form_left_is_function(*identifier)
+                            ? std::optional<Value>{}
+                            : native_implicit_member(*identifier)) {
                     offset_ = identifier_offset;
                     return parse_member_access_after_dot(
                         *implicit, identifier_offset,
@@ -1590,7 +1611,10 @@ std::optional<Value> Interpreter::parse_primary_base() {
             }
             // A property or control of the form the code belongs to.
             if (type_character == '\0') {
-                if (const auto implicit = native_implicit_member(*identifier)) {
+                if (const auto implicit =
+                        form_left_is_function(*identifier)
+                            ? std::optional<Value>{}
+                            : native_implicit_member(*identifier)) {
                     offset_ = identifier_offset;
                     return parse_member_access_after_dot(
                         *implicit, identifier_offset,

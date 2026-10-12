@@ -1323,6 +1323,15 @@ bool Interpreter::parse_member_assignment(
             }
             return assign_udt(field_iterator->second, *source, member_offset);
         }
+        // `Form2.Text1 = "x"`: the default property of a control.
+        if (const auto* held =
+                std::get_if<ObjectInstance>(&field_iterator->second);
+            held != nullptr && held->data != nullptr &&
+            held->data->native != nullptr &&
+            held->data->class_name == "wfcnative") {
+            return native_member_statement(field_iterator->second, "_default",
+                                           member_offset);
+        }
         set_error("WFC0108", "object assignment requires Set", member_offset);
         return false;
     }

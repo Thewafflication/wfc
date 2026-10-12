@@ -859,6 +859,9 @@ std::optional<bool> Interpreter::parse_file_statement(
             set_error("WFC0011", "expected variable name", variable_offset);
             return false;
         }
+        if (find_variable(*name).value == nullptr) {
+            static_cast<void>(declare_implicit(*name, '\0'));
+        }
         const auto variable = find_variable(*name);
         if (variable.value == nullptr) {
             set_error("WFC0015", "undeclared variable", variable_offset);
@@ -913,6 +916,9 @@ std::optional<bool> Interpreter::parse_file_statement(
             if (!name.has_value()) {
                 set_error("WFC0011", "expected variable name", variable_offset);
                 return false;
+            }
+            if (find_variable(*name).value == nullptr) {
+                static_cast<void>(declare_implicit(*name, '\0'));
             }
             const auto variable = find_variable(*name);
             if (variable.value == nullptr) {

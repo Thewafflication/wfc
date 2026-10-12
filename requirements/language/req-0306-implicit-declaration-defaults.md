@@ -16,6 +16,13 @@
   option boxes, scroll bars, progress bars and sliders, `Picture` for picture
   boxes and images, `Drive`, `Path` and `FileName` for the file system list
   controls.
+- **Input targets.** `Input #n, v` and `Line Input #n, v` declare an undeclared
+  `v` the same way.
+- **Form members.** `Form2.Text1 = "x"` assigns the default property of a control
+  of another form; `Left(s, n)` in form code is the string function, not the
+  form's `Left` property; a bare `End` statement may appear inside an `If` block.
+- **Skipped branches.** Concatenating a control in a branch that is not taken is
+  not an error.
 - **`LoadPicture()`.** Called without arguments it returns an empty picture,
   which clears a picture property.
 

@@ -47,5 +47,16 @@ Private Sub Form_Load()
     Pic2.Picture = Pic1(0)
     Pic1(0) = Pic2
     Debug.Print TypeName(Pic1(0).Picture); TypeName(Pic2.Picture)
+    Debug.Print Left("hello", 2); Right("hello", 2)
+    If Len(Text2) > 100 Then
+        Text2 = Text2 & "never" & vbNewLine
+    End If
+    Dim q
+    If Text2 = "" Then
+        Debug.Print "empty"
+        If Len(q) = 0 Then
+            Debug.Print "also empty"
+        End If
+    End If
     Debug.Print "ok"
 End Sub
