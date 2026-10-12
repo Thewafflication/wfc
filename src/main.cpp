@@ -73,6 +73,7 @@ int main(const int argument_count, const char* const arguments[]) {
         std::string ui_mode;
         std::string screenshot_directory;
         std::string serve;
+        std::string typelib_path;
         std::string registration;  // "register" or "unregister"
         long server_timeout_ms = 600000;
         for (int i = 1; i < argument_count; ++i) {
@@ -84,6 +85,10 @@ int main(const int argument_count, const char* const arguments[]) {
                 if (serve.empty()) {
                     serve = "server";
                 }
+            } else if (std::string_view(arguments[i]) == "--write-typelib" &&
+                       i + 1 < argument_count) {
+                serve = "typelib";
+                typelib_path = arguments[++i];
             } else if (std::string_view(arguments[i]) == "--serve") {
                 serve = "inproc";  // expose the project's classes in-process
             } else if (std::string_view(arguments[i]) == "--server") {
@@ -147,7 +152,16 @@ int main(const int argument_count, const char* const arguments[]) {
         options.ui_script = project.ui_script;
         options.ui_mode = ui_mode;
         options.screenshot_directory = screenshot_directory;
+        if (serve == "typelib") {
+            std::cout << "LIBID "
+                      << wfc::clsid_for_progid((project.project_name.empty()
+                                                    ? std::string{"Project1"}
+                                                    : project.project_name) +
+                                               ".typelib")
+                      << '\n';
+        }
         options.serve = serve;
+        options.typelib_path = typelib_path;
         options.project_name = project.project_name;
         options.server_timeout_ms = server_timeout_ms;
         const auto result = wfc::evaluate_program(project.module_source,

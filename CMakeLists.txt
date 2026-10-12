@@ -262,6 +262,24 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         -Client "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/client.bas"
         -Expected "Remote peer 1"
     )
+    add_test(
+      NAME TC-MP0005-com-server-early
+      COMMAND
+        "${WFC_POWERSHELL}" -NoProfile -File
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Test-ComServer.ps1" -Wfc
+        "$<TARGET_FILE:wfc>" -Server
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/oop-server.vbp"
+        -EarlyClient "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/early"
+        -Expected "greeted peer;"
+    )
+    set_tests_properties(
+      TC-MP0005-com-server-early
+      PROPERTIES
+        LABELS "integration;windows;mp-0005;com"
+        TIMEOUT 90
+        SKIP_RETURN_CODE 77
+        RESOURCE_LOCK com-registration
+    )
     set_tests_properties(
       TC-MP0005-com-server-process
       PROPERTIES

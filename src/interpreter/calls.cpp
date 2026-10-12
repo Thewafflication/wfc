@@ -45,6 +45,9 @@ bool Interpreter::parse_raise_event_statement(
 bool Interpreter::dispatch_event_to_sinks(
     InstanceData& source, const std::string& event_name,
     const std::vector<CallArgument>& arguments, const std::size_t offset) {
+    if (source.external_sink) {
+        source.external_sink(event_name, arguments);
+    }
     const auto sinks = source.event_sinks;  // handlers may resubscribe
     for (const auto& [weak_sink, field_name] : sinks) {
         const auto sink = weak_sink.lock();

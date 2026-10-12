@@ -18,6 +18,11 @@ Path of the server project (.vbp).
 .PARAMETER Client
 Path of the client program (.bas).
 
+.PARAMETER EarlyClient
+Optional folder of an early-bound client: `early.vbp.in` with the tokens
+@LIBID@ and @TYPELIB@ replaced by the server's type library, plus its modules.
+When given, `Client` is ignored.
+
 .PARAMETER Expected
 Text the client output must contain.
 
@@ -33,14 +38,31 @@ param(
     [Parameter(Mandatory)]
     [string] $Server,
 
-    [Parameter(Mandatory)]
+    [Parameter()]
     [string] $Client,
+
+    [Parameter()]
+    [string] $EarlyClient,
 
     [Parameter(Mandatory)]
     [string] $Expected
 )
 
 $ErrorActionPreference = 'Stop'
+if ($EarlyClient) {
+    $work = Join-Path ([IO.Path]::GetTempPath()) 'wfc_early_client'
+    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $work | Out-Null
+    Copy-Item (Join-Path $EarlyClient '*') $work
+    $typelib = Join-Path $work 'server.tlb'
+    $written = & $Wfc $Server --write-typelib $typelib | Out-String
+    $libid = @($written -split '\s+' | Where-Object { $_ -like '{*}' })[0]
+    $template = Get-Content (Join-Path $work 'early.vbp.in') -Raw
+    $template = $template.Replace('@LIBID@', $libid)
+    $template = $template.Replace('@TYPELIB@', $typelib)
+    Set-Content -Path (Join-Path $work 'early.vbp') -Value $template
+    $Client = Join-Path $work 'early.vbp'
+}
 $registered = $false
 $process = $null
 try {

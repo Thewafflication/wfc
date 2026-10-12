@@ -5,6 +5,8 @@
 #ifndef WFC_INTERPRETER_INTERPRETER_HPP
 #define WFC_INTERPRETER_INTERPRETER_HPP
 
+#include <functional>
+
 #include "../com_server.hpp"
 #include "../large_stack.hpp"
 #include "../ui/frm_parser.hpp"
@@ -391,6 +393,9 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
     std::shared_ptr<NativeObject> native;
     std::unique_ptr<NativeStore> store;
     Scope fields;
+    // A hook for events raised by this instance (a served COM object).
+    std::function<void(const std::string&, const std::vector<CallArgument>&)>
+        external_sink;
     // Objects handling this instance's events: the sink instance (weak, so
     // a handler does not keep itself alive through its source) and the
     // WithEvents field name that holds this instance.
@@ -531,8 +536,9 @@ public:
                            std::vector<CallArgument>& arguments);
     void set_startup_form(std::string name) { startup_form_ = std::move(name); }
     void set_ui_script(std::string path) { ui_script_ = std::move(path); }
-    void set_serving(std::string mode, std::string project,
-                     const long timeout) {
+    void set_serving(std::string mode, std::string project, const long timeout,
+                     std::string typelib = {}) {
+        typelib_path_ = std::move(typelib);
         serve_mode_ = std::move(mode);
         project_name_ = std::move(project);
         serve_timeout_ms_ = timeout;
@@ -1762,6 +1768,7 @@ private:
     std::string startup_form_;
     // COM server mode (com_automation.cpp).
     std::string serve_mode_;
+    std::string typelib_path_;
     std::string project_name_;
     long serve_timeout_ms_{600000};
     std::vector<wfc::ServedClass> served_;

@@ -189,6 +189,12 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     if (!serve_mode_.empty() && !com_serve()) {
         return failure("WFC0300", "cannot start the COM server", 0);
     }
+    if (serve_mode_ == "typelib") {
+        com_unserve();
+        wfc::Evaluation written;
+        written.success = true;
+        return written;
+    }
     skip_program_leading_trivia();
     const bool has_forms = std::any_of(
         class_definitions_.begin(), class_definitions_.end(),

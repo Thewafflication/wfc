@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <map>
 
 #include "interpreter.hpp"
 
@@ -17,6 +18,7 @@
 #include <objbase.h>
 #include <ocidl.h>
 #include <oleauto.h>
+#include <olectl.h>
 #endif
 
 namespace wfc::detail {
@@ -1694,7 +1696,27 @@ void Interpreter::com_pump_messages() {
 
 // ----- COM server: WFC classes served to other COM clients (ADR-0004) -------
 
+// The type information of a served class (ITypeInfo of its interface, of its
+// event interface and of the coclass) and the DISPIDs they assign.
+struct ServedTypes {
+    ITypeInfo* class_info{nullptr};
+    ITypeInfo* interface_info{nullptr};
+    ITypeInfo* events_info{nullptr};
+    GUID events_iid{};
+    std::map<std::string, DISPID> member_ids;  // lower-case name -> DISPID
+    std::map<std::string, DISPID> event_ids;
+};
+
+std::map<std::string, ServedTypes>& served_types() {
+    static std::map<std::string, ServedTypes> types;
+    return types;
+}
+
 struct ComServerSupport {
+    static bool build_typelib(Interpreter& in,
+                              const std::vector<wfc::ServedClass>& served,
+                              const std::string& project,
+                              const std::string& path);
     // Whether `name` is a public member of the object's class.
     static bool has_member(Interpreter& in,
                            const std::shared_ptr<InstanceData>& data,
@@ -1779,23 +1801,45 @@ bool g_served_any = false;
 [[nodiscard]] HRESULT export_value(Interpreter& in, const Value& value,
                                    VARIANT& out);
 
-class ServedObject final : public IDispatch {
+class ServedObject final : public IDispatch,
+                           public IConnectionPointContainer,
+                           public IConnectionPoint,
+                           public IProvideClassInfo2 {
 public:
     ServedObject(Interpreter* interpreter, std::shared_ptr<InstanceData> data)
         : interpreter_(interpreter), data_(std::move(data)) {
         ++g_served_objects;
         g_served_any = true;
+        data_->external_sink = [this](const std::string& event,
+                                      const std::vector<CallArgument>& args) {
+            fire(event, args);
+        };
     }
-    ~ServedObject() { --g_served_objects; }
+    ~ServedObject() {
+        data_->external_sink = nullptr;
+        for (auto* sink : sinks_) {
+            sink->Release();
+        }
+        --g_served_objects;
+    }
 
+    // IUnknown (shared by every interface of the object).
     STDMETHODIMP QueryInterface(REFIID requested, void** result) override {
         if (requested == IID_IUnknown || requested == IID_IDispatch) {
             *result = static_cast<IDispatch*>(this);
-            AddRef();
-            return S_OK;
+        } else if (requested == IID_IConnectionPointContainer) {
+            *result = static_cast<IConnectionPointContainer*>(this);
+        } else if (requested == IID_IProvideClassInfo ||
+                   requested == IID_IProvideClassInfo2) {
+            *result = static_cast<IProvideClassInfo2*>(this);
+        } else if (requested == IID_IConnectionPoint) {
+            *result = static_cast<IConnectionPoint*>(this);
+        } else {
+            *result = nullptr;
+            return E_NOINTERFACE;
         }
-        *result = nullptr;
-        return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
     }
     STDMETHODIMP_(ULONG) AddRef() override { return ++references_; }
     STDMETHODIMP_(ULONG) Release() override {
@@ -1805,12 +1849,20 @@ public:
         }
         return remaining;
     }
+
+    // IDispatch
     STDMETHODIMP GetTypeInfoCount(UINT* count) override {
-        *count = 0;
+        *count = types() != nullptr ? 1U : 0U;
         return S_OK;
     }
-    STDMETHODIMP GetTypeInfo(UINT, LCID, ITypeInfo**) override {
-        return DISP_E_BADINDEX;
+    STDMETHODIMP GetTypeInfo(UINT index, LCID, ITypeInfo** info) override {
+        *info = nullptr;
+        if (index != 0 || types() == nullptr) {
+            return DISP_E_BADINDEX;
+        }
+        *info = types()->interface_info;
+        (*info)->AddRef();
+        return S_OK;
     }
     STDMETHODIMP GetIDsOfNames(REFIID, LPOLESTR* names, UINT count, LCID,
                                DISPID* ids) override {
@@ -1826,18 +1878,14 @@ public:
                 c = static_cast<char>(
                     std::tolower(static_cast<unsigned char>(c)));
             }
-            if (!ComServerSupport::has_member(*interpreter_, data_, name)) {
-                result = DISP_E_UNKNOWNNAME;
-                continue;
+            if (types() != nullptr) {
+                const auto found = types()->member_ids.find(name);
+                if (found != types()->member_ids.end()) {
+                    ids[i] = found->second;
+                    continue;
+                }
             }
-            const auto at =
-                std::find(member_names_.begin(), member_names_.end(), name);
-            if (at == member_names_.end()) {
-                member_names_.push_back(name);
-                ids[i] = static_cast<DISPID>(member_names_.size());
-            } else {
-                ids[i] = static_cast<DISPID>(at - member_names_.begin()) + 1;
-            }
+            result = DISP_E_UNKNOWNNAME;
         }
         return result;
     }
@@ -1846,13 +1894,20 @@ public:
                         UINT* bad_argument) override {
         static_cast<void>(bad_argument);
         std::string name;
-        if (member == DISPID_VALUE) {
-            name.clear();
-        } else if (member >= 1 &&
-                   static_cast<std::size_t>(member) <= member_names_.size()) {
-            name = member_names_[static_cast<std::size_t>(member) - 1U];
-        } else {
-            return DISP_E_MEMBERNOTFOUND;
+        if (member != DISPID_VALUE) {
+            bool known = false;
+            if (types() != nullptr) {
+                for (const auto& [text, id] : types()->member_ids) {
+                    if (id == member) {
+                        name = text;
+                        known = true;
+                        break;
+                    }
+                }
+            }
+            if (!known) {
+                return DISP_E_MEMBERNOTFOUND;
+            }
         }
         const bool put =
             (flags & (DISPATCH_PROPERTYPUT | DISPATCH_PROPERTYPUTREF)) != 0;
@@ -1893,10 +1948,120 @@ public:
         return S_OK;
     }
 
+    // IConnectionPointContainer
+    STDMETHODIMP EnumConnectionPoints(IEnumConnectionPoints**) override {
+        return E_NOTIMPL;
+    }
+    STDMETHODIMP FindConnectionPoint(REFIID iid,
+                                     IConnectionPoint** point) override {
+        *point = nullptr;
+        if (types() == nullptr || iid != types()->events_iid) {
+            return CONNECT_E_NOCONNECTION;
+        }
+        *point = static_cast<IConnectionPoint*>(this);
+        AddRef();
+        return S_OK;
+    }
+
+    // IConnectionPoint (the one outgoing interface)
+    STDMETHODIMP GetConnectionInterface(IID* iid) override {
+        if (types() == nullptr) {
+            return E_UNEXPECTED;
+        }
+        *iid = types()->events_iid;
+        return S_OK;
+    }
+    STDMETHODIMP GetConnectionPointContainer(
+        IConnectionPointContainer** container) override {
+        *container = static_cast<IConnectionPointContainer*>(this);
+        AddRef();
+        return S_OK;
+    }
+    STDMETHODIMP Advise(IUnknown* sink, DWORD* cookie) override {
+        IDispatch* dispatch = nullptr;
+        if (sink == nullptr ||
+            FAILED(sink->QueryInterface(IID_IDispatch,
+                                        reinterpret_cast<void**>(&dispatch)))) {
+            return CONNECT_E_CANNOTCONNECT;
+        }
+        sinks_.push_back(dispatch);
+        *cookie = static_cast<DWORD>(sinks_.size());
+        return S_OK;
+    }
+    STDMETHODIMP Unadvise(DWORD cookie) override {
+        if (cookie == 0 || cookie > sinks_.size() ||
+            sinks_[cookie - 1U] == nullptr) {
+            return CONNECT_E_NOCONNECTION;
+        }
+        sinks_[cookie - 1U]->Release();
+        sinks_[cookie - 1U] = nullptr;
+        return S_OK;
+    }
+    STDMETHODIMP EnumConnections(IEnumConnections**) override {
+        return E_NOTIMPL;
+    }
+
+    // IProvideClassInfo2
+    STDMETHODIMP GetClassInfo(ITypeInfo** info) override {
+        *info = nullptr;
+        if (types() == nullptr) {
+            return E_NOTIMPL;
+        }
+        *info = types()->class_info;
+        (*info)->AddRef();
+        return S_OK;
+    }
+    STDMETHODIMP GetGUID(DWORD kind, GUID* guid) override {
+        if (types() == nullptr || kind != GUIDKIND_DEFAULT_SOURCE_DISP_IID) {
+            return E_INVALIDARG;
+        }
+        *guid = types()->events_iid;
+        return S_OK;
+    }
+
 private:
+    [[nodiscard]] ServedTypes* types() {
+        const auto found = served_types().find(data_->class_name);
+        return found == served_types().end() ? nullptr : &found->second;
+    }
+
+    // A `RaiseEvent` of the served object: call every advised client sink.
+    void fire(const std::string& event,
+              const std::vector<CallArgument>& arguments) {
+        if (types() == nullptr) {
+            return;
+        }
+        const auto found = types()->event_ids.find(event);
+        if (found == types()->event_ids.end()) {
+            return;
+        }
+        std::vector<VARIANTARG> packed(arguments.size());
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            // Arguments go last-first.
+            VARIANTARG& slot = packed[arguments.size() - 1U - i];
+            VariantInit(&slot);
+            static_cast<void>(
+                export_value(*interpreter_, arguments[i].value, slot));
+        }
+        DISPPARAMS params{};
+        params.cArgs = static_cast<UINT>(packed.size());
+        params.rgvarg = packed.empty() ? nullptr : packed.data();
+        const auto snapshot = sinks_;
+        for (IDispatch* sink : snapshot) {
+            if (sink != nullptr) {
+                sink->Invoke(found->second, IID_NULL, LOCALE_USER_DEFAULT,
+                             DISPATCH_METHOD, &params, nullptr, nullptr,
+                             nullptr);
+            }
+        }
+        for (auto& item : packed) {
+            VariantClear(&item);
+        }
+    }
+
     Interpreter* interpreter_;
     std::shared_ptr<InstanceData> data_;
-    std::vector<std::string> member_names_;
+    std::vector<IDispatch*> sinks_;
     ULONG references_{1};
 };
 
@@ -1964,9 +2129,249 @@ private:
 
 }  // namespace
 
+// Builds the type library of the served classes: for each class a dispatch
+// interface (`_Class`), an event interface (`__Class`) and the coclass. Every
+// parameter and result is a Variant, matching the late-bound semantics of the
+// classes themselves. The library is saved to `path` and loaded back.
+bool ComServerSupport::build_typelib(
+    Interpreter& in, const std::vector<wfc::ServedClass>& served,
+    const std::string& project, const std::string& path) {
+    ICreateTypeLib2* creator = nullptr;
+    if (FAILED(CreateTypeLib2(sizeof(void*) == 8 ? SYS_WIN64 : SYS_WIN32,
+                              widen(path).c_str(), &creator)) ||
+        creator == nullptr) {
+        return false;
+    }
+    const auto guid_of = [](const std::string& text) {
+        GUID guid{};
+        CLSIDFromString(widen(wfc::clsid_for_progid(text)).c_str(), &guid);
+        return guid;
+    };
+    std::wstring library_name = widen(project.empty() ? "Project1" : project);
+    creator->SetName(library_name.data());
+    creator->SetGuid(
+        guid_of((project.empty() ? "Project1" : project) + ".typelib"));
+    creator->SetVersion(1, 0);
+    creator->SetLcid(0);
+
+    struct Pending {
+        std::string key;
+        std::string display;
+        GUID events_iid{};
+        GUID interface_iid{};
+        GUID class_iid{};
+    };
+    std::vector<Pending> pending;
+    for (const auto& entry : served) {
+        std::string key;
+        for (const char c : entry.class_name) {
+            key.push_back(ascii_lower(c));
+        }
+        const auto found = in.class_definitions_.find(key);
+        if (found == in.class_definitions_.end()) {
+            continue;
+        }
+        const ClassDef& definition = found->second;
+        Pending item;
+        item.key = key;
+        item.display = entry.class_name;
+        item.class_iid = guid_of(entry.progid);
+        item.interface_iid = guid_of(entry.progid + "._Interface");
+        item.events_iid = guid_of(entry.progid + "._Events");
+        ServedTypes types;
+        types.events_iid = item.events_iid;
+
+        ICreateTypeInfo* interface_info = nullptr;
+        ICreateTypeInfo* events_info = nullptr;
+        ICreateTypeInfo* class_info = nullptr;
+        std::wstring interface_name = widen("_" + entry.class_name);
+        std::wstring events_name = widen("__" + entry.class_name);
+        std::wstring class_name = widen(entry.class_name);
+        if (FAILED(creator->CreateTypeInfo(interface_name.data(),
+                                           TKIND_DISPATCH, &interface_info)) ||
+            FAILED(creator->CreateTypeInfo(events_name.data(), TKIND_DISPATCH,
+                                           &events_info)) ||
+            FAILED(creator->CreateTypeInfo(class_name.data(), TKIND_COCLASS,
+                                           &class_info))) {
+            creator->Release();
+            return false;
+        }
+        interface_info->SetGuid(item.interface_iid);
+        events_info->SetGuid(item.events_iid);
+        class_info->SetGuid(item.class_iid);
+
+        UINT function_index = 0;
+        const auto add_function =
+            [&](ICreateTypeInfo* info, const std::string& name, const DISPID id,
+                const INVOKEKIND kind,
+                const std::vector<ProcedureParameter>& parameters,
+                const bool returns, const bool extra_value) {
+                std::vector<ELEMDESC> elements(parameters.size() +
+                                               (extra_value ? 1U : 0U));
+                SHORT optional_count = 0;
+                for (std::size_t i = 0; i < elements.size(); ++i) {
+                    elements[i] = ELEMDESC{};
+                    elements[i].tdesc.vt = VT_VARIANT;
+                    const bool optional =
+                        i < parameters.size() && parameters[i].is_optional;
+                    elements[i].paramdesc.wParamFlags =
+                        optional ? PARAMFLAG_FOPT : PARAMFLAG_FIN;
+                    if (optional) {
+                        ++optional_count;
+                    }
+                }
+                FUNCDESC description{};
+                description.memid = id;
+                description.funckind = FUNC_DISPATCH;
+                description.invkind = kind;
+                description.callconv = CC_STDCALL;
+                description.cParams = static_cast<SHORT>(elements.size());
+                description.cParamsOpt = optional_count;
+                description.lprgelemdescParam =
+                    elements.empty() ? nullptr : elements.data();
+                description.elemdescFunc.tdesc.vt =
+                    static_cast<VARTYPE>(returns ? VT_VARIANT : VT_VOID);
+                if (FAILED(info->AddFuncDesc(function_index, &description))) {
+                    return;
+                }
+                std::vector<std::wstring> wide_names{widen(name)};
+                for (std::size_t i = 0; i < elements.size(); ++i) {
+                    wide_names.push_back(i < parameters.size() &&
+                                                 !parameters[i].name.empty()
+                                             ? widen(parameters[i].name)
+                                             : L"Value");
+                }
+                std::vector<LPOLESTR> pointers;
+                for (auto& text : wide_names) {
+                    pointers.push_back(text.data());
+                }
+                info->SetFuncAndParamNames(function_index, pointers.data(),
+                                           static_cast<UINT>(pointers.size()));
+                ++function_index;
+            };
+
+        // Members: one DISPID per name, shared by its Get/Let/Set accessors.
+        DISPID next_id = 1;
+        const auto id_of = [&](const std::string& name) {
+            const auto known = types.member_ids.find(name);
+            if (known != types.member_ids.end()) {
+                return known->second;
+            }
+            const DISPID id = name == definition.default_member &&
+                                      !definition.default_member.empty()
+                                  ? DISPID_VALUE
+                                  : next_id++;
+            types.member_ids.emplace(name, id);
+            return id;
+        };
+        for (const auto& [name, procedure] : definition.methods) {
+            if (!procedure.is_private && name.rfind("class_", 0) != 0) {
+                add_function(interface_info, name, id_of(name), INVOKE_FUNC,
+                             procedure.parameters, procedure.is_function,
+                             false);
+            }
+        }
+        for (const auto& [name, procedure] : definition.property_get) {
+            if (!procedure.is_private) {
+                add_function(interface_info, name, id_of(name),
+                             INVOKE_PROPERTYGET, procedure.parameters, true,
+                             false);
+            }
+        }
+        for (const auto& [name, procedure] : definition.property_let) {
+            if (!procedure.is_private) {
+                // The value is already the last declared parameter.
+                add_function(interface_info, name, id_of(name),
+                             INVOKE_PROPERTYPUT, procedure.parameters, false,
+                             false);
+            }
+        }
+        for (const auto& [name, procedure] : definition.property_set) {
+            if (!procedure.is_private) {
+                add_function(interface_info, name, id_of(name),
+                             INVOKE_PROPERTYPUTREF, procedure.parameters, false,
+                             false);
+            }
+        }
+        for (const auto& [name, field] : definition.fields) {
+            if (!field.is_private) {
+                add_function(interface_info, name, id_of(name),
+                             INVOKE_PROPERTYGET, {}, true, false);
+                add_function(interface_info, name, id_of(name),
+                             INVOKE_PROPERTYPUT, {}, false, true);
+            }
+        }
+        interface_info->LayOut();
+
+        function_index = 0;
+        DISPID event_id = 1;
+        for (const auto& [name, procedure] : definition.events) {
+            types.event_ids.emplace(name, event_id);
+            add_function(events_info, name, event_id++, INVOKE_FUNC,
+                         procedure.parameters, false, false);
+        }
+        events_info->LayOut();
+
+        HREFTYPE interface_reference = 0;
+        HREFTYPE events_reference = 0;
+        ITypeInfo* interface_base = nullptr;
+        ITypeInfo* events_base = nullptr;
+        interface_info->QueryInterface(
+            IID_ITypeInfo, reinterpret_cast<void**>(&interface_base));
+        events_info->QueryInterface(IID_ITypeInfo,
+                                    reinterpret_cast<void**>(&events_base));
+        class_info->AddRefTypeInfo(interface_base, &interface_reference);
+        class_info->AddRefTypeInfo(events_base, &events_reference);
+        interface_base->Release();
+        events_base->Release();
+        class_info->AddImplType(0, interface_reference);
+        class_info->SetImplTypeFlags(0, IMPLTYPEFLAG_FDEFAULT);
+        class_info->AddImplType(1, events_reference);
+        class_info->SetImplTypeFlags(
+            1, IMPLTYPEFLAG_FDEFAULT | IMPLTYPEFLAG_FSOURCE);
+        class_info->SetTypeFlags(TYPEFLAG_FCANCREATE);
+        class_info->LayOut();
+        interface_info->Release();
+        events_info->Release();
+        class_info->Release();
+        served_types()[key] = std::move(types);
+        pending.push_back(std::move(item));
+    }
+    const HRESULT saved = creator->SaveAllChanges();
+    creator->Release();
+    if (FAILED(saved)) {
+        return false;
+    }
+    ITypeLib* library = nullptr;
+    if (FAILED(LoadTypeLibEx(widen(path).c_str(), REGKIND_NONE, &library)) ||
+        library == nullptr) {
+        return false;
+    }
+    for (const auto& item : pending) {
+        auto& types = served_types()[item.key];
+        library->GetTypeInfoOfGuid(item.class_iid, &types.class_info);
+        library->GetTypeInfoOfGuid(item.interface_iid, &types.interface_info);
+        library->GetTypeInfoOfGuid(item.events_iid, &types.events_info);
+    }
+    library->Release();
+    return true;
+}
+
 bool Interpreter::com_serve() {
     ensure_apartment();
     served_ = wfc::served_classes(project_name_, class_sources_);
+    {
+        std::string path = typelib_path_;
+        if (path.empty()) {
+            wchar_t folder[MAX_PATH];
+            GetTempPathW(MAX_PATH, folder);
+            path = narrow(folder, wcslen(folder)) + "wfc_" +
+                   (project_name_.empty() ? "Project1" : project_name_) +
+                   ".tlb";
+        }
+        static_cast<void>(ComServerSupport::build_typelib(*this, served_,
+                                                          project_name_, path));
+    }
     const DWORD context = CLSCTX_INPROC_SERVER |
                           (serve_mode_ == "server" ? CLSCTX_LOCAL_SERVER : 0);
     for (const auto& entry : served_) {

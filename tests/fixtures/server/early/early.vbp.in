@@ -1,0 +1,5 @@
+Type=Exe
+Reference=*\G@LIBID@#1.0#0#@TYPELIB@#Server2
+Class=Watcher; Watcher.cls
+Module=Main; main.bas
+Startup="Sub Main"

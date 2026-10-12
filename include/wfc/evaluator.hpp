@@ -87,6 +87,10 @@ struct EvaluationOptions final {
     std::string serve;
     std::string project_name;
     long server_timeout_ms{600000};
+    // With `serve` == "typelib": where to write the type library of the exposed
+    // classes (the program is not run); otherwise an optional location for the
+    // type library a server publishes.
+    std::string typelib_path;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);
