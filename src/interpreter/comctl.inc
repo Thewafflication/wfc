@@ -563,6 +563,9 @@ struct ComctlHooks {
                                const ListRef& ref, const std::string& member,
                                std::vector<CallArgument>& arguments,
                                Value& result, NativeFailure& failure);
+    static bool node_add(Interpreter& in, ControlObject& control,
+                         std::vector<CallArgument>& arguments, Value& result,
+                         NativeFailure& failure);
 };
 
 namespace {
@@ -872,6 +875,14 @@ bool ComctlCollection::get(Interpreter& in, const std::string& member,
         const ItemPtr found = find_item(items, arguments[0].value, failure);
         if (found != nullptr) {
             result = wrap_item(ref.owner.lock(), ref, found);
+        }
+        return true;
+    }
+    if (member == "add" && ref.kind == "node") {
+        if (ComctlHooks::node_add(in, *control, arguments, result, failure)) {
+            ComctlHooks::changed(in, *control);
+        } else if (failure.number == 0) {
+            failure = FormSupport::reported();
         }
         return true;
     }
@@ -1527,11 +1538,558 @@ std::map<std::string, std::string>& saved_toolbars() {
     return true;
 }
 
+// ----- TreeView -----------------------------------------------------------------
+
+[[nodiscard]] ItemPtr node_by_id(ControlObject& control, const long id) {
+    for (const auto& node : top_list(control, "node")) {
+        if (node->id == id) {
+            return node;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] std::vector<long>& kids_of(ControlObject& control,
+                                         const ItemPtr& parent) {
+    return parent == nullptr ? state_of(control).root_kids : parent->kids;
+}
+
+[[nodiscard]] Value node_value(ControlObject& control, const ItemPtr& node) {
+    if (node == nullptr) {
+        return Value{Nothing{}};
+    }
+    ListRef ref;
+    ref.kind = "node";
+    return wrap_item(control.self.lock(), ref, node);
+}
+
+[[nodiscard]] std::string node_text(const ItemPtr& node) {
+    const auto& text = node->p.at("text");
+    return std::holds_alternative<std::string>(text) ? std::get<std::string>(text)
+                                                     : std::string{};
+}
+
+void sort_kids(ControlObject& control, std::vector<long>& kids) {
+    std::stable_sort(kids.begin(), kids.end(), [&](const long a, const long b) {
+        const ItemPtr left = node_by_id(control, a);
+        const ItemPtr right = node_by_id(control, b);
+        return left != nullptr && right != nullptr &&
+               lower_text(node_text(left)) < lower_text(node_text(right));
+    });
+}
+
+[[nodiscard]] bool tree_sorted(ControlObject& control) {
+    const auto found = control.values.find("sorted");
+    return found != control.values.end() &&
+           std::holds_alternative<bool>(found->second) &&
+           std::get<bool>(found->second);
+}
+
+// Nodes in display order with their depth; children of collapsed nodes are
+// left out.
+void visible_rows(ControlObject& control, const ItemPtr& parent, const int depth,
+                  std::vector<std::pair<ItemPtr, int>>& rows) {
+    for (const long id : kids_of(control, parent)) {
+        const ItemPtr node = node_by_id(control, id);
+        if (node == nullptr) {
+            continue;
+        }
+        rows.emplace_back(node, depth);
+        if (flag(node, "expanded")) {
+            visible_rows(control, node, depth + 1, rows);
+        }
+    }
+}
+
+[[nodiscard]] ItemPtr selected_node(ControlObject& control) {
+    for (const auto& node : top_list(control, "node")) {
+        if (flag(node, "selected")) {
+            return node;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] ItemPtr node_parent(ControlObject& control, const ItemPtr& node) {
+    return node->parent == 0 ? nullptr : node_by_id(control, node->parent);
+}
+
+void select_node(ControlObject& control, const ItemPtr& node) {
+    for (const auto& other : top_list(control, "node")) {
+        other->p["selected"] = Value{other == node};
+    }
+}
+
+// Expands or collapses `node`, raising the event when the state changes.
+[[nodiscard]] bool set_expanded(Interpreter& in, ControlObject& control,
+                                const ItemPtr& node, const bool expand) {
+    if (flag(node, "expanded") == expand) {
+        return true;
+    }
+    node->p["expanded"] = Value{expand};
+    return raise_event(in, control, expand ? "Expand" : "Collapse",
+                       {node_value(control, node)});
+}
+
+// Nodes.Add(Relative, Relationship, Key, Text, Image, SelectedImage)
+[[nodiscard]] bool add_node(Interpreter& in, ControlObject& control,
+                            std::vector<CallArgument>& arguments, Value& result,
+                            NativeFailure& failure) {
+    const KindSpec& spec = spec_of("node");
+    std::map<std::string, Value> given;
+    for (std::size_t i = 0; i < arguments.size(); ++i) {
+        if (arguments[i].omitted) {
+            continue;
+        }
+        if (!arguments[i].name.empty()) {
+            given[arguments[i].name] = arguments[i].value;
+        } else if (i < spec.add_parameters.size()) {
+            given[spec.add_parameters[i]] = arguments[i].value;
+        } else {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return false;
+        }
+    }
+    auto& nodes = top_list(control, "node");
+    ItemPtr relative;
+    long relationship = 2;  // tvwNext
+    if (const auto found = given.find("relative"); found != given.end()) {
+        if (const auto* holder = std::get_if<ObjectInstance>(&found->second);
+            holder != nullptr && holder->data != nullptr) {
+            const auto* object =
+                dynamic_cast<ComctlItem*>(holder->data->native.get());
+            if (object != nullptr && object->ref.kind == "node" &&
+                position_of(nodes, object->item) != 0) {
+                relative = object->item;
+            }
+            if (relative == nullptr) {
+                failure = NativeFailure{kElementNotFound, "Element not found"};
+                return false;
+            }
+        } else {
+            relative = find_item(nodes, found->second, failure);
+            if (relative == nullptr) {
+                return false;
+            }
+        }
+        if (const auto way = given.find("relationship"); way != given.end()) {
+            if (!is_number(way->second)) {
+                failure = NativeFailure{13, "Type mismatch"};
+                return false;
+            }
+            relationship = static_cast<long>(std::nearbyint(as_double(way->second)));
+            if (relationship < 0 || relationship > 4) {
+                failure = NativeFailure{35607, "Invalid relationship"};
+                return false;
+            }
+        }
+    }
+    auto created = std::make_shared<CItem>();
+    created->id = state_of(control).next_id++;
+    for (const auto& property : spec.props) {
+        created->p[property.name] = initial_value(property);
+    }
+    for (auto& [name, value] : given) {
+        if (name == "relative" || name == "relationship") {
+            continue;
+        }
+        const PropSpec* property = find_property(spec, name);
+        if (property == nullptr) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return false;
+        }
+        if (name == "key" && !std::holds_alternative<std::string>(value)) {
+            failure = NativeFailure{13, "Type mismatch"};
+            return false;
+        }
+        Value converted = value;
+        if (!coerce_prop(in, *property, converted, failure)) {
+            return false;
+        }
+        created->p[name] = std::move(converted);
+    }
+    if (const auto* text = std::get_if<std::string>(&created->p.at("key"));
+        text != nullptr && !text->empty() && key_in_use(nodes, *text, nullptr)) {
+        failure = NativeFailure{kKeyNotUnique, "Key is not unique in collection"};
+        return false;
+    }
+    // Place the node in the tree.
+    ItemPtr parent;
+    std::size_t at = 0;
+    if (relative == nullptr) {
+        parent = nullptr;
+        at = kids_of(control, nullptr).size();
+    } else if (relationship == 4) {  // tvwChild
+        parent = relative;
+        at = kids_of(control, parent).size();
+    } else {
+        parent = node_parent(control, relative);
+        auto& siblings = kids_of(control, parent);
+        const auto where =
+            std::find(siblings.begin(), siblings.end(), relative->id);
+        const std::size_t position = static_cast<std::size_t>(where - siblings.begin());
+        if (relationship == 0) {
+            at = 0;
+        } else if (relationship == 1) {
+            at = siblings.size();
+        } else if (relationship == 2) {
+            at = position + 1U;
+        } else {
+            at = position;
+        }
+    }
+    created->parent = parent == nullptr ? 0 : parent->id;
+    auto& siblings = kids_of(control, parent);
+    siblings.insert(siblings.begin() + static_cast<std::ptrdiff_t>(at), created->id);
+    nodes.push_back(created);
+    if (tree_sorted(control) || (parent != nullptr && flag(parent, "sorted"))) {
+        sort_kids(control, siblings);
+    }
+    ListRef ref;
+    ref.kind = "node";
+    result = wrap_item(control.self.lock(), ref, created);
+    return true;
+}
+
+// Removes the descendants of `node` and detaches it from its parent.
+void detach_node(ControlObject& control, const ItemPtr& node) {
+    auto& nodes = top_list(control, "node");
+    std::vector<ItemPtr> doomed;
+    const auto collect = [&](const auto& self, const ItemPtr& from) -> void {
+        for (const long id : from->kids) {
+            if (const ItemPtr child = node_by_id(control, id)) {
+                doomed.push_back(child);
+                self(self, child);
+            }
+        }
+    };
+    collect(collect, node);
+    for (const auto& child : doomed) {
+        nodes.erase(std::remove(nodes.begin(), nodes.end(), child), nodes.end());
+    }
+    node->kids.clear();
+    auto& siblings = kids_of(control, node_parent(control, node));
+    siblings.erase(std::remove(siblings.begin(), siblings.end(), node->id),
+                   siblings.end());
+}
+
+[[nodiscard]] std::string full_path(ControlObject& control, const ItemPtr& node) {
+    std::string separator = "\\";
+    if (const auto found = control.values.find("pathseparator");
+        found != control.values.end() &&
+        std::holds_alternative<std::string>(found->second)) {
+        separator = std::get<std::string>(found->second);
+    }
+    std::vector<std::string> parts;
+    for (ItemPtr at = node; at != nullptr; at = node_parent(control, at)) {
+        parts.push_back(node_text(at));
+    }
+    std::string path;
+    for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
+        if (!path.empty()) {
+            path += separator;
+        }
+        path += *part;
+    }
+    return path;
+}
+
+[[nodiscard]] bool node_get(HookCtx& ctx, const std::string& member,
+                            Value& result) {
+    ControlObject& control = ctx.control;
+    const ItemPtr& node = ctx.item;
+    const ItemPtr parent = node_parent(control, node);
+    auto& siblings = kids_of(control, parent);
+    const auto where = std::find(siblings.begin(), siblings.end(), node->id);
+    const bool known = where != siblings.end();
+    if (member == "parent") {
+        result = node_value(control, parent);
+    } else if (member == "children") {
+        result = Value{static_cast<Integer>(node->kids.size())};
+    } else if (member == "child") {
+        result = node_value(control, node->kids.empty()
+                                         ? nullptr
+                                         : node_by_id(control, node->kids.front()));
+    } else if (member == "next") {
+        result = node_value(control, known && where + 1 != siblings.end()
+                                         ? node_by_id(control, *(where + 1))
+                                         : nullptr);
+    } else if (member == "previous") {
+        result = node_value(control, known && where != siblings.begin()
+                                         ? node_by_id(control, *(where - 1))
+                                         : nullptr);
+    } else if (member == "firstsibling") {
+        result = node_value(control, siblings.empty() ? nullptr
+                                                      : node_by_id(control, siblings.front()));
+    } else if (member == "lastsibling") {
+        result = node_value(control, siblings.empty() ? nullptr
+                                                      : node_by_id(control, siblings.back()));
+    } else if (member == "root") {
+        ItemPtr at = node;
+        while (node_parent(control, at) != nullptr) {
+            at = node_parent(control, at);
+        }
+        result = node_value(control, at);
+    } else if (member == "fullpath") {
+        result = Value{full_path(control, node)};
+    } else if (member == "ensurevisible") {
+        bool changed = false;
+        for (ItemPtr at = parent; at != nullptr; at = node_parent(control, at)) {
+            if (!flag(at, "expanded")) {
+                at->p["expanded"] = Value{true};
+                changed = true;
+            }
+        }
+        result = Value{changed};
+    } else {
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool node_put(HookCtx& ctx, const std::string& member,
+                            const Value& value, NativeFailure& failure) {
+    ControlObject& control = ctx.control;
+    const ItemPtr& node = ctx.item;
+    const auto truth = [&] {
+        return std::holds_alternative<bool>(value)
+                   ? std::get<bool>(value)
+                   : is_number(value) && as_double(value) != 0.0;
+    };
+    if (member == "children" || member == "parent" || member == "child" ||
+        member == "next" || member == "previous" || member == "firstsibling" ||
+        member == "lastsibling" || member == "root" || member == "fullpath") {
+        failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
+    if (member == "expanded") {
+        if (!set_expanded(ctx.in, control, node, truth())) {
+            failure = FormSupport::reported();
+        }
+        return true;
+    }
+    if (member == "selected") {
+        if (truth()) {
+            select_node(control, node);
+        } else {
+            node->p["selected"] = Value{false};
+        }
+        return true;
+    }
+    if (member == "sorted") {
+        node->p["sorted"] = Value{truth()};
+        if (truth()) {
+            sort_kids(control, node->kids);
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool tree_member(Interpreter& in, ControlObject& self,
+                               const std::string& member,
+                               std::vector<CallArgument>& arguments,
+                               Value& result, NativeFailure& failure) {
+    static_cast<void>(in);
+    if (member == "selecteditem") {
+        result = node_value(self, selected_node(self));
+        return true;
+    }
+    if (member == "drophighlight") {
+        const auto found = self.values.find("drophighlight");
+        result = found == self.values.end() ? Value{Nothing{}} : found->second;
+        return true;
+    }
+    if (member == "getvisiblecount") {
+        std::vector<std::pair<ItemPtr, int>> rows;
+        visible_rows(self, nullptr, 0, rows);
+        const double height = number_property(self, "height");
+        const std::size_t fits = height > 0.0 ? static_cast<std::size_t>(height / 240.0) : rows.size();
+        result = Value{static_cast<Integer>(std::min(rows.size(), std::max<std::size_t>(fits, 1)))};
+        return true;
+    }
+    if (member == "hittest") {
+        if (arguments.size() != 2U) {
+            failure = NativeFailure{450, "Wrong number of arguments"};
+            return true;
+        }
+        const double x = as_double(arguments[0].value);
+        const double y = as_double(arguments[1].value);
+        std::vector<std::pair<ItemPtr, int>> rows;
+        visible_rows(self, nullptr, 0, rows);
+        const double indent = number_property(self, "indentation") > 0.0
+                                  ? number_property(self, "indentation")
+                                  : 285.0;
+        result = Value{Nothing{}};
+        const double row = std::floor(y / 240.0);
+        if (y >= 0.0 && row >= 0.0 && static_cast<std::size_t>(row) < rows.size()) {
+            const auto& [node, depth] = rows[static_cast<std::size_t>(row)];
+            const double left = static_cast<double>(depth + 1) * indent;
+            const double right = left + 120.0 + 95.0 * static_cast<double>(node_text(node).size());
+            if (x >= left && x < right) {
+                result = node_value(self, node);
+            }
+        }
+        return true;
+    }
+    if (member == "startlabeledit") {
+        self.values["_editing"] = Value{true};
+        result = Value{Empty{}};
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool tree_input(Interpreter& in, ControlObject& self,
+                              const std::string& action, const std::string& rest) {
+    NativeFailure ignored;
+    auto& nodes = top_list(self, "node");
+    const auto pick = [&](const std::string& text) {
+        return find_item(nodes, selector_of(text), ignored);
+    };
+    if (action == "click") {
+        const ItemPtr node = pick(rest);
+        if (node == nullptr) {
+            return true;
+        }
+        const ItemPtr previous = selected_node(self);
+        select_node(self, node);
+        if (self.values.contains("singlesel") &&
+            std::holds_alternative<bool>(self.values.at("singlesel")) &&
+            std::get<bool>(self.values.at("singlesel"))) {
+            if (previous != nullptr && previous != node) {
+                bool ancestor = false;
+                for (ItemPtr at = node_parent(self, node); at != nullptr;
+                     at = node_parent(self, at)) {
+                    ancestor = ancestor || at == previous;
+                }
+                if (!ancestor && !set_expanded(in, self, previous, false)) {
+                    return false;
+                }
+            }
+            if (!set_expanded(in, self, node, true)) {
+                return false;
+            }
+        }
+        return raise_event(in, self, "NodeClick", {node_value(self, node)}) &&
+               raise_event(in, self, "Click", {});
+    }
+    if (action == "expand" || action == "collapse") {
+        const ItemPtr node = pick(rest);
+        return node == nullptr || set_expanded(in, self, node, action == "expand");
+    }
+    if (action == "check") {
+        const ItemPtr node = pick(rest);
+        const bool boxes = self.values.contains("checkboxes") &&
+                           std::holds_alternative<bool>(self.values.at("checkboxes")) &&
+                           std::get<bool>(self.values.at("checkboxes"));
+        if (node == nullptr || !boxes) {
+            return true;
+        }
+        node->p["checked"] = Value{!flag(node, "checked")};
+        return raise_event(in, self, "NodeCheck", {node_value(self, node)});
+    }
+    if (action == "edit") {
+        // edit <new text>: the label of the selected node (BeforeLabelEdit,
+        // AfterLabelEdit(Cancel, NewString)). With manual editing it needs
+        // StartLabelEdit first.
+        const ItemPtr node = selected_node(self);
+        if (node == nullptr) {
+            return true;
+        }
+        const bool manual = number_property(self, "labeledit") == 1.0;
+        const bool started = self.values.contains("_editing");
+        if (manual && !started) {
+            return true;
+        }
+        self.values.erase("_editing");
+        const auto form = self.form.lock();
+        if (form == nullptr) {
+            return true;
+        }
+        std::vector<Value> before{Value{Int16{0}}};
+        if (!FormSupport::raise(in, *form, self.name, self.index, "beforelabeledit",
+                                before, FormSupport::offset_of(in))) {
+            return false;
+        }
+        if (whole_value(before[0]).value_or(0) != 0) {
+            return true;
+        }
+        std::vector<Value> after{Value{Int16{0}}, Value{rest}};
+        if (!FormSupport::raise(in, *form, self.name, self.index, "afterlabeledit",
+                                after, FormSupport::offset_of(in))) {
+            return false;
+        }
+        if (whole_value(after[0]).value_or(0) == 0) {
+            node->p["text"] = after[1];
+        }
+        return true;
+    }
+    if (action == "key") {
+        std::vector<std::pair<ItemPtr, int>> rows;
+        visible_rows(self, nullptr, 0, rows);
+        const ItemPtr current = selected_node(self);
+        std::size_t at = rows.size();
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            if (rows[i].first == current) {
+                at = i;
+            }
+        }
+        const std::string key = lower_text(rest);
+        if (rows.empty()) {
+            return true;
+        }
+        if (at == rows.size()) {
+            select_node(self, rows.front().first);
+            return true;
+        }
+        if (key == "down" && at + 1U < rows.size()) {
+            select_node(self, rows[at + 1U].first);
+        } else if (key == "up" && at > 0) {
+            select_node(self, rows[at - 1U].first);
+        } else if (key == "home") {
+            select_node(self, rows.front().first);
+        } else if (key == "end") {
+            select_node(self, rows.back().first);
+        } else if (key == "right") {
+            if (!current->kids.empty() && !flag(current, "expanded")) {
+                return set_expanded(in, self, current, true);
+            }
+            if (!current->kids.empty()) {
+                select_node(self, node_by_id(self, current->kids.front()));
+            }
+        } else if (key == "left") {
+            if (flag(current, "expanded")) {
+                return set_expanded(in, self, current, false);
+            }
+            if (const ItemPtr parent = node_parent(self, current)) {
+                select_node(self, parent);
+            }
+        } else if (key == "space") {
+            const bool boxes = self.values.contains("checkboxes") &&
+                               std::holds_alternative<bool>(self.values.at("checkboxes")) &&
+                               std::get<bool>(self.values.at("checkboxes"));
+            if (boxes) {
+                current->p["checked"] = Value{!flag(current, "checked")};
+                return raise_event(in, self, "NodeCheck", {node_value(self, current)});
+            }
+        }
+        return true;
+    }
+    return true;
+}
+
 // @@KINDS_MORE
 
 }  // namespace
 
 // ----- Hook dispatch ------------------------------------------------------------------
+
+bool ComctlHooks::node_add(Interpreter& in, ControlObject& control,
+                           std::vector<CallArgument>& arguments, Value& result,
+                           NativeFailure& failure) {
+    return add_node(in, control, arguments, result, failure);
+}
 
 void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
     static_cast<void>(in);
@@ -1541,6 +2099,10 @@ void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
 bool ComctlHooks::before_remove(Interpreter& in, ControlObject& control,
                                 const std::string& kind, const ItemPtr& item) {
     static_cast<void>(in);
+    if (kind == "node") {
+        detach_node(control, item);
+        return true;
+    }
     if (kind == "tab" && flag(item, "selected")) {
         // The selection moves to a neighbor (no events).
         auto& tabs = top_list(control, "tab");
@@ -1589,6 +2151,9 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
     static_cast<void>(arguments);
     static_cast<void>(failure);
     HookCtx ctx{in, control, ref, item};
+    if (kind == "node" && member != "ensurevisible" && !arguments.empty()) {
+        return false;
+    }
     if (kind == "tab") {
         return tab_get(ctx, member, result);
     }
@@ -1597,6 +2162,9 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
     }
     if (kind == "button") {
         return button_get(ctx, member, result);
+    }
+    if (kind == "node") {
+        return node_get(ctx, member, result);
     }
     return false;
 }
@@ -1607,7 +2175,10 @@ bool ComctlHooks::item_put(Interpreter& in, ControlObject& control,
                            std::vector<CallArgument>& arguments,
                            const Value& value, NativeFailure& failure) {
     static_cast<void>(arguments);
-    static_cast<void>(ref);
+    if (kind == "node") {
+        HookCtx ctx{in, control, ref, item};
+        return node_put(ctx, member, value, failure);
+    }
     if (kind == "tab") {
         if (member == "left" || member == "top" || member == "width" ||
             member == "height") {
@@ -1676,6 +2247,10 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
     static_cast<void>(in);
     if (self.class_key == "toolbar" &&
         toolbar_member(self, member, arguments, result, failure)) {
+        return true;
+    }
+    if (self.class_key == "treeview" &&
+        tree_member(in, self, member, arguments, result, failure)) {
         return true;
     }
     if (self.class_key == "tabstrip") {
@@ -1752,6 +2327,50 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
 bool comctl_control_put(Interpreter& in, ControlObject& self,
                         const std::string& member, const Value& value,
                         NativeFailure& failure) {
+    if (self.class_key == "treeview") {
+        if (member == "selecteditem" || member == "drophighlight") {
+            const auto* holder = std::get_if<ObjectInstance>(&value);
+            const auto* object =
+                holder != nullptr && holder->data != nullptr
+                    ? dynamic_cast<ComctlItem*>(holder->data->native.get())
+                    : nullptr;
+            if (object == nullptr || object->ref.kind != "node" ||
+                position_of(top_list(self, "node"), object->item) == 0) {
+                if (std::holds_alternative<Nothing>(value)) {
+                    if (member == "selecteditem") {
+                        for (const auto& node : top_list(self, "node")) {
+                            node->p["selected"] = Value{false};
+                        }
+                    } else {
+                        self.values.erase("drophighlight");
+                    }
+                    return true;
+                }
+                failure = NativeFailure{13, "Type mismatch"};
+                return true;
+            }
+            if (member == "selecteditem") {
+                select_node(self, object->item);
+            } else {
+                self.values["drophighlight"] = value;
+            }
+            return true;
+        }
+        if (member == "sorted") {
+            Value converted = value;
+            if (!coerce_property(in, converted, "Boolean", failure)) {
+                return true;
+            }
+            self.values["sorted"] = converted;
+            if (std::get<bool>(converted)) {
+                sort_kids(self, state_of(self).root_kids);
+                for (const auto& node : top_list(self, "node")) {
+                    sort_kids(self, node->kids);
+                }
+            }
+            return true;
+        }
+    }
     if (self.class_key == "tabstrip" && member == "selecteditem") {
         const auto* holder = std::get_if<ObjectInstance>(&value);
         const auto* item =
@@ -1812,6 +2431,9 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
     }
     if (self.class_key == "toolbar") {
         return toolbar_input(in, self, action, rest);
+    }
+    if (self.class_key == "treeview") {
+        return tree_input(in, self, action, rest);
     }
     if (self.class_key == "statusbar" &&
         (action == "panel" || action == "paneldbl")) {

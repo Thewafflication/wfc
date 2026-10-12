@@ -22,3 +22,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #2 | Construction | Generated MSComctlLib tables, merged class tables, native control registration, generic collections and value objects, `ProgressBar`, `Slider`, `ImageList` (`REQ-0296`); corpus 188 | CTest 354/354 |
 | 2026-10-12 #3 | Construction | `TabStrip` and `StatusBar` behavior, MSComctlLib enumeration constants, `As Library.Class` parameters (`REQ-0297`); corpus 189 | CTest 355/355 |
 | 2026-10-12 #4 | Construction | `Toolbar` buttons, groups, drop-down menus, save/restore (`REQ-0298`); corpus 190 | CTest 356/356 |
+| 2026-10-12 #5 | Construction | `TreeView` nodes, relationships, expansion, selection, search, label edit, keys (`REQ-0299`); corpus 191 | CTest 357/357 |
