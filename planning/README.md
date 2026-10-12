@@ -23,7 +23,9 @@
 ## Active Milestone
 
 MP-0008 — Project Compatibility (`0.8.0`), per the
-[roadmap](roadmap-1.0.md); its detailed plan is the next document to write.
+[MP-0008 plan](MP-0008-project-compatibility.md) and the
+[roadmap](roadmap-1.0.md). Progress is recorded in the
+[MP-0008 work log](work-log-mp-0008.md).
 
 Closed milestones:
 
