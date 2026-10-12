@@ -194,6 +194,11 @@ public:
         static_cast<void>(bytes);
         return 0;
     }
+    // Shows a picture on a graphical button (Style = 1) instead of its text.
+    virtual void set_button_image(WindowId window, long picture) {
+        static_cast<void>(window);
+        static_cast<void>(picture);
+    }
     // Draws on the window's persistent surface.
     virtual void draw(WindowId window, const DrawOp& operation) {
         static_cast<void>(window);

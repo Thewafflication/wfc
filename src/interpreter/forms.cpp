@@ -1147,6 +1147,26 @@ struct FormSupport {
         return picture.host_id;
     }
 
+    // Gives a graphical button (Style = 1) its Picture.
+    static void apply_button_picture(Interpreter& in, ControlObject& button) {
+        if (button.window == ui::kNoWindow ||
+            (button.class_key != "commandbutton" &&
+             button.class_key != "checkbox" &&
+             button.class_key != "optionbutton") ||
+            number_of(button, "style") != 1.0) {
+            return;
+        }
+        const auto found = button.values.find("picture");
+        if (found == button.values.end()) {
+            return;
+        }
+        if (PictureObject* picture = picture_of(found->second)) {
+            if (const long id = host_picture(in, *picture); id != 0) {
+                runtime(in).host->set_button_image(button.window, id);
+            }
+        }
+    }
+
     // Draws `picture` into (x, y, width, height) twips of `surface`.
     static void paint_picture(Interpreter& in, ControlObject& surface,
                               PictureObject& picture, const double x,
@@ -2083,6 +2103,7 @@ struct FormSupport {
         if (object.class_key == "picturebox") {
             paint_surface_picture(in, object);
         }
+        apply_button_picture(in, object);
         if (object.is_file_list() && object.items.empty()) {
             refresh_file_list(in, object);
         }
@@ -2896,6 +2917,9 @@ struct FormSupport {
             draw_op(in, self, clear);
             paint_surface_picture(in, self);
             return true;
+        }
+        if (member == "picture" && live && !self.is_form) {
+            apply_button_picture(in, self);
         }
         if (member == "visible" && self.is_form) {
             const auto form = self.form.lock();

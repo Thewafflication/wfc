@@ -382,9 +382,14 @@ void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
     trace_.push_back(line);
 }
 
+void HeadlessHost::set_button_image(const WindowId window, const long picture) {
+    drawing_.push_back("button image #" + std::to_string(window) + " " +
+                       std::to_string(picture));
+}
+
 void HeadlessHost::arrange(const WindowId mdi_form, const long mode) {
-    trace_.push_back("arrange #" + std::to_string(mdi_form) + " " +
-                     std::to_string(mode));
+    drawing_.push_back("arrange #" + std::to_string(mdi_form) + " " +
+                       std::to_string(mode));
 }
 
 long HeadlessHost::load_picture(const std::string& bytes) {

@@ -32,6 +32,7 @@ public:
     [[nodiscard]] long selection(WindowId window) const override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;
     void arrange(WindowId mdi_form, long mode) override;
+    void set_button_image(WindowId window, long picture) override;
     void draw(WindowId window, const DrawOp& operation) override;
     [[nodiscard]] std::optional<long> pixel(WindowId window, double x,
                                             double y) const override;

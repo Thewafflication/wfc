@@ -58,6 +58,7 @@ public:
     [[nodiscard]] bool send_key(long code, long shift, long ascii) override;
     void pump() override;
     void arrange(WindowId mdi_form, long mode) override;
+    void set_button_image(WindowId window, long picture) override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;

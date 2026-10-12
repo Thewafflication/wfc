@@ -218,6 +218,14 @@ added that way (361 otherwise). A control assigned to a `WithEvents` variable
 raises its events to `variable_Event` handlers, in addition to any
 `ControlName_Event` handler.
 
+## Graphical buttons
+
+A `CommandButton`, `CheckBox` or `OptionButton` with `Style = 1` shows its
+`Picture` instead of its caption, from the `.frm` or when the property is
+assigned (`UiHost::set_button_image`; the headless host records a `button image`
+trace line). `DownPicture` and `DisabledPicture` are stored but not yet shown
+separately.
+
 ## Known limits (extended later in MP-0004)
 
 OLE drag and drop, printer graphics, `PrintForm`, and
@@ -225,4 +233,4 @@ MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `-174-form-button-picture`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

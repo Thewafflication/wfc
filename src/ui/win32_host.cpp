@@ -957,6 +957,28 @@ bool Win32Host::send_key(const long code, const long shift, const long ascii) {
     return sent == inputs.size();
 }
 
+void Win32Host::set_button_image(const WindowId window, const long picture) {
+    const auto* entry = find(window);
+    const auto known = pictures_.find(picture);
+    if (entry == nullptr || entry->hwnd == nullptr ||
+        known == pictures_.end()) {
+        return;
+    }
+    auto* const image = static_cast<IPicture*>(known->second);
+    SHORT type = 0;
+    OLE_HANDLE handle = 0;
+    if (FAILED(image->get_Type(&type)) || FAILED(image->get_Handle(&handle))) {
+        return;
+    }
+    const bool icon = type == PICTYPE_ICON;
+    LONG_PTR style = GetWindowLongPtrW(entry->hwnd, GWL_STYLE);
+    style &= ~static_cast<LONG_PTR>(BS_BITMAP | BS_ICON);
+    style |= icon ? BS_ICON : BS_BITMAP;
+    SetWindowLongPtrW(entry->hwnd, GWL_STYLE, style);
+    SendMessageW(entry->hwnd, BM_SETIMAGE, icon ? IMAGE_ICON : IMAGE_BITMAP,
+                 static_cast<LPARAM>(handle));
+}
+
 void Win32Host::arrange(const WindowId mdi_form, const long mode) {
     const auto* entry = find(mdi_form);
     if (entry == nullptr || entry->client == nullptr) {
