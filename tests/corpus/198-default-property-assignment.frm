@@ -21,6 +21,12 @@ Begin VB.Form Form1
       Top             =   800
       Width           =   1000
    End
+   Begin VB.PictureBox Pic2
+      Height          =   300
+      Left            =   1100
+      Top             =   1200
+      Width           =   1000
+   End
    Begin VB.PictureBox Pic1
       Height          =   300
       Index           =   0
@@ -37,6 +43,9 @@ Private Sub Form_Load()
     Text1(1) = "arr"
     Debug.Print Text1(1)
     Pic1(0) = LoadPicture()
-    Debug.Print TypeName(Pic1(0).Picture)
+    Pic2 = Pic1(0)
+    Pic2.Picture = Pic1(0)
+    Pic1(0) = Pic2
+    Debug.Print TypeName(Pic1(0).Picture); TypeName(Pic2.Picture)
     Debug.Print "ok"
 End Sub

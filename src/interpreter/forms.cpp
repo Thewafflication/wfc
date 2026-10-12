@@ -2632,6 +2632,13 @@ struct FormSupport {
         if (object.class_key == "timer") {
             apply_timer(in, object);
         }
+        if (object.is_form && object.values.contains("backcolor")) {
+            // A form's own BackColor paints its surface.
+            ui::DrawOp clear = base_op(object, "cls");
+            clear.color = color_of(object, "backcolor");
+            draw_op(in, object, clear);
+            paint_surface_picture(in, object);
+        }
         if (object.class_key == "picturebox") {
             paint_surface_picture(in, object);
         }
@@ -4714,6 +4721,17 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
         return true;
     }
     if (setter_type == "Picture") {
+        if (const ControlObject* source = control_of(converted);
+            source != nullptr && picture_of(converted) == nullptr) {
+            // `a.Picture = b` (no Set): b stands for its default property.
+            const auto from = default_property_of(source->class_key);
+            if (const auto held = source->values.find(from);
+                !from.empty() && held != source->values.end()) {
+                converted = held->second;
+            } else if (!from.empty()) {
+                converted = make_empty_picture_value();
+            }
+        }
         if (std::holds_alternative<Nothing>(converted)) {
             converted = make_empty_picture_value();
         } else if (picture_of(converted) == nullptr) {
