@@ -88,6 +88,32 @@ struct DrawOp {
 
 // One element of a common control (tab, panel, button, node, list item,
 // combo item or column) as the host needs it to draw the control.
+// Requests and results of the Common Dialog control.
+struct FileDialogRequest {
+    bool save{false};
+    std::string title;
+    std::string initial_directory;
+    std::string file_name;
+    std::string filter;  // "Text|*.txt|All|*.*"
+    std::string default_extension;
+    long filter_index{1};
+    long flags{0};
+};
+struct FileDialogResult {
+    std::string file_name;  // the full path
+    long filter_index{1};
+};
+struct FontDialogRequest {
+    std::string name{"MS Sans Serif"};
+    double size{8.0};
+    bool bold{false};
+    bool italic{false};
+    bool strikethrough{false};
+    bool underline{false};
+    long color{0};
+    long flags{0};
+};
+
 struct CommonItem {
     std::string text;
     std::string key;
@@ -199,6 +225,32 @@ public:
         static_cast<void>(text);
         static_cast<void>(title);
         static_cast<void>(style);
+        return std::nullopt;
+    }
+    // The Common Dialog control. Each returns an empty optional when the user
+    // cancels; `supported` is false when the host shows no dialogs.
+    [[nodiscard]] virtual std::optional<FileDialogResult> file_dialog(
+        WindowId owner, const FileDialogRequest& request, bool& supported) {
+        static_cast<void>(owner);
+        static_cast<void>(request);
+        supported = false;
+        return std::nullopt;
+    }
+    [[nodiscard]] virtual std::optional<long> color_dialog(WindowId owner,
+                                                           long initial,
+                                                           long flags,
+                                                           bool& supported) {
+        static_cast<void>(owner);
+        static_cast<void>(initial);
+        static_cast<void>(flags);
+        supported = false;
+        return std::nullopt;
+    }
+    [[nodiscard]] virtual std::optional<FontDialogRequest> font_dialog(
+        WindowId owner, const FontDialogRequest& request, bool& supported) {
+        static_cast<void>(owner);
+        static_cast<void>(request);
+        supported = false;
         return std::nullopt;
     }
     // An input box; returns the text, or an empty optional when cancelled.

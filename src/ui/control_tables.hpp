@@ -45,6 +45,11 @@ struct ParameterInfo {
 // The MSComctlLib class named `name` (case-insensitive), or nullptr.
 [[nodiscard]] const ControlClass* find_comctl_class(std::string_view name);
 
+// The Common Dialog and Winsock controls (ocx_tables.cpp).
+[[nodiscard]] std::span<const ControlClass> ocx_classes();
+// The Common Dialog or Winsock class named `name`, or nullptr.
+[[nodiscard]] const ControlClass* find_ocx_class(std::string_view name);
+
 // The class named `name` (case-insensitive), or nullptr.
 [[nodiscard]] const ControlClass* find_control_class(std::string_view name);
 

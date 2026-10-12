@@ -8,14 +8,17 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 #include "../ui/control_tables.hpp"
 #include "pictures.hpp"
+#include "winsock_io.hpp"
 #ifdef _WIN32
 #include "../ui/win32_host.hpp"
 #endif
@@ -32,6 +35,13 @@ struct ComctlSupport;
 // Defaults of the MSComctlLib control properties (comctl.inc).
 [[nodiscard]] std::optional<Value> comctl_default(const std::string& class_name,
                                                   const std::string& property);
+// Polls the Winsock controls for connections and data (ocx.inc).
+[[nodiscard]] bool ocx_poll_sockets(Interpreter& in);
+[[nodiscard]] bool ocx_has_sockets();
+// The control class of `library`.`leaf` among the MSComctlLib, MSComDlg and
+// MSWinsockLib controls, or nullptr (comctl.inc).
+[[nodiscard]] const ui::ControlClass* library_control_class(
+    std::string_view library, std::string_view leaf);
 
 namespace {
 
@@ -212,6 +222,18 @@ namespace {
     }
     if (class_name == "imagecombo") {
         return "text";
+    }
+    if (class_name == "picturebox" || class_name == "image") {
+        return "picture";
+    }
+    if (class_name == "drivelistbox") {
+        return "drive";
+    }
+    if (class_name == "dirlistbox") {
+        return "path";
+    }
+    if (class_name == "filelistbox") {
+        return "filename";
     }
     return {};
 }
@@ -413,10 +435,29 @@ public:
         }
         return false;
     }
-    [[nodiscard]] bool put(Interpreter&, const std::string&,
-                           std::vector<CallArgument>&, const Value&,
-                           NativeFailure&) override {
-        return false;
+    [[nodiscard]] bool put(Interpreter& in, const std::string& member,
+                           std::vector<CallArgument>& arguments,
+                           const Value& value,
+                           NativeFailure& failure) override {
+        if ((member != "item" && member != "_default") ||
+            arguments.size() != 1U) {
+            return false;
+        }
+        // `Text1(i) = x`: the default property of the element.
+        const auto wanted = whole_value(arguments[0].value);
+        const auto found =
+            wanted.has_value() ? elements.find(*wanted) : elements.end();
+        if (found == elements.end()) {
+            failure = NativeFailure{340, "Control array element doesn't exist"};
+            return true;
+        }
+        const auto* holder = std::get_if<ObjectInstance>(&found->second);
+        if (holder == nullptr || holder->data == nullptr ||
+            holder->data->native == nullptr) {
+            return false;
+        }
+        std::vector<CallArgument> none;
+        return holder->data->native->put(in, "_default", none, value, failure);
     }
     std::map<long, Value> elements;
 };
@@ -485,6 +526,11 @@ struct FormSupport {
     }
     [[nodiscard]] static std::size_t offset_of(Interpreter& in) {
         return in.offset_;
+    }
+    // The next scripted answer for a dialog of `kind` (open, save, color...).
+    [[nodiscard]] static std::optional<std::string> dialog_answer(
+        Interpreter& in, const std::string& kind) {
+        return in.form_dialog_answer(kind);
     }
     // A load-time warning goes to the Immediate output.
     static void warn(Interpreter& in, const std::string& text) {
@@ -3897,6 +3943,19 @@ struct FormSupport {
             if (state.headless != nullptr) {
                 state.headless->advance_time(std::atol(target_text.c_str()));
             }
+            return ocx_poll_sockets(in);
+        }
+        if (command == "pump") {
+            // pump <ms>: let the Winsock controls run for that long.
+            const auto until =
+                std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(std::atol(target_text.c_str()));
+            while (std::chrono::steady_clock::now() < until) {
+                if (!ocx_poll_sockets(in)) {
+                    return false;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
             return true;
         }
         if (command == "ui") {
@@ -4085,9 +4144,13 @@ struct FormSupport {
             progressed = false;
             return true;
         }
-        bool ok = true;
-        if (const auto event = state.host->next_event(
-                state.headless == nullptr && !state.host->exhausted())) {
+        // A scripted headless run polls sockets in `pump`, `wait` and DoEvents
+        // only, so a script's order of events stays deterministic.
+        bool ok = state.headless != nullptr || ocx_poll_sockets(in);
+        if (!ok) {
+            // A Winsock handler failed.
+        } else if (const auto event = state.host->next_event(
+                       state.headless == nullptr && !state.host->exhausted())) {
             ok = dispatch(in, *event);
         } else if (deliver_pending_key(in)) {
             ok = true;
@@ -5053,9 +5116,9 @@ bool Interpreter::create_form_instance(
             return intrinsic;
         }
         const auto dot = leaf.rfind('.');
-        if (dot != std::string::npos &&
-            lower_text(leaf.substr(0, dot)) == "mscomctllib") {
-            return comctl_class(leaf.substr(dot + 1U));
+        if (dot != std::string::npos) {
+            return library_control_class(leaf.substr(0, dot),
+                                         leaf.substr(dot + 1U));
         }
         return nullptr;
     };
@@ -5752,7 +5815,11 @@ void Interpreter::register_native_types() {
         proxy.display_name = name;
         proxy.native_type = common_types.contains(name) ? "control" : name;
         if (common_types.contains(name)) {
-            class_definitions_.emplace("mscomctllib." + name, proxy);
+            const std::string library = name == "winsock" ? "mswinsocklib."
+                                        : name == "commondialog"
+                                            ? "mscomdlg."
+                                            : "mscomctllib.";
+            class_definitions_.emplace(library + name, proxy);
         }
         class_definitions_.emplace(name, std::move(proxy));
     }
@@ -6246,6 +6313,9 @@ bool Interpreter::pump_forms() {
     if (!forms_ || !execute_) {
         return true;
     }
+    if (!ocx_poll_sockets(*this)) {
+        return false;
+    }
     for (;;) {
         if (const auto event = forms_->host->next_event(false)) {
             if (!FormSupport::dispatch(*this, *event)) {
@@ -6280,5 +6350,6 @@ bool Interpreter::run_forms_at_exit() {
 }
 
 #include "comctl.inc"
+#include "ocx.inc"
 
 }  // namespace wfc::detail

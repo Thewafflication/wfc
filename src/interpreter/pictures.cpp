@@ -252,13 +252,13 @@ Value make_empty_picture_value() {
 
 std::optional<Value> Interpreter::load_picture_builtin(
     const std::vector<Value>& arguments, const std::size_t offset) {
-    if (arguments.empty() || arguments.size() > 5U) {
+    if (arguments.size() > 5U) {
         set_error("WFC0072", "function received the wrong number of arguments",
                   offset);
         return std::nullopt;
     }
-    if (!execute_) {
-        return make_empty_picture_value();
+    if (!execute_ || arguments.empty()) {
+        return make_empty_picture_value();  // LoadPicture() clears
     }
     if (std::holds_alternative<Empty>(arguments[0])) {
         return make_empty_picture_value();

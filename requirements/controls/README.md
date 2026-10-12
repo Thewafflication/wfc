@@ -45,3 +45,5 @@ matching-number VB6 reference and WFC conformance tests.
 - [REQ-0300 — ListView behavior](req-0300-comctl-listview.md)
 - [REQ-0301 — ImageCombo behavior](req-0301-comctl-imagecombo.md)
 - [REQ-0302 — Persisted state in form files](req-0302-comctl-persistence.md)
+- [REQ-0304 — Common Dialog control](req-0304-commondialog.md)
+- [REQ-0305 — Winsock control](req-0305-winsock.md)

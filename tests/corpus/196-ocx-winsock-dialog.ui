@@ -1,0 +1,5 @@
+answer open C:\data\notes.txt
+answer open cancel
+answer color &H00FF00FF&
+answer font Courier New,12,1,0
+pump 500

@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include <commctrl.h>
+#include <commdlg.h>
 #include <objbase.h>
 #include <ocidl.h>
 #include <olectl.h>
@@ -1752,6 +1753,7 @@ bool Win32Host::exhausted() const {
 }
 
 #include "win32_comctl.inc"
+#include "win32_dialogs.inc"
 
 }  // namespace wfc::ui
 

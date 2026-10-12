@@ -1,0 +1,3 @@
+Type=Exe
+Form=198-default-property-assignment.frm
+Startup="Form1"

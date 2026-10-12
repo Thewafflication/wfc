@@ -2225,6 +2225,9 @@ bool Interpreter::parse_for_statement() {
         set_error("WFC0043", "expected For control variable", variable_offset);
         return false;
     }
+    if (find_variable(*identifier).value == nullptr) {
+        static_cast<void>(declare_implicit(*identifier, type_character));
+    }
     const auto variable = find_variable(*identifier);
     if (variable.value == nullptr) {
         set_error("WFC0015", "undeclared variable", variable_offset);
@@ -2560,6 +2563,9 @@ bool Interpreter::parse_for_each_statement() {
         set_error("WFC0043", "expected For Each control variable",
                   variable_offset);
         return false;
+    }
+    if (find_variable(*identifier).value == nullptr) {
+        static_cast<void>(declare_implicit(*identifier, type_character));
     }
     const auto variable = find_variable(*identifier);
     if (variable.value == nullptr) {

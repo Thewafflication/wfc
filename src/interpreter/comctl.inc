@@ -214,7 +214,13 @@ struct CItem {
     std::weak_ptr<InstanceData> wrapper;
 };
 
+// State of a Common Dialog or Winsock control (ocx.inc).
+struct OcxState {
+    virtual ~OcxState() = default;
+};
+
 struct ComctlState {
+    std::shared_ptr<OcxState> ocx;
     long next_id{1};
     bool from_host{false};  // the change came from the host: do not echo it
     std::map<std::string, std::vector<std::shared_ptr<CItem>>> lists;
@@ -225,6 +231,9 @@ struct ComctlState {
 std::vector<std::string> comctl_type_names() {
     std::vector<std::string> names;
     for (const auto& control : ui::comctl_classes()) {
+        names.push_back(lower_text(std::string(control.name)));
+    }
+    for (const auto& control : ui::ocx_classes()) {
         names.push_back(lower_text(std::string(control.name)));
     }
     for (const auto& [kind, spec] : kind_specs()) {
@@ -249,6 +258,9 @@ struct MergedClass {
 const ui::ControlClass* comctl_class(const std::string_view leaf) {
     static std::map<std::string, std::unique_ptr<MergedClass>> merged;
     const ui::ControlClass* base = ui::find_comctl_class(leaf);
+    if (base == nullptr) {
+        base = ui::find_ocx_class(leaf);
+    }
     if (base == nullptr) {
         return nullptr;
     }
@@ -292,6 +304,25 @@ const ui::ControlClass* comctl_class(const std::string_view leaf) {
     return result;
 }
 
+const ui::ControlClass* library_control_class(const std::string_view library,
+                                              const std::string_view leaf) {
+    const std::string name = lower_text(std::string(library));
+    if (name == "mscomctllib") {
+        return ui::find_comctl_class(leaf) != nullptr ? comctl_class(leaf)
+                                                      : nullptr;
+    }
+    if (name == "mscomdlg") {
+        return lower_text(std::string(leaf)) == "commondialog"
+                   ? comctl_class(leaf)
+                   : nullptr;
+    }
+    if (name == "mswinsocklib") {
+        return lower_text(std::string(leaf)) == "winsock" ? comctl_class(leaf)
+                                                          : nullptr;
+    }
+    return nullptr;
+}
+
 // ----- Defaults of the control properties -------------------------------------
 
 namespace {
@@ -305,6 +336,45 @@ namespace {
 std::optional<Value> comctl_default(const std::string& class_name,
                                     const std::string& property) {
     static const std::map<std::string, std::map<std::string, Value>> table = {
+        {"commondialog",
+         {{"cancelerror", Value{false}},
+          {"color", Value{Integer{0}}},
+          {"copies", small(1)},
+          {"defaultext", Value{std::string{}}},
+          {"dialogtitle", Value{std::string{}}},
+          {"filename", Value{std::string{}}},
+          {"filetitle", Value{std::string{}}},
+          {"filter", Value{std::string{}}},
+          {"filterindex", small(0)},
+          {"flags", Value{Integer{0}}},
+          {"fontbold", Value{false}},
+          {"fontitalic", Value{false}},
+          {"fontname", Value{std::string{}}},
+          {"fontsize", Value{8.0F}},
+          {"fontstrikethru", Value{false}},
+          {"fontunderline", Value{false}},
+          {"frompage", small(0)},
+          {"helpcommand", small(0)},
+          {"helpcontext", Value{Integer{0}}},
+          {"helpfile", Value{std::string{}}},
+          {"helpkey", Value{std::string{}}},
+          {"initdir", Value{std::string{}}},
+          {"max", small(0)},
+          {"maxfilesize", small(260)},
+          {"min", small(0)},
+          {"orientation", small(1)},
+          {"printerdefault", Value{true}},
+          {"topage", small(0)},
+          {"hdc", Value{Integer{0}}}}},
+        {"winsock",
+         {{"bytesreceived", Value{Integer{0}}},
+          {"localport", Value{Integer{0}}},
+          {"protocol", Value{Integer{0}}},
+          {"remotehost", Value{std::string{}}},
+          {"remotehostip", Value{std::string{}}},
+          {"remoteport", Value{Integer{0}}},
+          {"sockethandle", Value{Integer{0}}},
+          {"state", Value{Integer{0}}}}},
         {"progressbar",
          {{"min", Value{0.0F}},
           {"max", Value{100.0F}},
@@ -1002,6 +1072,13 @@ namespace {
 
 }  // namespace
 
+[[nodiscard]] bool ocx_get(Interpreter& in, ControlObject& self,
+                          const std::string& member,
+                          std::vector<CallArgument>& arguments, Value& result,
+                          NativeFailure& failure);
+[[nodiscard]] bool ocx_put(Interpreter& in, ControlObject& self,
+                           const std::string& member, const Value& value,
+                           NativeFailure& failure);
 [[nodiscard]] bool comctl_control_get(Interpreter& in, ControlObject& self,
                                       const std::string& member,
                                       std::vector<CallArgument>& arguments,
@@ -3105,7 +3182,9 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
                         const std::string& member,
                         std::vector<CallArgument>& arguments, Value& result,
                         NativeFailure& failure) {
-    static_cast<void>(in);
+    if (ocx_get(in, self, member, arguments, result, failure)) {
+        return true;
+    }
     if (self.class_key == "toolbar" &&
         toolbar_member(self, member, arguments, result, failure)) {
         return true;
@@ -3195,6 +3274,9 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
 bool comctl_control_put(Interpreter& in, ControlObject& self,
                         const std::string& member, const Value& value,
                         NativeFailure& failure) {
+    if (ocx_put(in, self, member, value, failure)) {
+        return true;
+    }
     if (self.class_key == "listview" && list_put(in, self, member, value, failure)) {
         return true;
     }
@@ -3715,7 +3797,8 @@ ui::CommonSnapshot comctl_snapshot(Interpreter& in, ControlObject& control) {
 // Pushes the control's state to the host (a no-op without a window).
 void comctl_push(Interpreter& in, ControlObject& control) {
     if (control.comctl == nullptr || control.window == ui::kNoWindow ||
-        control.comctl->from_host) {
+        control.comctl->from_host || control.class_key == "commondialog" ||
+        control.class_key == "winsock") {
         return;
     }
     FormSupport::runtime(in).host->sync_common(control.window, comctl_snapshot(in, control));

@@ -475,6 +475,8 @@ public:
     // REQ-0265: `Option Explicit` anywhere in the program (main source or a
     // class module) makes undeclared names an error everywhere.
     void scan_option_explicit();
+    [[nodiscard]] bool declare_implicit(const std::string& identifier,
+                                        char type_character);
 
     // `DefInt A-C, X` ... `DefVar`: the default type for undeclared names by
     // first letter. Scanned up front from every module (one program-wide

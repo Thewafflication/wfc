@@ -9,6 +9,11 @@
 
 namespace wfc::detail {
 
+// The class of `library`.`leaf` among the MSComctlLib, MSComDlg and
+// MSWinsockLib controls, or nullptr (comctl.inc).
+[[nodiscard]] const ui::ControlClass* library_control_class(
+    std::string_view library, std::string_view leaf);
+
 [[nodiscard]] bool mentions_option_explicit(const std::string_view text) {
     std::size_t position = 0;
     while (position < text.size()) {
@@ -1660,9 +1665,8 @@ bool Interpreter::scan_classes() {
                     const auto library_dot = child.type.rfind('.');
                     const bool common_control =
                         library_dot != std::string::npos &&
-                        lowered_type(child.type.substr(0, library_dot)) ==
-                            "mscomctllib" &&
-                        ui::find_comctl_class(
+                        library_control_class(
+                            child.type.substr(0, library_dot),
                             child.type.substr(library_dot + 1U)) != nullptr;
                     if (problem.empty() && !hosted && !common_control &&
                         ui::find_control_class(leaf) == nullptr) {

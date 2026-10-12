@@ -52,6 +52,15 @@ public:
                                                   const std::string& text,
                                                   const std::string& title,
                                                   long style) override;
+    [[nodiscard]] std::optional<FileDialogResult> file_dialog(
+        WindowId owner, const FileDialogRequest& request,
+        bool& supported) override;
+    [[nodiscard]] std::optional<long> color_dialog(WindowId owner, long initial,
+                                                   long flags,
+                                                   bool& supported) override;
+    [[nodiscard]] std::optional<FontDialogRequest> font_dialog(
+        WindowId owner, const FontDialogRequest& request,
+        bool& supported) override;
     [[nodiscard]] std::optional<std::string> input_box(
         WindowId owner, const std::string& prompt, const std::string& title,
         const std::string& initial, bool& supported) override;

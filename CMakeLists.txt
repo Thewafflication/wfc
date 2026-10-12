@@ -34,6 +34,9 @@ target_sources(
     src/interpreter/forms.cpp
     src/interpreter/forms.hpp
     src/interpreter/winapi.cpp
+    src/interpreter/winsock_io.cpp
+    src/interpreter/winsock_io.hpp
+    src/interpreter/ocx.inc
     src/interpreter/resources.cpp
     src/interpreter/com_automation.cpp
     src/interpreter/format.cpp
@@ -49,6 +52,7 @@ target_sources(
     src/project.cpp
     src/ui/control_lookup.cpp
     src/ui/comctl_tables.cpp
+    src/ui/ocx_tables.cpp
     src/ui/control_tables.cpp
     src/ui/control_tables.hpp
     src/ui/frm_parser.cpp
@@ -58,6 +62,7 @@ target_sources(
     src/ui/ui_host.hpp
     src/ui/win32_host.cpp
     src/ui/win32_host.hpp
+    src/ui/win32_dialogs.inc
   PUBLIC
     FILE_SET HEADERS
       BASE_DIRS include
@@ -76,7 +81,7 @@ target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
 if(WIN32)
   target_link_libraries(
     wfc_frontend
-    PUBLIC ole32 oleaut32 user32 gdi32 comctl32
+    PUBLIC ole32 oleaut32 user32 gdi32 comctl32 comdlg32 ws2_32
   )
 endif()
 wfc_enable_strict_warnings(wfc_frontend)

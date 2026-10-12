@@ -351,6 +351,30 @@ bool Interpreter::paren_followed_by_dot(
     return false;
 }
 
+// REQ-0265: without Option Explicit a name used as an assignment target or
+// loop variable declares itself (a Variant, or the suffix's type).
+bool Interpreter::declare_implicit(const std::string& identifier,
+                                   const char type_character) {
+    if (strict_here() || in_with_identifier(identifier) ||
+        procedures_.contains(identifier)) {
+        return false;
+    }
+    Value initial = Value{Empty{}};
+    bool variant = true;
+    if (type_character != '\0') {
+        initial = zero_value_for_index(type_character_index(type_character));
+        variant = false;
+    } else if (const auto default_type = default_type_for(identifier)) {
+        initial = zero_value_for_index(*default_type);
+        variant = false;
+    }
+    current_scope().variables.emplace(identifier, std::move(initial));
+    if (variant) {
+        current_scope().variant_variables.insert(identifier);
+    }
+    return true;
+}
+
 bool Interpreter::parse_assignment(std::string identifier,
                                    const char type_character) {
     const auto identifier_offset =
@@ -417,24 +441,7 @@ bool Interpreter::parse_assignment(std::string identifier,
                     .has_value();
             }
         }
-        if (!strict_here() && !in_with_identifier(identifier) &&
-            !procedures_.contains(identifier)) {
-            // REQ-0265: without Option Explicit an assignment declares
-            // the variable implicitly (a Variant, or the suffix's type).
-            Value initial = Value{Empty{}};
-            bool variant = true;
-            if (type_character != '\0') {
-                initial =
-                    zero_value_for_index(type_character_index(type_character));
-                variant = false;
-            } else if (const auto default_type = default_type_for(identifier)) {
-                initial = zero_value_for_index(*default_type);
-                variant = false;
-            }
-            current_scope().variables.emplace(identifier, std::move(initial));
-            if (variant) {
-                current_scope().variant_variables.insert(identifier);
-            }
+        if (declare_implicit(identifier, type_character)) {
             return parse_assignment(std::move(identifier), type_character);
         }
         set_error("WFC0015", "undeclared variable", identifier_offset);
@@ -497,6 +504,14 @@ bool Interpreter::parse_assignment(std::string identifier,
                         identifier_offset);
                 }
             }
+        }
+        // `Text1 = "x"`: the default property of a form or control.
+        if (const auto* held = std::get_if<ObjectInstance>(variable.value);
+            held != nullptr && held->data != nullptr &&
+            held->data->native != nullptr &&
+            held->data->class_name == "wfcnative") {
+            return native_member_statement(*variable.value, "_default",
+                                           identifier_offset);
         }
         set_error("WFC0108", "object assignment requires Set",
                   identifier_offset);

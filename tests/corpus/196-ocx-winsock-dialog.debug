@@ -1,0 +1,24 @@
+state 0  0  1 
+send closed 40006 
+listening 2 True
+connecting 6 
+connect twice 40020 
+localipTrueTrue
+udp 1 
+client connected 7 
+sent
+request
+accepted 7 
+server got hello 5 
+client got reply 11  6 
+rest :hello
+closed 0 
+server sees close 8 
+udp got datagram 8 127.0.0.1
+dialogs
+open 0 C:\data\notes.txtnotes.txt
+cancelled 32755 
+colorFF00FF
+font none 24574 
+font 0 Courier New 12 TrueFalse
+save cancelled quietly 0 
