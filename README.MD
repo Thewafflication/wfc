@@ -13,15 +13,32 @@ runtime and engineering-process foundations.
 
 ## Current Progress
 
-A real VB6 form project (`tests/gui/gui-showcase.vbp`) running in native Win32
-windows, captured by the test suite: frames and option buttons, a check box,
-text box, command button with an accelerator, list box, combo box, scroll bar,
-a label updated by a `Timer`, a menu bar, a picture box drawn with `Line`,
-`Circle` and `Print`, and a `Shape`. The language runtime (MP-0002) and classes,
-projects and COM Automation (MP-0003) are complete; forms and controls
-(MP-0004) are in progress (see its [work log](planning/work-log-mp-0004.md)).
+Milestones MP-0002 through MP-0007 are closed: the VB/VBA language runtime,
+classes, projects and COM Automation, forms and intrinsic controls, ActiveX
+hosting and component authoring, the nine `MSComctlLib` common controls, and
+packaged programs (`wfc --build`). Next is MP-0008 (running real VB6 projects,
+starting with archived games) and then MP-0009 (native x86, AMD64 and ARM64
+code generation). See [the roadmap](planning/roadmap-1.0.md).
+
+The captures below come from the test suite, running real VB6 form projects in
+native Win32 windows.
+
+**Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
+image combo, tree view, list view and status bar, with images from an
+`ImageList` (`tests/gui/gui-comctl.vbp`):
+
+![MSComctlLib controls in a native window](evidence/screenshots/gui-comctl-closing.png)
+
+**Intrinsic controls (MP-0004).** Frames, option and check boxes, text box,
+list and combo boxes, scroll bar, a timer-driven label, a menu bar, and a
+picture box drawn with `Line`, `Circle` and `Print`
+(`tests/gui/gui-showcase.vbp`):
 
 ![WFC running the form showcase in a native window](evidence/screenshots/gui-showcase-closing.png)
+
+**MDI forms (MP-0004).** A parent form with a child window:
+
+![An MDI parent and child form](evidence/screenshots/gui-mdi-closing.png)
 
 ## Planning
 
