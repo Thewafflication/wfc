@@ -1,0 +1,18 @@
+ui Form1.Tabs1 select b
+ui Form1.Slider1 value 12
+ui Form1.Tool1 dblclick
+ui Form1.Tree1 click alpha
+ui Form1.Tree1 click alpha
+ui Form1.Tree1 edit Renamed
+ui Form1.Tree1 click alpha
+ui Form1.Tree1 click alpha
+ui Form1.Tree1 canceledit
+ui Form1.Tree1 key b
+ui Form1.Tree1 key b
+ui Form1.Tree1 key down
+ui Form1.Tree1 key down
+ui Form1.Tree1 key down
+ui Form1.List1 click r1
+ui Form1.List1 click r1
+ui Form1.List1 edit nope
+close Form1

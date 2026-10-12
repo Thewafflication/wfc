@@ -462,6 +462,13 @@ struct ComctlSupport {
 // Pushes the state of a common control to the host (comctl.inc).
 void comctl_push(Interpreter& in, ControlObject& control);
 
+// HKEY_CURRENT_USER string values (com_automation.cpp).
+bool wfc_registry_write(const std::string& key, const std::string& subkey,
+                        const std::string& name, const std::string& data);
+std::optional<std::string> wfc_registry_read(const std::string& key,
+                                             const std::string& subkey,
+                                             const std::string& name);
+
 // The diagnostic of a persisted control state that is not read.
 constexpr const char* kUnreadableStateCode = "WFC0293";
 

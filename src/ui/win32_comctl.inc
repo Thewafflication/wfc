@@ -255,6 +255,8 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
                  : snapshot.view == 2 ? LVS_LIST
                                       : LVS_REPORT;
         style |= LVS_SHOWSELALWAYS;
+        style = snapshot.hide_headers ? (style | LVS_NOCOLUMNHEADER)
+                                      : (style & ~LVS_NOCOLUMNHEADER);
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);
         DWORD extended = 0;
         extended |= snapshot.checkboxes ? LVS_EX_CHECKBOXES : 0;

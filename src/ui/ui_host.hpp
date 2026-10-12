@@ -122,6 +122,7 @@ struct CommonSnapshot {
     long style{0};
     bool vertical{false};
     bool smooth{false};
+    bool hide_headers{false};
     bool checkboxes{false};
     bool gridlines{false};
     bool full_row{false};

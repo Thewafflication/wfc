@@ -419,6 +419,8 @@ constexpr Integer kIndexOutOfBounds = 35600;
 constexpr Integer kElementNotFound = 35601;
 constexpr Integer kKeyNotUnique = 35602;
 constexpr Integer kReadOnlyAfterUse = 35614;
+constexpr Integer kPanelsFull = 35609;
+constexpr Integer kImageListBound = 35615;
 
 using ItemPtr = std::shared_ptr<CItem>;
 
@@ -730,6 +732,16 @@ namespace {
             return false;
         }
         position = static_cast<std::size_t>(wanted) - 1U;
+        if (ref.kind == "listimage" && control.values.contains("_bound") &&
+            position != items.size()) {
+            failure = NativeFailure{kImageListBound,
+                                    "Images can only be appended to a bound ImageList"};
+            return false;
+        }
+    }
+    if (ref.kind == "panel" && items.size() >= 16U) {
+        failure = NativeFailure{kPanelsFull, "A status bar holds at most sixteen panels"};
+        return false;
     }
     auto created = std::make_shared<CItem>();
     created->id = state_of(control).next_id++;
@@ -897,6 +909,12 @@ bool ComctlCollection::get(Interpreter& in, const std::string& member,
         }
         return true;
     }
+    if ((member == "remove" || member == "clear") && ref.kind == "listimage" &&
+        control->values.contains("_bound")) {
+        failure = NativeFailure{kImageListBound,
+                                "Images cannot be removed from a bound ImageList"};
+        return true;
+    }
     if (member == "remove") {
         if (arguments.size() != 1U) {
             failure = NativeFailure{450, "Wrong number of arguments"};
@@ -975,6 +993,13 @@ namespace {
     return FormSupport::number_of(control, member);
 }
 
+[[nodiscard]] bool control_flag(ControlObject& control, const char* name) {
+    const auto found = control.values.find(name);
+    return found != control.values.end() &&
+           std::holds_alternative<bool>(found->second) &&
+           std::get<bool>(found->second);
+}
+
 }  // namespace
 
 [[nodiscard]] bool comctl_control_get(Interpreter& in, ControlObject& self,
@@ -1009,6 +1034,15 @@ bool ComctlSupport::get(Interpreter& in, ControlObject& self,
         }
     }
     if (self.class_key == "slider") {
+        if (!control_flag(self, "selectrange") &&
+            (member == "selstart" || member == "sellength")) {
+            // Without a selection range SelStart follows Value.
+            result = member == "selstart" ? self.values.contains("value")
+                                                 ? self.values.at("value")
+                                                 : Value{Integer{0}}
+                                          : Value{Integer{0}};
+            return true;
+        }
         if (member == "getnumticks") {
             const double span = number_property(self, "max") -
                                 number_property(self, "min");
@@ -1018,7 +1052,9 @@ bool ComctlSupport::get(Interpreter& in, ControlObject& self,
             return true;
         }
         if (member == "clearsel") {
-            self.values["selstart"] = Value{Integer{0}};
+            self.values["selstart"] = self.values.contains("value")
+                                          ? self.values.at("value")
+                                          : Value{Integer{0}};
             self.values["sellength"] = Value{Integer{0}};
             result = Value{Empty{}};
             return true;
@@ -1066,6 +1102,15 @@ bool ComctlSupport::put(Interpreter& in, ControlObject& self,
                         const Value& value, NativeFailure& failure) {
     static_cast<void>(arguments);
     const std::string member = member_name == "_value" ? "value" : member_name;
+    if (member == "imagelist" || member == "icons" || member == "smallicons" ||
+        member == "hotimagelist" || member == "disabledimagelist" ||
+        member == "columnheadericons") {
+        // Binding an ImageList to a control: its images can then only grow.
+        if (ControlObject* list = control_of(value);
+            list != nullptr && list->class_key == "imagelist") {
+            list->values["_bound"] = Value{true};
+        }
+    }
     const bool progress = self.class_key == "progressbar";
     const bool slider = self.class_key == "slider";
     if ((progress || slider) &&
@@ -1107,6 +1152,41 @@ bool ComctlSupport::put(Interpreter& in, ControlObject& self,
             !raise_event(in, self, "Change", {})) {
             failure = FormSupport::reported();
         }
+        return true;
+    }
+    if (slider && (member == "selstart" || member == "sellength")) {
+        Value converted = value;
+        if (!coerce_row(in, self, member, converted, failure)) {
+            return true;
+        }
+        const double wanted = as_double(converted);
+        const double minimum = number_property(self, "min");
+        const double maximum = number_property(self, "max");
+        if (!control_flag(self, "selectrange")) {
+            if (member == "selstart") {
+                if (wanted < minimum || wanted > maximum) {
+                    failure = NativeFailure{380, "Invalid property value"};
+                    return true;
+                }
+                // SelStart and Value are coupled while SelectRange is false.
+                const bool changed = wanted != number_property(self, "value");
+                self.values["value"] = Value{static_cast<Integer>(wanted)};
+                if (changed && !raise_event(in, self, "Change", {})) {
+                    failure = FormSupport::reported();
+                }
+            }
+            return true;  // SelLength has no effect in this mode
+        }
+        const double start =
+            member == "selstart" ? wanted : number_property(self, "selstart");
+        const double length =
+            member == "sellength" ? wanted : number_property(self, "sellength");
+        if (start < minimum || start > maximum || length < 0 ||
+            start + length > maximum) {
+            failure = NativeFailure{380, "Invalid property value"};
+            return true;
+        }
+        self.values[member] = converted;
         return true;
     }
     if (self.class_key == "imagelist" &&
@@ -1239,7 +1319,12 @@ struct TabRect {
             return false;
         }
         if (whole_value(arguments[0]).value_or(0) != 0) {
-            return true;  // cancelled: the selection stays
+            // Cancelled: the selection stays but Click is still raised.
+            if (!raise_event(in, control, "Click", {})) {
+                failure = FormSupport::reported();
+                return false;
+            }
+            return true;
         }
     }
     for (const auto& other : top_list(control, "tab")) {
@@ -1464,6 +1549,9 @@ std::map<std::string, std::string>& saved_toolbars() {
     for (const auto& argument : arguments) {
         name += FormSupport::text_of(argument.value) + "/";
     }
+    const std::string registry_key = FormSupport::text_of(arguments[0].value);
+    const std::string registry_subkey = FormSupport::text_of(arguments[1].value);
+    const std::string registry_value = FormSupport::text_of(arguments[2].value);
     result = Value{Empty{}};
     if (member == "savetoolbar") {
         std::string layout;
@@ -1472,13 +1560,22 @@ std::map<std::string, std::string>& saved_toolbars() {
                       (flag(button, "visible") ? "1" : "0") + ";";
         }
         saved_toolbars()[name] = layout;
+        // Also under HKEY_CURRENT_USER\<Key>\<Subkey>, value <Value>.
+        static_cast<void>(wfc_registry_write(registry_key, registry_subkey,
+                                             registry_value, layout));
         return true;
     }
-    const auto found = saved_toolbars().find(name);
-    if (found == saved_toolbars().end()) {
+    std::string stored;
+    if (const auto from_registry =
+            wfc_registry_read(registry_key, registry_subkey, registry_value)) {
+        stored = *from_registry;
+    } else if (const auto found = saved_toolbars().find(name);
+               found != saved_toolbars().end()) {
+        stored = found->second;
+    } else {
         return true;
     }
-    const std::string& layout = found->second;
+    const std::string& layout = stored;
     std::size_t start = 0;
     while (start < layout.size()) {
         const auto end = layout.find(';', start);
@@ -1542,8 +1639,69 @@ std::map<std::string, std::string>& saved_toolbars() {
         return raise_event(in, self, "ButtonMenuClick",
                            {wrap_item(self.self.lock(), ref, menu)});
     }
+    if (action == "dblclick") {
+        // A double-click opens the customization interface when allowed; with
+        // no dialog only the events run.
+        bool allowed = true;
+        if (const auto found = self.values.find("allowcustomize");
+            found != self.values.end() &&
+            std::holds_alternative<bool>(found->second)) {
+            allowed = std::get<bool>(found->second);
+        }
+        return raise_event(in, self, "DblClick", {}) &&
+               (!allowed || raise_event(in, self, "Change", {}));
+    }
     if (action == "customize") {
         return raise_event(in, self, "Change", {});
+    }
+    return true;
+}
+
+// ----- Label editing (TreeView and ListView) ---------------------------------------
+
+// Starts an edit: BeforeLabelEdit(Cancel). `started` tells whether it was not
+// cancelled; false return means an error was raised.
+[[nodiscard]] bool begin_label_edit(Interpreter& in, ControlObject& control,
+                                    bool& started) {
+    started = false;
+    const auto form = control.form.lock();
+    if (form == nullptr) {
+        return true;
+    }
+    std::vector<Value> before{Value{Int16{0}}};
+    if (!FormSupport::raise(in, *form, control.name, control.index,
+                            "beforelabeledit", before, FormSupport::offset_of(in))) {
+        return false;
+    }
+    if (whole_value(before[0]).value_or(0) != 0) {
+        return true;
+    }
+    control.values["_editing"] = Value{true};
+    started = true;
+    return true;
+}
+
+// Ends an edit: AfterLabelEdit(Cancel, NewString) with the text, or with
+// Null when the user cancelled (`text` empty). `accepted` is the text to keep.
+[[nodiscard]] bool end_label_edit(Interpreter& in, ControlObject& control,
+                                  const std::optional<std::string>& text,
+                                  std::optional<std::string>& accepted) {
+    accepted.reset();
+    control.values.erase("_editing");
+    const auto form = control.form.lock();
+    if (form == nullptr) {
+        return true;
+    }
+    std::vector<Value> after{Value{Int16{0}},
+                             text.has_value() ? Value{*text} : Value{std::string{}}};
+    if (!FormSupport::raise(in, *form, control.name, control.index,
+                            "afterlabeledit", after, FormSupport::offset_of(in))) {
+        return false;
+    }
+    if (text.has_value() && whole_value(after[0]).value_or(0) == 0) {
+        accepted = std::holds_alternative<std::string>(after[1])
+                       ? std::get<std::string>(after[1])
+                       : *text;
     }
     return true;
 }
@@ -1844,6 +2002,12 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
         result = Value{full_path(control, node)};
     } else if (member == "ensurevisible") {
         bool changed = false;
+        if (control.values.contains("scroll") &&
+            std::holds_alternative<bool>(control.values.at("scroll")) &&
+            !std::get<bool>(control.values.at("scroll"))) {
+            result = Value{false};  // EnsureVisible does not work without Scroll
+            return true;
+        }
         for (ItemPtr at = parent; at != nullptr; at = node_parent(control, at)) {
             if (!flag(at, "expanded")) {
                 at->p["expanded"] = Value{true};
@@ -1943,7 +2107,10 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
         return true;
     }
     if (member == "startlabeledit") {
-        self.values["_editing"] = Value{true};
+        bool started = false;
+        if (!begin_label_edit(in, self, started)) {
+            failure = FormSupport::reported();
+        }
         result = Value{Empty{}};
         return true;
     }
@@ -1963,6 +2130,7 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
             return true;
         }
         const ItemPtr previous = selected_node(self);
+        const bool second_click = previous == node;
         select_node(self, node);
         if (self.values.contains("singlesel") &&
             std::holds_alternative<bool>(self.values.at("singlesel")) &&
@@ -1981,8 +2149,15 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
                 return false;
             }
         }
-        return raise_event(in, self, "NodeClick", {node_value(self, node)}) &&
-               raise_event(in, self, "Click", {});
+        if (!(raise_event(in, self, "NodeClick", {node_value(self, node)}) &&
+              raise_event(in, self, "Click", {}))) {
+            return false;
+        }
+        if (second_click && number_property(self, "labeledit") != 1.0) {
+            bool started = false;
+            return begin_label_edit(in, self, started);
+        }
+        return true;
     }
     if (action == "expand" || action == "collapse") {
         const ItemPtr node = pick(rest);
@@ -1999,39 +2174,35 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
         node->p["checked"] = Value{!flag(node, "checked")};
         return raise_event(in, self, "NodeCheck", {node_value(self, node)});
     }
-    if (action == "edit") {
-        // edit <new text>: the label of the selected node (BeforeLabelEdit,
-        // AfterLabelEdit(Cancel, NewString)). With manual editing it needs
-        // StartLabelEdit first.
+    if (action == "edit" || action == "canceledit") {
+        // edit <text> | canceledit: the end of an edit of the selected node.
+        // Automatic editing starts on the second click, manual editing with
+        // StartLabelEdit; a scripted edit that was not started starts here.
         const ItemPtr node = selected_node(self);
         if (node == nullptr) {
             return true;
         }
-        const bool manual = number_property(self, "labeledit") == 1.0;
-        const bool started = self.values.contains("_editing");
-        if (manual && !started) {
-            return true;
+        if (!self.values.contains("_editing")) {
+            if (number_property(self, "labeledit") == 1.0) {
+                return true;
+            }
+            bool started = false;
+            if (!begin_label_edit(in, self, started)) {
+                return false;
+            }
+            if (!started) {
+                return true;
+            }
         }
-        self.values.erase("_editing");
-        const auto form = self.form.lock();
-        if (form == nullptr) {
-            return true;
-        }
-        std::vector<Value> before{Value{Int16{0}}};
-        if (!FormSupport::raise(in, *form, self.name, self.index, "beforelabeledit",
-                                before, FormSupport::offset_of(in))) {
+        std::optional<std::string> accepted;
+        if (!end_label_edit(in, self,
+                            action == "edit" ? std::optional<std::string>(rest)
+                                             : std::nullopt,
+                            accepted)) {
             return false;
         }
-        if (whole_value(before[0]).value_or(0) != 0) {
-            return true;
-        }
-        std::vector<Value> after{Value{Int16{0}}, Value{rest}};
-        if (!FormSupport::raise(in, *form, self.name, self.index, "afterlabeledit",
-                                after, FormSupport::offset_of(in))) {
-            return false;
-        }
-        if (whole_value(after[0]).value_or(0) == 0) {
-            node->p["text"] = after[1];
+        if (accepted.has_value()) {
+            node->p["text"] = Value{*accepted};
         }
         return true;
     }
@@ -2053,10 +2224,20 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
             select_node(self, rows.front().first);
             return true;
         }
-        if (key == "down" && at + 1U < rows.size()) {
-            select_node(self, rows[at + 1U].first);
-        } else if (key == "up" && at > 0) {
-            select_node(self, rows[at - 1U].first);
+        if (key == "down") {
+            select_node(self, rows[(at + 1U) % rows.size()].first);
+        } else if (key == "up") {
+            select_node(self, rows[(at + rows.size() - 1U) % rows.size()].first);
+        } else if (key.size() == 1U && key != " ") {
+            // Type-ahead: the next visible node starting with the character.
+            for (std::size_t step = 1; step <= rows.size(); ++step) {
+                const auto& candidate = rows[(at + step) % rows.size()].first;
+                const std::string text = lower_text(node_text(candidate));
+                if (!text.empty() && text.front() == key.front()) {
+                    select_node(self, candidate);
+                    break;
+                }
+            }
         } else if (key == "home") {
             select_node(self, rows.front().first);
         } else if (key == "end") {
@@ -2090,13 +2271,6 @@ void detach_node(ControlObject& control, const ItemPtr& node) {
 }
 
 // ----- ListView -----------------------------------------------------------------
-
-[[nodiscard]] bool control_flag(ControlObject& control, const char* name) {
-    const auto found = control.values.find(name);
-    return found != control.values.end() &&
-           std::holds_alternative<bool>(found->second) &&
-           std::get<bool>(found->second);
-}
 
 [[nodiscard]] Value list_item_value(ControlObject& control, const ItemPtr& item) {
     if (item == nullptr) {
@@ -2402,7 +2576,10 @@ void select_list_item(ControlObject& control, const ItemPtr& item, const bool ex
         return true;
     }
     if (member == "startlabeledit") {
-        self.values["_editing"] = Value{true};
+        bool started = false;
+        if (!begin_label_edit(in, self, started)) {
+            failure = FormSupport::reported();
+        }
         result = Value{Empty{}};
         return true;
     }
@@ -2477,11 +2654,17 @@ void select_list_item(ControlObject& control, const ItemPtr& item, const bool ex
         if (item == nullptr) {
             return true;
         }
+        const bool second_click = flag(item, "selected") && modifier != "ctrl";
         select_list_item(self, item, modifier == "ctrl" && control_flag(self, "multiselect"));
         bool ok = raise_event(in, self, "ItemClick", {list_item_value(self, item)}) &&
                   raise_event(in, self, "Click", {});
         if (ok && action == "dblclick") {
             ok = raise_event(in, self, "DblClick", {});
+        }
+        if (ok && action == "click" && second_click &&
+            number_property(self, "labeledit") != 1.0) {
+            bool started = false;
+            ok = begin_label_edit(in, self, started);
         }
         return ok;
     }
@@ -2504,35 +2687,32 @@ void select_list_item(ControlObject& control, const ItemPtr& item, const bool ex
         return raise_event(in, self, "ColumnClick",
                            {wrap_item(self.self.lock(), ref, column)});
     }
-    if (action == "edit") {
+    if (action == "edit" || action == "canceledit") {
         const ItemPtr item = first_selected_item(self);
         if (item == nullptr) {
             return true;
         }
-        const bool manual = number_property(self, "labeledit") == 1.0;
-        if (manual && !self.values.contains("_editing")) {
-            return true;
+        if (!self.values.contains("_editing")) {
+            if (number_property(self, "labeledit") == 1.0) {
+                return true;
+            }
+            bool started = false;
+            if (!begin_label_edit(in, self, started)) {
+                return false;
+            }
+            if (!started) {
+                return true;
+            }
         }
-        self.values.erase("_editing");
-        const auto form = self.form.lock();
-        if (form == nullptr) {
-            return true;
-        }
-        std::vector<Value> before{Value{Int16{0}}};
-        if (!FormSupport::raise(in, *form, self.name, self.index, "beforelabeledit",
-                                before, FormSupport::offset_of(in))) {
+        std::optional<std::string> accepted;
+        if (!end_label_edit(in, self,
+                            action == "edit" ? std::optional<std::string>(rest)
+                                             : std::nullopt,
+                            accepted)) {
             return false;
         }
-        if (whole_value(before[0]).value_or(0) != 0) {
-            return true;
-        }
-        std::vector<Value> after{Value{Int16{0}}, Value{rest}};
-        if (!FormSupport::raise(in, *form, self.name, self.index, "afterlabeledit",
-                                after, FormSupport::offset_of(in))) {
-            return false;
-        }
-        if (whole_value(after[0]).value_or(0) == 0) {
-            item->p["text"] = after[1];
+        if (accepted.has_value()) {
+            item->p["text"] = Value{*accepted};
         }
         return true;
     }
@@ -2811,6 +2991,16 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
     }
     if (kind == "node") {
         return node_get(ctx, member, result);
+    }
+    if (kind == "listimage") {
+        if (member == "draw") {
+            result = Value{Empty{}};  // drawing needs a device context
+            return true;
+        }
+        if (member == "extracticon") {
+            result = item->p.at("picture");
+            return true;
+        }
     }
     if (kind == "listitem") {
         return listitem_get(ctx, member, arguments, result, failure);
@@ -3104,6 +3294,7 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
         if (target != number_property(self, "value")) {
             self.values["value"] = Value{static_cast<Integer>(target)};
             return raise_event(in, self, "Scroll", {}) &&
+                   raise_event(in, self, "Click", {}) &&
                    raise_event(in, self, "Change", {});
         }
         return true;
@@ -3402,8 +3593,12 @@ ui::CommonSnapshot comctl_snapshot(Interpreter& in, ControlObject& control) {
     snapshot.vertical = number_property(control, "orientation") == 1.0;
     snapshot.smooth = number_property(control, "scrolling") == 1.0;
     snapshot.checkboxes = control_flag(control, "checkboxes");
-    snapshot.gridlines = control_flag(control, "gridlines");
-    snapshot.full_row = control_flag(control, "fullrowselect");
+    // Grid lines and full-row selection only apply in report view.
+    snapshot.gridlines = control_flag(control, "gridlines") &&
+                         (control.class_key != "listview" || snapshot.view == 3);
+    snapshot.full_row = control_flag(control, "fullrowselect") &&
+                        (control.class_key != "listview" || snapshot.view == 3);
+    snapshot.hide_headers = control_flag(control, "hidecolumnheaders");
     snapshot.large_change = static_cast<long>(number_property(control, "largechange"));
     snapshot.small_change = static_cast<long>(number_property(control, "smallchange"));
     snapshot.tick_frequency = static_cast<long>(number_property(control, "tickfrequency"));

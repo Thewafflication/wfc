@@ -83,6 +83,17 @@ std::string Interpreter::com_progid_to_clsid(const std::string&) {
     return {};
 }
 
+bool wfc_registry_write(const std::string&, const std::string&,
+                        const std::string&, const std::string&) {
+    return false;
+}
+std::optional<std::string> wfc_registry_read(const std::string&,
+                                             const std::string&,
+                                             const std::string&) {
+    return std::nullopt;
+}
+void wfc_registry_delete(const std::string&) {}
+
 bool Interpreter::com_member_statement(const Value&, const std::string&,
                                        const std::size_t offset,
                                        const std::optional<std::string>&) {
@@ -966,6 +977,54 @@ bool Interpreter::com_put_member(InstanceData& instance,
         return false;
     }
     return true;
+}
+
+// HKEY_CURRENT_USER values for SaveToolbar and RestoreToolbar.
+bool wfc_registry_write(const std::string& key, const std::string& subkey,
+                        const std::string& name, const std::string& data) {
+    const std::wstring path = widen(key + "\\" + subkey);
+    HKEY handle = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0,
+                        KEY_WRITE, nullptr, &handle,
+                        nullptr) != ERROR_SUCCESS) {
+        return false;
+    }
+    const std::wstring wide = widen(data);
+    const std::wstring value_name = widen(name);
+    const LONG status = RegSetValueExW(
+        handle, value_name.c_str(), 0, REG_SZ,
+        reinterpret_cast<const BYTE*>(wide.c_str()),
+        static_cast<DWORD>((wide.size() + 1U) * sizeof(wchar_t)));
+    RegCloseKey(handle);
+    return status == ERROR_SUCCESS;
+}
+
+std::optional<std::string> wfc_registry_read(const std::string& key,
+                                             const std::string& subkey,
+                                             const std::string& name) {
+    const std::wstring path = widen(key + "\\" + subkey);
+    HKEY handle = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, KEY_READ, &handle) !=
+        ERROR_SUCCESS) {
+        return std::nullopt;
+    }
+    const std::wstring value_name = widen(name);
+    wchar_t buffer[4096];
+    DWORD size = sizeof(buffer);
+    DWORD type = 0;
+    const LONG status =
+        RegQueryValueExW(handle, value_name.c_str(), nullptr, &type,
+                         reinterpret_cast<BYTE*>(buffer), &size);
+    RegCloseKey(handle);
+    if (status != ERROR_SUCCESS || type != REG_SZ) {
+        return std::nullopt;
+    }
+    return narrow(buffer, wcsnlen(buffer, size / sizeof(wchar_t)));
+}
+
+void wfc_registry_delete(const std::string& key) {
+    const std::wstring path = widen(key);
+    RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str());
 }
 
 std::string Interpreter::com_progid_to_clsid(const std::string& progid) {
