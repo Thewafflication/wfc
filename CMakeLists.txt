@@ -212,7 +212,10 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       SKIP_RETURN_CODE 77
       RESOURCE_LOCK desktop
   )
-  add_test(NAME TC-MP0004-ui-units COMMAND wfc_ui_tests)
+  add_test(
+    NAME TC-MP0004-ui-units
+    COMMAND wfc_ui_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+  )
   set_tests_properties(
     TC-MP0004-ui-units
     PROPERTIES LABELS "unit;mp-0004;forms"

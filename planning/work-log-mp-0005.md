@@ -23,3 +23,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #2 | Construction | `.frx` list items, `Controls.Add`/`Remove`, `WithEvents` on intrinsic controls (`REQ-0289`); corpus 172, 173 | CTest 335/335 |
 | 2026-10-11 #3 | Construction | Graphical button pictures (`Style = 1`) on the Win32 host and headless trace (`REQ-0289`); corpus 174 | CTest 336/336 |
 | 2026-10-11 #4 | Construction | Standalone `StdFont` (Clone, IsEqual, hFont, FontChanged, Weight) and `StdPicture` extras (`REQ-0095`, `REQ-0096`, `REQ-0291`); corpus 175 | CTest 337/337 |
+| 2026-10-11 #5 | Construction | `PropertyBag`; `write_frm_header` and corpus round trip (`REQ-0292`, `REQ-0115`); corpus 176 | CTest 338/338 |

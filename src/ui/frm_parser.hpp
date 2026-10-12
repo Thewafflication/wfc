@@ -52,6 +52,12 @@ struct FrmFile {
 
 [[nodiscard]] FrmFile parse_frm(std::string_view text);
 
+// The header of a form file (VERSION through the closing End) written the way
+// VB6 writes it: three-space indentation, `Name = value` aligned at column 24,
+// strings quoted with doubled quotes, resource references as `"file":0000`.
+// Parsing the result gives an equivalent FrmFile (comments are not kept).
+[[nodiscard]] std::string write_frm_header(const FrmFile& form);
+
 // The bytes of the .frx record at `offset`, or false when the file or record
 // is missing or malformed. Text records return their text; picture records
 // return the image data after the record header.

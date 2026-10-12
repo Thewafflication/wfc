@@ -427,6 +427,141 @@ WfcItems = Array(Printer)
 End Function
 )VB";
 
+inline constexpr std::string_view kPropertyBagSource =
+    R"VB(Private mNames() As String
+Private mTypes() As Long
+Private mValues() As String
+Private mCount As Long
+Private Function Find(ByVal Name As String) As Long
+Dim i As Long
+For i = 1 To mCount
+If LCase$(mNames(i)) = LCase$(Name) Then
+Find = i
+Exit Function
+End If
+Next i
+Find = 0
+End Function
+Private Sub Remove(ByVal Index As Long)
+Dim i As Long
+For i = Index To mCount - 1
+mNames(i) = mNames(i + 1)
+mTypes(i) = mTypes(i + 1)
+mValues(i) = mValues(i + 1)
+Next i
+mCount = mCount - 1
+End Sub
+Public Sub WriteProperty(Name As String, Value, Optional DefaultValue)
+Dim i As Long
+If IsObject(Value) Then Err.Raise 5, , "Invalid procedure call or argument"
+i = Find(Name)
+If Not IsMissing(DefaultValue) Then
+If VarType(Value) = VarType(DefaultValue) Then
+If Value = DefaultValue Then
+If i > 0 Then Remove i
+Exit Sub
+End If
+End If
+End If
+If i = 0 Then
+mCount = mCount + 1
+ReDim Preserve mNames(1 To mCount)
+ReDim Preserve mTypes(1 To mCount)
+ReDim Preserve mValues(1 To mCount)
+i = mCount
+End If
+mNames(i) = Name
+mTypes(i) = VarType(Value)
+If VarType(Value) = 11 Then
+mValues(i) = CStr(CInt(Value))
+Else
+mValues(i) = CStr(Value)
+End If
+End Sub
+Public Function ReadProperty(Name As String, Optional DefaultValue) As Variant
+Dim i As Long
+i = Find(Name)
+If i = 0 Then
+If IsMissing(DefaultValue) Then
+ReadProperty = Empty
+Else
+ReadProperty = DefaultValue
+End If
+Exit Function
+End If
+Select Case mTypes(i)
+Case 2: ReadProperty = CInt(mValues(i))
+Case 3: ReadProperty = CLng(mValues(i))
+Case 4: ReadProperty = CSng(mValues(i))
+Case 5: ReadProperty = CDbl(mValues(i))
+Case 6: ReadProperty = CCur(mValues(i))
+Case 7: ReadProperty = CDate(mValues(i))
+Case 11: ReadProperty = (mValues(i) <> "0")
+Case 17: ReadProperty = CByte(mValues(i))
+Case Else: ReadProperty = mValues(i)
+End Select
+End Function
+Private Function Escape(ByVal s As String) As String
+s = Replace(s, "\", "\\")
+s = Replace(s, vbCr, "\r")
+s = Replace(s, vbLf, "\n")
+Escape = Replace(s, "=", "\e")
+End Function
+Private Function Unescape(ByVal s As String) As String
+Dim i As Long
+Dim c As String
+Dim r As String
+i = 1
+Do While i <= Len(s)
+c = Mid$(s, i, 1)
+If c = "\" And i < Len(s) Then
+i = i + 1
+Select Case Mid$(s, i, 1)
+Case "r": r = r & vbCr
+Case "n": r = r & vbLf
+Case "e": r = r & "="
+Case Else: r = r & Mid$(s, i, 1)
+End Select
+Else
+r = r & c
+End If
+i = i + 1
+Loop
+Unescape = r
+End Function
+Public Property Get Contents() As Variant
+Dim i As Long
+Dim blob As String
+For i = 1 To mCount
+blob = blob & Escape(mNames(i)) & "=" & mTypes(i) & "="
+blob = blob & Escape(mValues(i)) & vbLf
+Next i
+Contents = StrConv(blob, vbFromUnicode)
+End Property
+Public Property Let Contents(ByVal v As Variant)
+Dim blob As String
+Dim lines() As String
+Dim parts() As String
+Dim i As Long
+blob = StrConv(v, vbUnicode)
+mCount = 0
+lines = Split(blob, vbLf)
+For i = 0 To UBound(lines)
+If Len(lines(i)) > 0 Then
+parts = Split(lines(i), "=")
+If UBound(parts) <> 2 Then Err.Raise 5, , "Invalid procedure call or argument"
+mCount = mCount + 1
+ReDim Preserve mNames(1 To mCount)
+ReDim Preserve mTypes(1 To mCount)
+ReDim Preserve mValues(1 To mCount)
+mNames(mCount) = Unescape(parts(0))
+mTypes(mCount) = CLng(parts(1))
+mValues(mCount) = Unescape(parts(2))
+End If
+Next i
+End Property
+)VB";
+
 inline constexpr std::string_view kFormsSource =
     R"VB(Public Property Get Count() As Long
 Count = 0

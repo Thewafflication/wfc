@@ -5,6 +5,7 @@
 
 #include <cctype>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -252,6 +253,62 @@ FrmFile parse_frm(const std::string_view text) {
     }
     result.ok = true;
     return result;
+}
+
+namespace {
+
+void write_property(const FrmProperty& property, const std::size_t depth,
+                    std::string& out) {
+    const std::string indent(depth * 3U, ' ');
+    if (!property.nested.empty()) {
+        out += indent + "BeginProperty " + property.name + " \r\n";
+        for (const auto& part : property.nested) {
+            write_property(part, depth + 1U, out);
+        }
+        out += indent + "EndProperty\r\n";
+        return;
+    }
+    std::string name = property.name;
+    if (name.size() < 16U) {
+        name.resize(16U, ' ');
+    }
+    std::string value;
+    if (property.in_resource) {
+        char offset[16];
+        std::snprintf(offset, sizeof(offset), "%04lX",
+                      property.resource_offset);
+        value = "\"" + property.resource_file + "\":" + offset;
+    } else if (property.is_string) {
+        value = "\"";
+        for (const char c : property.value) {
+            value += c == '"' ? std::string("\"\"") : std::string(1U, c);
+        }
+        value += "\"";
+    } else {
+        value = property.value;
+    }
+    out += indent + name + "=   " + value + "\r\n";
+}
+
+void write_object(const FrmObject& object, const std::size_t depth,
+                  std::string& out) {
+    const std::string indent(depth * 3U, ' ');
+    out += indent + "Begin " + object.type + " " + object.name + " \r\n";
+    for (const auto& property : object.properties) {
+        write_property(property, depth + 1U, out);
+    }
+    for (const auto& child : object.children) {
+        write_object(child, depth + 1U, out);
+    }
+    out += indent + "End\r\n";
+}
+
+}  // namespace
+
+std::string write_frm_header(const FrmFile& form) {
+    std::string out = "VERSION " + form.version + "\r\n";
+    write_object(form.root, 0, out);
+    return out;
 }
 
 bool read_frx_record(const std::string& path, const long offset,

@@ -2,7 +2,10 @@
 // host, and the .frm parser.
 
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 
 #include "control_tables.hpp"
@@ -170,12 +173,82 @@ void test_frm_parser() {
     expect(!parse_frm("End\n").ok, "stray End fails");
 }
 
+// Whether two parsed forms hold the same objects, properties and values.
+bool same_property(const wfc::ui::FrmProperty& a,
+                   const wfc::ui::FrmProperty& b) {
+    if (a.name != b.name || a.value != b.value || a.is_string != b.is_string ||
+        a.in_resource != b.in_resource || a.resource_file != b.resource_file ||
+        a.resource_offset != b.resource_offset ||
+        a.nested.size() != b.nested.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.nested.size(); ++i) {
+        if (!same_property(a.nested[i], b.nested[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool same_object(const wfc::ui::FrmObject& a, const wfc::ui::FrmObject& b) {
+    if (a.type != b.type || a.name != b.name ||
+        a.properties.size() != b.properties.size() ||
+        a.children.size() != b.children.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.properties.size(); ++i) {
+        if (!same_property(a.properties[i], b.properties[i])) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < a.children.size(); ++i) {
+        if (!same_object(a.children[i], b.children[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Parse, write, parse again: the forms are equivalent (REQ-0115).
+void check_round_trip(const std::string& label, const std::string& text) {
+    using namespace wfc::ui;
+    const auto first = parse_frm(text);
+    if (!first.ok) {
+        return;  // malformed forms are covered elsewhere
+    }
+    const auto second = parse_frm(write_frm_header(first));
+    expect(second.ok && second.version == first.version &&
+               same_object(first.root, second.root),
+           "round trip: " + label);
+}
+
+void test_frm_round_trip(const std::string& directory) {
+    namespace fs = std::filesystem;
+    std::size_t count = 0;
+    std::error_code ignored;
+    for (const auto& entry :
+         fs::recursive_directory_iterator(directory, ignored)) {
+        if (entry.path().extension() != ".frm") {
+            continue;
+        }
+        std::ifstream stream(entry.path(), std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(stream)),
+                               std::istreambuf_iterator<char>());
+        check_round_trip(entry.path().filename().string(), text);
+        ++count;
+    }
+    expect(count > 10U, "round trip covers the form corpus");
+}
+
 }  // namespace
 
-int main() {
+int main(const int argument_count, const char* const arguments[]) {
     test_tables();
     test_headless_host();
     test_frm_parser();
+    if (argument_count > 1) {
+        test_frm_round_trip(arguments[1]);
+    }
     if (failures != 0) {
         std::cerr << failures << " failure(s)\n";
         return EXIT_FAILURE;
