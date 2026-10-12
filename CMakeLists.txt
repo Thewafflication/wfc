@@ -82,7 +82,7 @@ endif()
 wfc_enable_strict_warnings(wfc_frontend)
 wsp_enable_hardening(wfc_frontend)
 
-add_executable(wfc src/main.cpp)
+add_executable(wfc src/main.cpp src/package.cpp src/package.hpp)
 target_compile_features(wfc PRIVATE cxx_std_20)
 target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
@@ -2186,6 +2186,24 @@ Print v.x & q.x]=]
     set_tests_properties(
       TC-MP0002-corpus-${corpus_name}
       PROPERTIES LABELS "integration;mp-0002;corpus"
+    )
+  endforeach()
+
+  foreach(package_case 194-comctl-persisted 195-comctl-refine)
+    set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus")
+    add_test(
+      NAME TC-MP0007-package-${package_case}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DINPUT=${package_dir}/${package_case}.vbp"
+        "-DEXPECTED=${package_dir}/${package_case}.expected"
+        "-DDEBUG_EXPECTED=${package_dir}/${package_case}.debug"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-${package_case}" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_package_case.cmake"
+    )
+    set_tests_properties(
+      TC-MP0007-package-${package_case}
+      PROPERTIES LABELS "integration;mp-0007;package"
     )
   endforeach()
 

@@ -13,3 +13,4 @@
 | Date / # | Type | Work | Verification |
 | --- | --- | --- | --- |
 | 2026-10-12 #1 | Planning | MP-0006 closed; `ADR-0007`, MP-0007 plan and work log drafted | Not applicable |
+| 2026-10-12 #2 | Construction | `wfc --build` packaged programs (`REQ-0303`, `ADR-0007`): image copy plus project payload, extraction on start-up; `TC-MP0007-package-*` | CTest 364/364 |

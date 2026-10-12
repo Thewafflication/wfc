@@ -410,3 +410,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0293 — ActiveX control hosting on forms](req-0293-activex-control-hosting.md)
 - [REQ-0294 — UserControl modules hosted by forms](req-0294-user-control.md)
 - [REQ-0295 — WFC classes served as COM objects](req-0295-com-server.md)
+- [REQ-0303 — Packaged programs](req-0303-packaged-programs.md)

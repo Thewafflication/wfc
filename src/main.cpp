@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 #include "com_server.hpp"
+#include "package.hpp"
 
 namespace {
 
@@ -60,7 +61,67 @@ std::string project_location(const wfc::LoadedProject& project,
 
 }  // namespace
 
+namespace {
+
+int run(int argument_count, const char* const arguments[]);
+
+// `wfc --build <project.vbp> -o <app.exe> [--gui]`: a packaged program.
+int build_package(const int argument_count, const char* const arguments[]) {
+    std::filesystem::path project;
+    std::filesystem::path output;
+    std::vector<std::string> options;
+    for (int i = 2; i < argument_count; ++i) {
+        const std::string_view argument = arguments[i];
+        if (argument == "-o" && i + 1 < argument_count) {
+            output = arguments[++i];
+        } else if (argument == "--gui") {
+            options.emplace_back("--gui");
+        } else if (project.empty() && argument.rfind("-", 0) != 0) {
+            project = arguments[i];
+        } else {
+            print_usage();
+            return 2;
+        }
+    }
+    if (project.empty() || output.empty()) {
+        std::cerr << "usage: wfc --build <project.vbp> -o <app.exe> [--gui]\n";
+        return 2;
+    }
+    std::string problem;
+    if (!wfc::package::build(wfc::package::running_image(), project, output,
+                             options, problem)) {
+        std::cerr << problem << '\n';
+        return 1;
+    }
+    return 0;
+}
+
+}  // namespace
+
 int main(const int argument_count, const char* const arguments[]) {
+    // A packaged program carries its project after the image.
+    std::string problem;
+    if (const auto command =
+            wfc::package::unpack(wfc::package::running_image(), problem)) {
+        if (!problem.empty()) {
+            std::cerr << problem << '\n';
+            return 2;
+        }
+        std::vector<const char*> forwarded{arguments[0]};
+        for (const auto& item : *command) {
+            forwarded.push_back(item.c_str());
+        }
+        return run(static_cast<int>(forwarded.size()), forwarded.data());
+    }
+    if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {
+        return build_package(argument_count, arguments);
+    }
+    return run(argument_count, arguments);
+}
+
+namespace {
+
+int run(const int argument_count, const char* const arguments[]) {
     if (argument_count == 2 && std::string_view(arguments[1]) == "--version") {
         std::cout << "wfc " << wfc::version << '\n';
         return 0;
@@ -243,3 +304,5 @@ int main(const int argument_count, const char* const arguments[]) {
     std::cout << evaluation.output << '\n';
     return 0;
 }
+
+}  // namespace
