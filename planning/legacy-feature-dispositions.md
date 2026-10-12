@@ -108,7 +108,7 @@ each stubbed member either returns the documented inert value or raises 282,
 and record the variance in the release notes.
 
 **Acceptance record:** _decision: **Deferred beyond 1.0** — DDE is
-implemented, if at all, after all 1.0 milestones (after MP-0010). For 1.0,
+implemented, if at all, after all 1.0 milestones (after MP-0011). For 1.0,
 `REQ-0130`'s excluded-profile clause governs: `Link*` members stay
 source-visible and persisted values load, and use fails through one documented
 diagnostic. The compatibility-stub details above (error 282, `LinkMode` forced
@@ -202,7 +202,7 @@ contradict the profile's COM-identity goals.
 `SaveToOle1File` row stubbed in `REQ-0063`, add a stub conformance test.
 
 **Acceptance record:** _decision: **Deferred beyond 1.0** — OLE1 file save
-(`SaveToOle1File`) is scheduled after MP-0010. In 1.0 the method stays
+(`SaveToOle1File`) is scheduled after MP-0011. In 1.0 the method stays
 declared and calling it fails through one documented unsupported-feature
 diagnostic (planned as error 445). Persisted OLE1 objects in old forms load as
 preserved, non-activatable data, as proposed above. OLE2 hosting (`REQ-0129`)
@@ -247,7 +247,7 @@ revisited before MP-0004.
 diagnostic and test.
 
 **Acceptance record:** _decision: **Deferred beyond 1.0** — ActiveX Documents
-are scheduled after MP-0010. In 1.0 the project loader rejects a
+are scheduled after MP-0011. In 1.0 the project loader rejects a
 `UserDocument=`/`.dob` item with one documented unsupported-feature diagnostic
 naming the file, and `As UserDocument` fails at compile time with the same
 diagnostic; no stub class is provided. `REQ-0066` is retained as a deferred,
@@ -344,7 +344,7 @@ release notes.
 every help property and argument (`HelpContextID`, `WhatsThisHelp`,
 `App.HelpFile`, the `MsgBox`/`InputBox` `HelpFile`/`Context` pair) is accepted,
 persisted and settable in 1.0. Displaying help is deferred beyond 1.0 (after
-MP-0010): neither the `.chm` HTML Help bridge nor any `.hlp` support is
+MP-0011): neither the `.chm` HTML Help bridge nor any `.hlp` support is
 implemented, and a request to show help (F1, the `MsgBox` Help button,
 What's This mode) fails through one documented unsupported-feature diagnostic
 rather than appearing to succeed. The help-integration requirement is specified

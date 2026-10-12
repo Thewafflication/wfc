@@ -51,13 +51,13 @@ needs their evidence; they are not reported as passing in MP-0001.
 | --- | --- | --- |
 | `WSP-REQM-0001`–`WSP-REQM-0010` | Applicable | Requirement records, explicit tailoring, traceability validation, and release baselines |
 | `WSP-PROC-0001`–`WSP-PROC-0006` | Applicable | Milestone plans, Git history, review, and defect records |
-| `WSP-PROC-0007`–`WSP-PROC-0010` | Deferred | Release readiness, support, and retrospective records by MP-0009/MP-0010 |
+| `WSP-PROC-0007`–`WSP-PROC-0010` | Deferred | Release readiness, support, and retrospective records by MP-0010/MP-0011 |
 | `WSP-PSP-0001`–`WSP-PSP-0009` | Applicable | Milestone work plans, reviews, work records where useful, and closeouts |
-| `WSP-DOC-0001`–`WSP-DOC-0012` | Deferred | Reproducible release-document pipeline by MP-0009 |
+| `WSP-DOC-0001`–`WSP-DOC-0012` | Deferred | Reproducible release-document pipeline by MP-0010 |
 | `WSP-DOC-0013` | Not applicable | No PAdES-signed PDF requirement has been selected |
 | `WSP-TEST-0001`–`WSP-TEST-0005` | Applicable | Requirement-linked specifications and repeatable local execution |
 | `WSP-TEST-0006`–`WSP-TEST-0018` | Deferred | CI, reporting, retention, target matrix, and debug evidence introduced through MP-0008 |
-| `WSP-SEC-0001`–`WSP-SEC-0014` | Deferred | Controlled DFS and derived security evidence before 0.1.0 closes; release-response controls by MP-0009 |
+| `WSP-SEC-0001`–`WSP-SEC-0014` | Deferred | Controlled DFS and derived security evidence before 0.1.0 closes; release-response controls by MP-0010 |
 | `WSP-WINRES-0001`–`WSP-WINRES-0012` | Deferred | Generated and verified resources before the first distributed binary baseline |
 | `WSP-SIGN-0001`–`WSP-SIGN-0018` | Deferred | Signing, scanning, and trust dispositions before public release artifacts |
 | `WSP-TOOL-0001`–`WSP-TOOL-0009` | Deferred | Select and verify each common-tool invocation as build/test automation enters scope |

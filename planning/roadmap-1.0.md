@@ -28,10 +28,11 @@ gate may not be bypassed by moving unfinished work into an undocumented gap.
 | MP-0004 | 0.4.0 | Forms and intrinsic controls | Ordinary/MDI forms and retained intrinsic controls load, interact, persist, and pass behavioral probes |
 | MP-0005 | 0.5.0 | Component authoring, `stdole`, and OLE2 | ActiveX components, font/picture contracts, persistence, registration, and retained OLE hosting work |
 | MP-0006 | 0.6.0 | `MSComctlLib` compatibility | Nine common controls satisfy API, behavior, event, rendering, and persistence gates |
-| MP-0007 | 0.7.0 | Native compiler and VBRUN ABI | WFC produces native programs and the approved x86 legacy runtime ABI passes import/call probes |
-| MP-0008 | 0.8.0 | Project compatibility and target matrix | Representative VB6 projects build and run on x86, x64, and ARM64 with documented variances |
-| MP-0009 | 0.9.0 | Compatibility closure candidate | Applicable requirements are implemented; remaining work is defect, evidence, documentation, and release closure |
-| MP-0010 | 1.0.0 | Mostly complete replacement | The 1.0 compatibility profile and all release-quality gates are approved |
+| MP-0007 | 0.7.0 | Packaging and VBRUN export surface | WFC builds self-contained packaged programs and a library with the MSVBVM60 export directory (closed 2026-10-12; machine-code generation moved to MP-0009) |
+| MP-0008 | 0.8.0 | Project compatibility | Representative real VB6 projects, including archived games, load and run on x86, x64, and ARM64 with documented variances; the first WPM package and release follow this gate |
+| MP-0009 | 0.9.0 | Native compilation | WFC generates native x86, AMD64, and ARM64 code, with no translation layer, and the compiler/runtime corpus passes on all three |
+| MP-0010 | 0.10.0 | Compatibility closure candidate | Applicable requirements are implemented; remaining work is defect, evidence, documentation, and release closure |
+| MP-0011 | 1.0.0 | Mostly complete replacement | The 1.0 compatibility profile and all release-quality gates are approved |
 
 ## Initial Requirement Allocation
 
@@ -48,10 +49,11 @@ controlled disposition.
 | MP-0004 / 0.4.0 | Visual/form contracts `REQ-0037`–`REQ-0050`, `REQ-0053`–`REQ-0062`, and behaviors `REQ-0106`–`REQ-0131` as retained | Form/resource formats, defaults, accessibility, rendering, and any replacement requirement created by a legacy removal |
 | MP-0005 / 0.5.0 | OLE/component contracts `REQ-0063`–`REQ-0066` as retained and `stdole` `REQ-0095`–`REQ-0098` | Component persistence, registration, licensing, property bags, OLE2 behavior, and approved removal diagnostics |
 | MP-0006 / 0.6.0 | `MSComctlLib` `REQ-0001`–`REQ-0036` | Additional defaults, persistence, accessibility, DPI, theme, and error requirements discovered by probes |
-| MP-0007 / 0.7.0 | VBRUN `REQ-0099`–`REQ-0105` | Export signatures, calling conventions, layouts, helper behavior, native compiler ABI, and legacy-binary corpus |
-| MP-0008 / 0.8.0 | Applicable requirements carried from subsystem milestones | Real-project, deployment, architecture, migration, compatibility-diagnostic, performance, and security requirements |
-| MP-0009 / 0.9.0 | All applicable 1.0 requirements | Closure-only requirements for complete evidence, user information, release candidate, and defect gates |
-| MP-0010 / 1.0.0 | Approved 1.0 requirement baseline | Release readiness, reproducibility, provenance, publication, rollback, and maintenance acceptance |
+| MP-0007 / 0.7.0 | VBRUN `REQ-0099`–`REQ-0105`, `REQ-0303` | Export layout and packaged programs; signatures and helper behavior move to MP-0009 |
+| MP-0008 / 0.8.0 | Applicable requirements carried from subsystem milestones | Real-project, deployment, migration, compatibility-diagnostic, and security requirements |
+| MP-0009 / 0.9.0 | Compiler and runtime requirements, VBRUN behavior `REQ-0100`–`REQ-0104` | Calling conventions, layouts, native code generation per architecture, performance |
+| MP-0010 / 0.10.0 | All applicable 1.0 requirements | Closure-only requirements for complete evidence, user information, release candidate, and defect gates |
+| MP-0011 / 1.0.0 | Approved 1.0 requirement baseline | Release readiness, reproducibility, provenance, publication, rollback, and maintenance acceptance |
 
 `___MSJetSQLHelp` is removed by the 1.0 compatibility profile and receives no
 implementation requirement. Its unsupported-feature diagnostic shall be
@@ -228,56 +230,84 @@ Slider, and ImageCombo are usable by supported VB6 projects.
 All applicable MSComctl requirements pass on the required milestone matrix and
 representative forms load persisted controls without manual source changes.
 
-## MP-0007 — Native Compiler and VBRUN ABI (`0.7.0`)
+## MP-0007 — Packaging and VBRUN Export Surface (`0.7.0`)
+
+Detailed plan: [MP-0007](MP-0007-native-compiler.md); closed 2026-10-12.
+Machine-code generation, calling conventions and VBRUN helper behavior moved to
+MP-0009 (see below). The owner decided on 2026-10-12 that generated code is
+native to each target (x86, AMD64, ARM64) with no translation layer and no x86
+bridge.
 
 ### Outcome
 
-WFC produces deployable native programs, and the approved x86 legacy-runtime
-profile can satisfy selected unmodified VB6 native binaries.
-
-### Principal Work
-
-- native code generation, calling conventions, stack/unwind behavior, startup,
-  module initialization, exception/error flow, object and array layouts, and
-  architecture-specific lowering;
-- signatures and behavior for required compiler, member, language, numeric,
-  project-hosting, and COM helpers documented in `REQ-0099` through `REQ-0105`;
-- x86 `MSVBVM60.DLL` import/ordinal compatibility on x86 only: x64 and ARM64
-  get native code, never an x86 bridge or translation layer (owner decision,
-  2026-10-12, `ADR-0007`); and
-- packaging and dependency policy for x86, x64, and ARM64 native outputs.
+WFC builds self-contained packaged programs, and `wfcvbrun.dll` carries the
+`MSVBVM60` export directory.
 
 ### Exit Gate
 
-WFC-built native applications pass the compiler/runtime corpus on all required
-architectures, and the approved legacy x86 binary corpus resolves and executes
-its runtime imports with documented limits.
+A packaged program prints what the project prints, and the library export
+directory equals the reference layout (met).
 
-## MP-0008 — Project Compatibility and Target Matrix (`0.8.0`)
+## MP-0008 — Project Compatibility (`0.8.0`)
 
 ### Outcome
 
-Representative real VB6 applications build and run across the supported target
-matrix with predictable migration diagnostics and no test-only integration
-paths.
+Representative real VB6 applications load and run on x86, x64, and ARM64 with
+predictable migration diagnostics and no test-only integration paths. The
+corpus includes VB6 games archived on SourceForge, built as test cases and
+demonstrations.
 
 ### Principal Work
 
-- remaining language/library/project-format closure;
+- a reviewed real-project corpus (archived games first), each project with its
+  source, license, provenance, and a functional acceptance test (a scripted
+  run, a screenshot, or both);
+- the language, library, control, and project-format gaps those projects
+  expose, fixed as ordinary requirements with tests;
 - project references, resources, manifests, icons, version information,
   deployment, registration, command-line tools, and incremental builds;
-- x86, x64, and ARM64 CI; Unicode/ANSI, DPI, accessibility, locale, security,
-  and performance matrices, including interpreter execution speed carried
-  forward from MP-0002 (statement text is re-parsed on each loop pass); and
-- migration and compatibility diagnostics for removed or unsupported features.
+- x86, x64, and ARM64 CI, with Unicode/ANSI, DPI, accessibility, locale, and
+  security matrices;
+- migration and compatibility diagnostics for removed or unsupported features;
+  and
+- a WPM package of the packaged demonstration programs and the first release,
+  made after the exit gate.
 
 ### Exit Gate
 
-The reviewed real-project corpus builds reproducibly and passes its functional
-acceptance tests on required architectures, with every variance traced to an
-approved scope or defect record.
+The reviewed project corpus builds reproducibly and passes its functional
+acceptance tests on the required architectures, every variance is traced to an
+approved scope or defect record, and the WPM package verifies.
 
-## MP-0009 — Compatibility Closure Candidate (`0.9.0`)
+## MP-0009 — Native Compilation (`0.9.0`)
+
+### Outcome
+
+WFC generates native machine code for x86, AMD64, and ARM64. Each architecture
+has its own back end; there is no translation layer, emulation, or x86 helper
+process on x64 or ARM64.
+
+### Principal Work
+
+- an intermediate representation, then one back end per architecture sharing
+  one runtime;
+- calling conventions, stack/unwind behavior, startup, module initialization,
+  exception/error flow, and object and array layouts;
+- signatures and behavior of the compiler, member, language, numeric, and COM
+  helpers of `REQ-0100` through `REQ-0104`, and x86 `MSVBVM60.DLL` import
+  compatibility on x86 for the approved legacy binary corpus;
+- interpreter execution speed carried forward from MP-0002 and the performance
+  matrix; and
+- packaging and dependency policy for native outputs, replacing the embedded
+  interpreter of MP-0007 packages.
+
+### Exit Gate
+
+WFC-built native applications pass the compiler/runtime corpus on all three
+architectures, the MP-0008 project corpus builds natively, and the approved
+legacy x86 binary corpus resolves and executes its runtime imports on x86.
+
+## MP-0010 — Compatibility Closure Candidate (`0.10.0`)
 
 ### Outcome
 
@@ -300,7 +330,7 @@ Every 1.0 feature is verified or has an approved variance/removal/deferment;
 there are no unresolved release-gate defects, and the exact `1.0.0` candidate
 baseline is nominated.
 
-## MP-0010 — Mostly Complete Replacement (`1.0.0`)
+## MP-0011 — Mostly Complete Replacement (`1.0.0`)
 
 ### Outcome
 

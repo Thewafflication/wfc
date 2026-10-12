@@ -22,10 +22,8 @@
 
 ## Active Milestone
 
-MP-0007 — Native Compiler and VBRUN ABI (`0.7.0`), per the
-[MP-0007 plan](MP-0007-native-compiler.md) and the
-[roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0007 work log](work-log-mp-0007.md).
+MP-0008 — Project Compatibility (`0.8.0`), per the
+[roadmap](roadmap-1.0.md); its detailed plan is the next document to write.
 
 Closed milestones:
 
@@ -47,6 +45,10 @@ Closed milestones:
   MSCOMCTL binary persistence and reference probes deferred; see the
   [closeout record](MP-0006-closeout.md), [plan](MP-0006-mscomctllib.md),
   [coverage matrix](MP-0006-coverage.md) and [work log](work-log-mp-0006.md).
+- MP-0007 — Packaging and VBRUN Export Surface (`0.7.0`), closed 2026-10-12
+  with machine-code generation moved to MP-0009 (native x86, AMD64 and ARM64,
+  no translation layer); see the [closeout record](MP-0007-closeout.md),
+  [plan](MP-0007-native-compiler.md) and [work log](work-log-mp-0007.md).
 
 The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`

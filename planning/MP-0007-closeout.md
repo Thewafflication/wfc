@@ -4,9 +4,9 @@
 
 **Milestone or work package:** MP-0007 — Native compiler and VBRUN ABI (`0.7.0`)
 
-**Status:** Proposed (awaiting owner approval)
+**Status:** Complete (with documented deferrals)
 
-**Completion date:** Not yet approved
+**Completion date:** 2026-10-12
 
 **Inherited baseline:** MP-0006 closeout (`MP-0006-closeout.md`)
 
@@ -15,7 +15,7 @@ Actions result for x86 and ARM64 to be recorded at approval
 
 **Owner:** Project maintainer
 
-**Approval:** Pending
+**Approval:** Owner approval in session, 2026-10-12
 
 ## Outcome
 
@@ -42,9 +42,9 @@ does not deliver machine-code generation or working VBRUN helpers; the plan and
 | Packager and start-up detection | Complete | `REQ-0303`, `TC-MP0007-package-*` |
 | Export library with reference layout | Complete | `REQ-0105`, `TC-MP0007-vbrun-library` |
 | Loader test, stub diagnostic | Complete (no WFC diagnostic code: the stub is not a WFC component message) | `TC-MP0007-vbrun-library` |
-| Behavior of `REQ-0100`–`REQ-0104` exports | Deferred: signatures need probes | Reference machine |
-| x86 helper process bridge on x64 and ARM64 | Withdrawn: owner decision, native code per architecture (`ADR-0007`) | Native back ends milestone |
-| Machine-code generation, startup, unwind, layouts | Deferred | New milestone |
+| Behavior of `REQ-0100`–`REQ-0104` exports | Deferred: signatures need probes | MP-0009 |
+| x86 helper process bridge on x64 and ARM64 | Withdrawn: owner decision, native code per architecture (`ADR-0007`) | MP-0009 |
+| Machine-code generation, startup, unwind, layouts | Deferred | MP-0009 |
 | Legacy x86 binary corpus | Deferred: no approved corpus | Reference machine |
 
 ## Exit Criteria
@@ -61,19 +61,19 @@ does not deliver machine-code generation or working VBRUN helpers; the plan and
 
 | Item | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| Machine-code generation: native x86, AMD64 and ARM64 back ends, no translation layer | Programs are interpreted inside the package | Project maintainer | New milestone | Packaged runtime | Pending |
+| Machine-code generation: native x86, AMD64 and ARM64 back ends, no translation layer | Programs are interpreted inside the package | Project maintainer | MP-0009 | Packaged runtime | Pending |
 | Export behavior and signatures | Native VB6 binaries do not run | Project maintainer | Reference machine | Stub diagnostics | Pending |
-| Legacy x86 binaries on x64 and ARM64 | Not supported; no bridge or emulation | Project maintainer | Withdrawn | Native back ends | Owner, 2026-10-12 |
+| Legacy x86 binaries on x64 and ARM64 | Not supported; no bridge or emulation | Project maintainer | Withdrawn | Native back ends (MP-0009) | Owner, 2026-10-12 |
 | Packaged program arguments, files outside the project directory, signing | Some programs differ | Project maintainer | MP-0008 | `REQ-0303` limits | Pending |
 
 ## Closeout Decision
 
-- **Decision:** Proposed: complete with documented deferrals
+- **Decision:** Complete with documented deferrals
 - **Approver:** Project maintainer
 - **Rationale:** The two deliverables that can be verified without a VB6
   reference machine are done; the roadmap exit gate for native code and legacy
   binaries is not met and is recorded as such.
-- **Next review or release action:** Owner approval, then plan MP-0008.
+- **Next review or release action:** `MP-0008` (project compatibility); native compilation is `MP-0009`.
 
 ## References
 

@@ -16,3 +16,4 @@
 | 2026-10-12 #2 | Construction | `wfc --build` packaged programs (`REQ-0303`, `ADR-0007`): image copy plus project payload, extraction on start-up; `TC-MP0007-package-*` | CTest 364/364 |
 | 2026-10-12 #3 | Construction | `wfcvbrun.dll`: export directory generated from the MSVBVM60 inventory (`REQ-0105`), stubs that name the reached export (`REQ-0099`); `TC-MP0007-vbrun-library` parses the built PE | CTest 365/365 |
 | 2026-10-12 #4 | Closeout | README packaging section; proposed closeout record | Not applicable |
+| 2026-10-12 #5 | Closeout | MP-0007 closed; roadmap split: MP-0008 project compatibility, MP-0009 native compilation, closure candidate now MP-0010 (0.10.0), 1.0.0 now MP-0011 | Not applicable |

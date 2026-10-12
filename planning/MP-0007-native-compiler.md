@@ -1,7 +1,7 @@
 # MP-0007 — Native Compiler and VBRUN ABI
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Complete (see closeout record)  
 **Target baseline:** 0.7.0  
 **Planned period:** 2026-10-12 through milestone closeout  
 **Inherited baseline:** MP-0006 closeout (`MP-0006-closeout.md`), `master` at the closeout commit  
