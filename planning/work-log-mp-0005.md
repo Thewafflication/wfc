@@ -34,3 +34,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #13 | Construction | OLE container control shell: `CreateEmbed`, `Object`, `Close`/`Delete` (`REQ-0293`, `REQ-0063`); corpus 186 | CTest 350/350 |
 | 2026-10-12 #14 | Construction | COM server type library export, `IConnectionPointContainer`, `IProvideClassInfo2`, events to clients, `--write-typelib` (`REQ-0295`); `TC-MP0005-com-server-early` | CTest 351/351 |
 | 2026-10-12 #15 | Construction | `PrintForm` spools a marker to the virtual printer (`REQ-0289`); corpus 187 | CTest 352/352 |
+| 2026-10-12 #16 | Defect | The Win32 host reports itself unusable when the input desktop cannot be opened (locked workstation); GUI tests had crashed with 0xC0000409 in such a session | CTest 352/352 |

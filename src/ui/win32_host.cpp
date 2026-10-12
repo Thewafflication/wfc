@@ -388,6 +388,16 @@ Win32Host::Win32Host() {
             dpi_x_ > 0 && dpi_y_ > 0 && Win32Support::register_form_class();
     }
     if (usable_) {
+        // A locked workstation shows the secure desktop: windows would be
+        // created but never shown or painted, so report the host unusable.
+        if (const HDESK input =
+                OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS)) {
+            CloseDesktop(input);
+        } else {
+            usable_ = false;
+        }
+    }
+    if (usable_) {
         // MS Sans Serif 8.25 pt, as VB6 forms use by default.
         font_ = CreateFontW(-MulDiv(8, static_cast<int>(dpi_y_), 72), 0, 0, 0,
                             FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
