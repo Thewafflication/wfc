@@ -1,0 +1,4 @@
+Type=Exe
+Form=164-form-sendkeys.frm
+Startup="Form1"
+WfcUiScript=164-form-sendkeys.ui

@@ -24,6 +24,13 @@ struct WindowBinding {
     long index{-1};       // control-array index, or -1
 };
 
+// A SendKeys keystroke waiting to be delivered to whatever has the focus.
+struct PendingKey {
+    long code{0};
+    long shift{0};
+    long ascii{0};
+};
+
 struct FormRuntime {
     std::unique_ptr<ui::UiHost> host;
     ui::HeadlessHost* headless{nullptr};
@@ -35,6 +42,7 @@ struct FormRuntime {
     bool script_loaded{false};
     // `End` ran: no more events are delivered and no forms are unloaded.
     bool ended{false};
+    std::deque<PendingKey> keys;
     // Answers the script queued for MsgBox / InputBox: (kind, text).
     std::deque<std::pair<std::string, std::string>> answers;
 };

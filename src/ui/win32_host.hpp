@@ -55,6 +55,7 @@ public:
     [[nodiscard]] std::optional<std::string> input_box(
         WindowId owner, const std::string& prompt, const std::string& title,
         const std::string& initial, bool& supported) override;
+    [[nodiscard]] bool send_key(long code, long shift, long ascii) override;
     void pump() override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;

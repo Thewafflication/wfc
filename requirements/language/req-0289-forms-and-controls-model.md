@@ -128,6 +128,15 @@
   the argument or `App.Title`) and returns the VB button value; `InputBox` shows
   a prompt dialog and returns the typed text, or an empty string when cancelled.
 
+- **SendKeys.** `SendKeys keys [, wait]` sends characters, `{NAME}` keys (`ENTER`,
+  `TAB`, `ESC`, `BACKSPACE`/`BS`, `DELETE`/`DEL`, `INSERT`, `HOME`, `END`, `PGUP`,
+  `PGDN`, arrows, `F1`-`F16`, with an optional repeat count `{LEFT 3}`), `~`
+  (Enter) and the `+`, `^`, `%` modifiers (also on a parenthesized group). The
+  headless host delivers the keys one at a time to whichever control has the
+  focus then (so `{TAB}` moves later keys on) and typing into a text box edits
+  it and raises `KeyPress` and `Change`; the Win32 host injects real input.
+  A bad key name raises 5.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the
@@ -136,4 +145,4 @@ drawing, `Shape`, `Line`, `Image`) are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

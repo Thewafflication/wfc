@@ -727,6 +727,13 @@ bool Interpreter::parse_statement_core() {
     }
     {
         const auto before_save = offset_;
+        if (consume_keyword("sendkeys")) {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() != '=') {
+                return parse_sendkeys_statement(statement_offset);
+            }
+            offset_ = before_save;
+        }
         if (consume_keyword("savepicture")) {
             skip_horizontal_whitespace();
             if (!at_end() && current() != '=' && current() != '(') {

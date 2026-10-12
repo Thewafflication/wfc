@@ -640,6 +640,185 @@ struct FormSupport {
                raise_table_event(in, bar, "Change", {}, in.offset_);
     }
 
+    // ----- SendKeys -----------------------------------------------------
+
+    struct Keystroke {
+        long code{0};   // virtual-key code
+        long shift{0};  // 1 shift, 2 ctrl, 4 alt
+        long ascii{0};  // the character, or 0 for a non-character key
+    };
+
+    // Parses a SendKeys string: plain characters, {NAME} keys with an optional
+    // repeat count ({LEFT 3}), ~ (Enter), and the + ^ % modifiers (applied to
+    // the next key or to a parenthesized group).
+    [[nodiscard]] static bool parse_sendkeys(const std::string& text,
+                                             std::vector<Keystroke>& out) {
+        static const std::map<std::string, long> named = {
+            {"enter", 13},    {"tab", 9},          {"esc", 27},
+            {"escape", 27},   {"backspace", 8},    {"bs", 8},
+            {"bksp", 8},      {"delete", 46},      {"del", 46},
+            {"insert", 45},   {"ins", 45},         {"home", 36},
+            {"end", 35},      {"pgup", 33},        {"pgdn", 34},
+            {"left", 37},     {"up", 38},          {"right", 39},
+            {"down", 40},     {"break", 3},        {"capslock", 20},
+            {"numlock", 144}, {"scrolllock", 145}, {"help", 47},
+            {"prtsc", 44},
+        };
+        long pending = 0;
+        std::vector<long> group_shift;  // shift to apply inside a group
+        const auto push = [&](Keystroke key) {
+            long inherited = pending;
+            for (const long extra : group_shift) {
+                inherited |= extra;
+            }
+            key.shift |= inherited;
+            pending = 0;
+            out.push_back(key);
+        };
+        std::size_t i = 0;
+        while (i < text.size()) {
+            const char c = text[i];
+            if (c == '+' || c == '^' || c == '%') {
+                pending |= c == '+' ? 1 : c == '^' ? 2 : 4;
+                ++i;
+            } else if (c == '(' && pending != 0) {
+                group_shift.push_back(pending);
+                pending = 0;
+                ++i;
+            } else if (c == ')' && !group_shift.empty()) {
+                group_shift.pop_back();
+                ++i;
+            } else if (c == '~') {
+                push(Keystroke{13, 0, 13});
+                ++i;
+            } else if (c == '{') {
+                const auto close = text.find('}', i + 2U);
+                if (close == std::string::npos) {
+                    return false;
+                }
+                std::string body = text.substr(i + 1U, close - i - 1U);
+                i = close + 1U;
+                long repeat = 1;
+                const auto space = body.find(' ');
+                if (space != std::string::npos) {
+                    repeat = std::max(1L, std::atol(body.c_str() + space + 1U));
+                    body.resize(space);
+                }
+                const std::string key = lower_text(body);
+                Keystroke stroke;
+                if (body.size() == 1U) {
+                    stroke.ascii = static_cast<unsigned char>(body[0]);
+                    stroke.code =
+                        std::toupper(static_cast<unsigned char>(body[0]));
+                } else if (const auto found = named.find(key);
+                           found != named.end()) {
+                    stroke.code = found->second;
+                    stroke.ascii = found->second == 13 || found->second == 27 ||
+                                           found->second == 8
+                                       ? found->second
+                                       : 0;
+                } else if (key.size() >= 2U && key[0] == 'f' &&
+                           std::isdigit(static_cast<unsigned char>(key[1]))) {
+                    const long number = std::atol(key.c_str() + 1);
+                    if (number < 1 || number > 16) {
+                        return false;
+                    }
+                    stroke.code = 111 + number;
+                } else {
+                    return false;
+                }
+                for (long n = 0; n < repeat; ++n) {
+                    push(stroke);
+                }
+            } else {
+                Keystroke stroke;
+                stroke.ascii = static_cast<unsigned char>(c);
+                stroke.code = std::toupper(static_cast<unsigned char>(c));
+                if (std::isupper(static_cast<unsigned char>(c)) != 0) {
+                    stroke.shift |= 1;
+                }
+                push(stroke);
+                ++i;
+            }
+        }
+        return true;
+    }
+
+    // Edits a headless text box the way typing would.
+    [[nodiscard]] static bool default_typing(Interpreter& in,
+                                             ControlObject& source,
+                                             const long ascii) {
+        if (ascii < 8 || (ascii > 8 && ascii < 32)) {
+            return true;
+        }
+        const auto previous = source.values.find("text");
+        std::string text =
+            previous != source.values.end() &&
+                    std::holds_alternative<std::string>(previous->second)
+                ? std::get<std::string>(previous->second)
+                : std::string{};
+        if (ascii == 8) {
+            if (text.empty()) {
+                return true;
+            }
+            // Remove one UTF-8 character.
+            std::size_t cut = text.size() - 1U;
+            while (cut > 0 &&
+                   (static_cast<unsigned char>(text[cut]) & 0xC0U) == 0x80U) {
+                --cut;
+            }
+            text.erase(cut);
+        } else {
+            text.push_back(static_cast<char>(ascii));
+        }
+        source.values["text"] = Value{text};
+        runtime(in).host->set_text(source.window, text);
+        return raise_table_event(in, source, "Change", {}, in.offset_);
+    }
+
+    // Delivers SendKeys keystrokes to the focused control.
+    [[nodiscard]] static bool send_keys(Interpreter& in,
+                                        const std::vector<Keystroke>& keys) {
+        auto& state = runtime(in);
+        for (const Keystroke& key : keys) {
+            if (state.host->send_key(key.code, key.shift, key.ascii)) {
+                continue;  // the host injected real input
+            }
+            // Delivered one at a time to whatever has the focus then.
+            state.keys.push_back(PendingKey{key.code, key.shift, key.ascii});
+        }
+        return true;
+    }
+
+    // Posts the next pending keystroke to the focused control (or the first
+    // form); false when none is waiting.
+    [[nodiscard]] static bool deliver_pending_key(Interpreter& in) {
+        auto& state = runtime(in);
+        if (state.keys.empty()) {
+            return false;
+        }
+        const PendingKey key = state.keys.front();
+        state.keys.pop_front();
+        ui::WindowId window = state.host->focus();
+        if (window == ui::kNoWindow && !state.loaded.empty()) {
+            if (const auto first = state.loaded.front().lock()) {
+                window = control_of(*first)->window;
+            }
+        }
+        if (window == ui::kNoWindow) {
+            return true;
+        }
+        state.host->post_event(
+            ui::UiEvent{window, "KeyDown", {key.code, key.shift}});
+        if (key.ascii != 0 && (key.shift & 6) == 0) {
+            state.host->post_event(
+                ui::UiEvent{window, "KeyPress", {key.ascii}});
+        }
+        state.host->post_event(
+            ui::UiEvent{window, "KeyUp", {key.code, key.shift}});
+        return true;
+    }
+
     // ----- Focus order, default keys, accelerators, validation ----------
 
     // Tabbable controls in tab order (TabIndex, else creation order).
@@ -2269,6 +2448,13 @@ struct FormSupport {
                    source->index, name, arguments, in.offset_)) {
             return false;
         }
+        if (name == "keypress" && !arguments.empty() &&
+            state.headless != nullptr && !source->is_form &&
+            (source->class_key == "textbox" ||
+             source->class_key == "combobox")) {
+            return default_typing(in, *source,
+                                  whole_value(arguments[0]).value_or(0));
+        }
         if (name == "keydown" && !arguments.empty()) {
             const long code = whole_value(arguments[0]).value_or(0);
             const long shift = arguments.size() > 1U
@@ -2472,18 +2658,6 @@ struct FormSupport {
                         object->window,
                         "KeyPress",
                         {static_cast<long>(static_cast<unsigned char>(c))}});
-                    const auto previous = object->values.find("text");
-                    std::string text =
-                        previous != object->values.end() &&
-                                std::holds_alternative<std::string>(
-                                    previous->second)
-                            ? std::get<std::string>(previous->second)
-                            : std::string{};
-                    text.push_back(c);
-                    object->values["text"] = Value{text};
-                    state.host->set_text(object->window, text);
-                    state.host->post_event(
-                        ui::UiEvent{object->window, "Change", {}});
                     state.host->post_event(
                         ui::UiEvent{object->window, "KeyUp", {code, 0L}});
                 }
@@ -2526,6 +2700,8 @@ struct FormSupport {
         if (const auto event = state.host->next_event(
                 state.headless == nullptr && !state.host->exhausted())) {
             ok = dispatch(in, *event);
+        } else if (deliver_pending_key(in)) {
+            ok = true;
         } else if (state.script_next < state.script.size()) {
             ok = run_script_line(in, state.script[state.script_next++]);
         } else {
@@ -3821,6 +3997,50 @@ ui::WindowId dialog_owner(Interpreter& in, FormRuntime& state) {
 
 }  // namespace
 
+bool Interpreter::parse_sendkeys_statement(const std::size_t offset) {
+    skip_horizontal_whitespace();
+    auto keys = parse_expression();
+    if (!keys.has_value()) {
+        return false;
+    }
+    skip_horizontal_whitespace();
+    bool wait = false;
+    if (consume(',')) {
+        skip_horizontal_whitespace();
+        auto flag = parse_expression();
+        if (!flag.has_value()) {
+            return false;
+        }
+        wait = std::holds_alternative<bool>(*flag)
+                   ? std::get<bool>(*flag)
+                   : (is_number(*flag) && as_double(*flag) != 0.0);
+    }
+    if (!execute_) {
+        return true;
+    }
+    const auto* text = std::get_if<std::string>(&*keys);
+    if (text == nullptr) {
+        set_error("WFC0073", "Type mismatch", offset);
+        return false;
+    }
+    std::vector<FormSupport::Keystroke> strokes;
+    if (!FormSupport::parse_sendkeys(*text, strokes)) {
+        static_cast<void>(
+            raise_runtime(5, "Invalid procedure call or argument", offset));
+        return false;
+    }
+    if (!forms_ && ui_mode_ != "win32") {
+        return true;  // no forms: nothing receives the keys
+    }
+    if (!FormSupport::send_keys(*this, strokes)) {
+        return false;
+    }
+    if (wait) {
+        return pump_forms();
+    }
+    return true;
+}
+
 std::optional<long> Interpreter::ui_message_box(const std::string& text,
                                                 const std::string& title,
                                                 const long style) {
@@ -4200,9 +4420,13 @@ bool Interpreter::pump_forms() {
     if (!forms_ || !execute_) {
         return true;
     }
-    while (const auto event = forms_->host->next_event(false)) {
-        if (!FormSupport::dispatch(*this, *event)) {
-            return false;
+    for (;;) {
+        if (const auto event = forms_->host->next_event(false)) {
+            if (!FormSupport::dispatch(*this, *event)) {
+                return false;
+            }
+        } else if (!FormSupport::deliver_pending_key(*this)) {
+            break;
         }
     }
     return true;

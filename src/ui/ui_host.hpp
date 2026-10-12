@@ -153,6 +153,15 @@ public:
         supported = false;
         return std::nullopt;
     }
+    // Injects one real keystroke into the system input queue (virtual-key
+    // `code`, shift mask 1/2/4, `ascii` for a character key). Returns false
+    // when the host cannot, and the caller delivers key events itself.
+    [[nodiscard]] virtual bool send_key(long code, long shift, long ascii) {
+        static_cast<void>(code);
+        static_cast<void>(shift);
+        static_cast<void>(ascii);
+        return false;
+    }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.
     virtual void pump() {}

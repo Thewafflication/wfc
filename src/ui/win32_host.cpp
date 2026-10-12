@@ -863,6 +863,42 @@ std::optional<std::string> Win32Host::input_box(const WindowId owner,
     return narrow(dialog.result);
 }
 
+bool Win32Host::send_key(const long code, const long shift, const long ascii) {
+    std::vector<INPUT> inputs;
+    const auto key = [&](const WORD virtual_key, const bool down) {
+        INPUT input{};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = virtual_key;
+        input.ki.dwFlags = down ? 0U : KEYEVENTF_KEYUP;
+        inputs.push_back(input);
+    };
+    if ((shift & 1) != 0) {
+        key(VK_SHIFT, true);
+    }
+    if ((shift & 2) != 0) {
+        key(VK_CONTROL, true);
+    }
+    if ((shift & 4) != 0) {
+        key(VK_MENU, true);
+    }
+    key(static_cast<WORD>(code), true);
+    key(static_cast<WORD>(code), false);
+    if ((shift & 4) != 0) {
+        key(VK_MENU, false);
+    }
+    if ((shift & 2) != 0) {
+        key(VK_CONTROL, false);
+    }
+    if ((shift & 1) != 0) {
+        key(VK_SHIFT, false);
+    }
+    static_cast<void>(ascii);
+    const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(),
+                                sizeof(INPUT));
+    pump();
+    return sent == inputs.size();
+}
+
 void Win32Host::pump() {
     MSG message;
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
