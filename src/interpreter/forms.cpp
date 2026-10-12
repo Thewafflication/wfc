@@ -378,6 +378,14 @@ struct FormSupport {
 
     [[nodiscard]] static Value control_value(InstanceData& form,
                                              const ControlObject& object);
+    [[nodiscard]] static std::string render_value(const Value& value) {
+        return Interpreter::render(value);
+    }
+    [[nodiscard]] static bool notify_sinks(
+        Interpreter& in, InstanceData& source, const std::string& event,
+        const std::vector<CallArgument>& arguments) {
+        return in.dispatch_event_to_sinks(source, event, arguments, in.offset_);
+    }
     [[nodiscard]] static bool controls_edit(
         Interpreter& in, const std::shared_ptr<InstanceData>& form,
         const std::string& member, std::vector<CallArgument>& arguments,
@@ -3542,22 +3550,83 @@ class FontObject final : public NativeObject {
 public:
     explicit FontObject(std::shared_ptr<InstanceData> owner_instance)
         : owner(std::move(owner_instance)) {}
-    [[nodiscard]] std::string type_name() const override { return "IFontDisp"; }
+    [[nodiscard]] std::string type_name() const override { return "Font"; }
     [[nodiscard]] bool has_member(const std::string& member) const override {
-        return key_for(member) != nullptr;
+        return key_for(member) != nullptr || member == "_default" ||
+               member == "hfont" || member == "clone" || member == "isequal";
     }
-    [[nodiscard]] bool get(Interpreter& in, const std::string& member,
-                           std::vector<CallArgument>&, Value& result,
-                           NativeFailure&) override {
-        static_cast<void>(in);
+    [[nodiscard]] bool get(Interpreter& in, const std::string& member_name,
+                           std::vector<CallArgument>& arguments, Value& result,
+                           NativeFailure& failure) override {
+        const std::string member =
+            member_name == "_default" ? "name" : member_name;
         const char* key = key_for(member);
         ControlObject* object = control_of(*owner);
-        if (key == nullptr || object == nullptr) {
+        if (object == nullptr) {
+            return false;
+        }
+        if (member == "hfont") {
+            // A stable nonzero handle for the font's current attributes.
+            std::size_t hash = 17;
+            for (const char* part :
+                 {"fontname", "fontsize", "fontbold", "fontitalic",
+                  "fontunderline", "fontstrikethru", "fontweight",
+                  "fontcharset"}) {
+                const auto found = object->values.find(part);
+                hash = hash * 31U +
+                       (found == object->values.end()
+                            ? 0U
+                            : std::hash<std::string>{}(
+                                  FormSupport::render_value(found->second)));
+            }
+            result = Value{static_cast<Integer>(0x100 + (hash % 0x7000))};
+            return true;
+        }
+        if (member == "clone") {
+            result = clone();
+            return true;
+        }
+        if (member == "isequal") {
+            const FontObject* other = nullptr;
+            if (arguments.size() == 1U &&
+                std::holds_alternative<ObjectInstance>(arguments[0].value)) {
+                other = dynamic_cast<const FontObject*>(
+                    std::get<ObjectInstance>(arguments[0].value)
+                        .data->native.get());
+            }
+            if (other == nullptr) {
+                failure = NativeFailure{13, "Type mismatch"};
+                return true;
+            }
+            bool same = true;
+            for (const char* part :
+                 {"fontname", "fontsize", "fontbold", "fontitalic",
+                  "fontunderline", "fontstrikethru", "fontweight",
+                  "fontcharset"}) {
+                Value mine;
+                Value its;
+                std::vector<CallArgument> none;
+                NativeFailure ignored;
+                const std::string name = std::string(part).substr(4);
+                static_cast<void>(get(in, name, none, mine, ignored));
+                static_cast<void>(const_cast<FontObject*>(other)->get(
+                    in, name, none, its, ignored));
+                same = same && mine == its;
+            }
+            result = Value{same};
+            return true;
+        }
+        if (key == nullptr) {
             return false;
         }
         if (member == "weight") {
-            result = Value{static_cast<Int16>(
-                FormSupport::flag_of(*object, "fontbold") ? 700 : 400)};
+            const auto found = object->values.find("fontweight");
+            result =
+                found != object->values.end()
+                    ? found->second
+                    : Value{static_cast<Int16>(
+                          FormSupport::flag_of(*object, "fontbold") ? 700
+                                                                    : 400)};
             return true;
         }
         const auto found = object->values.find(key);
@@ -3592,12 +3661,60 @@ public:
             return true;
         }
         if (member == "weight") {
+            object->values["fontweight"] = converted;
             converted = Value{as_double(converted) >= 700.0};
+        } else if (member == "bold") {
+            object->values["fontweight"] = Value{
+                static_cast<Int16>(std::holds_alternative<bool>(converted) &&
+                                           std::get<bool>(converted)
+                                       ? 700
+                                       : 400)};
         }
+        const Value before =
+            object->values.contains(key) ? object->values[key] : Value{Empty{}};
         object->values[key] = std::move(converted);
+        if (standalone && !(before == object->values[key])) {
+            // FontEvents.FontChanged(PropertyName)
+            const auto self_instance = self.lock();
+            if (self_instance != nullptr &&
+                !self_instance->event_sinks.empty()) {
+                std::string label = member;
+                label[0] = static_cast<char>(
+                    std::toupper(static_cast<unsigned char>(label[0])));
+                std::vector<Value> argument{Value{label}};
+                std::vector<CallArgument> call{
+                    CallArgument{argument[0], &argument[0], false, {}}};
+                if (!FormSupport::notify_sinks(in, *self_instance,
+                                               "fontchanged", call)) {
+                    failure = NativeFailure{kErrorAlreadyReported, {}};
+                }
+            }
+        }
         return true;
     }
+    // A copy that is its own object (`Clone`).
+    [[nodiscard]] Value clone() const {
+        Value copy = make_standalone_font();
+        const ControlObject* from = control_of(*owner);
+        auto* view = dynamic_cast<FontObject*>(
+            std::get<ObjectInstance>(copy).data->native.get());
+        ControlObject* to = control_of(*view->owner);
+        if (from != nullptr && to != nullptr) {
+            for (const char* part :
+                 {"fontname", "fontsize", "fontbold", "fontitalic",
+                  "fontunderline", "fontstrikethru", "fontweight",
+                  "fontcharset"}) {
+                const auto found = from->values.find(part);
+                if (found != from->values.end()) {
+                    to->values[part] = found->second;
+                }
+            }
+        }
+        return copy;
+    }
     std::shared_ptr<InstanceData> owner;
+    std::weak_ptr<InstanceData> self;
+    bool standalone{false};
 
 private:
     [[nodiscard]] static const char* key_for(const std::string& member) {
@@ -3627,6 +3744,24 @@ private:
 };
 
 }  // namespace
+
+Value make_standalone_font() {
+    // A font that belongs to no control: its attributes live in a hidden
+    // label so FontObject works unchanged.
+    auto holder = std::make_shared<InstanceData>();
+    holder->class_name = "wfcnative";
+    auto hidden = std::make_shared<ControlObject>(
+        ui::find_control_class("Label"), "font", -1L, false);
+    hidden->self = holder;
+    holder->native = hidden;
+    auto view = std::make_shared<FontObject>(holder);
+    view->standalone = true;
+    auto data = std::make_shared<InstanceData>();
+    data->class_name = "wfcnative";
+    data->native = view;
+    view->self = data;
+    return Value{ObjectInstance{std::move(data)}};
+}
 
 bool ControlObject::get(Interpreter& in, const std::string& member,
                         std::vector<CallArgument>& arguments, Value& result,
@@ -3735,7 +3870,7 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
         }
         for (const char* key :
              {"fontname", "fontsize", "fontbold", "fontitalic", "fontunderline",
-              "fontstrikethru"}) {
+              "fontstrikethru", "fontweight", "fontcharset"}) {
             const auto found = from->values.find(key);
             if (found != from->values.end()) {
                 values[key] = found->second;

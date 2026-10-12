@@ -17,6 +17,9 @@
 
 namespace wfc::detail {
 
+// A StdFont that belongs to no control (`New StdFont`, `Font.Clone`).
+[[nodiscard]] Value make_standalone_font();
+
 // Which form, and which control of it, a host window stands for.
 struct WindowBinding {
     std::weak_ptr<InstanceData> form;

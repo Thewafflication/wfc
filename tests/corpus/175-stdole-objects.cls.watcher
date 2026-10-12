@@ -1,0 +1,5 @@
+Option Explicit
+Public WithEvents F As StdFont
+Private Sub F_FontChanged(ByVal PropertyName As String)
+    Debug.Print "changed "; PropertyName
+End Sub

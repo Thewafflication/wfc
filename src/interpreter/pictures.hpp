@@ -39,9 +39,7 @@ public:
     PictureObject(std::string image_bytes, const PictureInfo& header)
         : bytes(std::move(image_bytes)), info(header) {}
 
-    [[nodiscard]] std::string type_name() const override {
-        return "IPictureDisp";
-    }
+    [[nodiscard]] std::string type_name() const override { return "Picture"; }
     [[nodiscard]] bool has_member(const std::string& member) const override;
     [[nodiscard]] bool get(Interpreter& interpreter, const std::string& member,
                            std::vector<CallArgument>& arguments, Value& result,
@@ -56,6 +54,9 @@ public:
     long handle{0};
     // The host's id for the decoded image (0 until first drawn).
     long host_id{0};
+    // IPicture.KeepOriginalFormat and the palette handle (always 0 here).
+    bool keep_original{true};
+    long palette{0};
 };
 
 // The picture an object value holds, or nullptr.

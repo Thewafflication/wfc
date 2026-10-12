@@ -1,0 +1,4 @@
+Type=Exe
+Module=Module1; 175-stdole-objects.bas
+Class=Watcher; 175-stdole-objects.cls.watcher
+Startup="Sub Main"

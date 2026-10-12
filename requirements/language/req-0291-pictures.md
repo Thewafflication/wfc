@@ -31,6 +31,24 @@
   controls in creation order), so drawings the program made on it are lost, as when
   a form without `AutoRedraw` repaints. `Cls` keeps the controls.
 
+## Standalone `StdFont` and `StdPicture` (MP-0005)
+
+- `New StdFont` and `CreateObject("StdFont")` give a font that belongs to no
+  control: `Name`, `Size`, `Bold`, `Italic`, `Underline`, `Strikethrough`,
+  `Weight` (setting `Bold` sets 700 or 400; a weight of 700 or more sets `Bold`),
+  `Charset`, a stable nonzero `hFont`, `Clone` and `IsEqual`. `Name` is the
+  default member. `TypeName` is `Font`. `Set control.Font = font` copies the
+  attributes. A `WithEvents` font raises `FontChanged(PropertyName)` when an
+  attribute changes.
+- `New StdPicture` and `CreateObject("StdPicture")` give an empty picture;
+  pictures also have `KeepOriginalFormat` (default True, settable), `hPal`
+  (settable, 0), `Attributes` (1 for metafiles, 2 for icons), `CurDC` (0) and
+  no-op `PictureChanged`/`Render` (drawing goes through `PaintPicture`).
+  `TypeName` is `Picture`.
+- The `OLE_TRISTATE` and `LoadPictureConstants` member names (`Checked`, `Gray`,
+  `Color`, ...) are not defined unqualified, because the engine reserves
+  constant names and these would stop programs from declaring `Color` or `Gray`.
+
 ## Known limits
 
 `PaintPicture`, `Point` and picture properties of command buttons and option

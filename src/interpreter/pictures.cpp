@@ -162,6 +162,8 @@ bool read_picture_header(const std::string& bytes, PictureInfo& info) {
 bool PictureObject::has_member(const std::string& member) const {
     return member == "handle" || member == "type" || member == "width" ||
            member == "height" || member == "hpal" || member == "render" ||
+           member == "keeporiginalformat" || member == "attributes" ||
+           member == "curdc" || member == "picturechanged" ||
            member == "_default";
 }
 
@@ -177,8 +179,20 @@ bool PictureObject::get(Interpreter&, const std::string& member,
     } else if (member == "height") {
         result = Value{static_cast<Integer>(info.height)};
     } else if (member == "hpal") {
-        result = Value{Integer{0}};
-    } else if (member == "render") {
+        result = Value{static_cast<Integer>(palette)};
+    } else if (member == "keeporiginalformat") {
+        result = Value{keep_original};
+    } else if (member == "attributes") {
+        // PICTURE_SCALABLE (1) for metafiles, PICTURE_TRANSPARENT (2) for
+        // icons.
+        result = Value{static_cast<Integer>(
+            static_cast<int>(info.type) == 2 || static_cast<int>(info.type) == 4
+                ? 1
+            : static_cast<int>(info.type) == 3 ? 2
+                                               : 0)};
+    } else if (member == "curdc") {
+        result = Value{Integer{0}};  // never selected into a device context
+    } else if (member == "picturechanged" || member == "render") {
         result = Value{Empty{}};  // drawing happens through PaintPicture
     } else {
         return false;
@@ -187,10 +201,20 @@ bool PictureObject::get(Interpreter&, const std::string& member,
 }
 
 bool PictureObject::put(Interpreter&, const std::string& member,
-                        std::vector<CallArgument>&, const Value&,
+                        std::vector<CallArgument>&, const Value& value,
                         NativeFailure& failure) {
     if (!has_member(member)) {
         return false;
+    }
+    if (member == "keeporiginalformat") {
+        keep_original = std::holds_alternative<bool>(value)
+                            ? std::get<bool>(value)
+                            : is_number(value) && as_double(value) != 0.0;
+        return true;
+    }
+    if (member == "hpal") {
+        palette = is_number(value) ? static_cast<long>(as_double(value)) : 0;
+        return true;
     }
     failure = NativeFailure{383, "Property is read-only"};
     return true;

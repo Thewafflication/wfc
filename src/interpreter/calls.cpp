@@ -2,7 +2,9 @@
 // Internal to the WFC evaluator; not part of the public API.
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
+#include "forms.hpp"
 #include "interpreter.hpp"
+#include "pictures.hpp"
 
 namespace wfc::detail {
 
@@ -86,6 +88,14 @@ std::optional<Value> Interpreter::instantiate_class(
         set_error("WFC0074", "constant initializer cannot call a procedure",
                   offset);
         return std::nullopt;
+    }
+    if (const auto& native = class_iterator->second.native_type;
+        native == "stdfont" || native == "font") {
+        return make_standalone_font();
+    }
+    if (const auto& native = class_iterator->second.native_type;
+        native == "stdpicture" || native == "picture") {
+        return make_empty_picture_value();
     }
     if (class_iterator->second.com_proxy) {
         // A class imported from a type library: create the COM object.

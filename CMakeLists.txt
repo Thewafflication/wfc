@@ -145,6 +145,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   set_tests_properties(
     TC-MP0004-gui-form-timer
     PROPERTIES
+      RESOURCE_LOCK desktop
       LABELS "integration;windows;mp-0004;forms"
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "tick 3.*unload"
@@ -160,6 +161,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   set_tests_properties(
     TC-MP0004-gui-showcase
     PROPERTIES
+      RESOURCE_LOCK desktop
       LABELS "integration;windows;mp-0004;forms;evidence"
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "closing after 2"
@@ -173,6 +175,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   set_tests_properties(
     TC-MP0004-gui-mdi
     PROPERTIES
+      RESOURCE_LOCK desktop
       LABELS "integration;windows;mp-0004;forms;evidence"
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "active Child window.*closing mdi.*child unload"
@@ -204,7 +207,10 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host
-    PROPERTIES LABELS "integration;windows;mp-0004;forms" SKIP_RETURN_CODE 77
+    PROPERTIES
+      LABELS "integration;windows;mp-0004;forms"
+      SKIP_RETURN_CODE 77
+      RESOURCE_LOCK desktop
   )
   add_test(NAME TC-MP0004-ui-units COMMAND wfc_ui_tests)
   set_tests_properties(

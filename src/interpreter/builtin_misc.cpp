@@ -2,7 +2,9 @@
 // Rnd/Randomize. Internal to the WFC evaluator; not part of the public API.
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
+#include "forms.hpp"
 #include "interpreter.hpp"
+#include "pictures.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -402,6 +404,12 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                      lowered == "vbscript.regexp.55") &&
                     class_definitions_.contains("wfcregexp")) {
                     return instantiate_class("wfcregexp", offset);
+                }
+                if (lowered == "stdole.stdfont" || lowered == "stdfont") {
+                    return make_standalone_font();
+                }
+                if (lowered == "stdole.stdpicture" || lowered == "stdpicture") {
+                    return make_empty_picture_value();
                 }
                 if (lowered == "scripting.filesystemobject" &&
                     class_definitions_.contains("wfcfilesystemobject")) {
