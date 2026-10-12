@@ -1,0 +1,4 @@
+Type=Exe
+Form=187-form-printform.frm
+Startup="Form1"
+WfcUiScript=187-form-printform.ui

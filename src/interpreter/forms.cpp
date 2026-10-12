@@ -2888,6 +2888,29 @@ struct FormSupport {
             runtime(in).host->arrange(self.window, mode);
             return true;
         }
+        if (member == "printform" && self.is_form &&
+            in.class_definitions_.contains("wfcprinter")) {
+            // The form's image goes to the virtual printer as a marker line.
+            const auto printer = in.find_variable("printer");
+            const auto* held = printer.value != nullptr
+                                   ? std::get_if<ObjectInstance>(printer.value)
+                                   : nullptr;
+            if (held != nullptr && held->data != nullptr) {
+                auto& document = held->data->fields.variables["mdoc"];
+                std::string spooled;
+                if (const auto* text = std::get_if<std::string>(&document)) {
+                    spooled = *text;
+                }
+                spooled +=
+                    "[form " + self.display_name + " " +
+                    std::to_string(static_cast<long>(client_width(self))) +
+                    "x" +
+                    std::to_string(static_cast<long>(client_height(self))) +
+                    " twips]\n";
+                document = Value{spooled};
+            }
+            return true;
+        }
         if (member == "printform" || member == "arrange" ||
             member == "whatsthismode" || member == "showwhatsthis" ||
             member == "oledrag") {
