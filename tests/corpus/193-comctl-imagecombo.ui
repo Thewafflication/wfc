@@ -1,0 +1,4 @@
+ui Form1.Combo1 dropdown
+ui Form1.Combo1 select red
+ui Form1.Combo1 type typed
+close Form1

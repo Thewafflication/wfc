@@ -2529,6 +2529,172 @@ void select_list_item(ControlObject& control, const ItemPtr& item, const bool ex
     return true;
 }
 
+// ----- ImageCombo ---------------------------------------------------------------
+
+[[nodiscard]] Value combo_item_value(ControlObject& control, const ItemPtr& item) {
+    if (item == nullptr) {
+        return Value{Nothing{}};
+    }
+    ListRef ref;
+    ref.kind = "comboitem";
+    return wrap_item(control.self.lock(), ref, item);
+}
+
+[[nodiscard]] ItemPtr selected_combo_item(ControlObject& control) {
+    for (const auto& item : top_list(control, "comboitem")) {
+        if (flag(item, "selected")) {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] std::string combo_text(ControlObject& control) {
+    const auto found = control.values.find("text");
+    return found != control.values.end() &&
+                   std::holds_alternative<std::string>(found->second)
+               ? std::get<std::string>(found->second)
+               : std::string{};
+}
+
+// Selects `item` (or nothing): the text follows; with `notify` Click and
+// Change run.
+[[nodiscard]] bool select_combo_item(Interpreter& in, ControlObject& control,
+                                     const ItemPtr& item, const bool notify) {
+    for (const auto& other : top_list(control, "comboitem")) {
+        other->p["selected"] = Value{other == item};
+    }
+    if (item != nullptr) {
+        control.values["text"] = item->p.at("text");
+    }
+    if (!notify) {
+        return true;
+    }
+    return raise_event(in, control, "Click", {}) &&
+           raise_event(in, control, "Change", {});
+}
+
+[[nodiscard]] bool combo_member(ControlObject& self, const std::string& member,
+                                Value& result) {
+    if (member == "selecteditem") {
+        result = combo_item_value(self, selected_combo_item(self));
+        return true;
+    }
+    if (member == "getfirstvisible") {
+        const auto& items = top_list(self, "comboitem");
+        result = combo_item_value(self, items.empty() ? nullptr : items.front());
+        return true;
+    }
+    if (member == "text") {
+        result = Value{combo_text(self)};
+        return true;
+    }
+    if (member == "seltext") {
+        const std::string text = combo_text(self);
+        const std::size_t start = std::min<std::size_t>(
+            static_cast<std::size_t>(std::max(0.0, number_property(self, "selstart"))),
+            text.size());
+        const std::size_t length = static_cast<std::size_t>(
+            std::max(0.0, number_property(self, "sellength")));
+        result = Value{text.substr(start, length)};
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool combo_put(Interpreter& in, ControlObject& self,
+                             const std::string& member, const Value& value,
+                             NativeFailure& failure) {
+    if (member == "selecteditem") {
+        const auto* holder = std::get_if<ObjectInstance>(&value);
+        const auto* object =
+            holder != nullptr && holder->data != nullptr
+                ? dynamic_cast<ComctlItem*>(holder->data->native.get())
+                : nullptr;
+        if (object == nullptr || object->ref.kind != "comboitem" ||
+            position_of(top_list(self, "comboitem"), object->item) == 0) {
+            if (std::holds_alternative<Nothing>(value)) {
+                return select_combo_item(in, self, nullptr, false);
+            }
+            failure = NativeFailure{13, "Type mismatch"};
+            return true;
+        }
+        if (!select_combo_item(in, self, object->item, true)) {
+            failure = FormSupport::reported();
+        }
+        return true;
+    }
+    if (member == "text") {
+        Value converted = value;
+        if (!coerce_property(in, converted, "String", failure)) {
+            return true;
+        }
+        const bool changed = combo_text(self) != std::get<std::string>(converted);
+        self.values["text"] = converted;
+        // The selection follows the text when an item has exactly that text.
+        ItemPtr match;
+        for (const auto& item : top_list(self, "comboitem")) {
+            if (lower_text(text_of_prop(item, "text")) ==
+                lower_text(std::get<std::string>(converted))) {
+                match = item;
+                break;
+            }
+        }
+        for (const auto& item : top_list(self, "comboitem")) {
+            item->p["selected"] = Value{item == match};
+        }
+        if (changed && !raise_event(in, self, "Change", {})) {
+            failure = FormSupport::reported();
+        }
+        return true;
+    }
+    if (member == "seltext") {
+        Value converted = value;
+        if (!coerce_property(in, converted, "String", failure)) {
+            return true;
+        }
+        const std::string text = combo_text(self);
+        const std::size_t start = std::min<std::size_t>(
+            static_cast<std::size_t>(std::max(0.0, number_property(self, "selstart"))),
+            text.size());
+        const std::size_t length = std::min<std::size_t>(
+            static_cast<std::size_t>(std::max(0.0, number_property(self, "sellength"))),
+            text.size() - start);
+        const std::string inserted = std::get<std::string>(converted);
+        self.values["text"] = Value{text.substr(0, start) + inserted +
+                                    text.substr(start + length)};
+        self.values["sellength"] = Value{static_cast<Integer>(inserted.size())};
+        if (!raise_event(in, self, "Change", {})) {
+            failure = FormSupport::reported();
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool combo_input(Interpreter& in, ControlObject& self,
+                               const std::string& action, const std::string& rest) {
+    NativeFailure ignored;
+    if (action == "select") {
+        const ItemPtr item =
+            find_item(top_list(self, "comboitem"), selector_of(rest), ignored);
+        return item == nullptr || select_combo_item(in, self, item, true);
+    }
+    if (action == "dropdown") {
+        return raise_event(in, self, "Dropdown", {});
+    }
+    if (action == "type") {
+        // The user types: ignored while the control is locked.
+        if (control_flag(self, "locked")) {
+            return true;
+        }
+        NativeFailure failure;
+        static_cast<void>(combo_put(in, self, "text", Value{rest}, failure));
+        return failure.number != FormSupport::reported().number;
+    }
+    return true;
+}
+
 // @@KINDS_MORE
 
 }  // namespace
@@ -2551,6 +2717,10 @@ bool ComctlHooks::before_remove(Interpreter& in, ControlObject& control,
     static_cast<void>(in);
     if (kind == "node") {
         detach_node(control, item);
+        return true;
+    }
+    if (kind == "comboitem") {
+        item->p["selected"] = Value{false};
         return true;
     }
     if (kind == "tab" && flag(item, "selected")) {
@@ -2641,6 +2811,17 @@ bool ComctlHooks::item_put(Interpreter& in, ControlObject& control,
         HookCtx ctx{in, control, ref, item};
         return listitem_put(ctx, member, arguments, value, failure);
     }
+    if (kind == "comboitem" && member == "selected") {
+        const bool on = std::holds_alternative<bool>(value)
+                            ? std::get<bool>(value)
+                            : is_number(value) && as_double(value) != 0.0;
+        if (on && !select_combo_item(in, control, item, true)) {
+            failure = FormSupport::reported();
+        } else if (!on) {
+            item->p["selected"] = Value{false};
+        }
+        return true;
+    }
     if (kind == "columnheader" &&
         (member == "left" || member == "subitemindex")) {
         failure = NativeFailure{383, "Property is read-only"};
@@ -2724,6 +2905,9 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
         list_member(in, self, member, arguments, result, failure)) {
         return true;
     }
+    if (self.class_key == "imagecombo" && combo_member(self, member, result)) {
+        return true;
+    }
     if (self.class_key == "tabstrip") {
         if (member == "selecteditem") {
             const ItemPtr tab = selected_tab(self);
@@ -2799,6 +2983,10 @@ bool comctl_control_put(Interpreter& in, ControlObject& self,
                         const std::string& member, const Value& value,
                         NativeFailure& failure) {
     if (self.class_key == "listview" && list_put(in, self, member, value, failure)) {
+        return true;
+    }
+    if (self.class_key == "imagecombo" &&
+        combo_put(in, self, member, value, failure)) {
         return true;
     }
     if (self.class_key == "treeview") {
@@ -2911,6 +3099,9 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
     }
     if (self.class_key == "listview") {
         return list_input(in, self, action, rest);
+    }
+    if (self.class_key == "imagecombo") {
+        return combo_input(in, self, action, rest);
     }
     if (self.class_key == "statusbar" &&
         (action == "panel" || action == "paneldbl")) {

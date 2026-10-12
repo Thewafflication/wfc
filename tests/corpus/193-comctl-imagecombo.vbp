@@ -1,0 +1,4 @@
+Type=Exe
+Form=193-comctl-imagecombo.frm
+Startup="Form1"
+WfcUiScript=193-comctl-imagecombo.ui

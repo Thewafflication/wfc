@@ -24,3 +24,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #4 | Construction | `Toolbar` buttons, groups, drop-down menus, save/restore (`REQ-0298`); corpus 190 | CTest 356/356 |
 | 2026-10-12 #5 | Construction | `TreeView` nodes, relationships, expansion, selection, search, label edit, keys (`REQ-0299`); corpus 191 | CTest 357/357 |
 | 2026-10-12 #6 | Construction | `ListView` items, sub items, columns, views, sort, find, hit test (`REQ-0300`); corpus 192 | CTest 358/358 |
+| 2026-10-12 #7 | Construction | `ImageCombo` items, selection, text, locking (`REQ-0301`); corpus 193 | CTest 359/359 |

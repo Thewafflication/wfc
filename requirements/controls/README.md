@@ -43,3 +43,4 @@ matching-number VB6 reference and WFC conformance tests.
 - [REQ-0298 — Toolbar behavior](req-0298-comctl-toolbar.md)
 - [REQ-0299 — TreeView behavior](req-0299-comctl-treeview.md)
 - [REQ-0300 — ListView behavior](req-0300-comctl-listview.md)
+- [REQ-0301 — ImageCombo behavior](req-0301-comctl-imagecombo.md)
