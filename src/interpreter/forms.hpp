@@ -42,6 +42,8 @@ struct FormRuntime {
     bool script_loaded{false};
     // `End` ran: no more events are delivered and no forms are unloaded.
     bool ended{false};
+    // The control being dragged with `Drag vbBeginDrag`, if any.
+    ui::WindowId drag_source{ui::kNoWindow};
     std::deque<PendingKey> keys;
     // Answers the script queued for MsgBox / InputBox: (kind, text).
     std::deque<std::pair<std::string, std::string>> answers;

@@ -1,0 +1,4 @@
+Type=Exe
+Form=168-form-drag.frm
+Startup="Form1"
+WfcUiScript=168-form-drag.ui

@@ -2330,8 +2330,18 @@ struct FormSupport {
             member == "oledrag") {
             return true;
         }
+        if (member == "drag") {
+            // vbBeginDrag (1) starts a drag; vbEndDrag (0) and vbCancel (2)
+            // end it. Drops arrive from scripted `drag` input.
+            const long action =
+                arguments.empty() || arguments[0].omitted
+                    ? 1
+                    : whole_value(arguments[0].value).value_or(1);
+            runtime(in).drag_source = action == 1 ? self.window : ui::kNoWindow;
+            return true;
+        }
         if (member == "refresh" || member == "zorder" || member == "cls" ||
-            member == "drag" || member == "setfocus") {
+            member == "setfocus") {
             return true;
         }
         if (self.is_form && member == "show") {
@@ -2691,6 +2701,34 @@ struct FormSupport {
         return target.form != nullptr;
     }
 
+    // Raises DragOver then DragDrop on `destination` with `source` as the
+    // dragged control (the scripted equivalent of a mouse drag).
+    [[nodiscard]] static bool drop_on(Interpreter& in, const Target& source,
+                                      const Target& destination, const double x,
+                                      const double y) {
+        ControlObject* dragged =
+            control_named(*source.form, source.control, source.index);
+        if (dragged == nullptr) {
+            return true;
+        }
+        runtime(in).drag_source = dragged->window;
+        const Value source_value = control_value(*source.form, *dragged);
+        for (const char* event : {"dragover", "dragdrop"}) {
+            std::vector<Value> arguments{source_value,
+                                         Value{static_cast<float>(x)},
+                                         Value{static_cast<float>(y)}};
+            if (std::string_view(event) == "dragover") {
+                arguments.push_back(Value{Int16{0}});  // vbEnter
+            }
+            if (!raise(in, *destination.form, destination.control,
+                       destination.index, event, arguments, in.offset_)) {
+                return false;
+            }
+        }
+        runtime(in).drag_source = ui::kNoWindow;
+        return true;
+    }
+
     // One line of the scripted input.
     [[nodiscard]] static bool run_script_line(Interpreter& in,
                                               const std::string& line) {
@@ -2733,6 +2771,21 @@ struct FormSupport {
                 state.headless->advance_time(std::atol(target_text.c_str()));
             }
             return true;
+        }
+        if (command == "drag") {
+            // drag <source> <destination> [x y]
+            std::istringstream tail(rest);
+            std::string destination_text;
+            double x = 0;
+            double y = 0;
+            tail >> destination_text >> x >> y;
+            Target source;
+            Target destination;
+            if (!resolve_target(in, target_text, source) ||
+                !resolve_target(in, destination_text, destination)) {
+                return true;
+            }
+            return drop_on(in, source, destination, x, y);
         }
         if (command == "press") {
             long code = 0;

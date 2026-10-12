@@ -572,6 +572,12 @@ inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
         {"vbinches", 5},
         {"vbmillimeters", 6},
         {"vbcentimeters", 7},
+        // DragConstants / DragOverConstants
+        {"vbenddrag", 0},
+        {"vbbegindrag", 1},
+        {"vbenter", 0},
+        {"vbleave", 1},
+        {"vbover", 2},
         // ArrangeConstants
         {"vbcascade", 0},
         {"vbtilehorizontal", 1},

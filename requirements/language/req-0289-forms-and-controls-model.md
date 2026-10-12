@@ -150,11 +150,19 @@ first unloads its children (newest first) with `UnloadMode = vbFormMDIForm`
 frame window with an `MDICLIENT` and `WS_EX_MDICHILD` children. Menu merging is
 not implemented.
 
+## Manual drag and drop
+
+`Control.Drag vbBeginDrag` marks the control as dragged; `vbEndDrag` and
+`vbCancel` clear it. The input script command `drag <source> <destination> [x y]`
+raises `DragOver` (State `vbEnter`) then `DragDrop` on the destination control
+or form with `Source` set to the dragged control. Real mouse dragging in the
+Win32 host and OLE drag and drop are not implemented.
+
 ## Known limits (extended later in MP-0004)
 
-Drag and drop, `Printer`, drive/directory/file list boxes, data binding, and
+OLE drag and drop, `Printer`, drive/directory/file list boxes, data binding, and
 MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
