@@ -27,7 +27,8 @@ native Win32 windows.
 McKirgan (GPL), run unmodified from the
 [`vb6games`](https://github.com/Thewafflication/vb6games) corpus: 150 picture
 boxes as the board, menus, buttons with pictures, Winsock and Common Dialog
-controls (some pictures and button overlays still draw wrongly):
+controls, here after four scripted moves (the button overlays at the lower right
+still draw wrongly):
 
 ![Capture King, a VB6 chess game, running in WFC](evidence/screenshots/vb6games-captureking.png)
 
@@ -198,8 +199,10 @@ The program is still interpreted; machine-code generation is not part of
 also produces `wfcvbrun.dll`, the `MSVBVM60` export directory with stub exports.
 
 **Running someone else's project.** `--exit-after <ms>` ends a `--gui` run after
-that long (closing the forms), and `--ui-script <file>` supplies the scripted
-input of a headless run, so a project can be tested without editing its `.vbp`.
+that long (closing the forms), and `--ui-script <file>` supplies scripted
+input (clicks, drags, `wait`, `screenshot <form> <name>`) to a headless run or,
+with `--gui`, to the real windows, so a project can be tested without editing
+its `.vbp`.
 The `tests/vb6games` submodule holds archived VB6 games for this:
 
 ```powershell

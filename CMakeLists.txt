@@ -336,7 +336,9 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
         "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
         "-DSHOTS=${CMAKE_BINARY_DIR}/screenshots/captureking"
-        "-DFORMS=frmSplash;frmGame" -P
+        "-DFORMS=frmSplash;frmGame" "-DMILLISECONDS=12000"
+        "-DSCRIPT=${project_checks}/captureking-gui.ui"
+        "-DFILES=frmGame-moves.png" -P
         "${project_checks}/run_project_screenshots.cmake"
     )
     add_test(
@@ -345,6 +347,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
         "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
         "-DSCRIPT=${project_checks}/captureking.ui"
+        "-DEXPECTED=${project_checks}/captureking.expected"
         "-DWORK=${CMAKE_BINARY_DIR}/vb6games-captureking-script" -P
         "${project_checks}/run_project_script.cmake"
     )

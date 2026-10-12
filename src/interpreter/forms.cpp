@@ -541,7 +541,7 @@ struct FormSupport {
         if (!in.forms_) {
             in.forms_ = std::make_shared<FormRuntime>();
 #ifdef _WIN32
-            if (in.ui_mode_ == "win32" && in.ui_script_.empty()) {
+            if (in.ui_mode_ == "win32") {
                 auto native = std::make_unique<ui::Win32Host>();
                 if (native->usable()) {
                     in.forms_->host = std::move(native);
@@ -3955,8 +3955,37 @@ struct FormSupport {
         if (command == "wait") {
             if (state.headless != nullptr) {
                 state.headless->advance_time(std::atol(target_text.c_str()));
+                return ocx_poll_sockets(in);
             }
-            return ocx_poll_sockets(in);
+            // A real host: let events and sockets run for that long.
+            const auto until =
+                std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(std::atol(target_text.c_str()));
+            while (std::chrono::steady_clock::now() < until) {
+                if (!ocx_poll_sockets(in)) {
+                    return false;
+                }
+                if (const auto event = state.host->next_event(false)) {
+                    if (!dispatch(in, *event)) {
+                        return false;
+                    }
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            }
+            return true;
+        }
+        if (command == "screenshot") {
+            // screenshot <form> [moment]: a PNG of the form (with
+            // --screenshots).
+            Target shot;
+            if (resolve_target(in, target_text, shot) && shot.form != nullptr) {
+                if (const ControlObject* form_object = control_of(*shot.form)) {
+                    screenshot(in, *form_object,
+                               rest.empty() ? "script" : rest.c_str());
+                }
+            }
+            return true;
         }
         if (command == "pump") {
             // pump <ms>: let the Winsock controls run for that long.
@@ -4172,7 +4201,8 @@ struct FormSupport {
         if (!ok) {
             // A Winsock handler failed.
         } else if (const auto event = state.host->next_event(
-                       state.headless == nullptr && !state.host->exhausted())) {
+                       state.headless == nullptr && !state.host->exhausted() &&
+                       state.script_next >= state.script.size())) {
             if (event->name == "WfcExit") {
                 state.exit_requested = true;
                 state.host->wake_timer(1, 0);

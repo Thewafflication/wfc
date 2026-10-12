@@ -1,0 +1,18 @@
+# Capture King in real windows: start a local game, play four moves, and
+# capture the board.
+wait 3500
+click frmWelcome.picLocalGame
+wait 500
+mousedown frmGame.picboard(52) 1 0 10 10
+drag frmGame.picboard(52) frmGame.picboard(36) 10 10
+wait 200
+mousedown frmGame.picboard(12) 1 0 10 10
+drag frmGame.picboard(12) frmGame.picboard(28) 10 10
+wait 200
+mousedown frmGame.picboard(62) 1 0 10 10
+drag frmGame.picboard(62) frmGame.picboard(45) 10 10
+wait 200
+mousedown frmGame.picboard(1) 1 0 10 10
+drag frmGame.picboard(1) frmGame.picboard(18) 10 10
+wait 500
+screenshot frmGame moves

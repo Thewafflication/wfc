@@ -1,7 +1,8 @@
 # Runs a real project headless with a scripted input file and checks that it
 # ends cleanly and quietly (no run-time error, no diagnostics).
 # Usage: cmake -DWFC=<wfc> -DPROJECT=<.vbp> -DSCRIPT=<.ui> -DWORK=<dir>
-#   -P run_project_script.cmake
+#   [-DEXPECTED=<file>] -P run_project_script.cmake
+# EXPECTED holds the standard output the program should print.
 get_filename_component(project_dir "${PROJECT}" DIRECTORY)
 get_filename_component(project_file "${PROJECT}" NAME)
 file(REMOVE_RECURSE "${WORK}")
@@ -17,4 +18,37 @@ if(NOT result EQUAL 0)
 endif()
 if(NOT "${errors}" STREQUAL "")
   message(FATAL_ERROR "unexpected diagnostics: ${errors}")
+endif()
+if(DEFINED EXPECTED)
+  file(READ "${EXPECTED}" expected_text)
+  string(
+    REPLACE
+      "
+"
+    "
+"
+    expected_text
+    "${expected_text}"
+  )
+  string(
+    REPLACE
+      "
+"
+    "
+"
+    output
+    "${output}"
+  )
+  string(STRIP "${expected_text}" expected_text)
+  string(STRIP "${output}" output)
+  if(NOT output STREQUAL expected_text)
+    message(
+      FATAL_ERROR
+      "output mismatch
+--- expected ---
+${expected_text}
+--- actual ---
+${output}"
+    )
+  endif()
 endif()

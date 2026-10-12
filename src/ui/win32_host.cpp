@@ -551,8 +551,7 @@ WindowId Win32Host::create_window(const std::string& kind,
                 instance, this);
         } else {
             entry->hwnd = CreateWindowExW(
-                0, kFormClass, L"",
-                WS_OVERLAPPEDWINDOW | (kind == "MDIForm" ? WS_CLIPCHILDREN : 0),
+                0, kFormClass, L"", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                 CW_USEDEFAULT, CW_USEDEFAULT, 400, 300, nullptr, nullptr,
                 instance, this);
             if (kind == "MDIForm" && entry->hwnd != nullptr) {
@@ -619,9 +618,10 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "VScrollBar") {
         make_child(L"SCROLLBAR", SBS_VERT | WS_TABSTOP);
     } else if (kind == "PictureBox" || kind == "UserControl" || kind == "OLE") {
-        entry->hwnd = CreateWindowExW(WS_EX_CLIENTEDGE, kPictureClass, L"",
-                                      WS_CHILD | WS_CLIPSIBLINGS, 0, 0, 0, 0,
-                                      parent_handle, id_value, instance, this);
+        entry->hwnd =
+            CreateWindowExW(WS_EX_CLIENTEDGE, kPictureClass, L"",
+                            WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0, 0,
+                            0, 0, parent_handle, id_value, instance, this);
         entry->surface_background = 0xFFFFFF;
     } else {
         entry->lightweight = true;  // Timer, Shape, Line, Image, ...

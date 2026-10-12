@@ -1,7 +1,9 @@
 # Runs a real project in the Win32 host for a few seconds and checks that it
 # ends cleanly and shows the named forms (one screenshot each).
 # Usage: cmake -DWFC=<wfc> -DPROJECT=<.vbp> -DSHOTS=<dir> -DFORMS=<a;b>
-#   [-DMILLISECONDS=5000] -P run_project_screenshots.cmake
+#   [-DMILLISECONDS=5000] [-DSCRIPT=<.ui>] [-DFILES=<name.png;...>]
+#   -P run_project_screenshots.cmake
+# SCRIPT drives the real windows; FILES are screenshots the script must take.
 if(NOT DEFINED MILLISECONDS)
   set(MILLISECONDS 5000)
 endif()
@@ -13,10 +15,14 @@ get_filename_component(project_file "${PROJECT}" NAME)
 set(copy "${SHOTS}-run")
 file(REMOVE_RECURSE "${copy}")
 file(COPY "${project_dir}/" DESTINATION "${copy}")
+set(script_arguments "")
+if(DEFINED SCRIPT)
+  set(script_arguments --ui-script "${SCRIPT}")
+endif()
 execute_process(
   COMMAND
     "${WFC}" "${copy}/${project_file}" --gui --exit-after ${MILLISECONDS}
-    --screenshots "${SHOTS}"
+    --screenshots "${SHOTS}" ${script_arguments}
   RESULT_VARIABLE result
   ERROR_VARIABLE errors
   OUTPUT_VARIABLE output
@@ -27,10 +33,15 @@ endif()
 if(NOT "${errors}" STREQUAL "")
   message(FATAL_ERROR "unexpected diagnostics: ${errors}")
 endif()
+set(shots "")
 foreach(form IN LISTS FORMS)
-  set(shot "${SHOTS}/${form}-shown.png")
+  list(APPEND shots "${form}-shown.png")
+endforeach()
+list(APPEND shots ${FILES})
+foreach(name IN LISTS shots)
+  set(shot "${SHOTS}/${name}")
   if(NOT EXISTS "${shot}")
-    message(FATAL_ERROR "the form ${form} was not shown (no ${shot})")
+    message(FATAL_ERROR "no screenshot ${shot}")
   endif()
   file(SIZE "${shot}" bytes)
   if(bytes LESS 1000)
