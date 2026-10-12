@@ -109,10 +109,10 @@ increment as a normal Git change.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| A packaged program runs and prints what the project prints | Packaging tests | Required | Not started |
-| The library export directory equals the reference layout | Layout test | Required | Not started |
-| The library loads and unimplemented exports report their ordinal | Loader test | Required | Not started |
-| Native machine-code generation | None | Roadmap gate | Deferred |
+| A packaged program runs and prints what the project prints | Packaging tests | Required | Pass |
+| The library export directory equals the reference layout | Layout test | Required | Pass |
+| The library loads and unimplemented exports report their ordinal | Loader test | Required | Pass |
+| Native machine-code generation | None | Roadmap gate | Not met; deferred |
 | Legacy x86 binary corpus resolves imports | None | Roadmap gate | Deferred (no corpus) |
 
 ## Deferred Objectives

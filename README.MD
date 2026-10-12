@@ -158,6 +158,20 @@ tests fail rather than pass.
 A reference capture of the showcase form is kept in
 [`evidence/screenshots`](evidence/screenshots/gui-showcase-closing.png).
 
+**Packaged programs.** `--build` writes a self-contained executable: a copy of
+the running `wfc` plus the project's files. It has the architecture of the `wfc`
+that built it and needs nothing installed (`--gui` stores that option for forms):
+
+```powershell
+out/build/windows-x64-debug/Debug/wfc.exe --build tests/gui/gui-showcase.vbp `
+  -o out/showcase.exe --gui
+out/showcase.exe
+```
+
+The program is still interpreted; machine-code generation is not part of
+`0.7.0` (see `architecture/adr-0007-native-packaging-and-vbrun.md`). The build
+also produces `wfcvbrun.dll`, the `MSVBVM60` export directory with stub exports.
+
 Run only the form tests:
 
 ```powershell
