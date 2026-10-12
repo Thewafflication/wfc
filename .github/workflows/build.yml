@@ -177,5 +177,6 @@ jobs:
             out/build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
             out/test-results/${{ matrix.arch }}/*.json
             out/test-results/${{ matrix.arch }}/*.xml
+            out/build/${{ matrix.preset }}/screenshots/*.png
           if-no-files-found: warn
           retention-days: 14

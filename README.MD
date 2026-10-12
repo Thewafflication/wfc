@@ -80,6 +80,78 @@ Equivalent `windows-x86-debug` and `windows-arm64-debug` presets are provided.
 ARM64 execution evidence must be collected on a native or approved emulated
 ARM64 runner; a successful cross-build alone is not an execution result.
 
+## Run and Test a Form Project
+
+A project with forms lists them in its `.vbp` (`Form=Form1.frm`) and names the
+startup form (`Startup="Form1"`). The sources for the examples below are in
+[`tests/corpus`](tests/corpus) (`151-form-basic.*` and the other `15x`/`16x`
+form cases) and [`tests/gui`](tests/gui).
+
+**Headless run (the default, used by the automated tests).** Add a
+`WfcUiScript=` line to the `.vbp` naming an input script, then run the
+project. The script plays the part of the user; when it ends, the remaining
+forms are closed.
+
+```powershell
+# 151-form-basic.vbp contains: Form=151-form-basic.frm, Startup="Form1",
+# WfcUiScript=151-form-basic.ui
+out/build/windows-x64-debug/Debug/wfc.exe tests/corpus/151-form-basic.vbp
+```
+
+An input script has one command per line (`'` or `#` starts a comment):
+
+| Command | Effect |
+| --- | --- |
+| `click Form1.Command1`, `click Command1`, `click Option1(1)` | click a control or menu item (a bare name searches the loaded forms) |
+| `dblclick <control>`, `focus <control>` | double-click, move the focus |
+| `set <textbox> some text` / `type <control> text` | replace a text box's text / type keys with key events |
+| `press tab`, `press shift+tab`, `press enter`, `press esc`, `press alt+f` | send a key to the focused control (also `space`, letters, `f1`..`f12`) |
+| `select <list> <index>` | choose a list or combo box item |
+| `scroll <bar> <value>`, `scrollby <bar> <delta>` | drag or step a scroll bar |
+| `wait <ms>` | advance the virtual clock so `Timer` controls fire |
+| `close <form>` | close a form as the user would |
+| `answer msgbox <result>`, `answer inputbox <text>`, `answer popupmenu <item>` | queue the answer for the next dialog |
+| `trace` | print the drawing operations (`line`, `circle`, `text`, `picture`, ...) made since the last `trace` |
+
+`Print` in form code writes to the program output when running headless, so
+a test can compare it; `Debug.Print` goes to standard error. A test is a
+`.vbp` + `.frm` + `.ui` + `.expected` set in `tests/corpus` (the `.expected`
+file holds the standard output); re-run `cmake --preset windows-x64-debug` so
+CTest picks the new case up.
+
+**Real windows.** `--gui` runs the same project in real Win32 windows (no input
+script is used; you operate the form, and closing the last form ends the
+program):
+
+```powershell
+out/build/windows-x64-debug/Debug/wfc.exe tests/gui/gui-showcase.vbp --gui
+```
+
+**Screenshots as evidence.** `--screenshots <folder>` saves a PNG of each form
+when it is shown and just before it is unloaded (`<FormName>-shown.png`,
+`<FormName>-closing.png`):
+
+```powershell
+out/build/windows-x64-debug/Debug/wfc.exe tests/gui/gui-showcase.vbp --gui `
+  --screenshots out/screenshots
+```
+
+The `TC-MP0004-gui-showcase` and `TC-MP0004-gui-form-timer` tests do exactly
+this (these programs close themselves from a timer), so a normal test run
+leaves the images in `out/build/<preset>/screenshots/`, and the GitHub Actions
+run uploads them with the other Debug evidence. They need an interactive
+desktop; without one `--gui` falls back to the headless host and those two
+tests fail rather than pass.
+
+A reference capture of the showcase form is kept in
+[`evidence/screenshots`](evidence/screenshots/gui-showcase-closing.png).
+
+Run only the form tests:
+
+```powershell
+ctest --preset windows-x64-debug -R "TC-MP0004|form" --output-on-failure
+```
+
 `wfc --eval <source>` runs a standalone module; `wfc --class <Name> <source>`
 (repeatable) supplies one or more class modules alongside it. `wfc
 project.vbp` (or `wfc a.bas b.bas c.cls`) loads real VB6 project files: the

@@ -70,9 +70,13 @@ int main(const int argument_count, const char* const arguments[]) {
         std::string_view(arguments[1]).rfind("--", 0) != 0) {
         std::vector<std::filesystem::path> files;
         std::string ui_mode;
+        std::string screenshot_directory;
         for (int i = 1; i < argument_count; ++i) {
             if (std::string_view(arguments[i]) == "--gui") {
                 ui_mode = "win32";  // run forms in real windows
+            } else if (std::string_view(arguments[i]) == "--screenshots" &&
+                       i + 1 < argument_count) {
+                screenshot_directory = arguments[++i];  // PNG of each form
             } else {
                 files.emplace_back(arguments[i]);
             }
@@ -100,6 +104,7 @@ int main(const int argument_count, const char* const arguments[]) {
         options.startup_form = project.startup_form;
         options.ui_script = project.ui_script;
         options.ui_mode = ui_mode;
+        options.screenshot_directory = screenshot_directory;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

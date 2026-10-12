@@ -76,6 +76,9 @@ struct EvaluationOptions final {
     // "win32" runs forms in real windows; anything else (the default) uses the
     // headless host.
     std::string ui_mode;
+    // With the Win32 host: a folder that receives a PNG of each form when it
+    // is shown and just before it is unloaded.
+    std::string screenshot_directory;
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

@@ -138,7 +138,9 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   # A program that runs in a real window and closes itself from a timer.
   add_test(
     NAME TC-MP0004-gui-form-timer
-    COMMAND wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-timer.vbp" --gui
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-timer.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0004-gui-form-timer
@@ -146,6 +148,21 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       LABELS "integration;windows;mp-0004;forms"
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "tick 3.*unload"
+  )
+  # A form with most intrinsic controls; the PNGs of the shown and closing
+  # window are kept as execution evidence in <build>/screenshots.
+  add_test(
+    NAME TC-MP0004-gui-showcase
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-showcase.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+  )
+  set_tests_properties(
+    TC-MP0004-gui-showcase
+    PROPERTIES
+      LABELS "integration;windows;mp-0004;forms;evidence"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "closing after 2"
   )
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(

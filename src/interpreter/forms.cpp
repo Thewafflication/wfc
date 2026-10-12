@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -349,6 +350,14 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         host.set_items(list.window, list.items);
         host.set_selection(list.window, list.list_index);
+        if (list.class_key == "combobox") {
+            // Resetting the items clears a combo box's edit text.
+            const auto text = list.values.find("text");
+            if (text != list.values.end() &&
+                std::holds_alternative<std::string>(text->second)) {
+                host.set_text(list.window, std::get<std::string>(text->second));
+            }
+        }
     }
 
     [[nodiscard]] static std::string item_text(const ControlObject& list) {
@@ -1554,6 +1563,21 @@ struct FormSupport {
         runtime(in).bindings[object.window] = std::move(binding);
     }
 
+    // The host window a control is a child of: its frame or picture box,
+    // else the form.
+    [[nodiscard]] static ui::WindowId parent_window(
+        InstanceData& form, const ControlObject& form_object,
+        const ControlObject& object) {
+        if (!object.container.empty()) {
+            const ControlObject* holder =
+                control_named(form, object.container, -1);
+            if (holder != nullptr && holder->window != ui::kNoWindow) {
+                return holder->window;
+            }
+        }
+        return form_object.window;
+    }
+
     // Creates the host windows of a form and its controls and applies their
     // property values.
     static void create_windows(Interpreter& in, InstanceData& form,
@@ -1561,28 +1585,21 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         form_object.window = host.create_window("Form", ui::kNoWindow);
         bind(in, form_object);
-        const auto create_one = [&](ControlObject& object) {
-            const ui::WindowId parent = form_object.window;
-            object.window = host.create_window(object.cls->name, parent);
-            bind(in, object);
-            mirror_all(in, object);
-        };
-        for (auto& [name, value] : form.fields.variables) {
-            if (auto* object = control_of(value)) {
-                if (!object->is_form) {
-                    create_one(*object);
-                }
-            } else if (const auto* holder = std::get_if<ObjectInstance>(&value);
-                       holder != nullptr && holder->data != nullptr) {
-                if (auto* array = dynamic_cast<ControlArray*>(
-                        holder->data->native.get())) {
-                    for (auto& [position, element] : array->elements) {
-                        if (auto* member = control_of(element)) {
-                            create_one(*member);
-                        }
-                    }
-                }
-            }
+        // Creation (z) order, so a container exists before its contents and
+        // later controls sit above earlier ones.
+        std::vector<ControlObject*> ordered;
+        for_each_control(
+            form, [&](ControlObject& object) { ordered.push_back(&object); });
+        std::sort(ordered.begin(), ordered.end(),
+                  [](const ControlObject* a, const ControlObject* b) {
+                      return a->order != b->order ? a->order < b->order
+                                                  : a->index < b->index;
+                  });
+        for (ControlObject* object : ordered) {
+            object->window = host.create_window(
+                object->cls->name, parent_window(form, form_object, *object));
+            bind(in, *object);
+            mirror_all(in, *object);
         }
         mirror_all(in, form_object);
     }
@@ -1633,9 +1650,12 @@ struct FormSupport {
                               std::get<std::string>(found->second));
             }
         }
-        host.set_bounds(object.window,
-                        ui::Rect{number_of("left"), number_of("top"),
-                                 number_of("width"), number_of("height")});
+        host.set_bounds(
+            object.window,
+            ui::Rect{
+                number_of("left"), number_of("top"),
+                object.is_form ? client_width(object) : number_of("width"),
+                object.is_form ? client_height(object) : number_of("height")});
         const auto flag = [&](const char* key, const bool fallback) {
             const auto found = object.values.find(key);
             if (found != object.values.end()) {
@@ -1701,6 +1721,20 @@ struct FormSupport {
             return false;
         }
         return true;
+    }
+
+    // Saves a PNG of the form's window (Win32 host with --screenshots).
+    static void screenshot(Interpreter& in, const ControlObject& form,
+                           const char* moment) {
+        if (in.screenshot_directory_.empty() || form.window == ui::kNoWindow) {
+            return;
+        }
+        std::error_code ignored;
+        std::filesystem::create_directories(in.screenshot_directory_, ignored);
+        const auto path = std::filesystem::path(in.screenshot_directory_) /
+                          (form.display_name + "-" + moment + ".png");
+        static_cast<void>(
+            runtime(in).host->capture(form.window, path.string()));
     }
 
     // Sets keyboard focus, raising LostFocus and GotFocus.
@@ -1791,6 +1825,7 @@ struct FormSupport {
                 !raise_table_event(in, *first, "GotFocus", {}, offset)) {
                 return false;
             }
+            screenshot(in, *object, "shown");
         }
         return true;
     }
@@ -1837,6 +1872,7 @@ struct FormSupport {
         if (cancelled) {
             return true;
         }
+        screenshot(in, *object, "closing");
         destroy_windows(in, form, *object);
         std::vector<Value> none;
         return raise(in, form, "", -1, "terminate", none, offset);
@@ -3623,8 +3659,8 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     array.elements[index] = Value{ObjectInstance{std::move(data)}};
     const ControlObject* owner_object = control_of(*owner);
     if (owner_object != nullptr && owner_object->loaded) {
-        object->window = runtime(in).host->create_window(object->cls->name,
-                                                         owner_object->window);
+        object->window = runtime(in).host->create_window(
+            object->cls->name, parent_window(*owner, *owner_object, *object));
         bind(in, *object);
         mirror_all(in, *object);
     }

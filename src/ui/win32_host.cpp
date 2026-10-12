@@ -12,6 +12,7 @@
 #include <objbase.h>
 #include <ocidl.h>
 #include <olectl.h>
+#include <wincodec.h>
 
 #include <algorithm>
 #include <cmath>
@@ -470,10 +471,21 @@ void Win32Host::set_bounds(const WindowId window, const Rect& bounds) {
     const auto to_y = [&](const double twips) {
         return static_cast<int>(twips * static_cast<double>(dpi_y_) / 1440.0);
     };
+    int width = std::max(to_x(bounds.width), 1);
+    int height = std::max(to_y(bounds.height), 1);
+    if (entry->is_form) {
+        // A form's size is its client area; add the frame, title and menu.
+        RECT frame{0, 0, width, height};
+        AdjustWindowRectEx(
+            &frame,
+            static_cast<DWORD>(GetWindowLongPtrW(entry->hwnd, GWL_STYLE)),
+            GetMenu(entry->hwnd) != nullptr,
+            static_cast<DWORD>(GetWindowLongPtrW(entry->hwnd, GWL_EXSTYLE)));
+        width = frame.right - frame.left;
+        height = frame.bottom - frame.top;
+    }
     SetWindowPos(entry->hwnd, nullptr, to_x(bounds.left), to_y(bounds.top),
-                 std::max(to_x(bounds.width), 1),
-                 std::max(to_y(bounds.height), 1),
-                 SWP_NOZORDER | SWP_NOACTIVATE);
+                 width, height, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 Rect Win32Host::bounds(const WindowId window) const {
@@ -704,6 +716,112 @@ bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
            std::min<int>(client.bottom, entry->surface_height),
            entry->surface_dc, 0, 0, SRCCOPY);
     return true;
+}
+
+void Win32Host::pump() {
+    MSG message;
+    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+}
+
+bool Win32Host::capture(const WindowId window, const std::string& path) {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr) {
+        return false;
+    }
+    pump();
+    RECT area{};
+    GetWindowRect(entry->hwnd, &area);
+    const int width = area.right - area.left;
+    const int height = area.bottom - area.top;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+    HDC screen = GetDC(nullptr);
+    HDC memory = CreateCompatibleDC(screen);
+    BITMAPINFO info{};
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;  // top-down
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void* pixels = nullptr;
+    HBITMAP bitmap =
+        CreateDIBSection(screen, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    ReleaseDC(nullptr, screen);
+    if (bitmap == nullptr) {
+        DeleteDC(memory);
+        return false;
+    }
+    HGDIOBJ previous = SelectObject(memory, bitmap);
+    // PW_RENDERFULLCONTENT (2) also renders layered and child windows.
+    const bool printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+    SelectObject(memory, previous);
+    bool saved = false;
+    if (printed) {
+        IWICImagingFactory* factory = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr,
+                                       CLSCTX_INPROC_SERVER,
+                                       IID_PPV_ARGS(&factory))) &&
+            factory != nullptr) {
+            IWICBitmapEncoder* encoder = nullptr;
+            IWICStream* stream = nullptr;
+            IWICBitmapFrameEncode* frame = nullptr;
+            IPropertyBag2* options = nullptr;
+            const auto wide = widen(path);
+            if (SUCCEEDED(factory->CreateStream(&stream)) &&
+                SUCCEEDED(stream->InitializeFromFilename(wide.c_str(),
+                                                         GENERIC_WRITE)) &&
+                SUCCEEDED(factory->CreateEncoder(GUID_ContainerFormatPng,
+                                                 nullptr, &encoder)) &&
+                SUCCEEDED(
+                    encoder->Initialize(stream, WICBitmapEncoderNoCache)) &&
+                SUCCEEDED(encoder->CreateNewFrame(&frame, &options)) &&
+                SUCCEEDED(frame->Initialize(options)) &&
+                SUCCEEDED(frame->SetSize(static_cast<UINT>(width),
+                                         static_cast<UINT>(height)))) {
+                WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+                frame->SetPixelFormat(&format);
+                // The window is opaque: force the alpha channel to 255.
+                auto* data = static_cast<std::uint8_t*>(pixels);
+                for (std::size_t i = 3;
+                     i < static_cast<std::size_t>(width) *
+                             static_cast<std::size_t>(height) * 4U;
+                     i += 4U) {
+                    data[i] = 0xFF;
+                }
+                if (SUCCEEDED(frame->WritePixels(static_cast<UINT>(height),
+                                                 static_cast<UINT>(width) * 4U,
+                                                 static_cast<UINT>(width) *
+                                                     static_cast<UINT>(height) *
+                                                     4U,
+                                                 static_cast<BYTE*>(pixels))) &&
+                    SUCCEEDED(frame->Commit()) &&
+                    SUCCEEDED(encoder->Commit())) {
+                    saved = true;
+                }
+            }
+            if (options != nullptr) {
+                options->Release();
+            }
+            if (frame != nullptr) {
+                frame->Release();
+            }
+            if (encoder != nullptr) {
+                encoder->Release();
+            }
+            if (stream != nullptr) {
+                stream->Release();
+            }
+            factory->Release();
+        }
+    }
+    DeleteObject(bitmap);
+    DeleteDC(memory);
+    return saved;
 }
 
 long Win32Host::load_picture(const std::string& bytes) {

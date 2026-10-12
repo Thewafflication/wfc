@@ -118,6 +118,11 @@
   members raise 282 (DDE is excluded); `PrintForm`, `Arrange`, `WhatsThisMode`,
   `ShowWhatsThis` and `OLEDrag` are accepted and do nothing.
 
+- **Screenshots.** `--screenshots <folder>` (with `--gui`) saves a PNG of each
+  form when it is shown and just before it is unloaded. Controls are created in
+  creation order inside their frame or picture box, and a form's size is its
+  client area.
+
 ## Known limits (extended later in MP-0004)
 
 `Print` inside form code still writes to the program's output instead of the

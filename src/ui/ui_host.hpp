@@ -130,6 +130,17 @@ public:
         static_cast<void>(large_change);
     }
 
+    // Dispatches queued system messages without delivering events to the
+    // caller (they stay queued), so painting is up to date.
+    virtual void pump() {}
+    // Saves an image of the window (with its child controls) as a PNG file;
+    // false when the host cannot (the headless host has no pixels).
+    [[nodiscard]] virtual bool capture(WindowId window,
+                                       const std::string& path) {
+        static_cast<void>(window);
+        static_cast<void>(path);
+        return false;
+    }
     // Decodes image bytes for drawing; returns a picture id (0 on failure).
     // The same bytes give the same id.
     [[nodiscard]] virtual long load_picture(const std::string& bytes) {
