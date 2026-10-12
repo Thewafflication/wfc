@@ -60,6 +60,8 @@ struct Win32Host::Entry {
     HWND hwnd{nullptr};
     int command{0};  // menu command id
     bool is_form{false};
+    bool mdi_child{false};
+    HWND client{nullptr};  // MDICLIENT of an MDI form
     bool is_menu{false};
     bool lightweight{false};
     Rect bounds;
@@ -92,9 +94,14 @@ struct Win32Support {
                                       LPARAM lparam) {
         if (message == WM_NCCREATE) {
             const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lparam);
-            SetWindowLongPtrW(
-                hwnd, GWLP_USERDATA,
-                reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+            void* parameter = create->lpCreateParams;
+            if ((create->dwExStyle & WS_EX_MDICHILD) != 0) {
+                // The system wraps the creation parameter for MDI children.
+                parameter = reinterpret_cast<void*>(
+                    static_cast<const MDICREATESTRUCTW*>(parameter)->lParam);
+            }
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+                              reinterpret_cast<LONG_PTR>(parameter));
         }
         Win32Host* const host = host_of(hwnd);
         if (host == nullptr) {
@@ -102,12 +109,19 @@ struct Win32Support {
         }
         const WindowId form = id_of(hwnd);
         switch (message) {
+            case WM_SIZE:
+                if (const auto* frame = host->find(form);
+                    frame != nullptr && frame->client != nullptr) {
+                    RECT area;
+                    GetClientRect(hwnd, &area);
+                    MoveWindow(frame->client, 0, 0, area.right, area.bottom,
+                               TRUE);
+                }
+                host->queue(UiEvent{form, "Resize", {}});
+                break;
             case WM_CLOSE:
                 host->queue(UiEvent{form, "Close", {}});
                 return 0;
-            case WM_SIZE:
-                host->queue(UiEvent{form, "Resize", {}});
-                break;
             case WM_ERASEBKGND:
                 if (host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
                     return 1;
@@ -188,6 +202,16 @@ struct Win32Support {
             }
             default:
                 break;
+        }
+        if (const auto* entry = host->find(form)) {
+            if (entry->client != nullptr) {
+                return DefFrameProcW(hwnd, entry->client, message, wparam,
+                                     lparam);
+            }
+        }
+        if ((GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_MDICHILD) != 0) {
+            // Also during creation, before the host registers the window.
+            return DefMDIChildProcW(hwnd, message, wparam, lparam);
         }
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
@@ -309,9 +333,29 @@ WindowId Win32Host::create_window(const std::string& kind,
             0, 0, parent_handle, id_value, instance, nullptr);
     };
     if (entry->is_form) {
-        entry->hwnd = CreateWindowExW(0, kFormClass, L"", WS_OVERLAPPEDWINDOW,
-                                      CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
-                                      nullptr, nullptr, instance, this);
+        const auto* frame = find(parent);
+        if (frame != nullptr && frame->client != nullptr) {
+            entry->mdi_child = true;
+            entry->hwnd = CreateWindowExW(
+                WS_EX_MDICHILD, kFormClass, L"", WS_OVERLAPPEDWINDOW,
+                CW_USEDEFAULT, CW_USEDEFAULT, 400, 300, frame->client, nullptr,
+                instance, this);
+        } else {
+            entry->hwnd = CreateWindowExW(
+                0, kFormClass, L"",
+                WS_OVERLAPPEDWINDOW | (kind == "MDIForm" ? WS_CLIPCHILDREN : 0),
+                CW_USEDEFAULT, CW_USEDEFAULT, 400, 300, nullptr, nullptr,
+                instance, this);
+            if (kind == "MDIForm" && entry->hwnd != nullptr) {
+                CLIENTCREATESTRUCT client_info{};
+                client_info.idFirstChild = 50000;
+                entry->client = CreateWindowExW(
+                    WS_EX_CLIENTEDGE, L"MDICLIENT", L"",
+                    WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS |
+                        WS_VSCROLL | WS_HSCROLL,
+                    0, 0, 0, 0, entry->hwnd, nullptr, instance, &client_info);
+            }
+        }
     } else if (entry->is_menu) {
         entry->command = next_command_++;
     } else if (parent_handle == nullptr) {
@@ -373,7 +417,8 @@ WindowId Win32Host::create_window(const std::string& kind,
 
 void Win32Host::refresh_menu_bar(const WindowId form) {
     auto* form_entry = find(form);
-    if (form_entry == nullptr || form_entry->hwnd == nullptr) {
+    if (form_entry == nullptr || form_entry->hwnd == nullptr ||
+        form_entry->mdi_child) {
         return;
     }
     // Rebuild the bar from the menu entries in creation order.
@@ -899,9 +944,35 @@ bool Win32Host::send_key(const long code, const long shift, const long ascii) {
     return sent == inputs.size();
 }
 
+void Win32Host::arrange(const WindowId mdi_form, const long mode) {
+    const auto* entry = find(mdi_form);
+    if (entry == nullptr || entry->client == nullptr) {
+        return;
+    }
+    if (mode == 0) {
+        SendMessageW(entry->client, WM_MDICASCADE, 0, 0);
+    } else if (mode == 1 || mode == 2) {
+        SendMessageW(entry->client, WM_MDITILE,
+                     mode == 1 ? MDITILE_HORIZONTAL : MDITILE_VERTICAL, 0);
+    } else {
+        SendMessageW(entry->client, WM_MDIICONARRANGE, 0, 0);
+    }
+}
+
 void Win32Host::pump() {
     MSG message;
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+        bool handled = false;
+        for (const auto& [id, window] : windows_) {
+            if (window->client != nullptr &&
+                TranslateMDISysAccel(window->client, &message)) {
+                handled = true;
+                break;
+            }
+        }
+        if (handled) {
+            continue;
+        }
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
@@ -940,6 +1011,29 @@ bool Win32Host::capture(const WindowId window, const std::string& path) {
     HGDIOBJ previous = SelectObject(memory, bitmap);
     // PW_RENDERFULLCONTENT (2) also renders layered and child windows.
     const bool printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+    if (printed && entry->client != nullptr) {
+        // PrintWindow leaves the MDI children out; composite them.
+        for (HWND child = GetWindow(entry->client, GW_CHILD); child != nullptr;
+             child = GetWindow(child, GW_HWNDNEXT)) {
+            RECT bounds;
+            if (!IsWindowVisible(child) || IsIconic(child) ||
+                !GetWindowRect(child, &bounds)) {
+                continue;
+            }
+            HDC child_dc = CreateCompatibleDC(memory);
+            HBITMAP child_bitmap = CreateCompatibleBitmap(
+                memory, bounds.right - bounds.left, bounds.bottom - bounds.top);
+            const HGDIOBJ old = SelectObject(child_dc, child_bitmap);
+            if (PrintWindow(child, child_dc, 2U) != FALSE) {
+                BitBlt(memory, bounds.left - area.left, bounds.top - area.top,
+                       bounds.right - bounds.left, bounds.bottom - bounds.top,
+                       child_dc, 0, 0, SRCCOPY);
+            }
+            SelectObject(child_dc, old);
+            DeleteObject(child_bitmap);
+            DeleteDC(child_dc);
+        }
+    }
     SelectObject(memory, previous);
     bool saved = false;
     if (printed) {

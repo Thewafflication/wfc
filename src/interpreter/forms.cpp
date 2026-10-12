@@ -1087,6 +1087,48 @@ struct FormSupport {
         }
     }
 
+    // ----- MDI ----------------------------------------------------------
+
+    [[nodiscard]] static bool is_mdi_child(const ControlObject& form) {
+        return form.is_form && form.class_key == "form" &&
+               flag_of(form, "mdichild");
+    }
+
+    // The loaded-or-loadable MDI form of the program, or nullptr.
+    [[nodiscard]] static std::shared_ptr<InstanceData> mdi_parent(
+        Interpreter& in) {
+        for (const auto& [key, definition] : in.class_definitions_) {
+            if (definition.form != nullptr &&
+                definition.form->root.type == "VB.MDIForm") {
+                const auto variable = in.find_variable(key);
+                if (variable.value != nullptr) {
+                    if (const auto* holder =
+                            std::get_if<ObjectInstance>(variable.value)) {
+                        return holder->data;
+                    }
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    // Child forms (loaded, MDIChild = True), in load order.
+    [[nodiscard]] static std::vector<std::shared_ptr<InstanceData>>
+    mdi_children(Interpreter& in) {
+        std::vector<std::shared_ptr<InstanceData>> children;
+        if (!in.forms_) {
+            return children;
+        }
+        for (const auto& weak : in.forms_->loaded) {
+            const auto form = weak.lock();
+            const ControlObject* object = form ? control_of(*form) : nullptr;
+            if (object != nullptr && is_mdi_child(*object)) {
+                children.push_back(form);
+            }
+        }
+        return children;
+    }
+
     // ----- Lightweight controls (Image, Shape, Line) --------------------
 
     [[nodiscard]] static bool is_lightweight(const ControlObject& object) {
@@ -1827,7 +1869,20 @@ struct FormSupport {
     static void create_windows(Interpreter& in, InstanceData& form,
                                ControlObject& form_object) {
         auto& host = *runtime(in).host;
-        form_object.window = host.create_window("Form", ui::kNoWindow);
+        ui::WindowId frame = ui::kNoWindow;
+        if (is_mdi_child(form_object)) {
+            // A child form lives inside the MDI form, which loads with it.
+            if (const auto parent = mdi_parent(in)) {
+                if (ensure_loaded(in, *parent, in.offset_)) {
+                    if (const ControlObject* parent_object =
+                            control_of(*parent)) {
+                        frame = parent_object->window;
+                    }
+                }
+            }
+        }
+        form_object.window = host.create_window(
+            form_object.class_key == "mdiform" ? "MDIForm" : "Form", frame);
         bind(in, form_object);
         // Creation (z) order, so a container exists before its contents and
         // later controls sit above earlier ones.
@@ -2044,6 +2099,13 @@ struct FormSupport {
         if (object == nullptr) {
             return true;
         }
+        if (is_mdi_child(*object)) {
+            if (const auto parent = mdi_parent(in)) {
+                if (!show(in, *parent, offset)) {
+                    return false;
+                }
+            }
+        }
         object->shown = true;
         paint_surface_picture(in, *object);
         object->values["visible"] = Value{true};
@@ -2097,6 +2159,18 @@ struct FormSupport {
             return true;
         }
         object->unloading = true;
+        if (object->class_key == "mdiform") {
+            screenshot(in, *object, "closing-with-children");
+            auto children = mdi_children(in);
+            for (auto it = children.rbegin(); it != children.rend(); ++it) {
+                const ControlObject* child = control_of(**it);
+                if (!unload(in, **it, 4, offset) ||
+                    (child != nullptr && child->loaded)) {
+                    object->unloading = false;  // a child refused
+                    return !in.has_pending_error();
+                }
+            }
+        }
         std::vector<Value> query{Value{Int16{0}},
                                  Value{static_cast<Int16>(mode)}};
         if (!raise(in, form, "", -1, "queryunload", query, offset)) {
@@ -2242,6 +2316,13 @@ struct FormSupport {
                     click_later(in, *item);
                 }
             }
+            return true;
+        }
+        if (member == "arrange" && self.class_key == "mdiform") {
+            const long mode = arguments.empty()
+                                  ? 0
+                                  : whole_value(arguments[0].value).value_or(0);
+            runtime(in).host->arrange(self.window, mode);
             return true;
         }
         if (member == "printform" || member == "arrange" ||
@@ -3919,6 +4000,34 @@ bool FormSupport::form_member(Interpreter& in, ControlObject& self,
         data->class_name = "wfcnative";
         data->native = std::make_shared<ControlsCollection>(form);
         result = Value{ObjectInstance{std::move(data)}};
+        return true;
+    }
+    if (self.is_form && self.class_key == "mdiform" && member == "activeform") {
+        result = Value{Nothing{}};
+        const auto children = mdi_children(in);
+        const auto& state = runtime(in);
+        const auto binding = state.bindings.find(state.host->focus());
+        std::shared_ptr<InstanceData> active;
+        if (binding != state.bindings.end()) {
+            const auto owner = binding->second.form.lock();
+            const ControlObject* owner_object =
+                owner ? control_of(*owner) : nullptr;
+            if (owner_object != nullptr && is_mdi_child(*owner_object)) {
+                active = owner;
+            }
+        }
+        if (active == nullptr) {
+            for (auto it = children.rbegin(); it != children.rend(); ++it) {
+                const ControlObject* child = control_of(**it);
+                if (child != nullptr && child->shown) {
+                    active = *it;
+                    break;
+                }
+            }
+        }
+        if (active != nullptr) {
+            result = Value{ObjectInstance{active}};
+        }
         return true;
     }
     if (self.is_form && member == "activecontrol") {

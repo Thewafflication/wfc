@@ -1,0 +1,4 @@
+Type=Exe
+Form=gui-mdi-parent.frm
+Form=gui-mdi-child.frm
+Startup="Main"

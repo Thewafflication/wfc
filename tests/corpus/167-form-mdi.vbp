@@ -1,0 +1,5 @@
+Type=Exe
+Form=167-form-mdi-parent.frm
+Form=167-form-mdi.frm
+Startup="Main"
+WfcUiScript=167-form-mdi.ui

@@ -1699,6 +1699,9 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    [[nodiscard]] bool has_pending_error() const {
+        return !error_.diagnostic.empty();
+    }
     // `SendKeys keys [, wait]` (REQ-0289).
     [[nodiscard]] bool parse_sendkeys_statement(std::size_t offset);
     // MsgBox / InputBox on the Win32 host; nullopt when not running GUI.

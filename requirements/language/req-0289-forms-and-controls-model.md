@@ -137,12 +137,24 @@
   it and raises `KeyPress` and `Change`; the Win32 host injects real input.
   A bad key name raises 5.
 
+## MDI forms
+
+A form whose `.frm` sets `MDIChild = True` is created inside the project's
+`MDIForm`, which loads and shows with it. `MDIForm.ActiveForm` returns the child
+holding focus (or the topmost shown child, else `Nothing`). `Arrange` takes
+`vbCascade` (0), `vbTileHorizontal` (1), `vbTileVertical` (2) or `vbArrangeIcons`
+(3); the headless host records it as a trace line, the Win32 host sends the
+`MDICLIENT` cascade, tile, or icon-arrange message. Unloading the `MDIForm`
+first unloads its children (newest first) with `UnloadMode = vbFormMDIForm`
+(4); a child that cancels keeps the `MDIForm` loaded. The Win32 host uses a
+frame window with an `MDICLIENT` and `WS_EX_MDICHILD` children. Menu merging is
+not implemented.
+
 ## Known limits (extended later in MP-0004)
 
-`Print` inside form code still writes to the program's output instead of the
-form surface; MDI, drag and drop, and per-control painting in the Win32 host (pictures, `PictureBox`
-drawing, `Shape`, `Line`, `Image`) are not yet implemented.
+Drag and drop, `Printer`, drive/directory/file list boxes, data binding, and
+MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

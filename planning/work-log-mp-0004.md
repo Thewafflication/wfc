@@ -39,3 +39,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #18 | Construction | `SendKeys` (parser, per-focus delivery, headless typing default, Win32 `SendInput`); `type` uses key events (`REQ-0289`); corpus 164 | CTest 322/322 |
 | 2026-10-11 #19 | Construction | `Point` (headless software raster, Win32 `GetPixel`) and `PaintPicture` with source rectangles (`REQ-0290`); corpus 165 | CTest 323/323 |
 | 2026-10-11 #20 | Construction | `FillColor`/`FillStyle` for `Circle` and boxes (`REQ-0290`); corpus 166 | CTest 324/324 |
+| 2026-10-11 #21 | Construction | MDI forms: `MDIChild`, `ActiveForm`, `Arrange`, ordered child unload with `UnloadMode` 4, Win32 frame/`MDICLIENT`/`WS_EX_MDICHILD`, MDI screenshot composition (`REQ-0289`); corpus 167 | CTest `TC-MP0004-gui-mdi` |

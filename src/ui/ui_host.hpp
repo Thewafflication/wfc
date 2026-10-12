@@ -162,6 +162,12 @@ public:
         static_cast<void>(ascii);
         return false;
     }
+    // Arranges the child windows of an MDI form: 0 cascade, 1 tile
+    // horizontally, 2 tile vertically, 3 arrange icons.
+    virtual void arrange(WindowId mdi_form, long mode) {
+        static_cast<void>(mdi_form);
+        static_cast<void>(mode);
+    }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.
     virtual void pump() {}

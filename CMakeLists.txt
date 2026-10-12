@@ -164,6 +164,19 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "closing after 2"
   )
+  add_test(
+    NAME TC-MP0004-gui-mdi
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-mdi.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+  )
+  set_tests_properties(
+    TC-MP0004-gui-mdi
+    PROPERTIES
+      LABELS "integration;windows;mp-0004;forms;evidence"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "active Child window.*closing mdi.*child unload"
+  )
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host
