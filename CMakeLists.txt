@@ -338,6 +338,19 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         "-DFORMS=frmSplash;frmGame" -P
         "${project_checks}/run_project_screenshots.cmake"
     )
+    add_test(
+      NAME TC-MP0008-vb6games-captureking-script
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+        "-DSCRIPT=${project_checks}/captureking.ui"
+        "-DWORK=${CMAKE_BINARY_DIR}/vb6games-captureking-script" -P
+        "${project_checks}/run_project_script.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-vb6games-captureking-script
+      PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 60
+    )
     set_tests_properties(
       TC-MP0008-vb6games-captureking
       PROPERTIES

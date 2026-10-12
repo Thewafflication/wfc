@@ -1,0 +1,9 @@
+# Capture King: leave the splash screen, start a local game, move two pawns.
+wait 3500
+click frmWelcome.picLocalGame
+wait 300
+mousedown frmGame.picboard(52) 1 0 10 10
+drag frmGame.picboard(52) frmGame.picboard(44) 10 10
+mousedown frmGame.picboard(12) 1 0 10 10
+drag frmGame.picboard(12) frmGame.picboard(20) 10 10
+wait 300
