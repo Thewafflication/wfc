@@ -31,3 +31,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #10 | Construction | COM server: exposed classes, dynamic `IDispatch`, class factories, `--serve`/`--server`/`--register`/`--unregister` (`REQ-0295`, `ADR-0004`); in-process and two-process tests | CTest 346/346 |
 | 2026-10-12 #11 | Construction | `Licenses`; mouse events and real mouse drag in the Win32 host, scripted `mouse*` input (`REQ-0289`); corpus 183, 184, Win32 host test | CTest 348/348 |
 | 2026-10-12 #12 | Construction | `DataObject`, OLE drag constants, headless OLE drag sequence (`REQ-0289`); corpus 185 | CTest 349/349 |
+| 2026-10-12 #13 | Construction | OLE container control shell: `CreateEmbed`, `Object`, `Close`/`Delete` (`REQ-0293`, `REQ-0063`); corpus 186 | CTest 350/350 |

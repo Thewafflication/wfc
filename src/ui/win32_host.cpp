@@ -520,7 +520,7 @@ WindowId Win32Host::create_window(const std::string& kind,
         make_child(L"SCROLLBAR", SBS_HORZ | WS_TABSTOP);
     } else if (kind == "VScrollBar") {
         make_child(L"SCROLLBAR", SBS_VERT | WS_TABSTOP);
-    } else if (kind == "PictureBox" || kind == "UserControl") {
+    } else if (kind == "PictureBox" || kind == "UserControl" || kind == "OLE") {
         entry->hwnd = CreateWindowExW(WS_EX_CLIENTEDGE, kPictureClass, L"",
                                       WS_CHILD | WS_CLIPSIBLINGS, 0, 0, 0, 0,
                                       parent_handle, id_value, instance, this);

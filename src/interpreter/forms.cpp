@@ -319,6 +319,7 @@ public:
     std::string type_label;  // TypeName of a hosted control (its own class)
     Value extender{Nothing{}};
     Value inner{Nothing{}};
+    ui::WindowId embedded{ui::kNoWindow};  // the window of an OLE object
     [[nodiscard]] bool is_activex() const {
         return class_key == "activexcontrol";
     }
@@ -536,6 +537,79 @@ struct FormSupport {
             failure = reported();
         }
         return true;
+    }
+
+    // The members of the OLE container control: an embedded object is created
+    // from its class (a ProgID or CLSID) and reached through `Object`.
+    [[nodiscard]] static bool ole_member(Interpreter& in, ControlObject& self,
+                                         const std::string& member,
+                                         std::vector<CallArgument>& arguments,
+                                         Value& result,
+                                         NativeFailure& failure) {
+        const bool present = std::holds_alternative<ObjectInstance>(self.inner);
+        if (member == "object") {
+            result = self.inner;
+            return true;
+        }
+        if (member == "appisrunning") {
+            result = Value{present};
+            return true;
+        }
+        if (member == "oletype") {
+            result = Value{Int16{static_cast<std::int16_t>(present ? 1 : 3)}};
+            return true;
+        }
+        if (member == "createembed") {
+            std::string text;
+            if (arguments.size() >= 2U &&
+                std::holds_alternative<std::string>(arguments[1].value)) {
+                text = std::get<std::string>(arguments[1].value);
+            } else {
+                const auto known = self.values.find("class");
+                if (known != self.values.end() &&
+                    std::holds_alternative<std::string>(known->second)) {
+                    text = std::get<std::string>(known->second);
+                }
+            }
+            const std::string clsid = in.com_progid_to_clsid(text);
+            if (clsid.empty()) {
+                failure = NativeFailure{
+                    31018, "Class is not set"};  // the OLE container's error
+                return true;
+            }
+            auto& host = *runtime(in).host;
+            if (self.embedded != ui::kNoWindow) {
+                host.destroy_window(self.embedded);
+            }
+            self.embedded = host.create_window("ActiveX:" + clsid, self.window);
+            void* unknown = host.activex_object(self.embedded);
+            if (unknown == nullptr) {
+                host.destroy_window(self.embedded);
+                self.embedded = ui::kNoWindow;
+                failure =
+                    NativeFailure{429, "ActiveX component can't create object"};
+                return true;
+            }
+            self.inner = in.com_wrap_unknown(unknown);
+            self.values["class"] = Value{text};
+            result = Value{Empty{}};
+            return true;
+        }
+        if (member == "close" || member == "delete") {
+            if (self.embedded != ui::kNoWindow) {
+                runtime(in).host->destroy_window(self.embedded);
+                self.embedded = ui::kNoWindow;
+            }
+            self.inner = Value{Nothing{}};
+            result = Value{Empty{}};
+            return true;
+        }
+        if (member == "doverb" || member == "update" || member == "copy" ||
+            member == "paste" || member == "fetchverbs") {
+            result = Value{Empty{}};  // there is no server UI to drive
+            return true;
+        }
+        return false;
     }
 
     // Creates the UserControl a form hosts: its own constituent controls in a
@@ -4250,6 +4324,11 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
     }
     if (is_activex() && member == "object") {
         result = inner;
+        return true;
+    }
+    if (class_key == "ole" &&
+        FormSupport::ole_member(in, *this, member, arguments, result,
+                                failure)) {
         return true;
     }
     if (member == "name") {

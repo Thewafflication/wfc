@@ -1,0 +1,4 @@
+Type=Exe
+Form=186-form-ole.frm
+Startup="Form1"
+WfcUiScript=186-form-ole.ui

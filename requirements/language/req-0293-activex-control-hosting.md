@@ -28,6 +28,17 @@
   uncreatable control 429. `As VBControlExtender` variables accept any hosted
   control (`ObjectEvent` and licensing are not implemented).
 
+## OLE container control
+
+`OLE.CreateEmbed(SourceDoc, Class)` creates an embedded object from a ProgID or
+CLSID (the `Class` property when the argument is omitted) the way an ActiveX
+control is created; `Object` returns it, `OLEType` is 1 (embedded) or 3 (none),
+`AppIsRunning` tells whether an object is held and `Close`/`Delete` release it.
+`DoVerb`, `Update`, `Copy`, `Paste` and `FetchVerbs` are accepted and do
+nothing. An unknown class raises 31018. Linked objects, `InsertObjDlg`,
+`PasteSpecialDlg`, `SaveToFile`/`ReadFromFile`, in-place activation of the
+embedded object's UI and the `Updated` event are not implemented.
+
 ## Known limits
 
 `OleObjectBlob` persistence data in `.frx` files, ambient property overrides,
@@ -37,6 +48,6 @@ WebBrowser) are not implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-177-form-activex`, `-178-form-controls-add-activex`, `-179-form-activex-array` (headless, `MSXML2.DOMDocument60` as the
+`TC-MP0002-corpus-177-form-activex`, `-178-form-controls-add-activex`, `-179-form-activex-array`, `-186-form-ole` (headless, `MSXML2.DOMDocument60` as the
 hosted object with its events) and `TC-MP0005-gui-activex` (a hosted
 `SHDocVw.WebBrowser` raising `DocumentComplete` in a real window).
