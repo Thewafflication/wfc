@@ -16,12 +16,20 @@ runtime and engineering-process foundations.
 Milestones MP-0002 through MP-0007 are closed: the VB/VBA language runtime,
 classes, projects and COM Automation, forms and intrinsic controls, ActiveX
 hosting and component authoring, the nine `MSComctlLib` common controls, and
-packaged programs (`wfc --build`). Next is MP-0008 (running real VB6 projects,
-starting with archived games) and then MP-0009 (native x86, AMD64 and ARM64
+packaged programs (`wfc --build`). MP-0008 (running real VB6 projects,
+starting with archived games) is under way and then MP-0009 (native x86, AMD64 and ARM64
 code generation). See [the roadmap](planning/roadmap-1.0.md).
 
 The captures below come from the test suite, running real VB6 form projects in
 native Win32 windows.
+
+**A real VB6 game (MP-0008).** Capture King, a network chess game by Christopher
+McKirgan (GPL), run unmodified from the
+[`vb6games`](https://github.com/Thewafflication/vb6games) corpus: 150 picture
+boxes as the board, menus, buttons with pictures, Winsock and Common Dialog
+controls (some pictures and button overlays still draw wrongly):
+
+![Capture King, a VB6 chess game, running in WFC](evidence/screenshots/vb6games-captureking.png)
 
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an

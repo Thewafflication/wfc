@@ -2002,18 +2002,24 @@ struct FormSupport {
         if ((color & 0x80000000L) == 0 || color >= 0) {
             return color & 0xFFFFFFL;
         }
-        switch (static_cast<unsigned long>(color) & 0xFFUL) {
-            case 5:
-                return 0xFFFFFF;  // window background
-            case 8:
-                return 0x000000;  // window text
-            case 15:
-                return 0xF0F0F0;  // button face
-            case 18:
-                return 0x000000;  // button text
-            default:
-                return 0xC0C0C0;
-        }
+        // The index of the Windows system color (VB's vbScrollBars to
+        // vbInfoBackground), as the default Windows palette has it.
+        const auto rgb = [](const long r, const long g, const long b) {
+            return r | (g << 8) | (b << 16);
+        };
+        const long palette[] = {
+            rgb(200, 200, 200), rgb(0, 0, 0),       rgb(153, 180, 209),
+            rgb(191, 205, 219), rgb(240, 240, 240), rgb(255, 255, 255),
+            rgb(100, 100, 100), rgb(0, 0, 0),       rgb(0, 0, 0),
+            rgb(0, 0, 0),       rgb(180, 180, 180), rgb(244, 247, 252),
+            rgb(171, 171, 171), rgb(51, 153, 255),  rgb(255, 255, 255),
+            rgb(240, 240, 240), rgb(160, 160, 160), rgb(109, 109, 109),
+            rgb(0, 0, 0),       rgb(67, 78, 84),    rgb(255, 255, 255),
+            rgb(105, 105, 105), rgb(227, 227, 227), rgb(0, 0, 0),
+            rgb(255, 255, 225)};
+        const auto index = static_cast<std::size_t>(
+            static_cast<unsigned long>(color) & 0xFFUL);
+        return index < std::size(palette) ? palette[index] : 0xC0C0C0;
     }
     [[nodiscard]] static long color_of(const ControlObject& object,
                                        const std::string& key) {

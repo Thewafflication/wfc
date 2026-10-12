@@ -1267,6 +1267,9 @@ bool Win32Host::capture(const WindowId window, const std::string& path) {
         return false;
     }
     pump();
+    // A form shown from inside a handler has not painted yet.
+    RedrawWindow(entry->hwnd, nullptr, nullptr,
+                 RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     RECT area{};
     GetWindowRect(entry->hwnd, &area);
     const int width = area.right - area.left;
