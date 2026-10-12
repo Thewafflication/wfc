@@ -1,0 +1,5 @@
+Type=Exe
+Name="Server1"
+Class=Greeter; inproc-greeter.cls
+Module=Main; inproc.bas
+Startup="Sub Main"

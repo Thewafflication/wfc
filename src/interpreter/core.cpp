@@ -186,11 +186,14 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     if (!scan_procedures()) {
         return std::move(error_);
     }
+    if (!serve_mode_.empty() && !com_serve()) {
+        return failure("WFC0300", "cannot start the COM server", 0);
+    }
     skip_program_leading_trivia();
     const bool has_forms = std::any_of(
         class_definitions_.begin(), class_definitions_.end(),
         [](const auto& entry) { return entry.second.form != nullptr; });
-    if (at_end() && !has_forms) {
+    if (at_end() && !has_forms && serve_mode_.empty()) {
         return failure("WFC0001", "expected statement", offset_);
     }
     while (!at_end()) {
@@ -212,8 +215,11 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     }
 
     if (!run_forms_at_exit()) {
+        com_unserve();
         return std::move(error_);
     }
+    com_serve_loop();
+    com_unserve();
     // Terminate any module-level variable still holding the last
     // reference to an instance, the same way a call frame's locals are
     // drained at the end of a call -- but only on this successful

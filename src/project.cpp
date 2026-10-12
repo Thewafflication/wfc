@@ -191,6 +191,8 @@ namespace {
             // the class's default member.
             blank = lower.find("vb_usermemid") == std::string::npos &&
                     lower.find("vb_predeclaredid") == std::string::npos &&
+                    lower.find("vb_exposed") == std::string::npos &&
+                    lower.find("vb_creatable") == std::string::npos &&
                     lower.find("vb_globalnamespace") == std::string::npos &&
                     !(keep_vb_name && lower.rfind("attribute vb_name", 0) == 0);
             if (lower.rfind("attribute vb_name", 0) == 0) {
@@ -323,6 +325,12 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     } else {
                         classes.emplace_back(name, file);
                     }
+                } else if (key == "name") {
+                    if (value.size() >= 2U && value.front() == '"' &&
+                        value.back() == '"') {
+                        value = value.substr(1, value.size() - 2U);
+                    }
+                    project.project_name = value;
                 } else if (key == "form" || key == "usercontrol") {
                     form_files.push_back(directory / normalize(value));
                 } else if (key == "wfcuiscript") {
@@ -513,7 +521,8 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
     if (startup_sub_main && has_main) {
         project.module_source += "Call Main\n";
     }
-    if (project.module_source.empty() && form_files.empty()) {
+    if (project.module_source.empty() && form_files.empty() &&
+        project.class_names.empty()) {
         return fail("project has no standard module to run");
     }
     project.ok = true;

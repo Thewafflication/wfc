@@ -28,3 +28,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #7 | Construction | `Controls.Add` and control arrays for ActiveX controls (`REQ-0293`); corpus 178, 179 | CTest 342/342 |
 | 2026-10-11 #8 | Construction | In-project `UserControl` (`.ctl`) hosted on forms: extender, public members, events, lifecycle, `Form_Initialize` (`REQ-0294`); corpus 180, `TC-MP0005-gui-usercontrol` | CTest 344/344 |
 | 2026-10-11 #9 | Construction | `Ambient`, `PropertyChanged`, `As VBControlExtender` (`REQ-0293`, `REQ-0294`) | CTest 344/344 |
+| 2026-10-12 #10 | Construction | COM server: exposed classes, dynamic `IDispatch`, class factories, `--serve`/`--server`/`--register`/`--unregister` (`REQ-0295`, `ADR-0004`); in-process and two-process tests | CTest 346/346 |

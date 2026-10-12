@@ -79,6 +79,14 @@ struct EvaluationOptions final {
     // With the Win32 host: a folder that receives a PNG of each form when it
     // is shown and just before it is unloaded.
     std::string screenshot_directory;
+    // COM server mode (ADR-0004): "inproc" registers the project's exposed
+    // classes as in-process class objects for this run; "server" also serves
+    // other processes until the last object is released or
+    // `server_timeout_ms` passes (0: no limit). `project_name` is the
+    // project's `Name`, the first part of every ProgID.
+    std::string serve;
+    std::string project_name;
+    long server_timeout_ms{600000};
 };
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);

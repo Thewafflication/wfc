@@ -5,6 +5,7 @@
 #ifndef WFC_INTERPRETER_INTERPRETER_HPP
 #define WFC_INTERPRETER_INTERPRETER_HPP
 
+#include "../com_server.hpp"
 #include "../large_stack.hpp"
 #include "../ui/frm_parser.hpp"
 #include "builtin_class_sources.hpp"
@@ -530,6 +531,12 @@ public:
                            std::vector<CallArgument>& arguments);
     void set_startup_form(std::string name) { startup_form_ = std::move(name); }
     void set_ui_script(std::string path) { ui_script_ = std::move(path); }
+    void set_serving(std::string mode, std::string project,
+                     const long timeout) {
+        serve_mode_ = std::move(mode);
+        project_name_ = std::move(project);
+        serve_timeout_ms_ = timeout;
+    }
     void set_ui_mode(std::string mode) { ui_mode_ = std::move(mode); }
     void set_screenshot_directory(std::string directory) {
         screenshot_directory_ = std::move(directory);
@@ -1681,6 +1688,7 @@ private:
     [[nodiscard]] std::string com_type_name(InstanceData& instance);
     // Forms and intrinsic controls (REQ-0289); forms.cpp.
     friend struct FormSupport;
+    friend struct ComServerSupport;
     // Whether `member` of `instance` is served by its native object rather
     // than by VB members of the instance's class.
     [[nodiscard]] bool native_owns(InstanceData& instance,
@@ -1752,6 +1760,17 @@ private:
         const std::string& kind);
     std::shared_ptr<FormRuntime> forms_;
     std::string startup_form_;
+    // COM server mode (com_automation.cpp).
+    std::string serve_mode_;
+    std::string project_name_;
+    long serve_timeout_ms_{600000};
+    std::vector<wfc::ServedClass> served_;
+    std::vector<unsigned long> served_cookies_;
+    [[nodiscard]] bool com_serve();
+    void com_serve_loop();
+    void com_unserve();
+    // "{CLSID}" of a served ProgID, or empty.
+    [[nodiscard]] std::string served_clsid(const std::string& progid) const;
     std::string ui_script_;
     std::string ui_mode_;
     std::string screenshot_directory_;

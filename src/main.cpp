@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string_view>
 #include <vector>
+#include "com_server.hpp"
 
 namespace {
 
@@ -71,9 +72,29 @@ int main(const int argument_count, const char* const arguments[]) {
         std::vector<std::filesystem::path> files;
         std::string ui_mode;
         std::string screenshot_directory;
+        std::string serve;
+        std::string registration;  // "register" or "unregister"
+        long server_timeout_ms = 600000;
         for (int i = 1; i < argument_count; ++i) {
             if (std::string_view(arguments[i]) == "--gui") {
                 ui_mode = "win32";  // run forms in real windows
+            } else if (std::string_view(arguments[i]) == "-Embedding" ||
+                       std::string_view(arguments[i]) == "/Embedding") {
+                // COM started this process to serve a class.
+                if (serve.empty()) {
+                    serve = "server";
+                }
+            } else if (std::string_view(arguments[i]) == "--serve") {
+                serve = "inproc";  // expose the project's classes in-process
+            } else if (std::string_view(arguments[i]) == "--server") {
+                serve = "server";  // serve other processes
+            } else if (std::string_view(arguments[i]) == "--register") {
+                registration = "register";
+            } else if (std::string_view(arguments[i]) == "--unregister") {
+                registration = "unregister";
+            } else if (std::string_view(arguments[i]) == "--server-timeout" &&
+                       i + 1 < argument_count) {
+                server_timeout_ms = std::atol(arguments[++i]);
             } else if (std::string_view(arguments[i]) == "--screenshots" &&
                        i + 1 < argument_count) {
                 screenshot_directory = arguments[++i];  // PNG of each form
@@ -93,6 +114,27 @@ int main(const int argument_count, const char* const arguments[]) {
                 project.class_form_texts[i],
                 project.class_form_directories[i]});
         }
+        if (!registration.empty()) {
+            const auto served =
+                wfc::served_classes(project.project_name, project_classes);
+            std::string problem;
+            const bool done =
+                registration == "register"
+                    ? wfc::register_server(
+                          served,
+                          std::filesystem::absolute(arguments[0]).string(),
+                          std::filesystem::absolute(files.front()).string(),
+                          problem)
+                    : wfc::unregister_server(served, problem);
+            if (!done) {
+                std::cerr << problem << '\n';
+                return 1;
+            }
+            for (const auto& entry : served) {
+                std::cout << entry.progid << ' ' << entry.clsid << '\n';
+            }
+            return 0;
+        }
         // Running real project files: print numbers the way VB6 does.
         wfc::EvaluationOptions options;
         options.vb6_print_spacing = true;
@@ -105,6 +147,9 @@ int main(const int argument_count, const char* const arguments[]) {
         options.ui_script = project.ui_script;
         options.ui_mode = ui_mode;
         options.screenshot_directory = screenshot_directory;
+        options.serve = serve;
+        options.project_name = project.project_name;
+        options.server_timeout_ms = server_timeout_ms;
         const auto result = wfc::evaluate_program(project.module_source,
                                                   project_classes, options);
         if (!result.debug_output.empty()) {

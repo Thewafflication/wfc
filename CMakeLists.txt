@@ -18,6 +18,8 @@ add_library(wfc_frontend STATIC)
 target_sources(
   wfc_frontend
   PRIVATE
+    src/com_server.cpp
+    src/com_server.hpp
     src/evaluator.cpp
     src/interpreter/assignment.cpp
     src/interpreter/builtin_functions.cpp
@@ -232,6 +234,40 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "uc initialize.*uc read hello.*uc terminate"
   )
+  # WFC classes served to COM clients (ADR-0004): in the same process, and
+  # from a server process to a client process.
+  add_test(
+    NAME TC-MP0005-com-server-inproc
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/inproc.vbp" --serve
+  )
+  set_tests_properties(
+    TC-MP0005-com-server-inproc
+    PROPERTIES
+      LABELS "integration;windows;mp-0005;com"
+      PASS_REGULAR_EXPRESSION "Hello world 1.*child kid.*boom"
+  )
+  find_program(WFC_POWERSHELL NAMES pwsh powershell)
+  if(WFC_POWERSHELL)
+    add_test(
+      NAME TC-MP0005-com-server-process
+      COMMAND
+        "${WFC_POWERSHELL}" -NoProfile -File
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Test-ComServer.ps1" -Wfc
+        "$<TARGET_FILE:wfc>" -Server
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/oop-server.vbp"
+        -Client "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/server/client.bas"
+        -Expected "Remote peer 1"
+    )
+    set_tests_properties(
+      TC-MP0005-com-server-process
+      PROPERTIES
+        LABELS "integration;windows;mp-0005;com"
+        TIMEOUT 90
+        SKIP_RETURN_CODE 77
+        RESOURCE_LOCK com-registration
+    )
+  endif()
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host

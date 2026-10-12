@@ -1,0 +1,3 @@
+Type=OleExe
+Name="Server2"
+Class=Greeter; greeter.cls

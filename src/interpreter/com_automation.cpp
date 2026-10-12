@@ -56,6 +56,15 @@ std::optional<Value> Interpreter::com_get_member_with(
     return std::nullopt;
 }
 
+bool Interpreter::com_serve() {
+    return false;
+}
+void Interpreter::com_serve_loop() {}
+void Interpreter::com_unserve() {}
+std::string Interpreter::served_clsid(const std::string&) const {
+    return {};
+}
+
 bool Interpreter::com_put_member(InstanceData&, const std::string&,
                                  std::vector<CallArgument>&, const Value&,
                                  const std::size_t offset) {
@@ -862,8 +871,10 @@ std::optional<Value> Interpreter::com_create_object(const std::string& progid,
                                                     const std::size_t offset) {
     ensure_apartment();
     CLSID class_id{};
-    const auto wide = widen(progid);
-    HRESULT status = CLSIDFromProgID(wide.c_str(), &class_id);
+    const std::string served = served_clsid(progid);
+    const auto wide = widen(served.empty() ? progid : served);
+    HRESULT status = served.empty() ? CLSIDFromProgID(wide.c_str(), &class_id)
+                                    : CLSIDFromString(wide.c_str(), &class_id);
     if (FAILED(status)) {
         // A class id written as {GUID} is accepted too.
         status = CLSIDFromString(wide.c_str(), &class_id);
@@ -1679,6 +1690,354 @@ void Interpreter::com_pump_messages() {
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
+}
+
+// ----- COM server: WFC classes served to other COM clients (ADR-0004) -------
+
+struct ComServerSupport {
+    // Whether `name` is a public member of the object's class.
+    static bool has_member(Interpreter& in,
+                           const std::shared_ptr<InstanceData>& data,
+                           const std::string& name) {
+        const auto found = in.class_definitions_.find(data->class_name);
+        if (found == in.class_definitions_.end()) {
+            return false;
+        }
+        const ClassDef& definition = found->second;
+        if (name.empty()) {
+            return !definition.default_member.empty();
+        }
+        if (definition.methods.contains(name) ||
+            definition.property_get.contains(name) ||
+            definition.property_let.contains(name) ||
+            definition.property_set.contains(name)) {
+            return true;
+        }
+        const auto field = definition.fields.find(name);
+        return field != definition.fields.end() && !field->second.is_private;
+    }
+
+    // Runs `CallByName(object, name, kind, args...)`. On failure fills the
+    // VB error number and description and clears the interpreter's error.
+    static bool call(Interpreter& in, const std::shared_ptr<InstanceData>& data,
+                     const std::string& name, const int kind,
+                     const std::vector<Value>& arguments, Value& result,
+                     long& number, std::string& description) {
+        std::string member = name;
+        if (member.empty()) {
+            const auto found = in.class_definitions_.find(data->class_name);
+            if (found != in.class_definitions_.end()) {
+                member = found->second.default_member;
+            }
+        }
+        std::vector<Value> call_arguments{Value{ObjectInstance{data}},
+                                          Value{member},
+                                          Value{static_cast<Integer>(kind)}};
+        for (const auto& argument : arguments) {
+            call_arguments.push_back(argument);
+        }
+        const auto saved_offset = in.offset_;
+        const bool saved_execute = in.execute_;
+        in.execute_ = true;
+        auto value = in.evaluate_misc_function("callbyname", call_arguments,
+                                               saved_offset);
+        in.execute_ = saved_execute;
+        in.offset_ = saved_offset;
+        if (!value.has_value()) {
+            number = in.err_number_ != 0 ? in.err_number_ : 5;
+            description = in.err_description_.empty()
+                              ? std::string{"Application-defined error"}
+                              : in.err_description_;
+            in.clear_error_for_retry();
+            return false;
+        }
+        result = std::move(*value);
+        return true;
+    }
+
+    static std::optional<Value> create(Interpreter& in,
+                                       const std::string& class_key) {
+        const auto saved_offset = in.offset_;
+        const bool saved_execute = in.execute_;
+        in.execute_ = true;
+        auto made = in.instantiate_class(class_key, saved_offset);
+        in.execute_ = saved_execute;
+        in.offset_ = saved_offset;
+        if (!made.has_value()) {
+            in.clear_error_for_retry();
+        }
+        return made;
+    }
+};
+
+namespace {
+
+long g_served_objects = 0;
+long g_served_locks = 0;
+bool g_served_any = false;
+
+[[nodiscard]] HRESULT export_value(Interpreter& in, const Value& value,
+                                   VARIANT& out);
+
+class ServedObject final : public IDispatch {
+public:
+    ServedObject(Interpreter* interpreter, std::shared_ptr<InstanceData> data)
+        : interpreter_(interpreter), data_(std::move(data)) {
+        ++g_served_objects;
+        g_served_any = true;
+    }
+    ~ServedObject() { --g_served_objects; }
+
+    STDMETHODIMP QueryInterface(REFIID requested, void** result) override {
+        if (requested == IID_IUnknown || requested == IID_IDispatch) {
+            *result = static_cast<IDispatch*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *result = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return ++references_; }
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG remaining = --references_;
+        if (remaining == 0) {
+            delete this;
+        }
+        return remaining;
+    }
+    STDMETHODIMP GetTypeInfoCount(UINT* count) override {
+        *count = 0;
+        return S_OK;
+    }
+    STDMETHODIMP GetTypeInfo(UINT, LCID, ITypeInfo**) override {
+        return DISP_E_BADINDEX;
+    }
+    STDMETHODIMP GetIDsOfNames(REFIID, LPOLESTR* names, UINT count, LCID,
+                               DISPID* ids) override {
+        HRESULT result = S_OK;
+        for (UINT i = 0; i < count; ++i) {
+            ids[i] = DISPID_UNKNOWN;
+            if (i > 0) {
+                result = DISP_E_UNKNOWNNAME;  // named arguments
+                continue;
+            }
+            std::string name = narrow(names[i], wcslen(names[i]));
+            for (auto& c : name) {
+                c = static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (!ComServerSupport::has_member(*interpreter_, data_, name)) {
+                result = DISP_E_UNKNOWNNAME;
+                continue;
+            }
+            const auto at =
+                std::find(member_names_.begin(), member_names_.end(), name);
+            if (at == member_names_.end()) {
+                member_names_.push_back(name);
+                ids[i] = static_cast<DISPID>(member_names_.size());
+            } else {
+                ids[i] = static_cast<DISPID>(at - member_names_.begin()) + 1;
+            }
+        }
+        return result;
+    }
+    STDMETHODIMP Invoke(DISPID member, REFIID, LCID, WORD flags,
+                        DISPPARAMS* params, VARIANT* result, EXCEPINFO* error,
+                        UINT* bad_argument) override {
+        static_cast<void>(bad_argument);
+        std::string name;
+        if (member == DISPID_VALUE) {
+            name.clear();
+        } else if (member >= 1 &&
+                   static_cast<std::size_t>(member) <= member_names_.size()) {
+            name = member_names_[static_cast<std::size_t>(member) - 1U];
+        } else {
+            return DISP_E_MEMBERNOTFOUND;
+        }
+        const bool put =
+            (flags & (DISPATCH_PROPERTYPUT | DISPATCH_PROPERTYPUTREF)) != 0;
+        // Arguments arrive last-first.
+        std::vector<Value> arguments;
+        for (UINT i = params->cArgs; i > 0; --i) {
+            arguments.push_back(variant_to_value(params->rgvarg[i - 1U]));
+        }
+        int kind = 2;  // property get, falling back to a method
+        if (put) {
+            kind = (flags & DISPATCH_PROPERTYPUTREF) != 0 ? 8 : 4;
+        } else if ((flags & DISPATCH_PROPERTYGET) == 0) {
+            kind = 1;  // method only
+        }
+        const auto keep = data_;
+        Value value{Empty{}};
+        long number = 0;
+        std::string description;
+        if (!ComServerSupport::call(*interpreter_, keep, name, kind, arguments,
+                                    value, number, description)) {
+            if (error != nullptr) {
+                *error = EXCEPINFO{};
+                error->scode = static_cast<SCODE>(
+                    0x800A0000 | static_cast<unsigned>(number & 0xFFFF));
+                error->bstrSource = SysAllocString(L"WFC");
+                const auto wide = widen(description);
+                error->bstrDescription = SysAllocStringLen(
+                    wide.data(), static_cast<UINT>(wide.size()));
+            }
+            return DISP_E_EXCEPTION;
+        }
+        if (result != nullptr) {
+            VariantInit(result);
+            if (!put) {
+                return export_value(*interpreter_, value, *result);
+            }
+        }
+        return S_OK;
+    }
+
+private:
+    Interpreter* interpreter_;
+    std::shared_ptr<InstanceData> data_;
+    std::vector<std::string> member_names_;
+    ULONG references_{1};
+};
+
+[[nodiscard]] HRESULT export_value(Interpreter& in, const Value& value,
+                                   VARIANT& out) {
+    if (const auto* object = std::get_if<ObjectInstance>(&value);
+        object != nullptr && object->data != nullptr &&
+        object->data->com == nullptr && object->data->native == nullptr) {
+        // A WFC object leaves through a new dispatch wrapper.
+        out.vt = VT_DISPATCH;
+        out.pdispVal = new ServedObject(&in, object->data);
+        return S_OK;
+    }
+    return value_to_variant(value, out) ? S_OK : DISP_E_TYPEMISMATCH;
+}
+
+class ServedFactory final : public IClassFactory {
+public:
+    ServedFactory(Interpreter* interpreter, std::string class_key)
+        : interpreter_(interpreter), class_key_(std::move(class_key)) {}
+    STDMETHODIMP QueryInterface(REFIID requested, void** result) override {
+        if (requested == IID_IUnknown || requested == IID_IClassFactory) {
+            *result = static_cast<IClassFactory*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *result = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return ++references_; }
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG remaining = --references_;
+        if (remaining == 0) {
+            delete this;
+        }
+        return remaining;
+    }
+    STDMETHODIMP CreateInstance(IUnknown* outer, REFIID requested,
+                                void** result) override {
+        *result = nullptr;
+        if (outer != nullptr) {
+            return CLASS_E_NOAGGREGATION;
+        }
+        const auto made = ComServerSupport::create(*interpreter_, class_key_);
+        const auto* held =
+            made.has_value() ? std::get_if<ObjectInstance>(&*made) : nullptr;
+        if (held == nullptr || held->data == nullptr) {
+            return E_FAIL;
+        }
+        auto* const object = new ServedObject(interpreter_, held->data);
+        const HRESULT status = object->QueryInterface(requested, result);
+        object->Release();
+        return status;
+    }
+    STDMETHODIMP LockServer(BOOL lock) override {
+        g_served_locks += lock != FALSE ? 1 : -1;
+        return S_OK;
+    }
+
+private:
+    Interpreter* interpreter_;
+    std::string class_key_;
+    ULONG references_{1};
+};
+
+}  // namespace
+
+bool Interpreter::com_serve() {
+    ensure_apartment();
+    served_ = wfc::served_classes(project_name_, class_sources_);
+    const DWORD context = CLSCTX_INPROC_SERVER |
+                          (serve_mode_ == "server" ? CLSCTX_LOCAL_SERVER : 0);
+    for (const auto& entry : served_) {
+        std::string key;
+        for (const char c : entry.class_name) {
+            key.push_back(ascii_lower(c));
+        }
+        CLSID class_id{};
+        if (!class_definitions_.contains(key) ||
+            FAILED(CLSIDFromString(widen(entry.clsid).c_str(), &class_id))) {
+            continue;
+        }
+        auto* const factory = new ServedFactory(this, key);
+        DWORD cookie = 0;
+        if (SUCCEEDED(CoRegisterClassObject(class_id, factory, context,
+                                            REGCLS_MULTIPLEUSE, &cookie))) {
+            served_cookies_.push_back(cookie);
+        }
+        factory->Release();
+    }
+    return true;
+}
+
+void Interpreter::com_serve_loop() {
+    if (serve_mode_ != "server") {
+        return;
+    }
+    const DWORD started = GetTickCount();
+    MSG message;
+    while (true) {
+        if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+            if (message.message == WM_QUIT) {
+                break;
+            }
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+            continue;
+        }
+        if (g_served_any && g_served_objects == 0 && g_served_locks == 0) {
+            break;  // the last object was released
+        }
+        if (serve_timeout_ms_ > 0 &&
+            GetTickCount() - started > static_cast<DWORD>(serve_timeout_ms_)) {
+            break;
+        }
+        MsgWaitForMultipleObjects(0, nullptr, FALSE, 50, QS_ALLINPUT);
+    }
+}
+
+void Interpreter::com_unserve() {
+    for (const DWORD cookie : served_cookies_) {
+        CoRevokeClassObject(cookie);
+    }
+    served_cookies_.clear();
+}
+
+std::string Interpreter::served_clsid(const std::string& progid) const {
+    std::string wanted;
+    for (const char c : progid) {
+        wanted.push_back(ascii_lower(c));
+    }
+    for (const auto& entry : served_) {
+        std::string candidate;
+        for (const char c : entry.progid) {
+            candidate.push_back(ascii_lower(c));
+        }
+        if (candidate == wanted) {
+            return entry.clsid;
+        }
+    }
+    return {};
 }
 
 #endif  // _WIN32

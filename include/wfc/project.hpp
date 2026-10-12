@@ -46,6 +46,8 @@ struct LoadedProject final {
     std::vector<std::string> class_form_texts;
     std::vector<std::string> class_form_directories;
     std::string startup_form;
+    // The project's `Name`, the first part of its classes' ProgIDs.
+    std::string project_name;
     // Path of a scripted-input file for the headless UI host
     // (`WfcUiScript=` in the .vbp), resolved against the project directory.
     std::string ui_script;

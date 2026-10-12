@@ -821,6 +821,8 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_ui_script(options.ui_script);
         interpreter.set_ui_mode(options.ui_mode);
         interpreter.set_screenshot_directory(options.screenshot_directory);
+        interpreter.set_serving(options.serve, options.project_name,
+                                options.server_timeout_ms);
         if (options.per_module_option_explicit) {
             interpreter.set_option_explicit_ranges(
                 options.option_explicit_ranges);
