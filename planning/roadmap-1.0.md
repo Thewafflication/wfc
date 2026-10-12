@@ -207,7 +207,8 @@ lifetime on the required milestone matrix.
 
 ## MP-0006 — `MSComctlLib` Compatibility (`0.6.0`)
 
-Detailed plan: [MP-0006](MP-0006-mscomctllib.md).
+Detailed plan: [MP-0006](MP-0006-mscomctllib.md); closed 2026-10-12 with
+MSCOMCTL binary persistence and reference probes deferred.
 
 ### Outcome
 

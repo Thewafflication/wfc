@@ -1,7 +1,7 @@
 # MP-0006 — `MSComctlLib` Compatibility
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Complete (see closeout record)  
 **Target baseline:** 0.6.0  
 **Planned period:** 2026-10-12 through milestone closeout  
 **Inherited baseline:** MP-0005 closeout (`MP-0005-closeout.md`), `master` at the closeout commit  
@@ -144,12 +144,12 @@ as a normal Git change.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| API of the nine controls matches the type-library inventory | CTest hash and audit | Required | Not started |
-| Behavior requirements `REQ-0010`–`REQ-0036` have passing WFC tests | Corpus tests | Required | Not started |
-| Forms using the controls load their text properties and round trip | Round-trip tests | Required | Not started |
-| Win32 host renders and drives the nine controls | Win32 tests, screenshots | Required | Not started |
-| Unreadable persisted state is reported | Diagnostic test | Required | Not started |
-| Behavioral probes retained | Probe records | Roadmap gate | Not started |
+| API of the nine controls matches the type-library inventory | CTest hash and audit | Required | Pass |
+| Behavior requirements `REQ-0010`–`REQ-0036` have passing WFC tests | Corpus tests | Required | Partial (REQ-0011, 0029, 0034) |
+| Forms using the controls load their text properties and round trip | Round-trip tests | Required | Pass |
+| Win32 host renders and drives the nine controls | Win32 tests, screenshots | Required | Pass |
+| Unreadable persisted state is reported | Diagnostic test | Required | Pass |
+| Behavioral probes retained | Probe records | Roadmap gate | Not met; deferred |
 
 ## Deferred Objectives
 

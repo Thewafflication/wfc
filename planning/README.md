@@ -22,10 +22,10 @@
 
 ## Active Milestone
 
-MP-0006 — `MSComctlLib` Compatibility (`0.6.0`), per the
-[MP-0006 plan](MP-0006-mscomctllib.md) and the
+MP-0007 — Native Compiler and VBRUN ABI (`0.7.0`), per the
+[MP-0007 plan](MP-0007-native-compiler.md) and the
 [roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0006 work log](work-log-mp-0006.md).
+[MP-0007 work log](work-log-mp-0007.md).
 
 Closed milestones:
 
@@ -43,6 +43,10 @@ Closed milestones:
   with in-process control servers, `.frx` persistence of hosted controls and
   real OLE drag deferred; see the [closeout record](MP-0005-closeout.md),
   [plan](MP-0005-component-authoring.md) and [work log](work-log-mp-0005.md).
+- MP-0006 — `MSComctlLib` Compatibility (`0.6.0`), closed 2026-10-12 with
+  MSCOMCTL binary persistence and reference probes deferred; see the
+  [closeout record](MP-0006-closeout.md), [plan](MP-0006-mscomctllib.md),
+  [coverage matrix](MP-0006-coverage.md) and [work log](work-log-mp-0006.md).
 
 The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`

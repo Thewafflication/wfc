@@ -4,9 +4,9 @@
 
 **Milestone or work package:** MP-0006 — `MSComctlLib` compatibility (`0.6.0`)
 
-**Status:** Proposed (awaiting owner approval)
+**Status:** Complete (with documented deferrals)
 
-**Completion date:** Not yet approved
+**Completion date:** 2026-10-12
 
 **Inherited baseline:** MP-0005 closeout (`MP-0005-closeout.md`)
 
@@ -15,7 +15,7 @@ Actions (x86, x64, ARM64) green on the "Refine common control behaviors" commit
 
 **Owner:** Project maintainer
 
-**Approval:** Pending
+**Approval:** Owner approval in session, 2026-10-12
 
 ## Outcome
 
@@ -72,11 +72,11 @@ forms load and run on x86, x64 and ARM64 without the 32-bit OCX.
 
 ## Closeout Decision
 
-- **Decision:** Proposed: complete with documented deferrals
+- **Decision:** Complete with documented deferrals
 - **Approver:** Project maintainer
 - **Rationale:** All nine controls work end to end; the remaining items need a
   reference machine or binary samples.
-- **Next review or release action:** Owner approval, then plan MP-0007.
+- **Next review or release action:** `MP-0007-native-compiler.md`.
 
 ## References
 
