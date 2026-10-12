@@ -173,6 +173,15 @@ public:
         static_cast<void>(path);
         return false;
     }
+    // The color (0x00BBGGRR) of the surface pixel at (x, y) twips, or nullopt
+    // outside the surface or when the host keeps no pixels.
+    [[nodiscard]] virtual std::optional<long> pixel(WindowId window, double x,
+                                                    double y) const {
+        static_cast<void>(window);
+        static_cast<void>(x);
+        static_cast<void>(y);
+        return std::nullopt;
+    }
     // Decodes image bytes for drawing; returns a picture id (0 on failure).
     // The same bytes give the same id.
     [[nodiscard]] virtual long load_picture(const std::string& bytes) {

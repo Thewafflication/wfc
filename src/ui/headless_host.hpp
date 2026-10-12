@@ -32,6 +32,8 @@ public:
     [[nodiscard]] long selection(WindowId window) const override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;
     void draw(WindowId window, const DrawOp& operation) override;
+    [[nodiscard]] std::optional<long> pixel(WindowId window, double x,
+                                            double y) const override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
@@ -67,6 +69,10 @@ private:
         std::string text;
         std::vector<std::string> items;
         long selection{-1};
+        // A software copy of the drawing surface (one pixel per 15 twips).
+        int raster_width{0};
+        int raster_height{0};
+        std::vector<long> raster;
     };
     struct TimerState {
         long interval{};
@@ -74,6 +80,7 @@ private:
     };
 
     [[nodiscard]] const Window* find(WindowId window) const;
+    static void rasterize(Window& window, const DrawOp& operation);
     [[nodiscard]] Window* find(WindowId window);
 
     std::map<WindowId, Window> windows_;

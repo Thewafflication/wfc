@@ -33,13 +33,19 @@ A form and a `PictureBox` are drawing surfaces.
   `circle #id x y r color [start end] [aspect a]`, `text #id x y color "text"`,
   `cls #id`); the input script's `trace` command prints and clears them.
 
+- **`Point` and `PaintPicture`.** `Point(x, y)` returns the color of the surface
+  pixel (-1 outside the surface); the headless host keeps a software copy of the
+  surface (one pixel per 15 twips) updated by `Cls`, `PSet`, `Line`, `Circle` and
+  shapes (text and pictures leave no pixels). `PaintPicture picture, x1, y1
+  [, width1, height1 [, x2, y2, width2, height2]]` draws a picture (or part of it)
+  into a rectangle in scale units.
+
 ## Known limits
 
-`DrawWidth`, `DrawStyle`, `FillColor`, `FillStyle`, `DrawMode`, `Point`,
-`PaintPicture`, `Picture`/`Image` properties, `AutoRedraw` and the `Paint`
+`DrawWidth`, `DrawStyle`, `FillColor`, `FillStyle`, `DrawMode`, `AutoRedraw` and the `Paint`
 event's repaint behavior are not implemented yet; the Win32 host draws
 persistently on a backing surface (as `AutoRedraw = True`).
 
 ## Verification
 
-`TC-MP0002-corpus-157-form-graphics`.
+`TC-MP0002-corpus-157-form-graphics` and `-165-form-point-paintpicture`.

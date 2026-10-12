@@ -1036,6 +1036,27 @@ long Win32Host::load_picture(const std::string& bytes) {
     return id;
 }
 
+std::optional<long> Win32Host::pixel(const WindowId window, const double x,
+                                     const double y) const {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->surface_dc == nullptr) {
+        return std::nullopt;
+    }
+    const int px =
+        static_cast<int>(std::floor(x * static_cast<double>(dpi_x_) / 1440.0));
+    const int py =
+        static_cast<int>(std::floor(y * static_cast<double>(dpi_y_) / 1440.0));
+    if (px < 0 || py < 0 || px >= entry->surface_width ||
+        py >= entry->surface_height) {
+        return std::nullopt;
+    }
+    const COLORREF color = GetPixel(entry->surface_dc, px, py);
+    if (color == CLR_INVALID) {
+        return std::nullopt;
+    }
+    return static_cast<long>(color);
+}
+
 void Win32Host::draw(const WindowId window, const DrawOp& operation) {
     Entry* entry = ensure_surface(window);
     if (entry == nullptr) {
@@ -1161,8 +1182,24 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
             const int y = to_y(operation.y1);
             const int cx = std::max(to_x(operation.x2), 1);
             const int cy = std::max(to_y(operation.y2), 1);
-            picture->Render(dc, x, y, cx, cy, 0, height, width, -height,
-                            nullptr);
+            if (operation.has_source && operation.source_width > 0 &&
+                operation.source_height > 0) {
+                // The source rectangle is in twips of the natural size.
+                const double hm_per_twip = 2540.0 / 1440.0;
+                const long sx =
+                    static_cast<long>(operation.source_x * hm_per_twip);
+                const long sy =
+                    static_cast<long>(operation.source_y * hm_per_twip);
+                const long sw =
+                    static_cast<long>(operation.source_width * hm_per_twip);
+                const long sh =
+                    static_cast<long>(operation.source_height * hm_per_twip);
+                picture->Render(dc, x, y, cx, cy, sx, height - sy, sw, -sh,
+                                nullptr);
+            } else {
+                picture->Render(dc, x, y, cx, cy, 0, height, width, -height,
+                                nullptr);
+            }
         }
     } else if (operation.kind == "text") {
         const int height = -static_cast<int>(std::lround(

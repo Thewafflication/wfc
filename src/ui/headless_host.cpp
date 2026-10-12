@@ -4,7 +4,9 @@
 #include "headless_host.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 namespace wfc::ui {
 
@@ -135,6 +137,8 @@ std::vector<std::string> HeadlessHost::items_of(const WindowId window) const {
 
 namespace {
 
+constexpr double kTwipsPerPixel = 15.0;
+
 [[nodiscard]] std::string number_text(const double value) {
     char buffer[40];
     std::snprintf(buffer, sizeof(buffer), "%.2f", value);
@@ -157,10 +161,157 @@ namespace {
 
 }  // namespace
 
+void HeadlessHost::rasterize(Window& window, const DrawOp& operation) {
+    if (window.raster.empty()) {
+        window.raster_width =
+            std::max(1, static_cast<int>(window.bounds.width / kTwipsPerPixel));
+        window.raster_height = std::max(
+            1, static_cast<int>(window.bounds.height / kTwipsPerPixel));
+        window.raster.assign(static_cast<std::size_t>(window.raster_width) *
+                                 static_cast<std::size_t>(window.raster_height),
+                             0xFFFFFF);
+    }
+    const int width = window.raster_width;
+    const int height = window.raster_height;
+    const auto set = [&](const int x, const int y, const long color) {
+        if (x >= 0 && y >= 0 && x < width && y < height) {
+            window.raster[static_cast<std::size_t>(y) *
+                              static_cast<std::size_t>(width) +
+                          static_cast<std::size_t>(x)] = color;
+        }
+    };
+    const auto px = [](const double twips) {
+        return static_cast<int>(std::floor(twips / kTwipsPerPixel));
+    };
+    const auto line = [&](int x0, int y0, const int x1, const int y1,
+                          const long color) {
+        const int dx = std::abs(x1 - x0);
+        const int dy = -std::abs(y1 - y0);
+        const int sx = x0 < x1 ? 1 : -1;
+        const int sy = y0 < y1 ? 1 : -1;
+        int error = dx + dy;
+        for (;;) {
+            set(x0, y0, color);
+            if (x0 == x1 && y0 == y1) {
+                break;
+            }
+            const int doubled = 2 * error;
+            if (doubled >= dy) {
+                error += dy;
+                x0 += sx;
+            }
+            if (doubled <= dx) {
+                error += dx;
+                y0 += sy;
+            }
+        }
+    };
+    const auto fill = [&](int left, int top, int right, int bottom,
+                          const long color) {
+        for (int y = std::max(top, 0); y <= std::min(bottom, height - 1); ++y) {
+            for (int x = std::max(left, 0); x <= std::min(right, width - 1);
+                 ++x) {
+                set(x, y, color);
+            }
+        }
+    };
+    const auto ellipse = [&](const int cx, const int cy, const int rx,
+                             const int ry, const bool filled,
+                             const long color) {
+        for (int y = -ry; y <= ry; ++y) {
+            for (int x = -rx; x <= rx; ++x) {
+                const double value =
+                    (static_cast<double>(x) * x) /
+                        std::max(1.0, static_cast<double>(rx) * rx) +
+                    (static_cast<double>(y) * y) /
+                        std::max(1.0, static_cast<double>(ry) * ry);
+                if (filled ? value <= 1.0 : (value <= 1.0 && value > 0.8)) {
+                    set(cx + x, cy + y, color);
+                }
+            }
+        }
+    };
+    if (operation.kind == "cls") {
+        std::fill(window.raster.begin(), window.raster.end(), operation.color);
+    } else if (operation.kind == "pset") {
+        set(px(operation.x1), px(operation.y1), operation.color);
+    } else if (operation.kind == "line") {
+        const int x1 = px(operation.x1);
+        const int y1 = px(operation.y1);
+        const int x2 = px(operation.x2);
+        const int y2 = px(operation.y2);
+        if (operation.box && operation.filled) {
+            fill(std::min(x1, x2), std::min(y1, y2), std::max(x1, x2),
+                 std::max(y1, y2), operation.color);
+        } else if (operation.box) {
+            line(x1, y1, x2, y1, operation.color);
+            line(x2, y1, x2, y2, operation.color);
+            line(x2, y2, x1, y2, operation.color);
+            line(x1, y2, x1, y1, operation.color);
+        } else {
+            line(x1, y1, x2, y2, operation.color);
+        }
+    } else if (operation.kind == "circle") {
+        const int rx = std::max(1, px(operation.radius));
+        ellipse(px(operation.x1), px(operation.y1), rx,
+                std::max(1, static_cast<int>(rx * operation.aspect)), false,
+                operation.color);
+    } else if (operation.kind == "shape") {
+        const int left = px(operation.x1);
+        const int top = px(operation.y1);
+        const int right = left + std::max(1, px(operation.x2)) - 1;
+        const int bottom = top + std::max(1, px(operation.y2)) - 1;
+        const int type = static_cast<int>(operation.radius);
+        const bool filled = operation.fill_style != 1;
+        if (type == 2 || type == 3) {
+            ellipse((left + right) / 2, (top + bottom) / 2,
+                    std::max(1, (right - left) / 2),
+                    std::max(1, (bottom - top) / 2), filled,
+                    filled ? operation.fill_color : operation.color);
+        } else if (filled) {
+            fill(left, top, right, bottom, operation.fill_color);
+        }
+        if (type != 2 && type != 3) {
+            line(left, top, right, top, operation.color);
+            line(right, top, right, bottom, operation.color);
+            line(right, bottom, left, bottom, operation.color);
+            line(left, bottom, left, top, operation.color);
+        }
+    }
+}
+
+std::optional<long> HeadlessHost::pixel(const WindowId window, const double x,
+                                        const double y) const {
+    const auto* target = find(window);
+    if (target == nullptr) {
+        return std::nullopt;
+    }
+    const int px = static_cast<int>(std::floor(x / kTwipsPerPixel));
+    const int py = static_cast<int>(std::floor(y / kTwipsPerPixel));
+    if (target->raster.empty()) {
+        // Nothing drawn yet: the surface is white inside its bounds.
+        return px >= 0 && py >= 0 &&
+                       px < static_cast<int>(target->bounds.width /
+                                             kTwipsPerPixel) &&
+                       py < static_cast<int>(target->bounds.height /
+                                             kTwipsPerPixel)
+                   ? std::optional<long>{0xFFFFFF}
+                   : std::nullopt;
+    }
+    if (px < 0 || py < 0 || px >= target->raster_width ||
+        py >= target->raster_height) {
+        return std::nullopt;
+    }
+    return target->raster[static_cast<std::size_t>(py) *
+                              static_cast<std::size_t>(target->raster_width) +
+                          static_cast<std::size_t>(px)];
+}
+
 void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
     if (find(window) == nullptr) {
         return;
     }
+    rasterize(*find(window), operation);
     std::string line = operation.kind + " #" + std::to_string(window);
     const auto add = [&](const double value) {
         line += " " + number_text(value);

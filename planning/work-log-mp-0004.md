@@ -37,3 +37,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #16 | Construction | `--screenshots` PNG capture (Win32 host), showcase form test, README section "Run and Test a Form Project", z-order and container-parent window creation, client-sized form windows, combo text fix (`REQ-0289`) | CTest `TC-MP0004-gui-showcase` |
 | 2026-10-11 #17 | Construction | Win32 `MsgBox` and `InputBox` dialogs through `UiHost::message_box`/`input_box`, tested with a helper thread (`REQ-0289`) | CTest `TC-MP0004-win32-host` |
 | 2026-10-11 #18 | Construction | `SendKeys` (parser, per-focus delivery, headless typing default, Win32 `SendInput`); `type` uses key events (`REQ-0289`); corpus 164 | CTest 322/322 |
+| 2026-10-11 #19 | Construction | `Point` (headless software raster, Win32 `GetPixel`) and `PaintPicture` with source rectangles (`REQ-0290`); corpus 165 | CTest 323/323 |

@@ -61,6 +61,8 @@ public:
                                const std::string& path) override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;
     void draw(WindowId window, const DrawOp& operation) override;
+    [[nodiscard]] std::optional<long> pixel(WindowId window, double x,
+                                            double y) const override;
     [[nodiscard]] TextMetrics measure_text(WindowId window,
                                            const std::string& text,
                                            const FontSpec& font) const override;

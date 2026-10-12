@@ -1,0 +1,4 @@
+Type=Exe
+Form=165-form-point-paintpicture.frm
+Startup="Form1"
+WfcUiScript=165-form-point-paintpicture.ui

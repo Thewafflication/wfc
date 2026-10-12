@@ -1557,6 +1557,70 @@ struct FormSupport {
                                             from_twips_y(surface, 0.0))};
             return true;
         }
+        if (member == "point") {
+            if (arguments.size() != 2U) {
+                failure = NativeFailure{450, "Wrong number of arguments"};
+                return true;
+            }
+            const auto color = runtime(in).host->pixel(
+                surface.window, to_twips_x(surface, number_at(0, 0.0)),
+                to_twips_y(surface, number_at(1, 0.0)));
+            result = Value{static_cast<Integer>(color.value_or(-1))};
+            return true;
+        }
+        if (member == "paintpicture") {
+            PictureObject* picture =
+                arguments.empty() ? nullptr : picture_of(arguments[0].value);
+            if (picture == nullptr || arguments.size() < 3U) {
+                failure = NativeFailure{arguments.empty() ? 450 : 13,
+                                        arguments.empty() ? "Wrong number of "
+                                                            "arguments"
+                                                          : "Type mismatch"};
+                return true;
+            }
+            result = Value{Empty{}};
+            if (picture->bytes.empty()) {
+                return true;
+            }
+            const double x = to_twips_x(surface, number_at(1, 0.0));
+            const double y = to_twips_y(surface, number_at(2, 0.0));
+            const double natural_width = himetric_to_twips(picture->info.width);
+            const double natural_height =
+                himetric_to_twips(picture->info.height);
+            const Scale scale = scale_of(surface);
+            const auto width_of = [&](const std::size_t index,
+                                      const double fallback) {
+                return index < arguments.size() && !arguments[index].omitted &&
+                               is_number(arguments[index].value)
+                           ? as_double(arguments[index].value) *
+                                 client_width(surface) / scale.width
+                           : fallback;
+            };
+            const auto height_of = [&](const std::size_t index,
+                                       const double fallback) {
+                return index < arguments.size() && !arguments[index].omitted &&
+                               is_number(arguments[index].value)
+                           ? as_double(arguments[index].value) *
+                                 client_height(surface) / scale.height
+                           : fallback;
+            };
+            ui::DrawOp operation;
+            operation.kind = "picture";
+            operation.picture = host_picture(in, *picture);
+            operation.x1 = x;
+            operation.y1 = y;
+            operation.x2 = width_of(3, natural_width);
+            operation.y2 = height_of(4, natural_height);
+            if (arguments.size() > 5U && !arguments[5].omitted) {
+                operation.has_source = true;
+                operation.source_x = width_of(5, 0.0);
+                operation.source_y = height_of(6, 0.0);
+                operation.source_width = width_of(7, natural_width);
+                operation.source_height = height_of(8, natural_height);
+            }
+            draw_op(in, surface, operation);
+            return true;
+        }
         if (member == "scalex" || member == "scaley") {
             const double value = number_at(0, 0.0);
             const double from_mode = number_at(1, scale_mode_of(surface));
