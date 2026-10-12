@@ -1665,6 +1665,8 @@ private:
                                       const std::string& name,
                                       std::vector<CallArgument>& arguments,
                                       const Value& value, std::size_t offset);
+    // "{CLSID}" of a ProgID (or of text already in that form), else empty.
+    [[nodiscard]] std::string com_progid_to_clsid(const std::string& progid);
     // Wraps an IUnknown (a control a site created) as an object value and
     // releases the caller's reference.
     [[nodiscard]] Value com_wrap_unknown(void* unknown);

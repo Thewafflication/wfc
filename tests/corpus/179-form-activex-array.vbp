@@ -1,0 +1,4 @@
+Type=Exe
+Form=179-form-activex-array.frm
+Startup="Form1"
+WfcUiScript=179-form-activex-array.ui

@@ -68,6 +68,10 @@ Value Interpreter::com_wrap_unknown(void*) {
     return Value{Nothing{}};
 }
 
+std::string Interpreter::com_progid_to_clsid(const std::string&) {
+    return {};
+}
+
 bool Interpreter::com_member_statement(const Value&, const std::string&,
                                        const std::size_t offset,
                                        const std::optional<std::string>&) {
@@ -949,6 +953,19 @@ bool Interpreter::com_put_member(InstanceData& instance,
         return false;
     }
     return true;
+}
+
+std::string Interpreter::com_progid_to_clsid(const std::string& progid) {
+    ensure_apartment();
+    CLSID class_id{};
+    const auto wide = widen(progid);
+    if (FAILED(CLSIDFromProgID(wide.c_str(), &class_id)) &&
+        FAILED(CLSIDFromString(wide.c_str(), &class_id))) {
+        return {};
+    }
+    wchar_t buffer[64];
+    StringFromGUID2(class_id, buffer, 64);
+    return narrow(buffer, wcslen(buffer));
 }
 
 Value Interpreter::com_wrap_unknown(void* unknown) {

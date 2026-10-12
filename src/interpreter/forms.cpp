@@ -4891,6 +4891,7 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     object->values["visible"] = Value{false};
     object->design["visible"] = Value{false};
     object->order = first->order;
+    object->activex_clsid = first->activex_clsid;
     object->dynamic = true;
     auto data = std::make_shared<InstanceData>();
     data->class_name = "wfcnative";
@@ -4900,9 +4901,14 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     const ControlObject* owner_object = control_of(*owner);
     if (owner_object != nullptr && owner_object->loaded) {
         object->window = runtime(in).host->create_window(
-            object->cls->name, parent_window(*owner, *owner_object, *object));
+            object->is_activex() ? "ActiveX:" + object->activex_clsid
+                                 : object->cls->name,
+            parent_window(*owner, *owner_object, *object));
         bind(in, *object);
         mirror_all(in, *object);
+        if (object->is_activex() && !attach_activex(in, *owner, *object)) {
+            return false;
+        }
     }
     return true;
 }
@@ -4962,6 +4968,14 @@ bool FormSupport::controls_edit(Interpreter& in,
         "line",          "image"};
     const ui::ControlClass* control_class =
         addable.contains(progid) ? ui::find_control_class(progid) : nullptr;
+    std::string clsid;
+    if (control_class == nullptr) {
+        // An ActiveX control by ProgID or CLSID.
+        clsid = in.com_progid_to_clsid(text_of(0));
+        if (!clsid.empty()) {
+            control_class = &kExtenderClass;
+        }
+    }
     if (control_class == nullptr) {
         failure = NativeFailure{711,
                                 "Invalid class string. Looking for "
@@ -4978,6 +4992,7 @@ bool FormSupport::controls_edit(Interpreter& in,
     auto object =
         std::make_shared<ControlObject>(control_class, text_of(1), -1L, false);
     object->form = form;
+    object->activex_clsid = clsid;
     long order = 0;
     for_each_control(*form, [&](ControlObject& other) {
         order = std::max(order, other.order + 1);
@@ -5000,9 +5015,19 @@ bool FormSupport::controls_edit(Interpreter& in,
     form->fields.object_variables.insert(name);
     if (owner != nullptr && owner->loaded) {
         object->window = runtime_state.host->create_window(
-            object->cls->name, parent_window(*form, *owner, *object));
+            object->is_activex() ? "ActiveX:" + object->activex_clsid
+                                 : object->cls->name,
+            parent_window(*form, *owner, *object));
         bind(in, *object);
         mirror_all(in, *object);
+        if (object->is_activex() && !attach_activex(in, *form, *object)) {
+            failure = reported();
+            runtime_state.bindings.erase(object->window);
+            runtime_state.host->destroy_window(object->window);
+            form->fields.variables.erase(name);
+            form->fields.object_variables.erase(name);
+            return true;
+        }
     }
     return true;
 }

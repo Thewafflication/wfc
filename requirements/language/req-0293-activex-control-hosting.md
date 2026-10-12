@@ -21,8 +21,11 @@
   `Object` returns the control's own object. Any other member is forwarded to
   the control (properties, methods, collections, default member).
 - **Events.** The control's events call `Name_Event` handlers of the form.
-- **Control arrays** of ActiveX controls and `Controls.Add` with a ProgID are
-  not implemented.
+- **Control arrays and dynamic controls.** ActiveX controls may be control
+  array elements (`Index`, `Load`, `Unload`). `Controls.Add(ProgID, Name[,
+  Container])` accepts the ProgID or CLSID of a registered control (the control
+  is invisible until `Visible = True`); an unknown ProgID raises 711 and an
+  uncreatable control 429.
 
 ## Known limits
 
@@ -33,6 +36,6 @@ WebBrowser) are not implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-177-form-activex` (headless, `MSXML2.DOMDocument60` as the
+`TC-MP0002-corpus-177-form-activex`, `-178-form-controls-add-activex`, `-179-form-activex-array` (headless, `MSXML2.DOMDocument60` as the
 hosted object with its events) and `TC-MP0005-gui-activex` (a hosted
 `SHDocVw.WebBrowser` raising `DocumentComplete` in a real window).
