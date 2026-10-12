@@ -253,7 +253,8 @@ void Interpreter::register_predeclared_instances() {
             class_definitions_.at(key).global_namespace = true;
             predeclared = true;
         }
-        if (class_definitions_.at(key).form != nullptr) {
+        if (class_definitions_.at(key).form != nullptr &&
+            class_definitions_.at(key).form->root.type != "VB.UserControl") {
             predeclared = true;  // every form has a default instance
         }
         if (!predeclared || module.variables.contains(key)) {
@@ -1580,6 +1581,18 @@ void Interpreter::scan_default_member(ClassDef& class_def) {
 }
 
 bool Interpreter::scan_classes() {
+    // The UserControl modules of the project: forms may host them.
+    std::set<std::string> user_controls;
+    for (const auto& class_source : class_sources_) {
+        if (class_source.form_description.find("Begin VB.UserControl") !=
+            std::string::npos) {
+            std::string lowered_name;
+            for (const char c : class_source.name) {
+                lowered_name.push_back(ascii_lower(c));
+            }
+            user_controls.insert(lowered_name);
+        }
+    }
     for (const auto& class_source : class_sources_) {
         std::string lowered_name;
         lowered_name.reserve(class_source.name.size());
@@ -1622,8 +1635,13 @@ bool Interpreter::scan_classes() {
                     }
                     const auto activex =
                         class_definitions_.find(lowered_type(child.type));
-                    const bool hosted = activex != class_definitions_.end() &&
-                                        !activex->second.com_clsid.empty();
+                    const auto dot = child.type.rfind('.');
+                    const bool hosted = (activex != class_definitions_.end() &&
+                                         !activex->second.com_clsid.empty()) ||
+                                        user_controls.contains(lowered_type(
+                                            dot == std::string::npos
+                                                ? child.type
+                                                : child.type.substr(dot + 1U)));
                     if (problem.empty() && !hosted &&
                         ui::find_control_class(leaf) == nullptr) {
                         problem = "unsupported control class '" + child.type +

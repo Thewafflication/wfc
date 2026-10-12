@@ -263,6 +263,9 @@ public:
           class_key(lower_text(control_class->name)) {}
 
     [[nodiscard]] std::string type_name() const override {
+        if (!type_label.empty()) {
+            return type_label;
+        }
         return is_form ? "Form" : std::string(cls->name);
     }
 
@@ -310,9 +313,17 @@ public:
     bool bind_busy{false};  // a bound control is being refreshed
     // An ActiveX control: its class id and the COM object the site created.
     std::string activex_clsid;
+    // An in-project UserControl hosted by a form: its class name; and, on the
+    // UserControl itself, the hosting form's extender object.
+    std::string usercontrol_class;
+    std::string type_label;  // TypeName of a hosted control (its own class)
+    Value extender{Nothing{}};
     Value inner{Nothing{}};
     [[nodiscard]] bool is_activex() const {
         return class_key == "activexcontrol";
+    }
+    [[nodiscard]] bool is_user_control_host() const {
+        return is_activex() && !usercontrol_class.empty();
     }
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox" ||
@@ -462,6 +473,24 @@ struct FormSupport {
             return true;
         }
         const auto keep = held->data;
+        if (keep->com == nullptr) {
+            // An in-project UserControl: its public members by name.
+            std::vector<Value> call{
+                self.inner,
+                Value{member == "_default" ? std::string{} : member},
+                Value{Integer{2}}};
+            for (const auto& argument : arguments) {
+                call.push_back(argument.value);
+            }
+            auto value =
+                in.evaluate_misc_function("callbyname", call, in.offset_);
+            if (!value.has_value()) {
+                failure = reported();
+                return true;
+            }
+            result = std::move(*value);
+            return true;
+        }
         auto value = in.com_get_member_with(
             *keep, member == "_default" ? std::string{} : member, arguments,
             in.offset_);
@@ -485,12 +514,143 @@ struct FormSupport {
             return true;
         }
         const auto keep = held->data;
+        if (keep->com == nullptr) {
+            const bool object = std::holds_alternative<ObjectInstance>(value);
+            std::vector<Value> call{
+                self.inner,
+                Value{member == "_default" ? std::string{} : member},
+                Value{Integer{object ? 8 : 4}}};
+            for (const auto& argument : arguments) {
+                call.push_back(argument.value);
+            }
+            call.push_back(value);
+            if (!in.evaluate_misc_function("callbyname", call, in.offset_)
+                     .has_value()) {
+                failure = reported();
+            }
+            return true;
+        }
         if (!in.com_put_member(*keep,
                                member == "_default" ? std::string{} : member,
                                arguments, value, in.offset_)) {
             failure = reported();
         }
         return true;
+    }
+
+    // Creates the UserControl a form hosts: its own constituent controls in a
+    // child window, the Initialize / ReadProperties / Resize events, and the
+    // event link to the form.
+    [[nodiscard]] static bool attach_user_control(Interpreter& in,
+                                                  InstanceData& form,
+                                                  ControlObject& form_object,
+                                                  ControlObject& host) {
+        auto made = in.instantiate_class(host.usercontrol_class, in.offset_);
+        if (!made.has_value()) {
+            return false;
+        }
+        const auto* held = std::get_if<ObjectInstance>(&*made);
+        ControlObject* control = held != nullptr && held->data != nullptr
+                                     ? control_of(*held->data)
+                                     : nullptr;
+        if (control == nullptr || control->class_key != "usercontrol") {
+            static_cast<void>(in.raise_runtime(
+                429, "ActiveX component can't create object: " + host.name,
+                in.offset_));
+            return false;
+        }
+        const auto uc = held->data;
+        host.inner = *made;
+        control->extender = control_value(form, host);
+        control->loaded = true;
+        for (const char* key : {"width", "height"}) {
+            const auto found = host.values.find(key);
+            if (found != host.values.end()) {
+                control->values[key] = found->second;
+            }
+        }
+        if (!create_windows(in, *uc, *control,
+                            parent_window(form, form_object, host))) {
+            return false;
+        }
+        host.window = control->window;
+        mirror_all(in, host);
+        uc->event_sinks.emplace_back(form.weak_from_this(), host.name);
+        // ReadProperties: the properties the form file holds for the control.
+        if (in.class_definitions_.contains("wfcpropertybag")) {
+            auto bag = in.instantiate_class("wfcpropertybag", in.offset_);
+            if (!bag.has_value()) {
+                return false;
+            }
+            for (const auto& [key, value] : host.design) {
+                if (key.empty() || key.front() == '_' ||
+                    !activex_forwards(host, key)) {
+                    continue;
+                }
+                std::vector<Value> call{*bag,
+                                        Value{std::string{"WriteProperty"}},
+                                        Value{Integer{1}}, Value{key}, value};
+                if (!in.evaluate_misc_function("callbyname", call, in.offset_)
+                         .has_value()) {
+                    return false;
+                }
+            }
+            std::vector<Value> arguments{*bag};
+            if (!raise(in, *uc, "", -1, "readproperties", arguments,
+                       in.offset_)) {
+                return false;
+            }
+        }
+        std::vector<Value> none;
+        return raise(in, *uc, "", -1, "resize", none, in.offset_) &&
+               raise(in, *uc, "", -1, "show", none, in.offset_);
+    }
+
+    // Unloads the UserControls a form hosts (Terminate, bindings).
+    static void terminate_user_controls(Interpreter& in, InstanceData& form) {
+        auto& state = runtime(in);
+        std::vector<std::shared_ptr<InstanceData>> hosted;
+        for_each_control(form, [&](ControlObject& item) {
+            if (item.is_user_control_host()) {
+                if (const auto* held =
+                        std::get_if<ObjectInstance>(&item.inner)) {
+                    hosted.push_back(held->data);
+                }
+                item.inner = Value{Nothing{}};
+            }
+        });
+        for (const auto& uc : hosted) {
+            std::vector<Value> none;
+            static_cast<void>(
+                raise(in, *uc, "", -1, "terminate", none, in.offset_));
+            std::erase_if(state.bindings, [&](const auto& entry) {
+                return entry.second.form.lock() == uc;
+            });
+            if (ControlObject* control = control_of(*uc)) {
+                control->loaded = false;
+                control->window = ui::kNoWindow;
+            }
+        }
+    }
+
+    // A hosting extender changed size: the UserControl follows.
+    [[nodiscard]] static bool resize_user_control(Interpreter& in,
+                                                  ControlObject& host) {
+        const auto* held = std::get_if<ObjectInstance>(&host.inner);
+        ControlObject* control = held != nullptr && held->data != nullptr
+                                     ? control_of(*held->data)
+                                     : nullptr;
+        if (control == nullptr) {
+            return true;
+        }
+        for (const char* key : {"width", "height"}) {
+            const auto found = host.values.find(key);
+            if (found != host.values.end()) {
+                control->values[key] = found->second;
+            }
+        }
+        std::vector<Value> none;
+        return raise(in, *held->data, "", -1, "resize", none, in.offset_);
     }
 
     // Creates the control a site hosts and wires its events and design-time
@@ -2059,6 +2219,9 @@ struct FormSupport {
             control.empty()
                 ? (form_object != nullptr && form_object->class_key == "mdiform"
                        ? "mdiform"
+                   : form_object != nullptr &&
+                           form_object->class_key == "usercontrol"
+                       ? "usercontrol"
                        : "form")
                 : control;
         const std::string handler = prefix + "_" + event;
@@ -2156,11 +2319,11 @@ struct FormSupport {
 
     // Creates the host windows of a form and its controls and applies their
     // property values.
-    [[nodiscard]] static bool create_windows(Interpreter& in,
-                                             InstanceData& form,
-                                             ControlObject& form_object) {
+    [[nodiscard]] static bool create_windows(
+        Interpreter& in, InstanceData& form, ControlObject& form_object,
+        const ui::WindowId container = ui::kNoWindow) {
         auto& host = *runtime(in).host;
-        ui::WindowId frame = ui::kNoWindow;
+        ui::WindowId frame = container;
         if (is_mdi_child(form_object)) {
             // A child form lives inside the MDI form, which loads with it.
             if (const auto parent = mdi_parent(in)) {
@@ -2173,7 +2336,10 @@ struct FormSupport {
             }
         }
         form_object.window = host.create_window(
-            form_object.class_key == "mdiform" ? "MDIForm" : "Form", frame);
+            form_object.class_key == "mdiform"       ? "MDIForm"
+            : form_object.class_key == "usercontrol" ? "UserControl"
+                                                     : "Form",
+            frame);
         bind(in, form_object);
         // Creation (z) order, so a container exists before its contents and
         // later controls sit above earlier ones.
@@ -2187,6 +2353,11 @@ struct FormSupport {
                   });
         bool created = true;
         for (ControlObject* object : ordered) {
+            if (object->is_user_control_host()) {
+                created = attach_user_control(in, form, form_object, *object) &&
+                          created;
+                continue;
+            }
             object->window = host.create_window(
                 object->is_activex() ? "ActiveX:" + object->activex_clsid
                                      : object->cls->name,
@@ -2508,6 +2679,7 @@ struct FormSupport {
             return true;
         }
         screenshot(in, *object, "closing");
+        terminate_user_controls(in, form);
         destroy_windows(in, form, *object);
         std::vector<Value> none;
         return raise(in, form, "", -1, "terminate", none, offset);
@@ -3110,6 +3282,10 @@ struct FormSupport {
              member == "height") &&
             live) {
             mirror_all(in, self);
+            if (self.is_user_control_host() &&
+                (member == "width" || member == "height")) {
+                return report(resize_user_control(in, self));
+            }
             return true;
         }
         if (member == "value" && self.is_scroll() && !(now == old_value)) {
@@ -4531,6 +4707,15 @@ bool Interpreter::create_form_instance(
             const auto proxy = class_definitions_.find(lower_text(source.type));
             if (proxy != class_definitions_.end()) {
                 object->activex_clsid = proxy->second.com_clsid;
+                object->type_label = proxy->second.display_name;
+            } else {
+                const auto dot = source.type.rfind('.');
+                const auto local = class_definitions_.find(lower_text(
+                    dot == std::string::npos ? source.type
+                                             : source.type.substr(dot + 1U)));
+                if (local != class_definitions_.end()) {
+                    object->type_label = local->second.display_name;
+                }
             }
         }
         if (&parent != &root) {
@@ -4549,16 +4734,29 @@ bool Interpreter::create_form_instance(
         for (const auto& child : parent.children) {
             const auto* control_class = native_class(child.type);
             std::string clsid;
+            std::string user_control;
             if (control_class == nullptr) {
-                // An ActiveX control of a referenced type library.
+                // A UserControl of the project (`Library.Class`), or an
+                // ActiveX control of a referenced type library.
+                const auto dot = child.type.rfind('.');
+                const std::string leaf = lower_text(
+                    dot == std::string::npos ? child.type
+                                             : child.type.substr(dot + 1U));
                 const auto proxy =
                     class_definitions_.find(lower_text(child.type));
-                if (proxy == class_definitions_.end() ||
-                    proxy->second.com_clsid.empty()) {
+                const auto local = class_definitions_.find(leaf);
+                if (proxy != class_definitions_.end() &&
+                    !proxy->second.com_clsid.empty()) {
+                    control_class = &kExtenderClass;
+                    clsid = proxy->second.com_clsid;
+                } else if (local != class_definitions_.end() &&
+                           local->second.form != nullptr &&
+                           local->second.form->root.type == "VB.UserControl") {
+                    control_class = &kExtenderClass;
+                    user_control = leaf;
+                } else {
                     continue;
                 }
-                control_class = &kExtenderClass;
-                clsid = proxy->second.com_clsid;
             }
             const std::string key = lower_text(child.name);
             const auto* index_property = child.find("Index");
@@ -4578,16 +4776,34 @@ bool Interpreter::create_form_instance(
                 dynamic_cast<ControlArray*>(found->second->native.get())
                     ->elements[array_index] =
                     make_control(child, *control_class, array_index, parent);
+                if (!user_control.empty()) {
+                    control_of(
+                        dynamic_cast<ControlArray*>(found->second->native.get())
+                            ->elements[array_index])
+                        ->usercontrol_class = user_control;
+                }
             } else {
                 instance->fields.variables[key] =
                     make_control(child, *control_class, -1L, parent);
+                if (!user_control.empty()) {
+                    control_of(instance->fields.variables[key])
+                        ->usercontrol_class = user_control;
+                }
                 instance->fields.object_variables.insert(key);
             }
             self(self, child);
         }
     };
     add_controls(add_controls, root);
-    static_cast<void>(offset);
+    // Form_Initialize / UserControl_Initialize: the instance now exists.
+    static std::set<const InstanceData*> initializing;
+    if (initializing.insert(instance.get()).second) {
+        std::vector<Value> none;
+        const bool ok = FormSupport::raise(*this, *instance, "", -1,
+                                           "initialize", none, offset);
+        initializing.erase(instance.get());
+        return ok;
+    }
     return true;
 }
 
@@ -5037,6 +5253,10 @@ bool FormSupport::form_member(Interpreter& in, ControlObject& self,
     const auto form = self.form.lock();
     if (form == nullptr) {
         return false;
+    }
+    if (self.class_key == "usercontrol" && member == "extender") {
+        result = self.extender;
+        return true;
     }
     if (self.is_form && member == "controls") {
         auto data = std::make_shared<InstanceData>();

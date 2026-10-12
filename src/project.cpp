@@ -323,12 +323,11 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     } else {
                         classes.emplace_back(name, file);
                     }
-                } else if (key == "form") {
+                } else if (key == "form" || key == "usercontrol") {
                     form_files.push_back(directory / normalize(value));
                 } else if (key == "wfcuiscript") {
                     project.ui_script = (directory / normalize(value)).string();
-                } else if (key == "usercontrol" || key == "propertypage" ||
-                           key == "designer") {
+                } else if (key == "propertypage" || key == "designer") {
                     return fail("unsupported project item (visual designer): " +
                                 line);
                 } else if (const auto app_key = app_property_for(key);

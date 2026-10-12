@@ -1,0 +1,6 @@
+Type=Exe
+Name="Project1"
+UserControl=180-form-usercontrol.ctl
+Form=180-form-usercontrol.frm
+Startup="Form1"
+WfcUiScript=180-form-usercontrol.ui

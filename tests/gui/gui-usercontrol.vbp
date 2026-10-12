@@ -1,0 +1,5 @@
+Type=Exe
+Name="Project1"
+UserControl=gui-usercontrol.ctl
+Form=gui-usercontrol.frm
+Startup="Form1"
