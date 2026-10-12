@@ -4146,12 +4146,29 @@ struct FormSupport {
         }
         // A scripted headless run polls sockets in `pump`, `wait` and DoEvents
         // only, so a script's order of events stays deterministic.
+        if (state.headless == nullptr && in.exit_after_ms_ > 0 &&
+            !state.exit_armed) {
+            state.exit_armed = true;
+            state.host->wake_timer(1, in.exit_after_ms_);
+        }
+        if (state.exit_requested) {
+            progressed = false;
+            return true;
+        }
         bool ok = state.headless != nullptr || ocx_poll_sockets(in);
         if (!ok) {
             // A Winsock handler failed.
         } else if (const auto event = state.host->next_event(
                        state.headless == nullptr && !state.host->exhausted())) {
-            ok = dispatch(in, *event);
+            if (event->name == "WfcExit") {
+                state.exit_requested = true;
+                state.host->wake_timer(1, 0);
+                ok = true;
+            } else if (event->name == "WfcWake") {
+                ok = true;  // the poll at the top of the step has run
+            } else {
+                ok = dispatch(in, *event);
+            }
         } else if (deliver_pending_key(in)) {
             ok = true;
         } else if (state.script_next < state.script.size()) {
@@ -4209,6 +4226,12 @@ struct FormSupport {
         for (auto it = remaining.rbegin(); it != remaining.rend(); ++it) {
             if (const auto form = it->lock()) {
                 if (!unload(in, *form, 0, in.offset_)) {
+                    if (in.end_requested_) {
+                        // `End` in an Unload handler: the program just ends.
+                        in.error_ = wfc::Evaluation{};
+                        state.ended = true;
+                        return true;
+                    }
                     return false;
                 }
             }

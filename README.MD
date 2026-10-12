@@ -189,6 +189,17 @@ The program is still interpreted; machine-code generation is not part of
 `0.7.0` (see `architecture/adr-0007-native-packaging-and-vbrun.md`). The build
 also produces `wfcvbrun.dll`, the `MSVBVM60` export directory with stub exports.
 
+**Running someone else's project.** `--exit-after <ms>` ends a `--gui` run after
+that long (closing the forms), and `--ui-script <file>` supplies the scripted
+input of a headless run, so a project can be tested without editing its `.vbp`.
+The `tests/vb6games` submodule holds archived VB6 games for this:
+
+```powershell
+git submodule update --init
+out/build/windows-x64-debug/Debug/wfc.exe tests/vb6games/captureking/CaptureKing.vbp `
+  --gui --exit-after 6000 --screenshots out/screenshots/captureking
+```
+
 Run only the form tests:
 
 ```powershell

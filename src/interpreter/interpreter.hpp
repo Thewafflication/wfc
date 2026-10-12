@@ -538,6 +538,9 @@ public:
                            std::vector<CallArgument>& arguments);
     void set_startup_form(std::string name) { startup_form_ = std::move(name); }
     void set_ui_script(std::string path) { ui_script_ = std::move(path); }
+    void set_exit_after(const long milliseconds) {
+        exit_after_ms_ = milliseconds;
+    }
     void set_serving(std::string mode, std::string project, const long timeout,
                      std::string typelib = {}) {
         typelib_path_ = std::move(typelib);
@@ -1781,6 +1784,7 @@ private:
     // "{CLSID}" of a served ProgID, or empty.
     [[nodiscard]] std::string served_clsid(const std::string& progid) const;
     std::string ui_script_;
+    long exit_after_ms_{0};
     std::string ui_mode_;
     std::string screenshot_directory_;
     // Subscribes to a COM object's default outgoing interface.

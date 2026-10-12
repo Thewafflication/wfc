@@ -326,6 +326,26 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "closing"
   )
+  set(vb6games_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/vb6games")
+  set(project_checks "${CMAKE_CURRENT_SOURCE_DIR}/tests/projects")
+  if(EXISTS "${vb6games_dir}/captureking")
+    add_test(
+      NAME TC-MP0008-vb6games-captureking
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+        "-DSHOTS=${CMAKE_BINARY_DIR}/screenshots/captureking"
+        "-DFORMS=frmSplash;frmGame" -P
+        "${project_checks}/run_project_screenshots.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-vb6games-captureking
+      PROPERTIES
+        RESOURCE_LOCK desktop
+        LABELS "integration;windows;mp-0008;vb6games;evidence"
+        TIMEOUT 90
+    )
+  endif()
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host

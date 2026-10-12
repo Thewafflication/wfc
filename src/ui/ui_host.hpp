@@ -366,6 +366,15 @@ public:
     virtual void set_timer(WindowId window, long interval_ms) = 0;
     virtual void kill_timer(WindowId window) = 0;
 
+    // A host-wide wake-up timer (not tied to a window) so a blocking message
+    // loop can poll sockets or end after a deadline. Slot 0 delivers
+    // "WfcWake" every `interval_ms`, slot 1 delivers "WfcExit" once;
+    // `interval_ms` 0 stops the timer.
+    virtual void wake_timer(int slot, long interval_ms) {
+        static_cast<void>(slot);
+        static_cast<void>(interval_ms);
+    }
+
     // The next pending event, or nullopt when none is queued. A host that can
     // block (Win32) waits when `wait` is true; the headless host never waits.
     [[nodiscard]] virtual std::optional<UiEvent> next_event(bool wait) = 0;

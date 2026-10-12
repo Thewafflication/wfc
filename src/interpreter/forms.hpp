@@ -43,6 +43,12 @@ struct FormRuntime {
     std::vector<std::string> script;
     std::size_t script_next{0};
     bool script_loaded{false};
+    // `--exit-after <ms>` with a real host: the host's exit wake-up armed, and
+    // whether it has fired.
+    bool exit_armed{false};
+    bool exit_requested{false};
+    // Winsock controls need the real host's loop to wake and poll.
+    bool sockets_awake{false};
     // `End` ran: no more events are delivered and no forms are unloaded.
     bool ended{false};
     // The control being dragged with `Drag vbBeginDrag`, if any.

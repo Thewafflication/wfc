@@ -137,6 +137,8 @@ int run(const int argument_count, const char* const arguments[]) {
         std::string typelib_path;
         std::string registration;  // "register" or "unregister"
         long server_timeout_ms = 600000;
+        long exit_after_ms = 0;
+        std::string ui_script_override;
         for (int i = 1; i < argument_count; ++i) {
             if (std::string_view(arguments[i]) == "--gui") {
                 ui_mode = "win32";  // run forms in real windows
@@ -161,6 +163,12 @@ int run(const int argument_count, const char* const arguments[]) {
             } else if (std::string_view(arguments[i]) == "--server-timeout" &&
                        i + 1 < argument_count) {
                 server_timeout_ms = std::atol(arguments[++i]);
+            } else if (std::string_view(arguments[i]) == "--exit-after" &&
+                       i + 1 < argument_count) {
+                exit_after_ms = std::atol(arguments[++i]);
+            } else if (std::string_view(arguments[i]) == "--ui-script" &&
+                       i + 1 < argument_count) {
+                ui_script_override = arguments[++i];
             } else if (std::string_view(arguments[i]) == "--screenshots" &&
                        i + 1 < argument_count) {
                 screenshot_directory = arguments[++i];  // PNG of each form
@@ -210,7 +218,9 @@ int run(const int argument_count, const char* const arguments[]) {
         options.resource_file = project.resource_file;
         options.type_libraries = project.type_libraries;
         options.startup_form = project.startup_form;
-        options.ui_script = project.ui_script;
+        options.ui_script =
+            ui_script_override.empty() ? project.ui_script : ui_script_override;
+        options.exit_after_ms = exit_after_ms;
         options.ui_mode = ui_mode;
         options.screenshot_directory = screenshot_directory;
         if (serve == "typelib") {

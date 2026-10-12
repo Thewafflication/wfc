@@ -73,6 +73,9 @@ struct EvaluationOptions final {
     // path of a scripted-input file for the headless UI host.
     std::string startup_form;
     std::string ui_script;
+    // With the Win32 host: end the run (closing the forms) after this many
+    // milliseconds; 0 runs until the user closes the last form.
+    long exit_after_ms{0};
     // "win32" runs forms in real windows; anything else (the default) uses the
     // headless host.
     std::string ui_mode;

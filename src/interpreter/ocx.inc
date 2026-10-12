@@ -244,13 +244,14 @@ std::vector<std::weak_ptr<InstanceData>>& live_sockets() {
 
 void set_state(Interpreter& in, ControlObject& control, const Integer state) {
     control.values["state"] = Value{state};
-    // A real host sleeps in its message loop: a timer wakes it to poll.
+    // A real host sleeps in its message loop: a wake-up timer polls sockets
+    // for as long as one is open.
     auto& runtime = FormSupport::runtime(in);
-    if (runtime.headless == nullptr && control.window != ui::kNoWindow) {
-        if (state == kClosed || state == kSocketError) {
-            runtime.host->kill_timer(control.window);
-        } else {
-            runtime.host->set_timer(control.window, 25);
+    if (runtime.headless == nullptr) {
+        const bool awake = state != kClosed && state != kSocketError;
+        if (awake && !runtime.sockets_awake) {
+            runtime.host->wake_timer(0, 25);
+            runtime.sockets_awake = true;
         }
     }
 }

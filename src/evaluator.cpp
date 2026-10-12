@@ -819,6 +819,7 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_type_libraries(options.type_libraries);
         interpreter.set_startup_form(options.startup_form);
         interpreter.set_ui_script(options.ui_script);
+        interpreter.set_exit_after(options.exit_after_ms);
         interpreter.set_ui_mode(options.ui_mode);
         interpreter.set_screenshot_directory(options.screenshot_directory);
         interpreter.set_serving(options.serve, options.project_name,

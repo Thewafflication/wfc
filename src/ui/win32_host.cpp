@@ -1695,6 +1695,22 @@ void Win32Host::kill_timer(const WindowId window) {
     entry->timer_interval = 0;
 }
 
+void Win32Host::wake_timer(const int slot, const long interval_ms) {
+    if (slot < 0 || slot > 1) {
+        return;
+    }
+    UINT_PTR& id = wake_timers_[slot];
+    if (interval_ms <= 0) {
+        if (id != 0) {
+            KillTimer(nullptr, id);
+            id = 0;
+        }
+        return;
+    }
+    // With no window the system chooses the id; passing it back replaces it.
+    id = SetTimer(nullptr, id, static_cast<UINT>(interval_ms), nullptr);
+}
+
 std::optional<UiEvent> Win32Host::next_event(const bool wait) {
     while (true) {
         if (!queue_.empty()) {
@@ -1704,6 +1720,16 @@ std::optional<UiEvent> Win32Host::next_event(const bool wait) {
         }
         MSG message;
         if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+            if (message.message == WM_TIMER && message.hwnd == nullptr) {
+                for (int slot = 0; slot < 2; ++slot) {
+                    if (wake_timers_[slot] != 0 &&
+                        message.wParam == wake_timers_[slot]) {
+                        queue(UiEvent{
+                            kNoWindow, slot == 0 ? "WfcWake" : "WfcExit", {}});
+                    }
+                }
+                continue;
+            }
             if (message.message == WM_KEYDOWN || message.message == WM_KEYUP ||
                 message.message == WM_CHAR) {
                 const WindowId target = Win32Support::id_of(message.hwnd);

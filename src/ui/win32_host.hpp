@@ -61,6 +61,7 @@ public:
     [[nodiscard]] std::optional<FontDialogRequest> font_dialog(
         WindowId owner, const FontDialogRequest& request,
         bool& supported) override;
+    void wake_timer(int slot, long interval_ms) override;
     [[nodiscard]] std::optional<std::string> input_box(
         WindowId owner, const std::string& prompt, const std::string& title,
         const std::string& initial, bool& supported) override;
@@ -116,6 +117,7 @@ private:
     std::deque<UiEvent> queue_;
     WindowId next_id_{1};
     int next_command_{1000};
+    std::uintptr_t wake_timers_[2]{0, 0};
     bool usable_{false};
     long dpi_x_{96};
     long dpi_y_{96};
