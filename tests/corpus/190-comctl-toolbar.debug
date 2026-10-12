@@ -1,0 +1,13 @@
+6  2 Recent 2 5 ButtonButtonMenu
+ 120 True 0 
+ 0  1 
+ 380 
+ 383 
+True
+click new 0 
+click bold 1 
+click bold 0 
+click left 1 
+dropdown drop
+menu m2Recent 2
+changed

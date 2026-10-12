@@ -25,3 +25,5 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #5 | Construction | `TreeView` nodes, relationships, expansion, selection, search, label edit, keys (`REQ-0299`); corpus 191 | CTest 357/357 |
 | 2026-10-12 #6 | Construction | `ListView` items, sub items, columns, views, sort, find, hit test (`REQ-0300`); corpus 192 | CTest 358/358 |
 | 2026-10-12 #7 | Construction | `ImageCombo` items, selection, text, locking (`REQ-0301`); corpus 193 | CTest 359/359 |
+| 2026-10-12 #8 | Construction | Persisted `BeginProperty` groups of the common controls loaded from forms; `OleObjectBlob` warning `WFC0293` (`REQ-0302`); corpus 194 | CTest 360/360 |
+| 2026-10-12 #9 | Defect | Corpus cases 167–194 compared only stdout, but their output is `Debug.Print` text on stderr, so they passed with empty expectations; the runner now also compares an optional `<case>.debug` file and the 25 cases have one | CTest 360/360 |

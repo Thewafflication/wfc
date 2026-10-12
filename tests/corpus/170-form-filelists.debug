@@ -1,0 +1,14 @@
+dir change data
+file path change  3 
+file path change  3 
+sts-data 2  3 A.txtb.txtc.dat
+ 3 
+ 1 c.dat
+True
+True
+ 76 Path not found
+ 68 
+file click b.txt
+dir change sub1
+file path change  1 
+file click inner.txt

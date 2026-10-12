@@ -189,6 +189,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0289` | A form file (`.frm`) is malformed | — | `REQ-0289` |
 | `WFC0291` | A form uses a control class the runtime does not provide | — | `REQ-0289`, `REQ-0115` |
 | `WFC0292` | A form property refers to an unreadable `.frx` resource | — | `REQ-0289`, `REQ-0115` |
+| `WFC0293` | The persisted binary state of a common control is not read (a warning in the Immediate output) | — | `REQ-0302` |
 | `WFC0300` | A VB run-time error raised by `Err.Raise`, the `Error` statement, or a run-time failure that already carries its VB error number; the message is the error description. | The raised number | — |
 | `WFC0301` | Label not defined | — | — |
 | `WFC0310` | A conditional-compilation directive (`#If`/`#ElseIf`/`#Const`) is malformed or cannot be evaluated; the message names the problem. | — | `REQ-0240` |

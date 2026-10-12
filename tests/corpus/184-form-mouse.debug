@@ -1,0 +1,6 @@
+pic down 1  0  50  25 
+pic move 100  50 
+pic up 1 
+form down 10  20 
+item down
+dropped Item 20  30

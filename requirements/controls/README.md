@@ -44,3 +44,4 @@ matching-number VB6 reference and WFC conformance tests.
 - [REQ-0299 — TreeView behavior](req-0299-comctl-treeview.md)
 - [REQ-0300 — ListView behavior](req-0300-comctl-listview.md)
 - [REQ-0301 — ImageCombo behavior](req-0301-comctl-imagecombo.md)
+- [REQ-0302 — Persisted state in form files](req-0302-comctl-persistence.md)

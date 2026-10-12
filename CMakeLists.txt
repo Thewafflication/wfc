@@ -2154,11 +2154,19 @@ Print v.x & q.x]=]
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp"
       )
     endif()
+    set(corpus_debug "")
+    set(
+      corpus_debug_file
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.debug"
+    )
+    if(EXISTS "${corpus_debug_file}")
+      set(corpus_debug "-DDEBUG_EXPECTED=${corpus_debug_file}")
+    endif()
     add_test(
       NAME TC-MP0002-corpus-${corpus_name}
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DINPUT=${corpus_input}"
-        "-DEXPECTED=${expected_file}" -P
+        "-DEXPECTED=${expected_file}" ${corpus_debug} -P
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
     )
     set_tests_properties(

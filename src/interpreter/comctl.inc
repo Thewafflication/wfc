@@ -3119,3 +3119,160 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
     }
     return true;
 }
+
+// ----- Persisted state of the controls (the BeginProperty groups of a .frm) ----------
+
+namespace {
+
+[[nodiscard]] std::string group_word(const std::string& name) {
+    std::string word;
+    for (const char c : name) {
+        if (c == ' ' || c == '\t' || c == '{' || c == '(') {
+            break;
+        }
+        word.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+    return word;
+}
+
+// The value of one persisted property for a property of `spec`.
+[[nodiscard]] Value persisted_value(const PropSpec& spec,
+                                    const ui::FrmProperty& source,
+                                    const std::string& frx_directory) {
+    const std::string type = spec.type;
+    if (source.in_resource) {
+        std::string bytes;
+        const std::string path =
+            (frx_directory.empty() ? std::string{} : frx_directory + "/") +
+            source.resource_file;
+        PictureInfo info;
+        if (ui::read_frx_record(path, source.resource_offset, bytes) &&
+            read_picture_header(bytes, info)) {
+            return make_picture_value(bytes, info);
+        }
+        return Value{Empty{}};
+    }
+    if (type == "String") {
+        return Value{source.value};
+    }
+    const double number = std::strtod(source.value.c_str(), nullptr);
+    if (type == "Boolean") {
+        return Value{number != 0.0};
+    }
+    if (type == "Integer") {
+        return Value{static_cast<Int16>(number)};
+    }
+    if (type == "Long") {
+        return Value{static_cast<Integer>(number)};
+    }
+    if (type == "Single") {
+        return Value{static_cast<float>(number)};
+    }
+    // Variant: a number when it reads as one, else the text.
+    char* end = nullptr;
+    std::strtod(source.value.c_str(), &end);
+    if (!source.is_string && end != source.value.c_str() && *end == 0) {
+        return Value{static_cast<Integer>(number)};
+    }
+    return Value{source.value};
+}
+
+// Reads the entries of `group` into a new item of `kind` appended to `items`.
+[[nodiscard]] ItemPtr persisted_item(ControlObject& control, const std::string& kind,
+                                     const ui::FrmProperty& group,
+                                     const std::string& frx_directory) {
+    const KindSpec& spec = spec_of(kind);
+    auto item = std::make_shared<CItem>();
+    item->id = state_of(control).next_id++;
+    for (const auto& property : spec.props) {
+        item->p[property.name] = initial_value(property);
+    }
+    for (const auto& entry : group.nested) {
+        if (!entry.nested.empty()) {
+            continue;
+        }
+        std::string name = lower_text(entry.name);
+        if (name.rfind("object.", 0) == 0) {
+            name = name.substr(7);
+        }
+        if (name == "imageindex") {
+            name = kind == "tab" ? "image" : "image";
+        }
+        if (name == "picture" && kind == "listimage") {
+            name = "picture";
+        }
+        if (const PropSpec* property = find_property(spec, name)) {
+            item->p[name] = persisted_value(*property, entry, frx_directory);
+        }
+    }
+    return item;
+}
+
+}  // namespace
+
+void comctl_load_persisted(Interpreter& in, ControlObject& control,
+                           const ui::FrmObject& source,
+                           const std::string& frx_directory) {
+    if (control.comctl == nullptr) {
+        return;
+    }
+    if (source.find("OleObjectBlob") != nullptr) {
+        FormSupport::warn(
+            in, std::string(kUnreadableStateCode) +
+                    ": the persisted state of control '" + control.display_name +
+                    "' (OleObjectBlob) is not read; its collections start empty");
+    }
+    static const std::map<std::string, std::pair<const char*, const char*>> groups = {
+        {"tabs", {"tab", "tab"}},
+        {"panels", {"panel", "panel"}},
+        {"buttons", {"button", "button"}},
+        {"images", {"listimage", "listimage"}},
+        {"columnheaders", {"columnheader", "columnheader"}},
+        {"comboitems", {"comboitem", "comboitem"}},
+    };
+    for (const auto& property : source.properties) {
+        if (property.nested.empty()) {
+            continue;
+        }
+        const std::string word = group_word(property.name);
+        const auto known = groups.find(word);
+        if (known != groups.end()) {
+            const std::string kind = known->second.first;
+            auto& items = top_list(control, kind);
+            for (const auto& entry : property.nested) {
+                if (entry.nested.empty()) {
+                    continue;  // NumTabs and friends
+                }
+                const ItemPtr item = persisted_item(control, kind, entry, frx_directory);
+                if (kind == "button") {
+                    for (const auto& menus : entry.nested) {
+                        if (group_word(menus.name) != "buttonmenus") {
+                            continue;
+                        }
+                        for (const auto& menu : menus.nested) {
+                            if (!menu.nested.empty()) {
+                                item->sub.push_back(persisted_item(
+                                    control, "buttonmenu", menu, frx_directory));
+                            }
+                        }
+                    }
+                }
+                items.push_back(item);
+            }
+            if (kind == "tab" && !items.empty()) {
+                items.front()->p["selected"] = Value{true};
+            }
+            if (kind == "listimage" && !items.empty()) {
+                // The first image sets the size of the list.
+                static_cast<void>(
+                    ComctlHooks::after_add(in, control, kind, items.front()));
+            }
+            continue;
+        }
+        if (word == "columnheader") {  // `ColumnHeader(1)` groups of a ListView
+            top_list(control, "columnheader")
+                .push_back(persisted_item(control, "columnheader", property,
+                                          frx_directory));
+        }
+    }
+}

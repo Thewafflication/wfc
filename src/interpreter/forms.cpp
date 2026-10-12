@@ -457,6 +457,15 @@ struct ComctlSupport {
                                          const std::string& rest);
 };
 
+// The diagnostic of a persisted control state that is not read.
+constexpr const char* kUnreadableStateCode = "WFC0293";
+
+// Reads the BeginProperty groups a form file holds for a common control
+// (comctl.inc).
+void comctl_load_persisted(Interpreter& in, ControlObject& control,
+                           const ui::FrmObject& source,
+                           const std::string& frx_directory);
+
 // Everything that needs Interpreter internals; a friend of Interpreter.
 struct FormSupport {
     [[nodiscard]] static std::string text_of(const Value& value) {
@@ -464,6 +473,10 @@ struct FormSupport {
     }
     [[nodiscard]] static std::size_t offset_of(Interpreter& in) {
         return in.offset_;
+    }
+    // A load-time warning goes to the Immediate output.
+    static void warn(Interpreter& in, const std::string& text) {
+        in.debug_output_ += text + "\n";
     }
 
     static FormRuntime& runtime(Interpreter& in) {
@@ -5041,6 +5054,7 @@ bool Interpreter::create_form_instance(
             object->container = lower_text(parent.name);
         }
         apply(*object, source);
+        comctl_load_persisted(*this, *object, source, frx_directory);
         auto data = std::make_shared<InstanceData>();
         data->class_name = "wfcnative";
         data->native = object;

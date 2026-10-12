@@ -1,0 +1,12 @@
+form initialize
+uc initialize
+changed hello
+uc read helloTrue 1033 MS Sans Serif
+uc resize 3000  900 
+hello 120  3000  42 
+changed bump1
+changed set
+uc resize 3600  900 
+setGauge
+form unload
+uc terminate
