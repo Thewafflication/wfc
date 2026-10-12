@@ -207,6 +207,17 @@ The Win32 host declares system DPI awareness before creating windows and
 converts twips to pixels at the system DPI, so forms keep their VB layout on
 scaled displays. Per-monitor DPI changes while a program runs are not tracked.
 
+## `.frx` lists, `Controls.Add` and `WithEvents` controls
+
+A `ListBox` or `ComboBox` `List` property stored in the `.frx` file (a 16-bit
+count, then each item as a 16-bit length and its text) fills the items when the
+form loads. `Controls.Add(ProgID, Name[, Container])` creates an invisible
+intrinsic control (`VB.` prefix optional; Form, Menu and non-intrinsic classes
+raise 711, a duplicate name 727) and `Controls.Remove(Name)` removes a control
+added that way (361 otherwise). A control assigned to a `WithEvents` variable
+raises its events to `variable_Event` handlers, in addition to any
+`ControlName_Event` handler.
+
 ## Known limits (extended later in MP-0004)
 
 OLE drag and drop, printer graphics, `PrintForm`, and
@@ -214,4 +225,4 @@ MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

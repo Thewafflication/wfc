@@ -378,6 +378,10 @@ struct FormSupport {
 
     [[nodiscard]] static Value control_value(InstanceData& form,
                                              const ControlObject& object);
+    [[nodiscard]] static bool controls_edit(
+        Interpreter& in, const std::shared_ptr<InstanceData>& form,
+        const std::string& member, std::vector<CallArgument>& arguments,
+        Value& result, NativeFailure& failure);
     [[nodiscard]] static bool array_element(Interpreter& in,
                                             ControlArray& array, long index,
                                             bool unload, std::size_t offset);
@@ -1878,8 +1882,25 @@ struct FormSupport {
                 : control;
         const std::string handler = prefix + "_" + event;
         const auto method = class_iterator->second.methods.find(handler);
+        // Handlers of a `WithEvents` variable that holds this control.
+        const auto to_sinks = [&]() {
+            if (control.empty()) {
+                return true;
+            }
+            ControlObject* source = control_named(form, control, index);
+            const auto self = source != nullptr ? source->self.lock() : nullptr;
+            if (self == nullptr || self->event_sinks.empty()) {
+                return true;
+            }
+            std::vector<CallArgument> sink_call;
+            for (auto& argument : arguments) {
+                sink_call.push_back(
+                    CallArgument{argument, &argument, false, {}});
+            }
+            return in.dispatch_event_to_sinks(*self, event, sink_call, offset);
+        };
         if (method == class_iterator->second.methods.end()) {
-            return true;
+            return to_sinks();
         }
         std::vector<CallArgument> call;
         if (index >= 0) {
@@ -1890,10 +1911,11 @@ struct FormSupport {
             call.push_back(CallArgument{argument, &argument, false, {}});
         }
         const auto keep = form.shared_from_this();
-        return in
-            .invoke_definition(method->second, handler, std::move(call), offset,
-                               class_iterator->second.source, keep.get())
-            .has_value();
+        return in.invoke_definition(method->second, handler, std::move(call),
+                                    offset, class_iterator->second.source,
+                                    keep.get())
+                   .has_value() &&
+               to_sinks();
     }
 
     // The event's arguments converted per the event table.
@@ -2063,6 +2085,10 @@ struct FormSupport {
         }
         if (object.is_file_list() && object.items.empty()) {
             refresh_file_list(in, object);
+        }
+        if (object.is_list() && !object.is_file_list() &&
+            !object.items.empty()) {
+            sync_list(in, object);
         }
         push_state(in, object);
     }
@@ -4070,6 +4096,39 @@ bool Interpreter::create_form_instance(
                 }
                 continue;
             }
+            if (key == "list" && property.in_resource && object.is_list()) {
+                // A list record: a 16-bit count, then each item as a 16-bit
+                // length and its text.
+                std::string bytes;
+                const std::string path =
+                    (frx_directory.empty() ? std::string{}
+                                           : frx_directory + "/") +
+                    property.resource_file;
+                if (!ui::read_frx_record(path, property.resource_offset,
+                                         bytes) ||
+                    bytes.size() < 2U) {
+                    continue;
+                }
+                const auto read16 = [&](const std::size_t at) {
+                    return static_cast<std::size_t>(
+                        static_cast<unsigned char>(bytes[at]) |
+                        (static_cast<unsigned char>(bytes[at + 1U]) << 8U));
+                };
+                const std::size_t count = read16(0);
+                std::size_t at = 2;
+                for (std::size_t i = 0; i < count && at + 2U <= bytes.size();
+                     ++i) {
+                    const std::size_t length = read16(at);
+                    at += 2U;
+                    if (at + length > bytes.size()) {
+                        break;
+                    }
+                    object.items.push_back(bytes.substr(at, length));
+                    at += length;
+                }
+                object.chosen.assign(object.items.size(), false);
+                continue;
+            }
             if (key == "index") {
                 continue;  // consumed by the control-array logic
             }
@@ -4319,11 +4378,16 @@ public:
         : form(std::move(owner)) {}
     [[nodiscard]] std::string type_name() const override { return "Controls"; }
     [[nodiscard]] bool has_member(const std::string& member) const override {
-        return member == "count" || member == "item" || member == "_default";
+        return member == "count" || member == "item" || member == "_default" ||
+               member == "add" || member == "remove";
     }
     [[nodiscard]] bool get(Interpreter& in, const std::string& member,
                            std::vector<CallArgument>& arguments, Value& result,
                            NativeFailure& failure) override {
+        if (member == "add" || member == "remove") {
+            return FormSupport::controls_edit(in, form.lock(), member,
+                                              arguments, result, failure);
+        }
         std::vector<Value> controls;
         static_cast<void>(enumerate(in, controls));
         if (member == "count") {
@@ -4487,6 +4551,106 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     if (owner_object != nullptr && owner_object->loaded) {
         object->window = runtime(in).host->create_window(
             object->cls->name, parent_window(*owner, *owner_object, *object));
+        bind(in, *object);
+        mirror_all(in, *object);
+    }
+    return true;
+}
+
+// Controls.Add(ProgID, Name[, Container]) and Controls.Remove(Name).
+bool FormSupport::controls_edit(Interpreter& in,
+                                const std::shared_ptr<InstanceData>& form,
+                                const std::string& member,
+                                std::vector<CallArgument>& arguments,
+                                Value& result, NativeFailure& failure) {
+    result = Value{Empty{}};
+    if (form == nullptr) {
+        failure = NativeFailure{91,
+                                "Object variable or With block variable "
+                                "not set"};
+        return true;
+    }
+    const auto text_of = [&](const std::size_t index) {
+        return index < arguments.size() && std::holds_alternative<std::string>(
+                                               arguments[index].value)
+                   ? std::get<std::string>(arguments[index].value)
+                   : std::string{};
+    };
+    const std::string name = lower_text(text_of(member == "add" ? 1U : 0U));
+    auto& runtime_state = runtime(in);
+    const ControlObject* owner = control_of(*form);
+    if (member == "remove") {
+        const auto held = form->fields.variables.find(name);
+        ControlObject* object = held == form->fields.variables.end()
+                                    ? nullptr
+                                    : control_of(held->second);
+        if (object == nullptr || !object->dynamic || object->index >= 0) {
+            failure = NativeFailure{361, "Can't load or unload this object"};
+            return true;
+        }
+        if (object->window != ui::kNoWindow) {
+            runtime_state.bindings.erase(object->window);
+            runtime_state.host->destroy_window(object->window);
+        }
+        form->fields.variables.erase(held);
+        form->fields.object_variables.erase(name);
+        return true;
+    }
+    if (arguments.size() < 2U || arguments.size() > 3U) {
+        failure = NativeFailure{450, "Wrong number of arguments"};
+        return true;
+    }
+    std::string progid = lower_text(text_of(0));
+    if (progid.rfind("vb.", 0) == 0) {
+        progid = progid.substr(3);
+    }
+    static const std::set<std::string> addable = {
+        "picturebox",    "label",      "textbox",      "frame",
+        "commandbutton", "checkbox",   "optionbutton", "combobox",
+        "listbox",       "hscrollbar", "vscrollbar",   "timer",
+        "drivelistbox",  "dirlistbox", "filelistbox",  "shape",
+        "line",          "image"};
+    const ui::ControlClass* control_class =
+        addable.contains(progid) ? ui::find_control_class(progid) : nullptr;
+    if (control_class == nullptr) {
+        failure = NativeFailure{711,
+                                "Invalid class string. Looking for "
+                                "object with ProgID: " +
+                                    text_of(0)};
+        return true;
+    }
+    if (name.empty() || form->fields.variables.contains(name)) {
+        failure =
+            NativeFailure{727, "There is already a control with the name '" +
+                                   text_of(1) + "'"};
+        return true;
+    }
+    auto object =
+        std::make_shared<ControlObject>(control_class, text_of(1), -1L, false);
+    object->form = form;
+    long order = 0;
+    for_each_control(*form, [&](ControlObject& other) {
+        order = std::max(order, other.order + 1);
+    });
+    object->order = order;
+    object->dynamic = true;
+    if (arguments.size() == 3U) {
+        if (const ControlObject* holder = control_of(arguments[2].value)) {
+            object->container = holder->name;
+        }
+    }
+    object->values["visible"] = Value{false};
+    object->design = object->values;
+    auto data = std::make_shared<InstanceData>();
+    data->class_name = "wfcnative";
+    data->native = object;
+    object->self = data;
+    result = Value{ObjectInstance{data}};
+    form->fields.variables[name] = result;
+    form->fields.object_variables.insert(name);
+    if (owner != nullptr && owner->loaded) {
+        object->window = runtime_state.host->create_window(
+            object->cls->name, parent_window(*form, *owner, *object));
         bind(in, *object);
         mirror_all(in, *object);
     }

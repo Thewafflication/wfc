@@ -1,0 +1,4 @@
+Type=Exe
+Form=173-form-controls-add.frm
+Startup="Form1"
+WfcUiScript=173-form-controls-add.ui

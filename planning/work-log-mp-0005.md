@@ -20,3 +20,4 @@ Goal-level token usage and elapsed time: Not reported.
 | Date / # | Type | Description | Evidence |
 | --- | --- | --- | --- |
 | 2026-10-11 #1 | Planning | MP-0004 closed; MP-0005 plan baselined | `MP-0004-closeout.md`, `MP-0005-component-authoring.md` |
+| 2026-10-11 #2 | Construction | `.frx` list items, `Controls.Add`/`Remove`, `WithEvents` on intrinsic controls (`REQ-0289`); corpus 172, 173 | CTest 335/335 |

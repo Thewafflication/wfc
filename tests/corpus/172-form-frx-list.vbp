@@ -1,0 +1,3 @@
+Type=Exe
+Form=172-form-frx-list.frm
+Startup="Form1"
