@@ -191,6 +191,15 @@ void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
             line += " aspect";
             add(operation.aspect);
         }
+    } else if (operation.kind == "shape") {
+        line += " type" + number_text(operation.radius);
+        add(operation.x1);
+        add(operation.y1);
+        add(operation.x2);
+        add(operation.y2);
+        line += " " + color_text(operation.color) + " fill " +
+                color_text(operation.fill_color) + " style" +
+                std::to_string(operation.fill_style);
     } else if (operation.kind == "picture") {
         line += " pic" + std::to_string(operation.picture);
         add(operation.x1);

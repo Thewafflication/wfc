@@ -23,11 +23,19 @@
 - **`App.Path`** is the project's folder when a `.vbp` is run.
 - `As StdPicture`, `As Picture` and `As IPictureDisp` are accepted types.
 
+- **Lightweight controls.** `Image` (natural size, or stretched to its box with
+  `Stretch`), `Shape` (types 0-5, `BorderColor`, `FillColor`, `FillStyle`,
+  `BorderWidth`, `BorderStyle`) and `Line` (`X1`..`Y2`, `BorderColor`) have no
+  window; the form or picture box that contains them draws them. Loading the form
+  or changing a lightweight control repaints the surface (clear, picture, then the
+  controls in creation order), so drawings the program made on it are lost, as when
+  a form without `AutoRedraw` repaints. `Cls` keeps the controls.
+
 ## Known limits
 
-`Image`, `Shape` and `Line` controls, `PaintPicture`, `Point` and picture
-properties of command buttons and option buttons do not display pictures yet.
+`PaintPicture`, `Point` and picture properties of command buttons and option
+buttons do not display pictures yet.
 
 ## Verification
 
-`TC-MP0002-corpus-162-form-pictures` and `TC-MP0004-win32-host`.
+`TC-MP0002-corpus-162-form-pictures`, `-163-form-lightweight` and `TC-MP0004-win32-host`.

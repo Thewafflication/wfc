@@ -1,0 +1,4 @@
+Type=Exe
+Form=163-form-lightweight.frm
+Startup="Form1"
+WfcUiScript=163-form-lightweight.ui

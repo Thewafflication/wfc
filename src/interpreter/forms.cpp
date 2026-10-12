@@ -898,6 +898,146 @@ struct FormSupport {
         }
     }
 
+    // ----- Lightweight controls (Image, Shape, Line) --------------------
+
+    [[nodiscard]] static bool is_lightweight(const ControlObject& object) {
+        return object.class_key == "image" || object.class_key == "shape" ||
+               object.class_key == "line";
+    }
+
+    // The surface a lightweight control is drawn on: the enclosing picture
+    // box, else the form (with the offset of enclosing frames).
+    [[nodiscard]] static ControlObject* surface_for(InstanceData& form,
+                                                    const ControlObject& object,
+                                                    double& dx, double& dy) {
+        dx = 0.0;
+        dy = 0.0;
+        std::string container = object.container;
+        for (int depth = 0; depth < 8 && !container.empty(); ++depth) {
+            ControlObject* holder = control_named(form, container, -1);
+            if (holder == nullptr) {
+                break;
+            }
+            if (holder->class_key == "picturebox") {
+                return holder;
+            }
+            dx += number_of(*holder, "left");
+            dy += number_of(*holder, "top");
+            container = holder->container;
+        }
+        return control_of(form);
+    }
+
+    static void paint_lightweight(Interpreter& in, ControlObject& surface,
+                                  const ControlObject& object, const double dx,
+                                  const double dy) {
+        if (!flag_of(object, "visible")) {
+            return;
+        }
+        if (object.class_key == "image") {
+            const auto found = object.values.find("picture");
+            PictureObject* picture = found != object.values.end()
+                                         ? picture_of(found->second)
+                                         : nullptr;
+            if (picture == nullptr || picture->bytes.empty()) {
+                return;
+            }
+            const bool stretch = flag_of(object, "stretch");
+            const double width = stretch
+                                     ? number_of(object, "width")
+                                     : himetric_to_twips(picture->info.width);
+            const double height = stretch
+                                      ? number_of(object, "height")
+                                      : himetric_to_twips(picture->info.height);
+            paint_picture(in, surface, *picture, dx + number_of(object, "left"),
+                          dy + number_of(object, "top"), width, height);
+        } else if (object.class_key == "shape") {
+            ui::DrawOp operation = base_op(surface, "shape");
+            operation.x1 = dx + number_of(object, "left");
+            operation.y1 = dy + number_of(object, "top");
+            operation.x2 = number_of(object, "width");
+            operation.y2 = number_of(object, "height");
+            operation.radius = number_of(object, "shape");
+            operation.color = color_of(object, "bordercolor");
+            operation.fill_color = color_of(object, "fillcolor");
+            operation.fill_style =
+                object.values.contains("fillstyle")
+                    ? static_cast<int>(number_of(object, "fillstyle"))
+                    : 1;
+            operation.draw_width =
+                std::max(1, static_cast<int>(number_of(object, "borderwidth")));
+            operation.draw_style =
+                object.values.contains("borderstyle")
+                    ? static_cast<int>(number_of(object, "borderstyle"))
+                    : 1;
+            draw_op(in, surface, operation);
+        } else if (object.class_key == "line") {
+            ui::DrawOp operation = base_op(surface, "line");
+            operation.x1 = dx + number_of(object, "x1");
+            operation.y1 = dy + number_of(object, "y1");
+            operation.x2 = dx + number_of(object, "x2");
+            operation.y2 = dy + number_of(object, "y2");
+            operation.color = color_of(object, "bordercolor");
+            operation.draw_width =
+                std::max(1, static_cast<int>(number_of(object, "borderwidth")));
+            draw_op(in, surface, operation);
+        }
+    }
+
+    // Clears `surface`, restores its picture and redraws the lightweight
+    // controls it holds (drawings made by the program are lost, as when an
+    // AutoRedraw = False form repaints).
+    static void repaint_surface(Interpreter& in, InstanceData& form,
+                                ControlObject& surface) {
+        if (surface.window == ui::kNoWindow) {
+            return;
+        }
+        ui::DrawOp clear = base_op(surface, "cls");
+        clear.color = color_of(surface, "backcolor");
+        draw_op(in, surface, clear);
+        paint_surface_picture(in, surface);
+        std::vector<ControlObject*> lightweights;
+        for_each_control(form, [&](ControlObject& object) {
+            if (is_lightweight(object)) {
+                lightweights.push_back(&object);
+            }
+        });
+        std::sort(lightweights.begin(), lightweights.end(),
+                  [](const ControlObject* a, const ControlObject* b) {
+                      return a->order != b->order ? a->order < b->order
+                                                  : a->index < b->index;
+                  });
+        for (ControlObject* object : lightweights) {
+            double dx = 0.0;
+            double dy = 0.0;
+            if (surface_for(form, *object, dx, dy) == &surface) {
+                paint_lightweight(in, surface, *object, dx, dy);
+            }
+        }
+    }
+
+    // Repaints every surface that holds a lightweight control.
+    static void repaint_lightweight_surfaces(Interpreter& in,
+                                             InstanceData& form) {
+        std::vector<ControlObject*> surfaces;
+        for_each_control(form, [&](ControlObject& object) {
+            if (!is_lightweight(object)) {
+                return;
+            }
+            double dx = 0.0;
+            double dy = 0.0;
+            ControlObject* surface = surface_for(form, object, dx, dy);
+            if (surface != nullptr &&
+                std::find(surfaces.begin(), surfaces.end(), surface) ==
+                    surfaces.end()) {
+                surfaces.push_back(surface);
+            }
+        });
+        for (ControlObject* surface : surfaces) {
+            repaint_surface(in, form, *surface);
+        }
+    }
+
     // ----- Drawing surfaces (forms and picture boxes) -------------------
 
     [[nodiscard]] static bool is_surface(const ControlObject& object) {
@@ -1193,6 +1333,22 @@ struct FormSupport {
             operation.color = color_of(surface, "backcolor");
             draw_op(in, surface, operation);
             paint_surface_picture(in, surface);
+            if (const auto owner = surface.form.lock()) {
+                // Lightweight controls are part of the surface, not drawings.
+                std::vector<ControlObject*> lightweights;
+                for_each_control(*owner, [&](ControlObject& object) {
+                    if (is_lightweight(object)) {
+                        lightweights.push_back(&object);
+                    }
+                });
+                for (ControlObject* object : lightweights) {
+                    double dx = 0.0;
+                    double dy = 0.0;
+                    if (surface_for(*owner, *object, dx, dy) == &surface) {
+                        paint_lightweight(in, surface, *object, dx, dy);
+                    }
+                }
+            }
             const Scale scale = scale_of(surface);
             surface.values["currentx"] = Value{static_cast<float>(scale.left)};
             surface.values["currenty"] = Value{static_cast<float>(scale.top)};
@@ -1527,6 +1683,7 @@ struct FormSupport {
         }
         object->loaded = true;
         create_windows(in, form, *object);
+        repaint_lightweight_surfaces(in, form);
         runtime(in).loaded.push_back(form.weak_from_this());
         std::vector<Value> none;
         return raise(in, form, "", -1, "load", none, offset);
@@ -1843,6 +2000,17 @@ struct FormSupport {
         auto& host = *runtime(in).host;
         const Value& now = self.values[member];
         const bool live = self.window != ui::kNoWindow;
+        if (is_lightweight(self) && live) {
+            if (const auto owner = self.form.lock()) {
+                double dx = 0.0;
+                double dy = 0.0;
+                if (ControlObject* surface =
+                        surface_for(*owner, self, dx, dy)) {
+                    repaint_surface(in, *owner, *surface);
+                }
+            }
+            return true;
+        }
         if (member == "value" || member == "checked" || member == "min" ||
             member == "max" || member == "smallchange" ||
             member == "largechange") {

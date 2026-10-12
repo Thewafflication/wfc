@@ -814,6 +814,42 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
         SelectObject(dc, old_brush);
         SelectObject(dc, old_pen);
         DeleteObject(pen);
+    } else if (operation.kind == "shape") {
+        const int left = to_x(operation.x1);
+        const int top = to_y(operation.y1);
+        int right = left + std::max(to_x(operation.x2), 1);
+        int bottom = top + std::max(to_y(operation.y2), 1);
+        const int type = static_cast<int>(operation.radius);
+        if (type == 1 || type == 3 || type == 5) {  // square, circle, rounded
+            const int side = std::min(right - left, bottom - top);
+            right = left + side;
+            bottom = top + side;
+        }
+        HPEN pen = operation.draw_style == 5
+                       ? static_cast<HPEN>(GetStockObject(NULL_PEN))
+                       : CreatePen(PS_SOLID, operation.draw_width, color);
+        HBRUSH brush =
+            operation.fill_style == 1
+                ? static_cast<HBRUSH>(GetStockObject(NULL_BRUSH))
+                : CreateSolidBrush(to_colorref(operation.fill_color));
+        HGDIOBJ old_pen = SelectObject(dc, pen);
+        HGDIOBJ old_brush = SelectObject(dc, brush);
+        if (type == 2 || type == 3) {
+            Ellipse(dc, left, top, right, bottom);
+        } else if (type == 4 || type == 5) {
+            RoundRect(dc, left, top, right, bottom, (right - left) / 4,
+                      (bottom - top) / 4);
+        } else {
+            Rectangle(dc, left, top, right, bottom);
+        }
+        SelectObject(dc, old_brush);
+        SelectObject(dc, old_pen);
+        if (operation.fill_style != 1) {
+            DeleteObject(brush);
+        }
+        if (operation.draw_style != 5) {
+            DeleteObject(pen);
+        }
     } else if (operation.kind == "picture") {
         const auto found = pictures_.find(operation.picture);
         if (found != pictures_.end()) {
