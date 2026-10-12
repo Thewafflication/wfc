@@ -1657,7 +1657,14 @@ bool Interpreter::scan_classes() {
                                             dot == std::string::npos
                                                 ? child.type
                                                 : child.type.substr(dot + 1U)));
-                    if (problem.empty() && !hosted &&
+                    const auto library_dot = child.type.rfind('.');
+                    const bool common_control =
+                        library_dot != std::string::npos &&
+                        lowered_type(child.type.substr(0, library_dot)) ==
+                            "mscomctllib" &&
+                        ui::find_comctl_class(
+                            child.type.substr(library_dot + 1U)) != nullptr;
+                    if (problem.empty() && !hosted && !common_control &&
                         ui::find_control_class(leaf) == nullptr) {
                         problem = "unsupported control class '" + child.type +
                                   "' (control '" + child.name + "')";

@@ -35,3 +35,7 @@ The [behavioral requirement set](behavior/README.md) defines the first 27
 observable control behaviors derived from the installed Microsoft help. These
 requirements cover all nine control classes and are allocated to planned
 matching-number VB6 reference and WFC conformance tests.
+
+## Object model
+
+- [REQ-0296 — Collections, value objects and the native controls](req-0296-comctl-object-model.md)

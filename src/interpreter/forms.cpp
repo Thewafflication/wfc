@@ -21,6 +21,18 @@
 #endif
 
 namespace wfc::detail {
+
+struct ComctlState;
+struct ComctlSupport;
+// The lower-case names of the MSComctlLib classes and item types (comctl.inc).
+[[nodiscard]] std::vector<std::string> comctl_type_names();
+// The merged table (type library members and container extender) of the
+// MSComctlLib class named `leaf`, or nullptr (comctl.inc).
+[[nodiscard]] const ui::ControlClass* comctl_class(std::string_view leaf);
+// Defaults of the MSComctlLib control properties (comctl.inc).
+[[nodiscard]] std::optional<Value> comctl_default(const std::string& class_name,
+                                                  const std::string& property);
+
 namespace {
 
 [[nodiscard]] std::string lower_text(const std::string_view text) {
@@ -115,6 +127,9 @@ namespace {
 
 [[nodiscard]] std::optional<Value> property_default(
     const std::string& class_name, const std::string& property) {
+    if (const auto common_control = comctl_default(class_name, property)) {
+        return common_control;
+    }
     if ((class_name == "filelistbox" || class_name == "dirlistbox") &&
         property == "path") {
         return Value{directory_text(std::filesystem::current_path())};
@@ -191,8 +206,12 @@ namespace {
     }
     if (class_name == "commandbutton" || class_name == "checkbox" ||
         class_name == "optionbutton" || class_name == "hscrollbar" ||
-        class_name == "vscrollbar") {
+        class_name == "vscrollbar" || class_name == "progressbar" ||
+        class_name == "slider") {
         return "value";
+    }
+    if (class_name == "imagecombo") {
+        return "text";
     }
     return {};
 }
@@ -313,6 +332,8 @@ public:
     bool bind_busy{false};  // a bound control is being refreshed
     // An ActiveX control: its class id and the COM object the site created.
     std::string activex_clsid;
+    // An MSComctlLib control: its collections and items (comctl.inc).
+    std::shared_ptr<ComctlState> comctl;
     // An in-project UserControl hosted by a form: its class name; and, on the
     // UserControl itself, the hosting form's extender object.
     std::string usercontrol_class;
@@ -419,10 +440,30 @@ public:
 
 }  // namespace
 
+struct ComctlSupport {
+    static void init(ControlObject& control);
+    [[nodiscard]] static bool get(Interpreter& in, ControlObject& self,
+                                  const std::string& member,
+                                  std::vector<CallArgument>& arguments,
+                                  Value& result, NativeFailure& failure);
+    [[nodiscard]] static bool put(Interpreter& in, ControlObject& self,
+                                  const std::string& member,
+                                  std::vector<CallArgument>& arguments,
+                                  const Value& value, NativeFailure& failure);
+    // A scripted user action (`ui <target> <action> ...`).
+    [[nodiscard]] static bool user_input(Interpreter& in, InstanceData& form,
+                                         ControlObject& self,
+                                         const std::string& action,
+                                         const std::string& rest);
+};
+
 // Everything that needs Interpreter internals; a friend of Interpreter.
 struct FormSupport {
     [[nodiscard]] static std::string text_of(const Value& value) {
         return Interpreter::render(value);
+    }
+    [[nodiscard]] static std::size_t offset_of(Interpreter& in) {
+        return in.offset_;
     }
 
     static FormRuntime& runtime(Interpreter& in) {
@@ -3812,6 +3853,29 @@ struct FormSupport {
             }
             return true;
         }
+        if (command == "ui") {
+            // ui <target> <action> [arguments]: a scripted action on a
+            // common control (select a tab, click a button, ...).
+            Target ui_target;
+            if (!resolve_target(in, target_text, ui_target)) {
+                return true;
+            }
+            ControlObject* ui_object = control_named(
+                *ui_target.form, ui_target.control, ui_target.index);
+            if (ui_object == nullptr || ui_object->comctl == nullptr) {
+                return true;
+            }
+            std::istringstream parts(rest);
+            std::string action;
+            parts >> action;
+            std::string tail;
+            std::getline(parts, tail);
+            if (!tail.empty() && tail.front() == ' ') {
+                tail.erase(0, 1);
+            }
+            return ComctlSupport::user_input(in, *ui_target.form, *ui_object,
+                                             lower_text(action), tail);
+        }
         if (command == "oledrag") {
             // oledrag <source> <destination> [x y]
             std::istringstream tail(rest);
@@ -4349,6 +4413,10 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         result = inner;
         return true;
     }
+    if (comctl != nullptr &&
+        ComctlSupport::get(in, *this, member, arguments, result, failure)) {
+        return true;
+    }
     if (class_key == "ole" &&
         FormSupport::ole_member(in, *this, member, arguments, result,
                                 failure)) {
@@ -4438,6 +4506,10 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     if (is_activex() && FormSupport::activex_forwards(*this, member)) {
         return FormSupport::activex_put(in, *this, member, arguments, value,
                                         failure);
+    }
+    if (comctl != nullptr &&
+        ComctlSupport::put(in, *this, member, arguments, value, failure)) {
+        return true;
     }
     static_cast<void>(arguments);
     if (member == "name" || member == "index") {
@@ -4930,7 +5002,15 @@ bool Interpreter::create_form_instance(
         if (leaf.rfind("VB.", 0) == 0) {
             leaf = leaf.substr(3);
         }
-        return ui::find_control_class(leaf);
+        if (const auto* intrinsic = ui::find_control_class(leaf)) {
+            return intrinsic;
+        }
+        const auto dot = leaf.rfind('.');
+        if (dot != std::string::npos &&
+            lower_text(leaf.substr(0, dot)) == "mscomctllib") {
+            return comctl_class(leaf.substr(dot + 1U));
+        }
+        return nullptr;
     };
     long next_order = 0;
     const auto make_control = [&](const ui::FrmObject& source,
@@ -4940,6 +5020,7 @@ bool Interpreter::create_form_instance(
         auto object = std::make_shared<ControlObject>(
             &control_class, source.name, array_index, false);
         object->form = instance;
+        ComctlSupport::init(*object);
         object->order = next_order++;
         if (&control_class == &kExtenderClass) {
             const auto proxy = class_definitions_.find(lower_text(source.type));
@@ -5607,6 +5688,13 @@ void Interpreter::register_native_types() {
     for (const auto& control_class : ui::control_classes()) {
         names.push_back(lower_text(control_class.name));
     }
+    // The MSComctlLib controls, collections and value objects accept any
+    // control or item object in an `As` clause.
+    std::set<std::string> common_types;
+    for (auto& name : comctl_type_names()) {
+        common_types.insert(name);
+        names.push_back(name);
+    }
     for (const auto& name : names) {
         if (!mentioned.contains(name) || user_classes.contains(name) ||
             class_definitions_.contains(name)) {
@@ -5614,7 +5702,10 @@ void Interpreter::register_native_types() {
         }
         ClassDef proxy;
         proxy.display_name = name;
-        proxy.native_type = name;
+        proxy.native_type = common_types.contains(name) ? "control" : name;
+        if (common_types.contains(name)) {
+            class_definitions_.emplace("mscomctllib." + name, proxy);
+        }
         class_definitions_.emplace(name, std::move(proxy));
     }
 }
@@ -6139,5 +6230,7 @@ bool Interpreter::run_forms_at_exit() {
     }
     return FormSupport::run_loop(*this);
 }
+
+#include "comctl.inc"
 
 }  // namespace wfc::detail

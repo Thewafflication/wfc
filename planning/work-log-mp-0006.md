@@ -19,3 +19,4 @@ Goal-level token usage and elapsed time: Not reported.
 | Date / # | Type | Description | Evidence |
 | --- | --- | --- | --- |
 | 2026-10-12 #1 | Planning | MP-0005 closed; `ADR-0006` accepted; MP-0006 plan baselined | `MP-0005-closeout.md`, `MP-0006-mscomctllib.md` |
+| 2026-10-12 #2 | Construction | Generated MSComctlLib tables, merged class tables, native control registration, generic collections and value objects, `ProgressBar`, `Slider`, `ImageList` (`REQ-0296`); corpus 188 | CTest 354/354 |
