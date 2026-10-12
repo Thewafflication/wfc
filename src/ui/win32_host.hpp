@@ -63,6 +63,10 @@ public:
     void sync_common(WindowId window, const CommonSnapshot& snapshot) override;
     // A WM_NOTIFY of a common control (true when it was handled).
     bool common_notify(const void* header, std::intptr_t lparam);
+    // An image list (HIMAGELIST) of the pictures `ids`, each scaled to the
+    // size in pixels; nullptr when there are none.
+    [[nodiscard]] void* build_image_list(const std::vector<long>& ids,
+                                         long width, long height);
     [[nodiscard]] void* activex_object(WindowId window) override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;

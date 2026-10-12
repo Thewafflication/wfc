@@ -45,7 +45,7 @@ In the Win32 host each control is the system common control of the same kind
 (`SysTabControl32`, `ToolbarWindow32`, `msctls_statusbar32`, `msctls_progress32`,
 `SysTreeView32`, `SysListView32`, `msctls_trackbar32`, `ComboBoxEx32`), rebuilt
 from a snapshot of the model whenever the model or a property changes; the
-`ImageList` has no window and images are not drawn yet. Clicks, selections,
+`ImageList` has no window: the controls that name it (`ImageList`, and `Icons`/`SmallIcons` of a `ListView`, by object or by name from a form file) draw its pictures, scaled to its image size, through the image index or key of their tabs, buttons, nodes, items and combo items (the same list is rebuilt when images are added). Clicks, selections,
 expansions, check boxes, column clicks, toolbar buttons, status panels, slider
 drags and combo edits become the same actions as the scripted `ui` input.
 `TC-MP0006-gui-comctl` shows all nine in a window (screenshot evidence).

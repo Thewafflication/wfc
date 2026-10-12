@@ -2719,6 +2719,20 @@ bool ComctlHooks::node_add(Interpreter& in, ControlObject& control,
 
 void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
     comctl_push(in, control);
+    if (control.class_key == "imagelist") {
+        // Controls that draw from this list show the new images.
+        if (const auto form = control.form.lock()) {
+            std::vector<ControlObject*> users;
+            FormSupport::for_each_control(*form, [&](ControlObject& other) {
+                if (other.comctl != nullptr && &other != &control) {
+                    users.push_back(&other);
+                }
+            });
+            for (ControlObject* other : users) {
+                comctl_push(in, *other);
+            }
+        }
+    }
 }
 
 bool ComctlHooks::before_remove(Interpreter& in, ControlObject& control,
@@ -3324,7 +3338,60 @@ namespace {
 
 }  // namespace
 
-ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
+// The ImageList control a property of `control` refers to, or nullptr.
+[[nodiscard]] ControlObject* linked_image_list(ControlObject& control,
+                                               const char* property) {
+    const auto found = control.values.find(property);
+    if (found == control.values.end()) {
+        return nullptr;
+    }
+    ControlObject* list = control_of(found->second);
+    if (list == nullptr) {
+        // A form file names the list: `ImageList = "ImageList1"`.
+        if (const auto* name = std::get_if<std::string>(&found->second)) {
+            if (const auto form = control.form.lock()) {
+                list = FormSupport::control_named(*form, lower_text(*name), -1);
+            }
+        }
+    }
+    return list != nullptr && list->class_key == "imagelist" ? list : nullptr;
+}
+
+// The 0-based index of an image reference (a 1-based index or a key) in
+// `list`, or -1.
+[[nodiscard]] long image_index(ControlObject* list, const Value& reference) {
+    if (list == nullptr || std::holds_alternative<Empty>(reference)) {
+        return -1;
+    }
+    auto& images = state_of(*list).lists["listimages"];
+    if (const auto* key = std::get_if<std::string>(&reference)) {
+        for (std::size_t i = 0; i < images.size(); ++i) {
+            if (same_key(images[i]->p.at("key"), *key)) {
+                return static_cast<long>(i);
+            }
+        }
+        return -1;
+    }
+    const long number = long_of(reference);
+    return number >= 1 && static_cast<std::size_t>(number) <= images.size()
+               ? number - 1
+               : -1;
+}
+
+void fill_images(Interpreter& in, ControlObject* list,
+                 std::vector<long>& ids, long& width, long& height) {
+    if (list == nullptr) {
+        return;
+    }
+    width = static_cast<long>(number_property(*list, "imagewidth"));
+    height = static_cast<long>(number_property(*list, "imageheight"));
+    for (const auto& image : state_of(*list).lists["listimages"]) {
+        PictureObject* picture = picture_of(image->p.at("picture"));
+        ids.push_back(picture != nullptr ? FormSupport::host_picture(in, *picture) : 0);
+    }
+}
+
+ui::CommonSnapshot comctl_snapshot(Interpreter& in, ControlObject& control) {
     ui::CommonSnapshot snapshot;
     snapshot.kind = control.class_key;
     snapshot.min = static_cast<long>(number_property(control, "min"));
@@ -3361,10 +3428,16 @@ ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
         return found == lists.end() ? none : found->second;
     };
     const std::string& cls = control.class_key;
+    ControlObject* images = linked_image_list(control, cls == "listview" ? "icons" : "imagelist");
+    ControlObject* small_images = linked_image_list(control, "smallicons");
+    fill_images(in, images, snapshot.images, snapshot.image_width, snapshot.image_height);
+    fill_images(in, small_images, snapshot.small_images, snapshot.small_width,
+                snapshot.small_height);
     if (cls == "tabstrip") {
         long at = 0;
         for (const auto& tab : list("tabs")) {
             snapshot.items.push_back(common_item(tab, "caption"));
+            snapshot.items.back().image = image_index(images, tab->p.at("image"));
             if (flag(tab, "selected")) {
                 snapshot.selected = at;
             }
@@ -3377,6 +3450,7 @@ ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
     } else if (cls == "toolbar") {
         for (const auto& button : list("buttons")) {
             ui::CommonItem item = common_item(button, "caption");
+            item.image = image_index(images, button->p.at("image"));
             for (const auto& menu : button->sub) {
                 item.cells.push_back(text_of_prop(menu, "text"));
             }
@@ -3393,6 +3467,8 @@ ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
                     continue;
                 }
                 ui::CommonItem item = common_item(node, "text");
+                item.image = image_index(images, node->p.at("image"));
+                item.image2 = image_index(images, node->p.at("selectedimage"));
                 item.parent = parent;
                 item.index = position_of(top_list(control, "node"), node);
                 const long here = static_cast<long>(snapshot.items.size());
@@ -3412,6 +3488,8 @@ ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
         long at = 0;
         for (const auto& entry : list("listitems")) {
             ui::CommonItem item = common_item(entry, "text");
+            item.image = image_index(images, entry->p.at("icon"));
+            item.image2 = image_index(small_images, entry->p.at("smallicon"));
             for (const auto& sub : entry->sub) {
                 item.cells.push_back(text_of_prop(sub, "text"));
             }
@@ -3426,6 +3504,8 @@ ui::CommonSnapshot comctl_snapshot(ControlObject& control) {
         long at = 0;
         for (const auto& entry : list("comboitems")) {
             ui::CommonItem item = common_item(entry, "text");
+            item.image = image_index(images, entry->p.at("image"));
+            item.image2 = image_index(images, entry->p.at("selimage"));
             item.indent = long_of(entry->p.at("indentation"));
             snapshot.items.push_back(std::move(item));
             if (flag(entry, "selected")) {
@@ -3443,5 +3523,5 @@ void comctl_push(Interpreter& in, ControlObject& control) {
         control.comctl->from_host) {
         return;
     }
-    FormSupport::runtime(in).host->sync_common(control.window, comctl_snapshot(control));
+    FormSupport::runtime(in).host->sync_common(control.window, comctl_snapshot(in, control));
 }

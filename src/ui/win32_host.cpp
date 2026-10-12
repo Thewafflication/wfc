@@ -82,7 +82,9 @@ struct Win32Host::Entry {
     int surface_width{0};
     int surface_height{0};
     long surface_background{0xF0F0F0};
-    bool applying{false};  // a snapshot is being applied to a common control
+    bool applying{false};   // a snapshot is being applied to a common control
+    void* images{nullptr};  // HIMAGELIST handed to the control
+    void* small_images{nullptr};
 };
 
 // Window procedure and helpers that need the host's internals.

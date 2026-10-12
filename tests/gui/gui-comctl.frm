@@ -6,6 +6,10 @@ Begin VB.Form frmCommon
    Begin VB.Timer Timer1
       Interval        =   2500
    End
+   Begin MSComctlLib.ImageList Images1
+      Left            =   8000
+      Top             =   0
+   End
    Begin MSComctlLib.Toolbar Toolbar1
       Height          =   420
       Left            =   0
@@ -63,22 +67,29 @@ Attribute VB_Name = "frmCommon"
 Option Explicit
 Private Sub Form_Load()
     Dim n As Node
-    Toolbar1.Buttons.Add , "new", "New"
+    Images1.ListImages.Add , "red", LoadPicture(App.Path & "\gui-comctl.red.bmp")
+    Set Toolbar1.ImageList = Images1
+    Set TabStrip1.ImageList = Images1
+    Set TreeView1.ImageList = Images1
+    Set ListView1.SmallIcons = Images1
+    Set ListView1.Icons = Images1
+    Set ImageCombo1.ImageList = Images1
+    Toolbar1.Buttons.Add , "new", "New", , "red"
     Toolbar1.Buttons.Add , "open", "Open", tbrDropdown
     Toolbar1.Buttons.Add , "sep", , tbrSeparator
     Toolbar1.Buttons.Add , "bold", "Bold", tbrCheck
-    TabStrip1.Tabs.Add , "gen", "General"
+    TabStrip1.Tabs.Add , "gen", "General", 1
     TabStrip1.Tabs.Add , "adv", "Advanced"
     TabStrip1.Tabs.Add , "log", "Log"
     Set n = TreeView1.Nodes.Add(, , "root", "Root")
-    TreeView1.Nodes.Add n, tvwChild, "a", "Alpha"
+    TreeView1.Nodes.Add n, tvwChild, "a", "Alpha", "red"
     TreeView1.Nodes.Add n, tvwChild, "b", "Beta"
     n.Expanded = True
     ListView1.ColumnHeaders.Add , , "Name", 1500
     ListView1.ColumnHeaders.Add , , "Size", 1000
-    ListView1.ListItems.Add(, "x", "One").SubItems(1) = "1 KB"
+    ListView1.ListItems.Add(, "x", "One", , "red").SubItems(1) = "1 KB"
     ListView1.ListItems.Add(, "y", "Two").SubItems(1) = "2 KB"
-    ImageCombo1.ComboItems.Add , "r", "Red"
+    ImageCombo1.ComboItems.Add , "r", "Red", "red"
     ImageCombo1.ComboItems.Add , "g", "Green"
     Set ImageCombo1.SelectedItem = ImageCombo1.ComboItems("g")
     StatusBar1.Panels.Add , "msg", "Ready"

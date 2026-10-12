@@ -29,3 +29,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #9 | Defect | Corpus cases 167–194 compared only stdout, but their output is `Debug.Print` text on stderr, so they passed with empty expectations; the runner now also compares an optional `<case>.debug` file and the 25 cases have one | CTest 360/360 |
 | 2026-10-12 #10 | Construction | Win32 rendering and input for the nine controls through snapshots (`REQ-0296`); `TC-MP0006-gui-comctl` with screenshot | CTest 361/361 |
 | 2026-10-12 #11 | Defect | Corpus 170 depended on an empty directory that Git does not keep (found by the new `.debug` comparison on CI); the fixture now holds a `.gitkeep` | CTest 361/361 |
+| 2026-10-12 #12 | Construction | Images from `ImageList` in the Win32 rendering of tabs, buttons, nodes, list items and combo items (`REQ-0296`) | CTest 361/361 |

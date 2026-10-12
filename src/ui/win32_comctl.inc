@@ -10,7 +10,65 @@ namespace {
     return widen(text);
 }
 
+// Hands `fresh` to the control (replacing and destroying `old`); returns the
+// list now in use.
+[[nodiscard]] void* replace_images(HWND hwnd, const UINT message, const WPARAM kind,
+                                   void* old, void* fresh) {
+    const LRESULT previous = SendMessageW(hwnd, message, kind, reinterpret_cast<LPARAM>(fresh));
+    if (previous != 0 && reinterpret_cast<void*>(previous) != fresh) {
+        ImageList_Destroy(reinterpret_cast<HIMAGELIST>(previous));
+    }
+    static_cast<void>(old);
+    return fresh;
+}
+
 }  // namespace
+
+void* Win32Host::build_image_list(const std::vector<long>& ids,
+                                   const long width, const long height) {
+    if (ids.empty() || width <= 0 || height <= 0) {
+        return nullptr;
+    }
+    HIMAGELIST list = ImageList_Create(static_cast<int>(width), static_cast<int>(height),
+                                       ILC_COLOR32 | ILC_MASK, static_cast<int>(ids.size()), 0);
+    if (list == nullptr) {
+        return nullptr;
+    }
+    HDC screen = GetDC(nullptr);
+    for (const long id : ids) {
+        HDC memory = CreateCompatibleDC(screen);
+        BITMAPINFO info{};
+        info.bmiHeader.biSize = sizeof(info.bmiHeader);
+        info.bmiHeader.biWidth = static_cast<LONG>(width);
+        info.bmiHeader.biHeight = -static_cast<LONG>(height);
+        info.bmiHeader.biPlanes = 1;
+        info.bmiHeader.biBitCount = 32;
+        info.bmiHeader.biCompression = BI_RGB;
+        void* bits = nullptr;
+        HBITMAP bitmap = CreateDIBSection(screen, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+        if (bitmap != nullptr) {
+            const HGDIOBJ previous = SelectObject(memory, bitmap);
+            RECT whole{0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
+            FillRect(memory, &whole, static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
+            const auto known = pictures_.find(id);
+            if (known != pictures_.end()) {
+                auto* const picture = static_cast<IPicture*>(known->second);
+                OLE_XSIZE_HIMETRIC picture_width = 0;
+                OLE_YSIZE_HIMETRIC picture_height = 0;
+                picture->get_Width(&picture_width);
+                picture->get_Height(&picture_height);
+                picture->Render(memory, 0, 0, static_cast<LONG>(width), static_cast<LONG>(height), 0,
+                                picture_height, picture_width, -picture_height, nullptr);
+            }
+            SelectObject(memory, previous);
+            ImageList_Add(list, bitmap, nullptr);
+            DeleteObject(bitmap);
+        }
+        DeleteDC(memory);
+    }
+    ReleaseDC(nullptr, screen);
+    return list;
+}
 
 void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapshot) {
     auto* entry = find(window);
@@ -58,11 +116,15 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
         }
     } else if (kind == "tabstrip") {
         SendMessageW(hwnd, TCM_DELETEALLITEMS, 0, 0);
+        entry->images = replace_images(hwnd, TCM_SETIMAGELIST, 0, entry->images,
+                                       build_image_list(snapshot.images, snapshot.image_width,
+                                                        snapshot.image_height));
         long at = 0;
         for (const auto& item : snapshot.items) {
             std::wstring text = wide_text(item.text);
             TCITEMW tab{};
-            tab.mask = TCIF_TEXT;
+            tab.mask = TCIF_TEXT | TCIF_IMAGE;
+            tab.iImage = item.image >= 0 ? static_cast<int>(item.image) : I_IMAGENONE;
             tab.pszText = text.data();
             SendMessageW(hwnd, TCM_INSERTITEMW, static_cast<WPARAM>(at), reinterpret_cast<LPARAM>(&tab));
             ++at;
@@ -99,13 +161,16 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
             SendMessageW(hwnd, TB_DELETEBUTTON, 0, 0);
         }
         SendMessageW(hwnd, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
+        entry->images = replace_images(hwnd, TB_SETIMAGELIST, 0, entry->images,
+                                       build_image_list(snapshot.images, snapshot.image_width,
+                                                        snapshot.image_height));
         long at = 0;
         for (const auto& item : snapshot.items) {
             std::wstring text = wide_text(item.text) + L'\0';
             const INT_PTR text_index = SendMessageW(hwnd, TB_ADDSTRINGW, 0, reinterpret_cast<LPARAM>(text.c_str()));
             TBBUTTON button{};
             button.idCommand = static_cast<int>(at) + 1;
-            button.iBitmap = I_IMAGENONE;
+            button.iBitmap = item.image >= 0 ? static_cast<int>(item.image) : I_IMAGENONE;
             button.iString = static_cast<INT_PTR>(text_index);
             button.fsState = static_cast<BYTE>((item.enabled ? TBSTATE_ENABLED : 0) |
                                                (item.value == 1 ? TBSTATE_CHECKED : 0) |
@@ -143,13 +208,21 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
         style = snapshot.checkboxes ? (style | TVS_CHECKBOXES) : (style & ~TVS_CHECKBOXES);
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);
         SendMessageW(hwnd, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(TVI_ROOT));
+        entry->images = replace_images(hwnd, TVM_SETIMAGELIST, TVSIL_NORMAL, entry->images,
+                                       build_image_list(snapshot.images, snapshot.image_width,
+                                                        snapshot.image_height));
         std::vector<HTREEITEM> handles;
         for (const auto& item : snapshot.items) {
             std::wstring text = wide_text(item.text);
             TVINSERTSTRUCTW insert{};
             insert.hParent = item.parent < 0 ? TVI_ROOT : handles[static_cast<std::size_t>(item.parent)];
             insert.hInsertAfter = TVI_LAST;
-            insert.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+            insert.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE | TVIF_IMAGE |
+                               TVIF_SELECTEDIMAGE;
+            insert.item.iImage = item.image >= 0 ? static_cast<int>(item.image) : I_IMAGENONE;
+            insert.item.iSelectedImage =
+                item.image2 >= 0 ? static_cast<int>(item.image2)
+                                 : (item.image >= 0 ? static_cast<int>(item.image) : I_IMAGENONE);
             insert.item.pszText = text.data();
             insert.item.lParam = item.index;
             insert.item.stateMask = TVIS_BOLD;
@@ -191,6 +264,12 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
         SendMessageW(hwnd, LVM_DELETEALLITEMS, 0, 0);
         while (SendMessageW(hwnd, LVM_DELETECOLUMN, 0, 0) != FALSE) {
         }
+        entry->images = replace_images(hwnd, LVM_SETIMAGELIST, LVSIL_NORMAL, entry->images,
+                                       build_image_list(snapshot.images, snapshot.image_width,
+                                                        snapshot.image_height));
+        entry->small_images = replace_images(
+            hwnd, LVM_SETIMAGELIST, LVSIL_SMALL, entry->small_images,
+            build_image_list(snapshot.small_images, snapshot.small_width, snapshot.small_height));
         for (std::size_t i = 0; i < snapshot.columns.size(); ++i) {
             std::wstring text = wide_text(snapshot.columns[i].text);
             LVCOLUMNW column{};
@@ -206,7 +285,10 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
         for (std::size_t i = 0; i < snapshot.items.size(); ++i) {
             std::wstring text = wide_text(snapshot.items[i].text);
             LVITEMW row{};
-            row.mask = LVIF_TEXT | LVIF_PARAM;
+            row.mask = LVIF_TEXT | LVIF_PARAM | LVIF_IMAGE;
+            const long shown = snapshot.view == 0 ? snapshot.items[i].image
+                                                  : snapshot.items[i].image2;
+            row.iImage = shown >= 0 ? static_cast<int>(shown) : I_IMAGENONE;
             row.iItem = static_cast<int>(i);
             row.pszText = text.data();
             row.lParam = snapshot.items[i].index;
@@ -234,10 +316,20 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
         }
     } else if (kind == "imagecombo") {
         SendMessageW(hwnd, CB_RESETCONTENT, 0, 0);
+        entry->images = replace_images(hwnd, CBEM_SETIMAGELIST, 0, entry->images,
+                                       build_image_list(snapshot.images, snapshot.image_width,
+                                                        snapshot.image_height));
         for (std::size_t i = 0; i < snapshot.items.size(); ++i) {
             std::wstring text = wide_text(snapshot.items[i].text);
             COMBOBOXEXITEMW item{};
-            item.mask = CBEIF_TEXT | CBEIF_INDENT;
+            item.mask = CBEIF_TEXT | CBEIF_INDENT | CBEIF_IMAGE | CBEIF_SELECTEDIMAGE;
+            item.iImage = snapshot.items[i].image >= 0 ? static_cast<int>(snapshot.items[i].image) : I_IMAGENONE;
+            item.iSelectedImage =
+                snapshot.items[i].image2 >= 0
+                    ? static_cast<int>(snapshot.items[i].image2)
+                    : (snapshot.items[i].image >= 0
+                           ? static_cast<int>(snapshot.items[i].image)
+                           : I_IMAGENONE);
             item.iItem = -1;
             item.pszText = text.data();
             item.iIndent = static_cast<int>(snapshot.items[i].indent);

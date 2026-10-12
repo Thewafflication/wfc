@@ -97,7 +97,8 @@ struct CommonItem {
     bool expanded{false};
     bool visible{true};
     bool enabled{true};
-    long image{-1};
+    long image{-1};   // 0-based index in the image list, or -1
+    long image2{-1};  // selected / small image
     long style{0};
     long value{0};
     long width{0};
@@ -134,6 +135,14 @@ struct CommonSnapshot {
     bool locked{false};
     std::string text;
     std::string simple_text;
+    // Host picture ids of the images of the control's ImageList (and of the
+    // small-icon list of a ListView), and their size in pixels.
+    std::vector<long> images;
+    std::vector<long> small_images;
+    long image_width{16};
+    long image_height{16};
+    long small_width{16};
+    long small_height{16};
 };
 
 class UiHost {
