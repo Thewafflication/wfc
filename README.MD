@@ -11,6 +11,18 @@ A C++ reimplementation of the VB6 ecosystem:
 The project targets Windows x86, x64, and ARM64 and uses WCRT and WSP as its
 runtime and engineering-process foundations.
 
+## Current Progress
+
+A real VB6 form project (`tests/gui/gui-showcase.vbp`) running in native Win32
+windows, captured by the test suite: frames and option buttons, a check box,
+text box, command button with an accelerator, list box, combo box, scroll bar,
+a label updated by a `Timer`, a menu bar, a picture box drawn with `Line`,
+`Circle` and `Print`, and a `Shape`. The language runtime (MP-0002) and classes,
+projects and COM Automation (MP-0003) are complete; forms and controls
+(MP-0004) are in progress (see its [work log](planning/work-log-mp-0004.md)).
+
+![WFC running the form showcase in a native window](evidence/screenshots/gui-showcase-closing.png)
+
 ## Planning
 
 The [1.0 compatibility profile](planning/compatibility-profile-1.0.md) defines
