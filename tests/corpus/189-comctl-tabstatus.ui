@@ -1,0 +1,4 @@
+ui Form1.Tabs1 select zero
+ui Form1.Status1 panel 1
+ui Form1.Status1 paneldbl clock
+close Form1

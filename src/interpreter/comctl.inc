@@ -36,7 +36,8 @@ const std::map<std::string, KindSpec>& kind_specs() {
            {"image", "Variant", ""},
            {"tooltiptext", "String", ""},
            {"visible", "Boolean", "true"},
-           {"highlighted", "Boolean", ""}},
+           {"highlighted", "Boolean", ""},
+           {"selected", "Boolean", ""}},
           "caption"}},
         {"panel",
          {"panel",
@@ -943,6 +944,15 @@ namespace {
 
 }  // namespace
 
+[[nodiscard]] bool comctl_control_get(Interpreter& in, ControlObject& self,
+                                      const std::string& member,
+                                      std::vector<CallArgument>& arguments,
+                                      Value& result, NativeFailure& failure);
+[[nodiscard]] bool comctl_control_put(Interpreter& in, ControlObject& self,
+                                      const std::string& member,
+                                      const Value& value,
+                                      NativeFailure& failure);
+
 bool ComctlSupport::get(Interpreter& in, ControlObject& self,
                         const std::string& member,
                         std::vector<CallArgument>& arguments, Value& result,
@@ -1014,7 +1024,7 @@ bool ComctlSupport::get(Interpreter& in, ControlObject& self,
             return true;
         }
     }
-    return false;
+    return comctl_control_get(in, self, member, arguments, result, failure);
 }
 
 bool ComctlSupport::put(Interpreter& in, ControlObject& self,
@@ -1076,11 +1086,186 @@ bool ComctlSupport::put(Interpreter& in, ControlObject& self,
             return true;
         }
     }
-    return false;
+    return comctl_control_put(in, self, member, value, failure);
 }
 
 
-// ----- Per-kind hooks (extended control by control) -------------------------------
+
+// ----- Per-kind behavior ------------------------------------------------------------
+
+namespace {
+
+// What every per-kind function receives.
+struct HookCtx {
+    Interpreter& in;
+    ControlObject& control;
+    ListRef ref;
+    ItemPtr item;
+};
+
+[[nodiscard]] std::vector<ItemPtr>& top_list(ControlObject& control,
+                                             const std::string& kind) {
+    ListRef ref;
+    ref.kind = kind;
+    return list_of(control, ref);
+}
+
+[[nodiscard]] bool flag(const ItemPtr& item, const char* name) {
+    const auto found = item->p.find(name);
+    return found != item->p.end() && std::holds_alternative<bool>(found->second) &&
+           std::get<bool>(found->second);
+}
+
+[[nodiscard]] double item_number(const ItemPtr& item, const char* name) {
+    const auto found = item->p.find(name);
+    return found != item->p.end() && is_number(found->second)
+               ? as_double(found->second)
+               : 0.0;
+}
+
+[[nodiscard]] Value item_value(HookCtx& ctx, const ItemPtr& item,
+                               const ListRef& ref) {
+    return wrap_item(ctx.ref.owner.lock(), ref, item);
+}
+
+[[nodiscard]] Value nothing_value() { return Value{Nothing{}}; }
+
+// ----- TabStrip -----------------------------------------------------------------
+
+struct TabRect {
+    double left{0};
+    double top{0};
+    double width{0};
+    double height{0};
+};
+
+// The rectangle of every tab, laid out left to right (wrapping to rows with
+// MultiRow). An approximation of the OCX layout in twips.
+[[nodiscard]] std::vector<TabRect> tab_layout(ControlObject& control) {
+    std::vector<TabRect> rects;
+    const double fixed_width = number_property(control, "tabfixedwidth");
+    const double fixed_height = number_property(control, "tabfixedheight");
+    const double minimum = number_property(control, "tabminwidth");
+    const long width_style =
+        static_cast<long>(number_property(control, "tabwidthstyle"));
+    const double height = fixed_height > 0.0 ? fixed_height : 300.0;
+    const double total = number_property(control, "width");
+    const bool multi = control.values.contains("multirow") &&
+                       std::holds_alternative<bool>(control.values.at("multirow")) &&
+                       std::get<bool>(control.values.at("multirow"));
+    double x = 0.0;
+    double y = 0.0;
+    for (const auto& tab : top_list(control, "tab")) {
+        if (!flag(tab, "visible")) {
+            rects.push_back({});
+            continue;
+        }
+        const auto caption = tab->p.at("caption");
+        const std::string text = std::holds_alternative<std::string>(caption)
+                                     ? std::get<std::string>(caption)
+                                     : std::string{};
+        double width = width_style == 2 && fixed_width > 0.0
+                           ? fixed_width
+                           : std::max(minimum > 0.0 ? minimum : 600.0,
+                                      120.0 + 95.0 * static_cast<double>(text.size()));
+        if (multi && x > 0.0 && x + width > total && total > 0.0) {
+            x = 0.0;
+            y += height;
+        }
+        rects.push_back({x, y, width, height});
+        x += width;
+    }
+    return rects;
+}
+
+[[nodiscard]] ItemPtr selected_tab(ControlObject& control) {
+    for (const auto& tab : top_list(control, "tab")) {
+        if (flag(tab, "selected")) {
+            return tab;
+        }
+    }
+    return nullptr;
+}
+
+// Selects `tab`; with `notify`, BeforeClick (cancellable) and Click run.
+[[nodiscard]] bool select_tab(Interpreter& in, ControlObject& control,
+                              const ItemPtr& tab, const bool notify,
+                              NativeFailure& failure) {
+    if (flag(tab, "selected")) {
+        return true;
+    }
+    if (notify) {
+        Value cancel{Int16{0}};
+        const auto form = control.form.lock();
+        std::vector<Value> arguments{cancel};
+        if (form != nullptr &&
+            !FormSupport::raise(in, *form, control.name, control.index,
+                                "beforeclick", arguments,
+                                FormSupport::offset_of(in))) {
+            failure = FormSupport::reported();
+            return false;
+        }
+        if (whole_value(arguments[0]).value_or(0) != 0) {
+            return true;  // cancelled: the selection stays
+        }
+    }
+    for (const auto& other : top_list(control, "tab")) {
+        other->p["selected"] = Value{other == tab};
+    }
+    if (notify && !raise_event(in, control, "Click", {})) {
+        failure = FormSupport::reported();
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool tab_get(HookCtx& ctx, const std::string& member,
+                           Value& result) {
+    const auto rects = tab_layout(ctx.control);
+    const long position = position_of(top_list(ctx.control, "tab"), ctx.item);
+    const TabRect rect = position >= 1 && static_cast<std::size_t>(position) <= rects.size()
+                             ? rects[static_cast<std::size_t>(position) - 1U]
+                             : TabRect{};
+    if (member == "left") {
+        result = Value{static_cast<float>(rect.left)};
+    } else if (member == "top") {
+        result = Value{static_cast<float>(rect.top)};
+    } else if (member == "width") {
+        result = Value{static_cast<float>(rect.width)};
+    } else if (member == "height") {
+        result = Value{static_cast<float>(rect.height)};
+    } else {
+        return false;
+    }
+    return true;
+}
+
+// ----- StatusBar ----------------------------------------------------------------
+
+[[nodiscard]] bool panel_get(HookCtx& ctx, const std::string& member,
+                             Value& result) {
+    if (member == "left") {
+        double x = 0.0;
+        for (const auto& panel : top_list(ctx.control, "panel")) {
+            if (panel == ctx.item) {
+                break;
+            }
+            if (flag(panel, "visible")) {
+                x += std::max(item_number(panel, "width"),
+                              item_number(panel, "minwidth"));
+            }
+        }
+        result = Value{static_cast<float>(x)};
+        return true;
+    }
+    return false;
+}
+
+// @@KINDS
+
+}  // namespace
+
+// ----- Hook dispatch ------------------------------------------------------------------
 
 void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
     static_cast<void>(in);
@@ -1090,20 +1275,33 @@ void ComctlHooks::changed(Interpreter& in, ControlObject& control) {
 bool ComctlHooks::before_remove(Interpreter& in, ControlObject& control,
                                 const std::string& kind, const ItemPtr& item) {
     static_cast<void>(in);
-    static_cast<void>(control);
-    static_cast<void>(kind);
-    static_cast<void>(item);
+    if (kind == "tab" && flag(item, "selected")) {
+        // The selection moves to a neighbor (no events).
+        auto& tabs = top_list(control, "tab");
+        const long position = position_of(tabs, item);
+        ItemPtr neighbor;
+        if (position > 1) {
+            neighbor = tabs[static_cast<std::size_t>(position) - 2U];
+        } else if (tabs.size() > 1U) {
+            neighbor = tabs[1];
+        }
+        item->p["selected"] = Value{false};
+        if (neighbor != nullptr) {
+            neighbor->p["selected"] = Value{true};
+        }
+    }
     return true;
 }
 
 bool ComctlHooks::after_add(Interpreter& in, ControlObject& control,
                             const std::string& kind, const ItemPtr& item) {
     static_cast<void>(in);
+    if (kind == "tab" && top_list(control, "tab").size() == 1U) {
+        item->p["selected"] = Value{true};  // the first tab is selected
+    }
     if (kind == "listimage" && control.class_key == "imagelist") {
         // The first image sets the size of the list (pixels at 96 dpi).
-        ListRef ref;
-        ref.kind = kind;
-        if (list_of(control, ref).size() == 1U) {
+        if (top_list(control, kind).size() == 1U) {
             if (const PictureObject* picture = picture_of(item->p.at("picture"))) {
                 const auto pixels = [](const long himetric) {
                     return static_cast<Int16>(
@@ -1122,15 +1320,15 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
                            const ListRef& ref, const std::string& member,
                            std::vector<CallArgument>& arguments, Value& result,
                            NativeFailure& failure) {
-    static_cast<void>(in);
-    static_cast<void>(control);
-    static_cast<void>(kind);
-    static_cast<void>(item);
-    static_cast<void>(ref);
-    static_cast<void>(member);
     static_cast<void>(arguments);
-    static_cast<void>(result);
     static_cast<void>(failure);
+    HookCtx ctx{in, control, ref, item};
+    if (kind == "tab") {
+        return tab_get(ctx, member, result);
+    }
+    if (kind == "panel") {
+        return panel_get(ctx, member, result);
+    }
     return false;
 }
 
@@ -1139,15 +1337,28 @@ bool ComctlHooks::item_put(Interpreter& in, ControlObject& control,
                            const ListRef& ref, const std::string& member,
                            std::vector<CallArgument>& arguments,
                            const Value& value, NativeFailure& failure) {
-    static_cast<void>(in);
-    static_cast<void>(control);
-    static_cast<void>(kind);
-    static_cast<void>(item);
-    static_cast<void>(ref);
-    static_cast<void>(member);
     static_cast<void>(arguments);
-    static_cast<void>(value);
-    static_cast<void>(failure);
+    static_cast<void>(ref);
+    if (kind == "tab") {
+        if (member == "left" || member == "top" || member == "width" ||
+            member == "height") {
+            failure = NativeFailure{383, "Property is read-only"};
+            return true;
+        }
+        if (member == "selected") {
+            const bool on = std::holds_alternative<bool>(value)
+                                ? std::get<bool>(value)
+                                : is_number(value) && as_double(value) != 0.0;
+            if (on) {
+                static_cast<void>(select_tab(in, control, item, true, failure));
+            }
+            return true;
+        }
+    }
+    if (kind == "panel" && member == "left") {
+        failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
     return false;
 }
 
@@ -1165,10 +1376,125 @@ bool ComctlHooks::collection_get(Interpreter& in, ControlObject& control,
     return false;
 }
 
+// Control-level members (called before the generic table path).
+bool comctl_control_get(Interpreter& in, ControlObject& self,
+                        const std::string& member,
+                        std::vector<CallArgument>& arguments, Value& result,
+                        NativeFailure& failure) {
+    static_cast<void>(in);
+    if (self.class_key == "tabstrip") {
+        if (member == "selecteditem") {
+            const ItemPtr tab = selected_tab(self);
+            if (tab == nullptr) {
+                result = Value{Nothing{}};
+            } else {
+                ListRef ref;
+                ref.kind = "tab";
+                result = wrap_item(self.self.lock(), ref, tab);
+            }
+            return true;
+        }
+        const double width = number_property(self, "width");
+        const double height = number_property(self, "height");
+        const auto rects = tab_layout(self);
+        double rows_height = 0.0;
+        for (const auto& rect : rects) {
+            rows_height = std::max(rows_height, rect.top + rect.height);
+        }
+        if (rows_height == 0.0) {
+            rows_height = 300.0;
+        }
+        if (member == "clientleft") {
+            result = Value{60.0F};
+            return true;
+        }
+        if (member == "clienttop") {
+            result = Value{static_cast<float>(rows_height + 30.0)};
+            return true;
+        }
+        if (member == "clientwidth") {
+            result = Value{static_cast<float>(std::max(0.0, width - 120.0))};
+            return true;
+        }
+        if (member == "clientheight") {
+            result = Value{static_cast<float>(
+                std::max(0.0, height - rows_height - 90.0))};
+            return true;
+        }
+        if (member == "hittest") {
+            if (arguments.size() != 2U) {
+                failure = NativeFailure{450, "Wrong number of arguments"};
+                return true;
+            }
+            const double x = as_double(arguments[0].value);
+            const double y = as_double(arguments[1].value);
+            result = Value{Nothing{}};
+            const auto& tabs = top_list(self, "tab");
+            for (std::size_t i = 0; i < rects.size() && i < tabs.size(); ++i) {
+                const TabRect& rect = rects[i];
+                if (rect.width > 0.0 && x >= rect.left && x < rect.left + rect.width &&
+                    y >= rect.top && y < rect.top + rect.height) {
+                    ListRef ref;
+                    ref.kind = "tab";
+                    result = wrap_item(self.self.lock(), ref, tabs[i]);
+                    break;
+                }
+            }
+            return true;
+        }
+        if (member == "deselectall") {
+            for (const auto& tab : top_list(self, "tab")) {
+                tab->p["selected"] = Value{false};
+            }
+            result = Value{Empty{}};
+            return true;
+        }
+    }
+    return false;
+}
+
+bool comctl_control_put(Interpreter& in, ControlObject& self,
+                        const std::string& member, const Value& value,
+                        NativeFailure& failure) {
+    if (self.class_key == "tabstrip" && member == "selecteditem") {
+        const auto* holder = std::get_if<ObjectInstance>(&value);
+        const auto* item =
+            holder != nullptr && holder->data != nullptr
+                ? dynamic_cast<ComctlItem*>(holder->data->native.get())
+                : nullptr;
+        if (item == nullptr || item->ref.kind != "tab" ||
+            position_of(top_list(self, "tab"), item->item) == 0) {
+            failure = NativeFailure{13, "Type mismatch"};
+            return true;
+        }
+        static_cast<void>(select_tab(in, self, item->item, true, failure));
+        return true;
+    }
+    if (self.class_key == "tabstrip" &&
+        (member == "clientleft" || member == "clienttop" ||
+         member == "clientwidth" || member == "clientheight")) {
+        failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
+    return false;
+}
+
 bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
                                ControlObject& self, const std::string& action,
                                const std::string& rest) {
     static_cast<void>(form);
+    NativeFailure failure;
+    const auto select_by = [&](const std::string& kind) -> ItemPtr {
+        const auto& items = top_list(self, kind);
+        Value selector{rest};
+        char* end = nullptr;
+        const double number = std::strtod(rest.c_str(), &end);
+        if (end != rest.c_str() && *end == '\0') {
+            selector = Value{number};
+        }
+        NativeFailure ignored;
+        return find_item(items, selector, ignored);
+    };
     if (self.class_key == "slider" && action == "value") {
         // The user drags the thumb: Scroll while moving, then Change.
         const double wanted = std::atof(rest.c_str());
@@ -1180,6 +1506,27 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
             return raise_event(in, self, "Scroll", {}) &&
                    raise_event(in, self, "Change", {});
         }
+        return true;
+    }
+    if (self.class_key == "tabstrip" && action == "select") {
+        if (const ItemPtr tab = select_by("tab")) {
+            return select_tab(in, self, tab, true, failure);
+        }
+        return true;
+    }
+    if (self.class_key == "statusbar" &&
+        (action == "panel" || action == "paneldbl")) {
+        if (const ItemPtr panel = select_by("panel")) {
+            ListRef ref;
+            ref.kind = "panel";
+            const Value wrapped = wrap_item(self.self.lock(), ref, panel);
+            bool ok = raise_event(in, self, "PanelClick", {wrapped});
+            if (ok && action == "paneldbl") {
+                ok = raise_event(in, self, "PanelDblClick", {wrapped});
+            }
+            return ok;
+        }
+        return true;
     }
     return true;
 }

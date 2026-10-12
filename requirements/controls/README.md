@@ -39,3 +39,4 @@ matching-number VB6 reference and WFC conformance tests.
 ## Object model
 
 - [REQ-0296 — Collections, value objects and the native controls](req-0296-comctl-object-model.md)
+- [REQ-0297 — TabStrip and StatusBar behavior](req-0297-comctl-tabstrip-statusbar.md)

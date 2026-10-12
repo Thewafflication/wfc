@@ -725,6 +725,26 @@ auto Interpreter::parse_scalar_object_or_class_type()
     const auto saved_offset = offset_;
     char class_type_character{};
     auto class_name = parse_identifier(&class_type_character);
+    if (class_name.has_value() && class_type_character == '\0' && !at_end() &&
+        current() == '.') {
+        // `Library.Class`: a type of a referenced library or of MSComctlLib.
+        const auto before_dot = offset_;
+        advance();
+        char second_type_character{};
+        auto second = parse_identifier(&second_type_character);
+        if (second.has_value() && second_type_character == '\0') {
+            const std::string qualified = *class_name + "." + *second;
+            if (class_definitions_.contains(qualified)) {
+                return ResolvedType{Value{Nothing{}}.index(), false, true,
+                                    qualified};
+            }
+            if (class_definitions_.contains(*second)) {
+                return ResolvedType{Value{Nothing{}}.index(), false, true,
+                                    std::move(*second)};
+            }
+        }
+        offset_ = before_dot;
+    }
     if (class_name.has_value() && class_type_character == '\0' &&
         class_definitions_.contains(*class_name)) {
         return ResolvedType{Value{Nothing{}}.index(), false, true,
