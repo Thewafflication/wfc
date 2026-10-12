@@ -1734,6 +1734,7 @@ private:
     // The surface the Print statement being parsed draws on, or null for the
     // console.
     InstanceData* print_surface_{nullptr};
+    InstanceData* printer_target_{nullptr};
     // The next scripted answer for a `msgbox` or `inputbox` dialog.
     [[nodiscard]] std::optional<std::string> form_dialog_answer(
         const std::string& kind);

@@ -1279,6 +1279,7 @@ bool Interpreter::at_statement_end() const noexcept {
 
 bool Interpreter::parse_print_statement() {
     InstanceData* const surface = std::exchange(print_surface_, nullptr);
+    InstanceData* const printer = std::exchange(printer_target_, nullptr);
     if (!allow_identifiers_) {
         // The expression-only `Print <expression>` entry point keeps its
         // original single-expression grammar.
@@ -1434,6 +1435,19 @@ bool Interpreter::parse_print_statement() {
     }
     if (surface != nullptr) {
         return form_print(*surface, text, newline);
+    }
+    if (printer != nullptr) {
+        auto& document = printer->fields.variables["mdoc"];
+        std::string spooled;
+        if (const auto* held = std::get_if<std::string>(&document)) {
+            spooled = *held;
+        }
+        spooled += text;
+        if (newline) {
+            spooled.push_back('\n');
+        }
+        document = Value{spooled};
+        return true;
     }
     if (has_output_line_ && !output_line_open_) {
         output_.push_back('\n');

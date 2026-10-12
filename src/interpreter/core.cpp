@@ -75,7 +75,8 @@ VariableLookup Interpreter::find_variable_raw(const std::string& name) {
         module.object_variables.insert(name);
         return {&module.variables.at(name), &module};
     }
-    if ((name == "app" || name == "clipboard" || name == "screen") &&
+    if ((name == "app" || name == "clipboard" || name == "screen" ||
+         name == "printer" || name == "printers") &&
         class_definitions_.contains("wfc" + name)) {
         // The global service objects: predeclared instances of built-in
         // classes, created on first use unless the program declares its own.

@@ -1491,6 +1491,11 @@ void Interpreter::scan_builtin_classes() {
     if (needs_object("clipboard")) {
         class_sources_.push_back({"WfcClipboard", kClipboardSource});
     }
+    if (any_source_mentions("printer", true) ||
+        any_source_mentions("printers", true)) {
+        class_sources_.push_back({"WfcPrinter", kPrinterSource});
+        class_sources_.push_back({"WfcPrinters", kPrintersSource});
+    }
     if (needs_object("screen")) {
         class_sources_.push_back({"WfcScreen", kScreenSource});
     }

@@ -1182,6 +1182,11 @@ bool Interpreter::parse_member_assignment(
     if (instance.native != nullptr && native_owns(instance, *member_name)) {
         return native_member_statement(base, *member_name, member_offset);
     }
+    if (instance.class_name == "wfcprinter" && *member_name == "print") {
+        // `Printer.Print ...` appends to the spooled document.
+        printer_target_ = &instance;
+        return parse_print_statement();
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
 

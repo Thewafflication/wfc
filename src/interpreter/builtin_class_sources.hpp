@@ -221,6 +221,212 @@ Set ActiveControl = WfcActive(1)
 End Property
 )VB";
 
+inline constexpr std::string_view kPrinterSource =
+    R"VB(Private mDoc As String
+Private mPage As Integer
+Private mCopies As Integer
+Private mOrientation As Integer
+Private mFontName As String
+Private mFontSize As Single
+Private mFontBold As Boolean
+Private mFontItalic As Boolean
+Private mFontUnderline As Boolean
+Private mFontStrikethru As Boolean
+Private mScaleMode As Integer
+Private mX As Single
+Private mY As Single
+Private mInit As Boolean
+Private Sub Setup()
+If mInit Then Exit Sub
+mInit = True
+mPage = 1
+mCopies = 1
+mOrientation = 1
+mFontName = "Arial"
+mFontSize = 8.25
+mScaleMode = 1
+End Sub
+Public Property Get DeviceName() As String
+DeviceName = "WFC Virtual Printer"
+End Property
+Public Property Get DriverName() As String
+DriverName = "WFCPRN"
+End Property
+Public Property Get Port() As String
+Port = "FILE:"
+End Property
+Public Property Get hDC() As Long
+hDC = 0
+End Property
+Public Property Get ColorMode() As Integer
+ColorMode = 1
+End Property
+Public Property Get Duplex() As Integer
+Duplex = 1
+End Property
+Public Property Get PrintQuality() As Integer
+PrintQuality = -4
+End Property
+Public Property Get PaperSize() As Integer
+PaperSize = 1
+End Property
+Public Property Get PaperBin() As Integer
+PaperBin = 1
+End Property
+Public Property Get Zoom() As Integer
+Zoom = 100
+End Property
+Public Property Get TrackDefault() As Boolean
+TrackDefault = True
+End Property
+Public Property Get Copies() As Integer
+Setup
+Copies = mCopies
+End Property
+Public Property Let Copies(ByVal v As Integer)
+Setup
+mCopies = v
+End Property
+Public Property Get Orientation() As Integer
+Setup
+Orientation = mOrientation
+End Property
+Public Property Let Orientation(ByVal v As Integer)
+Setup
+mOrientation = v
+End Property
+Public Property Get Page() As Integer
+Setup
+Page = mPage
+End Property
+Public Property Get Width() As Single
+Setup
+If mOrientation = 2 Then Width = 15840 Else Width = 12240
+End Property
+Public Property Get Height() As Single
+Setup
+If mOrientation = 2 Then Height = 12240 Else Height = 15840
+End Property
+Public Property Get ScaleWidth() As Single
+ScaleWidth = Width
+End Property
+Public Property Get ScaleHeight() As Single
+ScaleHeight = Height
+End Property
+Public Property Get ScaleMode() As Integer
+Setup
+ScaleMode = mScaleMode
+End Property
+Public Property Let ScaleMode(ByVal v As Integer)
+Setup
+mScaleMode = v
+End Property
+Public Property Get TwipsPerPixelX() As Single
+TwipsPerPixelX = 2.4
+End Property
+Public Property Get TwipsPerPixelY() As Single
+TwipsPerPixelY = 2.4
+End Property
+Public Property Get FontName() As String
+Setup
+FontName = mFontName
+End Property
+Public Property Let FontName(ByVal v As String)
+Setup
+mFontName = v
+End Property
+Public Property Get FontSize() As Single
+Setup
+FontSize = mFontSize
+End Property
+Public Property Let FontSize(ByVal v As Single)
+Setup
+mFontSize = v
+End Property
+Public Property Get FontBold() As Boolean
+FontBold = mFontBold
+End Property
+Public Property Let FontBold(ByVal v As Boolean)
+mFontBold = v
+End Property
+Public Property Get FontItalic() As Boolean
+FontItalic = mFontItalic
+End Property
+Public Property Let FontItalic(ByVal v As Boolean)
+mFontItalic = v
+End Property
+Public Property Get FontUnderline() As Boolean
+FontUnderline = mFontUnderline
+End Property
+Public Property Let FontUnderline(ByVal v As Boolean)
+mFontUnderline = v
+End Property
+Public Property Get FontStrikethru() As Boolean
+FontStrikethru = mFontStrikethru
+End Property
+Public Property Let FontStrikethru(ByVal v As Boolean)
+mFontStrikethru = v
+End Property
+Public Property Get CurrentX() As Single
+CurrentX = mX
+End Property
+Public Property Let CurrentX(ByVal v As Single)
+mX = v
+End Property
+Public Property Get CurrentY() As Single
+CurrentY = mY
+End Property
+Public Property Let CurrentY(ByVal v As Single)
+mY = v
+End Property
+Public Function TextWidth(ByVal Str As String) As Single
+Setup
+TextWidth = Len(Str) * mFontSize * 10
+End Function
+Public Function TextHeight(ByVal Str As String) As Single
+Setup
+TextHeight = mFontSize * 24
+End Function
+Public Sub NewPage()
+Setup
+mPage = mPage + 1
+mDoc = mDoc & Chr$(12) & vbLf
+End Sub
+Public Sub KillDoc()
+mDoc = ""
+mPage = 1
+End Sub
+Public Sub EndDoc()
+Dim lines() As String
+Dim i As Long
+Setup
+lines = Split(mDoc, vbLf)
+For i = 0 To UBound(lines)
+If Left$(lines(i), 1) = Chr$(12) Then
+Debug.Print "[Printer] -- new page --"
+ElseIf Not (i = UBound(lines) And lines(i) = "") Then
+Debug.Print "[Printer] " & lines(i)
+End If
+Next i
+mDoc = ""
+mPage = 1
+End Sub
+)VB";
+
+inline constexpr std::string_view kPrintersSource =
+    R"VB(Public Property Get Count() As Long
+Count = 1
+End Property
+Public Property Get Item(ByVal Index As Long) As Object
+Attribute Item.VB_UserMemId = 0
+If Index <> 0 Then Err.Raise 9, , "Subscript out of range"
+Set Item = Printer
+End Property
+Public Function WfcItems() As Variant
+WfcItems = Array(Printer)
+End Function
+)VB";
+
 inline constexpr std::string_view kFormsSource =
     R"VB(Public Property Get Count() As Long
 Count = 0

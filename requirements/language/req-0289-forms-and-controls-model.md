@@ -158,11 +158,21 @@ raises `DragOver` (State `vbEnter`) then `DragDrop` on the destination control
 or form with `Source` set to the dragged control. Real mouse dragging in the
 Win32 host and OLE drag and drop are not implemented.
 
+## Printer and Printers
+
+`Printer` is a virtual printer (`DeviceName` "WFC Virtual Printer", Letter paper,
+`Orientation`, `Copies`, `Page`, font properties, `TextWidth`/`TextHeight`
+estimates). `Printer.Print` accepts the full Print statement syntax and spools
+text; `NewPage` starts the next page; `EndDoc` writes the document to the
+Immediate output as `[Printer]` lines (with `-- new page --` markers) and
+`KillDoc` discards it. `Printers.Count` is 1 and `Printers(0)` is `Printer`.
+Graphics methods on the printer and `PrintForm` are not implemented.
+
 ## Known limits (extended later in MP-0004)
 
-OLE drag and drop, `Printer`, drive/directory/file list boxes, data binding, and
+OLE drag and drop, printer graphics, `PrintForm`, drive/directory/file list boxes, data binding, and
 MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
