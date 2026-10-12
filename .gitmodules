@@ -4,3 +4,6 @@
 [submodule "wcrt"]
 	path = wcrt
 	url = https://github.com/Thewafflication/wcrt.git
+[submodule "tests/vb6games"]
+	path = tests/vb6games
+	url = https://github.com/Thewafflication/vb6games

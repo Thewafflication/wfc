@@ -32,12 +32,14 @@ packaged programs and the CI matrix (x86, x64, ARM64) from MP-0002 to MP-0007.
 | Rol An Go ARENA (tactical RPG) | VB6 Game Archives, `Tactical Role Playing` | To be recorded | To be recorded | To be surveyed |
 | Further archived games | `vb6archives`, `VB 6 App Archive`, other SourceForge projects | Per project | — | Selected after the first two run |
 
-Each corpus project keeps its source unmodified in `tests/projects/<name>/`
-with `PROVENANCE.md` (URL, retrieval date, SHA-256 of the archive, license and
-attribution) and a WFC acceptance test (scripted run, screenshot, or both).
-Compiled binaries in an archive are never kept or run. Whether a GPL project may
-live in this repository and in a release package is an owner decision (see
-Risks).
+Each corpus project keeps its source unmodified in the `vb6games` repository
+([Thewafflication/vb6games](https://github.com/Thewafflication/vb6games)),
+which WFC includes as the submodule `tests/vb6games`. A project directory holds
+`PROVENANCE.md` (URL, retrieval date, SHA-256 of the archive, license and
+attribution, omitted files); WFC holds its acceptance test (scripted run,
+screenshot, or both). Compiled binaries in an archive are never kept or run.
+WFC itself is `GPL-3.0-or-later` (owner decision, 2026-10-12), which is
+compatible with the GPL games; each project keeps its author's license.
 
 ### Requirement set
 
@@ -114,7 +116,7 @@ Risks).
 
 | Risk | Impact | Planned control | Owner or trigger |
 | --- | --- | --- | --- |
-| A GPL project in this repository or a release package | License obligations | Owner decides before any archive source is committed; keep the license and attribution with the files | Stage 2 |
+| Licenses of archived projects | Obligations on redistribution | WFC is GPL-3.0-or-later; each project keeps its author's license and credit in the `vb6games` repository and in the release package; a project whose license is unclear or incompatible is excluded | Stage 2 |
 | Archive code of unknown quality or origin | Surprising behavior | Never run archive binaries; read each project before running it | Stage 1 |
 | Games need DirectX, `winmm` or sound | Projects do not run | Survey first; implement the subset a project needs or exclude the project with a recorded reason | Stage 1 |
 | Network games need a peer | No end-to-end test | Test against loopback with a second WFC process | Stage 2 |
