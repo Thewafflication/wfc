@@ -6,10 +6,17 @@ if(NOT DEFINED MILLISECONDS)
   set(MILLISECONDS 5000)
 endif()
 file(REMOVE_RECURSE "${SHOTS}")
+# Programs write beside themselves (settings, logs): run a copy, so the
+# corpus submodule stays clean.
+get_filename_component(project_dir "${PROJECT}" DIRECTORY)
+get_filename_component(project_file "${PROJECT}" NAME)
+set(copy "${SHOTS}-run")
+file(REMOVE_RECURSE "${copy}")
+file(COPY "${project_dir}/" DESTINATION "${copy}")
 execute_process(
   COMMAND
-    "${WFC}" "${PROJECT}" --gui --exit-after ${MILLISECONDS} --screenshots
-    "${SHOTS}"
+    "${WFC}" "${copy}/${project_file}" --gui --exit-after ${MILLISECONDS}
+    --screenshots "${SHOTS}"
   RESULT_VARIABLE result
   ERROR_VARIABLE errors
   OUTPUT_VARIABLE output
