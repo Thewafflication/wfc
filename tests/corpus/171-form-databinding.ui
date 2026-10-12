@@ -1,0 +1,5 @@
+focus Form1.Text2
+set Form1.Text2 Robert
+focus Form1.Text1
+set Form1.Text1 Anne
+close Form1

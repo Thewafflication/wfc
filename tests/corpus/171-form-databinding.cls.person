@@ -1,0 +1,4 @@
+Public PersonName As String
+Public Active As Boolean
+Public Age As Long
+Public Spouse As Person

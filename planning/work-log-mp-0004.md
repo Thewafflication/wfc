@@ -43,3 +43,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #22 | Construction | Manual drag and drop: `Drag` method, scripted `drag` input raising `DragOver`/`DragDrop`, drag constants (`REQ-0289`); corpus 168 | CTest 328/328 |
 | 2026-10-11 #23 | Construction | Virtual `Printer`/`Printers` (spooled `Print`, `NewPage`, `EndDoc`, properties) (`REQ-0289`); corpus 169 | CTest 329/329 |
 | 2026-10-11 #24 | Construction | `DriveListBox`, `DirListBox`, `FileListBox` (`REQ-0126`, `REQ-0289`); corpus 170 | CTest 330/330 |
+| 2026-10-11 #25 | Construction | Generic data binding to class-module sources: `DataSource`/`DataMember`/`DataField`/`DataChanged`, write-back on LostFocus and unload (`REQ-0131`); corpus 171 | CTest 331/331 |

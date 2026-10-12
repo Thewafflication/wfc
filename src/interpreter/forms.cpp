@@ -255,8 +255,9 @@ public:
     std::vector<bool> chosen;  // MultiSelect selection flags
     long list_index{-1};
     long new_index{-1};
-    long order{0};        // creation order (the default TabIndex)
-    bool dynamic{false};  // loaded at run time (Load Control(i))
+    long order{0};          // creation order (the default TabIndex)
+    bool dynamic{false};    // loaded at run time (Load Control(i))
+    bool bind_busy{false};  // a bound control is being refreshed
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox" ||
                is_file_list();
@@ -2168,7 +2169,8 @@ struct FormSupport {
                     control_named(*old_form, previous->second.control,
                                   previous->second.index);
                 if (old != nullptr && !old->is_form &&
-                    !raise_table_event(in, *old, "LostFocus", {}, offset)) {
+                    (!raise_table_event(in, *old, "LostFocus", {}, offset) ||
+                     !bind_update(in, *old))) {
                     return false;
                 }
             }
@@ -2268,6 +2270,14 @@ struct FormSupport {
         }
         bool cancelled = whole_value(query[0]).value_or(0) != 0;
         if (!cancelled) {
+            bool updated = true;
+            for_each_control(form, [&](ControlObject& bound) {
+                updated = updated && bind_update(in, bound);
+            });
+            if (!updated) {
+                object->unloading = false;
+                return false;
+            }
             std::vector<Value> unload_arguments{Value{Int16{0}}};
             if (!raise(in, form, "", -1, "unload", unload_arguments, offset)) {
                 object->unloading = false;
@@ -2451,6 +2461,135 @@ struct FormSupport {
         return false;
     }
 
+    // ----- Data binding (REQ-0131) --------------------------------------
+
+    [[nodiscard]] static bool is_bindable(const ControlObject& object) {
+        return !object.is_form &&
+               (object.class_key == "textbox" || object.class_key == "label" ||
+                object.class_key == "checkbox" ||
+                object.class_key == "combobox");
+    }
+
+    [[nodiscard]] static const char* bound_property(
+        const ControlObject& object) {
+        if (object.class_key == "label") {
+            return "caption";
+        }
+        return object.class_key == "checkbox" ? "value" : "text";
+    }
+
+    // The object a bound control reads from (DataSource, then DataMember);
+    // `ok` is false when an error was raised. Empty without a binding.
+    [[nodiscard]] static std::optional<Value> bound_source(
+        Interpreter& in, ControlObject& object, bool& ok) {
+        ok = true;
+        const auto found = object.values.find("datasource");
+        if (found == object.values.end() ||
+            !std::holds_alternative<ObjectInstance>(found->second) ||
+            text_value(object, "datafield").empty()) {
+            return std::nullopt;
+        }
+        Value source = found->second;
+        const std::string member = text_value(object, "datamember");
+        if (!member.empty()) {
+            std::vector<Value> arguments{source, Value{member},
+                                         Value{Integer{2}}};
+            auto next =
+                in.evaluate_misc_function("callbyname", arguments, in.offset_);
+            if (!next.has_value()) {
+                ok = false;
+                return std::nullopt;
+            }
+            source = std::move(*next);
+            if (!std::holds_alternative<ObjectInstance>(source)) {
+                static_cast<void>(in.raise_runtime(
+                    91, "Object variable or With block variable not set",
+                    in.offset_));
+                ok = false;
+                return std::nullopt;
+            }
+        }
+        return source;
+    }
+
+    // Reads the bound field into the control (DataChanged becomes False).
+    [[nodiscard]] static bool bind_refresh(Interpreter& in,
+                                           ControlObject& object) {
+        if (!is_bindable(object)) {
+            return true;
+        }
+        bool ok = true;
+        const auto source = bound_source(in, object, ok);
+        if (!source.has_value()) {
+            return ok;
+        }
+        std::vector<Value> arguments{
+            *source, Value{text_value(object, "datafield")}, Value{Integer{2}}};
+        auto field =
+            in.evaluate_misc_function("callbyname", arguments, in.offset_);
+        if (!field.has_value()) {
+            return false;
+        }
+        const std::string property = bound_property(object);
+        Value shown;
+        if (std::holds_alternative<Null>(*field) ||
+            std::holds_alternative<Empty>(*field)) {
+            shown =
+                property == "value" ? Value{Int16{0}} : Value{std::string{}};
+        } else if (property == "value") {
+            const bool on = whole_value(*field).value_or(0) != 0 ||
+                            (std::holds_alternative<bool>(*field) &&
+                             std::get<bool>(*field));
+            shown = Value{Int16{static_cast<std::int16_t>(on ? 1 : 0)}};
+        } else {
+            shown = Value{Interpreter::render(*field)};
+        }
+        const bool changed = !(object.values[property] == shown);
+        object.values[property] = shown;
+        object.values["datachanged"] = Value{false};
+        if (object.window != ui::kNoWindow) {
+            auto& host = *runtime(in).host;
+            if (property == "value") {
+                push_state(in, object);
+            } else {
+                host.set_text(object.window, std::get<std::string>(shown));
+            }
+        }
+        if (changed && property != "value" && object.class_key != "label") {
+            object.bind_busy = true;
+            const bool raised =
+                raise_table_event(in, object, "Change", {}, in.offset_);
+            object.bind_busy = false;
+            object.values["datachanged"] = Value{false};
+            return raised;
+        }
+        return true;
+    }
+
+    // Writes a pending edit (DataChanged) back to the bound field.
+    [[nodiscard]] static bool bind_update(Interpreter& in,
+                                          ControlObject& object) {
+        if (!is_bindable(object) || !flag_of(object, "datachanged")) {
+            return true;
+        }
+        bool ok = true;
+        const auto source = bound_source(in, object, ok);
+        if (!source.has_value()) {
+            return ok;
+        }
+        const std::string property = bound_property(object);
+        const Value current = object.values[property];
+        std::vector<Value> arguments{*source,
+                                     Value{text_value(object, "datafield")},
+                                     Value{Integer{4}}, current};
+        if (!in.evaluate_misc_function("callbyname", arguments, in.offset_)
+                 .has_value()) {
+            return false;
+        }
+        object.values["datachanged"] = Value{false};
+        return true;
+    }
+
     // ----- Drive, directory and file list boxes ------------------------
 
     [[nodiscard]] static std::string text_value(const ControlObject& object,
@@ -2575,6 +2714,14 @@ struct FormSupport {
         sync_list(in, list);
     }
 
+    [[nodiscard]] static bool report_bind(Interpreter& in, ControlObject& self,
+                                          NativeFailure& failure) {
+        if (!bind_refresh(in, self)) {
+            failure = reported();
+        }
+        return true;
+    }
+
     // The post-assignment work of Path, Pattern, Drive and FileName.
     [[nodiscard]] static bool file_list_changed(Interpreter& in,
                                                 ControlObject& self,
@@ -2653,6 +2800,16 @@ struct FormSupport {
             member == "max" || member == "smallchange" ||
             member == "largechange") {
             push_state(in, self);
+        }
+        if (!self.is_form &&
+            (member == "datasource" || member == "datamember" ||
+             member == "datafield")) {
+            return report_bind(in, self, failure);
+        }
+        if (is_bindable(self) && !self.bind_busy &&
+            member == bound_property(self) &&
+            !text_value(self, "datafield").empty()) {
+            self.values["datachanged"] = Value{true};
         }
         if (self.is_file_list() && !self.is_form &&
             (member == "path" || member == "pattern" || member == "drive" ||
@@ -2779,6 +2936,10 @@ struct FormSupport {
                 return true;
             }
             source->values["text"] = Value{typed};
+            if (is_bindable(*source) &&
+                !text_value(*source, "datafield").empty()) {
+                source->values["datachanged"] = Value{true};
+            }
         }
         const bool input = name == "click" || name == "dblclick" ||
                            name == "keydown" || name == "keyup" ||
@@ -3129,6 +3290,10 @@ struct FormSupport {
             if (command == "set") {
                 const Value text{rest};
                 object->values["text"] = text;
+                if (is_bindable(*object) &&
+                    !text_value(*object, "datafield").empty()) {
+                    object->values["datachanged"] = Value{true};
+                }
                 state.host->set_text(object->window, rest);
                 state.host->post_event(
                     ui::UiEvent{object->window, "Change", {}});
@@ -3554,6 +3719,7 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     Value converted = value;
     const std::string setter_type = setter->type;
     const bool object_type = setter_type == "Picture" ||
+                             setter_type == "DataSource" ||
                              setter_type == "Font" || setter_type == "Object" ||
                              setter_type == "Control" ||
                              setter_type == "Form" || setter_type == "Variant";
