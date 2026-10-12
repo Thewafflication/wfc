@@ -178,7 +178,19 @@ estimates). `Printer.Print` accepts the full Print statement syntax and spools
 text; `NewPage` starts the next page; `EndDoc` writes the document to the
 Immediate output as `[Printer]` lines (with `-- new page --` markers) and
 `KillDoc` discards it. `Printers.Count` is 1 and `Printers(0)` is `Printer`.
-Graphics methods on the printer and `PrintForm` are not implemented.
+Graphics methods on the printer and `PrintForm` are not implemented in the Win32 host.
+
+## OLE drag and drop (headless model)
+
+`DataObject` (`SetData`, `GetData`, `GetFormat`, `Clear`, `Files`) and the
+`vbDropEffect*`, `vbOLEDrag*` and `vbOLEDrop*` constants exist. The input script
+command `oledrag <source> <destination> [x y]` runs the sequence of an OLE drag:
+`OLEStartDrag(Data, AllowedEffects)` on the source (copy and move allowed), then,
+when the destination's `OLEDropMode` is manual, `OLEDragOver` (state `vbEnter`)
+and `OLEDragDrop` there with the effect the handler chose, and finally
+`OLECompleteDrag(Effect)` on the source (effect 0 when nothing accepts the
+data). Dragging between processes with a real `IDropSource`/`IDropTarget` is not
+implemented.
 
 ## Drive, directory and file list boxes
 
@@ -245,4 +257,4 @@ MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `-183-licenses`, `-184-form-mouse`, `-174-form-button-picture`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `-172-form-frx-list`, `-173-form-controls-add`, `-183-licenses`, `-184-form-mouse`, `-185-form-oledrag`, `-174-form-button-picture`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

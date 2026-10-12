@@ -1,0 +1,3 @@
+oledrag Form1.Src Form1.Dst 10 20
+oledrag Form1.Src Form1.Other 1 1
+close Form1

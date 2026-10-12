@@ -669,6 +669,87 @@ mCount = mCount - 1
 End Sub
 )VB";
 
+inline constexpr std::string_view kDataObjectFilesSource =
+    R"VB(Private mNames() As String
+Private mCount As Long
+Public Property Get Count() As Long
+Count = mCount
+End Property
+Public Sub Add(ByVal bstrFilename As String)
+mCount = mCount + 1
+ReDim Preserve mNames(1 To mCount)
+mNames(mCount) = bstrFilename
+End Sub
+Public Sub Clear()
+mCount = 0
+End Sub
+Public Property Get Item(ByVal lIndex As Long) As String
+Attribute Item.VB_UserMemId = 0
+If lIndex < 1 Or lIndex > mCount Then Err.Raise 9, , "Subscript out of range"
+Item = mNames(lIndex)
+End Property
+Public Sub Remove(ByVal vIndex As Long)
+Dim i As Long
+If vIndex < 1 Or vIndex > mCount Then Err.Raise 9, , "Subscript out of range"
+For i = vIndex To mCount - 1
+mNames(i) = mNames(i + 1)
+Next i
+mCount = mCount - 1
+End Sub
+)VB";
+
+inline constexpr std::string_view kDataObjectSource =
+    R"VB(Private mFormats() As Long
+Private mData() As Variant
+Private mCount As Long
+Private mFiles As WfcDataObjectFiles
+Private Function Find(ByVal Format As Long) As Long
+Dim i As Long
+For i = 1 To mCount
+If mFormats(i) = Format Then
+Find = i
+Exit Function
+End If
+Next i
+End Function
+Public Property Get Files() As Object
+If mFiles Is Nothing Then Set mFiles = New WfcDataObjectFiles
+Set Files = mFiles
+End Property
+Public Sub Clear()
+mCount = 0
+If Not mFiles Is Nothing Then mFiles.Clear
+End Sub
+Public Sub SetData(Optional Value, Optional Format)
+Dim f As Long
+Dim i As Long
+If IsMissing(Format) Then f = 1 Else f = CLng(Format)
+If f = 15 Then Err.Raise 5, , "Invalid procedure call or argument"
+i = Find(f)
+If i = 0 Then
+mCount = mCount + 1
+ReDim Preserve mFormats(1 To mCount)
+ReDim Preserve mData(1 To mCount)
+i = mCount
+End If
+mFormats(i) = f
+If IsObject(Value) Then Set mData(i) = Value Else mData(i) = Value
+End Sub
+Public Function GetData(ByVal Format As Integer) As Variant
+Dim i As Long
+i = Find(Format)
+If i = 0 Then Err.Raise 461, , "Specified format doesn't match format of data"
+If IsObject(mData(i)) Then Set GetData = mData(i) Else GetData = mData(i)
+End Function
+Public Function GetFormat(ByVal Format As Integer) As Boolean
+If Format = 15 Then
+GetFormat = (Not mFiles Is Nothing) And (Files.Count > 0)
+Else
+GetFormat = Find(Format) <> 0
+End If
+End Function
+)VB";
+
 inline constexpr std::string_view kFormsSource =
     R"VB(Public Property Get Count() As Long
 Count = 0

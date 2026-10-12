@@ -1493,6 +1493,15 @@ void Interpreter::scan_builtin_classes() {
     if (needs_object("clipboard")) {
         class_sources_.push_back({"WfcClipboard", kClipboardSource});
     }
+    if (any_source_mentions("dataobject", true) ||
+        any_source_mentions("oledragdrop", false)) {
+        class_sources_.push_back(
+            {"WfcDataObjectFiles", kDataObjectFilesSource});
+        class_sources_.push_back({"WfcDataObject", kDataObjectSource});
+        if (!user_defines("dataobject")) {
+            class_sources_.push_back({"DataObject", kDataObjectSource});
+        }
+    }
     if (any_source_mentions("licenses", true)) {
         class_sources_.push_back({"WfcLicenses", kLicensesSource});
     }

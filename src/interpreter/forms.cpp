@@ -3621,6 +3621,57 @@ struct FormSupport {
         return true;
     }
 
+    // The scripted equivalent of an OLE drag: OLEStartDrag on the source
+    // fills a DataObject, then OLEDragOver and OLEDragDrop run on the target
+    // when its OLEDropMode is manual, and OLECompleteDrag ends it.
+    [[nodiscard]] static bool ole_drag(Interpreter& in, const Target& source,
+                                       const Target& destination,
+                                       const double x, const double y) {
+        ControlObject* from =
+            control_named(*source.form, source.control, source.index);
+        ControlObject* to = control_named(
+            *destination.form, destination.control, destination.index);
+        if (from == nullptr || to == nullptr ||
+            !in.class_definitions_.contains("wfcdataobject")) {
+            return true;
+        }
+        auto data = in.instantiate_class("wfcdataobject", in.offset_);
+        if (!data.has_value()) {
+            return false;
+        }
+        // vbDropEffectCopy (1) | vbDropEffectMove (2) are allowed.
+        std::vector<Value> start{*data, Value{Integer{3}}};
+        if (!raise(in, *source.form, from->is_form ? std::string{} : from->name,
+                   from->index, "olestartdrag", start, in.offset_)) {
+            return false;
+        }
+        long effect = 3;
+        if (number_of(*to, "oledropmode") == 1.0) {
+            for (const char* name : {"oledragover", "oledragdrop"}) {
+                std::vector<Value> arguments{*data, Value{Integer{effect}}};
+                arguments.push_back(Value{Int16{1}});  // Button
+                arguments.push_back(Value{Int16{0}});  // Shift
+                arguments.push_back(Value{static_cast<float>(x)});
+                arguments.push_back(Value{static_cast<float>(y)});
+                if (std::string_view(name) == "oledragover") {
+                    arguments.push_back(Value{Int16{0}});  // vbEnter
+                }
+                if (!raise(in, *destination.form,
+                           to->is_form ? std::string{} : to->name, to->index,
+                           name, arguments, in.offset_)) {
+                    return false;
+                }
+                effect = whole_value(arguments[1]).value_or(effect);
+            }
+        } else {
+            effect = 0;  // vbDropEffectNone: nothing accepts the data
+        }
+        std::vector<Value> done{Value{Integer{effect}}};
+        return raise(in, *source.form,
+                     from->is_form ? std::string{} : from->name, from->index,
+                     "olecompletedrag", done, in.offset_);
+    }
+
     // One line of the scripted input.
     [[nodiscard]] static bool run_script_line(Interpreter& in,
                                               const std::string& line) {
@@ -3663,6 +3714,21 @@ struct FormSupport {
                 state.headless->advance_time(std::atol(target_text.c_str()));
             }
             return true;
+        }
+        if (command == "oledrag") {
+            // oledrag <source> <destination> [x y]
+            std::istringstream tail(rest);
+            std::string destination_text;
+            double x = 0;
+            double y = 0;
+            tail >> destination_text >> x >> y;
+            Target source;
+            Target destination;
+            if (!resolve_target(in, target_text, source) ||
+                !resolve_target(in, destination_text, destination)) {
+                return true;
+            }
+            return ole_drag(in, source, destination, x, y);
         }
         if (command == "drag") {
             // drag <source> <destination> [x y]

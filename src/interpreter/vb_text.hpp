@@ -578,6 +578,16 @@ inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
         {"vbenter", 0},
         {"vbleave", 1},
         {"vbover", 2},
+        // OLE drag and drop
+        {"vbdropeffectnone", 0},
+        {"vbdropeffectcopy", 1},
+        {"vbdropeffectmove", 2},
+        {"vbdropeffectscroll", -2147483647L - 1L},
+        {"vboledragmanual", 0},
+        {"vboledragautomatic", 1},
+        {"vboledropnone", 0},
+        {"vboledropmanual", 1},
+        {"vboledropautomatic", 2},
         // ArrangeConstants
         {"vbcascade", 0},
         {"vbtilehorizontal", 1},

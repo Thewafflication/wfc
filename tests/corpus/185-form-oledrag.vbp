@@ -1,0 +1,4 @@
+Type=Exe
+Form=185-form-oledrag.frm
+Startup="Form1"
+WfcUiScript=185-form-oledrag.ui
