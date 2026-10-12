@@ -441,8 +441,17 @@ std::optional<Value> Interpreter::invoke_definition(
                 emulate_win32_call(export_name, arguments, identifier_offset)) {
             return emulated;
         }
-        static_cast<void>(raise_runtime(453, "Specified DLL function not found",
-                                        identifier_offset));
+        if (error_.diagnostic.empty()) {
+            // Everything else is called in the real DLL (REQ-0307).
+            if (auto called = call_declared_dll(definition, arguments,
+                                                identifier_offset)) {
+                return called;
+            }
+        }
+        if (error_.diagnostic.empty()) {
+            static_cast<void>(raise_runtime(
+                453, "Specified DLL function not found", identifier_offset));
+        }
         return std::nullopt;
     }
     const auto& parameters = definition.parameters;

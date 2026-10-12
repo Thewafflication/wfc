@@ -712,8 +712,8 @@ std::optional<bool> Interpreter::parse_file_statement(
         if (files_.contains(number)) {
             return raise_runtime(55, "File already open", statement_offset);
         }
-        // A second Open of a file this program already has open fails
-        // unless both opens say Shared.
+        // A file open for Output or Append must be closed before another
+        // number opens it; Input, Binary and Random opens may overlap.
         std::string normalized_path;
         {
             std::error_code normalize_error;
@@ -724,8 +724,11 @@ std::optional<bool> Interpreter::parse_file_statement(
                 c = c == '/' ? '\\' : ascii_lower(c);
             }
             for (const auto& [other_number, other] : files_) {
+                const auto writing = [](const int open_mode) {
+                    return open_mode == 2 || open_mode == 3;
+                };
                 if (other.path == normalized_path &&
-                    !(shared && other.shared)) {
+                    (writing(mode) || writing(other.mode))) {
                     return raise_runtime(55, "File already open",
                                          statement_offset);
                 }

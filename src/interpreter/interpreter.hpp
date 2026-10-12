@@ -145,6 +145,26 @@ struct ProcedureParameter {
     bool is_object_array_parameter{};
 };
 
+// The type of a parameter or result of a `Declare`d routine.
+enum class ExternalType {
+    Long,
+    Integer,
+    Byte,
+    Boolean,
+    Single,
+    Double,
+    String,
+    Udt,
+    Any,
+    Variant
+};
+
+struct ExternalParameter {
+    bool by_val{};
+    ExternalType type{ExternalType::Long};
+    std::string udt;  // lower-cased user-defined type name
+};
+
 // A `Sub`/`Function` declaration found by the module-level pre-scan
 // (`Interpreter::scan_procedures`). `body_start`/`body_end` bound the
 // statements between the header line and the matching `End Sub`/`End
@@ -181,6 +201,14 @@ struct ProcedureDef {
     // The lower-cased export a `Declare ... Alias "name"` binds to; empty when
     // the routine is declared under its own name.
     std::string external_name;
+    // REQ-0307: the DLL, the export (original case) and the declared
+    // signature, used to call the real routine.
+    std::string external_library;
+    std::string external_export;
+    std::vector<ExternalParameter> external_parameters;
+    bool external_signature_known{};
+    bool external_has_return{};
+    ExternalType external_return{ExternalType::Long};
     std::size_t body_start{};
     std::size_t body_end{};
     std::size_t declaration_end{};
@@ -1645,6 +1673,16 @@ private:
     // LoadResString(id) / LoadResData(id, type) over the project's .res file.
     [[nodiscard]] std::optional<Value> load_resource_builtin(
         const std::string_view name, const std::vector<Value>& arguments,
+        std::size_t offset);
+    // Reads `Lib`, `Alias` and the parameter list of a `Declare` line that
+    // starts at `from` (dllcall.cpp).
+    void scan_declare_signature(ProcedureDef& external,
+                                const std::string& declared_name,
+                                std::size_t from);
+    // Calls the declared routine in its DLL; empty when it cannot
+    // (dllcall.cpp).
+    [[nodiscard]] std::optional<Value> call_declared_dll(
+        const ProcedureDef& definition, std::vector<CallArgument>& arguments,
         std::size_t offset);
     [[nodiscard]] std::optional<Value> emulate_win32_call(
         std::string name, std::vector<CallArgument>& arguments,

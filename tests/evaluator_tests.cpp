@@ -1746,12 +1746,12 @@ int main() {
                                      " 5            -5 \na 7 True");
     // Declare statements (REQ-0266).
     expect_program_success(
-        "Private Declare Function GetCurrentProcessId Lib \"kernel32\" () As "
+        "Private Declare Function WfcMissingFunction Lib \"kernel32\" () As "
         "Long\n"
-        "Public Declare PtrSafe Sub MessageBeep Lib \"user32\" (ByVal t As "
+        "Public Declare PtrSafe Sub WfcMissingSub Lib \"user32\" (ByVal t As "
         "Long)\nOn Error Resume Next\n"
-        "Dim t As Long\nt = GetCurrentProcessId()\nPrint "
-        "Err.Number\nMessageBeep 10\nPrint Err.Number & \" \" & "
+        "Dim t As Long\nt = WfcMissingFunction()\nPrint "
+        "Err.Number\nWfcMissingSub 10\nPrint Err.Number & \" \" & "
         "Err.Description",
         "453\n453 Specified DLL function not found");
     // UDT arrays, results and Variant copies (REQ-0267).

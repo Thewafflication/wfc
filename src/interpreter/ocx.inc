@@ -221,6 +221,7 @@ struct WinsockState final : OcxState {
     std::string received;  // data waiting for GetData
     std::map<long, net::Handle> pending;  // connections offered, by request
     bool peer_closed{false};
+    bool bound{false};
     ~WinsockState() override {
         net::close(socket);
         for (const auto& [id, handle] : pending) {
@@ -498,6 +499,7 @@ void reset_socket(Interpreter& in, ControlObject& control, const Integer state) 
     }
     self.values["localport"] =
         Value{static_cast<Integer>(net::local_port(socket.socket))};
+    socket.bound = true;
     return true;
 }
 
@@ -657,6 +659,11 @@ bool winsock_get(Interpreter& in, ControlObject& self, const std::string& member
         if (is_udp(self)) {
             if (!ensure_socket(in, self, failure)) {
                 return true;
+            }
+            if (!socket.bound && property_whole(self, "localport") > 0 &&
+                !bind_socket(in, self, "", property_whole(self, "localport"),
+                             failure)) {
+                return true;  // a datagram uses LocalPort as its own port
             }
             if (socket_status(self) == kClosed) {
                 set_state(in, self, kOpen);

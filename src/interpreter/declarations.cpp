@@ -780,6 +780,7 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             }
             skip_horizontal_whitespace();
             char declare_type_character{};
+            const auto declared_start = offset_;
             auto declared = parse_identifier(&declare_type_character);
             if (!declared.has_value() ||
                 class_member_name_used(class_def, *declared)) {
@@ -810,6 +811,10 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
                         rest.substr(open + 1U, close - open - 1U);
                 }
             }
+            scan_declare_signature(
+                external,
+                std::string(source_.substr(declared_start, declared->size())),
+                offset_);
             skip_rest_of_line();
             class_def.methods.emplace(std::move(*declared),
                                       std::move(external));
@@ -1862,6 +1867,7 @@ bool Interpreter::scan_procedures() {
             // body; register the name so a call reports error 453.
             skip_horizontal_whitespace();
             char declare_type_character{};
+            const auto declared_start = offset_;
             auto declared = parse_identifier(&declare_type_character);
             if (declared.has_value() && !is_reserved_identifier(*declared) &&
                 !procedures_.contains(*declared)) {
@@ -1888,6 +1894,10 @@ bool Interpreter::scan_procedures() {
                             rest.substr(open + 1U, close - open - 1U);
                     }
                 }
+                scan_declare_signature(external,
+                                       std::string(source_.substr(
+                                           declared_start, declared->size())),
+                                       offset_);
                 procedures_.emplace(*declared, std::move(external));
             }
             skip_rest_of_line();

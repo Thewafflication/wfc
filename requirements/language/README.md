@@ -412,3 +412,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0295 — WFC classes served as COM objects](req-0295-com-server.md)
 - [REQ-0303 — Packaged programs](req-0303-packaged-programs.md)
 - [REQ-0306 — Implicit loop variables and default-property assignment](req-0306-implicit-declaration-defaults.md)
+- [REQ-0307 — Calling `Declare`d DLL routines](req-0307-declare-dll-calls.md)

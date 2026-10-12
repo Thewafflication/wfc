@@ -75,6 +75,13 @@ Handle open(const bool udp, int& error) {
     }
     u_long on = 1;
     ioctlsocket(created, FIONBIO, &on);
+    if (udp) {
+        // Datagram sockets may send to a broadcast address, as Winsock's do.
+        BOOL broadcast = TRUE;
+        setsockopt(created, SOL_SOCKET, SO_BROADCAST,
+                   reinterpret_cast<const char*>(&broadcast),
+                   sizeof(broadcast));
+    }
     return static_cast<Handle>(created);
 }
 

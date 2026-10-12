@@ -164,6 +164,7 @@ blocks a project, or a stage runs more than twice its forecast.
 ## References
 
 - [Roadmap to 1.0.0](roadmap-1.0.md)
+- [WPM package and first release plan](MP-0008-release-plan.md)
 - [MP-0007 closeout record](MP-0007-closeout.md)
 - [ADR-0006](../architecture/adr-0006-activex-hosting.md)
 - [VB6 Game Archives](https://sourceforge.net/projects/vb6gamearchive/)

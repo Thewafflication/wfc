@@ -1716,15 +1716,21 @@ bool Interpreter::parse_block_if_statement(const bool enclosing_execution,
             execute_ = enclosing_execution && !branch_selected;
             continue;
         }
+        const auto before_end = offset_;
         if (consume_keyword("end")) {
             skip_horizontal_whitespace();
-            if (!consume_keyword("if")) {
+            if (consume_keyword("if")) {
+                execute_ =
+                    control_exit_requested() ? false : enclosing_execution;
+                return true;
+            }
+            if (!at_statement_end()) {
                 execute_ = enclosing_execution;
                 set_error("WFC0025", "expected If after End", offset_);
                 return false;
             }
-            execute_ = control_exit_requested() ? false : enclosing_execution;
-            return true;
+            // A bare `End` is the statement that ends the program.
+            offset_ = before_end;
         }
         const bool enclosing_declaration_permission = allow_declarations_;
         allow_declarations_ = false;

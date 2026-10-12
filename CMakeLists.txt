@@ -34,6 +34,7 @@ target_sources(
     src/interpreter/forms.cpp
     src/interpreter/forms.hpp
     src/interpreter/winapi.cpp
+    src/interpreter/dllcall.cpp
     src/interpreter/winsock_io.cpp
     src/interpreter/winsock_io.hpp
     src/interpreter/ocx.inc
@@ -2159,7 +2160,7 @@ Print x + 1]=]
     NAME TC-MP0002-declare-cli
     COMMAND
       wfc --eval
-      [=[Declare Function F Lib "x" () As Long
+      [=[Declare Function F Lib "kernel32" () As Long
 On Error Resume Next
 Print F()
 Print Err.Number]=]
