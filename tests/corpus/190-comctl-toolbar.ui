@@ -1,0 +1,9 @@
+ui Form1.Tool1 button new
+ui Form1.Tool1 button bold
+ui Form1.Tool1 button bold
+ui Form1.Tool1 button left
+ui Form1.Tool1 button sep
+ui Form1.Tool1 dropdown drop
+ui Form1.Tool1 menu drop m2
+ui Form1.Tool1 customize
+close Form1

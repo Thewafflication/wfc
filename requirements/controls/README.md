@@ -40,3 +40,4 @@ matching-number VB6 reference and WFC conformance tests.
 
 - [REQ-0296 — Collections, value objects and the native controls](req-0296-comctl-object-model.md)
 - [REQ-0297 — TabStrip and StatusBar behavior](req-0297-comctl-tabstrip-statusbar.md)
+- [REQ-0298 — Toolbar behavior](req-0298-comctl-toolbar.md)

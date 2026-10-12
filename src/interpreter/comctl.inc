@@ -789,6 +789,18 @@ bool ComctlItem::get(Interpreter& in, const std::string& member,
         member == "_default" ? std::string(spec.default_property) : member;
     if (ComctlHooks::item_get(in, *control, ref.kind, item, ref, name, arguments,
                               result, failure)) {
+        if (!arguments.empty()) {
+            // `Button.ButtonMenus("key")`: the arguments index a collection.
+            const auto* holder = std::get_if<ObjectInstance>(&result);
+            if (holder != nullptr && holder->data != nullptr &&
+                dynamic_cast<ComctlCollection*>(holder->data->native.get())) {
+                Value indexed;
+                if (holder->data->native->get(in, "item", arguments, indexed,
+                                              failure)) {
+                    result = indexed;
+                }
+            }
+        }
         return true;
     }
     if (name == "index") {
@@ -1261,7 +1273,261 @@ struct TabRect {
     return false;
 }
 
-// @@KINDS
+// ----- Toolbar ------------------------------------------------------------------
+
+constexpr int kStyleDefault = 0;
+constexpr int kStyleCheck = 1;
+constexpr int kStyleGroup = 2;
+constexpr int kStyleSeparator = 3;
+constexpr int kStylePlaceholder = 4;
+constexpr int kStyleDropdown = 5;
+
+[[nodiscard]] int button_style(const ItemPtr& button) {
+    return static_cast<int>(item_number(button, "style"));
+}
+
+// A word of a scripted action: a number, or else a key.
+[[nodiscard]] Value selector_of(const std::string& text) {
+    char* end = nullptr;
+    const double number = std::strtod(text.c_str(), &end);
+    if (end != text.c_str() && std::string(end).empty()) {
+        return Value{number};
+    }
+    return Value{text};
+}
+
+// Position and size of every button in twips (wrapping with `Wrappable`
+// starts a new row when the toolbar is full).
+[[nodiscard]] std::vector<TabRect> button_layout(ControlObject& control) {
+    std::vector<TabRect> rects;
+    const double height = number_property(control, "buttonheight") > 0.0
+                              ? number_property(control, "buttonheight")
+                              : 330.0;
+    const double total = number_property(control, "width");
+    const double fixed = number_property(control, "buttonwidth");
+    bool wrap = true;
+    if (const auto found = control.values.find("wrappable");
+        found != control.values.end() &&
+        std::holds_alternative<bool>(found->second)) {
+        wrap = std::get<bool>(found->second);
+    }
+    double x = 0.0;
+    double y = 0.0;
+    for (const auto& button : top_list(control, "button")) {
+        if (!flag(button, "visible")) {
+            rects.push_back({});
+            continue;
+        }
+        const int style = button_style(button);
+        const auto caption = button->p.at("caption");
+        const std::size_t length =
+            std::holds_alternative<std::string>(caption)
+                ? std::get<std::string>(caption).size()
+                : 0U;
+        double width = 360.0;
+        if (style == kStyleSeparator) {
+            width = 120.0;
+        } else if (style == kStylePlaceholder) {
+            width = std::max(item_number(button, "width"), 120.0);
+        } else if (item_number(button, "width") > 0.0) {
+            width = item_number(button, "width");
+        } else if (fixed > 0.0) {
+            width = fixed;
+        } else {
+            width = std::max(360.0, 120.0 + 95.0 * static_cast<double>(length));
+        }
+        if (wrap && total > 0.0 && x > 0.0 && x + width > total) {
+            x = 0.0;
+            y += height;
+        }
+        rects.push_back({x, y, width, height});
+        x += width;
+    }
+    return rects;
+}
+
+// Presses `button` of a button group and releases the others of the group.
+void press_group(ControlObject& control, const ItemPtr& button) {
+    auto& buttons = top_list(control, "button");
+    const long position = position_of(buttons, button);
+    if (position == 0) {
+        return;
+    }
+    std::size_t first = static_cast<std::size_t>(position) - 1U;
+    std::size_t last = first;
+    while (first > 0 && button_style(buttons[first - 1U]) == kStyleGroup) {
+        --first;
+    }
+    while (last + 1U < buttons.size() &&
+           button_style(buttons[last + 1U]) == kStyleGroup) {
+        ++last;
+    }
+    for (std::size_t i = first; i <= last; ++i) {
+        buttons[i]->p["value"] =
+            Value{static_cast<Int16>(buttons[i] == button ? 1 : 0)};
+    }
+}
+
+[[nodiscard]] bool button_get(HookCtx& ctx, const std::string& member,
+                              Value& result) {
+    if (member == "buttonmenus") {
+        ListRef ref;
+        ref.kind = "buttonmenu";
+        ref.parent = ctx.item;
+        result = wrap_collection(ctx.ref.owner.lock(), ref);
+        return true;
+    }
+    const auto rects = button_layout(ctx.control);
+    const long position =
+        position_of(top_list(ctx.control, "button"), ctx.item);
+    TabRect rect;
+    if (position >= 1 && static_cast<std::size_t>(position) <= rects.size()) {
+        rect = rects[static_cast<std::size_t>(position) - 1U];
+    }
+    if (member == "left") {
+        result = Value{static_cast<float>(rect.left)};
+    } else if (member == "top") {
+        result = Value{static_cast<float>(rect.top)};
+    } else if (member == "height") {
+        result = Value{static_cast<float>(rect.height)};
+    } else if (member == "width") {
+        result = Value{static_cast<float>(rect.width)};
+    } else {
+        return false;
+    }
+    return true;
+}
+
+// The user presses `button`.
+[[nodiscard]] bool click_button(Interpreter& in, ControlObject& control,
+                                const ItemPtr& button) {
+    const int style = button_style(button);
+    if (!flag(button, "enabled") || style == kStyleSeparator ||
+        style == kStylePlaceholder) {
+        return true;
+    }
+    if (style == kStyleCheck) {
+        button->p["value"] = Value{
+            static_cast<Int16>(item_number(button, "value") == 0.0 ? 1 : 0)};
+    } else if (style == kStyleGroup) {
+        press_group(control, button);
+    }
+    ListRef ref;
+    ref.kind = "button";
+    return raise_event(in, control, "ButtonClick",
+                       {wrap_item(control.self.lock(), ref, button)});
+}
+
+// Saved toolbar layouts (SaveToolbar / RestoreToolbar), per process.
+std::map<std::string, std::string>& saved_toolbars() {
+    static std::map<std::string, std::string> saved;
+    return saved;
+}
+
+[[nodiscard]] bool toolbar_member(ControlObject& self,
+                                  const std::string& member,
+                                  std::vector<CallArgument>& arguments,
+                                  Value& result, NativeFailure& failure) {
+    if (member == "customize") {
+        result = Value{Empty{}};  // there is no customization dialog
+        return true;
+    }
+    if (member != "savetoolbar" && member != "restoretoolbar") {
+        return false;
+    }
+    if (arguments.size() != 3U) {
+        failure = NativeFailure{450, "Wrong number of arguments"};
+        return true;
+    }
+    std::string name;
+    for (const auto& argument : arguments) {
+        name += FormSupport::text_of(argument.value) + "/";
+    }
+    result = Value{Empty{}};
+    if (member == "savetoolbar") {
+        std::string layout;
+        for (const auto& button : top_list(self, "button")) {
+            layout += FormSupport::text_of(button->p.at("key")) + "=" +
+                      (flag(button, "visible") ? "1" : "0") + ";";
+        }
+        saved_toolbars()[name] = layout;
+        return true;
+    }
+    const auto found = saved_toolbars().find(name);
+    if (found == saved_toolbars().end()) {
+        return true;
+    }
+    const std::string& layout = found->second;
+    std::size_t start = 0;
+    while (start < layout.size()) {
+        const auto end = layout.find(';', start);
+        const std::string entry = layout.substr(start, end - start);
+        const auto equals = entry.find('=');
+        if (equals != std::string::npos) {
+            for (const auto& button : top_list(self, "button")) {
+                if (same_key(button->p.at("key"), entry.substr(0, equals))) {
+                    button->p["visible"] =
+                        Value{entry.substr(equals + 1U) == "1"};
+                }
+            }
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        start = end + 1U;
+    }
+    return true;
+}
+
+[[nodiscard]] bool toolbar_input(Interpreter& in, ControlObject& self,
+                                 const std::string& action,
+                                 const std::string& rest) {
+    NativeFailure ignored;
+    if (action == "button" || action == "dropdown") {
+        const ItemPtr button =
+            find_item(top_list(self, "button"), selector_of(rest), ignored);
+        if (button == nullptr) {
+            return true;
+        }
+        if (action == "button") {
+            return click_button(in, self, button);
+        }
+        if (button_style(button) == kStyleDropdown && flag(button, "enabled")) {
+            ListRef ref;
+            ref.kind = "button";
+            return raise_event(in, self, "ButtonDropDown",
+                               {wrap_item(self.self.lock(), ref, button)});
+        }
+        return true;
+    }
+    if (action == "menu") {
+        std::istringstream words(rest);
+        std::string button_text;
+        std::string menu_text;
+        words >> button_text >> menu_text;
+        const ItemPtr button = find_item(top_list(self, "button"),
+                                         selector_of(button_text), ignored);
+        if (button == nullptr) {
+            return true;
+        }
+        const ItemPtr menu =
+            find_item(button->sub, selector_of(menu_text), ignored);
+        if (menu == nullptr || !flag(menu, "enabled")) {
+            return true;
+        }
+        ListRef ref;
+        ref.kind = "buttonmenu";
+        ref.parent = button;
+        return raise_event(in, self, "ButtonMenuClick",
+                           {wrap_item(self.self.lock(), ref, menu)});
+    }
+    if (action == "customize") {
+        return raise_event(in, self, "Change", {});
+    }
+    return true;
+}
+
+// @@KINDS_MORE
 
 }  // namespace
 
@@ -1329,6 +1595,9 @@ bool ComctlHooks::item_get(Interpreter& in, ControlObject& control,
     if (kind == "panel") {
         return panel_get(ctx, member, result);
     }
+    if (kind == "button") {
+        return button_get(ctx, member, result);
+    }
     return false;
 }
 
@@ -1359,6 +1628,29 @@ bool ComctlHooks::item_put(Interpreter& in, ControlObject& control,
         failure = NativeFailure{383, "Property is read-only"};
         return true;
     }
+    if (kind == "button") {
+        if (member == "left" || member == "top" || member == "height") {
+            failure = NativeFailure{383, "Property is read-only"};
+            return true;
+        }
+        if (member == "style" || member == "value") {
+            Value converted = value;
+            if (!coerce_property(in, converted, "Integer", failure)) {
+                return true;
+            }
+            const double number = as_double(converted);
+            if (number < 0 || number > (member == "style" ? 5 : 1)) {
+                failure = NativeFailure{380, "Invalid property value"};
+                return true;
+            }
+            item->p[member] = converted;
+            if (member == "value" && number == 1.0 &&
+                static_cast<int>(item_number(item, "style")) == kStyleGroup) {
+                press_group(control, item);
+            }
+            return true;
+        }
+    }
     return false;
 }
 
@@ -1382,6 +1674,10 @@ bool comctl_control_get(Interpreter& in, ControlObject& self,
                         std::vector<CallArgument>& arguments, Value& result,
                         NativeFailure& failure) {
     static_cast<void>(in);
+    if (self.class_key == "toolbar" &&
+        toolbar_member(self, member, arguments, result, failure)) {
+        return true;
+    }
     if (self.class_key == "tabstrip") {
         if (member == "selecteditem") {
             const ItemPtr tab = selected_tab(self);
@@ -1513,6 +1809,9 @@ bool ComctlSupport::user_input(Interpreter& in, InstanceData& form,
             return select_tab(in, self, tab, true, failure);
         }
         return true;
+    }
+    if (self.class_key == "toolbar") {
+        return toolbar_input(in, self, action, rest);
     }
     if (self.class_key == "statusbar" &&
         (action == "panel" || action == "paneldbl")) {

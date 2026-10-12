@@ -21,3 +21,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #1 | Planning | MP-0005 closed; `ADR-0006` accepted; MP-0006 plan baselined | `MP-0005-closeout.md`, `MP-0006-mscomctllib.md` |
 | 2026-10-12 #2 | Construction | Generated MSComctlLib tables, merged class tables, native control registration, generic collections and value objects, `ProgressBar`, `Slider`, `ImageList` (`REQ-0296`); corpus 188 | CTest 354/354 |
 | 2026-10-12 #3 | Construction | `TabStrip` and `StatusBar` behavior, MSComctlLib enumeration constants, `As Library.Class` parameters (`REQ-0297`); corpus 189 | CTest 355/355 |
+| 2026-10-12 #4 | Construction | `Toolbar` buttons, groups, drop-down menus, save/restore (`REQ-0298`); corpus 190 | CTest 356/356 |

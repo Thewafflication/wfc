@@ -1,0 +1,4 @@
+Type=Exe
+Form=190-comctl-toolbar.frm
+Startup="Form1"
+WfcUiScript=190-comctl-toolbar.ui
