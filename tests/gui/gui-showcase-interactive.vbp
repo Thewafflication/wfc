@@ -1,0 +1,3 @@
+Type=Exe
+Form=gui-showcase-interactive.frm
+Startup="frmPlay"
