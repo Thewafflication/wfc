@@ -111,6 +111,18 @@ int main(const int argument_count, const char* const arguments[]) {
         for (const auto& item : *command) {
             forwarded.push_back(item.c_str());
         }
+        // Options of the packaged program's own command line go through
+        // (`--exit-after 3000`, `--screenshots dir`); a value that follows an
+        // option goes with it.
+        for (int i = 1; i < argument_count; ++i) {
+            if (std::string_view(arguments[i]).rfind("--", 0) == 0) {
+                forwarded.push_back(arguments[i]);
+                while (i + 1 < argument_count &&
+                       std::string_view(arguments[i + 1]).rfind("--", 0) != 0) {
+                    forwarded.push_back(arguments[++i]);
+                }
+            }
+        }
         return run(static_cast<int>(forwarded.size()), forwarded.data());
     }
     if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {

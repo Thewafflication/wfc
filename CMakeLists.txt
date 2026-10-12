@@ -2298,6 +2298,21 @@ Print v.x & q.x]=]
         TC-MP0008-package-icon
         PROPERTIES LABELS "integration;mp-0008;package"
       )
+      add_test(
+        NAME TC-MP0008-package-standalone-gui
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+          "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-standalone"
+          "-DFORM=frmGame" -P "${package_tests}/run_package_gui.cmake"
+      )
+      set_tests_properties(
+        TC-MP0008-package-standalone-gui
+        PROPERTIES
+          RESOURCE_LOCK desktop
+          LABELS "integration;windows;mp-0008;package"
+          TIMEOUT 60
+      )
     endif()
   endif()
 

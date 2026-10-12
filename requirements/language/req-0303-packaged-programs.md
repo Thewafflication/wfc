@@ -25,7 +25,10 @@
   it extracts the files below `wfc-pkg-<hash>` in the temporary directory
   (rewriting any file that is missing or differs, so a tampered copy is
   repaired), then runs the project exactly as `wfc <project.vbp> [options]`
-  would. Command-line arguments of the packaged program are not forwarded.
+  would. Options of the packaged program's own command line (words beginning
+  with `--`, each with the values that follow it) are added to the stored ones,
+  so `app.exe --exit-after 3000 --screenshots dir` works; other arguments are
+  ignored.
 - **Errors.** A damaged payload or an extraction failure is reported on stderr
   and exits with status 2; a path in the payload that is absolute or contains
   `..` is rejected.
