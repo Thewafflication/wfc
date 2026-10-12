@@ -4,7 +4,9 @@
 
 **Milestone or work package:** MP-0004 — Forms and intrinsic controls (`0.4.0`)
 
-**Status:** Proposed — ready for owner approval (work continues until approval)
+**Status:** Complete (with documented deferrals)
+
+**Completion date:** 2026-10-11
 
 **Inherited baseline:** MP-0003 closeout (`MP-0003-closeout.md`)
 
@@ -13,7 +15,7 @@ Actions (x86, x64, ARM64) green through the data-binding commit
 
 **Owner:** Project maintainer
 
-**Approval:** Pending
+**Approval:** Owner approval in session, 2026-10-11
 
 ## Outcome
 
@@ -87,20 +89,22 @@ tests.
 
 | Item | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| VB6 reference probes | Ordering and rendering details unconfirmed | Project maintainer | Reference machine before 1.0 | Conformance tests and screenshots | Pending |
-| OLE drag and drop, OLE container hosting, `VBControlExtender` | ActiveX and OLE programs cannot run | Project maintainer | MP-0005 | `WFC0291` rejects them at load | Pending |
-| Printer graphics and `PrintForm` | Printing programs limited to text | Project maintainer | MP-0005 | Spooled text output | Pending |
-| Drawing fidelity (`DrawStyle`, `DrawMode`, `AutoRedraw`) | Some graphics differ | Project maintainer | MP-0008 | Documented in `REQ-0290` | Pending |
-| MDI menu merging | Child menus do not merge into the frame | Project maintainer | MP-0008 | Documented in `REQ-0289` | Pending |
+| VB6 reference probes | Ordering and rendering details unconfirmed | Project maintainer | Reference machine before 1.0 | Conformance tests and screenshots | Owner, 2026-10-11 |
+| OLE drag and drop, OLE container hosting, `VBControlExtender` | ActiveX and OLE programs cannot run | Project maintainer | MP-0005 | `WFC0291` rejects them at load | Owner, 2026-10-11 |
+| Printer graphics and `PrintForm` | Printing programs limited to text | Project maintainer | MP-0005 | Spooled text output | Owner, 2026-10-11 |
+| Drawing fidelity (`DrawStyle`, `DrawMode`, `AutoRedraw`) | Some graphics differ | Project maintainer | MP-0008 | Documented in `REQ-0290` | Owner, 2026-10-11 |
+| MDI menu merging | Child menus do not merge into the frame | Project maintainer | MP-0008 | Documented in `REQ-0289` | Owner, 2026-10-11 |
 
 ## Closeout Decision
 
-- **Decision:** Pending owner approval
-- **Proposed rationale:** All planned stages are implemented and verified; the
+- **Decision:** Complete with documented deferrals
+- **Approver:** Project maintainer
+- **Rationale:** All planned stages are implemented and verified; the
   deferrals above are allocated to later milestones or require the VB6
   reference machine.
-- **Next review or release action:** On approval set the plan and README status
-  to Closed and begin MP-0005.
+- **Required gates:** All Pass except the reference-probe gate (deferred) and the
+  persistence round trip (partial: WFC loads but does not write `.frm` files)
+- **Next review or release action:** `MP-0005-component-authoring.md`
 
 ## References
 

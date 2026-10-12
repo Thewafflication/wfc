@@ -11,7 +11,7 @@
 
 **Author:** Claude (Overlord cross-project assistant), on behalf of the owner.
 
-**Status:** Active
+**Status:** Closed 2026-10-11 (see [closeout record](MP-0004-closeout.md))
 
 Goal-level token usage and elapsed time: Not reported.
 

@@ -152,7 +152,9 @@ project/class conformance suite.
 
 ## MP-0004 — Forms and Intrinsic Controls (`0.4.0`)
 
-Detailed plan: [MP-0004](MP-0004-forms-and-controls.md);
+Detailed plan: [MP-0004](MP-0004-forms-and-controls.md); closed 2026-10-11
+with VB6 reference probes, OLE drag and drop and several drawing items deferred
+([closeout](MP-0004-closeout.md));
 [ADR-0005](../architecture/adr-0005-ui-platform.md).
 
 ### Outcome
@@ -178,6 +180,8 @@ and passing WFC conformance tests on the required milestone matrix. Removed
 legacy controls or behaviors produce their specified diagnostics.
 
 ## MP-0005 — Component Authoring, `stdole`, and OLE2 (`0.5.0`)
+
+Detailed plan: [MP-0005](MP-0005-component-authoring.md).
 
 ### Outcome
 

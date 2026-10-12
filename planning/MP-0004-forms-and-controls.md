@@ -1,7 +1,7 @@
 # MP-0004 — Forms and Intrinsic Controls
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Complete (see closeout record)  
 **Target baseline:** 0.4.0  
 **Planned period:** 2026-10-11 through milestone closeout  
 **Inherited baseline:** MP-0003 closeout (`MP-0003-closeout.md`)  
@@ -197,6 +197,7 @@ dependency (for example an image codec) is introduced.
 
 - [Roadmap to 1.0.0](roadmap-1.0.md)
 - [MP-0003 closeout record](MP-0003-closeout.md)
+- [MP-0004 closeout record](MP-0004-closeout.md)
 - [ADR-0005](../architecture/adr-0005-ui-platform.md)
 - [Form and intrinsic-control behavioral requirements](../requirements/vb/behavior/README.md)
 - [Visual Basic class requirements](../requirements/vb/classes/README.md)

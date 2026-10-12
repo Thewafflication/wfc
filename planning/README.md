@@ -22,10 +22,10 @@
 
 ## Active Milestone
 
-MP-0004 — Forms and Intrinsic Controls (`0.4.0`), per the
-[MP-0004 plan](MP-0004-forms-and-controls.md) and the
+MP-0005 — Component Authoring, `stdole`, and OLE2 (`0.5.0`), per the
+[MP-0005 plan](MP-0005-component-authoring.md) and the
 [roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0004 work log](work-log-mp-0004.md).
+[MP-0005 work log](work-log-mp-0005.md).
 
 Closed milestones:
 
@@ -35,10 +35,14 @@ Closed milestones:
   COM server hosting deferred to MP-0005; see the
   [closeout record](MP-0003-closeout.md), [plan](MP-0003-classes-projects-automation.md)
   and [work log](work-log-mp-0003.md).
+- MP-0004 — Forms and Intrinsic Controls (`0.4.0`), closed 2026-10-11 with
+  reference probes, OLE drag and drop, and several drawing items deferred; see
+  the [closeout record](MP-0004-closeout.md), [plan](MP-0004-forms-and-controls.md)
+  and [work log](work-log-mp-0004.md).
 
 The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`
-through the current `REQ-0288`.
+through the current `REQ-0291`.
 
 Detailed successor milestone plans shall be baselined during predecessor
 closeout. The roadmap fixes their objective, target version, dependencies, and
