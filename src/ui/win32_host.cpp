@@ -264,6 +264,9 @@ struct Win32Support {
 };
 
 Win32Host::Win32Host() {
+    // System DPI awareness: windows are laid out from twips at the system DPI
+    // instead of being bitmap-scaled by Windows. (Already set is fine.)
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE);
     if (const HDC context = GetDC(nullptr)) {
         dpi_x_ = GetDeviceCaps(context, LOGPIXELSX);
         dpi_y_ = GetDeviceCaps(context, LOGPIXELSY);

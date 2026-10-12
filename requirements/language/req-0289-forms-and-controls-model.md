@@ -201,6 +201,12 @@ not provide (including every ActiveX control until MP-0005/MP-0006) is rejected
 with `WFC0291`, and a property that refers to a missing or unreadable `.frx`
 record with `WFC0292`; nothing is skipped silently.
 
+## DPI
+
+The Win32 host declares system DPI awareness before creating windows and
+converts twips to pixels at the system DPI, so forms keep their VB layout on
+scaled displays. Per-monitor DPI changes while a program runs are not tracked.
+
 ## Known limits (extended later in MP-0004)
 
 OLE drag and drop, printer graphics, `PrintForm`, and
