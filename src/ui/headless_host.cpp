@@ -8,6 +8,13 @@
 #include <cstdio>
 #include <cstdlib>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <objbase.h>
+#include <windows.h>
+#endif
+
 namespace wfc::ui {
 
 const HeadlessHost::Window* HeadlessHost::find(const WindowId window) const {
@@ -380,6 +387,30 @@ void HeadlessHost::draw(const WindowId window, const DrawOp& operation) {
     }
     drawing_.push_back(line);
     trace_.push_back(line);
+}
+
+void* HeadlessHost::activex_object(const WindowId window) {
+#ifdef _WIN32
+    // No window system: the control is created without a site.
+    const auto* entry = find(window);
+    const std::string prefix = "ActiveX:";
+    if (entry == nullptr || entry->kind.rfind(prefix, 0) != 0) {
+        return nullptr;
+    }
+    const std::string text = entry->kind.substr(prefix.size());
+    const std::wstring wide(text.begin(), text.end());
+    CLSID class_id{};
+    IUnknown* object = nullptr;
+    if (SUCCEEDED(CLSIDFromString(wide.c_str(), &class_id)) &&
+        SUCCEEDED(CoCreateInstance(
+            class_id, nullptr, CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
+            IID_IUnknown, reinterpret_cast<void**>(&object)))) {
+        return object;
+    }
+#else
+    static_cast<void>(window);
+#endif
+    return nullptr;
 }
 
 void HeadlessHost::set_button_image(const WindowId window, const long picture) {

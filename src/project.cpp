@@ -338,6 +338,30 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                         value = value.substr(1, value.size() - 2U);
                     }
                     project.app_properties[app_key] = value;
+                } else if (key == "object") {
+                    // `{GUID}#major.minor#flags; file` -- an ActiveX control
+                    // library the forms use.
+                    const auto brace = value.find('{');
+                    const auto close = value.find('}');
+                    if (brace != std::string::npos &&
+                        close != std::string::npos && close > brace) {
+                        const auto hash = value.find('#', close);
+                        const auto second = hash == std::string::npos
+                                                ? hash
+                                                : value.find('#', hash + 1U);
+                        std::string spec =
+                            value.substr(brace, close - brace + 1U);
+                        spec += '#';
+                        if (hash != std::string::npos) {
+                            spec += value.substr(
+                                hash + 1U,
+                                (second == std::string::npos ? value.size()
+                                                             : second) -
+                                    hash - 1U);
+                        }
+                        spec += "#";
+                        project.type_libraries.push_back(std::move(spec));
+                    }
                 } else if (key == "reference") {
                     // `*\G{GUID}#major.minor#lcid#path#description`
                     const auto brace = value.find('{');
@@ -472,6 +496,14 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         static_cast<void>(strip_file_header(code));
         project.class_names.push_back(parsed.name);
         project.class_sources.push_back(std::move(code));
+        for (const auto& library : parsed.objects) {
+            const std::string spec = library + "#";
+            if (std::find(project.type_libraries.begin(),
+                          project.type_libraries.end(),
+                          spec) == project.type_libraries.end()) {
+                project.type_libraries.push_back(spec);
+            }
+        }
         project.class_files.push_back(form_path.string());
         project.class_form_texts.push_back(std::move(form_text));
         const auto parent = form_path.has_parent_path()

@@ -42,6 +42,9 @@ struct FrmFile {
     std::string error;
     std::size_t error_line{0};
     std::string version;
+    // `Object = "{GUID}#major.minor#flags"; "file"` lines: the control
+    // libraries the form uses, as "{GUID}#major.minor".
+    std::vector<std::string> objects;
     FrmObject root;
     // The `Attribute VB_Name = "..."` value, or the root object's name.
     std::string name;

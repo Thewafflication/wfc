@@ -24,3 +24,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #3 | Construction | Graphical button pictures (`Style = 1`) on the Win32 host and headless trace (`REQ-0289`); corpus 174 | CTest 336/336 |
 | 2026-10-11 #4 | Construction | Standalone `StdFont` (Clone, IsEqual, hFont, FontChanged, Weight) and `StdPicture` extras (`REQ-0095`, `REQ-0096`, `REQ-0291`); corpus 175 | CTest 337/337 |
 | 2026-10-11 #5 | Construction | `PropertyBag`; `write_frm_header` and corpus round trip (`REQ-0292`, `REQ-0115`); corpus 176 | CTest 338/338 |
+| 2026-10-11 #6 | Construction | ActiveX control hosting: `Object=` lines, ATL container (Win32) and unsited creation (headless), extender, event wiring, `ADR-0006` draft (`REQ-0293`); corpus 177, `TC-MP0005-gui-activex` | CTest 340/340 |

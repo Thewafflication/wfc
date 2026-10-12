@@ -1660,6 +1660,14 @@ private:
     [[nodiscard]] std::optional<Value> com_get_member_with(
         InstanceData& instance, const std::string& name,
         std::vector<CallArgument>& arguments, std::size_t offset);
+    // Assigns a property of a COM object from an evaluated value.
+    [[nodiscard]] bool com_put_member(InstanceData& instance,
+                                      const std::string& name,
+                                      std::vector<CallArgument>& arguments,
+                                      const Value& value, std::size_t offset);
+    // Wraps an IUnknown (a control a site created) as an object value and
+    // releases the caller's reference.
+    [[nodiscard]] Value com_wrap_unknown(void* unknown);
     // Replaces a COM object by its default property value when it has one
     // (repeating while the result is itself a COM object).
     void com_default_value(Value& value);
@@ -1699,6 +1707,8 @@ private:
     [[nodiscard]] bool run_forms_at_exit();
     // Dispatches the queued form events (DoEvents).
     [[nodiscard]] bool pump_forms();
+    // Forgets the error an optional operation raised.
+    void clear_error_for_retry() { error_ = wfc::Evaluation{}; }
     [[nodiscard]] bool has_pending_error() const {
         return !error_.diagnostic.empty();
     }

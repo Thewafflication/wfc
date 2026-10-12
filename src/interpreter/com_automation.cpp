@@ -56,6 +56,18 @@ std::optional<Value> Interpreter::com_get_member_with(
     return std::nullopt;
 }
 
+bool Interpreter::com_put_member(InstanceData&, const std::string&,
+                                 std::vector<CallArgument>&, const Value&,
+                                 const std::size_t offset) {
+    static_cast<void>(raise_runtime(
+        438, "Object doesn't support this property or method", offset));
+    return false;
+}
+
+Value Interpreter::com_wrap_unknown(void*) {
+    return Value{Nothing{}};
+}
+
 bool Interpreter::com_member_statement(const Value&, const std::string&,
                                        const std::size_t offset,
                                        const std::optional<std::string>&) {
@@ -914,6 +926,47 @@ std::optional<Value> Interpreter::com_get_object(const std::string& path,
     return wrapped;
 }
 
+bool Interpreter::com_put_member(InstanceData& instance,
+                                 const std::string& name,
+                                 std::vector<CallArgument>& arguments,
+                                 const Value& value, const std::size_t offset) {
+    if (!execute_) {
+        return true;
+    }
+    Value copy = value;
+    const bool object = std::holds_alternative<ObjectInstance>(copy);
+    auto outcome = invoke_member(
+        instance, name, object ? DISPATCH_PROPERTYPUTREF : DISPATCH_PROPERTYPUT,
+        arguments, &copy);
+    if (!outcome.ok) {
+        static_cast<void>(raise_runtime(outcome.failure.number,
+                                        outcome.failure.description, offset));
+        err_source_ = outcome.failure.source;
+        return false;
+    }
+    if (com_event_failed_) {
+        com_event_failed_ = false;
+        return false;
+    }
+    return true;
+}
+
+Value Interpreter::com_wrap_unknown(void* unknown) {
+    if (unknown == nullptr) {
+        return Value{Nothing{}};
+    }
+    auto* const object = static_cast<IUnknown*>(unknown);
+    IDispatch* dispatch = nullptr;
+    Value wrapped{Nothing{}};
+    if (SUCCEEDED(object->QueryInterface(
+            IID_IDispatch, reinterpret_cast<void**>(&dispatch)))) {
+        wrapped = wrap_dispatch(dispatch);
+        dispatch->Release();
+    }
+    object->Release();
+    return wrapped;
+}
+
 std::optional<Value> Interpreter::com_get_member(InstanceData& instance,
                                                  const std::string& name,
                                                  const std::size_t offset) {
@@ -1236,6 +1289,7 @@ void Interpreter::register_type_libraries() {
     };
     for (const auto& module : class_sources_) {
         collect(module.source);
+        collect(module.form_description);  // ActiveX controls named by a form
         user_classes.insert(lowered(module.name));
     }
     for (const auto& spec : type_libraries_) {

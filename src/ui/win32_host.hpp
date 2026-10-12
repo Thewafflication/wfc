@@ -59,6 +59,7 @@ public:
     void pump() override;
     void arrange(WindowId mdi_form, long mode) override;
     void set_button_image(WindowId window, long picture) override;
+    [[nodiscard]] void* activex_object(WindowId window) override;
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;

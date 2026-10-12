@@ -85,6 +85,28 @@ struct Win32Host::Entry {
 
 // Window procedure and helpers that need the host's internals.
 struct Win32Support {
+    using AtlAxWinInitFunction = BOOL(WINAPI*)();
+    using AtlAxGetControlFunction = HRESULT(WINAPI*)(HWND, IUnknown**);
+    static inline AtlAxGetControlFunction atl_get_control{nullptr};
+
+    // Loads the system ATL library, whose "AtlAxWin" window class is a full
+    // ActiveX control container.
+    static bool load_atl() {
+        static const bool loaded = [] {
+            const HMODULE module = LoadLibraryW(L"atl.dll");
+            if (module == nullptr) {
+                return false;
+            }
+            const auto init = reinterpret_cast<AtlAxWinInitFunction>(
+                GetProcAddress(module, "AtlAxWinInit"));
+            atl_get_control = reinterpret_cast<AtlAxGetControlFunction>(
+                GetProcAddress(module, "AtlAxGetControl"));
+            return init != nullptr && atl_get_control != nullptr &&
+                   init() != FALSE;
+        }();
+        return loaded;
+    }
+
     static Win32Host* host_of(HWND hwnd) {
         return reinterpret_cast<Win32Host*>(
             GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -342,7 +364,19 @@ WindowId Win32Host::create_window(const std::string& kind,
             extended, class_name, L"", style | WS_CHILD | WS_CLIPSIBLINGS, 0, 0,
             0, 0, parent_handle, id_value, instance, nullptr);
     };
-    if (entry->is_form) {
+    if (kind.rfind("ActiveX:", 0) == 0 && parent_handle != nullptr) {
+        // ATL's container window creates the control from its CLSID text and
+        // sites it (in-place activation, ambient properties, sizing).
+        if (Win32Support::load_atl()) {
+            entry->hwnd = CreateWindowExW(
+                0, L"AtlAxWin", widen(kind.substr(8)).c_str(),
+                WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0, 0, 0, 0,
+                parent_handle, id_value, instance, nullptr);
+        }
+        if (entry->hwnd == nullptr) {
+            entry->lightweight = true;
+        }
+    } else if (entry->is_form) {
         const auto* frame = find(parent);
         if (frame != nullptr && frame->client != nullptr) {
             entry->mdi_child = true;
@@ -955,6 +989,19 @@ bool Win32Host::send_key(const long code, const long shift, const long ascii) {
                                 sizeof(INPUT));
     pump();
     return sent == inputs.size();
+}
+
+void* Win32Host::activex_object(const WindowId window) {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr ||
+        Win32Support::atl_get_control == nullptr) {
+        return nullptr;
+    }
+    IUnknown* object = nullptr;
+    if (FAILED(Win32Support::atl_get_control(entry->hwnd, &object))) {
+        return nullptr;
+    }
+    return object;  // AtlAxGetControl added the reference
 }
 
 void Win32Host::set_button_image(const WindowId window, const long picture) {

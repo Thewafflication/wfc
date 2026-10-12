@@ -1,0 +1,5 @@
+Type=Exe
+Object={F5078F18-C551-11D3-89B9-0000F81FE221}#6.0#0; msxml6.dll
+Form=177-form-activex.frm
+Startup="Form1"
+WfcUiScript=177-form-activex.ui

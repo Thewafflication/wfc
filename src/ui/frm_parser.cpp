@@ -157,6 +157,23 @@ FrmFile parse_frm(const std::string_view text) {
         if (line.empty()) {
             continue;
         }
+        if (!root_started && starts_with_word(line, "object")) {
+            // `Object = "{GUID}#2.0#0"; "MSCOMCTL.OCX"`
+            std::string name;
+            std::string value;
+            if (split_assignment(line, name, value)) {
+                FrmProperty parsed;
+                parse_value(value, parsed);
+                const auto first = parsed.value.find('#');
+                const auto second = first == std::string::npos
+                                        ? first
+                                        : parsed.value.find('#', first + 1U);
+                if (first != std::string::npos) {
+                    result.objects.push_back(parsed.value.substr(0, second));
+                }
+            }
+            continue;
+        }
         if (starts_with_word(line, "begin")) {
             // `Begin Type Name`
             const auto rest = trim(line.substr(5));

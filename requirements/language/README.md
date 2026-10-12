@@ -407,3 +407,4 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0290 — Drawing surfaces: coordinates, graphics statements, Print](req-0290-surface-drawing.md)
 - [REQ-0291 — Picture objects](req-0291-pictures.md)
 - [REQ-0292 — Component persistence: PropertyBag and form files](req-0292-component-persistence.md)
+- [REQ-0293 — ActiveX control hosting on forms](req-0293-activex-control-hosting.md)

@@ -199,6 +199,56 @@ namespace {
 
 constexpr Integer kErrorAlreadyReported = -1;
 
+// ----- ActiveX controls (the extender the container adds) -------------------
+
+const ui::MemberRow kExtenderMembers[] = {
+    {"Left", 'g', "Single", 1, ""},
+    {"Left", 'l', "Single", 1, ""},
+    {"Top", 'g', "Single", 2, ""},
+    {"Top", 'l', "Single", 2, ""},
+    {"Width", 'g', "Single", 3, ""},
+    {"Width", 'l', "Single", 3, ""},
+    {"Height", 'g', "Single", 4, ""},
+    {"Height", 'l', "Single", 4, ""},
+    {"Visible", 'g', "Boolean", 5, ""},
+    {"Visible", 'l', "Boolean", 5, ""},
+    {"TabIndex", 'g', "Integer", 6, ""},
+    {"TabIndex", 'l', "Integer", 6, ""},
+    {"TabStop", 'g', "Boolean", 7, ""},
+    {"TabStop", 'l', "Boolean", 7, ""},
+    {"Tag", 'g', "String", 8, ""},
+    {"Tag", 'l', "String", 8, ""},
+    {"ToolTipText", 'g', "String", 9, ""},
+    {"ToolTipText", 'l', "String", 9, ""},
+    {"HelpContextID", 'g', "Long", 10, ""},
+    {"HelpContextID", 'l', "Long", 10, ""},
+    {"CausesValidation", 'g', "Boolean", 11, ""},
+    {"CausesValidation", 'l', "Boolean", 11, ""},
+    {"DragMode", 'g', "Integer", 12, ""},
+    {"DragMode", 'l', "Integer", 12, ""},
+    {"Name", 'g', "String", 13, ""},
+    {"Parent", 'g', "Object", 14, ""},
+    {"Container", 'g', "Object", 15, ""},
+    {"Object", 'g', "Object", 16, ""},
+    {"SetFocus", 'm', "Void", 17, ""},
+    {"ZOrder", 'm', "Void", 18, "Position:Variant:o"},
+    {"Move", 'm', "Void", 19,
+     "Left:Single;Top:Variant:o;Width:Variant:o;Height:Variant:o"},
+    {"Drag", 'm', "Void", 20, "Action:Variant:o"},
+};
+const ui::MemberRow kExtenderEvents[] = {
+    {"GotFocus", 'm', "HRESULT", 1, ""},
+    {"LostFocus", 'm', "HRESULT", 2, ""},
+    {"DragDrop", 'm', "HRESULT", 3, "Source:Control;X:Single;Y:Single"},
+    {"DragOver", 'm', "HRESULT", 4,
+     "Source:Control;X:Single;Y:Single;State:Integer"},
+    {"Validate", 'm', "HRESULT", 5, "Cancel:Boolean"},
+};
+const ui::ControlClass kExtenderClass = {
+    "ActiveXControl", kExtenderMembers,
+    sizeof(kExtenderMembers) / sizeof(kExtenderMembers[0]), kExtenderEvents,
+    sizeof(kExtenderEvents) / sizeof(kExtenderEvents[0])};
+
 // A form or an intrinsic control.
 class ControlObject final : public NativeObject {
 public:
@@ -258,6 +308,12 @@ public:
     long order{0};          // creation order (the default TabIndex)
     bool dynamic{false};    // loaded at run time (Load Control(i))
     bool bind_busy{false};  // a bound control is being refreshed
+    // An ActiveX control: its class id and the COM object the site created.
+    std::string activex_clsid;
+    Value inner{Nothing{}};
+    [[nodiscard]] bool is_activex() const {
+        return class_key == "activexcontrol";
+    }
     [[nodiscard]] bool is_list() const {
         return class_key == "listbox" || class_key == "combobox" ||
                is_file_list();
@@ -378,6 +434,103 @@ struct FormSupport {
 
     [[nodiscard]] static Value control_value(InstanceData& form,
                                              const ControlObject& object);
+    // Whether `member` of an ActiveX control belongs to the control itself
+    // rather than to the container's extender.
+    [[nodiscard]] static bool activex_forwards(const ControlObject& self,
+                                               const std::string& member) {
+        if (member == "name" || member == "index" || member == "object") {
+            return false;
+        }
+        if (member == "_default") {
+            return true;
+        }
+        return ui::find_member(*self.cls, member, 'g') == nullptr &&
+               ui::find_member(*self.cls, member, 'l') == nullptr &&
+               ui::find_member(*self.cls, member, 's') == nullptr &&
+               ui::find_member(*self.cls, member, 'm') == nullptr;
+    }
+
+    [[nodiscard]] static bool activex_get(Interpreter& in, ControlObject& self,
+                                          const std::string& member,
+                                          std::vector<CallArgument>& arguments,
+                                          Value& result,
+                                          NativeFailure& failure) {
+        const auto* held = std::get_if<ObjectInstance>(&self.inner);
+        if (held == nullptr || held->data == nullptr) {
+            failure = NativeFailure{
+                91, "Object variable or With block variable not set"};
+            return true;
+        }
+        const auto keep = held->data;
+        auto value = in.com_get_member_with(
+            *keep, member == "_default" ? std::string{} : member, arguments,
+            in.offset_);
+        if (!value.has_value()) {
+            failure = reported();
+            return true;
+        }
+        result = std::move(*value);
+        return true;
+    }
+
+    [[nodiscard]] static bool activex_put(Interpreter& in, ControlObject& self,
+                                          const std::string& member,
+                                          std::vector<CallArgument>& arguments,
+                                          const Value& value,
+                                          NativeFailure& failure) {
+        const auto* held = std::get_if<ObjectInstance>(&self.inner);
+        if (held == nullptr || held->data == nullptr) {
+            failure = NativeFailure{
+                91, "Object variable or With block variable not set"};
+            return true;
+        }
+        const auto keep = held->data;
+        if (!in.com_put_member(*keep,
+                               member == "_default" ? std::string{} : member,
+                               arguments, value, in.offset_)) {
+            failure = reported();
+        }
+        return true;
+    }
+
+    // Creates the control a site hosts and wires its events and design-time
+    // properties; false (with an error raised) when it cannot be created.
+    [[nodiscard]] static bool attach_activex(Interpreter& in,
+                                             InstanceData& form,
+                                             ControlObject& control) {
+        void* unknown = runtime(in).host->activex_object(control.window);
+        if (unknown == nullptr) {
+            static_cast<void>(in.raise_runtime(
+                429, "ActiveX component can't create object: " + control.name,
+                in.offset_));
+            return false;
+        }
+        control.inner = in.com_wrap_unknown(unknown);  // takes the reference
+        const auto* held = std::get_if<ObjectInstance>(&control.inner);
+        if (held == nullptr || held->data == nullptr) {
+            static_cast<void>(in.raise_runtime(
+                429, "ActiveX component can't create object: " + control.name,
+                in.offset_));
+            return false;
+        }
+        // Events reach `Name_Event` handlers of the form.
+        held->data->event_sinks.emplace_back(form.weak_from_this(),
+                                             control.name);
+        static_cast<void>(in.com_connect_events(*held->data));
+        // Design-time properties the extender does not own go to the control.
+        for (const auto& [key, value] : control.design) {
+            if (key.empty() || key.front() == '_' ||
+                !activex_forwards(control, key)) {
+                continue;
+            }
+            std::vector<CallArgument> none;
+            if (!in.com_put_member(*held->data, key, none, value, in.offset_)) {
+                in.clear_error_for_retry();  // an unsupported property
+            }
+        }
+        return true;
+    }
+
     [[nodiscard]] static std::string render_value(const Value& value) {
         return Interpreter::render(value);
     }
@@ -2003,8 +2156,9 @@ struct FormSupport {
 
     // Creates the host windows of a form and its controls and applies their
     // property values.
-    static void create_windows(Interpreter& in, InstanceData& form,
-                               ControlObject& form_object) {
+    [[nodiscard]] static bool create_windows(Interpreter& in,
+                                             InstanceData& form,
+                                             ControlObject& form_object) {
         auto& host = *runtime(in).host;
         ui::WindowId frame = ui::kNoWindow;
         if (is_mdi_child(form_object)) {
@@ -2031,13 +2185,20 @@ struct FormSupport {
                       return a->order != b->order ? a->order < b->order
                                                   : a->index < b->index;
                   });
+        bool created = true;
         for (ControlObject* object : ordered) {
             object->window = host.create_window(
-                object->cls->name, parent_window(form, form_object, *object));
+                object->is_activex() ? "ActiveX:" + object->activex_clsid
+                                     : object->cls->name,
+                parent_window(form, form_object, *object));
             bind(in, *object);
             mirror_all(in, *object);
+            if (object->is_activex()) {
+                created = attach_activex(in, form, *object) && created;
+            }
         }
         mirror_all(in, form_object);
+        return created;
     }
 
     // Pushes the check state or scroll range of a control to the host.
@@ -2146,7 +2307,9 @@ struct FormSupport {
             return true;
         }
         object->loaded = true;
-        create_windows(in, form, *object);
+        if (!create_windows(in, form, *object)) {
+            return false;
+        }
         repaint_lightweight_surfaces(in, form);
         runtime(in).loaded.push_back(form.weak_from_this());
         std::vector<Value> none;
@@ -3769,6 +3932,14 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
     if (!FormSupport::touch(in, *this, failure)) {
         return true;
     }
+    if (is_activex() && FormSupport::activex_forwards(*this, member)) {
+        return FormSupport::activex_get(in, *this, member, arguments, result,
+                                        failure);
+    }
+    if (is_activex() && member == "object") {
+        result = inner;
+        return true;
+    }
     if (member == "name") {
         result = Value{display_name};
         return true;
@@ -3802,11 +3973,11 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         if (!arguments.empty()) {
             if (const auto* holder = std::get_if<ObjectInstance>(&result);
                 holder != nullptr && holder->data->native != nullptr) {
-                Value inner;
+                Value indexed;
                 const auto keep = holder->data;
-                if (keep->native->get(in, "_default", arguments, inner,
+                if (keep->native->get(in, "_default", arguments, indexed,
                                       failure)) {
-                    result = inner;
+                    result = indexed;
                 }
             }
         }
@@ -3847,10 +4018,14 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
 bool ControlObject::put(Interpreter& in, const std::string& member,
                         std::vector<CallArgument>& arguments,
                         const Value& value, NativeFailure& failure) {
-    static_cast<void>(arguments);
     if (!FormSupport::touch(in, *this, failure)) {
         return true;
     }
+    if (is_activex() && FormSupport::activex_forwards(*this, member)) {
+        return FormSupport::activex_put(in, *this, member, arguments, value,
+                                        failure);
+    }
+    static_cast<void>(arguments);
     if (member == "name" || member == "index") {
         failure = NativeFailure{383, "Property is read-only"};
         return true;
@@ -4344,30 +4519,46 @@ bool Interpreter::create_form_instance(
         return ui::find_control_class(leaf);
     };
     long next_order = 0;
-    const auto make_control =
-        [&](const ui::FrmObject& source, const ui::ControlClass& control_class,
-            const long array_index, const ui::FrmObject& parent) {
-            auto object = std::make_shared<ControlObject>(
-                &control_class, source.name, array_index, false);
-            object->form = instance;
-            object->order = next_order++;
-            if (&parent != &root) {
-                object->container = lower_text(parent.name);
+    const auto make_control = [&](const ui::FrmObject& source,
+                                  const ui::ControlClass& control_class,
+                                  const long array_index,
+                                  const ui::FrmObject& parent) {
+        auto object = std::make_shared<ControlObject>(
+            &control_class, source.name, array_index, false);
+        object->form = instance;
+        object->order = next_order++;
+        if (&control_class == &kExtenderClass) {
+            const auto proxy = class_definitions_.find(lower_text(source.type));
+            if (proxy != class_definitions_.end()) {
+                object->activex_clsid = proxy->second.com_clsid;
             }
-            apply(*object, source);
-            auto data = std::make_shared<InstanceData>();
-            data->class_name = "wfcnative";
-            data->native = object;
-            object->self = data;
-            return Value{ObjectInstance{std::move(data)}};
-        };
+        }
+        if (&parent != &root) {
+            object->container = lower_text(parent.name);
+        }
+        apply(*object, source);
+        auto data = std::make_shared<InstanceData>();
+        data->class_name = "wfcnative";
+        data->native = object;
+        object->self = data;
+        return Value{ObjectInstance{std::move(data)}};
+    };
     std::map<std::string, std::shared_ptr<InstanceData>> arrays;
     const auto add_controls = [&](const auto& self,
                                   const ui::FrmObject& parent) -> void {
         for (const auto& child : parent.children) {
             const auto* control_class = native_class(child.type);
+            std::string clsid;
             if (control_class == nullptr) {
-                continue;  // not an intrinsic control (ActiveX: MP-0005/6)
+                // An ActiveX control of a referenced type library.
+                const auto proxy =
+                    class_definitions_.find(lower_text(child.type));
+                if (proxy == class_definitions_.end() ||
+                    proxy->second.com_clsid.empty()) {
+                    continue;
+                }
+                control_class = &kExtenderClass;
+                clsid = proxy->second.com_clsid;
             }
             const std::string key = lower_text(child.name);
             const auto* index_property = child.find("Index");

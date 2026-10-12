@@ -194,6 +194,13 @@ public:
         static_cast<void>(bytes);
         return 0;
     }
+    // The ActiveX control hosted by a window created with the kind
+    // "ActiveX:{CLSID}": its IUnknown with one reference added, or nullptr
+    // when the control could not be created. The caller releases it.
+    [[nodiscard]] virtual void* activex_object(WindowId window) {
+        static_cast<void>(window);
+        return nullptr;
+    }
     // Shows a picture on a graphical button (Style = 1) instead of its text.
     virtual void set_button_image(WindowId window, long picture) {
         static_cast<void>(window);

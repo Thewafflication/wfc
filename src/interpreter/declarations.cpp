@@ -1607,6 +1607,12 @@ bool Interpreter::scan_classes() {
             // Anything the runtime cannot load is reported now, not skipped.
             std::string problem;
             std::string code = "WFC0291";
+            const auto lowered_type = [](std::string text) {
+                for (auto& c : text) {
+                    c = ascii_lower(c);
+                }
+                return text;
+            };
             const auto check = [&](const auto& self,
                                    const ui::FrmObject& object) -> void {
                 for (const auto& child : object.children) {
@@ -1614,7 +1620,11 @@ bool Interpreter::scan_classes() {
                     if (leaf.rfind("VB.", 0) == 0) {
                         leaf = leaf.substr(3);
                     }
-                    if (problem.empty() &&
+                    const auto activex =
+                        class_definitions_.find(lowered_type(child.type));
+                    const bool hosted = activex != class_definitions_.end() &&
+                                        !activex->second.com_clsid.empty();
+                    if (problem.empty() && !hosted &&
                         ui::find_control_class(leaf) == nullptr) {
                         problem = "unsupported control class '" + child.type +
                                   "' (control '" + child.name + "')";

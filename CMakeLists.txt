@@ -204,6 +204,20 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       LABELS "integration;mp-0004;forms"
       PASS_REGULAR_EXPRESSION "WFC0292.*missing-resource.frx"
   )
+  add_test(
+    NAME TC-MP0005-gui-activex
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-activex.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+  )
+  set_tests_properties(
+    TC-MP0005-gui-activex
+    PROPERTIES
+      RESOURCE_LOCK desktop
+      LABELS "integration;windows;mp-0005;forms;activex"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "document complete about:blank"
+  )
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host
