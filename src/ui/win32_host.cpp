@@ -53,6 +53,11 @@ constexpr wchar_t kIdProperty[] = L"WfcId";
 
 }  // namespace
 
+// Kinds that are LISTBOX windows (the others with items are COMBOBOXes).
+[[nodiscard]] static bool list_box_kind(const std::string& kind) {
+    return kind == "ListBox" || kind == "FileListBox" || kind == "DirListBox";
+}
+
 struct Win32Host::Entry {
     std::string kind;
     WindowId id{kNoWindow};
@@ -153,18 +158,20 @@ struct Win32Support {
                 if (entry == nullptr) {
                     break;
                 }
-                if (code == BN_CLICKED && entry->kind != "ListBox" &&
-                    entry->kind != "ComboBox") {
+                if (code == BN_CLICKED && !list_box_kind(entry->kind) &&
+                    entry->kind != "ComboBox" &&
+                    entry->kind != "DriveListBox") {
                     host->queue(UiEvent{control, "Click", {}});
                 } else if (code == BN_DBLCLK) {
                     host->queue(UiEvent{control, "DblClick", {}});
                 } else if (code == EN_CHANGE || code == CBN_EDITCHANGE) {
                     host->queue(UiEvent{control, "Change", {}});
                 } else if (code == LBN_SELCHANGE || code == CBN_SELCHANGE) {
-                    const LRESULT chosen = SendMessageW(
-                        reinterpret_cast<HWND>(lparam),
-                        entry->kind == "ListBox" ? LB_GETCURSEL : CB_GETCURSEL,
-                        0, 0);
+                    const LRESULT chosen =
+                        SendMessageW(reinterpret_cast<HWND>(lparam),
+                                     list_box_kind(entry->kind) ? LB_GETCURSEL
+                                                                : CB_GETCURSEL,
+                                     0, 0);
                     host->queue(UiEvent{
                         control, "UserSelect", {static_cast<long>(chosen)}});
                 } else if (code == LBN_DBLCLK) {
@@ -372,9 +379,12 @@ WindowId Win32Host::create_window(const std::string& kind,
         make_child(L"STATIC", SS_LEFT);
     } else if (kind == "TextBox") {
         make_child(L"EDIT", ES_AUTOHSCROLL | WS_TABSTOP, WS_EX_CLIENTEDGE);
-    } else if (kind == "ListBox") {
+    } else if (kind == "ListBox" || kind == "FileListBox" ||
+               kind == "DirListBox") {
         make_child(L"LISTBOX", LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP,
                    WS_EX_CLIENTEDGE);
+    } else if (kind == "DriveListBox") {
+        make_child(L"COMBOBOX", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP);
     } else if (kind == "ComboBox") {
         make_child(L"COMBOBOX",
                    CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP);
@@ -631,7 +641,7 @@ void Win32Host::set_items(const WindowId window,
     if (entry == nullptr || entry->hwnd == nullptr) {
         return;
     }
-    const bool list = entry->kind == "ListBox";
+    const bool list = list_box_kind(entry->kind);
     SendMessageW(entry->hwnd, list ? LB_RESETCONTENT : CB_RESETCONTENT, 0, 0);
     for (const auto& item : items) {
         SendMessageW(entry->hwnd, list ? LB_ADDSTRING : CB_ADDSTRING, 0,
@@ -645,7 +655,7 @@ void Win32Host::set_selection(const WindowId window, const long index) {
         return;
     }
     SendMessageW(entry->hwnd,
-                 entry->kind == "ListBox" ? LB_SETCURSEL : CB_SETCURSEL,
+                 list_box_kind(entry->kind) ? LB_SETCURSEL : CB_SETCURSEL,
                  static_cast<WPARAM>(index), 0);
 }
 
@@ -655,8 +665,8 @@ long Win32Host::selection(const WindowId window) const {
         return -1;
     }
     return static_cast<long>(SendMessageW(
-        entry->hwnd, entry->kind == "ListBox" ? LB_GETCURSEL : CB_GETCURSEL, 0,
-        0));
+        entry->hwnd, list_box_kind(entry->kind) ? LB_GETCURSEL : CB_GETCURSEL,
+        0, 0));
 }
 
 void Win32Host::set_value(const WindowId window, const long value) {

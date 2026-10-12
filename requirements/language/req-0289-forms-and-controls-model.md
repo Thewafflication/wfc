@@ -168,11 +168,24 @@ Immediate output as `[Printer]` lines (with `-- new page --` markers) and
 `KillDoc` discards it. `Printers.Count` is 1 and `Printers(0)` is `Printer`.
 Graphics methods on the printer and `PrintForm` are not implemented.
 
+## Drive, directory and file list boxes
+
+`DriveListBox` lists the existing drive letters (`Drive`, Change; an unknown
+drive raises 68). `DirListBox` shows the ancestors of `Path` and its
+subdirectories (`List` returns full paths, the host shows indented names);
+`Path` raises Change, a missing directory raises 76, and double-clicking an
+entry makes it the current directory. `FileListBox` lists the files of `Path`
+that match `Pattern` (semicolon-separated wildcards, `*.*` matching every
+name), sorted without regard to case; `Path` raises PathChange, `Pattern`
+raises PatternChange, selecting an item sets `FileName` and raises Click. The
+`Archive`/`Hidden`/`ReadOnly`/`System`/`Normal` attribute filters are not
+applied.
+
 ## Known limits (extended later in MP-0004)
 
-OLE drag and drop, printer graphics, `PrintForm`, drive/directory/file list boxes, data binding, and
+OLE drag and drop, printer graphics, `PrintForm`, data binding, and
 MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

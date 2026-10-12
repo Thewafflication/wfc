@@ -59,8 +59,72 @@ namespace {
 
 // Design-time defaults that differ from the zero value of the type; a
 // property a .frm omits keeps its default.
+// A directory path as VB shows it: backslashes, no trailing separator
+// except on a root.
+[[nodiscard]] std::string directory_text(const std::filesystem::path& path) {
+    std::error_code ignored;
+    auto text = std::filesystem::absolute(path, ignored)
+                    .lexically_normal()
+                    .make_preferred()
+                    .string();
+    while (text.size() > 3U && (text.back() == '\\' || text.back() == '/')) {
+        text.pop_back();
+    }
+    return text;
+}
+
+[[nodiscard]] std::string current_drive_text() {
+    std::error_code ignored;
+    const auto root = std::filesystem::current_path(ignored).root_name();
+    std::string text = root.string();
+    for (char& c : text) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return text.empty() ? std::string{"c:"} : text;
+}
+
+[[nodiscard]] bool wildcard_match(const std::string& pattern,
+                                  const std::string& name) {
+    const auto lower = [](const char c) {
+        return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    };
+    std::size_t p = 0;
+    std::size_t n = 0;
+    std::size_t star = std::string::npos;
+    std::size_t mark = 0;
+    while (n < name.size()) {
+        if (p < pattern.size() &&
+            (pattern[p] == '?' || lower(pattern[p]) == lower(name[n]))) {
+            ++p;
+            ++n;
+        } else if (p < pattern.size() && pattern[p] == '*') {
+            star = p++;
+            mark = n;
+        } else if (star != std::string::npos) {
+            p = star + 1U;
+            n = ++mark;
+        } else {
+            return false;
+        }
+    }
+    while (p < pattern.size() && pattern[p] == '*') {
+        ++p;
+    }
+    return p == pattern.size();
+}
+
 [[nodiscard]] std::optional<Value> property_default(
     const std::string& class_name, const std::string& property) {
+    if ((class_name == "filelistbox" || class_name == "dirlistbox") &&
+        property == "path") {
+        return Value{directory_text(std::filesystem::current_path())};
+    }
+    if (class_name == "filelistbox" && property == "pattern") {
+        return Value{std::string{"*.*"}};
+    }
+    if (class_name == "drivelistbox" && property == "drive") {
+        return Value{current_drive_text()};
+    }
     static const std::map<std::string, Value> common = {
         {"visible", Value{true}},
         {"enabled", Value{true}},
@@ -185,6 +249,8 @@ public:
     std::map<long, Value> elements;
     // ListBox and ComboBox items (REQ-0289).
     std::vector<std::string> items;
+    // What a directory list box shows (indented names); empty: `items`.
+    std::vector<std::string> display;
     std::vector<long> item_data;
     std::vector<bool> chosen;  // MultiSelect selection flags
     long list_index{-1};
@@ -192,7 +258,12 @@ public:
     long order{0};        // creation order (the default TabIndex)
     bool dynamic{false};  // loaded at run time (Load Control(i))
     [[nodiscard]] bool is_list() const {
-        return class_key == "listbox" || class_key == "combobox";
+        return class_key == "listbox" || class_key == "combobox" ||
+               is_file_list();
+    }
+    [[nodiscard]] bool is_file_list() const {
+        return class_key == "filelistbox" || class_key == "dirlistbox" ||
+               class_key == "drivelistbox";
     }
     // Whether the control can hold the keyboard focus.
     [[nodiscard]] bool focusable() const {
@@ -349,7 +420,8 @@ struct FormSupport {
             return;
         }
         auto& host = *runtime(in).host;
-        host.set_items(list.window, list.items);
+        host.set_items(list.window,
+                       list.display.empty() ? list.items : list.display);
         host.set_selection(list.window, list.list_index);
         if (list.class_key == "combobox") {
             // Resetting the items clears a combo box's edit text.
@@ -376,6 +448,20 @@ struct FormSupport {
                                           const bool raise_events) {
         const long previous = list.list_index;
         list.list_index = index;
+        if (index >= 0 && static_cast<std::size_t>(index) < list.items.size()) {
+            if (list.class_key == "filelistbox") {
+                list.values["filename"] =
+                    Value{list.items[static_cast<std::size_t>(index)]};
+            } else if (list.class_key == "drivelistbox" && index != previous) {
+                list.values["drive"] =
+                    Value{list.items[static_cast<std::size_t>(index)]};
+                sync_list(in, list);
+                if (raise_events) {
+                    return raise_table_event(in, list, "Change", {},
+                                             in.offset_);
+                }
+            }
+        }
         if (list.class_key == "combobox") {
             list.values["text"] = Value{item_text(list)};
         }
@@ -1974,6 +2060,9 @@ struct FormSupport {
         if (object.class_key == "picturebox") {
             paint_surface_picture(in, object);
         }
+        if (object.is_file_list() && object.items.empty()) {
+            refresh_file_list(in, object);
+        }
         push_state(in, object);
     }
 
@@ -2362,6 +2451,184 @@ struct FormSupport {
         return false;
     }
 
+    // ----- Drive, directory and file list boxes ------------------------
+
+    [[nodiscard]] static std::string text_value(const ControlObject& object,
+                                                const char* key) {
+        const auto found = object.values.find(key);
+        if (found != object.values.end()) {
+            if (const auto* text = std::get_if<std::string>(&found->second)) {
+                return *text;
+            }
+        }
+        if (const auto fallback = property_default(object.class_key, key)) {
+            if (const auto* text = std::get_if<std::string>(&*fallback)) {
+                return *text;
+            }
+        }
+        return {};
+    }
+
+    // Rebuilds the items of a drive, directory or file list box.
+    static void refresh_file_list(Interpreter& in, ControlObject& list) {
+        namespace fs = std::filesystem;
+        std::error_code ignored;
+        list.items.clear();
+        list.display.clear();
+        list.list_index = -1;
+        if (list.class_key == "drivelistbox") {
+            const std::string current = text_value(list, "drive");
+            for (char letter = 'a'; letter <= 'z'; ++letter) {
+                const std::string drive = std::string(1U, letter) + ":";
+                if (fs::exists(drive + "\\", ignored)) {
+                    if (drive == current) {
+                        list.list_index = static_cast<long>(list.items.size());
+                    }
+                    list.items.push_back(drive);
+                }
+            }
+        } else if (list.class_key == "dirlistbox") {
+            const fs::path path = text_value(list, "path");
+            std::vector<fs::path> chain;
+            for (fs::path step = path;; step = step.parent_path()) {
+                chain.insert(chain.begin(), step);
+                if (step == step.parent_path() || step.empty()) {
+                    break;
+                }
+            }
+            std::size_t depth = 0;
+            for (const auto& step : chain) {
+                const std::string name = step.filename().string();
+                list.items.push_back(directory_text(step));
+                list.display.push_back(
+                    std::string(depth * 2U, ' ') +
+                    (name.empty() ? directory_text(step) : name));
+                ++depth;
+            }
+            list.list_index = static_cast<long>(list.items.size()) - 1;
+            std::vector<std::string> children;
+            for (fs::directory_iterator it(path, ignored), end;
+                 !ignored && it != end; it.increment(ignored)) {
+                if (it->is_directory(ignored)) {
+                    children.push_back(it->path().filename().string());
+                }
+            }
+            std::sort(children.begin(), children.end(),
+                      [](const std::string& a, const std::string& b) {
+                          return fold_case(a) < fold_case(b);
+                      });
+            for (const auto& child : children) {
+                list.items.push_back(directory_text(path / child));
+                list.display.push_back(std::string(depth * 2U, ' ') + child);
+            }
+        } else if (list.class_key == "filelistbox") {
+            const fs::path path = text_value(list, "path");
+            std::vector<std::string> patterns;
+            std::string pattern_text = text_value(list, "pattern");
+            std::size_t start = 0;
+            while (start <= pattern_text.size()) {
+                auto end = pattern_text.find(';', start);
+                if (end == std::string::npos) {
+                    end = pattern_text.size();
+                }
+                std::string part = pattern_text.substr(start, end - start);
+                const auto first = part.find_first_not_of(' ');
+                const auto last = part.find_last_not_of(' ');
+                if (first != std::string::npos) {
+                    patterns.push_back(part.substr(first, last - first + 1U));
+                }
+                start = end + 1U;
+            }
+            if (patterns.empty()) {
+                patterns.push_back("*.*");
+            }
+            std::vector<std::string> files;
+            for (fs::directory_iterator it(path, ignored), end;
+                 !ignored && it != end; it.increment(ignored)) {
+                if (!it->is_regular_file(ignored)) {
+                    continue;
+                }
+                const std::string name = it->path().filename().string();
+                for (const auto& pattern : patterns) {
+                    // "*.*" matches names without an extension, as in VB.
+                    const std::string effective =
+                        pattern == "*.*" ? "*" : pattern;
+                    if (wildcard_match(effective, name)) {
+                        files.push_back(name);
+                        break;
+                    }
+                }
+            }
+            std::sort(files.begin(), files.end(),
+                      [](const std::string& a, const std::string& b) {
+                          return fold_case(a) < fold_case(b);
+                      });
+            const std::string chosen = fold_case(text_value(list, "filename"));
+            for (const auto& name : files) {
+                if (!chosen.empty() && fold_case(name) == chosen) {
+                    list.list_index = static_cast<long>(list.items.size());
+                }
+                list.items.push_back(name);
+            }
+        }
+        list.chosen.assign(list.items.size(), false);
+        sync_list(in, list);
+    }
+
+    // The post-assignment work of Path, Pattern, Drive and FileName.
+    [[nodiscard]] static bool file_list_changed(Interpreter& in,
+                                                ControlObject& self,
+                                                const std::string& member,
+                                                const Value& old_value,
+                                                NativeFailure& failure) {
+        namespace fs = std::filesystem;
+        std::error_code ignored;
+        const std::size_t offset = in.offset_;
+        const auto revert = [&](const long number, const char* description) {
+            self.values[member] = old_value;
+            failure = NativeFailure{number, description};
+            return true;
+        };
+        if (member == "path" && self.class_key != "drivelistbox") {
+            const std::string requested = text_value(self, "path");
+            if (!fs::is_directory(requested, ignored)) {
+                return revert(76, "Path not found");
+            }
+            self.values["path"] = Value{directory_text(requested)};
+            refresh_file_list(in, self);
+            return raise_table_event(
+                in, self,
+                self.class_key == "filelistbox" ? "PathChange" : "Change", {},
+                offset);
+        }
+        if (member == "pattern" && self.class_key == "filelistbox") {
+            refresh_file_list(in, self);
+            return raise_table_event(in, self, "PatternChange", {}, offset);
+        }
+        if (member == "filename" && self.class_key == "filelistbox") {
+            refresh_file_list(in, self);
+            return true;
+        }
+        if (member == "drive" && self.class_key == "drivelistbox") {
+            const std::string text = text_value(self, "drive");
+            if (text.empty() ||
+                !std::isalpha(static_cast<unsigned char>(text.front()))) {
+                return revert(68, "Device unavailable");
+            }
+            const std::string drive =
+                std::string(1U, static_cast<char>(std::tolower(
+                                    static_cast<unsigned char>(text[0])))) +
+                ":";
+            if (!fs::exists(drive + "\\", ignored)) {
+                return revert(68, "Device unavailable");
+            }
+            self.values["drive"] = Value{drive};
+            refresh_file_list(in, self);
+            return raise_table_event(in, self, "Change", {}, offset);
+        }
+        return true;
+    }
+
     // Mirrors a changed property to the host and raises its events.
     [[nodiscard]] static bool property_changed(Interpreter& in,
                                                ControlObject& self,
@@ -2386,6 +2653,11 @@ struct FormSupport {
             member == "max" || member == "smallchange" ||
             member == "largechange") {
             push_state(in, self);
+        }
+        if (self.is_file_list() && !self.is_form &&
+            (member == "path" || member == "pattern" || member == "drive" ||
+             member == "filename")) {
+            return file_list_changed(in, self, member, old_value, failure);
         }
         const std::size_t offset = in.offset_;
         const auto report = [&](const bool ok) {
@@ -2521,6 +2793,19 @@ struct FormSupport {
             }
             if (name == "click" && !focus_control(in, *form, source->name,
                                                   source->index, in.offset_)) {
+                return false;
+            }
+        }
+        if (name == "dblclick" && source->class_key == "dirlistbox" &&
+            source->list_index >= 0 &&
+            static_cast<std::size_t>(source->list_index) <
+                source->items.size()) {
+            // Double-clicking a directory makes it the current one.
+            const Value previous = source->values["path"];
+            source->values["path"] = Value{
+                source->items[static_cast<std::size_t>(source->list_index)]};
+            NativeFailure ignored;
+            if (!file_list_changed(in, *source, "path", previous, ignored)) {
                 return false;
             }
         }

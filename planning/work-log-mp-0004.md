@@ -42,3 +42,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #21 | Construction | MDI forms: `MDIChild`, `ActiveForm`, `Arrange`, ordered child unload with `UnloadMode` 4, Win32 frame/`MDICLIENT`/`WS_EX_MDICHILD`, MDI screenshot composition (`REQ-0289`); corpus 167 | CTest `TC-MP0004-gui-mdi` |
 | 2026-10-11 #22 | Construction | Manual drag and drop: `Drag` method, scripted `drag` input raising `DragOver`/`DragDrop`, drag constants (`REQ-0289`); corpus 168 | CTest 328/328 |
 | 2026-10-11 #23 | Construction | Virtual `Printer`/`Printers` (spooled `Print`, `NewPage`, `EndDoc`, properties) (`REQ-0289`); corpus 169 | CTest 329/329 |
+| 2026-10-11 #24 | Construction | `DriveListBox`, `DirListBox`, `FileListBox` (`REQ-0126`, `REQ-0289`); corpus 170 | CTest 330/330 |

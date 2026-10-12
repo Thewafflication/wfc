@@ -1,0 +1,4 @@
+select Form1.File1 1
+dblclick Form1.Dir1
+select Form1.File1 0
+close Form1
