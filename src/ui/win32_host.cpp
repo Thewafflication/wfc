@@ -167,6 +167,9 @@ struct Win32Support {
             while (target != nullptr && id_of(target) == kNoWindow) {
                 target = GetParent(target);
             }
+            if (target == nullptr) {
+                target = hwnd;  // nothing of ours is there: the source itself
+            }
             if (target != nullptr) {
                 POINT inside = screen;
                 ScreenToClient(target, &inside);

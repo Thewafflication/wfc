@@ -35,3 +35,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-12 #14 | Construction | COM server type library export, `IConnectionPointContainer`, `IProvideClassInfo2`, events to clients, `--write-typelib` (`REQ-0295`); `TC-MP0005-com-server-early` | CTest 351/351 |
 | 2026-10-12 #15 | Construction | `PrintForm` spools a marker to the virtual printer (`REQ-0289`); corpus 187 | CTest 352/352 |
 | 2026-10-12 #16 | Defect | The Win32 host reports itself unusable when the input desktop cannot be opened (locked workstation); GUI tests had crashed with 0xC0000409 in such a session | CTest 352/352 |
+| 2026-10-12 #17 | Defect | A mouse drag released over no hosted window now drops on the source (the ARM64 runner failed the Win32 host drag test) | CTest 352/352 |
