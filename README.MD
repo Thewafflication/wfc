@@ -271,3 +271,18 @@ out/build/windows-x64-debug/Debug/wfc.exe --class Counter "Public value As Long`
 out/build/windows-x64-debug/Debug/wfc.exe --class Foo "Private n As Long`n`nSub Class_Initialize()`nn = 100`nEnd Sub`n`nSub Class_Terminate()`nPrint `"term `" & n`nEnd Sub`n`nSub Bump()`nn = n + 1`nPrint Me.n`nEnd Sub" --eval "Dim x As New Foo`nCall x.Bump()`nSet x = Nothing"
 out/build/windows-x64-debug/Debug/wfc.exe --class Pair "Public a As Long`nPublic b As Long`n`nProperty Get Item(i As Long) As Long`nIf i = 0 Then`nItem = a`nElse`nItem = b`nEnd If`nEnd Property`n`nProperty Let Item(i As Long, v As Long)`nIf i = 0 Then`na = v`nElse`nb = v`nEnd If`nEnd Property" --eval "Dim p As New Pair`np.Item(0) = 10`np.Item(1) = 20`nPrint p.Item(0) & `" `" & p.Item(1)"
 ```
+
+## License
+
+WFC is free software: you can redistribute it and modify it under the terms of
+the GNU General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version
+(`GPL-3.0-or-later`). The full text is in [LICENSE](LICENSE). WFC is
+distributed in the hope that it will be useful, but without any warranty.
+
+Copyright (C) 2026 Jordan Waughtal.
+
+Third-party material keeps its own license: the `wcrt` submodule is
+GPL-3.0-licensed, and the VB6 programs of the `vb6games` corpus are licensed by
+their authors (see each project's `PROVENANCE.md`). The reference inventories
+under `evidence/` describe Microsoft components and contain no Microsoft code.
