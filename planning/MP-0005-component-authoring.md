@@ -1,7 +1,7 @@
 # MP-0005 — Component Authoring, `stdole`, and OLE2
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Complete (see closeout record)  
 **Target baseline:** 0.5.0  
 **Planned period:** 2026-10-11 through milestone closeout  
 **Inherited baseline:** MP-0004 closeout (`MP-0004-closeout.md`), `master` at the closeout commit  
@@ -227,6 +227,7 @@ cannot be hosted as assumed, or a new third-party dependency is introduced.
 
 - [Roadmap to 1.0.0](roadmap-1.0.md)
 - [MP-0004 closeout record](MP-0004-closeout.md)
+- [MP-0005 closeout record](MP-0005-closeout.md)
 - [ADR-0004](../architecture/adr-0004-automation-server.md)
 - [ADR-0005](../architecture/adr-0005-ui-platform.md)
 - [Legacy feature dispositions](legacy-feature-dispositions.md)

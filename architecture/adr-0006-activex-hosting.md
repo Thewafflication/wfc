@@ -2,8 +2,7 @@
 
 **Content type:** Architecture decision record
 
-**Status:** Proposed (hosting accepted by implementation in MP-0005; the
-`MSComctlLib` strategy awaits owner approval before MP-0006)
+**Status:** Accepted (owner approval of the `MSComctlLib` strategy, 2026-10-12)
 
 **Date:** 2026-10-11
 

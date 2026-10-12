@@ -181,7 +181,8 @@ legacy controls or behaviors produce their specified diagnostics.
 
 ## MP-0005 — Component Authoring, `stdole`, and OLE2 (`0.5.0`)
 
-Detailed plan: [MP-0005](MP-0005-component-authoring.md).
+Detailed plan: [MP-0005](MP-0005-component-authoring.md); closed 2026-10-12
+([closeout](MP-0005-closeout.md)).
 
 ### Outcome
 
@@ -205,6 +206,8 @@ components with matching COM identity, events, pictures, fonts, errors, and
 lifetime on the required milestone matrix.
 
 ## MP-0006 — `MSComctlLib` Compatibility (`0.6.0`)
+
+Detailed plan: [MP-0006](MP-0006-mscomctllib.md).
 
 ### Outcome
 

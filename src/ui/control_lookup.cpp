@@ -33,6 +33,15 @@ const ControlClass* find_control_class(const std::string_view name) {
     return nullptr;
 }
 
+const ControlClass* find_comctl_class(const std::string_view name) {
+    for (const auto& control : comctl_classes()) {
+        if (same_name(control.name, name)) {
+            return &control;
+        }
+    }
+    return nullptr;
+}
+
 const MemberRow* find_member(const ControlClass& control,
                              const std::string_view name, const char kind) {
     for (std::size_t i = 0; i < control.member_count; ++i) {

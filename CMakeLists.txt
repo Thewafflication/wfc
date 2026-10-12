@@ -48,6 +48,7 @@ target_sources(
     src/module_linker.cpp
     src/project.cpp
     src/ui/control_lookup.cpp
+    src/ui/comctl_tables.cpp
     src/ui/control_tables.cpp
     src/ui/control_tables.hpp
     src/ui/frm_parser.cpp
@@ -317,6 +318,19 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   set_tests_properties(
     TC-MP0004-ui-tables-current
     PROPERTIES LABELS "unit;mp-0004;forms"
+  )
+
+  add_test(
+    NAME TC-MP0006-comctl-tables-current
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DEVIDENCE=${wfc_evidence}/mscomctl-2.0-type-library.json"
+      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/comctl_tables.cpp" -P
+      "${wfc_ui_check}"
+  )
+  set_tests_properties(
+    TC-MP0006-comctl-tables-current
+    PROPERTIES LABELS "unit;mp-0006;comctl"
   )
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)

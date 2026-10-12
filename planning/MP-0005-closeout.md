@@ -4,7 +4,9 @@
 
 **Milestone or work package:** MP-0005 — Component authoring, `stdole`, and OLE2 (`0.5.0`)
 
-**Status:** Proposed — ready for owner approval
+**Status:** Complete (with documented deferrals)
+
+**Completion date:** 2026-10-12
 
 **Inherited baseline:** MP-0004 closeout (`MP-0004-closeout.md`)
 
@@ -13,7 +15,7 @@ Actions (x86, x64, ARM64) green on the final commit
 
 **Owner:** Project maintainer
 
-**Approval:** Pending
+**Approval:** Owner approval in session, 2026-10-12
 
 ## Outcome
 
@@ -80,7 +82,7 @@ server, which needs the native compiler of MP-0007).
 | `.frm`/`.frx` written by WFC reload to an equivalent form | `TC-MP0004-ui-units` round trip | Required | Partial: form block only |
 | OLE2 container scenarios and OLE drag and drop | Corpus 185, 186 | Required | Partial |
 | Removed features raise their diagnostics | `WFC0291` for unresolvable controls | Required | Pass |
-| `ADR-0006` recorded and `MP-0006` plan baselined | `ADR-0006` | Required | `ADR-0006` Proposed; `MP-0006` plan not yet written |
+| `ADR-0006` recorded and `MP-0006` plan baselined | `ADR-0006` | Required | `ADR-0006` accepted; `MP-0006` plan baselined |
 | Behavioral probes retained | None | Roadmap gate | Not met; deferred |
 | Diagnostics catalog current | CTest catalog check | Required | Pass |
 
@@ -97,7 +99,7 @@ server, which needs the native compiler of MP-0007).
 
 | Item | Impact | Owner | Target milestone or release | Compensating control | Approval |
 | --- | --- | --- | --- | --- | --- |
-| `UserControl` as an ActiveX control, in-process servers | WFC controls cannot be hosted by other containers | Project maintainer | MP-0007 | `ADR-0004` | Pending |
+| `UserControl` as an ActiveX control, in-process servers | WFC controls cannot be hosted by other containers | Project maintainer | MP-0007 | `ADR-0004` | Owner, 2026-10-12 |
 | `OleObjectBlob`/`.frx` persistence of hosted controls, `.frx` writer | Controls keep only text properties | Project maintainer | MP-0006 | Text properties applied | Pending |
 | Real OLE drag and drop, linked OLE objects, dialogs | Drag between applications unavailable | Project maintainer | MP-0008 | Headless model | Pending |
 | Printer graphics, `ObjectEvent`, licensed controls, `ITypeInfo` types beyond Variant | Some programs differ | Project maintainer | MP-0008 | Documented in the REQ records | Pending |
@@ -105,12 +107,15 @@ server, which needs the native compiler of MP-0007).
 
 ## Closeout Decision
 
-- **Decision:** Pending owner approval
-- **Proposed rationale:** All planned stages except the in-process control
+- **Decision:** Complete with documented deferrals
+- **Approver:** Project maintainer
+- **Rationale:** All planned stages except the in-process control
   server are implemented and verified; the rest is allocated to later milestones
   or needs the reference machine.
-- **Next review or release action:** On approval set the plan and README status
-  to Closed, decide `ADR-0006`, and baseline `MP-0006`.
+- **Required gates:** All Pass or Partial as listed; the probe gate and the
+  in-process control server are deferred
+- **Next review or release action:** `MP-0006-mscomctllib.md`; `ADR-0006`
+  accepted by the owner on 2026-10-12
 
 ## References
 

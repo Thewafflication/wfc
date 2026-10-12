@@ -40,6 +40,10 @@ struct ParameterInfo {
 };
 
 [[nodiscard]] std::span<const ControlClass> control_classes();
+// The MSComctlLib controls (generated from the mscomctl type-library evidence).
+[[nodiscard]] std::span<const ControlClass> comctl_classes();
+// The MSComctlLib class named `name` (case-insensitive), or nullptr.
+[[nodiscard]] const ControlClass* find_comctl_class(std::string_view name);
 
 // The class named `name` (case-insensitive), or nullptr.
 [[nodiscard]] const ControlClass* find_control_class(std::string_view name);

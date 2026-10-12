@@ -17,6 +17,13 @@ Path of the type-library evidence JSON.
 .PARAMETER OutputPath
 Path of the generated C++ source.
 
+.PARAMETER ClassProperty
+Name of the evidence property that lists the classes (`classes` for the VB
+library, `controls` for MSComctlLib).
+
+.PARAMETER FunctionName
+Name of the generated accessor (`control_classes` or `comctl_classes`).
+
 .EXAMPLE
 pwsh -NoProfile -File scripts/New-UiControlTables.ps1
 #>
@@ -26,7 +33,13 @@ param(
     [string] $EvidencePath = 'evidence/reference/vb-6.0-type-library.json',
 
     [Parameter()]
-    [string] $OutputPath = 'src/ui/control_tables.cpp'
+    [string] $OutputPath = 'src/ui/control_tables.cpp',
+
+    [Parameter()]
+    [string] $ClassProperty = 'classes',
+
+    [Parameter()]
+    [string] $FunctionName = 'control_classes'
 )
 
 Set-StrictMode -Version Latest
@@ -93,7 +106,7 @@ $text.Add('namespace wfc::ui {')
 $text.Add('namespace {')
 $text.Add('')
 
-$classes = @($evidence.classes | Where-Object { $_.defaultInterface })
+$classes = @($evidence.$ClassProperty | Where-Object { $_.defaultInterface })
 $index = 0
 foreach ($class in $classes) {
     $members = @(Format-MemberRow $class.defaultInterface.members)
@@ -134,7 +147,7 @@ $text.Add('};')
 $text.Add('')
 $text.Add('}  // namespace')
 $text.Add('')
-$text.Add('std::span<const ControlClass> control_classes() {')
+$text.Add("std::span<const ControlClass> $FunctionName() {")
 $text.Add('    return kClasses;')
 $text.Add('}')
 $text.Add('')

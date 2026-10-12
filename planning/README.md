@@ -22,10 +22,10 @@
 
 ## Active Milestone
 
-MP-0005 — Component Authoring, `stdole`, and OLE2 (`0.5.0`), per the
-[MP-0005 plan](MP-0005-component-authoring.md) and the
+MP-0006 — `MSComctlLib` Compatibility (`0.6.0`), per the
+[MP-0006 plan](MP-0006-mscomctllib.md) and the
 [roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0005 work log](work-log-mp-0005.md).
+[MP-0006 work log](work-log-mp-0006.md).
 
 Closed milestones:
 
@@ -39,10 +39,14 @@ Closed milestones:
   reference probes, OLE drag and drop, and several drawing items deferred; see
   the [closeout record](MP-0004-closeout.md), [plan](MP-0004-forms-and-controls.md)
   and [work log](work-log-mp-0004.md).
+- MP-0005 — Component Authoring, `stdole`, and OLE2 (`0.5.0`), closed 2026-10-12
+  with in-process control servers, `.frx` persistence of hosted controls and
+  real OLE drag deferred; see the [closeout record](MP-0005-closeout.md),
+  [plan](MP-0005-component-authoring.md) and [work log](work-log-mp-0005.md).
 
 The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`
-through the current `REQ-0291`.
+through the current `REQ-0295`.
 
 Detailed successor milestone plans shall be baselined during predecessor
 closeout. The roadmap fixes their objective, target version, dependencies, and
