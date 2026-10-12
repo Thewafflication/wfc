@@ -14,6 +14,13 @@
   `.obj`; it is limited to 512 MB. `--gui` stores the option so the program
   starts in the Win32 host. Building from a packaged program drops the payload it
   carries.
+- **Version information.** On Windows the project's `Title`, `MajorVer`,
+  `MinorVer`, `RevisionVer`, `VersionCompanyName`, `VersionProductName`,
+  `VersionFileDescription`, `VersionLegalCopyright` and `VersionComments` are
+  written as the executable's version resource (English US) before the payload
+  is appended; a project with none of them keeps the runtime's resources. The
+  project's `IconForm` icon (the form's `Icon` property, read from its `.frx`
+  file) becomes the executable's icon (`RT_GROUP_ICON` and `RT_ICON`).
 - **Running.** At start-up `wfc` reads its own trailer. When it finds a payload
   it extracts the files below `wfc-pkg-<hash>` in the temporary directory
   (rewriting any file that is missing or differs, so a tampered copy is

@@ -2265,6 +2265,38 @@ Print v.x & q.x]=]
     )
   endif()
 
+  if(WIN32)
+    set(package_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/package")
+    add_test(
+      NAME TC-MP0008-package-version
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${package_tests}/version-fixture/Versioned.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-version"
+        "-DINFO=${package_tests}/version_info.ps1" -P
+        "${package_tests}/run_version_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-version
+      PROPERTIES LABELS "integration;mp-0008;package"
+    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/vb6games/captureking")
+      add_test(
+        NAME TC-MP0008-package-icon
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+          "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-icon"
+          "-DCHECK=${package_tests}/icon_differs.ps1" -P
+          "${package_tests}/run_icon_test.cmake"
+      )
+      set_tests_properties(
+        TC-MP0008-package-icon
+        PROPERTIES LABELS "integration;mp-0008;package"
+      )
+    endif()
+  endif()
+
   foreach(package_case 194-comctl-persisted 195-comctl-refine)
     set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus")
     add_test(

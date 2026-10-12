@@ -7,7 +7,10 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <system_error>
+
+#include "ui/frm_parser.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -164,6 +167,334 @@ struct Located {
            extension == ".obj";
 }
 
+// The `Key=Value` lines of a project file, keys lower case, quotes removed.
+[[nodiscard]] std::map<std::string, std::string> project_values(
+    const fs::path& project) {
+    std::map<std::string, std::string> values;
+    std::ifstream stream(project);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        const auto equals = line.find('=');
+        if (equals == std::string::npos || line.front() == '[') {
+            continue;
+        }
+        std::string key = line.substr(0, equals);
+        std::string value = line.substr(equals + 1U);
+        std::transform(key.begin(), key.end(), key.begin(),
+                       [](const unsigned char c) {
+                           return static_cast<char>(std::tolower(c));
+                       });
+        if (value.size() >= 2U && value.front() == '"' && value.back() == '"') {
+            value = value.substr(1U, value.size() - 2U);
+        }
+        values.emplace(std::move(key), std::move(value));
+    }
+    return values;
+}
+
+// The icon image data of the project's `IconForm` (its `Icon` property, a
+// record of the form's .frx file), or empty.
+[[nodiscard]] std::string project_icon(
+    const fs::path& project, const std::map<std::string, std::string>& values) {
+    const auto icon_form = values.find("iconform");
+    if (icon_form == values.end()) {
+        return {};
+    }
+    const fs::path directory = project.parent_path();
+    std::ifstream vbp(project);
+    std::string line;
+    while (std::getline(vbp, line)) {
+        if (line.size() < 6U || line.compare(0, 5, "Form=") != 0) {
+            continue;
+        }
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) {
+            line.pop_back();
+        }
+        const fs::path form_path = directory / line.substr(5);
+        std::ifstream form(form_path);
+        std::string row;
+        bool header_form = false;
+        while (std::getline(form, row)) {
+            if (!row.empty() && row.back() == '\r') {
+                row.pop_back();
+            }
+            const auto begin = row.find("Begin VB.Form ");
+            if (!header_form) {
+                if (begin == 0U) {
+                    std::string name = row.substr(14);
+                    while (!name.empty() && name.back() == ' ') {
+                        name.pop_back();
+                    }
+                    std::string wanted = icon_form->second;
+                    const auto lower = [](std::string text) {
+                        for (auto& c : text) {
+                            c = static_cast<char>(
+                                std::tolower(static_cast<unsigned char>(c)));
+                        }
+                        return text;
+                    };
+                    if (lower(name) != lower(wanted)) {
+                        break;  // another form
+                    }
+                    header_form = true;
+                }
+                continue;
+            }
+            // Properties of the form itself end at its first nested object.
+            const auto first = row.find_first_not_of(' ');
+            if (first == std::string::npos) {
+                continue;
+            }
+            if (row.compare(first, 6, "Begin ") == 0) {
+                return {};
+            }
+            if (row.compare(first, 4, "Icon") == 0 &&
+                row.find('=') != std::string::npos) {
+                const auto quote = row.find('"');
+                const auto close = row.find('"', quote + 1U);
+                const auto colon = row.find(':', close);
+                if (quote == std::string::npos || colon == std::string::npos) {
+                    return {};
+                }
+                const std::string frx =
+                    row.substr(quote + 1U, close - quote - 1U);
+                const long offset =
+                    std::strtol(row.c_str() + colon + 1U, nullptr, 16);
+                std::string bytes;
+                return wfc::ui::read_frx_record((directory / frx).string(),
+                                                offset, bytes)
+                           ? bytes
+                           : std::string{};
+            }
+        }
+    }
+    return {};
+}
+
+#ifdef _WIN32
+
+// Adds an .ico file's images as RT_ICON resources and a RT_GROUP_ICON.
+[[nodiscard]] bool stamp_icon(HANDLE update, const std::string& ico,
+                              const WORD language) {
+    const auto word = [&](const std::size_t at) {
+        return static_cast<std::uint16_t>(
+            static_cast<unsigned char>(ico[at]) |
+            (static_cast<unsigned char>(ico[at + 1U]) << 8U));
+    };
+    const auto dword = [&](const std::size_t at) {
+        return static_cast<std::uint32_t>(word(at)) |
+               (static_cast<std::uint32_t>(word(at + 2U)) << 16U);
+    };
+    if (ico.size() < 6U || word(0) != 0U || word(2) != 1U) {
+        return true;  // not an icon: leave the executable's own
+    }
+    const std::uint16_t count = word(4);
+    if (count == 0U || ico.size() < 6U + count * 16U) {
+        return true;
+    }
+    for (std::uint16_t i = 0; i < count; ++i) {
+        const std::size_t entry = 6U + i * 16U;
+        const std::uint32_t size = dword(entry + 8U);
+        const std::uint32_t offset = dword(entry + 12U);
+        if (offset > ico.size() || size > ico.size() - offset) {
+            return true;
+        }
+        if (UpdateResourceW(
+                update, MAKEINTRESOURCEW(3), MAKEINTRESOURCEW(i + 1U), language,
+                const_cast<char*>(ico.data()) + offset, size) == FALSE) {
+            return false;
+        }
+    }
+    // The group lists each image with its resource id instead of its offset.
+    std::string group;
+    const auto put16 = [&group](const std::uint16_t number) {
+        group.push_back(static_cast<char>(number & 0xFFU));
+        group.push_back(static_cast<char>(number >> 8U));
+    };
+    put16(0);
+    put16(1);
+    put16(count);
+    for (std::uint16_t i = 0; i < count; ++i) {
+        const std::size_t entry = 6U + i * 16U;
+        group.append(ico, entry, 12U);
+        put16(static_cast<std::uint16_t>(i + 1U));
+    }
+    return UpdateResourceW(update, MAKEINTRESOURCEW(14), MAKEINTRESOURCEW(1),
+                           language, group.data(),
+                           static_cast<DWORD>(group.size())) != FALSE;
+}
+
+#endif
+
+#ifdef _WIN32
+
+[[nodiscard]] std::wstring widen(const std::string& text) {
+    if (text.empty()) {
+        return {};
+    }
+    const int length = MultiByteToWideChar(
+        CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    std::wstring result(static_cast<std::size_t>(length), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                        result.data(), length);
+    return result;
+}
+
+// A version-resource block: length, value length, type, key, value, children.
+void block(std::string& out, const std::wstring& key, const std::string& value,
+           const bool text_value, const std::string& children) {
+    std::string body;
+    const auto put16 = [](std::string& to, const std::uint16_t number) {
+        to.push_back(static_cast<char>(number & 0xFFU));
+        to.push_back(static_cast<char>(number >> 8U));
+    };
+    for (const wchar_t c : key) {
+        put16(body, static_cast<std::uint16_t>(c));
+    }
+    put16(body, 0);
+    while ((body.size() + 6U) % 4U != 0U) {
+        body.push_back('\0');
+    }
+    body += value;
+    while ((body.size() + 6U) % 4U != 0U) {
+        body.push_back('\0');
+    }
+    body += children;
+    const std::size_t whole = body.size() + 6U;
+    put16(out, static_cast<std::uint16_t>(whole));
+    put16(out, static_cast<std::uint16_t>(text_value ? value.size() / 2U
+                                                     : value.size()));
+    put16(out, text_value ? 1U : 0U);
+    out += body;
+}
+
+[[nodiscard]] std::string wide_bytes(const std::string& text) {
+    const std::wstring wide = widen(text) + L'\0';
+    return std::string(reinterpret_cast<const char*>(wide.data()),
+                       wide.size() * sizeof(wchar_t));
+}
+
+// Writes the project's version information into the executable's resources
+// (RT_VERSION, English US). A project without version keys is left alone.
+[[nodiscard]] bool stamp_version(const fs::path& exe, const fs::path& project,
+                                 std::string& problem) {
+    const auto values = project_values(project);
+    const auto find = [&](const char* key) {
+        const auto found = values.find(key);
+        return found == values.end() ? std::string{} : found->second;
+    };
+    const auto number = [&](const char* key) {
+        return static_cast<std::uint32_t>(std::atol(find(key).c_str()));
+    };
+    const std::string icon = project_icon(project, values);
+    if (find("majorver").empty() && find("versioncompanyname").empty() &&
+        find("versionproductname").empty() && find("title").empty() &&
+        icon.empty()) {
+        return true;
+    }
+    const std::uint32_t major = number("majorver");
+    const std::uint32_t minor = number("minorver");
+    const std::uint32_t revision = number("revisionver");
+    const std::string dotted = std::to_string(major) + "." +
+                               std::to_string(minor) + ".0." +
+                               std::to_string(revision);
+
+    std::string strings;
+    const auto add = [&](const wchar_t* key, const std::string& text) {
+        std::string one;
+        block(one, key, wide_bytes(text), true, {});
+        while (one.size() % 4U != 0U) {
+            one.push_back('\0');
+        }
+        strings += one;
+    };
+    const std::string title =
+        find("title").empty() ? exe.stem().string() : find("title");
+    add(L"CompanyName", find("versioncompanyname"));
+    add(L"FileDescription", find("versionfiledescription").empty()
+                                ? title
+                                : find("versionfiledescription"));
+    add(L"FileVersion", dotted);
+    add(L"InternalName", exe.stem().string());
+    add(L"LegalCopyright", find("versionlegalcopyright"));
+    add(L"OriginalFilename", exe.filename().string());
+    add(L"ProductName", find("versionproductname").empty()
+                            ? title
+                            : find("versionproductname"));
+    add(L"ProductVersion", dotted);
+    add(L"Comments", find("versioncomments"));
+
+    std::string table;
+    block(table, L"040904B0", {}, true, strings);
+    while (table.size() % 4U != 0U) {
+        table.push_back('\0');
+    }
+    std::string string_info;
+    block(string_info, L"StringFileInfo", {}, true, table);
+    while (string_info.size() % 4U != 0U) {
+        string_info.push_back('\0');
+    }
+    std::string translation(4, '\0');
+    translation[0] = '\x09';
+    translation[1] = '\x04';
+    translation[2] = '\xB0';
+    translation[3] = '\x04';
+    std::string var;
+    block(var, L"Translation", translation, false, {});
+    while (var.size() % 4U != 0U) {
+        var.push_back('\0');
+    }
+    std::string var_info;
+    block(var_info, L"VarFileInfo", {}, true, var);
+
+    VS_FIXEDFILEINFO fixed{};
+    fixed.dwSignature = 0xFEEF04BDU;
+    fixed.dwStrucVersion = 0x00010000U;
+    fixed.dwFileVersionMS = (major << 16U) | (minor & 0xFFFFU);
+    fixed.dwFileVersionLS = revision & 0xFFFFU;
+    fixed.dwProductVersionMS = fixed.dwFileVersionMS;
+    fixed.dwProductVersionLS = fixed.dwFileVersionLS;
+    fixed.dwFileFlagsMask = 0x3FU;
+    fixed.dwFileOS = VOS_NT_WINDOWS32;
+    fixed.dwFileType = VFT_APP;
+    std::string root;
+    block(root, L"VS_VERSION_INFO",
+          std::string(reinterpret_cast<const char*>(&fixed), sizeof(fixed)),
+          false, string_info + var_info);
+
+    const std::wstring path = exe.wstring();
+    HANDLE update = BeginUpdateResourceW(path.c_str(), FALSE);
+    if (update == nullptr) {
+        problem = "cannot open " + exe.string() + " to write version resources";
+        return false;
+    }
+    // Replace the language of any existing version resource too.
+    const WORD language = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US);
+    const BOOL written =
+        UpdateResourceW(update, MAKEINTRESOURCEW(16), MAKEINTRESOURCEW(1),
+                        language, root.data(), static_cast<DWORD>(root.size()));
+    const bool iconed =
+        written == FALSE || icon.empty() || stamp_icon(update, icon, language);
+    if (EndUpdateResourceW(update, written && iconed ? FALSE : TRUE) == FALSE ||
+        written == FALSE || !iconed) {
+        problem = "cannot write version resources to " + exe.string();
+        return false;
+    }
+    return true;
+}
+
+#else
+
+[[nodiscard]] bool stamp_version(const fs::path&, const fs::path&,
+                                 std::string&) {
+    return true;
+}
+
+#endif
+
 [[nodiscard]] bool safe_relative(const std::string& name) {
     const fs::path path(name);
     if (name.empty() || path.is_absolute() || path.has_root_name()) {
@@ -262,8 +593,20 @@ bool build(const fs::path& image, const fs::path& project,
 
     std::string footer(kFooterMagic.begin(), kFooterMagic.end());
     put64(footer, payload.size());
-    std::ofstream out(target, std::ios::binary | std::ios::trunc);
-    out.write(runtime.data(), static_cast<std::streamsize>(runtime.size()));
+    {
+        std::ofstream out(target, std::ios::binary | std::ios::trunc);
+        out.write(runtime.data(), static_cast<std::streamsize>(runtime.size()));
+        out.close();
+        if (!out.good()) {
+            problem = "cannot write " + target.string();
+            return false;
+        }
+    }
+    // The resources go in first: rewriting them would drop appended data.
+    if (!stamp_version(target, project, problem)) {
+        return false;
+    }
+    std::ofstream out(target, std::ios::binary | std::ios::app);
     out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
     out.write(footer.data(), static_cast<std::streamsize>(footer.size()));
     out.close();

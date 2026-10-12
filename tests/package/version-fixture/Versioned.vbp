@@ -1,0 +1,11 @@
+Type=Exe
+Module=Main; Main.bas
+Startup="Sub Main"
+Title="Versioned Demo"
+MajorVer=2
+MinorVer=3
+RevisionVer=4
+VersionCompanyName="Example Company"
+VersionProductName="Versioned Product"
+VersionFileDescription="Version resource test"
+VersionLegalCopyright="Copyright 2026 Example"
