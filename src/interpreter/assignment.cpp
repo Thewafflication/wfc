@@ -623,6 +623,7 @@ bool Interpreter::native_type_matches(const std::string& declared_class_name,
     if (declared == class_definitions_.end() ||
         declared->second.native_type.empty() ||
         declared->second.native_type == "control" ||
+        declared->second.native_type == "vbcontrolextender" ||
         declared->second.native_type == "form" ||
         declared->second.native_type == "mdiform") {
         return true;

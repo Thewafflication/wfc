@@ -562,6 +562,57 @@ Next i
 End Property
 )VB";
 
+inline constexpr std::string_view kAmbientSource =
+    R"VB(Public Property Get BackColor() As Long
+BackColor = -2147483633
+End Property
+Public Property Get ForeColor() As Long
+ForeColor = -2147483630
+End Property
+Public Property Get DisplayName() As String
+DisplayName = ""
+End Property
+Public Property Get Font() As Object
+Dim f As New StdFont
+f.Name = "MS Sans Serif"
+f.Size = 8.25
+Set Font = f
+End Property
+Public Property Get LocaleID() As Long
+LocaleID = 1033
+End Property
+Public Property Get UserMode() As Boolean
+UserMode = True
+End Property
+Public Property Get UIDead() As Boolean
+UIDead = False
+End Property
+Public Property Get SupportsMnemonics() As Boolean
+SupportsMnemonics = True
+End Property
+Public Property Get ShowGrabHandles() As Boolean
+ShowGrabHandles = False
+End Property
+Public Property Get ShowHatching() As Boolean
+ShowHatching = False
+End Property
+Public Property Get MessageReflect() As Boolean
+MessageReflect = False
+End Property
+Public Property Get TextAlign() As Integer
+TextAlign = 0
+End Property
+Public Property Get ScaleUnits() As String
+ScaleUnits = "Twip"
+End Property
+Public Property Get DisplayAsDefault() As Boolean
+DisplayAsDefault = False
+End Property
+Public Property Get RightToLeft() As Boolean
+RightToLeft = False
+End Property
+)VB";
+
 inline constexpr std::string_view kFormsSource =
     R"VB(Public Property Get Count() As Long
 Count = 0

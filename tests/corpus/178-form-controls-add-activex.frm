@@ -11,6 +11,11 @@ Private Sub Form_Load()
     c.async = False
     Debug.Print c.loadXML("<a><b/></a>"); c.documentElement.nodeName; c.Left; c.Visible
     Debug.Print Controls.Count; Controls("Doc2").Name
+    Dim v As VBControlExtender
+    Set v = Controls.Add("MSXML2.DOMDocument.6.0", "Doc3")
+    v.Left = 5
+    Debug.Print v.Left; v.Name; v.Object.async
+    Controls.Remove "Doc3"
     On Error Resume Next
     Controls.Add "No.Such.Control", "X"
     Debug.Print Err.Number

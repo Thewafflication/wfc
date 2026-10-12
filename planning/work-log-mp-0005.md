@@ -27,3 +27,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #6 | Construction | ActiveX control hosting: `Object=` lines, ATL container (Win32) and unsited creation (headless), extender, event wiring, `ADR-0006` draft (`REQ-0293`); corpus 177, `TC-MP0005-gui-activex` | CTest 340/340 |
 | 2026-10-11 #7 | Construction | `Controls.Add` and control arrays for ActiveX controls (`REQ-0293`); corpus 178, 179 | CTest 342/342 |
 | 2026-10-11 #8 | Construction | In-project `UserControl` (`.ctl`) hosted on forms: extender, public members, events, lifecycle, `Form_Initialize` (`REQ-0294`); corpus 180, `TC-MP0005-gui-usercontrol` | CTest 344/344 |
+| 2026-10-11 #9 | Construction | `Ambient`, `PropertyChanged`, `As VBControlExtender` (`REQ-0293`, `REQ-0294`) | CTest 344/344 |

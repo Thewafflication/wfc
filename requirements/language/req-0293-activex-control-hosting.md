@@ -25,7 +25,8 @@
   array elements (`Index`, `Load`, `Unload`). `Controls.Add(ProgID, Name[,
   Container])` accepts the ProgID or CLSID of a registered control (the control
   is invisible until `Visible = True`); an unknown ProgID raises 711 and an
-  uncreatable control 429.
+  uncreatable control 429. `As VBControlExtender` variables accept any hosted
+  control (`ObjectEvent` and licensing are not implemented).
 
 ## Known limits
 

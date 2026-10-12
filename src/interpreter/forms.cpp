@@ -5258,6 +5258,18 @@ bool FormSupport::form_member(Interpreter& in, ControlObject& self,
         result = self.extender;
         return true;
     }
+    if (self.class_key == "usercontrol" && member == "ambient") {
+        if (auto made = in.instantiate_class("wfcambient", in.offset_)) {
+            result = std::move(*made);
+        } else {
+            result = Value{Nothing{}};
+        }
+        return true;
+    }
+    if (self.class_key == "usercontrol" && member == "propertychanged") {
+        result = Value{Empty{}};  // there is no designer to notify
+        return true;
+    }
     if (self.is_form && member == "controls") {
         auto data = std::make_shared<InstanceData>();
         data->class_name = "wfcnative";
@@ -5352,8 +5364,8 @@ void Interpreter::register_native_types() {
         user_classes.insert(lower_text(module.name));
     }
     std::vector<std::string> names = {
-        "control", "form", "mdiform",      "stdpicture", "picture",
-        "stdfont", "font", "ipicturedisp", "ifontdisp"};
+        "control",           "form",    "mdiform", "stdpicture",   "picture",
+        "vbcontrolextender", "stdfont", "font",    "ipicturedisp", "ifontdisp"};
     for (const auto& control_class : ui::control_classes()) {
         names.push_back(lower_text(control_class.name));
     }

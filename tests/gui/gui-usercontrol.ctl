@@ -18,6 +18,7 @@ Public Property Get Caption() As String
 End Property
 Public Property Let Caption(ByVal v As String)
     Text1.Text = v
+    PropertyChanged "Caption"
 End Property
 Public Sub Bump()
     mCount = mCount + 1
@@ -31,7 +32,7 @@ Private Sub UserControl_Initialize()
 End Sub
 Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
     Text1.Text = PropBag.ReadProperty("Caption", "none")
-    Debug.Print "uc read "; Text1.Text
+    Debug.Print "uc read "; Text1.Text; Ambient.UserMode; Ambient.LocaleID; Ambient.Font.Name
 End Sub
 Private Sub UserControl_Resize()
     Debug.Print "uc resize"; Width; Height
