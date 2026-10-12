@@ -177,6 +177,30 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "active Child window.*closing mdi.*child unload"
   )
+  # Forms the runtime cannot load are rejected with a diagnostic (REQ-0115).
+  add_test(
+    NAME TC-MP0004-form-unsupported-control
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/bad-control.vbp"
+  )
+  set_tests_properties(
+    TC-MP0004-form-unsupported-control
+    PROPERTIES
+      LABELS "integration;mp-0004;forms"
+      PASS_REGULAR_EXPRESSION "WFC0291.*Gizmo"
+  )
+  add_test(
+    NAME TC-MP0004-form-missing-resource
+    COMMAND
+      wfc
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/missing-resource.vbp"
+  )
+  set_tests_properties(
+    TC-MP0004-form-missing-resource
+    PROPERTIES
+      LABELS "integration;mp-0004;forms"
+      PASS_REGULAR_EXPRESSION "WFC0292.*missing-resource.frx"
+  )
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host

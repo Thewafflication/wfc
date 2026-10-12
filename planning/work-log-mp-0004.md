@@ -44,3 +44,4 @@ Goal-level token usage and elapsed time: Not reported.
 | 2026-10-11 #23 | Construction | Virtual `Printer`/`Printers` (spooled `Print`, `NewPage`, `EndDoc`, properties) (`REQ-0289`); corpus 169 | CTest 329/329 |
 | 2026-10-11 #24 | Construction | `DriveListBox`, `DirListBox`, `FileListBox` (`REQ-0126`, `REQ-0289`); corpus 170 | CTest 330/330 |
 | 2026-10-11 #25 | Construction | Generic data binding to class-module sources: `DataSource`/`DataMember`/`DataField`/`DataChanged`, write-back on LostFocus and unload (`REQ-0131`); corpus 171 | CTest 331/331 |
+| 2026-10-11 #26 | Construction | Load-time diagnostics `WFC0291` (unsupported control class) and `WFC0292` (unreadable `.frx` resource) instead of silent skips (`REQ-0115`, `REQ-0289`); fixtures under tests/fixtures/forms | CTest 333/333 |

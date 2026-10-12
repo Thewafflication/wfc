@@ -5,6 +5,7 @@
 #include "interpreter.hpp"
 
 #include "../ui/control_tables.hpp"
+#include "../ui/frm_parser.hpp"
 
 namespace wfc::detail {
 
@@ -1594,6 +1595,45 @@ bool Interpreter::scan_classes() {
             if (!parsed->ok) {
                 set_error("WFC0289",
                           "form '" + class_source.name + "': " + parsed->error,
+                          offset_);
+                return false;
+            }
+            // Anything the runtime cannot load is reported now, not skipped.
+            std::string problem;
+            std::string code = "WFC0291";
+            const auto check = [&](const auto& self,
+                                   const ui::FrmObject& object) -> void {
+                for (const auto& child : object.children) {
+                    std::string leaf = child.type;
+                    if (leaf.rfind("VB.", 0) == 0) {
+                        leaf = leaf.substr(3);
+                    }
+                    if (problem.empty() &&
+                        ui::find_control_class(leaf) == nullptr) {
+                        problem = "unsupported control class '" + child.type +
+                                  "' (control '" + child.name + "')";
+                    }
+                    self(self, child);
+                }
+                for (const auto& property : object.properties) {
+                    std::string bytes;
+                    if (problem.empty() && property.in_resource &&
+                        !ui::read_frx_record(
+                            (class_source.form_directory.empty()
+                                 ? std::string{}
+                                 : class_source.form_directory + "/") +
+                                property.resource_file,
+                            property.resource_offset, bytes)) {
+                        code = "WFC0292";
+                        problem = "cannot read resource '" +
+                                  property.resource_file + "' for property '" +
+                                  property.name + "' of '" + object.name + "'";
+                    }
+                }
+            };
+            check(check, parsed->root);
+            if (!problem.empty()) {
+                set_error(code, "form '" + class_source.name + "': " + problem,
                           offset_);
                 return false;
             }

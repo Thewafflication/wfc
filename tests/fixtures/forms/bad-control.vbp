@@ -1,0 +1,3 @@
+Type=Exe
+Form=bad-control.frm
+Startup="Form1"

@@ -194,6 +194,13 @@ focus and when the form unloads. A missing member raises the ordinary 438.
 `DataFormat`, record navigation and DAO/ADO recordsets are not implemented
 (DAO/Jet is excluded from 1.0).
 
+## Unsupported forms (REQ-0115)
+
+A form is checked when the project is loaded. A control class the runtime does
+not provide (including every ActiveX control until MP-0005/MP-0006) is rejected
+with `WFC0291`, and a property that refers to a missing or unreadable `.frx`
+record with `WFC0292`; nothing is skipped silently.
+
 ## Known limits (extended later in MP-0004)
 
 OLE drag and drop, printer graphics, `PrintForm`, and
@@ -201,4 +208,4 @@ MDI menu merging are not yet implemented.
 
 ## Verification
 
-`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.
+`TC-MP0002-corpus-151-form-basic`, `-152-form-timer-arrays`, `-153-form-lists`, `-154-form-scrollbars`, `-155-form-menus-dialogs`, `-156-form-modal`, `-158-form-navigation`, `-159-form-controls-collection`, `-160-form-end`, `-161-form-fonts-misc`, `-164-form-sendkeys`, `-167-form-mdi`, `-168-form-drag`, `-170-form-filelists`, `-171-form-databinding`, `169-printer`, `TC-MP0004-gui-mdi`, `TC-MP0004-form-unsupported-control`, `TC-MP0004-form-missing-resource`, `TC-MP0004-win32-host` and `TC-MP0004-gui-form-timer` and the `wfc_ui_tests` units.

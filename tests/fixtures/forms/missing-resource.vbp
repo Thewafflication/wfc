@@ -1,0 +1,3 @@
+Type=Exe
+Form=missing-resource.frm
+Startup="Form1"
