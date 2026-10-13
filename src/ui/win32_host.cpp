@@ -848,6 +848,29 @@ void Win32Host::set_border(const WindowId window, const bool border) {
                      SWP_FRAMECHANGED);
 }
 
+void Win32Host::set_form_style(const WindowId window, const int style) {
+    const auto it = windows_.find(window);
+    if (it == windows_.end() || it->second->hwnd == nullptr ||
+        !it->second->is_form || it->second->mdi_child) {
+        return;
+    }
+    DWORD flags = WS_CLIPCHILDREN;
+    if (style == 0) {
+        flags |= WS_POPUP;
+    } else if (style == 1) {
+        flags |= WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    } else if (style == 3) {
+        flags |= WS_CAPTION | WS_SYSMENU;
+    } else {
+        return;  // sizable (or a tool window): the default frame
+    }
+    const HWND hwnd = it->second->hwnd;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, static_cast<LONG_PTR>(flags));
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                     SWP_FRAMECHANGED);
+}
+
 void Win32Host::set_label_style(const WindowId window, const long fore,
                                 const long back, const bool transparent) {
     const auto it = windows_.find(window);
@@ -1633,6 +1656,11 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
             const int side = std::min(right - left, bottom - top);
             right = left + side;
             bottom = top + side;
+        }
+        if (operation.draw_style == 5) {
+            // With no pen GDI leaves out the last row and column.
+            ++right;
+            ++bottom;
         }
         HPEN pen = operation.draw_style == 5
                        ? static_cast<HPEN>(GetStockObject(NULL_PEN))

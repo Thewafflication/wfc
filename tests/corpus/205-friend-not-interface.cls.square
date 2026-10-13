@@ -1,0 +1,14 @@
+Implements IShape
+Private mSide As Long
+Friend Sub Copy(other As Square)
+    mSide = other.Side
+End Sub
+Public Property Get Side() As Long
+    Side = mSide
+End Property
+Public Property Let Side(value As Long)
+    mSide = value
+End Property
+Private Function IShape_Area() As Long
+    IShape_Area = mSide * mSide
+End Function

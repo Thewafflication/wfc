@@ -1,0 +1,10 @@
+Private Const NORMAL As Long = &H0
+Private Const TRANSPARENT As Long = &H1
+Private Const BLEND25 As Long = &H2
+Private Const BLEND50 As Long = &H4
+Private Const FOCUS As Long = BLEND25
+Private Const BLEND As Long = BLEND50
+Private Const BOTH As Long = BLEND25 Or TRANSPARENT
+Public Function Total() As Long
+    Total = FOCUS + BLEND + BOTH + NORMAL
+End Function

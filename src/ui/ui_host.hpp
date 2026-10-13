@@ -197,6 +197,12 @@ public:
         static_cast<void>(back);
         static_cast<void>(transparent);
     }
+    // A form's BorderStyle (0 none, 1 fixed single, 2 sizable, 3 fixed
+    // dialog); applied before its size is set.
+    virtual void set_form_style(WindowId window, int border_style) {
+        static_cast<void>(window);
+        static_cast<void>(border_style);
+    }
     // Shows or hides the sunken edge of a picture box (BorderStyle).
     virtual void set_border(WindowId window, bool border) {
         static_cast<void>(window);

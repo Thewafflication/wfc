@@ -1,16 +1,16 @@
 done
 cls #1
+line #1 0 1000 1000 1500 000000
 shape #1 type2 100 100 800 500 000000 fill 0000FF style0
-line #1 0 1000 1000 1500 000000
 cls #1
+picture #1 pic1 2000 200 600 400
+line #1 0 1000 1000 1500 000000
 shape #1 type2 100 100 800 500 000000 fill 0000FF style0
-line #1 0 1000 1000 1500 000000
-picture #1 pic1 2000 200 600 400
 cls #1
-shape #1 type2 300 100 800 500 000000 fill 0000FF style0
+picture #1 pic1 2000 200 600 400
 line #1 0 1000 1000 1500 000000
-picture #1 pic1 2000 200 600 400
-cls #1
 shape #1 type2 300 100 800 500 000000 fill 0000FF style0
+cls #1
 picture #1 pic1 2000 200 600 400
+shape #1 type2 300 100 800 500 000000 fill 0000FF style0
 text #1 0 0 000000 "done"

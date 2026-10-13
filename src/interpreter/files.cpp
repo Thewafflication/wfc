@@ -136,7 +136,12 @@ bool Interpreter::read_input_field(std::FILE* handle, std::string& token,
         while (c == ' ' || c == '\t') {
             c = std::fgetc(handle);
         }
-        if (c != ',' && c != '\n' && c != '\r' && c != EOF) {
+        if (c == '\r') {
+            const int next = std::fgetc(handle);
+            if (next != '\n' && next != EOF) {
+                std::ungetc(next, handle);
+            }
+        } else if (c != ',' && c != '\n' && c != EOF) {
             std::ungetc(c, handle);
         }
         return true;
@@ -954,10 +959,29 @@ std::optional<bool> Interpreter::parse_file_statement(
             if (find_variable(*name).value == nullptr) {
                 static_cast<void>(declare_implicit(*name, '\0'));
             }
-            const auto variable = find_variable(*name);
+            auto variable = find_variable(*name);
             if (variable.value == nullptr) {
                 set_error("WFC0015", "undeclared variable", variable_offset);
                 return false;
+            }
+            bool element_variant = false;
+            if (!at_end() && (current() == '(' || current() == '.')) {
+                // An array element or a field: `Input #1, names(i)`.
+                offset_ = variable_offset;
+                LValue target;
+                if (!parse_lvalue_path(target)) {
+                    return false;
+                }
+                if (execute_) {
+                    if (target.ptr == nullptr) {
+                        return raise_runtime(13, "Type mismatch",
+                                             variable_offset);
+                    }
+                    variable.value = target.ptr;
+                    element_variant =
+                        target.variant ||
+                        std::holds_alternative<Empty>(*target.ptr);
+                }
             }
             if (execute_) {
                 auto* const file = find_open_file(number, statement_offset);
@@ -976,7 +1000,8 @@ std::optional<bool> Interpreter::parse_file_statement(
                 token = ansi_bytes_to_text(token);
                 if (!store_input_token(
                         *variable.value,
-                        variable.scope->variant_variables.contains(*name),
+                        element_variant ||
+                            variable.scope->variant_variables.contains(*name),
                         token, quoted, variable_offset)) {
                     return false;
                 }

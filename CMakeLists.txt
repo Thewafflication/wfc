@@ -422,6 +422,19 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         TIMEOUT 90
     )
   endif()
+  # Further corpus games: each runs in real windows; the forms it shows must
+  # each leave a screenshot.
+  include("${CMAKE_CURRENT_SOURCE_DIR}/tests/projects/AddVb6Game.cmake")
+  add_vb6_game(clix clix/src/Clix.vbp "frmMain" 5000)
+  add_vb6_game(
+    executioner
+    executioner/Executioner.vbp
+    "frmSplash;frmGamescreen"
+    6000
+  )
+  add_vb6_game(pipes pipes/pipes.vbp "Logo;Form1" 6000)
+  add_vb6_game(restaum restaum/source/BrainVita.vbp "Form1" 5000)
+  add_vb6_game(sumboku sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp "FrmSudoku" 5000)
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)
   set_tests_properties(
     TC-MP0004-win32-host

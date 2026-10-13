@@ -1777,6 +1777,53 @@ struct FormSupport {
         return control_of(form);
     }
 
+    // Left, Top, Width and Height of a control; X1, Y1, X2 and Y2 of a Line.
+    [[nodiscard]] static bool is_geometry_member(const ControlObject& object,
+                                                 const std::string& member) {
+        if (member == "left" || member == "top" || member == "width" ||
+            member == "height") {
+            return true;
+        }
+        return object.class_key == "line" &&
+               (member == "x1" || member == "y1" || member == "x2" ||
+                member == "y2");
+    }
+
+    // The units per twip (and the origin) of the scale a control's Left, Top,
+    // Width and Height are read and written in: its container's ScaleMode.
+    // False when that is twips, as it is by default.
+    [[nodiscard]] static bool geometry_scale(const ControlObject& object,
+                                             double& sx, double& sy, double& ox,
+                                             double& oy) {
+        if (object.is_form || object.class_key == "menu" ||
+            object.class_key == "timer") {
+            return false;
+        }
+        const auto owner = object.form.lock();
+        if (!owner) {
+            return false;
+        }
+        double dx = 0.0;
+        double dy = 0.0;
+        ControlObject* surface = surface_for(*owner, object, dx, dy);
+        if (surface == nullptr || !surface->values.contains("scalemode") ||
+            static_cast<long>(number_of(*surface, "scalemode")) == 1) {
+            return false;
+        }
+        const Scale scale = scale_of(*surface);
+        const double width = client_width(*surface);
+        const double height = client_height(*surface);
+        if (width == 0.0 || height == 0.0 || scale.width == 0.0 ||
+            scale.height == 0.0) {
+            return false;
+        }
+        sx = scale.width / width;
+        sy = scale.height / height;
+        ox = scale.left;
+        oy = scale.top;
+        return true;
+    }
+
     static void paint_lightweight(Interpreter& in, ControlObject& surface,
                                   const ControlObject& object, const double dx,
                                   const double dy) {
@@ -1800,6 +1847,20 @@ struct FormSupport {
                                       : himetric_to_twips(picture->info.height);
             paint_picture(in, surface, *picture, dx + number_of(object, "left"),
                           dy + number_of(object, "top"), width, height);
+            if (number_of(object, "borderstyle") != 0.0) {
+                // A fixed single border: a thin black frame around the box.
+                ui::DrawOp frame = base_op(surface, "shape");
+                frame.x1 = dx + number_of(object, "left");
+                frame.y1 = dy + number_of(object, "top");
+                frame.x2 = number_of(object, "width");
+                frame.y2 = number_of(object, "height");
+                frame.radius = 0.0;
+                frame.color = 0;
+                frame.fill_style = 1;
+                frame.draw_width = 1;
+                frame.draw_style = 0;
+                draw_op(in, surface, frame);
+            }
         } else if (object.class_key == "shape") {
             ui::DrawOp operation = base_op(surface, "shape");
             operation.x1 = dx + number_of(object, "left");
@@ -1815,9 +1876,12 @@ struct FormSupport {
                     : 1;
             operation.draw_width =
                 std::max(1, static_cast<int>(number_of(object, "borderwidth")));
+            // Shape.BorderStyle 0 is Transparent: the host's "invisible" (5).
             operation.draw_style =
                 object.values.contains("borderstyle")
-                    ? static_cast<int>(number_of(object, "borderstyle"))
+                    ? (static_cast<int>(number_of(object, "borderstyle")) == 0
+                           ? 5
+                           : static_cast<int>(number_of(object, "borderstyle")))
                     : 1;
             draw_op(in, surface, operation);
         } else if (object.class_key == "line") {
@@ -1853,8 +1917,10 @@ struct FormSupport {
         });
         std::sort(lightweights.begin(), lightweights.end(),
                   [](const ControlObject* a, const ControlObject* b) {
-                      return a->order != b->order ? a->order < b->order
-                                                  : a->index < b->index;
+                      // As in VB6, the control listed first in the form
+                      // file is the top one: paint it last.
+                      return a->order != b->order ? a->order > b->order
+                                                  : a->index > b->index;
                   });
         for (ControlObject* object : lightweights) {
             double dx = 0.0;
@@ -2634,6 +2700,10 @@ struct FormSupport {
                 host.set_text(object.window,
                               std::get<std::string>(found->second));
             }
+        }
+        if (object.is_form && object.values.contains("borderstyle")) {
+            host.set_form_style(object.window,
+                                static_cast<int>(number_of("borderstyle")));
         }
         host.set_bounds(
             object.window,
@@ -4674,6 +4744,22 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         result = Value{display_name};
         return true;
     }
+    if (FormSupport::is_geometry_member(*this, member)) {
+        double sx = 1.0;
+        double sy = 1.0;
+        double ox = 0.0;
+        double oy = 0.0;
+        if (FormSupport::geometry_scale(*this, sx, sy, ox, oy)) {
+            const double twips = FormSupport::number_of(*this, member);
+            const bool horizontal = member == "left" || member == "x1" ||
+                                    member == "x2" || member == "width";
+            const bool is_size = member == "width" || member == "height";
+            const double origin = is_size ? 0.0 : (horizontal ? ox : oy);
+            result = Value{
+                static_cast<float>(origin + twips * (horizontal ? sx : sy))};
+            return true;
+        }
+    }
     if (member == "hdc" && FormSupport::is_surface(*this) &&
         window != ui::kNoWindow) {
         // The surface's device context, for GDI calls through `Declare`.
@@ -4772,6 +4858,28 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
         failure = NativeFailure{383, "Property is read-only"};
         return true;
     }
+    if (FormSupport::is_geometry_member(*this, member)) {
+        // The program writes these in its container's scale; store twips.
+        static thread_local bool converting = false;
+        double sx = 1.0;
+        double sy = 1.0;
+        double ox = 0.0;
+        double oy = 0.0;
+        if (!converting && FormSupport::geometry_scale(*this, sx, sy, ox, oy)) {
+            const double given = as_double(value);
+            const bool horizontal = member == "left" || member == "x1" ||
+                                    member == "x2" || member == "width";
+            const bool is_size = member == "width" || member == "height";
+            const double origin = is_size ? 0.0 : (horizontal ? ox : oy);
+            double twips = (given - origin) / (horizontal ? sx : sy);
+            twips = std::round(twips * 100.0) / 100.0;  // 5 px is 75 twips
+            converting = true;
+            const bool done = put(in, member, arguments,
+                                  Value{static_cast<float>(twips)}, failure);
+            converting = false;
+            return done;
+        }
+    }
     if (member == "font") {
         // `Set a.Font = b.Font`: copy the font properties.
         const auto* source = std::get_if<ObjectInstance>(&value);
@@ -4848,8 +4956,15 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
             failure = NativeFailure{13, "Type mismatch"};
             return true;
         }
-    } else if (!coerce_property(in, converted, setter_type, failure)) {
-        return true;
+    } else {
+        if (std::holds_alternative<Empty>(converted) && !object_type) {
+            // An undeclared name (`vbgray`) reads as Empty: 0, or "".
+            converted = setter_type == "String" ? Value{std::string{}}
+                                                : Value{Integer{0}};
+        }
+        if (!coerce_property(in, converted, setter_type, failure)) {
+            return true;
+        }
     }
     if (is_scroll() && wanted == "value") {
         const double low = std::min(FormSupport::number_of(*this, "min"),

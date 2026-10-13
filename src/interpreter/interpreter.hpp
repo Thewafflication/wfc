@@ -220,6 +220,9 @@ struct ProcedureDef {
     // only one standard module). A class member's dot-access sites check
     // this against current_class_def() (see member_accessible).
     bool is_private{};
+    // `Friend`: visible inside the project but not part of the class's
+    // interface, so `Implements` does not require it.
+    bool is_friend{};
     // REQ-0206: `Static name [As Type]` declarations inside this
     // procedure's own body persist their values across separate calls.
     // Storage lives here, on the ProcedureDef itself (found once by
@@ -2231,6 +2234,7 @@ private:
     [[nodiscard]] bool load_resources();
     std::string app_source_storage_;
     bool pending_static_procedure_{};
+    bool pending_friend_procedure_{};
     bool variant_string_seen_{};
     bool variant_number_seen_{};
     bool integer_literals_are_integer_{true};

@@ -5,11 +5,13 @@
 #include <iterator>
 
 #include "interpreter.hpp"
+#include "pictures.hpp"
 
 namespace wfc::detail {
 namespace {
 
 constexpr std::uint32_t kStringTable = 6;
+constexpr std::uint32_t kBitmap = 2;
 
 [[nodiscard]] std::uint32_t read32(const std::string& bytes,
                                    const std::size_t at) {
@@ -150,13 +152,17 @@ std::optional<Value> Interpreter::load_resource_builtin(
     const std::string_view name, const std::vector<Value>& arguments,
     const std::size_t offset) {
     const bool is_string = name == "loadresstring";
-    if (arguments.size() != (is_string ? 1U : 2U)) {
+    const bool is_picture = name == "loadrespicture";
+    if (is_picture ? (arguments.empty() || arguments.size() > 2U)
+                   : arguments.size() != (is_string ? 1U : 2U)) {
         set_error("WFC0072", "function received the wrong number of arguments",
                   offset);
         return std::nullopt;
     }
     if (!execute_) {
-        return is_string ? Value{std::string{}} : Value{Empty{}};
+        return is_string
+                   ? Value{std::string{}}
+                   : (is_picture ? make_empty_picture_value() : Value{Empty{}});
     }
     const auto not_found = [&](const std::string& what) {
         static_cast<void>(raise_runtime(
@@ -215,6 +221,55 @@ std::optional<Value> Interpreter::load_resource_builtin(
                 }
                 at += length * 2U;
             }
+        }
+        return not_found(shown);
+    }
+    if (is_picture) {
+        // LoadResPicture(id, vbResBitmap): a stored DIB becomes a .bmp.
+        const auto kind = arguments.size() > 1U
+                              ? whole_value(arguments[1])
+                              : decltype(whole_value(arguments[0])){0};
+        if (!kind.has_value() || *kind != 0) {
+            return not_found(shown);  // icons and cursors: not stored here
+        }
+        for (const auto& entry : resources_) {
+            const bool name_match =
+                id_text.empty()
+                    ? (entry.name_text.empty() && entry.name_id == id)
+                    : lower_text(entry.name_text) == id_text;
+            if (entry.type_id != kBitmap || !entry.type_name.empty() ||
+                !name_match || entry.data.size() < 40U) {
+                continue;
+            }
+            const std::size_t header_size = read32(entry.data, 0);
+            const std::size_t bit_count = read16(entry.data, 14);
+            const std::size_t compression = read32(entry.data, 16);
+            std::size_t colors = read32(entry.data, 32);
+            if (colors == 0U && bit_count <= 8U) {
+                colors = std::size_t{1} << bit_count;
+            }
+            std::size_t pixels_at = header_size + colors * 4U;
+            if (compression == 3U && header_size == 40U) {
+                pixels_at += 12U;  // BI_BITFIELDS masks
+            }
+            std::string file = "BM";
+            const auto put32 = [&](const std::size_t value) {
+                for (std::size_t i = 0; i < 4U; ++i) {
+                    file.push_back(
+                        static_cast<char>((value >> (8U * i)) & 0xFFU));
+                }
+            };
+            put32(14U + entry.data.size());
+            put32(0U);
+            put32(14U + pixels_at);
+            file += entry.data;
+            PictureInfo info;
+            if (!read_picture_header(file, info)) {
+                static_cast<void>(
+                    raise_runtime(481, "Invalid picture", offset));
+                return std::nullopt;
+            }
+            return make_picture_value(std::move(file), info);
         }
         return not_found(shown);
     }

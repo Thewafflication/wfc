@@ -129,6 +129,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "wfcregexreplace",
                                                        "loadresstring",
                                                        "loadresdata",
+                                                       "loadrespicture",
                                                        "wfcactive",
                                                        "loadpicture",
                                                        "wfcsys",
@@ -183,7 +184,8 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         }
         return Value{v};
     };
-    if (name == "loadresstring" || name == "loadresdata") {
+    if (name == "loadresstring" || name == "loadresdata" ||
+        name == "loadrespicture") {
         return load_resource_builtin(name, arguments, offset);
     }
     if (name == "doevents" || name == "imestatus") {

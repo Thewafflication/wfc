@@ -25,12 +25,19 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     Write-Output '[lint] WSP physical source style'
+    # tests/vb6games holds other authors' programs, kept byte for byte (they
+    # are a Git submodule and not subject to this style), so it is left out.
+    $testDirectories = @(Get-ChildItem -Directory tests |
+            Where-Object Name -ne 'vb6games' |
+            ForEach-Object { "tests/$($_.Name)" })
+    $testFiles = @(Get-ChildItem -File tests |
+            ForEach-Object { "tests/$($_.Name)" })
     $styleScope = @(
-        'src', 'include', 'tests', 'cmake', 'scripts', '.github',
+        'src', 'include', 'cmake', 'scripts', '.github',
         'CMakeLists.txt', 'CMakePresets.json', '.clang-format',
         '.editorconfig', '.gersemirc', '.gitattributes',
         '.pre-commit-config.yaml', 'PSScriptAnalyzerSettings.psd1'
-    )
+    ) + $testDirectories + $testFiles
     # A child process gives a reliable exit status; -Command keeps the
     # array parameter intact.
     $quoted = ($styleScope | ForEach-Object { "'$_'" }) -join ','

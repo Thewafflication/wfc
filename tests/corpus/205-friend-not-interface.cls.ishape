@@ -1,0 +1,4 @@
+Friend Sub Copy(other As IShape)
+End Sub
+Public Function Area() As Long
+End Function

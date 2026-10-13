@@ -1,0 +1,8 @@
+Public Items As Collection
+Private mMore As New Collection
+Private Sub Class_Initialize()
+    Set Items = New Collection
+End Sub
+Public Property Get More() As Collection
+    Set More = mMore
+End Property

@@ -675,6 +675,18 @@ bool Interpreter::class_satisfies(
         }
         return actual_class_name == "wfcnative";
     }
+    // A picture or font object of the runtime satisfies the stdole classes
+    // that a project's type-library reference brings in.
+    if (actual_class_name == "wfcnative" &&
+        (declared_class_name == "stdpicture" ||
+         declared_class_name == "picture" ||
+         declared_class_name == "ipicturedisp" ||
+         declared_class_name == "ipicture" ||
+         declared_class_name == "stdfont" || declared_class_name == "font" ||
+         declared_class_name == "ifontdisp" ||
+         declared_class_name == "ifont")) {
+        return true;
+    }
     // A COM object satisfies any class imported from a type library.
     if (actual_class_name == "wfccom") {
         const auto declared = class_definitions_.find(declared_class_name);
@@ -1205,6 +1217,26 @@ bool Interpreter::parse_member_assignment(
     }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     const ClassDef& class_def = class_iterator->second;
+
+    // `obj.Field.Method args` / `obj.Field.Prop = x`: a field that holds an
+    // object, then a member of that object.
+    if (const auto field = instance.fields.variables.find(*member_name);
+        field != instance.fields.variables.end() &&
+        std::holds_alternative<ObjectInstance>(field->second)) {
+        const auto after_field = offset_;
+        skip_horizontal_whitespace();
+        if (!at_end() && current() == '.') {
+            const std::string temp_name =
+                "wfcchain" + std::to_string(chain_counter_++);
+            current_scope().variables.insert_or_assign(temp_name,
+                                                       field->second);
+            const bool chained_ok =
+                parse_assignment_or_array_element(temp_name, '\0');
+            current_scope().variables.erase(temp_name);
+            return chained_ok;
+        }
+        offset_ = after_field;
+    }
 
     // `obj.Prop(args).member = x` / `obj.Prop.member = x`: read the property or
     // method first, then write the member of the object it returns.

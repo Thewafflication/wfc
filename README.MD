@@ -23,14 +23,30 @@ code generation). See [the roadmap](planning/roadmap-1.0.md).
 The captures below come from the test suite, running real VB6 form projects in
 native Win32 windows.
 
-**A real VB6 game (MP-0008).** Capture King, a network chess game by Christopher
-McKirgan (GPL), run unmodified from the
+**Real VB6 games (MP-0008).** Capture King, a network chess game by Christopher
+McKirgan (GPL), run from the
 [`vb6games`](https://github.com/Thewafflication/vb6games) corpus: 150 picture
 boxes as the board, menus, buttons with pictures, Winsock and Common Dialog
-controls, here after four scripted moves (the button overlays at the lower right
-still draw wrongly):
+controls, here after four scripted moves. Two copies of it also play a whole
+game against each other over real sockets in the test suite (a virtual LAN of
+loopback addresses). Its form is laid out as in the author's user guide.
 
 ![Capture King, a VB6 chess game, running in WFC](evidence/screenshots/vb6games-captureking.png)
+
+Five more games from the corpus run in WFC without changes to their code. Clix
+(a Jawbreaker-style puzzle, MIT) and Executioner (a hangman game from 1999,
+GPL-3.0, with sounds and pictures):
+
+![Clix, a VB6 puzzle game](evidence/screenshots/vb6games-clix.png)
+![Executioner, a VB6 hangman game](evidence/screenshots/vb6games-executioner.png)
+
+Pipes (GPL-3.0; compared with a build of the same source made with the real
+VB6 compiler), Resta Um (peg solitaire, MIT) and SuMBOku (a sudoku game,
+GPL-3.0):
+
+![Pipes, a VB6 puzzle game](evidence/screenshots/vb6games-pipes.png)
+![Resta Um, a VB6 peg solitaire](evidence/screenshots/vb6games-restaum.png)
+![SuMBOku, a VB6 sudoku game](evidence/screenshots/vb6games-sumboku.png)
 
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an

@@ -1,0 +1,3 @@
+Module=Main; 203-call-member-chain.bas
+Class=Holder; 203-call-member-chain.cls.holder
+Startup="Sub Main"

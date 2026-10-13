@@ -1,0 +1,3 @@
+Module=Main; 204-class-const-refs.bas
+Class=Flags; 204-class-const-refs.cls.flags
+Startup="Sub Main"

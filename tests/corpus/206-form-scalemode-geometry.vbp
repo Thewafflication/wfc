@@ -1,0 +1,3 @@
+Type=Exe
+Form=206-form-scalemode-geometry.frm
+Startup="Form1"

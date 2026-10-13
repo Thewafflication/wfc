@@ -723,6 +723,14 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             const bool is_enum = !is_const && consume_keyword("enum");
             if (is_const || is_enum) {
                 scopes_.emplace_back();
+                // Earlier constants of the class may appear in this one.
+                std::set<std::string> known_constants;
+                for (const auto& [known_name, known_value] :
+                     class_def.constants) {
+                    scopes_.back().variables.emplace(known_name, known_value);
+                    scopes_.back().constants.insert(known_name);
+                    known_constants.insert(known_name);
+                }
                 const bool parsed_ok = is_const
                                            ? parse_constant_declaration()
                                            : parse_enum_statement(line_offset);
@@ -733,6 +741,9 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
                 }
                 for (auto& [constant_name, constant_value] :
                      captured.variables) {
+                    if (known_constants.contains(constant_name)) {
+                        continue;
+                    }
                     // A Public Enum/Const in a class module is visible
                     // program-wide.
                     if (!constant_is_private) {
@@ -757,8 +768,12 @@ bool Interpreter::scan_class_body(ClassDef& class_def) {
             is_private = true;
             has_visibility_keyword = true;
             skip_horizontal_whitespace();
-        } else if (consume_keyword("public") || consume_keyword("friend")) {
+        } else if (consume_keyword("public")) {
             has_visibility_keyword = true;
+            skip_horizontal_whitespace();
+        } else if (consume_keyword("friend")) {
+            has_visibility_keyword = true;
+            pending_friend_procedure_ = true;
             skip_horizontal_whitespace();
         }
         if (consume_keyword("static")) {
@@ -1037,6 +1052,7 @@ bool Interpreter::scan_class_property_declaration(
     definition.is_function = accessor == Accessor::get;
     definition.is_private = is_private;
     definition.static_locals = std::exchange(pending_static_procedure_, false);
+    definition.is_friend = std::exchange(pending_friend_procedure_, false);
     if (!scan_procedure_parameters(definition)) {
         return false;
     }
@@ -1131,6 +1147,7 @@ bool Interpreter::scan_class_procedure_declaration(
     definition.is_function = is_function;
     definition.is_private = is_private;
     definition.static_locals = std::exchange(pending_static_procedure_, false);
+    definition.is_friend = std::exchange(pending_friend_procedure_, false);
     if (!scan_procedure_parameters(definition)) {
         return false;
     }
@@ -1772,7 +1789,8 @@ bool Interpreter::check_interface_completeness() {
             const auto& interface_def = found->second;
             const auto missing = [&](const auto& members, const auto& own) {
                 for (const auto& [member, definition] : members) {
-                    if (definition.is_private || member.starts_with("class_")) {
+                    if (definition.is_private || definition.is_friend ||
+                        member.starts_with("class_")) {
                         continue;
                     }
                     if (!own.contains(interface_key + "_" + member)) {
@@ -2696,8 +2714,35 @@ bool Interpreter::parse_single_declaration() {
             const auto saved_offset = offset_;
             char class_type_character{};
             auto class_name = parse_identifier(&class_type_character);
+            bool generic_object = false;
             if (class_name.has_value() && class_type_character == '\0' &&
-                class_definitions_.contains(*class_name)) {
+                !at_end() && current() == '.') {
+                // `Library.Class`: `VB.Image` is an intrinsic control type,
+                // which a project class of the same name must not shadow.
+                const auto before_dot = offset_;
+                advance();
+                char second_type_character{};
+                auto second = parse_identifier(&second_type_character);
+                if (second.has_value() && second_type_character == '\0') {
+                    const std::string qualified = *class_name + "." + *second;
+                    if (class_definitions_.contains(qualified)) {
+                        class_name = qualified;
+                    } else if (*class_name == "vb" && *second != "form") {
+                        generic_object = true;
+                    } else if (class_definitions_.contains(*second)) {
+                        class_name = std::move(*second);
+                    } else {
+                        offset_ = before_dot;
+                    }
+                } else {
+                    offset_ = before_dot;
+                }
+            }
+            if (generic_object) {
+                element_default = Nothing{};
+                is_object = true;
+            } else if (class_name.has_value() && class_type_character == '\0' &&
+                       class_definitions_.contains(*class_name)) {
                 declared_class_name = std::move(*class_name);
                 element_default = Nothing{};
                 is_object = true;

@@ -707,6 +707,21 @@ auto Interpreter::parse_type_keyword() -> std::optional<TypeKeywordResult> {
     if (consume_keyword("variant")) {
         return TypeKeywordResult{Value{Empty{}}, true};
     }
+    // The stdole property types are Long (or Boolean) underneath.
+    for (const char* name :
+         {"ole_handle", "ole_color", "ole_xpos_pixels", "ole_ypos_pixels",
+          "ole_xsize_pixels", "ole_ysize_pixels", "ole_xpos_himetric",
+          "ole_ypos_himetric", "ole_xsize_himetric", "ole_ysize_himetric",
+          "ole_xpos_containerunits", "ole_ypos_containerunits",
+          "ole_xsize_containerunits", "ole_ysize_containerunits"}) {
+        if (consume_keyword(name)) {
+            return TypeKeywordResult{Value{Integer{}}, false};
+        }
+    }
+    if (consume_keyword("ole_optexclusive") ||
+        consume_keyword("ole_canceldefault")) {
+        return TypeKeywordResult{Value{false}, false};
+    }
     return std::nullopt;
 }
 
@@ -737,6 +752,11 @@ auto Interpreter::parse_scalar_object_or_class_type()
             if (class_definitions_.contains(qualified)) {
                 return ResolvedType{Value{Nothing{}}.index(), false, true,
                                     qualified};
+            }
+            if (*class_name == "vb" && *second != "form") {
+                // `VB.Image`, `VB.TextBox`...: an intrinsic control type, which
+                // a project class of the same name must not shadow.
+                return ResolvedType{Value{Nothing{}}.index(), false, true, {}};
             }
             if (class_definitions_.contains(*second)) {
                 return ResolvedType{Value{Nothing{}}.index(), false, true,

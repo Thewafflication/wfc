@@ -188,6 +188,20 @@ int run(const int argument_count, const char* const arguments[]) {
                 files.emplace_back(arguments[i]);
             }
         }
+        // Paths the program or its options name must survive a change of
+        // directory.
+        const auto absolute_text = [](const std::string& text) {
+            return text.empty() ? text
+                                : std::filesystem::absolute(text).string();
+        };
+        ui_script_override = absolute_text(ui_script_override);
+        screenshot_directory = absolute_text(screenshot_directory);
+        typelib_path = absolute_text(typelib_path);
+        if (!files.empty() && files.front().extension() == ".vbp") {
+            for (auto& file : files) {
+                file = std::filesystem::absolute(file);
+            }
+        }
         const auto project = wfc::load_project(files);
         if (!project.ok) {
             std::cerr << project.error << '\n';
@@ -220,6 +234,14 @@ int run(const int argument_count, const char* const arguments[]) {
                 std::cout << entry.progid << ' ' << entry.clsid << '\n';
             }
             return 0;
+        }
+        // A program starts in its own folder, as one run from the VB6 IDE does,
+        // so relative paths such as `data` + a backslash + `phrases.txt` find
+        // the program's own files. Every path was made absolute above.
+        if (!files.empty() && files.front().extension() == ".vbp" &&
+            serve.empty()) {
+            std::error_code ignored;
+            std::filesystem::current_path(files.front().parent_path(), ignored);
         }
         // Running real project files: print numbers the way VB6 does.
         wfc::EvaluationOptions options;

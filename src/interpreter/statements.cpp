@@ -3162,8 +3162,13 @@ bool Interpreter::parse_call_statement() {
                 return false;
             }
             advance();
-            const auto result = parse_member_access_after_dot(
+            auto result = parse_member_access_after_dot(
                 *base, identifier_offset, /*require_function=*/false);
+            while (result.has_value() && !at_end() && current() == '.') {
+                advance();  // `Call Me.Items.Add(x)`: a chain of members
+                result = parse_member_access_after_dot(
+                    *result, identifier_offset, /*require_function=*/false);
+            }
             return result.has_value();
         }
         set_error("WFC0015", "undeclared procedure", identifier_offset);
@@ -3194,9 +3199,14 @@ bool Interpreter::parse_call_statement() {
                 declared_interface_class = declared_class->second;
             }
             advance();
-            const auto result = parse_member_access_after_dot(
+            auto result = parse_member_access_after_dot(
                 base, identifier_offset, /*require_function=*/false,
                 declared_interface_class);
+            while (result.has_value() && !at_end() && current() == '.') {
+                advance();  // `Call obj.Items.Add(x)`: a chain of members
+                result = parse_member_access_after_dot(
+                    *result, identifier_offset, /*require_function=*/false);
+            }
             return result.has_value();
         }
     }

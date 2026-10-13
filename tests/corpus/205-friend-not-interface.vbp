@@ -1,0 +1,4 @@
+Module=Main; 205-friend-not-interface.bas
+Class=IShape; 205-friend-not-interface.cls.ishape
+Class=Square; 205-friend-not-interface.cls.square
+Startup="Sub Main"
