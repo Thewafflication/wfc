@@ -251,9 +251,15 @@ std::optional<Value> Interpreter::form_dialog(
         request.default_extension = text(5);
         request.filter_index = filter_index;
         request.flags = number(7);
-        auto chosen = host.file_dialog(owner, request, supported);
+        // A scripted answer is used without showing the real dialog.
+        const auto answer = form_dialog_answer(kind);
+        std::optional<ui::FileDialogResult> chosen;
+        if (answer.has_value()) {
+            supported = false;
+        } else {
+            chosen = host.file_dialog(owner, request, supported);
+        }
         if (!supported) {
-            const auto answer = form_dialog_answer(kind);
             if (answer.has_value() && lower_text(*answer) != "cancel") {
                 chosen = ui::FileDialogResult{*answer, filter_index};
             }
@@ -264,9 +270,14 @@ std::optional<Value> Interpreter::form_dialog(
             filter_index = chosen->filter_index;
         }
     } else if (kind == "color") {
-        auto chosen = host.color_dialog(owner, color, number(7), supported);
+        const auto answer = form_dialog_answer("color");
+        std::optional<long> chosen;
+        if (answer.has_value()) {
+            supported = false;
+        } else {
+            chosen = host.color_dialog(owner, color, number(7), supported);
+        }
         if (!supported) {
-            const auto answer = form_dialog_answer("color");
             if (answer.has_value() && lower_text(*answer) != "cancel") {
                 chosen = static_cast<long>(std::atof(answer->c_str()));
             }
@@ -283,9 +294,14 @@ std::optional<Value> Interpreter::form_dialog(
         request.italic = italic;
         request.color = color;
         request.flags = 0x1;  // screen fonts
-        auto chosen = host.font_dialog(owner, request, supported);
+        const auto answer = form_dialog_answer("font");
+        std::optional<ui::FontDialogRequest> chosen;
+        if (answer.has_value()) {
+            supported = false;
+        } else {
+            chosen = host.font_dialog(owner, request, supported);
+        }
         if (!supported) {
-            const auto answer = form_dialog_answer("font");
             if (answer.has_value() && lower_text(*answer) != "cancel") {
                 ui::FontDialogRequest scripted = request;
                 std::istringstream stream(*answer);

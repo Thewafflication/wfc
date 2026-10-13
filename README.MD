@@ -51,6 +51,19 @@ classes of the author's `Win_Dialogs` library; WFC supplies `ColorDialog`,
 ![SuMBOku, a VB6 sudoku game](evidence/screenshots/vb6games-sumboku.png)
 ![Connect 4, a VB6 game](evidence/screenshots/vb6games-connect4.png)
 
+**Watch them play.** These recordings are made from the scripted play sessions
+of the test suite (`scripts/New-PlayGif.ps1` runs a session in a native window,
+takes a frame after each move and joins them with ffmpeg). Connect 4: yellow
+stacks a column, red answers, and Undo and Redo take a chip back and return it.
+Resta Um: the standard 31-move solution, ending with one peg. SuMBOku: the
+Open dialog (answered by the script) and eight presses of Solve. Capture King:
+a local game, four moves.
+
+![Connect 4 being played](evidence/screenshots/play-connect4.gif)
+![Resta Um being solved](evidence/screenshots/play-restaum.gif)
+![SuMBOku solving an example](evidence/screenshots/play-sumboku.gif)
+![Capture King, four moves](evidence/screenshots/play-captureking.gif)
+
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an
 `ImageList` (`tests/gui/gui-comctl.vbp`):
