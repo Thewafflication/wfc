@@ -826,6 +826,12 @@ void Win32Host::set_visible(const WindowId window, const bool visible) {
     }
     if (entry->hwnd != nullptr) {
         ShowWindow(entry->hwnd, visible ? SW_SHOW : SW_HIDE);
+        if (visible && entry->is_form && !IsWindowVisible(entry->hwnd)) {
+            // A process started with a hidden-window request (a build tool
+            // starting it) has its first ShowWindow call taken for that
+            // request; the second call shows the window.
+            ShowWindow(entry->hwnd, SW_SHOW);
+        }
     }
 }
 
@@ -1455,7 +1461,30 @@ bool Win32Host::capture(const WindowId window, const std::string& path) {
     }
     HGDIOBJ previous = SelectObject(memory, bitmap);
     // PW_RENDERFULLCONTENT (2) also renders layered and child windows.
-    const bool printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+    bool printed = false;
+    // A window the system has not drawn yet prints black (the machine may be
+    // busy): wait for it for up to three seconds.
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+        if (!printed) {
+            break;
+        }
+        const auto* data = static_cast<const std::uint32_t*>(pixels);
+        const std::size_t count =
+            static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+        bool blank = true;
+        for (std::size_t i = 0; blank && i < count; ++i) {
+            blank = (data[i] & 0x00FFFFFFU) == 0U;
+        }
+        if (!blank) {
+            break;
+        }
+        pump();
+        Sleep(100);
+        RedrawWindow(
+            entry->hwnd, nullptr, nullptr,
+            RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    }
     if (printed && entry->client != nullptr) {
         // PrintWindow leaves the MDI children out; composite them.
         for (HWND child = GetWindow(entry->client, GW_CHILD); child != nullptr;
