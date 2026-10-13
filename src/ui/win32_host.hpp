@@ -18,6 +18,7 @@ struct HWND__;
 struct HMENU__;
 struct HFONT__;
 struct HDC__;
+struct HBRUSH__;
 struct HBITMAP__;
 
 namespace wfc::ui {
@@ -39,6 +40,10 @@ public:
     [[nodiscard]] bool visible(WindowId window) const override;
     void set_enabled(WindowId window, bool enabled) override;
     void set_border(WindowId window, bool border) override;
+    void set_label_style(WindowId window, long fore, long back,
+                         bool transparent) override;
+    // The brush for a Label drawn by its parent (WM_CTLCOLORSTATIC), or null.
+    [[nodiscard]] HBRUSH__* label_brush(HWND__* label, HDC__* dc);
     [[nodiscard]] bool enabled(WindowId window) const override;
     void set_text(WindowId window, const std::string& text) override;
     [[nodiscard]] std::string text(WindowId window) const override;
@@ -110,6 +115,7 @@ private:
     [[nodiscard]] const Entry* find(WindowId window) const;
     void queue(UiEvent event);
     void refresh_menu_bar(WindowId form);
+    std::map<long, HBRUSH__*> label_brushes_;
     // Paints the persistent surface of the window `hwnd` onto `target`;
     // false when the window has none.
     bool paint_surface(HWND__* hwnd, HDC__* target);

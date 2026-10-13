@@ -189,6 +189,14 @@ public:
     virtual void set_visible(WindowId window, bool visible) = 0;
     [[nodiscard]] virtual bool visible(WindowId window) const = 0;
     virtual void set_enabled(WindowId window, bool enabled) = 0;
+    // Colors of a Label (-1: the default) and whether it is transparent.
+    virtual void set_label_style(WindowId window, long fore, long back,
+                                 bool transparent) {
+        static_cast<void>(window);
+        static_cast<void>(fore);
+        static_cast<void>(back);
+        static_cast<void>(transparent);
+    }
     // Shows or hides the sunken edge of a picture box (BorderStyle).
     virtual void set_border(WindowId window, bool border) {
         static_cast<void>(window);

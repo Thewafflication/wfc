@@ -83,6 +83,9 @@ struct Win32Host::Entry {
     int surface_width{0};
     int surface_height{0};
     long surface_background{0xF0F0F0};
+    long label_fore{-1};
+    long label_back{-1};
+    bool label_transparent{false};
     bool applying{false};   // a snapshot is being applied to a common control
     void* images{nullptr};  // HIMAGELIST handed to the control
     void* small_images{nullptr};
@@ -252,6 +255,13 @@ struct Win32Support {
                     return 1;
                 }
                 break;
+            case WM_CTLCOLORSTATIC:
+                if (HBRUSH brush =
+                        host->label_brush(reinterpret_cast<HWND>(lparam),
+                                          reinterpret_cast<HDC>(wparam))) {
+                    return reinterpret_cast<LRESULT>(brush);
+                }
+                break;
             case WM_TIMER:
                 host->queue(
                     UiEvent{static_cast<WindowId>(wparam), "Timer", {}});
@@ -406,6 +416,13 @@ struct Win32Support {
         if (host != nullptr && message == WM_ERASEBKGND &&
             host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
             return 1;
+        }
+        if (host != nullptr && message == WM_CTLCOLORSTATIC) {
+            if (HBRUSH brush =
+                    host->label_brush(reinterpret_cast<HWND>(lparam),
+                                      reinterpret_cast<HDC>(wparam))) {
+                return reinterpret_cast<LRESULT>(brush);
+            }
         }
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
@@ -829,6 +846,55 @@ void Win32Host::set_border(const WindowId window, const bool border) {
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                      SWP_FRAMECHANGED);
+}
+
+void Win32Host::set_label_style(const WindowId window, const long fore,
+                                const long back, const bool transparent) {
+    const auto it = windows_.find(window);
+    if (it == windows_.end() || it->second->hwnd == nullptr) {
+        return;
+    }
+    Entry& entry = *it->second;
+    entry.label_fore = fore;
+    entry.label_back = back;
+    entry.label_transparent = transparent;
+    auto style =
+        static_cast<LONG_PTR>(GetWindowLongPtrW(entry.hwnd, GWL_EXSTYLE));
+    style = transparent ? (style | WS_EX_TRANSPARENT)
+                        : (style & ~static_cast<LONG_PTR>(WS_EX_TRANSPARENT));
+    SetWindowLongPtrW(entry.hwnd, GWL_EXSTYLE, style);
+    if (HWND parent = GetParent(entry.hwnd)) {
+        RECT area;
+        GetWindowRect(entry.hwnd, &area);
+        MapWindowPoints(nullptr, parent, reinterpret_cast<POINT*>(&area), 2);
+        InvalidateRect(parent, &area, TRUE);
+    }
+    InvalidateRect(entry.hwnd, nullptr, TRUE);
+}
+
+HBRUSH Win32Host::label_brush(HWND label, HDC dc) {
+    const auto id = static_cast<WindowId>(
+        reinterpret_cast<std::uintptr_t>(GetPropW(label, kIdProperty)));
+    const auto* entry = find(id);
+    if (entry == nullptr || entry->kind != "Label") {
+        return nullptr;
+    }
+    if (entry->label_fore >= 0) {
+        SetTextColor(dc, static_cast<COLORREF>(entry->label_fore));
+    }
+    if (entry->label_transparent) {
+        SetBkMode(dc, TRANSPARENT);
+        return static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+    }
+    if (entry->label_back < 0) {
+        return nullptr;
+    }
+    SetBkColor(dc, static_cast<COLORREF>(entry->label_back));
+    auto& brush = label_brushes_[entry->label_back];
+    if (brush == nullptr) {
+        brush = CreateSolidBrush(static_cast<COLORREF>(entry->label_back));
+    }
+    return brush;
 }
 
 void Win32Host::set_enabled(const WindowId window, const bool enabled) {

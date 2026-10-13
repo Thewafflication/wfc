@@ -2607,6 +2607,19 @@ struct FormSupport {
     }
 
     // Pushes every stored property to the host.
+    // A Label's colors and BackStyle, for the host that paints it.
+    static void push_label_style(Interpreter& in, const ControlObject& label) {
+        const auto color = [&](const char* key) {
+            const auto found = label.values.find(key);
+            return found == label.values.end() ? -1L : color_of(label, key);
+        };
+        const auto style = label.values.find("backstyle");
+        const bool transparent =
+            style != label.values.end() && as_double(style->second) == 0.0;
+        runtime(in).host->set_label_style(label.window, color("forecolor"),
+                                          color("backcolor"), transparent);
+    }
+
     static void mirror_all(Interpreter& in, ControlObject& object) {
         auto& host = *runtime(in).host;
         const auto number_of = [&](const char* key) {
@@ -2628,6 +2641,9 @@ struct FormSupport {
                 number_of("left"), number_of("top"),
                 object.is_form ? client_width(object) : number_of("width"),
                 object.is_form ? client_height(object) : number_of("height")});
+        if (object.class_key == "label") {
+            push_label_style(in, object);
+        }
         const auto flag = [&](const char* key, const bool fallback) {
             const auto found = object.values.find(key);
             if (found != object.values.end()) {
@@ -3474,6 +3490,12 @@ struct FormSupport {
                 return report(
                     raise_table_event(in, self, "Change", {}, offset));
             }
+            return true;
+        }
+        if (live && self.class_key == "label" &&
+            (member == "forecolor" || member == "backcolor" ||
+             member == "backstyle")) {
+            push_label_style(in, self);
             return true;
         }
         if (member == "borderstyle" && live && self.class_key == "picturebox") {
