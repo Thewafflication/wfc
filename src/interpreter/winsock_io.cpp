@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <mutex>
+#include <sstream>
 #endif
 
 namespace wfc::net {
@@ -22,6 +23,22 @@ void ensure_started() {
         WSADATA data{};
         static_cast<void>(WSAStartup(MAKEWORD(2, 2), &data));
     });
+}
+
+// A virtual LAN for running several WFC programs on one machine: when
+// WFC_LAN_ADDRESS is set (say 127.0.0.2), this program is the host with that
+// loopback address -- it binds there, reports it as its LocalIP -- and a
+// broadcast goes to every address in WFC_LAN_PEERS (comma separated), so
+// programs that look for each other with broadcasts find one another.
+[[nodiscard]] std::string environment(const char* name) {
+    char text[512] = {};
+    const DWORD length = GetEnvironmentVariableA(name, text, sizeof(text));
+    return length > 0 && length < sizeof(text) ? std::string(text)
+                                               : std::string();
+}
+
+[[nodiscard]] bool is_broadcast(const std::string& host) {
+    return host == "255.255.255.255";
 }
 
 [[nodiscard]] SOCKET native(const Handle handle) {
@@ -94,7 +111,8 @@ void close(const Handle handle) {
 bool bind(const Handle handle, const std::string& address, const int port,
           int& error) {
     sockaddr_in local{};
-    if (!resolve(address, port, local, error)) {
+    const std::string lan = environment("WFC_LAN_ADDRESS");
+    if (!resolve(address.empty() ? lan : address, port, local, error)) {
         return false;
     }
     if (::bind(native(handle), reinterpret_cast<sockaddr*>(&local),
@@ -246,8 +264,36 @@ long receive_from(const Handle handle, std::string& data, std::string& address,
 
 bool send_to(const Handle handle, const std::string& data,
              const std::string& host, const int port, int& error) {
+    const std::string peers = environment("WFC_LAN_PEERS");
+    if (is_broadcast(host) && !peers.empty() &&
+        !environment("WFC_LAN_ADDRESS").empty()) {
+        // The virtual LAN: a broadcast reaches each peer (and this host).
+        bool sent = false;
+        std::stringstream list(peers);
+        std::string peer_address;
+        while (std::getline(list, peer_address, ',')) {
+            sockaddr_in target{};
+            if (!resolve(peer_address, port, target, error)) {
+                continue;
+            }
+            sent = sendto(native(handle), data.data(),
+                          static_cast<int>(data.size()), 0,
+                          reinterpret_cast<sockaddr*>(&target),
+                          sizeof(target)) != SOCKET_ERROR ||
+                   sent;
+        }
+        if (!sent) {
+            error = WSAGetLastError();
+        }
+        return sent;
+    }
     sockaddr_in remote{};
-    if (!resolve(host, port, remote, error)) {
+    // An empty host is this host (on the virtual LAN: its own address).
+    const std::string lan = environment("WFC_LAN_ADDRESS");
+    if (!lan.empty() && !host.empty() && host.rfind("127.", 0) != 0) {
+        return true;  // outside the virtual LAN: the datagram is lost
+    }
+    if (!resolve(host.empty() ? lan : host, port, remote, error)) {
         return false;
     }
     if (sendto(native(handle), data.data(), static_cast<int>(data.size()), 0,
@@ -278,6 +324,9 @@ std::string host_name() {
 }
 
 std::string local_address() {
+    if (const std::string lan = environment("WFC_LAN_ADDRESS"); !lan.empty()) {
+        return lan;
+    }
     sockaddr_in address{};
     int error = 0;
     if (resolve(host_name(), 0, address, error) &&
@@ -285,6 +334,10 @@ std::string local_address() {
         return dotted(address.sin_addr);
     }
     return "127.0.0.1";
+}
+
+bool virtual_lan() {
+    return !environment("WFC_LAN_ADDRESS").empty();
 }
 
 std::string error_text(const int error) {
@@ -372,6 +425,9 @@ std::string host_name() {
 }
 std::string local_address() {
     return "127.0.0.1";
+}
+bool virtual_lan() {
+    return false;
 }
 std::string error_text(int) {
     return "Sockets are not available";

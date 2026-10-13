@@ -388,6 +388,26 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 120
       )
     endforeach()
+    # Two programs on a virtual LAN (own loopback address and user name each)
+    # play a game over real sockets: invite, accept, moves, chat, check mate.
+    foreach(lan_seed 99 20261012)
+      add_test(
+        NAME TC-MP0008-vb6games-captureking-lan-${lan_seed}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+          "-DSEED=${lan_seed}"
+          "-DWORK=${CMAKE_BINARY_DIR}/vb6games-captureking-lan-${lan_seed}" -P
+          "${project_checks}/run_captureking_lan_game.cmake"
+      )
+      set_tests_properties(
+        TC-MP0008-vb6games-captureking-lan-${lan_seed}
+        PROPERTIES
+          RESOURCE_LOCK lan
+          LABELS "integration;mp-0008;vb6games;network"
+          TIMEOUT 300
+      )
+    endforeach()
     set_tests_properties(
       TC-MP0008-vb6games-captureking
       PROPERTIES

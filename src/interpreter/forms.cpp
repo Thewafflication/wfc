@@ -2841,6 +2841,10 @@ struct FormSupport {
             } else {
                 first = nullptr;
             }
+            // Datagrams a Load handler provoked have arrived by now.
+            if (!ocx_poll_sockets(in)) {
+                return false;
+            }
             if (!raise(in, form, "", -1, "activate", none, offset)) {
                 return false;
             }
@@ -4014,7 +4018,13 @@ struct FormSupport {
         }
         if (command == "wait") {
             if (state.headless != nullptr) {
-                state.headless->advance_time(std::atol(target_text.c_str()));
+                const long milliseconds = std::atol(target_text.c_str());
+                state.headless->advance_time(milliseconds);
+                if (net::virtual_lan()) {
+                    // Programs sharing a virtual LAN keep real time.
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(milliseconds));
+                }
                 return ocx_poll_sockets(in);
             }
             // A real host: let events and sockets run for that long.

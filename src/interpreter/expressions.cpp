@@ -1519,6 +1519,32 @@ std::optional<Value> Interpreter::parse_primary_base() {
             if (type_character != '\0') {
                 identifier->push_back(type_character);
             }
+            if (!execute_ && type_character == '\0') {
+                // A skipped branch may index a variable that only an
+                // executed branch declares: an unknown name is skipped.
+                const auto saved_offset = offset_;
+                auto result =
+                    parse_function_call(*identifier, identifier_offset);
+                if (result.has_value() || offset_ != saved_offset ||
+                    error_.diagnostic.rfind("WFC0071 ", 0) != 0) {
+                    return result;
+                }
+                error_ = wfc::Evaluation{};
+                int depth = 0;
+                bool quoted = false;
+                while (!at_end()) {
+                    const char ch = current();
+                    ++offset_;
+                    if (ch == '"') {
+                        quoted = !quoted;
+                    } else if (!quoted && ch == '(') {
+                        ++depth;
+                    } else if (!quoted && ch == ')' && --depth == 0) {
+                        break;
+                    }
+                }
+                return Value{Empty{}};
+            }
             return parse_function_call(*identifier, identifier_offset);
         }
         // A declared variable shadows the built-in constants.

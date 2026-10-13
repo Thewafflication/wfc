@@ -47,6 +47,8 @@ enum class Progress { Pending, Done, Failed };
 [[nodiscard]] bool peer(Handle handle, std::string& address, int& port);
 
 [[nodiscard]] std::string local_address();
+// Whether this program is a host of a virtual LAN (WFC_LAN_ADDRESS is set).
+[[nodiscard]] bool virtual_lan();
 [[nodiscard]] std::string host_name();
 [[nodiscard]] std::string error_text(int error);
 

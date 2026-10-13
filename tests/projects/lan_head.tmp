@@ -1,0 +1,77 @@
+# Plays one complete Capture King game between two programs on a virtual LAN
+# (two WFC processes with their own loopback address and user name): bravo
+# invites alpha, alpha accepts and plays white; random moves and chat messages
+# go over real UDP sockets until a king is taken, the winner calls check mate
+# and the loser confirms. Both programs must have saved the computed board.
+# Usage: cmake -DWFC=<wfc> -DPROJECT=<CaptureKing.vbp> -DWORK=<dir>
+#   [-DSEED=<n>] [-DMAX_PLIES=<n>] -P run_captureking_lan_game.cmake
+if(NOT DEFINED SEED)
+  set(SEED 20261012)
+endif()
+if(NOT DEFINED MAX_PLIES)
+  set(MAX_PLIES 600)
+endif()
+
+# A small linear congruential generator, so every platform plays the same game.
+set(rng_state ${SEED})
+function(next_random limit out)
+  math(EXPR rng_state "(${rng_state} * 1103515245 + 12345) % 2147483648")
+  set(rng_state ${rng_state} PARENT_SCOPE)
+  math(EXPR value "(${rng_state} / 65536) % ${limit}")
+  set(${out} ${value} PARENT_SCOPE)
+endfunction()
+
+# The starting position, as the game's SetBoardState has it.
+set(
+  black_back
+  BR1
+  BK1
+  BB1
+  B+1
+  BQ1
+  BB2
+  BK2
+  BR2
+)
+set(
+  white_back
+  WR1
+  WK1
+  WB1
+  WQ1
+  W+1
+  WB2
+  WK2
+  WR2
+)
+foreach(column RANGE 0 7)
+  list(GET black_back ${column} piece)
+  set(board_${column} "${piece}")
+  list(GET white_back ${column} piece)
+  math(EXPR square "56 + ${column}")
+  set(board_${square} "${piece}")
+  math(EXPR number "${column} + 1")
+  math(EXPR square "8 + ${column}")
+  set(board_${square} "BP${number}")
+  math(EXPR square "48 + ${column}")
+  set(board_${square} "WP${number}")
+endforeach()
+foreach(square RANGE 16 47)
+  set(board_${square} "")
+endforeach()
+
+set(
+  chat
+  "good luck"
+  "nice move"
+  "I did not see that"
+  "your move"
+  "think carefully now"
+  "that was a gift"
+  "well played"
+  "hmm"
+  "no taking back"
+  "I am winning"
+)
+list(LENGTH chat chat_count)
+
