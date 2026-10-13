@@ -190,6 +190,7 @@ namespace {
             // Keep `Attribute X.VB_UserMemId = 0`: the evaluator reads it as
             // the class's default member.
             blank = lower.find("vb_usermemid") == std::string::npos &&
+                    lower.find("vb_varusermemid") == std::string::npos &&
                     lower.find("vb_predeclaredid") == std::string::npos &&
                     lower.find("vb_exposed") == std::string::npos &&
                     lower.find("vb_creatable") == std::string::npos &&

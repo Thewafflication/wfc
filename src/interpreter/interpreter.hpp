@@ -1279,9 +1279,12 @@ private:
     // to that instance field. `base` is the already-evaluated object
     // reference the member is accessed on; its own '.' has already been
     // consumed.
+    // `forced_member`: the member to write is already known (the default
+    // member of `Dest = value`), so no name is read from the source.
     [[nodiscard]] bool parse_member_assignment(
         const Value base, const std::size_t base_offset,
-        const std::string& via_interface_class = {});
+        const std::string& via_interface_class = {},
+        const std::string& forced_member = {});
 
     // Dispatches a bare `identifier = ...`/`identifier(...) = ...`/
     // `identifier.member = ...` statement to array-element assignment,
@@ -2071,6 +2074,7 @@ private:
     // Non-deterministic seed source for argument-less Randomize, matching
     // VB6's documented system-timer-based reseeding.
     [[nodiscard]] static double entropy_seed();
+    [[nodiscard]] static std::optional<double> fixed_random_seed();
 
     [[nodiscard]] const Integer* require_integer(
         const Value& value, const std::size_t operator_offset);
@@ -2269,6 +2273,8 @@ private:
     // "current" definition to restore per returning call.
     const ProcedureDef* current_procedure_def_{};
     std::string output_;
+    // The text of every message box shown, for the `messages` script command.
+    std::vector<std::string> message_log_;
     bool has_output_line_{};
     bool output_line_open_{};
     bool discard_print_{};

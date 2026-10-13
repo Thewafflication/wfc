@@ -3,9 +3,10 @@
 Small always-on-top window that follows a ctest log and shows progress.
 
 .DESCRIPTION
-Tails the log file written by `ctest` (lines such as `12/377 Test  #12: name
-... Passed`) and shows a progress bar, the pass/fail counts and the last lines
-of the log. Start it before the run, or run the tests through it:
+Follows the log that scripts/Invoke-Tests.ps1 writes (lines such as
+`12/377 Test  #12: name ... Passed`) and shows a progress bar, the pass and
+fail counts and the log itself, scrolling as lines arrive. Failed tests are
+red. Start it before a run, or run the tests through it:
 
   pwsh scripts/Show-TestProgress.ps1 -Run
 
@@ -49,10 +50,10 @@ elseif (-not (Test-Path $Log)) {
 $form = New-Object Windows.Forms.Form
 $form.Text = 'WFC tests'
 $form.TopMost = $true
-$form.Size = New-Object Drawing.Size(460, 300)
+$form.Size = New-Object Drawing.Size(520, 340)
 $form.StartPosition = 'Manual'
 $area = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$form.Location = New-Object Drawing.Point(($area.Right - 470), ($area.Top + 10))
+$form.Location = New-Object Drawing.Point(($area.Right - 530), ($area.Top + 10))
 $form.FormBorderStyle = 'SizableToolWindow'
 
 $status = New-Object Windows.Forms.Label
@@ -64,55 +65,85 @@ $bar.Dock = 'Top'
 $bar.Height = 20
 $bar.Minimum = 0
 $bar.Maximum = 100
-$box = New-Object Windows.Forms.TextBox
-$box.Multiline = $true
+$box = New-Object Windows.Forms.RichTextBox
 $box.ReadOnly = $true
-$box.ScrollBars = 'Vertical'
+$box.WordWrap = $false
+$box.ScrollBars = 'Both'
 $box.Dock = 'Fill'
+$box.BackColor = [Drawing.Color]::White
 $box.Font = New-Object Drawing.Font('Consolas', 8)
 $form.Controls.Add($box)
 $form.Controls.Add($bar)
 $form.Controls.Add($status)
 
-$state = @{ Offset = 0L; Done = 0; Total = 0; Failed = 0; Text = '' }
+# What has been read so far; the log is read as raw bytes so a line that is
+# only half written waits for its end.
+$script:offset = 0L
+$script:pending = ''
+$script:done = 0
+$script:total = 0
+$script:failed = 0
+
+function Add-Line([string]$line) {
+    if ($line -match '^\s*(\d+)/(\d+) Test\s+#\d+:') {
+        $script:done = [int]$Matches[1]
+        $script:total = [int]$Matches[2]
+        if ($line -match '\*\*\*|Failed') { $script:failed++ }
+    }
+    $box.SelectionStart = $box.TextLength
+    $box.SelectionLength = 0
+    $box.SelectionColor = if ($line -match '\*\*\*|Failed|Error') {
+        [Drawing.Color]::Firebrick
+    } elseif ($line -match 'Passed') {
+        [Drawing.Color]::DarkGreen
+    } else {
+        [Drawing.Color]::Black
+    }
+    $box.AppendText($line + "`n")
+}
+
 $timer = New-Object Windows.Forms.Timer
-$timer.Interval = 500
+$timer.Interval = 250
 $timer.Add_Tick({
     $stream = $null
     try {
         $stream = [IO.File]::Open($Log, 'Open', 'Read', 'ReadWrite')
-        if ($stream.Length -lt $state.Offset) {
-            $state.Offset = 0
-            $state.Text = ''
+        if ($stream.Length -lt $script:offset) {
+            # A new run truncated the log: start over.
+            $script:offset = 0
+            $script:pending = ''
+            $box.Clear()
+            $script:done = 0; $script:total = 0; $script:failed = 0
+            $bar.Value = 0
         }
-        [void]$stream.Seek($state.Offset, 'Begin')
-        $reader = New-Object IO.StreamReader($stream)
-        $chunk = $reader.ReadToEnd()
-        $state.Offset = $stream.Position
+        [void]$stream.Seek($script:offset, 'Begin')
+        $buffer = New-Object byte[] ($stream.Length - $script:offset)
+        $count = $stream.Read($buffer, 0, $buffer.Length)
+        $script:offset += $count
+        $chunk = $script:pending +
+            [Text.Encoding]::UTF8.GetString($buffer, 0, $count)
     }
     catch { return }
     finally { if ($stream) { $stream.Dispose() } }
     if (-not $chunk) { return }
-    foreach ($line in ($chunk -split "`r?`n")) {
-        if ($line -match '^\s*(\d+)/(\d+) Test\s+#\d+:') {
-            $state.Done = [int]$Matches[1]
-            $state.Total = [int]$Matches[2]
-            if ($line -match '\*\*\*|Failed') { $state.Failed++ }
-        }
+    $lines = $chunk -split "`r?`n"
+    $script:pending = $lines[-1]
+    $box.SuspendLayout()
+    for ($i = 0; $i -lt $lines.Count - 1; $i++) { Add-Line $lines[$i] }
+    if ($box.Lines.Count -gt 4000) {
+        $box.Select(0, $box.GetFirstCharIndexFromLine(1000))
+        $box.SelectedText = ''
     }
-    $state.Text += $chunk
-    if ($state.Text.Length -gt 20000) {
-        $state.Text = $state.Text.Substring($state.Text.Length - 20000)
-    }
-    $box.Text = $state.Text
     $box.SelectionStart = $box.TextLength
     $box.ScrollToCaret()
-    if ($state.Total -gt 0) {
-        $bar.Value = [Math]::Min(100, [int](100 * $state.Done / $state.Total))
-        $status.Text = "$($state.Done) / $($state.Total) tests, " +
-            "$($state.Failed) failed"
+    $box.ResumeLayout()
+    if ($script:total -gt 0) {
+        $bar.Value = [Math]::Min(100,
+            [int](100 * $script:done / $script:total))
+        $status.Text = "$($script:done) / $($script:total) tests, " +
+            "$($script:failed) failed"
     }
-    if ($state.Text -match 'Total Test time') {
+    if ($chunk -match 'Total Test time') {
         $status.Text += ' - finished'
     }
 })

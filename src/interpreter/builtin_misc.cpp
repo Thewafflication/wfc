@@ -313,6 +313,12 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (!arity(1, 5)) {
             return std::nullopt;
         }
+        if (execute_) {
+            message_log_.push_back(
+                std::holds_alternative<std::string>(arguments[0])
+                    ? std::get<std::string>(arguments[0])
+                    : render(arguments[0]));
+        }
         if (const auto scripted = form_dialog_answer("msgbox")) {
             return Value{static_cast<Integer>(std::atol(scripted->c_str()))};
         }
@@ -1843,7 +1849,33 @@ std::uint32_t Interpreter::seed_from_number(const double value) noexcept {
     return folded & 0x00FFFFFFU;
 }
 
+std::optional<double> Interpreter::fixed_random_seed() {
+    // WFC_RANDOM_SEED makes `Randomize` and `Randomize Timer` repeatable, so
+    // a test can replay a program that plays a random game.
+    std::string text;
+#ifdef _WIN32
+    char* fixed = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&fixed, &length, "WFC_RANDOM_SEED") == 0 &&
+        fixed != nullptr) {
+        text = fixed;
+    }
+    std::free(fixed);
+#else
+    if (const char* env = std::getenv("WFC_RANDOM_SEED")) {
+        text = env;
+    }
+#endif
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    return std::atof(text.c_str());
+}
+
 double Interpreter::entropy_seed() {
+    if (const auto fixed = fixed_random_seed()) {
+        return *fixed;
+    }
     return static_cast<double>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count());
 }

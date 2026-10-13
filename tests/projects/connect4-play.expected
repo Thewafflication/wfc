@@ -1,0 +1,19 @@
+FMain.Picture1.scalewidth = 12195
+FMain.LbPlayerName.caption = Player1
+FMain.BtnUndo.enabled = False
+FMain.BtnRedo.enabled = False
+FMain.LbPlayerName.caption = Player2
+FMain.LbPlayerName.caption = Player1
+FMain.LbPlayerName.caption = Player2
+FMain.LbPlayerName.caption = Player1
+FMain.LbPlayerName.caption = Player2
+FMain.LbPlayerName.caption = Player1
+FMain.LbPlayerName.caption = Player2
+FMain.LbPlayerName.caption = Player2
+FMain.BtnUndo.enabled = True
+FMain.LbPlayerName.caption = Player1
+FMain.BtnRedo.enabled = True
+FMain.LbPlayerName.caption = Player2
+FMain.BtnRedo.enabled = False
+msgbox: Player1 Player1 won!, Congratulations!
+msgbox: Game over! Please click 'New Game'!

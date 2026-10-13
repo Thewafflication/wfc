@@ -831,12 +831,24 @@ bool Interpreter::parse_statement_core() {
     }
     if (consume_keyword("msgbox") || consume_keyword("appactivate") ||
         consume_keyword("sendkeys")) {
-        // The statement form evaluates and ignores its arguments.
+        // The statement form evaluates and ignores its arguments (the text
+        // of a message box is still logged).
+        const bool is_message_box =
+            ascii_lower(source_[statement_offset]) == 'm';
+        bool first_argument = true;
         skip_horizontal_whitespace();
         while (!at_statement_end()) {
-            if (!parse_expression().has_value()) {
+            const auto value = parse_expression();
+            if (!value.has_value()) {
                 return false;
             }
+            if (is_message_box && first_argument && execute_) {
+                message_log_.push_back(
+                    std::holds_alternative<std::string>(*value)
+                        ? std::get<std::string>(*value)
+                        : render(*value));
+            }
+            first_argument = false;
             skip_horizontal_whitespace();
             if (!consume(',')) {
                 break;
@@ -1468,6 +1480,7 @@ bool Interpreter::parse_randomize_statement(
         }
         return true;
     }
+    const auto seed_start = offset_;
     auto value = parse_expression();
     if (!value.has_value()) {
         return false;
@@ -1481,9 +1494,20 @@ bool Interpreter::parse_randomize_statement(
         return false;
     }
     if (execute_) {
-        const double seed = std::holds_alternative<bool>(*value)
-                                ? (std::get<bool>(*value) ? -1.0 : 0.0)
-                                : as_double(*value);
+        double seed = std::holds_alternative<bool>(*value)
+                          ? (std::get<bool>(*value) ? -1.0 : 0.0)
+                          : as_double(*value);
+        std::string written;
+        for (std::size_t i = seed_start; i < offset_; ++i) {
+            if (source_[i] != ' ' && source_[i] != '\t') {
+                written.push_back(ascii_lower(source_[i]));
+            }
+        }
+        if (written == "timer") {
+            if (const auto fixed = fixed_random_seed()) {
+                seed = *fixed;  // `Randomize Timer` replays under a test
+            }
+        }
         rnd_state_ = seed_from_number(seed);
     }
     return true;
@@ -3106,16 +3130,25 @@ bool Interpreter::parse_inline_statement_core() {
         const auto word = parse_identifier(&probe_type_character);
         offset_ = probe;
         static const std::set<std::string, std::less<>> delegated = {
-            "if",         "goto",     "gosub",       "return",        "resume",
-            "redim",      "erase",    "open",        "close",         "write",
-            "input",      "line",     "get",         "put",           "seek",
-            "kill",       "name",     "mkdir",       "rmdir",         "chdir",
-            "randomize",  "lset",     "rset",        "end",           "stop",
-            "raiseevent", "mid",      "savesetting", "deletesetting", "chdrive",
-            "unlock",     "lock",     "reset",       "load",          "unload",
-            "beep",       "doevents", "date",        "time",          "dim",
-            "static",     "const",    "error",       "debug",         "for",
-            "do",         "while",    "call"};
+            "if",          "goto",          "gosub",
+            "return",      "resume",        "redim",
+            "erase",       "open",          "close",
+            "write",       "input",         "line",
+            "get",         "put",           "seek",
+            "kill",        "name",          "mkdir",
+            "rmdir",       "chdir",         "randomize",
+            "lset",        "rset",          "end",
+            "stop",        "raiseevent",    "mid",
+            "savesetting", "deletesetting", "chdrive",
+            "unlock",      "lock",          "reset",
+            "load",        "unload",        "beep",
+            "doevents",    "date",          "time",
+            "dim",         "static",        "const",
+            "error",       "debug",         "for",
+            "do",          "while",         "call",
+            "msgbox",      "appactivate",   "sendkeys",
+            "shell",       "setattr",       "filecopy",
+            "savepicture"};
         if (word.has_value() &&
             (probe_type_character == '\0' ||
              (probe_type_character == '$' && *word == "mid")) &&

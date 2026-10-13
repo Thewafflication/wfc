@@ -322,6 +322,20 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                         if (slot == first || slot == first + 1U) {
                             default_value = 1;
                         }
+                    } else if (identifier == "msgbox") {
+                        // MsgBox(prompt, [buttons], [title], [helpfile],
+                        // [context]): an omitted argument takes its default.
+                        if (slot == 1U || slot == 4U) {
+                            default_value = 0;
+                        } else if (slot == 2U || slot == 3U) {
+                            text_default = "";
+                        }
+                    } else if (identifier == "inputbox") {
+                        if (slot == 1U || slot == 2U || slot == 5U) {
+                            text_default = "";
+                        } else if (slot == 3U || slot == 4U || slot == 6U) {
+                            default_value = 0;
+                        }
                     } else if (identifier == "weekday") {
                         if (slot == 1U) {
                             default_value = 1;

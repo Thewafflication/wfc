@@ -848,6 +848,14 @@ bool Interpreter::resolve_default_value(Value& value,
         return true;
     }
     const auto& class_def = class_iterator->second;
+    if (const auto field =
+            holder->data->fields.variables.find(class_def.default_member);
+        field != holder->data->fields.variables.end() &&
+        class_def.fields.contains(class_def.default_member)) {
+        const Value fetched = field->second;  // the default field's value
+        value = fetched;
+        return true;
+    }
     const ProcedureDef* definition = nullptr;
     if (const auto method = class_def.methods.find(class_def.default_member);
         method != class_def.methods.end()) {

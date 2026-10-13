@@ -102,15 +102,24 @@ endfunction()
 # The lobby: both go to the pre-game chat; bravo invites alpha, who accepts.
 add_event(3500 A "click frmWelcome.picChat")
 add_event(3500 B "click frmWelcome.picChat")
+add_event(11500 B "waitfor frmChat.lstUsers listcount 2")
 add_event(11500 B "select frmChat.lstUsers 1")
 add_event(11500 B "mousedown frmChat.lstUsers 1 0 5 5")
 add_event(11800 B "click frmChat.picInviteAct")
+add_event(14500 A "waitfor frmChat.lblInvite(0) caption bravo____")
 add_event(14500 A "click frmChat.picTick1")
+# Bravo's game form is up once alpha's accept reached it; bravo says so in
+# the game chat, and alpha makes its first move only after reading that.
+add_event(15000 B "waitfor frmGame.lblColor caption black")
+add_event(15000 B "type frmGame.txtMessageOut ready")
+add_event(15000 B "click frmGame.picSendMess")
+add_event(16000 A "waitfor frmGame.txtMessageIn text ready")
 
 set(game_start 17000)
 set(ply_clock ${game_start})
 set(turn W)
 set(plies 0)
+set(previous_message "")
 set(winner "")
 while(plies LESS ${MAX_PLIES} AND winner STREQUAL "")
   if(turn STREQUAL "W")
@@ -178,6 +187,15 @@ while(plies LESS ${MAX_PLIES} AND winner STREQUAL "")
   math(EXPR plies "${plies} + 1")
   math(EXPR ply_clock "${ply_clock} + ${PLY_MS} + ${plies} * ${PLY_GROWTH}")
   set(time ${ply_clock})
+  # A program moves only after the other's last move has reached it, so a
+  # slow machine cannot reorder the game.
+  if(NOT previous_message STREQUAL "")
+    add_event(
+      ${time}
+      ${mover}
+      "waitfor frmGame.txtGameIn text ${previous_message}"
+    )
+  endif()
   add_event(${time} ${mover} "mousedown frmGame.picboard(${from}) 1 0 10 10")
   set(step ${time})
   add_event(
@@ -185,6 +203,17 @@ while(plies LESS ${MAX_PLIES} AND winner STREQUAL "")
     ${mover}
     "drag frmGame.picboard(${from}) frmGame.picboard(${to}) 10 10"
   )
+  if(from LESS 10)
+    set(from_text "0${from}")
+  else()
+    set(from_text "${from}")
+  endif()
+  if(to LESS 10)
+    set(to_text "0${to}")
+  else()
+    set(to_text "${to}")
+  endif()
+  set(previous_message "${from_text}>${to_text}")
   # A message from the mover every third move.
   math(EXPR chat_turn "${plies} % 3")
   if(chat_turn EQUAL 0)
@@ -219,11 +248,20 @@ else()
   set(winner_name "bravo____")
 endif()
 math(EXPR time "${ply_clock} + 400")
+add_event(
+  ${time}
+  ${loser_program}
+  "waitfor frmGame.txtGameIn text ${previous_message}"
+)
 add_event(${time} ${loser_program} "answer msgbox 6")
 math(EXPR time "${time} + 100")
 add_event(${time} ${winner_program} "answer msgbox 6")
 math(EXPR time "${time} + 100")
 add_event(${time} ${winner_program} "click frmGame.picCheckMate")
+# The winner waits for the loser's "YouWin!" and the loser for the check mate,
+# so neither program ends before the round trip is over.
+add_event(${time} ${winner_program} "waitfor frmGame.txtGameIn text YouWin!")
+add_event(${time} ${loser_program} "waitfor frmGame.txtGameIn text CheckMate!")
 math(EXPR time "${time} + 2500")
 add_event(${time} A "#end")
 add_event(${time} B "#end")
@@ -256,7 +294,7 @@ foreach(program A B)
     "${frm_text}"
   )
   file(WRITE "${directory}/CaptureKing.frm" "${frm_text}")
-  set(script "")
+  set(script "wait 3500\n")
   set(clock 0)
   foreach(event IN LISTS events)
     if(NOT event MATCHES "^([0-9]+)\\|([0-9]+)\\|([AB])\\|(.*)$")

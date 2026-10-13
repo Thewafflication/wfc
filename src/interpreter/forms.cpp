@@ -390,6 +390,21 @@ public:
 };
 
 // A control array: `Command1(0)`, `Command1.Count`.
+// A control-array subscript: an integer, or any number rounded as VB6 does
+// (`Img(Index - (a - b) / 2)` has a Double subscript).
+[[nodiscard]] std::optional<long> subscript_of(const Value& value) {
+    if (const auto whole = whole_value(value)) {
+        return static_cast<long>(*whole);
+    }
+    if (is_number(value)) {
+        const double number = as_double(value);
+        if (std::isfinite(number) && std::fabs(number) < 2147483648.0) {
+            return static_cast<long>(std::nearbyint(number));
+        }
+    }
+    return std::nullopt;
+}
+
 class ControlArray final : public NativeObject {
 public:
     [[nodiscard]] std::string type_name() const override { return "Object"; }
@@ -418,7 +433,7 @@ public:
                 failure = NativeFailure{450, "Wrong number of arguments"};
                 return true;
             }
-            const auto wanted = whole_value(arguments[0].value);
+            const auto wanted = subscript_of(arguments[0].value);
             if (!wanted.has_value()) {
                 failure = NativeFailure{13, "Type mismatch"};
                 return true;
@@ -444,7 +459,7 @@ public:
             return false;
         }
         // `Text1(i) = x`: the default property of the element.
-        const auto wanted = whole_value(arguments[0].value);
+        const auto wanted = subscript_of(arguments[0].value);
         const auto found =
             wanted.has_value() ? elements.find(*wanted) : elements.end();
         if (found == elements.end()) {
@@ -1960,15 +1975,36 @@ struct FormSupport {
     }
 
     // The drawable area in twips.
+    // The twips a picture box's border takes from its Width and Height (a 3D
+    // fixed single border, the default, is 60; flat is 30; none is 0).
+    [[nodiscard]] static double border_inset(const ControlObject& object) {
+        if (object.is_form || object.class_key != "picturebox") {
+            return 0.0;
+        }
+        const auto border = object.values.find("borderstyle");
+        if (border != object.values.end() && as_double(border->second) == 0.0) {
+            return 0.0;
+        }
+        const auto look = object.values.find("appearance");
+        return look != object.values.end() && as_double(look->second) == 0.0
+                   ? 30.0
+                   : 60.0;
+    }
     [[nodiscard]] static double client_width(const ControlObject& object) {
-        return std::max(
-            number_of(object, object.is_form ? "clientwidth" : "width"),
-            number_of(object, "width"));
+        if (!object.is_form) {
+            return std::max(number_of(object, "width") - border_inset(object),
+                            1.0);
+        }
+        return std::max(number_of(object, "clientwidth"),
+                        number_of(object, "width"));
     }
     [[nodiscard]] static double client_height(const ControlObject& object) {
-        return std::max(
-            number_of(object, object.is_form ? "clientheight" : "height"),
-            number_of(object, "height"));
+        if (!object.is_form) {
+            return std::max(number_of(object, "height") - border_inset(object),
+                            1.0);
+        }
+        return std::max(number_of(object, "clientheight"),
+                        number_of(object, "height"));
     }
 
     // Twips in one unit of a ScaleMode (x and y differ for characters).
@@ -4112,6 +4148,91 @@ struct FormSupport {
             }
             return true;
         }
+        if (command == "messages") {
+            // messages: prints the message boxes shown since the last call.
+            for (const auto& text : in.message_log_) {
+                if (in.has_output_line_ && !in.output_line_open_) {
+                    in.output_.push_back('\n');
+                }
+                // One line each: a line break in the text shows as " / ".
+                std::string one_line;
+                for (std::size_t i = 0; i < text.size(); ++i) {
+                    if (text[i] == '\r') {
+                        continue;
+                    }
+                    if (text[i] == '\n') {
+                        one_line += " / ";
+                    } else {
+                        one_line.push_back(text[i]);
+                    }
+                }
+                in.output_ += "msgbox: " + one_line;
+                in.has_output_line_ = true;
+                in.output_line_open_ = false;
+            }
+            in.message_log_.clear();
+            return true;
+        }
+        if (command == "waitfor") {
+            // waitfor <control> <property> <value>: lets events and sockets
+            // run until the property reads as the value (30 seconds at most),
+            // so a script can wait for what another program sends. The
+            // control may not exist yet: it is looked for again each time.
+            std::istringstream words_in(rest);
+            std::string property;
+            words_in >> property;
+            std::string wanted;
+            std::getline(words_in, wanted);
+            while (!wanted.empty() && wanted.front() == ' ') {
+                wanted.erase(0, 1);
+            }
+            property = lower_text(property);
+            const auto until =
+                std::chrono::steady_clock::now() + std::chrono::seconds(30);
+            while (std::chrono::steady_clock::now() < until) {
+                Target found;
+                if (resolve_target(in, target_text, found)) {
+                    ControlObject* watched =
+                        control_named(*found.form, found.control, found.index);
+                    if (watched != nullptr) {
+                        std::vector<CallArgument> none;
+                        Value value{Empty{}};
+                        NativeFailure problem;
+                        if (watched->get(in, property, none, value, problem) &&
+                            problem.number == 0) {
+                            std::string text = Interpreter::render(value);
+                            const auto blank = [](const char c) {
+                                return c == ' ' || c == '\n' || c == '\r' ||
+                                       c == '\t';
+                            };
+                            while (!text.empty() && blank(text.front())) {
+                                text.erase(0, 1);
+                            }
+                            while (!text.empty() && blank(text.back())) {
+                                text.pop_back();
+                            }
+                            if (text == wanted) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                if (!ocx_poll_sockets(in)) {
+                    return false;
+                }
+                if (state.headless != nullptr) {
+                    state.headless->advance_time(5);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                } else if (const auto event = state.host->next_event(false)) {
+                    if (!dispatch(in, *event)) {
+                        return false;
+                    }
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            }
+            return true;
+        }
         if (command == "answer") {
             state.answers.emplace_back(lower_text(target_text), rest);
             return true;
@@ -4259,6 +4380,42 @@ struct FormSupport {
         ControlObject* object =
             control_named(*target.form, target.control, target.index);
         if (object == nullptr || object->window == ui::kNoWindow) {
+            return true;
+        }
+        if (command == "get") {
+            // get <control> <property>: prints "<control>.<property> = value"
+            // to the program's output, so a script can state what it expects.
+            std::string property = lower_text(rest);
+            while (!property.empty() && property.back() == ' ') {
+                property.pop_back();
+            }
+            std::vector<CallArgument> none;
+            Value value{Empty{}};
+            NativeFailure problem;
+            if (!object->get(in, property, none, value, problem) ||
+                problem.number != 0) {
+                value = Value{std::string{"<error>"}};
+            }
+            std::string text;
+            if (const PictureObject* picture = picture_of(value)) {
+                text = picture->handle == 0 ? "empty" : "picture";
+            } else if (std::holds_alternative<ObjectInstance>(value)) {
+                text = "<object>";
+            } else {
+                text = Interpreter::render(value);
+                while (!text.empty() && text.front() == ' ') {
+                    text.erase(0, 1);
+                }
+                while (!text.empty() && text.back() == ' ') {
+                    text.pop_back();
+                }
+            }
+            if (in.has_output_line_ && !in.output_line_open_) {
+                in.output_.push_back('\n');
+            }
+            in.output_ += target_text + "." + rest + " = " + text;
+            in.has_output_line_ = true;
+            in.output_line_open_ = false;
             return true;
         }
         if (command == "click") {

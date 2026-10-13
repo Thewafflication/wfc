@@ -426,6 +426,24 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   # each leave a screenshot.
   include("${CMAKE_CURRENT_SOURCE_DIR}/tests/projects/AddVb6Game.cmake")
   add_vb6_game(clix clix/src/Clix.vbp "frmMain" 5000)
+  add_vb6_play(
+    restaum-solve
+    restaum/source/BrainVita.vbp
+    restaum-solve.ui
+    restaum-solve.expected
+  )
+  add_vb6_play(
+    connect4-play
+    connect4/PConnect4.vbp
+    connect4-play.ui
+    connect4-play.expected
+  )
+  add_vb6_play(
+    sumboku-solve
+    sumboku/PSuMBOku.vbp
+    sumboku-solve.ui
+    sumboku-solve.expected
+  )
   add_vb6_game(connect4 connect4/PConnect4.vbp "FMain" 5000)
   add_vb6_game(sumboku-current sumboku/PSuMBOku.vbp "FrmSudoku" 5000)
   add_vb6_game(

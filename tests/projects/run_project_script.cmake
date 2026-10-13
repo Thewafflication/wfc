@@ -7,6 +7,10 @@ get_filename_component(project_dir "${PROJECT}" DIRECTORY)
 get_filename_component(project_file "${PROJECT}" NAME)
 file(REMOVE_RECURSE "${WORK}")
 file(COPY "${project_dir}/" DESTINATION "${WORK}")
+# A fixed seed makes `Randomize` repeatable for programs that play at random.
+if(DEFINED SEED)
+  set(ENV{WFC_RANDOM_SEED} "${SEED}")
+endif()
 execute_process(
   COMMAND "${WFC}" "${WORK}/${project_file}" --ui-script "${SCRIPT}"
   RESULT_VARIABLE result

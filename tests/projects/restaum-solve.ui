@@ -1,0 +1,103 @@
+# Resta Um: the standard 31-move solution, ending with one peg in the centre.
+# An illegal drag (over an empty hole, or too far) changes nothing.
+get Form1.imgGoti(33) picture
+get Form1.imgGoti(13) picture
+mousedown Form1.imgGoti(2) 1 0 5 5
+drag Form1.imgGoti(2) Form1.imgGoti(33) 5 5
+get Form1.imgGoti(2) picture
+get Form1.imgGoti(33) picture
+mousedown Form1.imgGoti(13) 1 0 5 5
+drag Form1.imgGoti(13) Form1.imgGoti(33) 5 5
+mousedown Form1.imgGoti(21) 1 0 5 5
+drag Form1.imgGoti(21) Form1.imgGoti(23) 5 5
+mousedown Form1.imgGoti(2) 1 0 5 5
+drag Form1.imgGoti(2) Form1.imgGoti(22) 5 5
+mousedown Form1.imgGoti(4) 1 0 5 5
+drag Form1.imgGoti(4) Form1.imgGoti(2) 5 5
+mousedown Form1.imgGoti(23) 1 0 5 5
+drag Form1.imgGoti(23) Form1.imgGoti(21) 5 5
+mousedown Form1.imgGoti(20) 1 0 5 5
+drag Form1.imgGoti(20) Form1.imgGoti(22) 5 5
+mousedown Form1.imgGoti(24) 1 0 5 5
+drag Form1.imgGoti(24) Form1.imgGoti(4) 5 5
+mousedown Form1.imgGoti(26) 1 0 5 5
+drag Form1.imgGoti(26) Form1.imgGoti(24) 5 5
+mousedown Form1.imgGoti(32) 1 0 5 5
+drag Form1.imgGoti(32) Form1.imgGoti(12) 5 5
+mousedown Form1.imgGoti(2) 1 0 5 5
+drag Form1.imgGoti(2) Form1.imgGoti(22) 5 5
+mousedown Form1.imgGoti(30) 1 0 5 5
+drag Form1.imgGoti(30) Form1.imgGoti(32) 5 5
+mousedown Form1.imgGoti(32) 1 0 5 5
+drag Form1.imgGoti(32) Form1.imgGoti(12) 5 5
+mousedown Form1.imgGoti(34) 1 0 5 5
+drag Form1.imgGoti(34) Form1.imgGoti(32) 5 5
+mousedown Form1.imgGoti(36) 1 0 5 5
+drag Form1.imgGoti(36) Form1.imgGoti(34) 5 5
+mousedown Form1.imgGoti(34) 1 0 5 5
+drag Form1.imgGoti(34) Form1.imgGoti(14) 5 5
+mousedown Form1.imgGoti(4) 1 0 5 5
+drag Form1.imgGoti(4) Form1.imgGoti(24) 5 5
+mousedown Form1.imgGoti(42) 1 0 5 5
+drag Form1.imgGoti(42) Form1.imgGoti(22) 5 5
+mousedown Form1.imgGoti(12) 1 0 5 5
+drag Form1.imgGoti(12) Form1.imgGoti(32) 5 5
+mousedown Form1.imgGoti(40) 1 0 5 5
+drag Form1.imgGoti(40) Form1.imgGoti(42) 5 5
+mousedown Form1.imgGoti(43) 1 0 5 5
+drag Form1.imgGoti(43) Form1.imgGoti(41) 5 5
+mousedown Form1.imgGoti(54) 1 0 5 5
+drag Form1.imgGoti(54) Form1.imgGoti(34) 5 5
+mousedown Form1.imgGoti(46) 1 0 5 5
+drag Form1.imgGoti(46) Form1.imgGoti(44) 5 5
+mousedown Form1.imgGoti(62) 1 0 5 5
+drag Form1.imgGoti(62) Form1.imgGoti(42) 5 5
+mousedown Form1.imgGoti(32) 1 0 5 5
+drag Form1.imgGoti(32) Form1.imgGoti(52) 5 5
+mousedown Form1.imgGoti(64) 1 0 5 5
+drag Form1.imgGoti(64) Form1.imgGoti(62) 5 5
+mousedown Form1.imgGoti(62) 1 0 5 5
+drag Form1.imgGoti(62) Form1.imgGoti(42) 5 5
+mousedown Form1.imgGoti(41) 1 0 5 5
+drag Form1.imgGoti(41) Form1.imgGoti(43) 5 5
+mousedown Form1.imgGoti(43) 1 0 5 5
+drag Form1.imgGoti(43) Form1.imgGoti(45) 5 5
+mousedown Form1.imgGoti(24) 1 0 5 5
+drag Form1.imgGoti(24) Form1.imgGoti(44) 5 5
+mousedown Form1.imgGoti(45) 1 0 5 5
+drag Form1.imgGoti(45) Form1.imgGoti(43) 5 5
+mousedown Form1.imgGoti(53) 1 0 5 5
+drag Form1.imgGoti(53) Form1.imgGoti(33) 5 5
+get Form1.imgGoti(2) picture
+get Form1.imgGoti(3) picture
+get Form1.imgGoti(4) picture
+get Form1.imgGoti(12) picture
+get Form1.imgGoti(13) picture
+get Form1.imgGoti(14) picture
+get Form1.imgGoti(20) picture
+get Form1.imgGoti(21) picture
+get Form1.imgGoti(22) picture
+get Form1.imgGoti(23) picture
+get Form1.imgGoti(24) picture
+get Form1.imgGoti(25) picture
+get Form1.imgGoti(26) picture
+get Form1.imgGoti(30) picture
+get Form1.imgGoti(31) picture
+get Form1.imgGoti(32) picture
+get Form1.imgGoti(33) picture
+get Form1.imgGoti(34) picture
+get Form1.imgGoti(35) picture
+get Form1.imgGoti(36) picture
+get Form1.imgGoti(40) picture
+get Form1.imgGoti(41) picture
+get Form1.imgGoti(42) picture
+get Form1.imgGoti(43) picture
+get Form1.imgGoti(44) picture
+get Form1.imgGoti(45) picture
+get Form1.imgGoti(46) picture
+get Form1.imgGoti(52) picture
+get Form1.imgGoti(53) picture
+get Form1.imgGoti(54) picture
+get Form1.imgGoti(62) picture
+get Form1.imgGoti(63) picture
+get Form1.imgGoti(64) picture

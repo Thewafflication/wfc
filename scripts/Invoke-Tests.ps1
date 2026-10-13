@@ -30,12 +30,20 @@ try {
     New-Item -ItemType Directory -Force -Path (Split-Path $progressLog) |
         Out-Null
     $arguments = @(
-        '--preset', $Preset, '--output-on-failure', '--no-tests=error',
-        '--output-log', $progressLog)
+        '--preset', $Preset, '--output-on-failure', '--no-tests=error')
     if ($JUnitPath) {
         $arguments += @('--output-junit', $JUnitPath)
     }
-    Invoke-CheckedCommand ctest $arguments
+    # Each line goes to the log as soon as ctest prints it.
+    [IO.File]::WriteAllText($progressLog, '')
+    & ctest @arguments 2>&1 | ForEach-Object {
+        $line = "$_"
+        [IO.File]::AppendAllText($progressLog, $line + "`n")
+        $line
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "ctest $($arguments -join ' ') failed ($LASTEXITCODE)."
+    }
     Write-Output "[PASS] tests $Preset"
 }
 finally {

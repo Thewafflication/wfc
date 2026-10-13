@@ -513,6 +513,20 @@ bool Interpreter::parse_assignment(std::string identifier,
             return native_member_statement(*variable.value, "_default",
                                            identifier_offset);
         }
+        // `Dest = value` where the class's default member is a field
+        // (`Attribute Value.VB_VarUserMemId = 0`).
+        if (declared != variable.scope->object_class_names.end()) {
+            const auto declared_class =
+                class_definitions_.find(declared->second);
+            if (declared_class != class_definitions_.end() &&
+                declared_class->second.fields.contains(
+                    declared_class->second.default_member) &&
+                std::holds_alternative<ObjectInstance>(*variable.value)) {
+                return parse_member_assignment(
+                    *variable.value, identifier_offset, {},
+                    declared_class->second.default_member);
+            }
+        }
         set_error("WFC0108", "object assignment requires Set",
                   identifier_offset);
         return false;
@@ -1139,11 +1153,13 @@ bool Interpreter::assign_field_reference(InstanceData& owner,
 
 bool Interpreter::parse_member_assignment(
     const Value base, const std::size_t base_offset,
-    const std::string& via_interface_class) {
+    const std::string& via_interface_class, const std::string& forced_member) {
     skip_horizontal_whitespace();
-    const auto member_offset = offset_;
+    const auto member_offset = forced_member.empty() ? offset_ : base_offset;
     char type_character{};
-    auto member_name = parse_identifier(&type_character);
+    auto member_name = forced_member.empty()
+                           ? parse_identifier(&type_character)
+                           : std::optional<std::string>{forced_member};
     if (!member_name.has_value() || type_character != '\0') {
         set_error("WFC0011", "expected member name after '.'", member_offset);
         return false;

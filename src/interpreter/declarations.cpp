@@ -1623,14 +1623,17 @@ void Interpreter::scan_default_member(ClassDef& class_def) {
         }
         position = end + 1;
         constexpr std::string_view prefix = "attribute";
-        constexpr std::string_view suffix = ".vb_usermemid=0";
-        if (line.size() > prefix.size() + suffix.size() &&
-            line.compare(0, prefix.size(), prefix) == 0 &&
-            line.compare(line.size() - suffix.size(), suffix.size(), suffix) ==
-                0) {
-            class_def.default_member = line.substr(
-                prefix.size(), line.size() - prefix.size() - suffix.size());
-            return;
+        for (const std::string_view suffix :
+             {std::string_view{".vb_usermemid=0"},
+              std::string_view{".vb_varusermemid=0"}}) {
+            if (line.size() > prefix.size() + suffix.size() &&
+                line.compare(0, prefix.size(), prefix) == 0 &&
+                line.compare(line.size() - suffix.size(), suffix.size(),
+                             suffix) == 0) {
+                class_def.default_member = line.substr(
+                    prefix.size(), line.size() - prefix.size() - suffix.size());
+                return;
+            }
         }
     }
 }
