@@ -201,6 +201,132 @@ namespace {
 
 }  // namespace
 
+std::optional<Value> Interpreter::form_dialog(
+    const std::vector<Value>& arguments, const std::size_t offset) {
+    static_cast<void>(offset);
+    const auto text = [&](const std::size_t at) {
+        if (at < arguments.size()) {
+            if (const auto* held = std::get_if<std::string>(&arguments[at])) {
+                return *held;
+            }
+        }
+        return std::string{};
+    };
+    const auto number = [&](const std::size_t at) {
+        return at < arguments.size()
+                   ? static_cast<long>(as_double(arguments[at]))
+                   : 0L;
+    };
+    const auto flag = [&](const std::size_t at) {
+        if (at < arguments.size()) {
+            if (const auto* held = std::get_if<bool>(&arguments[at])) {
+                return *held;
+            }
+            return as_double(arguments[at]) != 0.0;
+        }
+        return false;
+    };
+    if (!execute_) {
+        return Value{std::string{}};
+    }
+    const std::string kind = lower_text(text(0));
+    auto& host = *FormSupport::runtime(*this).host;
+    const ui::WindowId owner = host.focus();
+    bool accepted = false;
+    std::string file_name = text(3);
+    long filter_index = std::max(1L, number(6));
+    long color = number(8);
+    std::string font_name = text(9);
+    double font_size = std::max(1.0, arguments.size() > 10U ? as_double(arguments[10]) : 8.0);
+    bool bold = flag(11);
+    bool italic = flag(12);
+    bool supported = true;
+    if (kind == "open" || kind == "save") {
+        ui::FileDialogRequest request;
+        request.save = kind == "save";
+        request.title = text(1);
+        request.initial_directory = text(2);
+        request.file_name = file_name;
+        request.filter = text(4);
+        request.default_extension = text(5);
+        request.filter_index = filter_index;
+        request.flags = number(7);
+        auto chosen = host.file_dialog(owner, request, supported);
+        if (!supported) {
+            const auto answer = form_dialog_answer(kind);
+            if (answer.has_value() && lower_text(*answer) != "cancel") {
+                chosen = ui::FileDialogResult{*answer, filter_index};
+            }
+        }
+        if (chosen.has_value() && !chosen->file_name.empty()) {
+            accepted = true;
+            file_name = chosen->file_name;
+            filter_index = chosen->filter_index;
+        }
+    } else if (kind == "color") {
+        auto chosen = host.color_dialog(owner, color, number(7), supported);
+        if (!supported) {
+            const auto answer = form_dialog_answer("color");
+            if (answer.has_value() && lower_text(*answer) != "cancel") {
+                chosen = static_cast<long>(std::atof(answer->c_str()));
+            }
+        }
+        if (chosen.has_value()) {
+            accepted = true;
+            color = *chosen;
+        }
+    } else if (kind == "font") {
+        ui::FontDialogRequest request;
+        request.name = font_name;
+        request.size = font_size;
+        request.bold = bold;
+        request.italic = italic;
+        request.color = color;
+        request.flags = 0x1;  // screen fonts
+        auto chosen = host.font_dialog(owner, request, supported);
+        if (!supported) {
+            const auto answer = form_dialog_answer("font");
+            if (answer.has_value() && lower_text(*answer) != "cancel") {
+                ui::FontDialogRequest scripted = request;
+                std::istringstream stream(*answer);
+                std::string part;
+                int position = 0;
+                while (std::getline(stream, part, ',')) {
+                    if (position == 0) {
+                        scripted.name = part;
+                    } else if (position == 1) {
+                        scripted.size = std::atof(part.c_str());
+                    } else if (position == 2) {
+                        scripted.bold = std::atof(part.c_str()) != 0.0;
+                    } else if (position == 3) {
+                        scripted.italic = std::atof(part.c_str()) != 0.0;
+                    }
+                    ++position;
+                }
+                chosen = scripted;
+            }
+        }
+        if (chosen.has_value()) {
+            accepted = true;
+            font_name = chosen->name;
+            font_size = chosen->size;
+            bold = chosen->bold;
+            italic = chosen->italic;
+            color = chosen->color;
+        }
+    }
+    const char separator = '\x01';
+    std::string result = accepted ? "1" : "0";
+    result += separator + file_name;
+    result += separator + std::to_string(filter_index);
+    result += separator + std::to_string(color);
+    result += separator + font_name;
+    result += separator + std::to_string(font_size);
+    result += separator + std::string(bold ? "1" : "0");
+    result += separator + std::string(italic ? "1" : "0");
+    return Value{std::move(result)};
+}
+
 // ----- Winsock -------------------------------------------------------------------
 
 namespace {

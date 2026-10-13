@@ -707,6 +707,17 @@ auto Interpreter::parse_type_keyword() -> std::optional<TypeKeywordResult> {
     if (consume_keyword("variant")) {
         return TypeKeywordResult{Value{Empty{}}, true};
     }
+    // The VBA enumerations, as types, are Long.
+    for (const char* name :
+         {"vbmsgboxresult", "vbmsgboxstyle", "vbcomparemethod", "vbtristate",
+          "vbvartype", "vbdayofweek", "vbfirstweekofyear", "vbdateformat",
+          "vbcalendar", "vbfiletype", "vbstrconv", "vbvarianttype",
+          "vbappwinstyle", "vbfileattribute", "vbqueryclose", "vbmodal",
+          "vbcalltype", "vbirrtype"}) {
+        if (consume_keyword(name)) {
+            return TypeKeywordResult{Value{Integer{}}, false};
+        }
+    }
     // The stdole property types are Long (or Boolean) underneath.
     for (const char* name :
          {"ole_handle", "ole_color", "ole_xpos_pixels", "ole_ypos_pixels",

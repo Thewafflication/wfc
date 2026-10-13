@@ -2915,6 +2915,10 @@ struct FormSupport {
             if (!ocx_poll_sockets(in)) {
                 return false;
             }
+            // A form's first display raises Resize before Activate.
+            if (!raise(in, form, "", -1, "resize", none, offset)) {
+                return false;
+            }
             if (!raise(in, form, "", -1, "activate", none, offset)) {
                 return false;
             }
@@ -3053,6 +3057,9 @@ struct FormSupport {
         if (member == "move") {
             static const char* const keys[] = {"left", "top", "width",
                                                "height"};
+            const double width_before = number_of(self, "width");
+            const double height_before = number_of(self, "height");
+            moving_control() = true;
             for (std::size_t i = 0; i < arguments.size() && i < 4U; ++i) {
                 if (arguments[i].omitted) {
                     continue;
@@ -3064,8 +3071,17 @@ struct FormSupport {
                                             "property or method"};
                 }
                 if (failure.number != 0) {
+                    moving_control() = false;
                     return true;
                 }
+            }
+            moving_control() = false;
+            if (!self.is_form &&
+                (number_of(self, "width") != width_before ||
+                 number_of(self, "height") != height_before) &&
+                ui::find_event(*self.cls, "Resize") != nullptr &&
+                !raise_table_event(in, self, "Resize", {}, in.offset_)) {
+                failure = reported();
             }
             return true;
         }
@@ -3649,6 +3665,13 @@ struct FormSupport {
                 (member == "width" || member == "height")) {
                 return report(resize_user_control(in, self));
             }
+            if ((member == "width" || member == "height") && !self.is_form &&
+                !now.valueless_by_exception() && !(now == old_value) &&
+                !moving_control() &&
+                ui::find_event(*self.cls, "Resize") != nullptr) {
+                return report(
+                    raise_table_event(in, self, "Resize", {}, offset));
+            }
             return true;
         }
         if (member == "value" && self.is_scroll() && !(now == old_value)) {
@@ -3661,6 +3684,13 @@ struct FormSupport {
             return report(raise_table_event(in, self, "Click", {}, offset));
         }
         return true;
+    }
+
+    // True while `Move` sets a control's position and size: it raises one
+    // Resize at the end instead of one per property.
+    [[nodiscard]] static bool& moving_control() {
+        static thread_local bool moving = false;
+        return moving;
     }
 
     // Delivers a host event to the matching handler.
@@ -4759,6 +4789,19 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
                 static_cast<float>(origin + twips * (horizontal ? sx : sy))};
             return true;
         }
+    }
+    if (member == "image" && FormSupport::is_surface(*this) &&
+        window != ui::kNoWindow) {
+        // What is drawn on the surface, as a picture.
+        const std::string bytes =
+            FormSupport::runtime(in).host->surface_image(window);
+        PictureInfo info;
+        if (!bytes.empty() && read_picture_header(bytes, info)) {
+            result = make_picture_value(bytes, info);
+        } else {
+            result = make_empty_picture_value();
+        }
+        return true;
     }
     if (member == "hdc" && FormSupport::is_surface(*this) &&
         window != ui::kNoWindow) {

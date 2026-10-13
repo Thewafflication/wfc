@@ -1,0 +1,4 @@
+Type=Exe
+Form=207-win-dialogs-classes.frm
+Startup="Form1"
+WfcUiScript=207-win-dialogs-classes.ui

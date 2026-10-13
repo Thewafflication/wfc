@@ -40,6 +40,7 @@ public:
     [[nodiscard]] bool visible(WindowId window) const override;
     void set_enabled(WindowId window, bool enabled) override;
     void set_border(WindowId window, bool border) override;
+    [[nodiscard]] std::string surface_image(WindowId window) override;
     void set_form_style(WindowId window, int border_style) override;
     void set_label_style(WindowId window, long fore, long back,
                          bool transparent) override;

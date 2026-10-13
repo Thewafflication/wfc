@@ -1389,6 +1389,134 @@ End If
 End Function
 )VB";
 
+// The dialog classes of the Win_Dialogs library (ColorDialog, FontDialog,
+// OpenFileDialog, SaveFileDialog), over WFC's native dialogs. A project that
+// names them but does not carry their source gets these. `WfcDialog` runs the
+// dialog and returns its result fields joined by Chr(1): accepted (0 or 1),
+// file name, filter index, color, font name, size, bold, italic.
+
+inline constexpr std::string_view kFileDialogSource =
+    R"VB(Public Filter As String
+Public FilterIndex As Long
+Public InitialDirectory As String
+Public Title As String
+Public FileName As String
+Public DefaultExt As String
+Public MultiSelect As Boolean
+Public CheckFileExists As Boolean
+Public CheckPathExists As Boolean
+Public OverwritePrompt As Boolean
+Public CreatePrompt As Boolean
+Public AddExtension As Boolean
+Public ValidateNames As Boolean
+Public RestoreDirectory As Boolean
+Public ShowHelp As Boolean
+Public ShowReadOnly As Boolean
+Public ReadOnlyChecked As Boolean
+Private Sub Class_Initialize()
+FilterIndex = 1
+AddExtension = True
+CheckPathExists = True
+ValidateNames = True
+End Sub
+Public Property Get FileNames() As Variant
+FileNames = Array(FileName)
+End Property
+Public Property Get SafeFileName() As String
+Dim p As Long
+p = InStrRev(FileName, "\")
+SafeFileName = Mid(FileName, p + 1)
+End Property
+Public Function ShowDialog(Optional Owner As Variant) As Long
+Dim r As String
+Dim p As Variant
+r = WfcDialog(WfcDialogKind(), Title, InitialDirectory, FileName, Filter,)VB"
+    R"VB( DefaultExt, FilterIndex, 0, 0)
+p = Split(r, Chr(1))
+If p(0) = "1" Then
+FileName = p(1)
+FilterIndex = CLng(p(2))
+ShowDialog = 1
+Else
+ShowDialog = 2
+End If
+End Function
+Public Sub Reset()
+Filter = ""
+FilterIndex = 1
+InitialDirectory = ""
+Title = ""
+FileName = ""
+DefaultExt = ""
+End Sub
+Private Function WfcDialogKind() As String
+If TypeName(Me) = "SaveFileDialog" Then
+WfcDialogKind = "save"
+Else
+WfcDialogKind = "open"
+End If
+End Function
+)VB";
+
+inline constexpr std::string_view kColorDialogSource =
+    R"VB(Public Color As Long
+Public AllowFullOpen As Boolean
+Public AnyColor As Boolean
+Public FullOpen As Boolean
+Public SolidColorOnly As Boolean
+Public ShowHelp As Boolean
+Private Sub Class_Initialize()
+AllowFullOpen = True
+End Sub
+Public Function ShowDialog(Optional Owner As Variant) As Long
+Dim r As String
+Dim p As Variant
+r = WfcDialog("color", "", "", "", "", "", 1, 0, Color)
+p = Split(r, Chr(1))
+If p(0) = "1" Then
+Color = CLng(p(3))
+ShowDialog = 1
+Else
+ShowDialog = 2
+End If
+End Function
+)VB";
+
+inline constexpr std::string_view kFontDialogSource =
+    R"VB(Public FontName As String
+Public FontSize As Single
+Public FontBold As Boolean
+Public FontItalic As Boolean
+Public FontUnderline As Boolean
+Public FontStrikeout As Boolean
+Public Color As Long
+Public ShowColor As Boolean
+Public ShowEffects As Boolean
+Public ShowHelp As Boolean
+Private Sub Class_Initialize()
+FontName = "MS Sans Serif"
+FontSize = 8
+ShowEffects = True
+End Sub
+Public Function ShowDialog(Optional Owner As Variant) As Long
+Dim r As String
+Dim p As Variant
+r = WfcDialog("font", "", "", FontName, "", "", 1, 0, Color, FontName,)VB"
+    R"VB( FontSize, FontBold, FontItalic)
+p = Split(r, Chr(1))
+If p(0) = "1" Then
+FontName = p(4)
+FontSize = CSng(p(5))
+FontBold = (p(6) = "1")
+FontItalic = (p(7) = "1")
+Color = CLng(p(3))
+ShowDialog = 1
+Else
+ShowDialog = 2
+End If
+End Function
+)VB";
+
 }  // namespace wfc::detail
 
 #endif  // WFC_INTERPRETER_BUILTIN_CLASS_SOURCES_HPP

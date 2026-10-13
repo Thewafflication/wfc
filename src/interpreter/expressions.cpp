@@ -1387,6 +1387,53 @@ std::optional<Value> Interpreter::parse_primary_base() {
         const auto identifier_offset = offset_;
         char type_character{};
         auto identifier = parse_identifier(&type_character);
+        if (identifier.has_value() && type_character == '\0' && !at_end() &&
+            current() == '.' &&
+            find_variable_raw(*identifier).value == nullptr &&
+            !class_definitions_.contains(*identifier)) {
+            // `ColorConstants.vbYellow`, `VbMsgBoxResult.vbOK`: a constant
+            // named through its VBA enumeration.
+            static const std::unordered_set<std::string_view> enumerations{
+                "colorconstants",
+                "vbmsgboxresult",
+                "vbmsgboxstyle",
+                "systemcolorconstants",
+                "vbcomparemethod",
+                "vbtristate",
+                "vbvartype",
+                "vbdayofweek",
+                "vbfirstweekofyear",
+                "vbdateformat",
+                "vbcalendar",
+                "vbstrconv",
+                "vbappwinstyle",
+                "vbfileattribute",
+                "vbqueryclose",
+                "keycodeconstants",
+                "shiftconstants",
+                "mousebuttonconstants",
+                "drawstyleconstants",
+                "fillstyleconstants",
+                "scalemodeconstants",
+                "alignmentconstants",
+                "borderstyleconstants",
+                "mousepointerconstants",
+                "windowstateconstants",
+                "formshowconstants",
+                "visualbasic.vbmsgboxresult"};
+            if (enumerations.contains(*identifier)) {
+                const auto before_dot = offset_;
+                advance();
+                char member_type_character{};
+                const auto member = parse_identifier(&member_type_character);
+                if (member.has_value() && member_type_character == '\0') {
+                    if (const auto constant = vba_constant_value(*member)) {
+                        return Value{*constant};
+                    }
+                }
+                offset_ = before_dot;
+            }
+        }
         skip_horizontal_whitespace();
         if (!at_end() && current() == '(') {
             const auto array_variable = find_variable(*identifier);

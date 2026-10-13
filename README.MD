@@ -41,12 +41,15 @@ GPL-3.0, with sounds and pictures):
 ![Executioner, a VB6 hangman game](evidence/screenshots/vb6games-executioner.png)
 
 Pipes (GPL-3.0; compared with a build of the same source made with the real
-VB6 compiler), Resta Um (peg solitaire, MIT) and SuMBOku (a sudoku game,
-GPL-3.0):
+VB6 compiler), Resta Um (peg solitaire, MIT), SuMBOku (a sudoku game, GPL-3.0)
+and Connect 4 (GPL-3.0). Connect 4 and the current SuMBOku name the dialog
+classes of the author's `Win_Dialogs` library; WFC supplies `ColorDialog`,
+`FontDialog`, `OpenFileDialog` and `SaveFileDialog` over its native dialogs:
 
 ![Pipes, a VB6 puzzle game](evidence/screenshots/vb6games-pipes.png)
 ![Resta Um, a VB6 peg solitaire](evidence/screenshots/vb6games-restaum.png)
 ![SuMBOku, a VB6 sudoku game](evidence/screenshots/vb6games-sumboku.png)
+![Connect 4, a VB6 game](evidence/screenshots/vb6games-connect4.png)
 
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an

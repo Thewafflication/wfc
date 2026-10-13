@@ -1465,6 +1465,19 @@ void Interpreter::scan_builtin_classes() {
         add_alias("File", "file", kFileObjectSource);
         add_alias("TextStream", "textstream", kTextStreamSource);
     }
+    // The Win_Dialogs classes, unless the project carries its own.
+    const auto add_dialog = [&](const std::string_view type_name,
+                                const std::string_view lowered_type,
+                                const std::string_view source) {
+        if (!user_defines(lowered_type) &&
+            any_source_mentions(lowered_type, true)) {
+            class_sources_.push_back({std::string(type_name), source});
+        }
+    };
+    add_dialog("ColorDialog", "colordialog", kColorDialogSource);
+    add_dialog("FontDialog", "fontdialog", kFontDialogSource);
+    add_dialog("OpenFileDialog", "openfiledialog", kFileDialogSource);
+    add_dialog("SaveFileDialog", "savefiledialog", kFileDialogSource);
     if (any_source_mentions("vbscript.regexp", false) ||
         any_source_mentions("vbscript_regexp_55.regexp", false) ||
         any_source_mentions("regexp", true)) {

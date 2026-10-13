@@ -1800,6 +1800,11 @@ private:
     void register_native_types();
     // `Screen.ActiveForm` (0) and `Screen.ActiveControl` (1).
     [[nodiscard]] Value form_active(int what);
+    // `WfcDialog(kind, title, dir, file, filter, ext, index, flags, color
+    // [, font, size, bold, italic])`: runs a native dialog; see
+    // builtin_class_sources.hpp.
+    [[nodiscard]] std::optional<Value> form_dialog(
+        const std::vector<Value>& arguments, std::size_t offset);
     // Drawing on forms and picture boxes (REQ-0290).
     [[nodiscard]] InstanceData* implicit_form_surface();
     [[nodiscard]] bool form_print(InstanceData& surface,

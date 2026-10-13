@@ -426,6 +426,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   # each leave a screenshot.
   include("${CMAKE_CURRENT_SOURCE_DIR}/tests/projects/AddVb6Game.cmake")
   add_vb6_game(clix clix/src/Clix.vbp "frmMain" 5000)
+  add_vb6_game(connect4 connect4/PConnect4.vbp "FMain" 5000)
+  add_vb6_game(sumboku-current sumboku/PSuMBOku.vbp "FrmSudoku" 5000)
   add_vb6_game(
     executioner
     executioner/Executioner.vbp

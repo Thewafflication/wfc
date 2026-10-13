@@ -130,6 +130,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "loadresstring",
                                                        "loadresdata",
                                                        "loadrespicture",
+                                                       "wfcdialog",
                                                        "wfcactive",
                                                        "loadpicture",
                                                        "wfcsys",
@@ -516,6 +517,12 @@ std::optional<Value> Interpreter::evaluate_misc_function(
     }
     if (name == "loadpicture") {
         return load_picture_builtin(arguments, offset);
+    }
+    if (name == "wfcdialog") {
+        if (!arity(9, 13)) {
+            return std::nullopt;
+        }
+        return form_dialog(arguments, offset);
     }
     if (name == "wfcactive") {
         if (!arity(1, 1)) {

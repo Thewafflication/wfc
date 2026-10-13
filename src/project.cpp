@@ -446,12 +446,24 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         module_names.push_back(std::move(name));
     }
     std::vector<std::string> class_texts;
-    for (const auto& [declared_name, class_path] : classes) {
+    for (std::size_t index = 0; index < classes.size();) {
+        const auto& [declared_name, class_path] = classes[index];
         std::string text;
         if (!read_file(class_path, text)) {
+            // The Win_Dialogs classes are supplied by WFC itself (over its
+            // native dialogs) when the project's copy is not at hand.
+            const std::string lowered_name = lowered(declared_name);
+            if (lowered_name == "colordialog" || lowered_name == "fontdialog" ||
+                lowered_name == "openfiledialog" ||
+                lowered_name == "savefiledialog") {
+                classes.erase(classes.begin() +
+                              static_cast<std::ptrdiff_t>(index));
+                continue;
+            }
             return fail("cannot read class: " + class_path.string());
         }
         class_texts.push_back(std::move(text));
+        ++index;
     }
     // Modules keep separate namespaces and one merged Option header.
     std::vector<bool> explicit_modules;

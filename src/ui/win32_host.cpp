@@ -848,6 +848,48 @@ void Win32Host::set_border(const WindowId window, const bool border) {
                      SWP_FRAMECHANGED);
 }
 
+std::string Win32Host::surface_image(const WindowId window) {
+    const auto it = windows_.find(window);
+    if (it == windows_.end() || it->second->hwnd == nullptr) {
+        return {};
+    }
+    const Entry* entry = ensure_surface(window);
+    if (entry == nullptr || entry->surface_dc == nullptr) {
+        return {};
+    }
+    RECT client{};
+    GetClientRect(entry->hwnd, &client);
+    const int width = std::max(static_cast<int>(client.right), 1);
+    const int height = std::max(static_cast<int>(client.bottom), 1);
+    // A copy of the client area: a bitmap in use cannot be read directly.
+    HDC copy_dc = CreateCompatibleDC(entry->surface_dc);
+    HBITMAP copy = CreateCompatibleBitmap(entry->surface_dc, width, height);
+    HGDIOBJ old = SelectObject(copy_dc, copy);
+    BitBlt(copy_dc, 0, 0, width, height, entry->surface_dc, 0, 0, SRCCOPY);
+    SelectObject(copy_dc, old);
+    BITMAPINFOHEADER header{};
+    header.biSize = sizeof(header);
+    header.biWidth = width;
+    header.biHeight = height;
+    header.biPlanes = 1;
+    header.biBitCount = 24;
+    header.biCompression = BI_RGB;
+    const int stride = ((width * 3) + 3) & ~3;
+    std::string pixels(static_cast<std::size_t>(stride) * height, '\0');
+    GetDIBits(copy_dc, copy, 0, static_cast<UINT>(height), pixels.data(),
+              reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS);
+    DeleteObject(copy);
+    DeleteDC(copy_dc);
+    BITMAPFILEHEADER file{};
+    file.bfType = 0x4D42;
+    file.bfOffBits = sizeof(file) + sizeof(header);
+    file.bfSize = static_cast<DWORD>(file.bfOffBits + pixels.size());
+    std::string bytes(reinterpret_cast<const char*>(&file), sizeof(file));
+    bytes.append(reinterpret_cast<const char*>(&header), sizeof(header));
+    bytes += pixels;
+    return bytes;
+}
+
 void Win32Host::set_form_style(const WindowId window, const int style) {
     const auto it = windows_.find(window);
     if (it == windows_.end() || it->second->hwnd == nullptr ||

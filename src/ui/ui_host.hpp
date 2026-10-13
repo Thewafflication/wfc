@@ -203,6 +203,12 @@ public:
         static_cast<void>(window);
         static_cast<void>(border_style);
     }
+    // The drawing surface of a form or picture box as the bytes of a .bmp
+    // file (the `Image` property); empty when the host has none.
+    [[nodiscard]] virtual std::string surface_image(WindowId window) {
+        static_cast<void>(window);
+        return {};
+    }
     // Shows or hides the sunken edge of a picture box (BorderStyle).
     virtual void set_border(WindowId window, bool border) {
         static_cast<void>(window);

@@ -1,0 +1,6 @@
+answer color 65280
+answer open D:\games\save.smbk
+answer save E:\out\game.smbk
+answer font Courier,12,1,0
+answer color cancel
+click Form1.Command1
