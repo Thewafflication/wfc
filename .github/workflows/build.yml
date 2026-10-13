@@ -180,3 +180,87 @@ jobs:
             out/build/${{ matrix.preset }}/screenshots/*.png
           if-no-files-found: warn
           retention-days: 14
+
+  release:
+    name: Release ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            preset: windows-x86-release
+            runner: windows-2022
+          - arch: x64
+            preset: windows-x64-release
+            runner: windows-2022
+          - arch: arm64
+            preset: windows-arm64-release
+            runner: windows-11-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset '${{ matrix.preset }}'
+
+      - name: Build
+        shell: pwsh
+        run: ./scripts/Invoke-Build.ps1 -Preset '${{ matrix.preset }}'
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $result = Join-Path $PWD `
+            'out/test-results/${{ matrix.arch }}-release/ctest.xml'
+          ./scripts/Invoke-Tests.ps1 -Preset '${{ matrix.preset }}' `
+            -JUnitPath $result
+
+      - name: Record Release artifact identities
+        if: always()
+        shell: pwsh
+        run: |
+          $directory = 'out/test-results/${{ matrix.arch }}-release'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $binaryDirectory = 'out/build/${{ matrix.preset }}/Release'
+          $artifacts = @(
+            Get-ChildItem -LiteralPath $binaryDirectory -File `
+                -ErrorAction SilentlyContinue |
+              Where-Object Extension -In '.exe', '.dll' |
+              Sort-Object Name |
+              ForEach-Object {
+                [PSCustomObject]@{
+                  name = $_.Name
+                  size = $_.Length
+                  sha256 = (Get-FileHash -LiteralPath $_.FullName `
+                      -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+              }
+          )
+          [PSCustomObject]@{
+            schemaVersion = 1
+            sourceRevision = '${{ github.sha }}'
+            targetArchitecture = '${{ matrix.arch }}'
+            configuration = 'Release'
+            jobStatusAtCollection = '${{ job.status }}'
+            artifacts = $artifacts
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content "$directory/artifacts.json" -Encoding utf8NoBOM
+
+      - name: Upload Release evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfc-${{ matrix.arch }}-release-${{ github.sha }}
+          path: |
+            out/build/${{ matrix.preset }}/Release/*.exe
+            out/test-results/${{ matrix.arch }}-release/*.json
+            out/test-results/${{ matrix.arch }}-release/*.xml
+          if-no-files-found: warn
+          retention-days: 14

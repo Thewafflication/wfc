@@ -41,11 +41,11 @@ runtime for x86, x64 and ARM64, and the demonstration programs built from the
 
 | Gap | Owner action or work |
 | --- | --- |
-| The CI workflow builds Debug only; a Release matrix, package job and publish job do not exist | Add them, modelled on WCRT's workflow, fail-closed |
+| The CI workflow had Debug only. A Release matrix now exists (`windows-<arch>-release` presets and a `Release` job that builds, runs the whole suite and records artifact digests); a package job and a publish job do not exist | Add them, modelled on WCRT's workflow, fail-closed |
 | A WPM signing key and repository secret | Owner provides; the WCRT key is separate |
 | Dependency on `wcrt` | The package records the exact `wcrt` revision (ADR-0002) |
 | Version number | `0.8.0` at the MP-0008 closeout, owner confirms |
 | Licenses of any further corpus games | Checked per game before it is packaged |
 
-Nothing here has been done. The process needs the owner's decisions on the key,
+Done so far: the Release matrix and the packaged-program test of every corpus game (`TC-MP0008-package-*`). Not done: the package job, signing and publishing. The process needs the owner's decisions on the key,
 the version, and the publish step.
