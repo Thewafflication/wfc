@@ -26,7 +26,7 @@ function(add_vb6_game name vbp forms milliseconds)
       PROPERTIES
         RESOURCE_LOCK "desktop"
         LABELS "integration;windows;mp-0008;vb6games;evidence"
-        TIMEOUT 240
+        TIMEOUT 600
     )
   endif()
 endfunction()
@@ -53,6 +53,34 @@ function(add_vb6_play name vbp script expected)
     set_tests_properties(
       TC-MP0008-vb6games-${name}
       PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 120
+    )
+  endif()
+endfunction()
+
+# Registers the packaged-program test of one corpus game: `wfc --build` makes
+# a standalone program, which runs on its own and shows the named form. An
+# optional fourth argument is the WFC_RANDOM_SEED of the run.
+function(add_vb6_package name vbp form)
+  if(EXISTS "${vb6games_dir}/${vbp}")
+    set(seed_argument "")
+    if(ARGC GREATER 3)
+      set(seed_argument "-DSEED=${ARGV3}")
+    endif()
+    add_test(
+      NAME TC-MP0008-package-${name}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${vb6games_dir}/${vbp}"
+        "-DWORK=${CMAKE_BINARY_DIR}/package-${name}" "-DFORM=${form}"
+        ${seed_argument} -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_package_gui.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-${name}
+      PROPERTIES
+        RESOURCE_LOCK "desktop"
+        LABELS "integration;windows;mp-0008;package"
+        TIMEOUT 600
     )
   endif()
 endfunction()

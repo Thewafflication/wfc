@@ -1,7 +1,7 @@
 # Builds a packaged program with --gui and runs it standalone in real windows
 # with the options of its own command line (--exit-after, --screenshots).
 # Usage: cmake -DWFC=<wfc> -DPROJECT=<.vbp> -DWORK=<dir> -DFORM=<name>
-#   -P run_package_gui.cmake
+#   [-DSEED=<WFC_RANDOM_SEED>] -P run_package_gui.cmake
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(app "${WORK}/standalone.exe")
@@ -12,6 +12,9 @@ execute_process(
 )
 if(NOT built EQUAL 0)
   message(FATAL_ERROR "--build failed (${built}): ${build_errors}")
+endif()
+if(DEFINED SEED)
+  set(ENV{WFC_RANDOM_SEED} "${SEED}")
 endif()
 execute_process(
   COMMAND "${app}" --exit-after 4000 --screenshots "${WORK}/shots"
