@@ -47,5 +47,5 @@ runtime for x86, x64 and ARM64, and the demonstration programs built from the
 | Version number | `0.8.0` at the MP-0008 closeout, owner confirms |
 | Licenses of any further corpus games | Checked per game before it is packaged |
 
-Done so far: the Release matrix and the packaged-program test of every corpus game (`TC-MP0008-package-*`). Not done: the package job, signing and publishing. The process needs the owner's decisions on the key,
+Done so far: `scripts/Build-WpmPackage.ps1` (builds `wfc` and `wfc-games` from Release builds, unsigned unless a key is given; `wpm verify` refuses unsigned packages, as expected), the Release matrix and the packaged-program test of every corpus game (`TC-MP0008-package-*`). Not done: the package job, signing and publishing. The process needs the owner's decisions on the key,
 the version, and the publish step.
