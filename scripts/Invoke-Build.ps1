@@ -23,7 +23,9 @@ Import-Module (Join-Path $PSScriptRoot 'WfcChecks.psm1') -Force
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
+    Write-Stage "[build] configure $Preset"
     Invoke-CheckedCommand cmake @('--preset', $Preset)
+    Write-Stage "[build] compile $Preset"
     Invoke-CheckedCommand cmake @('--build', '--preset', $Preset)
     Write-Output "[PASS] build $Preset"
 }

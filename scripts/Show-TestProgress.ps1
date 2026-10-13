@@ -90,6 +90,7 @@ $script:total = 0
 $script:failed = 0
 
 function Add-Line([string]$line) {
+    if ($line -match '^\[(lint|build)\]') { $status.Text = $line }
     # The result is the word after the dots; a test name can contain
     # "failed" or "error" and still pass.
     $result = ''
@@ -135,6 +136,10 @@ $timer.Add_Tick({
     catch { return }
     finally { if ($stream) { $stream.Dispose() } }
     if (-not $chunk) { return }
+    # What was in the log when the window opened belongs to an earlier run.
+    $old = -not $script:started
+    $script:started = $true
+    if ($old) { $script:seenOld = $false } else { $script:seenOld = $true }
     $lines = $chunk -split "`r?`n"
     $script:pending = $lines[-1]
     $box.SuspendLayout()
@@ -152,7 +157,7 @@ $timer.Add_Tick({
         $status.Text = "$($script:done) / $($script:total) tests, " +
             "$($script:failed) failed"
     }
-    if ($chunk -match 'Total Test time') {
+    if ($script:seenOld -and $chunk -match 'Total Test time') {
         $status.Text += ' - finished'
         # A clean run closes the window by itself; a failed one stays open.
         if ($script:failed -eq 0 -and $script:done -eq $script:total) {
