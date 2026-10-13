@@ -142,11 +142,11 @@ increment as a normal Git change.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| Each corpus project loads and reaches its acceptance state | Acceptance tests | Required | Not started |
-| Every corpus project has provenance and a license record | `PROVENANCE.md` | Required | Not started |
-| The corpus passes on x86, x64 and ARM64 | CI | Required | Not started |
-| Every variance is traced to an approved scope or defect record | Work log, closeout | Required | Not started |
-| The WPM package verifies | Package verification | Required | Not started |
+| Each corpus project loads and reaches its acceptance state | Acceptance tests | Required | Met for the seven corpus projects (2026-10-13): each is started in real windows and screenshotted, and scripted play sessions check Resta Um, Connect 4, SuMBOku, Executioner and Pipes; Capture King plays whole games, also two copies against each other over a virtual LAN |
+| Every corpus project has provenance and a license record | `PROVENANCE.md` | Required | Met: `tests/vb6games/*/PROVENANCE.md` for all seven; Rol An Go ARENA is excluded (no license) |
+| The corpus passes on x86, x64 and ARM64 | CI | Required | Met on the last green runs; ARM64 and x86 are slower, so waits in tests are causal (`waitfor`) instead of fixed times |
+| Every variance is traced to an approved scope or defect record | Work log, closeout | Required | Open: the variances are in the work log; the closeout collects them |
+| The WPM package verifies | Package verification | Required | Not started (needs the owner's decisions in the release plan) |
 | Behavioral probes retained | None | Roadmap gate | Deferred |
 
 ## Deferred Objectives

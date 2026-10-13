@@ -459,7 +459,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     "frmSplash;frmGamescreen"
     6000
   )
-  add_vb6_game(pipes pipes/pipes.vbp "Logo" 8000 pipes-gui.ui Form1-board.png)
+  add_vb6_game(pipes pipes/pipes.vbp "Logo" 30000 pipes-gui.ui Form1-board.png)
   add_vb6_play(pipes-play pipes/pipes.vbp pipes-play.ui pipes-play.expected 1)
   add_vb6_game(restaum restaum/source/BrainVita.vbp "Form1" 5000)
   add_vb6_game(sumboku sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp "FrmSudoku" 5000)

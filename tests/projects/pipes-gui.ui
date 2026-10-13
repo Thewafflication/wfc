@@ -1,8 +1,8 @@
 # Pipes in real windows: past the logo, lay the pipe along the bottom row and
 # up the left column, and capture the board.
-wait 1500
+waitfor Logo.Command1 enabled True
 click Logo.Command1
-wait 300
+waitfor Form1.Timer1 enabled True
 mousedown Form1.piece(1) 1 0 5 5
 mousedown Form1.Board(29) 1 0 5 5
 mousedown Form1.piece(1) 1 0 5 5
@@ -23,5 +23,5 @@ mousedown Form1.piece(0) 1 0 5 5
 mousedown Form1.Board(6) 1 0 5 5
 mousedown Form1.piece(18) 1 0 5 5
 mousedown Form1.Board(0) 1 0 5 5
-wait 300
+wait 200
 screenshot Form1 board
