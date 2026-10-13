@@ -55,7 +55,7 @@ elseif (-not (Test-Path $Log)) {
 $form = New-Object Windows.Forms.Form
 $form.Text = 'WFC tests'
 $form.TopMost = $true
-$form.Size = New-Object Drawing.Size(520, 340)
+$form.Size = New-Object Drawing.Size(520, 440)
 $form.StartPosition = 'Manual'
 $area = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $form.Location = New-Object Drawing.Point(($area.Right - 530), ($area.Top + 10))
@@ -70,6 +70,15 @@ $bar.Dock = 'Top'
 $bar.Height = 20
 $bar.Minimum = 0
 $bar.Maximum = 100
+# Pinned: the tests that have started and not yet finished (ctest runs
+# several at once, so results arrive in the order they finish).
+$running = New-Object Windows.Forms.ListBox
+$running.Dock = 'Top'
+$running.Height = 104
+$running.IntegralHeight = $false
+$running.SelectionMode = 'None'
+$running.BackColor = [Drawing.Color]::LightYellow
+$running.Font = New-Object Drawing.Font('Consolas', 8)
 $box = New-Object Windows.Forms.RichTextBox
 $box.ReadOnly = $true
 $box.WordWrap = $false
@@ -78,6 +87,7 @@ $box.Dock = 'Fill'
 $box.BackColor = [Drawing.Color]::White
 $box.Font = New-Object Drawing.Font('Consolas', 8)
 $form.Controls.Add($box)
+$form.Controls.Add($running)
 $form.Controls.Add($bar)
 $form.Controls.Add($status)
 
@@ -88,12 +98,20 @@ $script:pending = ''
 $script:done = 0
 $script:total = 0
 $script:failed = 0
+$script:active = @{}
 
 function Add-Line([string]$line) {
     if ($line -match '^\[(lint|build)\]') { $status.Text = $line }
     # The result is the word after the dots; a test name can contain
     # "failed" or "error" and still pass.
     $result = ''
+    if ($line -match '^\s*Start\s+(\d+):\s*(\S+)') {
+        $script:active[[int]$Matches[1]] = $Matches[2]
+        return  # shown in the pinned list, not in the log
+    }
+    if ($line -match '^\s*\d+/\d+ Test\s+#(\d+):') {
+        $script:active.Remove([int]$Matches[1])
+    }
     if ($line -match '^\s*(\d+)/(\d+) Test\s+#\d+:.*\.\s+(\*\*\*\S+|Passed)') {
         $script:done = [int]$Matches[1]
         $script:total = [int]$Matches[2]
@@ -124,6 +142,7 @@ $timer.Add_Tick({
             $script:pending = ''
             $box.Clear()
             $script:done = 0; $script:total = 0; $script:failed = 0
+            $script:active = @{}
             $bar.Value = 0
         }
         [void]$stream.Seek($script:offset, 'Begin')
@@ -148,6 +167,12 @@ $timer.Add_Tick({
         $box.Select(0, $box.GetFirstCharIndexFromLine(1000))
         $box.SelectedText = ''
     }
+    $running.BeginUpdate()
+    $running.Items.Clear()
+    foreach ($id in ($script:active.Keys | Sort-Object)) {
+        [void]$running.Items.Add(('#{0,-4} {1}' -f $id, $script:active[$id]))
+    }
+    $running.EndUpdate()
     $box.SelectionStart = $box.TextLength
     $box.ScrollToCaret()
     $box.ResumeLayout()
