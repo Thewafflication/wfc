@@ -1304,6 +1304,17 @@ private:
     [[nodiscard]] static std::size_t array_expected_dimension_count(
         const ArrayValue& array) noexcept;
 
+    // The index count to check in a subscript: an unreached branch cannot
+    // tell how many dimensions a not yet allocated array will get.
+    [[nodiscard]] std::size_t subscript_dimension_count(
+        const ArrayValue& array) const noexcept {
+        if (!execute_ && !array.is_allocated && array.dimensions.empty() &&
+            array.dynamic_dimension_count == 0U) {
+            return static_cast<std::size_t>(-1);
+        }
+        return array_expected_dimension_count(array);
+    }
+
     // Parses a comma-separated index-expression list "i1, i2, ..." (the
     // caller has already consumed the opening '('), coercing each to
     // `Long`, and leaves `offset_` just past the matching ')'. Always runs

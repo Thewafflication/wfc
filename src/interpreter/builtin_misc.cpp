@@ -1874,7 +1874,10 @@ std::optional<double> Interpreter::fixed_random_seed() {
 
 double Interpreter::entropy_seed() {
     if (const auto fixed = fixed_random_seed()) {
-        return *fixed;
+        // Each call differs, as the clock makes it, but a run repeats: a
+        // program that calls Randomize before every Rnd still varies.
+        static std::uint32_t calls = 0;
+        return *fixed + static_cast<double>(calls++) * 7919.0;
     }
     return static_cast<double>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count());

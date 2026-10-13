@@ -2476,7 +2476,8 @@ bool Interpreter::parse_for_statement() {
             execute_ = enclosing_execution;
             return true;
         }
-        if (exit_do_requested_) {
+        if (exit_do_requested_ || exit_sub_requested_ ||
+            exit_function_requested_) {
             offset_ = continuation_offset;
             execute_ = false;
             return true;
@@ -2758,7 +2759,8 @@ bool Interpreter::parse_for_each_statement() {
             execute_ = enclosing_execution;
             return true;
         }
-        if (exit_do_requested_) {
+        if (exit_do_requested_ || exit_sub_requested_ ||
+            exit_function_requested_) {
             offset_ = continuation_offset;
             execute_ = false;
             return true;

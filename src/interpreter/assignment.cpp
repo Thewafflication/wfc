@@ -145,8 +145,7 @@ bool Interpreter::parse_lvalue_path(LValue& result) {
             std::holds_alternative<ArrayValue>(*result.ptr)) {
             auto& array = std::get<ArrayValue>(*result.ptr);
             advance();
-            auto indices =
-                parse_index_list(array_expected_dimension_count(array));
+            auto indices = parse_index_list(subscript_dimension_count(array));
             if (!indices.has_value()) {
                 return false;
             }
@@ -1038,7 +1037,7 @@ bool Interpreter::parse_set_statement() {
             return false;
         }
         advance();  // consume '('
-        const auto dimension_count = array_expected_dimension_count(array);
+        const auto dimension_count = subscript_dimension_count(array);
         auto indices = parse_index_list(dimension_count);
         if (!indices.has_value()) {
             return false;
@@ -1757,7 +1756,7 @@ bool Interpreter::parse_array_element_assignment_on(
     Value& slot, const std::size_t identifier_offset) {
     advance();  // consume '('
     auto& array = std::get<ArrayValue>(slot);
-    const auto dimension_count = array_expected_dimension_count(array);
+    const auto dimension_count = subscript_dimension_count(array);
     auto indices = parse_index_list(dimension_count);
     if (!indices.has_value()) {
         return false;

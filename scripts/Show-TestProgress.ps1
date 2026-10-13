@@ -10,6 +10,11 @@ red. Start it before a run, or run the tests through it:
 
   pwsh scripts/Show-TestProgress.ps1 -Run
 
+The window closes itself 8 seconds after a run in which every test passed; it
+stays open when a test failed. To start it without a console window, use
+Process.Start with CreateNoWindow (not -WindowStyle Hidden, which can hide the
+window as well).
+
 .PARAMETER Log
 The log file to follow (default: out/test-progress.log).
 
@@ -85,17 +90,21 @@ $script:total = 0
 $script:failed = 0
 
 function Add-Line([string]$line) {
-    if ($line -match '^\s*(\d+)/(\d+) Test\s+#\d+:') {
+    # The result is the word after the dots; a test name can contain
+    # "failed" or "error" and still pass.
+    $result = ''
+    if ($line -match '^\s*(\d+)/(\d+) Test\s+#\d+:.*\.\s+(\*\*\*\S+|Passed)') {
         $script:done = [int]$Matches[1]
         $script:total = [int]$Matches[2]
-        if ($line -match '\*\*\*|Failed') { $script:failed++ }
+        $result = $Matches[3]
+        if ($result -ne 'Passed') { $script:failed++ }
     }
     $box.SelectionStart = $box.TextLength
     $box.SelectionLength = 0
-    $box.SelectionColor = if ($line -match '\*\*\*|Failed|Error') {
-        [Drawing.Color]::Firebrick
-    } elseif ($line -match 'Passed') {
+    $box.SelectionColor = if ($result -eq 'Passed') {
         [Drawing.Color]::DarkGreen
+    } elseif ($result -ne '' -or $line -match '^The following tests FAILED') {
+        [Drawing.Color]::Firebrick
     } else {
         [Drawing.Color]::Black
     }
@@ -145,9 +154,16 @@ $timer.Add_Tick({
     }
     if ($chunk -match 'Total Test time') {
         $status.Text += ' - finished'
+        # A clean run closes the window by itself; a failed one stays open.
+        if ($script:failed -eq 0 -and $script:done -eq $script:total) {
+            $close.Start()
+        }
     }
 })
+$close = New-Object Windows.Forms.Timer
+$close.Interval = 8000
+$close.Add_Tick({ $close.Stop(); $form.Close() })
 $timer.Start()
-$form.Add_FormClosed({ $timer.Stop() })
+$form.Add_FormClosed({ $timer.Stop(); $close.Stop() })
 [void]$form.ShowDialog()
 if ($process -and -not $process.HasExited) { $process.Kill() }

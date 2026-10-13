@@ -59,7 +59,7 @@ Resta Um: the standard 31-move solution, ending with one peg. SuMBOku: the
 Open dialog (answered by the script) and eight presses of Solve. Capture King:
 a local game, four moves. Pipes: the pipe is laid from the inlet to the
 outlet and the water runs. Executioner: letters guessed until the phrase is
-found.
+found. Clix: groups of balls marked and removed.
 
 ![Connect 4 being played](evidence/screenshots/play-connect4.gif)
 ![Resta Um being solved](evidence/screenshots/play-restaum.gif)
@@ -67,6 +67,7 @@ found.
 ![Capture King, four moves](evidence/screenshots/play-captureking.gif)
 ![Pipes being played](evidence/screenshots/play-pipes.gif)
 ![Executioner being played](evidence/screenshots/play-executioner.gif)
+![Clix being played](evidence/screenshots/play-clix.gif)
 
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an

@@ -1798,7 +1798,7 @@ std::optional<Value> Interpreter::parse_array_index(
     const Value& array_variable) {
     const auto& array = std::get<ArrayValue>(array_variable);
     advance();  // consume '('
-    const auto dimension_count = array_expected_dimension_count(array);
+    const auto dimension_count = subscript_dimension_count(array);
     auto indices = parse_index_list(dimension_count);
     if (!indices.has_value()) {
         return std::nullopt;
