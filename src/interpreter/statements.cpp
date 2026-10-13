@@ -831,29 +831,28 @@ bool Interpreter::parse_statement_core() {
     }
     if (consume_keyword("msgbox") || consume_keyword("appactivate") ||
         consume_keyword("sendkeys")) {
-        // The statement form evaluates and ignores its arguments (the text
-        // of a message box is still logged).
+        // The statement form evaluates its arguments. A message box is shown
+        // like the function form and its answer is dropped; the other two
+        // ignore theirs.
         const bool is_message_box =
             ascii_lower(source_[statement_offset]) == 'm';
-        bool first_argument = true;
+        std::vector<Value> values;
         skip_horizontal_whitespace();
         while (!at_statement_end()) {
             const auto value = parse_expression();
             if (!value.has_value()) {
                 return false;
             }
-            if (is_message_box && first_argument && execute_) {
-                message_log_.push_back(
-                    std::holds_alternative<std::string>(*value)
-                        ? std::get<std::string>(*value)
-                        : render(*value));
-            }
-            first_argument = false;
+            values.push_back(*value);
             skip_horizontal_whitespace();
             if (!consume(',')) {
                 break;
             }
             skip_horizontal_whitespace();
+        }
+        if (is_message_box && execute_ && !values.empty()) {
+            return evaluate_misc_function("msgbox", values, statement_offset)
+                .has_value();
         }
         return true;
     }
