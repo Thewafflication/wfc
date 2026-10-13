@@ -57,12 +57,16 @@ takes a frame after each move and joins them with ffmpeg). Connect 4: yellow
 stacks a column, red answers, and Undo and Redo take a chip back and return it.
 Resta Um: the standard 31-move solution, ending with one peg. SuMBOku: the
 Open dialog (answered by the script) and eight presses of Solve. Capture King:
-a local game, four moves.
+a local game, four moves. Pipes: the pipe is laid from the inlet to the
+outlet and the water runs. Executioner: letters guessed until the phrase is
+found.
 
 ![Connect 4 being played](evidence/screenshots/play-connect4.gif)
 ![Resta Um being solved](evidence/screenshots/play-restaum.gif)
 ![SuMBOku solving an example](evidence/screenshots/play-sumboku.gif)
 ![Capture King, four moves](evidence/screenshots/play-captureking.gif)
+![Pipes being played](evidence/screenshots/play-pipes.gif)
+![Executioner being played](evidence/screenshots/play-executioner.gif)
 
 **Common controls (MP-0006).** Toolbar, tab strip, progress bar, slider,
 image combo, tree view, list view and status bar, with images from an

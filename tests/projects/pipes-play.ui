@@ -1,0 +1,47 @@
+# Pipes: past the logo, build the pipe from the inlet (right, row 5) to the
+# outlet (left, row 1): straight pieces along the bottom row, a corner, up
+# the left column, a corner at the top, then let the water run.
+wait 1500
+click Logo.Command1
+wait 300
+get Form1.Board(29) visible
+mousedown Form1.piece(1) 1 0 5 5
+mousedown Form1.Board(29) 1 0 5 5
+get Form1.Board(29) visible
+mousedown Form1.piece(1) 1 0 5 5
+mousedown Form1.Board(28) 1 0 5 5
+get Form1.Board(28) visible
+mousedown Form1.piece(1) 1 0 5 5
+mousedown Form1.Board(27) 1 0 5 5
+get Form1.Board(27) visible
+mousedown Form1.piece(1) 1 0 5 5
+mousedown Form1.Board(26) 1 0 5 5
+get Form1.Board(26) visible
+mousedown Form1.piece(1) 1 0 5 5
+mousedown Form1.Board(25) 1 0 5 5
+get Form1.Board(25) visible
+mousedown Form1.piece(16) 1 0 5 5
+mousedown Form1.Board(24) 1 0 5 5
+get Form1.Board(24) visible
+mousedown Form1.piece(0) 1 0 5 5
+mousedown Form1.Board(18) 1 0 5 5
+get Form1.Board(18) visible
+mousedown Form1.piece(0) 1 0 5 5
+mousedown Form1.Board(12) 1 0 5 5
+get Form1.Board(12) visible
+mousedown Form1.piece(0) 1 0 5 5
+mousedown Form1.Board(6) 1 0 5 5
+get Form1.Board(6) visible
+mousedown Form1.piece(18) 1 0 5 5
+mousedown Form1.Board(0) 1 0 5 5
+get Form1.Board(0) visible
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600

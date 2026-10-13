@@ -3842,6 +3842,9 @@ struct FormSupport {
                         ? 0
                         : static_cast<long>(as_double(current->second));
                 source->values["value"] = Value{Int16{now == 1 ? 0 : 1}};
+            } else if (source->class_key == "commandbutton") {
+                // A button's Value is True while its own Click runs.
+                source->values["value"] = Value{true};
             } else if (source->class_key == "optionbutton") {
                 source->values["value"] = Value{true};
                 for_each_control(*form, [&](ControlObject& other) {
@@ -3938,6 +3941,10 @@ struct FormSupport {
         if (!raise(in, *form, source->is_form ? std::string{} : source->name,
                    source->index, name, arguments, in.offset_)) {
             return false;
+        }
+        if (name == "click" && !source->is_form &&
+            source->class_key == "commandbutton") {
+            source->values["value"] = Value{false};
         }
         if (name == "keypress" && !arguments.empty() &&
             state.headless != nullptr && !source->is_form &&

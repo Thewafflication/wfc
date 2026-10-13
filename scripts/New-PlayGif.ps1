@@ -20,7 +20,8 @@ param(
     [string]$Wfc = 'out\build\windows-x64-debug\Debug\wfc.exe',
     [int]$FrameMilliseconds = 400,
     [int]$Width = 0,
-    [int]$ExitAfter = 60000
+    [int]$ExitAfter = 60000,
+    [string]$FrameOn = '^(click|drag|type|key)\s'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +42,7 @@ $lines.Add("screenshot $Form f000")
 $count = 0
 foreach ($line in Get-Content $Script) {
     $lines.Add($line)
-    if ($line -match '^(click|drag|type|key)\s') {
+    if ($line -match $FrameOn) {
         $count++
         $lines.Add(('screenshot {0} f{1:D3}' -f $Form, $count))
     }

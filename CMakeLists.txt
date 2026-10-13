@@ -444,6 +444,13 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     sumboku-solve.ui
     sumboku-solve.expected
   )
+  add_vb6_play(
+    executioner-play
+    executioner/Executioner.vbp
+    executioner-play.ui
+    executioner-play.expected
+    1
+  )
   add_vb6_game(connect4 connect4/PConnect4.vbp "FMain" 5000)
   add_vb6_game(sumboku-current sumboku/PSuMBOku.vbp "FrmSudoku" 5000)
   add_vb6_game(
@@ -452,7 +459,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     "frmSplash;frmGamescreen"
     6000
   )
-  add_vb6_game(pipes pipes/pipes.vbp "Logo;Form1" 6000)
+  add_vb6_game(pipes pipes/pipes.vbp "Logo" 8000 pipes-gui.ui Form1-board.png)
+  add_vb6_play(pipes-play pipes/pipes.vbp pipes-play.ui pipes-play.expected 1)
   add_vb6_game(restaum restaum/source/BrainVita.vbp "Form1" 5000)
   add_vb6_game(sumboku sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp "FrmSudoku" 5000)
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)

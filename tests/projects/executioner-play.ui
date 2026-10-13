@@ -1,0 +1,47 @@
+# Executioner: one player, seeded phrase; guess letters in order of
+# frequency and read the phrase after each guess.
+wait 3000
+click frmGamescreen.mnu1player
+click frmGamescreen.mnuStartGame
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(4)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(19)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(0)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(14)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(8)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(13)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(18)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(7)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(17)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(3)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(11)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(2)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(20)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(12)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(22)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(5)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(6)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(24)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(15)
+get frmGamescreen.lblGamePhrase caption
+click frmGamescreen.cmdLetter(1)
+get frmGamescreen.lblGamePhrase caption
+messages

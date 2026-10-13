@@ -2209,8 +2209,14 @@ auto Interpreter::coerce_ternary_operand(const Value& value,
 }
 
 std::optional<bool> Interpreter::coerce_condition_boolean(
-    const Value& value, const std::size_t offset,
+    const Value& original, const std::size_t offset,
     const std::string_view error_code, const std::string_view error_message) {
+    // An object stands for its default property (`If cmdButton(i) Then`).
+    Value value = original;
+    if (std::holds_alternative<ObjectInstance>(value) &&
+        !resolve_default_value(value, offset)) {
+        return std::nullopt;
+    }
     if (std::holds_alternative<Null>(value) ||
         std::holds_alternative<Empty>(value)) {
         return false;

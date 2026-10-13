@@ -1,0 +1,10 @@
+Form1.Board(29).visible = True
+Form1.Board(29).visible = True
+Form1.Board(28).visible = True
+Form1.Board(27).visible = True
+Form1.Board(26).visible = True
+Form1.Board(25).visible = True
+Form1.Board(24).visible = True
+Form1.Board(18).visible = True
+Form1.Board(12).visible = True
+Form1.Board(6).visible = True
