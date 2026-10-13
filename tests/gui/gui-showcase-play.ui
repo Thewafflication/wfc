@@ -1,0 +1,14 @@
+# The interactive showcase: type a name, press Go, pick options, a list item,
+# a combo entry and move the scroll bar.
+wait 800
+set frmPlay.txtName
+type frmPlay.txtName Hello WFC
+click frmPlay.cmdGo
+click frmPlay.optB
+click frmPlay.chkFlag
+select frmPlay.lstItems 3
+select frmPlay.cboChoice 2
+scroll frmPlay.hsbLevel 30
+scroll frmPlay.hsbLevel 60
+scroll frmPlay.hsbLevel 90
+click frmPlay.optA

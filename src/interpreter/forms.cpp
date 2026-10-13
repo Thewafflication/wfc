@@ -3874,6 +3874,17 @@ struct FormSupport {
                 }
             }
         }
+        if (name == "scripttype" && event.arguments.size() == 1U &&
+            (source->class_key == "textbox" ||
+             source->class_key == "combobox")) {
+            // A scripted keystroke in a real window: the edit control gets
+            // no input from the system, so the text changes here.
+            return default_typing(
+                in, *source,
+                std::holds_alternative<long>(event.arguments[0])
+                    ? std::get<long>(event.arguments[0])
+                    : 0L);
+        }
         if (name == "comctlinput" && source->comctl != nullptr &&
             event.arguments.size() == 2U) {
             // User input on a common control in the Win32 host.
@@ -4485,6 +4496,13 @@ struct FormSupport {
                         object->window,
                         "KeyPress",
                         {static_cast<long>(static_cast<unsigned char>(c))}});
+                    if (state.headless == nullptr) {
+                        state.host->post_event(
+                            ui::UiEvent{object->window,
+                                        "ScriptType",
+                                        {static_cast<long>(
+                                            static_cast<unsigned char>(c))}});
+                    }
                     state.host->post_event(
                         ui::UiEvent{object->window, "KeyUp", {code, 0L}});
                 }
