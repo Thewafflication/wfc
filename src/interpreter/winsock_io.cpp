@@ -6,6 +6,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <sstream>
@@ -35,6 +37,23 @@ void ensure_started() {
     const DWORD length = GetEnvironmentVariableA(name, text, sizeof(text));
     return length > 0 && length < sizeof(text) ? std::string(text)
                                                : std::string();
+}
+
+// WFC_NET_TRACE=1 reports every datagram on standard error, for diagnosing
+// programs that talk to each other.
+void trace(const char* what, const std::string& peer, int port,
+           const std::string& data) {
+    static const bool enabled = !environment("WFC_NET_TRACE").empty();
+    if (!enabled) {
+        return;
+    }
+    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+    std::fprintf(stderr, "[net %lld %s] %s %s:%d '%s'\n",
+                 static_cast<long long>(now % 1000000),
+                 environment("WFC_LAN_ADDRESS").c_str(), what, peer.c_str(),
+                 port, data.substr(0, 40).c_str());
 }
 
 [[nodiscard]] bool is_broadcast(const std::string& host) {
@@ -259,11 +278,13 @@ long receive_from(const Handle handle, std::string& data, std::string& address,
     data.append(buffer, static_cast<std::size_t>(count));
     address = dotted(from.sin_addr);
     port = ntohs(from.sin_port);
+    trace("recv", address, port, std::string(buffer, count));
     return count;
 }
 
 bool send_to(const Handle handle, const std::string& data,
              const std::string& host, const int port, int& error) {
+    trace("send", host, port, data);
     const std::string peers = environment("WFC_LAN_PEERS");
     if (is_broadcast(host) && !peers.empty() &&
         !environment("WFC_LAN_ADDRESS").empty()) {

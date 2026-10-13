@@ -4016,26 +4016,29 @@ struct FormSupport {
             state.answers.emplace_back(lower_text(target_text), rest);
             return true;
         }
-        if (command == "wait") {
-            if (state.headless != nullptr) {
-                const long milliseconds = std::atol(target_text.c_str());
-                state.headless->advance_time(milliseconds);
-                if (net::virtual_lan()) {
-                    // Programs sharing a virtual LAN keep real time.
-                    std::this_thread::sleep_for(
-                        std::chrono::milliseconds(milliseconds));
-                }
+        if (command == "wait" || command == "waitclock") {
+            // `wait <ms>` lets events and sockets run for that long;
+            // `waitclock <ms since 1970>` until that wall-clock time, so
+            // programs that share a virtual LAN can act in step.
+            const bool absolute = command == "waitclock";
+            const long long amount = std::atoll(target_text.c_str());
+            if (state.headless != nullptr && !absolute && !net::virtual_lan()) {
+                state.headless->advance_time(static_cast<long>(amount));
                 return ocx_poll_sockets(in);
             }
-            // A real host: let events and sockets run for that long.
             const auto until =
-                std::chrono::steady_clock::now() +
-                std::chrono::milliseconds(std::atol(target_text.c_str()));
-            while (std::chrono::steady_clock::now() < until) {
+                absolute ? std::chrono::system_clock::
+                               time_point{std::chrono::milliseconds(amount)}
+                         : std::chrono::system_clock::now() +
+                               std::chrono::milliseconds(amount);
+            while (std::chrono::system_clock::now() < until) {
                 if (!ocx_poll_sockets(in)) {
                     return false;
                 }
-                if (const auto event = state.host->next_event(false)) {
+                if (state.headless != nullptr) {
+                    state.headless->advance_time(5);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                } else if (const auto event = state.host->next_event(false)) {
                     if (!dispatch(in, *event)) {
                         return false;
                     }

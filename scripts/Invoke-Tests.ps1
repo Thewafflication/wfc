@@ -25,8 +25,13 @@ Import-Module (Join-Path $PSScriptRoot 'WfcChecks.psm1') -Force
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
+    # The log is followed live by scripts/Show-TestProgress.ps1.
+    $progressLog = Join-Path $root 'out/test-progress.log'
+    New-Item -ItemType Directory -Force -Path (Split-Path $progressLog) |
+        Out-Null
     $arguments = @(
-        '--preset', $Preset, '--output-on-failure', '--no-tests=error')
+        '--preset', $Preset, '--output-on-failure', '--no-tests=error',
+        '--output-log', $progressLog)
     if ($JUnitPath) {
         $arguments += @('--output-junit', $JUnitPath)
     }

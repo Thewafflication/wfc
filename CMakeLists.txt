@@ -369,7 +369,10 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     )
     set_tests_properties(
       TC-MP0008-vb6games-captureking-script
-      PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 60
+      PROPERTIES
+        RESOURCE_LOCK udp
+        LABELS "integration;mp-0008;vb6games"
+        TIMEOUT 60
     )
     # Complete games of random moves and chat messages, played until a king
     # is taken and check mate is called; the saved board must match.
@@ -385,7 +388,10 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       )
       set_tests_properties(
         TC-MP0008-vb6games-captureking-game-${game_seed}
-        PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 120
+        PROPERTIES
+          RESOURCE_LOCK udp
+          LABELS "integration;mp-0008;vb6games"
+          TIMEOUT 120
       )
     endforeach()
     # Two programs on a virtual LAN (own loopback address and user name each)
@@ -403,7 +409,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       set_tests_properties(
         TC-MP0008-vb6games-captureking-lan-${lan_seed}
         PROPERTIES
-          RESOURCE_LOCK lan
+          RESOURCE_LOCK udp
           LABELS "integration;mp-0008;vb6games;network"
           TIMEOUT 300
       )
@@ -411,7 +417,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     set_tests_properties(
       TC-MP0008-vb6games-captureking
       PROPERTIES
-        RESOURCE_LOCK desktop
+        RESOURCE_LOCK "desktop;udp"
         LABELS "integration;windows;mp-0008;vb6games;evidence"
         TIMEOUT 90
     )
@@ -2362,7 +2368,7 @@ Print v.x & q.x]=]
       set_tests_properties(
         TC-MP0008-package-standalone-gui
         PROPERTIES
-          RESOURCE_LOCK desktop
+          RESOURCE_LOCK "desktop;udp"
           LABELS "integration;windows;mp-0008;package"
           TIMEOUT 60
       )
