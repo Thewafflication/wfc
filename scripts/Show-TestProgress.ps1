@@ -159,10 +159,18 @@ $timer.Add_Tick({
     }
     if ($script:seenOld -and $chunk -match 'Total Test time') {
         $status.Text += ' - finished'
-        # A clean run closes the window by itself; a failed one stays open.
-        if ($script:failed -eq 0 -and $script:done -eq $script:total) {
+        # Run on its own (-Run) a clean run closes the window.
+        if ($Run -and $script:failed -eq 0 -and
+            $script:done -eq $script:total) {
             $close.Start()
         }
+    }
+    # The commit routine ends its log with "[commit] pushed" or
+    # "[commit] failed": the window stays open for the whole gate and
+    # closes only after a push; a failure keeps it open.
+    if ($script:seenOld -and $chunk -match '(?m)^\[commit\] pushed') {
+        $status.Text += ' - pushed'
+        $close.Start()
     }
 })
 $close = New-Object Windows.Forms.Timer
