@@ -2003,7 +2003,9 @@ struct FormSupport {
             return color & 0xFFFFFFL;
         }
         // The index of the Windows system color (VB's vbScrollBars to
-        // vbInfoBackground), as the default Windows palette has it.
+        // vbInfoBackground), as the classic Windows palette has it: caption
+        // text is white (Windows 11 reports black, which turns Capture King's
+        // checkerboard, built from &H80000009 and &H80000007, all black).
         const auto rgb = [](const long r, const long g, const long b) {
             return r | (g << 8) | (b << 16);
         };
@@ -2011,7 +2013,7 @@ struct FormSupport {
             rgb(200, 200, 200), rgb(0, 0, 0),       rgb(153, 180, 209),
             rgb(191, 205, 219), rgb(240, 240, 240), rgb(255, 255, 255),
             rgb(100, 100, 100), rgb(0, 0, 0),       rgb(0, 0, 0),
-            rgb(0, 0, 0),       rgb(180, 180, 180), rgb(244, 247, 252),
+            rgb(255, 255, 255), rgb(180, 180, 180), rgb(244, 247, 252),
             rgb(171, 171, 171), rgb(51, 153, 255),  rgb(255, 255, 255),
             rgb(240, 240, 240), rgb(160, 160, 160), rgb(109, 109, 109),
             rgb(0, 0, 0),       rgb(67, 78, 84),    rgb(255, 255, 255),
@@ -2511,6 +2513,16 @@ struct FormSupport {
 
     // Creates the host windows of a form and its controls and applies their
     // property values.
+    // The host kind of a control: a multi-line text box carries its
+    // MultiLine and ScrollBars settings, which fix the window's style.
+    [[nodiscard]] static std::string window_kind(const ControlObject& object) {
+        if (std::string_view{object.cls->name} == "TextBox" &&
+            flag_of(object, "multiline")) {
+            return "TextBox:" + std::to_string(static_cast<int>(
+                                    number_of(object, "scrollbars")));
+        }
+        return object.cls->name;
+    }
     [[nodiscard]] static bool create_windows(
         Interpreter& in, InstanceData& form, ControlObject& form_object,
         const ui::WindowId container = ui::kNoWindow) {
@@ -2552,7 +2564,7 @@ struct FormSupport {
             }
             object->window = host.create_window(
                 object->is_activex() ? "ActiveX:" + object->activex_clsid
-                                     : object->cls->name,
+                                     : window_kind(*object),
                 parent_window(form, form_object, *object));
             bind(in, *object);
             mirror_all(in, *object);
@@ -2640,6 +2652,15 @@ struct FormSupport {
             paint_surface_picture(in, object);
         }
         if (object.class_key == "picturebox") {
+            if (object.values.contains("borderstyle") &&
+                !flag_of(object, "borderstyle")) {
+                host.set_border(object.window, false);
+            }
+            if (object.values.contains("backcolor")) {
+                ui::DrawOp clear = base_op(object, "cls");
+                clear.color = color_of(object, "backcolor");
+                draw_op(in, object, clear);
+            }
             paint_surface_picture(in, object);
         }
         apply_button_picture(in, object);
@@ -3452,6 +3473,23 @@ struct FormSupport {
                  self.class_key == "combobox")) {
                 return report(
                     raise_table_event(in, self, "Change", {}, offset));
+            }
+            return true;
+        }
+        if (member == "borderstyle" && live && self.class_key == "picturebox") {
+            host.set_border(self.window, flag_of(self, "borderstyle"));
+            return true;
+        }
+        if (member == "backcolor" && live &&
+            (self.is_form || self.class_key == "picturebox")) {
+            // A new BackColor clears the surface to it (AutoRedraw off).
+            if (const auto owner = self.form.lock()) {
+                repaint_surface(in, *owner, self);
+            } else {
+                ui::DrawOp clear = base_op(self, "cls");
+                clear.color = color_of(self, "backcolor");
+                draw_op(in, self, clear);
+                paint_surface_picture(in, self);
             }
             return true;
         }
@@ -5632,7 +5670,7 @@ bool FormSupport::array_element(Interpreter& in, ControlArray& array,
     if (owner_object != nullptr && owner_object->loaded) {
         object->window = runtime(in).host->create_window(
             object->is_activex() ? "ActiveX:" + object->activex_clsid
-                                 : object->cls->name,
+                                 : window_kind(*object),
             parent_window(*owner, *owner_object, *object));
         bind(in, *object);
         mirror_all(in, *object);
@@ -5746,7 +5784,7 @@ bool FormSupport::controls_edit(Interpreter& in,
     if (owner != nullptr && owner->loaded) {
         object->window = runtime_state.host->create_window(
             object->is_activex() ? "ActiveX:" + object->activex_clsid
-                                 : object->cls->name,
+                                 : window_kind(*object),
             parent_window(*form, *owner, *object));
         bind(in, *object);
         mirror_all(in, *object);

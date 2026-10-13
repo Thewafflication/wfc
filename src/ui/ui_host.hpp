@@ -189,6 +189,11 @@ public:
     virtual void set_visible(WindowId window, bool visible) = 0;
     [[nodiscard]] virtual bool visible(WindowId window) const = 0;
     virtual void set_enabled(WindowId window, bool enabled) = 0;
+    // Shows or hides the sunken edge of a picture box (BorderStyle).
+    virtual void set_border(WindowId window, bool border) {
+        static_cast<void>(window);
+        static_cast<void>(border);
+    }
     [[nodiscard]] virtual bool enabled(WindowId window) const = 0;
     virtual void set_text(WindowId window, const std::string& text) = 0;
     [[nodiscard]] virtual std::string text(WindowId window) const = 0;

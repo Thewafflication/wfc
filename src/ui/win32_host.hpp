@@ -38,6 +38,7 @@ public:
     void set_visible(WindowId window, bool visible) override;
     [[nodiscard]] bool visible(WindowId window) const override;
     void set_enabled(WindowId window, bool enabled) override;
+    void set_border(WindowId window, bool border) override;
     [[nodiscard]] bool enabled(WindowId window) const override;
     void set_text(WindowId window, const std::string& text) override;
     [[nodiscard]] std::string text(WindowId window) const override;

@@ -210,9 +210,33 @@ bool Interpreter::store_input_token(Value& target, const bool is_variant,
         target = DateValue{parsed.value_or(0.0)};
         return true;
     }
-    const auto number = parse_numeric_string(token.empty() ? "0" : token);
+    // Like VB6, text that is not a number reads as its leading number, or 0.
+    auto number = parse_numeric_string(token.empty() ? "0" : token);
     if (number.status != NumericStringStatus::valid) {
-        return raise_runtime(13, "Type mismatch", offset);
+        std::size_t end = 0;
+        if (end < token.size() && (token[end] == '+' || token[end] == '-')) {
+            ++end;
+        }
+        const auto digits = [&] {
+            while (end < token.size() && token[end] >= '0' &&
+                   token[end] <= '9') {
+                ++end;
+            }
+        };
+        digits();
+        if (end < token.size() && token[end] == '.') {
+            ++end;
+            digits();
+        }
+        std::string prefix = token.substr(0, end);
+        if (prefix.empty() || prefix == "+" || prefix == "-" || prefix == "." ||
+            prefix == "+." || prefix == "-.") {
+            prefix = "0";
+        }
+        number = parse_numeric_string(prefix);
+        if (number.status != NumericStringStatus::valid) {
+            return raise_runtime(13, "Type mismatch", offset);
+        }
     }
     Value converted{number.value};
     if (std::holds_alternative<Integer>(target)) {

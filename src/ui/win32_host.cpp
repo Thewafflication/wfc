@@ -569,7 +569,7 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (parent_handle == nullptr) {
         entry->lightweight = true;
     } else if (kind == "CommandButton") {
-        make_child(L"BUTTON", BS_PUSHBUTTON | WS_TABSTOP);
+        make_child(L"BUTTON", BS_PUSHBUTTON | BS_MULTILINE | WS_TABSTOP);
     } else if (kind == "CheckBox") {
         make_child(L"BUTTON", BS_CHECKBOX | WS_TABSTOP);
     } else if (kind == "OptionButton") {
@@ -580,6 +580,18 @@ WindowId Win32Host::create_window(const std::string& kind,
         make_child(L"STATIC", SS_LEFT);
     } else if (kind == "TextBox") {
         make_child(L"EDIT", ES_AUTOHSCROLL | WS_TABSTOP, WS_EX_CLIENTEDGE);
+    } else if (kind.rfind("TextBox:", 0) == 0) {
+        // Multi-line: the scroll bars follow VB's ScrollBars setting.
+        const int bars = std::atoi(kind.c_str() + 8);
+        DWORD style =
+            ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_TABSTOP;
+        if ((bars & 2) != 0) {
+            style |= WS_VSCROLL;
+        }
+        if ((bars & 1) != 0) {
+            style |= WS_HSCROLL | ES_AUTOHSCROLL;
+        }
+        make_child(L"EDIT", style, WS_EX_CLIENTEDGE);
     } else if (kind == "ListBox" || kind == "FileListBox" ||
                kind == "DirListBox") {
         make_child(L"LISTBOX", LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP,
@@ -803,6 +815,20 @@ void Win32Host::set_visible(const WindowId window, const bool visible) {
 bool Win32Host::visible(const WindowId window) const {
     const auto* entry = find(window);
     return entry != nullptr && entry->visible;
+}
+
+void Win32Host::set_border(const WindowId window, const bool border) {
+    const auto it = windows_.find(window);
+    if (it == windows_.end() || it->second->hwnd == nullptr) {
+        return;
+    }
+    const HWND hwnd = it->second->hwnd;
+    auto style = static_cast<LONG_PTR>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    style = border ? (style | WS_EX_CLIENTEDGE) : (style & ~WS_EX_CLIENTEDGE);
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                     SWP_FRAMECHANGED);
 }
 
 void Win32Host::set_enabled(const WindowId window, const bool enabled) {
