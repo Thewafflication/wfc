@@ -109,11 +109,21 @@ bool Interpreter::read_input_field(std::FILE* handle, std::string& token,
     token.clear();
     quoted = false;
     int c = std::fgetc(handle);
-    while (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+    while (c == ' ' || c == '\t') {
         c = std::fgetc(handle);
     }
     if (c == EOF) {
         return false;
+    }
+    if (c == '\r' || c == '\n') {
+        // A blank line is an empty field, as in VB6.
+        if (c == '\r') {
+            const int next = std::fgetc(handle);
+            if (next != '\n' && next != EOF) {
+                std::ungetc(next, handle);
+            }
+        }
+        return true;
     }
     if (c == '"') {
         quoted = true;

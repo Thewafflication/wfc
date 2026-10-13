@@ -371,6 +371,23 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TC-MP0008-vb6games-captureking-script
       PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 60
     )
+    # Complete games of random moves and chat messages, played until a king
+    # is taken and check mate is called; the saved board must match.
+    foreach(game_seed 20261012 99)
+      add_test(
+        NAME TC-MP0008-vb6games-captureking-game-${game_seed}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROJECT=${vb6games_dir}/captureking/CaptureKing.vbp"
+          "-DSEED=${game_seed}"
+          "-DWORK=${CMAKE_BINARY_DIR}/vb6games-captureking-game-${game_seed}" -P
+          "${project_checks}/run_captureking_game.cmake"
+      )
+      set_tests_properties(
+        TC-MP0008-vb6games-captureking-game-${game_seed}
+        PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 120
+      )
+    endforeach()
     set_tests_properties(
       TC-MP0008-vb6games-captureking
       PROPERTIES
