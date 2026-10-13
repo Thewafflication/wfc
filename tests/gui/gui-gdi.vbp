@@ -1,0 +1,3 @@
+Type=Exe
+Form=gui-gdi.frm
+Startup="Form1"

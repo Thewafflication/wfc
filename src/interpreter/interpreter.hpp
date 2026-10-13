@@ -503,6 +503,8 @@ public:
     // REQ-0265: `Option Explicit` anywhere in the program (main source or a
     // class module) makes undeclared names an error everywhere.
     void scan_option_explicit();
+    // Shows what GDI calls made through `Declare` drew on form surfaces.
+    void form_refresh_surfaces();
     // `Left(s, 1)` in form code is the string function, not the form's Left
     // property: true for that name when an argument list follows.
     [[nodiscard]] bool form_left_is_function(const std::string& name) const;

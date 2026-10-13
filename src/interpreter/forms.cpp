@@ -4601,6 +4601,13 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
         result = Value{display_name};
         return true;
     }
+    if (member == "hdc" && FormSupport::is_surface(*this) &&
+        window != ui::kNoWindow) {
+        // The surface's device context, for GDI calls through `Declare`.
+        result = Value{static_cast<Integer>(
+            FormSupport::runtime(in).host->surface_dc(window))};
+        return true;
+    }
     if (member == "index") {
         if (index < 0) {
             failure = NativeFailure{343, "Object not an array"};
@@ -5899,6 +5906,12 @@ void Interpreter::register_native_types() {
             class_definitions_.emplace(library + name, proxy);
         }
         class_definitions_.emplace(name, std::move(proxy));
+    }
+}
+
+void Interpreter::form_refresh_surfaces() {
+    if (forms_ && forms_->host) {
+        forms_->host->refresh_surfaces();
     }
 }
 

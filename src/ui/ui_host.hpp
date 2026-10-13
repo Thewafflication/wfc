@@ -366,6 +366,15 @@ public:
     virtual void set_timer(WindowId window, long interval_ms) = 0;
     virtual void kill_timer(WindowId window) = 0;
 
+    // The device context of the drawing surface of a form or picture box
+    // (0 when the host has none), so GDI calls made through `Declare` draw on
+    // it; `refresh_surfaces` then shows what such calls drew.
+    [[nodiscard]] virtual std::intptr_t surface_dc(WindowId window) {
+        static_cast<void>(window);
+        return 0;
+    }
+    virtual void refresh_surfaces() {}
+
     // A host-wide wake-up timer (not tied to a window) so a blocking message
     // loop can poll sockets or end after a deadline. Slot 0 delivers
     // "WfcWake" every `interval_ms`, slot 1 delivers "WfcExit" once;

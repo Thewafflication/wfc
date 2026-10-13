@@ -62,6 +62,8 @@ public:
         WindowId owner, const FontDialogRequest& request,
         bool& supported) override;
     void wake_timer(int slot, long interval_ms) override;
+    [[nodiscard]] std::intptr_t surface_dc(WindowId window) override;
+    void refresh_surfaces() override;
     [[nodiscard]] std::optional<std::string> input_box(
         WindowId owner, const std::string& prompt, const std::string& title,
         const std::string& initial, bool& supported) override;

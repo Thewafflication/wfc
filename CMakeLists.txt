@@ -179,6 +179,22 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       TIMEOUT 60
       PASS_REGULAR_EXPRESSION "tick 3.*unload"
   )
+  # GDI calls through `Declare` draw on form surfaces: BitBlt from one picture
+  # box to another, read back with GetPixel and Point.
+  add_test(
+    NAME TC-MP0008-gui-gdi
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-gdi.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+  )
+  set_tests_properties(
+    TC-MP0008-gui-gdi
+    PROPERTIES
+      RESOURCE_LOCK desktop
+      LABELS "integration;windows;mp-0008;gdi"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "blt 1.*redTrue.*blueTrue.*whiteTrue.*pointTrue"
+  )
   # A form with most intrinsic controls; the PNGs of the shown and closing
   # window are kept as execution evidence in <build>/screenshots.
   add_test(

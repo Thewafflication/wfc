@@ -1700,6 +1700,20 @@ void Win32Host::kill_timer(const WindowId window) {
     entry->timer_interval = 0;
 }
 
+std::intptr_t Win32Host::surface_dc(const WindowId window) {
+    const auto* entry = ensure_surface(window);
+    return entry != nullptr ? reinterpret_cast<std::intptr_t>(entry->surface_dc)
+                            : 0;
+}
+
+void Win32Host::refresh_surfaces() {
+    for (const auto& [id, window] : windows_) {
+        if (window->surface_dc != nullptr && window->hwnd != nullptr) {
+            InvalidateRect(window->hwnd, nullptr, FALSE);
+        }
+    }
+}
+
 void Win32Host::wake_timer(const int slot, const long interval_ms) {
     if (slot < 0 || slot > 1) {
         return;

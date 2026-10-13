@@ -351,6 +351,9 @@ std::optional<Value> Interpreter::call_declared_dll(
             break;
     }
 
+    // Drawing calls may have changed a form surface: show it.
+    form_refresh_surfaces();
+
     // Copy the buffers back into the caller's variables.
     for (const auto& buffer : buffers) {
         if (buffer.argument >= arguments.size()) {

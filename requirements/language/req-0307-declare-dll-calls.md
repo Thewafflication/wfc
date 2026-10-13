@@ -23,6 +23,11 @@
     order with natural alignment (`Long`, `Integer`, `Byte`, `Single`,
     `Double` fields) and copied back.
   - The result `Long`, `Integer`, `Byte` or `Boolean` becomes the function value.
+- **GDI.** With the Win32 host the `hDC` property of a form or picture box is
+  the device context of its drawing surface, so `BitBlt`, `SetPixelV`,
+  `GetPixel`, `StretchBlt` and the like draw on and read it; the surfaces are
+  repainted after every DLL call. The headless host has no device context
+  (`hDC` is 0).
 - **Errors.** A DLL that cannot be loaded raises 48 ("Error in loading DLL");
   a missing export, an unsupported parameter (`Single`, `Double`, `Any`,
   `Variant`, fixed-length strings, arrays) or more than twelve parameters
