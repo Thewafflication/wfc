@@ -3,129 +3,171 @@
 Builds the WFC WPM packages: the tool and the packaged corpus games.
 
 .DESCRIPTION
-Assembles two packages from Release builds (see
-planning/MP-0008-release-plan.md):
+Two stages (see planning/MP-0008-release-plan.md):
 
-  wfc-any-<version>.zip        wfc.exe and wfcvbrun.dll for each architecture,
-                               LICENSE, README.MD
-  wfc-games-any-<version>.zip  each corpus game as a standalone program per
-                               architecture, with its PROVENANCE.md, its
-                               license and a checksum list
+  -Collect   Run on each architecture's own machine: copies that
+             architecture's Release wfc.exe and wfcvbrun.dll and builds each
+             corpus game with `wfc --build` into out/package-input/<arch>.
+             A program for an architecture can only be built where that
+             architecture's wfc.exe runs.
 
-The games are built with that architecture's own wfc.exe (`wfc --build`), so
-a program for an architecture can only be built where that wfc.exe runs.
-Nothing is signed unless -SigningKey is given, and nothing is published.
+  (default)  Assembles from out/package-input/<arch> for every listed
+             architecture:
+               wfc-any-<version>.zip        the tool for each architecture,
+                                            LICENSE, README.MD
+               wfc-games-any-<version>.zip  each game per architecture with
+                                            its PROVENANCE.md, license and a
+                                            checksum list
+
+Nothing is signed unless -SigningKey is given (CI passes the key from the
+protected release environment), and nothing is published.
 
 .PARAMETER Version
 Package version, for example 0.8.0.
 
+.PARAMETER Collect
+Collect stage for one architecture (see -Architectures).
+
 .PARAMETER Architectures
-Architectures to include; each needs a Release build
+Architectures to collect or to include; Collect needs the Release build
 (out/build/windows-<arch>-release/Release).
 
 .PARAMETER Wpm
 Path of wpm.exe.
 
 .PARAMETER SigningKey
-Optional WPM signing key file; the packages are unsigned without it.
+Optional WPM private key file; the packages are unsigned without it.
+
+.PARAMETER InputRoot
+Where the collect stage writes and the assemble stage reads.
 
 .PARAMETER Output
 Folder for the packages.
 
 .EXAMPLE
-pwsh scripts/Build-WpmPackage.ps1 -Version 0.8.0
+pwsh scripts/Build-WpmPackage.ps1 -Collect -Architectures x64
+pwsh scripts/Build-WpmPackage.ps1 -Version 0.8.0 -Architectures x64
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Version,
+    [string]$Version,
+    [switch]$Collect,
     [string[]]$Architectures = @('x64'),
     [string]$Wpm = 'wpm.exe',
     [string]$SigningKey,
+    [string]$InputRoot = 'out/package-input',
     [string]$Output = 'out/packages'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent $PSScriptRoot
+$games = @(
+    @{ Name = 'captureking'; Project = 'captureking/CaptureKing.vbp' }
+    @{ Name = 'clix'; Project = 'clix/src/Clix.vbp' }
+    @{ Name = 'connect4'; Project = 'connect4/PConnect4.vbp' }
+    @{ Name = 'executioner'; Project = 'executioner/Executioner.vbp' }
+    @{ Name = 'pipes'; Project = 'pipes/pipes.vbp' }
+    @{ Name = 'restaum'; Project = 'restaum/source/BrainVita.vbp' }
+    @{ Name = 'sumboku'; Project = 'sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp' }
+)
+
+function Get-InputDirectory([string]$Architecture) {
+    return Join-Path $root "$InputRoot/$Architecture"
+}
+
+function Invoke-Collect([string]$Architecture) {
+    $build = Join-Path $root "out/build/windows-$Architecture-release/Release"
+    if (-not (Test-Path (Join-Path $build 'wfc.exe'))) {
+        throw "No Release wfc.exe for ${Architecture}: $build"
+    }
+    $target = Get-InputDirectory $Architecture
+    if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $target | Out-Null
+    Copy-Item (Join-Path $build 'wfc.exe') $target
+    Copy-Item (Join-Path $build 'wfcvbrun.dll') $target
+    foreach ($game in $games) {
+        $source = Join-Path $root "tests/vb6games/$($game.Project)"
+        $folder = Join-Path $target "games/$($game.Name)"
+        New-Item -ItemType Directory -Force -Path $folder | Out-Null
+        $program = Join-Path $folder "$($game.Name)-$Architecture.exe"
+        & (Join-Path $build 'wfc.exe') --build $source -o $program --gui
+        if ($LASTEXITCODE -ne 0) {
+            throw "wfc --build failed for $($game.Name) ($Architecture)"
+        }
+    }
+}
+
+function Write-PackageInfo([string]$Directory, [string]$Name,
+                           [string]$Description, [string]$Revision) {
+    New-Item -ItemType Directory -Force `
+        -Path (Join-Path $Directory '.wpm') | Out-Null
+    @(
+        "name=$Name"
+        "version=$Version"
+        'arch=any'
+        'debug=false'
+        "description=$Description"
+        'maintainer=Jordan Waughtal'
+        'homepage=https://github.com/Thewafflication/wfc'
+        'repository=https://github.com/Thewafflication/wfc'
+        'license=GPL-3.0-or-later'
+        "source-version=$Version"
+        "source-revision=$Revision"
+    ) | Set-Content (Join-Path $Directory '.wpm/package.txt') -Encoding ascii
+}
+
+function Build-Package([string]$Directory, [string]$Name, [string]$Packages) {
+    $arguments = @('build', $Directory, $Packages)
+    if ($SigningKey) {
+        $arguments += @('--sign', (Resolve-Path $SigningKey).Path)
+    }
+    & $Wpm @arguments
+    if ($LASTEXITCODE -ne 0) { throw "wpm build failed for $Name" }
+    $package = Join-Path $Packages "$Name-any-$Version.zip"
+    if (-not (Test-Path $package)) { throw "Missing package: $package" }
+    return $package
+}
+
 Push-Location $root
 try {
-    $games = @(
-        @{ Name = 'captureking'; Project = 'captureking/CaptureKing.vbp' }
-        @{ Name = 'clix'; Project = 'clix/src/Clix.vbp' }
-        @{ Name = 'connect4'; Project = 'connect4/PConnect4.vbp' }
-        @{ Name = 'executioner'; Project = 'executioner/Executioner.vbp' }
-        @{ Name = 'pipes'; Project = 'pipes/pipes.vbp' }
-        @{ Name = 'restaum'; Project = 'restaum/source/BrainVita.vbp' }
-        @{ Name = 'sumboku';
-           Project = 'sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp' }
-    )
+    if ($Collect) {
+        foreach ($architecture in $Architectures) {
+            Invoke-Collect $architecture
+        }
+        return
+    }
+
+    if (-not $Version) { throw 'Assembling needs -Version.' }
     $revision = (git rev-parse HEAD).Trim()
     $staging = Join-Path $root 'out/wpm-staging'
     $packages = Join-Path $root $Output
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $staging, $packages | Out-Null
 
-    function Get-BuildDirectory([string]$Architecture) {
-        $directory = Join-Path $root `
-            "out/build/windows-$Architecture-release/Release"
-        if (-not (Test-Path (Join-Path $directory 'wfc.exe'))) {
-            throw "No Release wfc.exe for ${Architecture}: $directory"
-        }
-        return $directory
-    }
-
-    function Write-PackageInfo([string]$Directory, [string]$Name,
-                            [string]$Description) {
-        New-Item -ItemType Directory -Force `
-            -Path (Join-Path $Directory '.wpm') | Out-Null
-        @(
-            "name=$Name"
-            "version=$Version"
-            'arch=any'
-            'debug=false'
-            "description=$Description"
-            'maintainer=Jordan Waughtal'
-            'homepage=https://github.com/Thewafflication/wfc'
-            'repository=https://github.com/Thewafflication/wfc'
-            'license=GPL-3.0-or-later'
-            "source-version=$Version"
-            "source-revision=$revision"
-        ) | Set-Content (Join-Path $Directory '.wpm/package.txt') `
-            -Encoding ascii
-    }
-
-    function Build-Package([string]$Directory, [string]$Name) {
-        $arguments = @('build', $Directory, $packages)
-        if ($SigningKey) {
-            $arguments += @('--sign', (Resolve-Path $SigningKey).Path)
-        }
-        & $Wpm @arguments
-        if ($LASTEXITCODE -ne 0) { throw "wpm build failed for $Name" }
-        $package = Join-Path $packages "$Name-any-$Version.zip"
-        if (-not (Test-Path $package)) { throw "Missing package: $package" }
-        return $package
-    }
-
     # --- wfc -------------------------------------------------------------
     $tool = Join-Path $staging 'wfc-any'
     foreach ($architecture in $Architectures) {
-        $build = Get-BuildDirectory $architecture
+        $collected = Get-InputDirectory $architecture
+        if (-not (Test-Path (Join-Path $collected 'wfc.exe'))) {
+            throw "Nothing collected for ${architecture}: $collected"
+        }
         $target = Join-Path $tool $architecture
         New-Item -ItemType Directory -Force -Path $target | Out-Null
-        Copy-Item (Join-Path $build 'wfc.exe') $target
-        Copy-Item (Join-Path $build 'wfcvbrun.dll') $target
+        Copy-Item (Join-Path $collected 'wfc.exe') $target
+        Copy-Item (Join-Path $collected 'wfcvbrun.dll') $target
     }
     Copy-Item LICENSE $tool
     Copy-Item README.MD $tool
     Copy-Item planning/compatibility-profile-1.0.md $tool
-    Write-PackageInfo $tool 'wfc' 'Waughtal Form Compiler: a VB6 interpreter'
-    $toolPackage = Build-Package $tool 'wfc'
+    Write-PackageInfo $tool 'wfc' 'Waughtal Form Compiler: a VB6 interpreter' `
+        $revision
+    $toolPackage = Build-Package $tool 'wfc' $packages
 
     # --- wfc-games -------------------------------------------------------
     $gamesRoot = Join-Path $staging 'wfc-games-any'
     $sums = New-Object System.Collections.Generic.List[string]
     foreach ($game in $games) {
-        $source = Join-Path $root "tests/vb6games/$($game.Project)"
         $folder = Join-Path $gamesRoot $game.Name
         New-Item -ItemType Directory -Force -Path $folder | Out-Null
         $gameRoot = "tests/vb6games/$($game.Project.Split('/')[0])"
@@ -135,21 +177,20 @@ try {
             if (Test-Path $path) { Copy-Item $path $folder }
         }
         foreach ($architecture in $Architectures) {
-            $build = Get-BuildDirectory $architecture
-            $program = Join-Path $folder "$($game.Name)-$architecture.exe"
-            & (Join-Path $build 'wfc.exe') --build $source -o $program --gui
-            if ($LASTEXITCODE -ne 0) {
-                throw "wfc --build failed for $($game.Name) ($architecture)"
-            }
-            $hash = (Get-FileHash $program -Algorithm SHA256).Hash.ToLower()
-            $sums.Add("$hash  $($game.Name)/$($game.Name)-$architecture.exe")
+            $name = "$($game.Name)-$architecture.exe"
+            $built = Join-Path (Get-InputDirectory $architecture) `
+                "games/$($game.Name)/$name"
+            Copy-Item $built $folder
+            $hash = (Get-FileHash (Join-Path $folder $name) `
+                -Algorithm SHA256).Hash.ToLower()
+            $sums.Add("$hash  $($game.Name)/$name")
         }
     }
     $sums | Set-Content (Join-Path $gamesRoot 'SHA256SUMS') -Encoding ascii
     Copy-Item LICENSE (Join-Path $gamesRoot 'WFC-LICENSE')
     Write-PackageInfo $gamesRoot 'wfc-games' `
-        'VB6 games from the vb6games corpus, packaged with WFC'
-    $gamesPackage = Build-Package $gamesRoot 'wfc-games'
+        'VB6 games from the vb6games corpus, packaged with WFC' $revision
+    $gamesPackage = Build-Package $gamesRoot 'wfc-games' $packages
 
     $toolPackage
     $gamesPackage
