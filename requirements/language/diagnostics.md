@@ -215,7 +215,7 @@ These numbers are reserved and must not be reused.
 
 ## Reserved: unsupported legacy features (`WFC9000`–`WFC9099`)
 
-Reserved by the maintainer's legacy-feature decisions of 2026-10-09 ([`legacy-feature-dispositions.md`](../../planning/legacy-feature-dispositions.md)). Each will report `<Feature> is not supported by WFC 1.0` and map to the VB run-time error a VB6 program already handles for that situation. None is raised yet; numbers are assigned here when the owning milestone implements the diagnostic.
+Reserved by the maintainer's legacy-feature decisions of 2026-10-09 ([`legacy-feature-dispositions.md`](../../planning/legacy-feature-dispositions.md)). Each will report `<Feature> is not supported by WFC 1.0` and map to the VB run-time error a VB6 program already handles for that situation. Three are implemented (MP-0008) as run-time errors reported through `WFC0300` with the VB error number and VB's own description (what a program's `On Error` handler already expects), so no `WFC9xxx` number is spent on them: DDE members (`LinkExecute`, `LinkPoke`, `LinkRequest`, `LinkSend`, `LinkOpen`, and `LinkMode` set to a non-zero value) raise 282; the Data control's `Refresh`, `UpdateControls` and `UpdateRecord` raise 3170; a project file with `UserDocument=` is refused at load with "UserDocument is not supported by WFC 1.0". Tests: `TC-MP0002-corpus-209-unsupported-legacy` and `TC-MP0008-userdocument-unsupported`. The other rows are not implemented yet; numbers are assigned here when the owning milestone implements the diagnostic.
 
 | Planned code | Feature | Planned `Err.Number` | Lands with |
 | --- | --- | --- | --- |

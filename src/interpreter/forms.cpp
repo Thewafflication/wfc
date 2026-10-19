@@ -312,6 +312,9 @@ public:
 
     [[nodiscard]] bool has_member(const std::string& member) const override {
         return member == "name" || member == "index" ||
+               member == "linkexecute" || member == "linkpoke" ||
+               member == "linkrequest" || member == "linksend" ||
+               member == "linkopen" ||
                ui::find_member(*cls, member, '*') != nullptr;
     }
 
@@ -3082,6 +3085,13 @@ struct FormSupport {
                                           NativeFailure& failure) {
         const auto form = self.form.lock();
         result = Value{Empty{}};
+        if (self.class_key == "data" &&
+            (member == "refresh" || member == "updatecontrols" ||
+             member == "updaterecord")) {
+            // The Data control and DAO/Jet are deferred beyond 1.0.
+            failure = NativeFailure{3170, "Could not find installable ISAM."};
+            return true;
+        }
         if (member == "setfocus") {
             if (form == nullptr ||
                 !focus_control(in, *form, self.is_form ? "" : self.name,
@@ -4935,6 +4945,14 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
     if (!FormSupport::touch(in, *this, failure)) {
         return true;
     }
+    if (member == "linkexecute" || member == "linkpoke" ||
+        member == "linkrequest" || member == "linksend" ||
+        member == "linkopen") {
+        // DDE is deferred beyond 1.0 (legacy-feature-dispositions.md).
+        failure = NativeFailure{
+            282, "No foreign application responded to a DDE initiate"};
+        return true;
+    }
     if (is_activex() && FormSupport::activex_forwards(*this, member)) {
         return FormSupport::activex_get(in, *this, member, arguments, result,
                                         failure);
@@ -5081,6 +5099,12 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
     static_cast<void>(arguments);
     if (member == "name" || member == "index") {
         failure = NativeFailure{383, "Property is read-only"};
+        return true;
+    }
+    if (member == "linkmode" && as_double(value) != 0.0) {
+        // DDE is deferred beyond 1.0 (legacy-feature-dispositions.md).
+        failure = NativeFailure{
+            282, "No foreign application responded to a DDE initiate"};
         return true;
     }
     if (FormSupport::is_geometry_member(*this, member)) {

@@ -1,0 +1,4 @@
+Type=Exe
+Form=209-unsupported-legacy.frm
+Startup="Form1"
+WfcUiScript=209-unsupported-legacy.ui

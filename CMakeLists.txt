@@ -2314,6 +2314,21 @@ Print v.x & q.x]=]
     PROPERTIES LABELS "integration;mp-0002;diagnostics"
   )
 
+  # A project with a UserDocument (ActiveX Document) is refused with the
+  # unsupported-feature message (legacy-feature-dispositions.md).
+  add_test(
+    NAME TC-MP0008-userdocument-unsupported
+    COMMAND
+      wfc
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/projects/userdocument-unsupported.vbp"
+  )
+  set_tests_properties(
+    TC-MP0008-userdocument-unsupported
+    PROPERTIES
+      PASS_REGULAR_EXPRESSION "UserDocument is not supported by WFC 1\.0"
+      LABELS "integration;mp-0008;migration"
+  )
+
   # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
   # when present) must print exactly the matching .expected text.
   file(

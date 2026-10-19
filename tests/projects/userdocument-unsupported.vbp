@@ -1,0 +1,3 @@
+Type=Exe
+UserDocument=Document1.dob
+Startup="Sub Main"

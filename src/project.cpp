@@ -336,6 +336,10 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     form_files.push_back(directory / normalize(value));
                 } else if (key == "wfcuiscript") {
                     project.ui_script = (directory / normalize(value)).string();
+                } else if (key == "userdocument") {
+                    // ActiveX Documents are deferred beyond 1.0.
+                    return fail("UserDocument is not supported by WFC 1.0: " +
+                                line);
                 } else if (key == "propertypage" || key == "designer") {
                     return fail("unsupported project item (visual designer): " +
                                 line);

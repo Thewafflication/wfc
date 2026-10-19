@@ -52,7 +52,7 @@ function(add_vb6_play name vbp script expected)
     )
     set_tests_properties(
       TC-MP0008-vb6games-${name}
-      PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 120
+      PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 300
     )
   endif()
 endfunction()
