@@ -724,7 +724,8 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "OptionButton") {
         make_child(L"BUTTON", BS_RADIOBUTTON | WS_TABSTOP);
     } else if (kind == "Frame") {
-        make_child(L"BUTTON", BS_GROUPBOX);
+        // Transparent, so what is drawn on the form behind it shows.
+        make_child(L"BUTTON", BS_GROUPBOX, WS_EX_TRANSPARENT);
     } else if (kind == "Label") {
         make_child(L"STATIC", SS_LEFT);
     } else if (kind == "TextBox") {
