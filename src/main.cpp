@@ -3,6 +3,7 @@
 #include "wfc/version.hpp"
 
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string_view>
@@ -96,6 +97,23 @@ int build_package(const int argument_count, const char* const arguments[]) {
     return 0;
 }
 
+// The value of an environment variable, empty when it is not set.
+[[nodiscard]] std::string environment_text(const char* name) {
+#ifdef _WIN32
+    char* buffer = nullptr;
+    std::size_t length = 0;
+    std::string result;
+    if (_dupenv_s(&buffer, &length, name) == 0 && buffer != nullptr) {
+        result = buffer;
+        std::free(buffer);
+    }
+    return result;
+#else
+    const char* found = std::getenv(name);
+    return found != nullptr ? found : "";
+#endif
+}
+
 }  // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -144,6 +162,7 @@ int run(const int argument_count, const char* const arguments[]) {
         std::string_view(arguments[1]).rfind("--", 0) != 0) {
         std::vector<std::filesystem::path> files;
         std::string ui_mode;
+        bool fit_screen = false;
         std::string screenshot_directory;
         std::string serve;
         std::string typelib_path;
@@ -154,6 +173,10 @@ int run(const int argument_count, const char* const arguments[]) {
         for (int i = 1; i < argument_count; ++i) {
             if (std::string_view(arguments[i]) == "--gui") {
                 ui_mode = "win32";  // run forms in real windows
+            } else if (std::string_view(arguments[i]) == "--fullscreen") {
+                // Real windows, scaled to fill the screen.
+                ui_mode = "win32";
+                fit_screen = true;
             } else if (std::string_view(arguments[i]) == "-Embedding" ||
                        std::string_view(arguments[i]) == "/Embedding") {
                 // COM started this process to serve a class.
@@ -256,6 +279,15 @@ int run(const int argument_count, const char* const arguments[]) {
             ui_script_override.empty() ? project.ui_script : ui_script_override;
         options.exit_after_ms = exit_after_ms;
         options.ui_mode = ui_mode;
+        if (const auto forced = environment_text("WFC_FULLSCREEN");
+            !forced.empty() && forced != "0") {
+            options.ui_mode = "win32";
+            fit_screen = true;
+        }
+        options.fit_screen = fit_screen;
+        options.fit_width = project.largest_form_width;
+        options.fit_height = project.largest_form_height;
+        options.fit_screen_size = environment_text("WFC_SCREEN");
         options.screenshot_directory = screenshot_directory;
         if (serve == "typelib") {
             std::cout << "LIBID "

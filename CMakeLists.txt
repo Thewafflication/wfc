@@ -82,7 +82,7 @@ target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
 if(WIN32)
   target_link_libraries(
     wfc_frontend
-    PUBLIC ole32 oleaut32 user32 gdi32 comctl32 comdlg32 ws2_32
+    PUBLIC ole32 oleaut32 user32 gdi32 comctl32 comdlg32 ws2_32 uxtheme
   )
 endif()
 wfc_enable_strict_warnings(wfc_frontend)

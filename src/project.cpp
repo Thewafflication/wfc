@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -516,6 +517,18 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                         std::to_string(parsed.error_line) + ": " +
                         parsed.error);
         }
+        const auto size_of = [&](const char* client, const char* outer) {
+            const auto* property = parsed.root.find(client);
+            if (property == nullptr) {
+                property = parsed.root.find(outer);
+            }
+            return property == nullptr ? 0.0
+                                       : std::atof(property->value.c_str());
+        };
+        project.largest_form_width = std::max(project.largest_form_width,
+                                              size_of("ClientWidth", "Width"));
+        project.largest_form_height = std::max(
+            project.largest_form_height, size_of("ClientHeight", "Height"));
         std::string code = parsed.code;
         static_cast<void>(strip_file_header(code));
         project.class_names.push_back(parsed.name);

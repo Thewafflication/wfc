@@ -51,6 +51,10 @@ struct LoadedProject final {
     // Path of a scripted-input file for the headless UI host
     // (`WfcUiScript=` in the .vbp), resolved against the project directory.
     std::string ui_script;
+    // The largest form's client size in twips (0 when there are no forms),
+    // which full-screen mode fits to the screen.
+    double largest_form_width{0.0};
+    double largest_form_height{0.0};
 };
 
 // Loads a `.vbp` project (Module=/Class= entries, Startup="Sub Main"), or one

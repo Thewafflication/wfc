@@ -31,6 +31,16 @@ public:
     // False when the process has no usable desktop (a service session).
     [[nodiscard]] bool usable() const noexcept { return usable_; }
 
+    // Full-screen mode: every window is scaled by one factor so that a form
+    // of `reference_width` x `reference_height` twips (the largest form of
+    // the program) fills the screen, forms have no frame, and the forms that
+    // are about that large become screen-sized windows with the form drawn in
+    // the middle of its own background. `screen` is "WIDTHxHEIGHT" to use a
+    // screen of that size at the top left (for tests), or empty for the
+    // primary monitor. Call before any window is created.
+    void set_fit(double reference_width, double reference_height,
+                 const std::string& screen);
+
     [[nodiscard]] WindowId create_window(const std::string& kind,
                                          WindowId parent) override;
     void destroy_window(WindowId window) override;
@@ -42,6 +52,7 @@ public:
     void set_border(WindowId window, bool border) override;
     [[nodiscard]] std::string surface_image(WindowId window) override;
     void set_form_style(WindowId window, int border_style) override;
+    void set_font(WindowId window, const FontSpec& font) override;
     void set_label_style(WindowId window, long fore, long back,
                          bool transparent) override;
     // The brush for a Label drawn by its parent (WM_CTLCOLORSTATIC), or null.
@@ -112,6 +123,7 @@ private:
     struct Entry;
     WindowId drag_source_{kNoWindow};
     friend struct Win32Support;
+    friend struct FitSupport;
 
     [[nodiscard]] Entry* find(WindowId window);
     [[nodiscard]] const Entry* find(WindowId window) const;
@@ -132,6 +144,41 @@ private:
     bool usable_{false};
     long dpi_x_{96};
     long dpi_y_{96};
+    // Full-screen mode (set_fit).
+    bool fit_{false};
+    long base_dpi_x_{96};
+    long base_dpi_y_{96};
+    double fit_width_{0.0};  // the reference form, in twips
+    double fit_height_{0.0};
+    int screen_x_{0};
+    int screen_y_{0};
+    int screen_width_{0};
+    int screen_height_{0};
+    HWND__* close_button_{nullptr};
+    // Sizes and places a form (and the controls placed inside it) in full-
+    // screen mode.
+    void place_fit_form(Entry& form);
+    // The topmost visible Image (a lightweight control with no window of its
+    // own) under a point of the surface `owner`, with the point's offset from
+    // the Image's corner in `origin_x` and `origin_y`; kNoWindow if none.
+    [[nodiscard]] WindowId lightweight_at(WindowId owner, double x, double y,
+                                          double& origin_x,
+                                          double& origin_y) const;
+    // Draws a colored push button (WM_DRAWITEM); false for any other.
+    bool draw_button(const void* draw_item_struct);
+    // Whether a click on the control raises Click (buttons raise their own).
+    [[nodiscard]] bool takes_click(WindowId window) const;
+    // Mouse state for Click and DblClick of controls that have no click of
+    // their own.
+    WindowId press_target_{kNoWindow};
+    double press_origin_x_{0.0};
+    double press_origin_y_{0.0};
+    WindowId last_click_target_{kNoWindow};
+    unsigned long last_click_time_{0};
+    int last_click_x_{0};
+    int last_click_y_{0};
+    bool swallow_click_{false};
+    void close_all_forms();
     HFONT__* font_{nullptr};
     // Decoded pictures (IPicture*) by id, and the id of each byte string.
     std::map<long, void*> pictures_;

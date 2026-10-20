@@ -190,6 +190,11 @@ public:
     [[nodiscard]] virtual bool visible(WindowId window) const = 0;
     virtual void set_enabled(WindowId window, bool enabled) = 0;
     // Colors of a Label (-1: the default) and whether it is transparent.
+    // The font a control with a window of its own draws its text in.
+    virtual void set_font(WindowId window, const FontSpec& font) {
+        static_cast<void>(window);
+        static_cast<void>(font);
+    }
     virtual void set_label_style(WindowId window, long fore, long back,
                                  bool transparent) {
         static_cast<void>(window);

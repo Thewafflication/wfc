@@ -14,12 +14,14 @@
 #include <objbase.h>
 #include <ocidl.h>
 #include <olectl.h>
+#include <uxtheme.h>
 #include <wincodec.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 namespace wfc::ui {
 namespace {
@@ -27,6 +29,7 @@ namespace {
 constexpr wchar_t kFormClass[] = L"WfcForm";
 constexpr wchar_t kPictureClass[] = L"WfcPicture";
 constexpr wchar_t kIdProperty[] = L"WfcId";
+constexpr wchar_t kCloseClass[] = L"WfcClose";
 
 [[nodiscard]] std::wstring widen(const std::string& text) {
     if (text.empty()) {
@@ -86,7 +89,12 @@ struct Win32Host::Entry {
     long label_fore{-1};
     long label_back{-1};
     bool label_transparent{false};
-    bool applying{false};   // a snapshot is being applied to a common control
+    bool applying{false};  // a snapshot is being applied to a common control
+    // Full-screen mode: where the form's own area starts inside its window.
+    int off_x{0};
+    int off_y{0};
+    bool screen_form{false};
+    HFONT font{nullptr};    // set by set_font, owned by the entry
     void* images{nullptr};  // HIMAGELIST handed to the control
     void* small_images{nullptr};
 };
@@ -125,6 +133,14 @@ struct Win32Support {
         bool down = false;
         bool up = false;
         switch (message) {
+            case WM_NCHITTEST: {
+                wchar_t class_name[16]{};
+                GetClassNameW(hwnd, class_name, 16);
+                if (std::wstring_view(class_name) == L"Static") {
+                    return HTCLIENT;
+                }
+                return DefSubclassProc(hwnd, message, wparam, lparam);
+            }
             case WM_LBUTTONDOWN:
                 button = 1;
                 down = true;
@@ -162,6 +178,14 @@ struct Win32Support {
             return static_cast<double>(pixels) * 1440.0 /
                    static_cast<double>(dpi);
         };
+        // A full-screen form's own area starts at an offset in its window.
+        int pointer_off_x = 0;
+        int pointer_off_y = 0;
+        if (const auto* own = host->find(window);
+            own != nullptr && own->is_form) {
+            pointer_off_x = own->off_x;
+            pointer_off_y = own->off_y;
+        }
         if (up && host->drag_source_ != kNoWindow) {
             // The drag ends over whichever hosted window is under the pointer.
             const WindowId source = host->drag_source_;
@@ -180,11 +204,27 @@ struct Win32Support {
             if (target != nullptr) {
                 POINT inside = screen;
                 ScreenToClient(target, &inside);
-                host->queue(UiEvent{id_of(target),
-                                    "DropOn",
-                                    {static_cast<long>(source),
-                                     to_twips(inside.x, host->dpi_x_),
-                                     to_twips(inside.y, host->dpi_y_)}});
+                if (const auto* over = host->find(id_of(target));
+                    over != nullptr && over->is_form) {
+                    inside.x -= over->off_x;
+                    inside.y -= over->off_y;
+                }
+                WindowId drop_window = id_of(target);
+                double drop_x = to_twips(inside.x, host->dpi_x_);
+                double drop_y = to_twips(inside.y, host->dpi_y_);
+                double origin_x = 0.0;
+                double origin_y = 0.0;
+                if (const WindowId light = host->lightweight_at(
+                        drop_window, drop_x, drop_y, origin_x, origin_y);
+                    light != kNoWindow) {
+                    drop_window = light;
+                    drop_x -= origin_x;
+                    drop_y -= origin_y;
+                }
+                host->queue(
+                    UiEvent{drop_window,
+                            "DropOn",
+                            {static_cast<long>(source), drop_x, drop_y}});
             }
             return 0;
         }
@@ -197,14 +237,67 @@ struct Win32Support {
                      ((wparam & MK_RBUTTON) != 0 ? 2 : 0) |
                      ((wparam & MK_MBUTTON) != 0 ? 4 : 0);
         }
-        host->queue(UiEvent{
-            window,
-            down ? "MouseDown"
-            : up ? "MouseUp"
-                 : "MouseMove",
-            {button, shift,
-             to_twips(static_cast<short>(LOWORD(lparam)), host->dpi_x_),
-             to_twips(static_cast<short>(HIWORD(lparam)), host->dpi_y_)}});
+        const int x_pixels = static_cast<short>(LOWORD(lparam)) - pointer_off_x;
+        const int y_pixels = static_cast<short>(HIWORD(lparam)) - pointer_off_y;
+        const double x_twips = to_twips(x_pixels, host->dpi_x_);
+        const double y_twips = to_twips(y_pixels, host->dpi_y_);
+        // The event goes to the Image under the pointer if there is one, else
+        // to the window itself.
+        double origin_x = 0.0;
+        double origin_y = 0.0;
+        const WindowId light =
+            host->lightweight_at(window, x_twips, y_twips, origin_x, origin_y);
+        const WindowId target = light != kNoWindow ? light : window;
+        const unsigned long now = GetTickCount();
+        const auto report = [&](const WindowId to, const char* name,
+                                const double ox, const double oy) {
+            host->queue(
+                UiEvent{to, name, {button, shift, x_twips - ox, y_twips - oy}});
+        };
+        if (down) {
+            const bool double_click =
+                button == 1 && host->last_click_target_ == target &&
+                now - host->last_click_time_ <= GetDoubleClickTime() &&
+                std::abs(x_pixels - host->last_click_x_) <=
+                    GetSystemMetrics(SM_CXDOUBLECLK) / 2 &&
+                std::abs(y_pixels - host->last_click_y_) <=
+                    GetSystemMetrics(SM_CYDOUBLECLK) / 2;
+            host->press_target_ = target;
+            host->press_origin_x_ = origin_x;
+            host->press_origin_y_ = origin_y;
+            if (double_click && host->takes_click(target)) {
+                // Click, DblClick, then the second release.
+                host->queue(UiEvent{target, "DblClick", {}});
+                host->swallow_click_ = true;
+                host->last_click_target_ = kNoWindow;
+            } else {
+                report(target, "MouseDown", origin_x, origin_y);
+            }
+        } else if (up) {
+            const WindowId pressed =
+                host->press_target_ != kNoWindow ? host->press_target_ : target;
+            report(pressed, "MouseUp",
+                   pressed == host->press_target_ ? host->press_origin_x_
+                                                  : origin_x,
+                   pressed == host->press_target_ ? host->press_origin_y_
+                                                  : origin_y);
+            if (button == 1) {
+                if (host->swallow_click_) {
+                    host->swallow_click_ = false;
+                } else if (pressed == target && host->takes_click(target)) {
+                    host->queue(UiEvent{target, "Click", {}});
+                    host->last_click_target_ = target;
+                    host->last_click_time_ = now;
+                    host->last_click_x_ = x_pixels;
+                    host->last_click_y_ = y_pixels;
+                } else {
+                    host->last_click_target_ = kNoWindow;
+                }
+            }
+            host->press_target_ = kNoWindow;
+        } else {
+            report(target, "MouseMove", origin_x, origin_y);
+        }
         return DefSubclassProc(hwnd, message, wparam, lparam);
     }
 
@@ -256,10 +349,18 @@ struct Win32Support {
                 }
                 break;
             case WM_CTLCOLORSTATIC:
+            case WM_CTLCOLOREDIT:
+            case WM_CTLCOLORLISTBOX:
+            case WM_CTLCOLORBTN:
                 if (HBRUSH brush =
                         host->label_brush(reinterpret_cast<HWND>(lparam),
                                           reinterpret_cast<HDC>(wparam))) {
                     return reinterpret_cast<LRESULT>(brush);
+                }
+                break;
+            case WM_DRAWITEM:
+                if (host->draw_button(reinterpret_cast<const void*>(lparam))) {
+                    return TRUE;
                 }
                 break;
             case WM_TIMER:
@@ -417,12 +518,18 @@ struct Win32Support {
             host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
             return 1;
         }
-        if (host != nullptr && message == WM_CTLCOLORSTATIC) {
+        if (host != nullptr &&
+            (message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
+             message == WM_CTLCOLORLISTBOX || message == WM_CTLCOLORBTN)) {
             if (HBRUSH brush =
                     host->label_brush(reinterpret_cast<HWND>(lparam),
                                       reinterpret_cast<HDC>(wparam))) {
                 return reinterpret_cast<LRESULT>(brush);
             }
+        }
+        if (host != nullptr && message == WM_DRAWITEM &&
+            host->draw_button(reinterpret_cast<const void*>(lparam))) {
+            return TRUE;
         }
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
@@ -464,6 +571,8 @@ Win32Host::Win32Host() {
     if (const HDC context = GetDC(nullptr)) {
         dpi_x_ = GetDeviceCaps(context, LOGPIXELSX);
         dpi_y_ = GetDeviceCaps(context, LOGPIXELSY);
+        base_dpi_x_ = dpi_x_;
+        base_dpi_y_ = dpi_y_;
         ReleaseDC(nullptr, context);
         usable_ =
             dpi_x_ > 0 && dpi_y_ > 0 && Win32Support::register_form_class();
@@ -500,6 +609,9 @@ Win32Host::~Win32Host() {
     }
     for (auto& [id, picture] : pictures_) {
         static_cast<IPicture*>(picture)->Release();
+    }
+    if (close_button_ != nullptr) {
+        DestroyWindow(close_button_);
     }
     if (font_ != nullptr) {
         DeleteObject(font_);
@@ -568,7 +680,8 @@ WindowId Win32Host::create_window(const std::string& kind,
                 instance, this);
         } else {
             entry->hwnd = CreateWindowExW(
-                0, kFormClass, L"", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+                0, kFormClass, L"",
+                (fit_ ? WS_POPUP : WS_OVERLAPPEDWINDOW) | WS_CLIPCHILDREN,
                 CW_USEDEFAULT, CW_USEDEFAULT, 400, 300, nullptr, nullptr,
                 instance, this);
             if (kind == "MDIForm" && entry->hwnd != nullptr) {
@@ -755,9 +868,13 @@ void Win32Host::destroy_window(const WindowId window) {
         DeleteDC(entry->surface_dc);
         DeleteObject(entry->surface_bitmap);
     }
+    HFONT own_font = entry->font;
     windows_.erase(window);
     if (handle != nullptr) {
         DestroyWindow(handle);
+    }
+    if (own_font != nullptr) {
+        DeleteObject(own_font);
     }
     if (menu) {
         while (const auto* up = find(form)) {
@@ -779,6 +896,10 @@ void Win32Host::set_bounds(const WindowId window, const Rect& bounds) {
     if (entry->hwnd == nullptr) {
         return;
     }
+    if (fit_ && entry->is_form && !entry->mdi_child) {
+        place_fit_form(*entry);
+        return;
+    }
     const auto to_x = [&](const double twips) {
         return static_cast<int>(twips * static_cast<double>(dpi_x_) / 1440.0);
     };
@@ -787,6 +908,16 @@ void Win32Host::set_bounds(const WindowId window, const Rect& bounds) {
     };
     int width = std::max(to_x(bounds.width), 1);
     int height = std::max(to_y(bounds.height), 1);
+    int left = to_x(bounds.left);
+    int top = to_y(bounds.top);
+    if (fit_) {
+        // A control placed directly in a form is shifted by the form's offset.
+        if (const auto* parent = find(entry->parent);
+            parent != nullptr && parent->is_form) {
+            left += parent->off_x;
+            top += parent->off_y;
+        }
+    }
     if (entry->is_form) {
         // A form's size is its client area; add the frame, title and menu.
         RECT frame{0, 0, width, height};
@@ -798,8 +929,334 @@ void Win32Host::set_bounds(const WindowId window, const Rect& bounds) {
         width = frame.right - frame.left;
         height = frame.bottom - frame.top;
     }
-    SetWindowPos(entry->hwnd, nullptr, to_x(bounds.left), to_y(bounds.top),
-                 width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+    SetWindowPos(entry->hwnd, nullptr, left, top, width, height,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void Win32Host::place_fit_form(Entry& form) {
+    const auto to_x = [&](const double twips) {
+        return static_cast<int>(twips * static_cast<double>(dpi_x_) / 1440.0);
+    };
+    const auto to_y = [&](const double twips) {
+        return static_cast<int>(twips * static_cast<double>(dpi_y_) / 1440.0);
+    };
+    const int width = std::max(to_x(form.bounds.width), 1);
+    const int height = std::max(to_y(form.bounds.height), 1);
+    // The menu bar is the only frame a popup window can have.
+    const bool menu = GetMenu(form.hwnd) != nullptr;
+    RECT frame{0, 0, width, height};
+    AdjustWindowRectEx(
+        &frame, static_cast<DWORD>(GetWindowLongPtrW(form.hwnd, GWL_STYLE)),
+        menu, static_cast<DWORD>(GetWindowLongPtrW(form.hwnd, GWL_EXSTYLE)));
+    const int extra_x = (frame.right - frame.left) - width;
+    const int extra_y = (frame.bottom - frame.top) - height;
+    form.screen_form = form.bounds.width >= 0.6 * fit_width_ &&
+                       form.bounds.height >= 0.6 * fit_height_;
+    int window_x = 0;
+    int window_y = 0;
+    int window_width = 0;
+    int window_height = 0;
+    int new_off_x = 0;
+    int new_off_y = 0;
+    if (form.screen_form) {
+        window_x = screen_x_;
+        window_y = screen_y_;
+        window_width = screen_width_;
+        window_height = screen_height_;
+        new_off_x = std::max(0, (screen_width_ - extra_x - width) / 2);
+        new_off_y = std::max(0, (screen_height_ - extra_y - height) / 2);
+    } else {
+        window_width = width + extra_x;
+        window_height = height + extra_y;
+        window_x = screen_x_ + (screen_width_ - window_width) / 2;
+        window_y = screen_y_ + (screen_height_ - window_height) / 2;
+    }
+    SetWindowPos(form.hwnd, nullptr, window_x, window_y, window_width,
+                 window_height, SWP_NOZORDER | SWP_NOACTIVATE);
+    if (new_off_x != form.off_x || new_off_y != form.off_y) {
+        form.off_x = new_off_x;
+        form.off_y = new_off_y;
+        // Controls placed straight in the form move with its drawing area.
+        for (const auto& [id, child] : windows_) {
+            if (child->parent == form.id && !child->is_form &&
+                child->hwnd != nullptr) {
+                set_bounds(id, child->bounds);
+            }
+        }
+    }
+}
+
+bool Win32Host::draw_button(const void* draw_item_struct) {
+    const auto& item = *static_cast<const DRAWITEMSTRUCT*>(draw_item_struct);
+    if (item.CtlType != ODT_BUTTON) {
+        return false;
+    }
+    const auto id = static_cast<WindowId>(
+        reinterpret_cast<std::uintptr_t>(GetPropW(item.hwndItem, kIdProperty)));
+    const auto* entry = find(id);
+    if (entry == nullptr || entry->label_back < 0) {
+        return false;
+    }
+    const auto lighten = [](const COLORREF color, const int percent) {
+        const auto mix = [&](const int channel) {
+            return std::clamp(channel + (255 - channel) * percent / 100, 0,
+                              255);
+        };
+        const auto darken = [&](const int channel) {
+            return std::clamp(channel * (100 + percent) / 100, 0, 255);
+        };
+        return percent >= 0
+                   ? RGB(mix(GetRValue(color)), mix(GetGValue(color)),
+                         mix(GetBValue(color)))
+                   : RGB(darken(GetRValue(color)), darken(GetGValue(color)),
+                         darken(GetBValue(color)));
+    };
+    const COLORREF back = static_cast<COLORREF>(entry->label_back);
+    const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+    const bool disabled = (item.itemState & ODS_DISABLED) != 0;
+    COLORREF fill = pressed ? lighten(back, 18) : back;
+    // Without a text color, the one that reads best on the button.
+    const int luminance = (299 * GetRValue(back) + 587 * GetGValue(back) +
+                           114 * GetBValue(back)) /
+                          1000;
+    COLORREF text_color =
+        entry->label_fore >= 0
+            ? static_cast<COLORREF>(entry->label_fore)
+            : (luminance > 140 ? RGB(18, 22, 34) : RGB(255, 255, 255));
+    if (disabled) {
+        fill = lighten(back, -35);
+        text_color = lighten(text_color, -55);
+    }
+    RECT area = item.rcItem;
+    // The parent's color first, so the rounded corners blend in.
+    const HBRUSH corner = CreateSolidBrush(
+        entry->label_back >= 0 ? lighten(back, -30) : RGB(0, 0, 0));
+    FillRect(item.hDC, &area, corner);
+    DeleteObject(corner);
+    const HBRUSH brush = CreateSolidBrush(fill);
+    const HPEN pen = CreatePen(PS_SOLID, 1, lighten(back, 20));
+    const HGDIOBJ old_brush = SelectObject(item.hDC, brush);
+    const HGDIOBJ old_pen = SelectObject(item.hDC, pen);
+    const int radius =
+        std::max(6, static_cast<int>(area.bottom - area.top) / 4);
+    RoundRect(item.hDC, area.left, area.top, area.right, area.bottom, radius,
+              radius);
+    SelectObject(item.hDC, old_pen);
+    SelectObject(item.hDC, old_brush);
+    DeleteObject(pen);
+    DeleteObject(brush);
+    wchar_t caption[256]{};
+    GetWindowTextW(item.hwndItem, caption, 256);
+    SetBkMode(item.hDC, TRANSPARENT);
+    SetTextColor(item.hDC, text_color);
+    const HGDIOBJ old_font =
+        font_ != nullptr ? SelectObject(item.hDC, font_) : nullptr;
+    RECT text_area = area;
+    InflateRect(&text_area, -4, -2);
+    RECT measured = text_area;
+    DrawTextW(item.hDC, caption, -1, &measured,
+              DT_CALCRECT | DT_WORDBREAK | DT_CENTER);
+    const int spare =
+        (text_area.bottom - text_area.top) - (measured.bottom - measured.top);
+    if (spare > 0) {
+        text_area.top += spare / 2;
+    }
+    DrawTextW(item.hDC, caption, -1, &text_area,
+              DT_WORDBREAK | DT_CENTER | DT_HIDEPREFIX);
+    if (old_font != nullptr) {
+        SelectObject(item.hDC, old_font);
+    }
+    return true;
+}
+
+WindowId Win32Host::lightweight_at(const WindowId owner, const double x,
+                                   const double y, double& origin_x,
+                                   double& origin_y) const {
+    origin_x = 0.0;
+    origin_y = 0.0;
+    if (find(owner) == nullptr) {
+        return kNoWindow;
+    }
+    WindowId best = kNoWindow;
+    for (const auto& [id, entry] : windows_) {
+        if (!entry->lightweight || entry->kind != "Image" || !entry->visible) {
+            continue;
+        }
+        // The Image's corner, measured from the surface it is drawn on.
+        double left = entry->bounds.left;
+        double top = entry->bounds.top;
+        bool on_surface = false;
+        bool hidden = false;
+        WindowId up = entry->parent;
+        while (true) {
+            if (up == owner) {
+                on_surface = true;
+                break;
+            }
+            const auto* holder = find(up);
+            if (holder == nullptr || holder->is_form ||
+                holder->kind == "PictureBox") {
+                break;
+            }
+            if (!holder->visible) {
+                hidden = true;
+                break;
+            }
+            left += holder->bounds.left;
+            top += holder->bounds.top;
+            up = holder->parent;
+        }
+        if (!on_surface || hidden) {
+            continue;
+        }
+        if (x >= left && x < left + entry->bounds.width && y >= top &&
+            y < top + entry->bounds.height) {
+            best = id;  // later controls are on top
+            origin_x = left;
+            origin_y = top;
+        }
+    }
+    return best;
+}
+
+bool Win32Host::takes_click(const WindowId window) const {
+    const auto* entry = find(window);
+    if (entry == nullptr) {
+        return false;
+    }
+    const auto& kind = entry->kind;
+    return kind == "Form" || kind == "MDIForm" || kind == "PictureBox" ||
+           kind == "UserControl" || kind == "OLE" || kind == "Label" ||
+           kind == "Image";
+}
+
+void Win32Host::close_all_forms() {
+    for (const auto& [id, entry] : windows_) {
+        if (entry->is_form && !entry->mdi_child) {
+            queue(UiEvent{id, "Close", {}});
+        }
+    }
+}
+
+// The corner button that closes a full-screen program: always on top, never
+// the active window, and big enough for a finger.
+struct FitSupport {
+    static LRESULT CALLBACK close_proc(HWND hwnd, UINT message, WPARAM wparam,
+                                       LPARAM lparam) {
+        auto* const host = reinterpret_cast<Win32Host*>(
+            GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        switch (message) {
+            case WM_NCCREATE:
+                SetWindowLongPtrW(
+                    hwnd, GWLP_USERDATA,
+                    reinterpret_cast<LONG_PTR>(
+                        reinterpret_cast<const CREATESTRUCTW*>(lparam)
+                            ->lpCreateParams));
+                break;
+            case WM_MOUSEACTIVATE:
+                return MA_NOACTIVATE;
+            case WM_LBUTTONUP:
+                if (host != nullptr) {
+                    host->close_all_forms();
+                }
+                return 0;
+            case WM_PAINT: {
+                PAINTSTRUCT paint;
+                const HDC dc = BeginPaint(hwnd, &paint);
+                RECT area;
+                GetClientRect(hwnd, &area);
+                const HBRUSH back = CreateSolidBrush(RGB(32, 36, 48));
+                FillRect(dc, &area, back);
+                DeleteObject(back);
+                const HPEN pen = CreatePen(PS_SOLID, 3, RGB(235, 238, 245));
+                const HGDIOBJ old = SelectObject(dc, pen);
+                const int margin = (area.right - area.left) / 3;
+                MoveToEx(dc, margin, margin, nullptr);
+                LineTo(dc, area.right - margin, area.bottom - margin);
+                MoveToEx(dc, area.right - margin, margin, nullptr);
+                LineTo(dc, margin, area.bottom - margin);
+                SelectObject(dc, old);
+                DeleteObject(pen);
+                EndPaint(hwnd, &paint);
+                return 0;
+            }
+            default:
+                break;
+        }
+        return DefWindowProcW(hwnd, message, wparam, lparam);
+    }
+};
+
+void Win32Host::set_fit(const double reference_width,
+                        const double reference_height,
+                        const std::string& screen) {
+    if (!usable_) {
+        return;
+    }
+    fit_ = true;
+    fit_width_ = std::max(reference_width, 1.0);
+    fit_height_ = std::max(reference_height, 1.0);
+    screen_x_ = 0;
+    screen_y_ = 0;
+    screen_width_ = 0;
+    screen_height_ = 0;
+    const auto cross = screen.find('x');
+    const int wanted_width =
+        cross == std::string::npos ? 0 : std::atoi(screen.c_str());
+    const int wanted_height =
+        cross == std::string::npos ? 0 : std::atoi(screen.c_str() + cross + 1);
+    if (wanted_width > 0 && wanted_height > 0) {
+        screen_width_ = wanted_width;
+        screen_height_ = wanted_height;
+    } else {
+        const POINT origin{0, 0};
+        MONITORINFO monitor{};
+        monitor.cbSize = sizeof(monitor);
+        if (GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY),
+                            &monitor) != FALSE) {
+            screen_x_ = monitor.rcMonitor.left;
+            screen_y_ = monitor.rcMonitor.top;
+            screen_width_ = monitor.rcMonitor.right - monitor.rcMonitor.left;
+            screen_height_ = monitor.rcMonitor.bottom - monitor.rcMonitor.top;
+        }
+    }
+    if (screen_width_ <= 0 || screen_height_ <= 0) {
+        fit_ = false;
+        return;
+    }
+    // One scale for every window: the reference form just fits the screen.
+    const double natural_width = fit_width_ * base_dpi_x_ / 1440.0;
+    const double natural_height = fit_height_ * base_dpi_y_ / 1440.0;
+    const double scale = std::min(screen_width_ / natural_width,
+                                  screen_height_ / natural_height);
+    dpi_x_ =
+        std::max(1L, std::lround(static_cast<double>(base_dpi_x_) * scale));
+    dpi_y_ =
+        std::max(1L, std::lround(static_cast<double>(base_dpi_y_) * scale));
+    if (font_ != nullptr) {
+        DeleteObject(font_);
+    }
+    font_ = CreateFontW(
+        -MulDiv(8, static_cast<int>(dpi_y_), 72), 0, 0, 0, FW_NORMAL, FALSE,
+        FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"MS Shell Dlg");
+    // The close button, in the top right corner of the screen.
+    WNDCLASSEXW window_class{};
+    window_class.cbSize = sizeof(window_class);
+    window_class.lpfnWndProc = FitSupport::close_proc;
+    window_class.hInstance = GetModuleHandleW(nullptr);
+    window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32649));
+    window_class.lpszClassName = kCloseClass;
+    RegisterClassExW(&window_class);
+    const int side = std::max(48, std::min(screen_width_, screen_height_) / 14);
+    close_button_ = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED,
+        kCloseClass, L"", WS_POPUP, screen_x_ + screen_width_ - side, screen_y_,
+        side, side, nullptr, nullptr, GetModuleHandleW(nullptr), this);
+    if (close_button_ != nullptr) {
+        SetLayeredWindowAttributes(close_button_, 0, 170, LWA_ALPHA);
+        ShowWindow(close_button_, SW_SHOWNOACTIVATE);
+    }
 }
 
 Rect Win32Host::bounds(const WindowId window) const {
@@ -919,6 +1376,30 @@ void Win32Host::set_form_style(const WindowId window, const int style) {
                      SWP_FRAMECHANGED);
 }
 
+void Win32Host::set_font(const WindowId window, const FontSpec& font) {
+    auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr || entry->is_form) {
+        return;
+    }
+    HFONT created = CreateFontW(
+        -static_cast<int>(
+            std::lround(font.size * static_cast<double>(dpi_y_) / 72.0)),
+        0, 0, 0, font.bold ? FW_BOLD : FW_NORMAL, font.italic ? TRUE : FALSE,
+        font.underline ? TRUE : FALSE, font.strikethrough ? TRUE : FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, widen(font.name).c_str());
+    if (created == nullptr) {
+        return;
+    }
+    SendMessageW(entry->hwnd, WM_SETFONT, reinterpret_cast<WPARAM>(created),
+                 TRUE);
+    if (entry->font != nullptr) {
+        DeleteObject(entry->font);
+    }
+    entry->font = created;
+    InvalidateRect(entry->hwnd, nullptr, TRUE);
+}
+
 void Win32Host::set_label_style(const WindowId window, const long fore,
                                 const long back, const bool transparent) {
     const auto it = windows_.find(window);
@@ -929,6 +1410,18 @@ void Win32Host::set_label_style(const WindowId window, const long fore,
     entry.label_fore = fore;
     entry.label_back = back;
     entry.label_transparent = transparent;
+    if (entry.kind == "CommandButton" && back >= 0) {
+        // A colored button is drawn by the host (flat, in its colors).
+        auto button_style =
+            static_cast<LONG_PTR>(GetWindowLongPtrW(entry.hwnd, GWL_STYLE));
+        button_style =
+            (button_style & ~static_cast<LONG_PTR>(BS_TYPEMASK)) | BS_OWNERDRAW;
+        SetWindowLongPtrW(entry.hwnd, GWL_STYLE, button_style);
+    } else if (entry.kind == "Frame" || entry.kind == "CheckBox" ||
+               entry.kind == "OptionButton") {
+        // Visual styles ignore the text color.
+        SetWindowTheme(entry.hwnd, L"", L"");
+    }
     auto style =
         static_cast<LONG_PTR>(GetWindowLongPtrW(entry.hwnd, GWL_EXSTYLE));
     style = transparent ? (style | WS_EX_TRANSPARENT)
@@ -944,21 +1437,37 @@ void Win32Host::set_label_style(const WindowId window, const long fore,
 }
 
 HBRUSH Win32Host::label_brush(HWND label, HDC dc) {
-    const auto id = static_cast<WindowId>(
+    auto id = static_cast<WindowId>(
         reinterpret_cast<std::uintptr_t>(GetPropW(label, kIdProperty)));
+    if (id == kNoWindow) {
+        // The edit or list inside a combo box answers for the combo box.
+        id = static_cast<WindowId>(reinterpret_cast<std::uintptr_t>(
+            GetPropW(GetParent(label), kIdProperty)));
+    }
     const auto* entry = find(id);
-    if (entry == nullptr || entry->kind != "Label") {
+    if (entry == nullptr || entry->is_form) {
         return nullptr;
     }
     if (entry->label_fore >= 0) {
         SetTextColor(dc, static_cast<COLORREF>(entry->label_fore));
     }
-    if (entry->label_transparent) {
+    if (entry->label_transparent && entry->kind != "TextBox" &&
+        entry->kind.rfind("TextBox:", 0) != 0) {
         SetBkMode(dc, TRANSPARENT);
         return static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
     }
     if (entry->label_back < 0) {
-        return nullptr;
+        if (entry->label_fore < 0) {
+            return nullptr;
+        }
+        // A text color alone: the control keeps its system background, or
+        // Windows would draw the text in its own color again.
+        const bool input = entry->kind.rfind("TextBox", 0) == 0 ||
+                           entry->kind == "ListBox" ||
+                           entry->kind == "ComboBox";
+        const int system_color = input ? COLOR_WINDOW : COLOR_BTNFACE;
+        SetBkColor(dc, GetSysColor(system_color));
+        return GetSysColorBrush(system_color);
     }
     SetBkColor(dc, static_cast<COLORREF>(entry->label_back));
     auto& brush = label_brushes_[entry->label_back];
@@ -1361,8 +1870,13 @@ void* Win32Host::activex_object(const WindowId window) {
 }
 
 void Win32Host::begin_drag(const WindowId window) {
-    if (const auto* entry = find(window);
-        entry != nullptr && entry->hwnd != nullptr) {
+    // A control without a window of its own is dragged by the window it is
+    // drawn on.
+    const auto* entry = find(window);
+    while (entry != nullptr && entry->hwnd == nullptr) {
+        entry = find(entry->parent);
+    }
+    if (entry != nullptr) {
         drag_source_ = window;
         SetCapture(entry->hwnd);
     }
@@ -1611,9 +2125,11 @@ std::optional<long> Win32Host::pixel(const WindowId window, const double x,
         return std::nullopt;
     }
     const int px =
-        static_cast<int>(std::floor(x * static_cast<double>(dpi_x_) / 1440.0));
+        static_cast<int>(std::floor(x * static_cast<double>(dpi_x_) / 1440.0)) +
+        entry->off_x;
     const int py =
-        static_cast<int>(std::floor(y * static_cast<double>(dpi_y_) / 1440.0));
+        static_cast<int>(std::floor(y * static_cast<double>(dpi_y_) / 1440.0)) +
+        entry->off_y;
     if (px < 0 || py < 0 || px >= entry->surface_width ||
         py >= entry->surface_height) {
         return std::nullopt;
@@ -1640,7 +2156,17 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
     };
     HDC dc = entry->surface_dc;
     const COLORREF color = to_colorref(operation.color);
+    // A full-screen form draws inside its own area, in the middle of the
+    // window.
+    if (entry->off_x != 0 || entry->off_y != 0) {
+        SetViewportOrgEx(dc, entry->off_x, entry->off_y, nullptr);
+    }
+    struct ViewportReset {
+        HDC dc;
+        ~ViewportReset() { SetViewportOrgEx(dc, 0, 0, nullptr); }
+    } viewport_reset{dc};
     if (operation.kind == "cls") {
+        SetViewportOrgEx(dc, 0, 0, nullptr);
         HBRUSH brush = CreateSolidBrush(color);
         RECT whole{0, 0, entry->surface_width, entry->surface_height};
         FillRect(dc, &whole, brush);

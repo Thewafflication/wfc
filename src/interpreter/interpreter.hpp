@@ -585,6 +585,13 @@ public:
         serve_timeout_ms_ = timeout;
     }
     void set_ui_mode(std::string mode) { ui_mode_ = std::move(mode); }
+    void set_fit_screen(const bool on, const double width, const double height,
+                        std::string screen) {
+        fit_screen_ = on;
+        fit_width_ = width;
+        fit_height_ = height;
+        fit_screen_size_ = std::move(screen);
+    }
     void set_screenshot_directory(std::string directory) {
         screenshot_directory_ = std::move(directory);
     }
@@ -1851,6 +1858,10 @@ private:
     std::string ui_script_;
     long exit_after_ms_{0};
     std::string ui_mode_;
+    bool fit_screen_{false};
+    double fit_width_{0.0};
+    double fit_height_{0.0};
+    std::string fit_screen_size_;
     std::string screenshot_directory_;
     // Subscribes to a COM object's default outgoing interface.
     bool com_connect_events(InstanceData& instance);

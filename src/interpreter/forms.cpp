@@ -562,6 +562,11 @@ struct FormSupport {
             if (in.ui_mode_ == "win32") {
                 auto native = std::make_unique<ui::Win32Host>();
                 if (native->usable()) {
+                    if (in.fit_screen_ && in.fit_width_ > 0.0 &&
+                        in.fit_height_ > 0.0) {
+                        native->set_fit(in.fit_width_, in.fit_height_,
+                                        in.fit_screen_size_);
+                    }
                     in.forms_->host = std::move(native);
                     return *in.forms_;
                 }
@@ -2712,7 +2717,60 @@ struct FormSupport {
     }
 
     // Pushes every stored property to the host.
-    // A Label's colors and BackStyle, for the host that paints it.
+    // Whether the host paints this control's ForeColor and BackColor: labels,
+    // text and list controls, and push buttons whose Style is Graphical.
+    [[nodiscard]] static bool takes_host_colors(const ControlObject& object) {
+        const auto& key = object.class_key;
+        if (key == "commandbutton") {
+            const auto found = object.values.find("style");
+            return found != object.values.end() &&
+                   as_double(found->second) == 1.0;
+        }
+        return key == "label" || key == "textbox" || key == "listbox" ||
+               key == "combobox" || key == "checkbox" ||
+               key == "optionbutton" || key == "frame";
+    }
+
+    // Whether a control draws its text in a window of its own, whose font
+    // the host sets.
+    [[nodiscard]] static bool takes_host_font(const ControlObject& object) {
+        const auto& key = object.class_key;
+        return !object.is_form &&
+               (key == "label" || key == "commandbutton" || key == "textbox" ||
+                key == "listbox" || key == "combobox" || key == "checkbox" ||
+                key == "optionbutton" || key == "frame");
+    }
+
+    [[nodiscard]] static bool has_font_values(const ControlObject& object) {
+        for (const char* key : {"fontname", "fontsize", "fontbold",
+                                "fontitalic", "fontunderline"}) {
+            if (object.values.contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // An AutoSize label fits its caption (Win32 host only).
+    static void autosize_label(Interpreter& in, ControlObject& label) {
+        auto& state = runtime(in);
+        if (state.headless != nullptr || label.class_key != "label" ||
+            !flag_of(label, "autosize") || flag_of(label, "wordwrap") ||
+            label.window == ui::kNoWindow) {
+            return;
+        }
+        const auto metrics = state.host->measure_text(
+            label.window, text_value(label, "caption"), font_of(label));
+        label.values["width"] = Value{static_cast<float>(metrics.width + 45.0)};
+        label.values["height"] =
+            Value{static_cast<float>(metrics.height + 30.0)};
+        state.host->set_bounds(
+            label.window,
+            ui::Rect{number_of(label, "left"), number_of(label, "top"),
+                     number_of(label, "width"), number_of(label, "height")});
+    }
+
+    // A control's colors and BackStyle, for the host that paints it.
     static void push_label_style(Interpreter& in, const ControlObject& label) {
         const auto color = [&](const char* key) {
             const auto found = label.values.find(key);
@@ -2750,8 +2808,11 @@ struct FormSupport {
                 number_of("left"), number_of("top"),
                 object.is_form ? client_width(object) : number_of("width"),
                 object.is_form ? client_height(object) : number_of("height")});
-        if (object.class_key == "label") {
+        if (takes_host_colors(object)) {
             push_label_style(in, object);
+        }
+        if (takes_host_font(object) && has_font_values(object)) {
+            host.set_font(object.window, font_of(object));
         }
         const auto flag = [&](const char* key, const bool fallback) {
             const auto found = object.values.find(key);
@@ -3615,9 +3676,18 @@ struct FormSupport {
             }
             return ok;
         };
+        if (live && takes_host_font(self) &&
+            (member == "fontname" || member == "fontsize" ||
+             member == "fontbold" || member == "fontitalic" ||
+             member == "fontunderline" || member == "fontstrikethru")) {
+            host.set_font(self.window, font_of(self));
+            autosize_label(in, self);
+            return true;
+        }
         if (member == "caption" || member == "text") {
             if (live && std::holds_alternative<std::string>(now)) {
                 host.set_text(self.window, std::get<std::string>(now));
+                autosize_label(in, self);
             }
             const bool changed = !(now == old_value);
             if (changed && !self.is_form &&
@@ -3628,7 +3698,7 @@ struct FormSupport {
             }
             return true;
         }
-        if (live && self.class_key == "label" &&
+        if (live && takes_host_colors(self) &&
             (member == "forecolor" || member == "backcolor" ||
              member == "backstyle")) {
             push_label_style(in, self);

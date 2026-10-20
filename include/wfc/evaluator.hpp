@@ -79,6 +79,14 @@ struct EvaluationOptions final {
     // "win32" runs forms in real windows; anything else (the default) uses the
     // headless host.
     std::string ui_mode;
+    // With the Win32 host: full-screen mode (see Win32Host::set_fit). The
+    // reference size is the largest form in twips; `fit_screen_size` is
+    // "WIDTHxHEIGHT" to pretend the screen has that size, empty for the real
+    // one.
+    bool fit_screen{false};
+    double fit_width{0.0};
+    double fit_height{0.0};
+    std::string fit_screen_size;
     // With the Win32 host: a folder that receives a PNG of each form when it
     // is shown and just before it is unloaded.
     std::string screenshot_directory;

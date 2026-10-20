@@ -821,6 +821,8 @@ Evaluation evaluate_program(const std::string_view source,
         interpreter.set_ui_script(options.ui_script);
         interpreter.set_exit_after(options.exit_after_ms);
         interpreter.set_ui_mode(options.ui_mode);
+        interpreter.set_fit_screen(options.fit_screen, options.fit_width,
+                                   options.fit_height, options.fit_screen_size);
         interpreter.set_screenshot_directory(options.screenshot_directory);
         interpreter.set_serving(options.serve, options.project_name,
                                 options.server_timeout_ms,
