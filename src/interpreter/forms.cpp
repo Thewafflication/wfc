@@ -2814,6 +2814,11 @@ struct FormSupport {
         if (takes_host_font(object) && has_font_values(object)) {
             host.set_font(object.window, font_of(object));
         }
+        if (object.class_key == "label" &&
+            object.values.contains("alignment")) {
+            host.set_alignment(object.window,
+                               static_cast<int>(number_of("alignment")));
+        }
         const auto flag = [&](const char* key, const bool fallback) {
             const auto found = object.values.find(key);
             if (found != object.values.end()) {
@@ -3676,6 +3681,11 @@ struct FormSupport {
             }
             return ok;
         };
+        if (live && self.class_key == "label" && member == "alignment") {
+            host.set_alignment(self.window,
+                               static_cast<int>(number_of(self, "alignment")));
+            return true;
+        }
         if (live && takes_host_font(self) &&
             (member == "fontname" || member == "fontsize" ||
              member == "fontbold" || member == "fontitalic" ||

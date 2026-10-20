@@ -1406,6 +1406,21 @@ bool Win32Host::screen_metric(const long index, long& value) const {
     }
 }
 
+void Win32Host::set_alignment(const WindowId window, const int alignment) {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr || entry->kind != "Label") {
+        return;
+    }
+    auto style =
+        static_cast<LONG_PTR>(GetWindowLongPtrW(entry->hwnd, GWL_STYLE));
+    const LONG_PTR mode = alignment == 2   ? SS_CENTER
+                          : alignment == 1 ? SS_RIGHT
+                                           : SS_LEFT;
+    style = (style & ~static_cast<LONG_PTR>(SS_TYPEMASK)) | mode;
+    SetWindowLongPtrW(entry->hwnd, GWL_STYLE, style);
+    InvalidateRect(entry->hwnd, nullptr, TRUE);
+}
+
 void Win32Host::set_font(const WindowId window, const FontSpec& font) {
     auto* entry = find(window);
     if (entry == nullptr || entry->hwnd == nullptr || entry->is_form) {

@@ -199,6 +199,11 @@ public:
         static_cast<void>(value);
         return false;
     }
+    // A Label's text alignment: 0 left, 1 right, 2 centered (VB's values).
+    virtual void set_alignment(WindowId window, int alignment) {
+        static_cast<void>(window);
+        static_cast<void>(alignment);
+    }
     virtual void set_font(WindowId window, const FontSpec& font) {
         static_cast<void>(window);
         static_cast<void>(font);

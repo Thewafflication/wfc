@@ -53,6 +53,7 @@ public:
     [[nodiscard]] std::string surface_image(WindowId window) override;
     void set_form_style(WindowId window, int border_style) override;
     void set_font(WindowId window, const FontSpec& font) override;
+    void set_alignment(WindowId window, int alignment) override;
     [[nodiscard]] bool screen_metric(long index, long& value) const override;
     void set_label_style(WindowId window, long fore, long back,
                          bool transparent) override;
