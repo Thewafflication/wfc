@@ -191,6 +191,14 @@ public:
     virtual void set_enabled(WindowId window, bool enabled) = 0;
     // Colors of a Label (-1: the default) and whether it is transparent.
     // The font a control with a window of its own draws its text in.
+    // The screen as the program sees it in full-screen mode: `index` 0 and 1
+    // the width and height in pixels, 2 and 3 the pixels per inch the
+    // program is scaled to. False when the host does not scale the program.
+    [[nodiscard]] virtual bool screen_metric(long index, long& value) const {
+        static_cast<void>(index);
+        static_cast<void>(value);
+        return false;
+    }
     virtual void set_font(WindowId window, const FontSpec& font) {
         static_cast<void>(window);
         static_cast<void>(font);

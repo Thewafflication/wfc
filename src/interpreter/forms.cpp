@@ -6422,6 +6422,13 @@ void Interpreter::form_refresh_surfaces() {
     }
 }
 
+bool Interpreter::form_screen_metric(const long index, long& value) {
+    if (!fit_screen_ || ui_mode_ != "win32") {
+        return false;
+    }
+    return FormSupport::runtime(*this).host->screen_metric(index, value);
+}
+
 Value Interpreter::form_active(const int what) {
     if (!forms_) {
         return Value{Nothing{}};

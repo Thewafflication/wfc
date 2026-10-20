@@ -1049,8 +1049,9 @@ bool Win32Host::draw_button(const void* draw_item_struct) {
     GetWindowTextW(item.hwndItem, caption, 256);
     SetBkMode(item.hDC, TRANSPARENT);
     SetTextColor(item.hDC, text_color);
+    HFONT button_font = entry->font != nullptr ? entry->font : font_;
     const HGDIOBJ old_font =
-        font_ != nullptr ? SelectObject(item.hDC, font_) : nullptr;
+        button_font != nullptr ? SelectObject(item.hDC, button_font) : nullptr;
     RECT text_area = area;
     InflateRect(&text_area, -4, -2);
     RECT measured = text_area;
@@ -1343,6 +1344,13 @@ std::string Win32Host::surface_image(const WindowId window) {
               reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS);
     DeleteObject(copy);
     DeleteDC(copy_dc);
+    // The resolution of the window, so the picture keeps its size in twips
+    // when the program is scaled to the screen.
+    header.biXPelsPerMeter =
+        static_cast<LONG>(std::lround(dpi_x_ * 10000.0 / 254.0));
+    header.biYPelsPerMeter =
+        static_cast<LONG>(std::lround(dpi_y_ * 10000.0 / 254.0));
+    header.biClrImportant = 0x57464321U;  // "WFC!": the resolution is real
     BITMAPFILEHEADER file{};
     file.bfType = 0x4D42;
     file.bfOffBits = sizeof(file) + sizeof(header);
@@ -1374,6 +1382,28 @@ void Win32Host::set_form_style(const WindowId window, const int style) {
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                      SWP_FRAMECHANGED);
+}
+
+bool Win32Host::screen_metric(const long index, long& value) const {
+    if (!fit_) {
+        return false;
+    }
+    switch (index) {
+        case 0:
+            value = screen_width_;
+            return true;
+        case 1:
+            value = screen_height_;
+            return true;
+        case 2:
+            value = dpi_x_;
+            return true;
+        case 3:
+            value = dpi_y_;
+            return true;
+        default:
+            return false;
+    }
 }
 
 void Win32Host::set_font(const WindowId window, const FontSpec& font) {

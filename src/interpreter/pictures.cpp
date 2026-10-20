@@ -82,8 +82,19 @@ bool read_picture_header(const std::string& bytes, PictureInfo& info) {
         } else {
             return false;
         }
-        info =
-            PictureInfo{PictureType::bitmap, himetric(width), himetric(height)};
+        long wide = himetric(width);
+        long high = himetric(height);
+        if (header_size >= 40U && bytes.size() >= 54U &&
+            le32(bytes, 50) == 0x57464321U && le32(bytes, 38) != 0U &&
+            le32(bytes, 42) != 0U) {
+            // A picture of a surface made by the host keeps the resolution of
+            // the window it was taken from.
+            wide = static_cast<long>(static_cast<std::uint64_t>(width) *
+                                     100000U / le32(bytes, 38));
+            high = static_cast<long>(static_cast<std::uint64_t>(height) *
+                                     100000U / le32(bytes, 42));
+        }
+        info = PictureInfo{PictureType::bitmap, wide, high};
         return width != 0U && height != 0U;
     }
     if (byte_at(bytes, 0) == 0 && byte_at(bytes, 1) == 0 &&

@@ -1821,6 +1821,8 @@ private:
     void register_native_types();
     // `Screen.ActiveForm` (0) and `Screen.ActiveControl` (1).
     [[nodiscard]] Value form_active(int what);
+    // A screen metric as full-screen mode scales it; false when it does not.
+    [[nodiscard]] bool form_screen_metric(long index, long& value);
     // `WfcDialog(kind, title, dir, file, filter, ext, index, flags, color
     // [, font, size, bold, italic])`: runs a native dialog; see
     // builtin_class_sources.hpp.

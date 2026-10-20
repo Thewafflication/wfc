@@ -546,6 +546,9 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (name == "wfcsysfont") {
             return Value{system_font_name(index)};
         }
+        if (long scaled = 0; form_screen_metric(index, scaled)) {
+            return Value{static_cast<Integer>(scaled)};
+        }
         return Value{system_metric(index)};
     }
     if (name == "wfcstore") {
