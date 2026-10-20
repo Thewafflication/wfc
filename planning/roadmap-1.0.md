@@ -29,7 +29,7 @@ gate may not be bypassed by moving unfinished work into an undocumented gap.
 | MP-0005 | 0.5.0 | Component authoring, `stdole`, and OLE2 | ActiveX components, font/picture contracts, persistence, registration, and retained OLE hosting work |
 | MP-0006 | 0.6.0 | `MSComctlLib` compatibility | Nine common controls satisfy API, behavior, event, rendering, and persistence gates |
 | MP-0007 | 0.7.0 | Packaging and VBRUN export surface | WFC builds self-contained packaged programs and a library with the MSVBVM60 export directory (closed 2026-10-12; machine-code generation moved to MP-0009) |
-| MP-0008 | 0.8.0 | Project compatibility | Representative real VB6 projects, including archived games, load and run on x86, x64, and ARM64 with documented variances; the first WPM package and release follow this gate |
+| MP-0008 | 0.8.0 | Project compatibility | Representative real VB6 projects, including archived games, load and run on x86, x64, and ARM64 with documented variances; the first WPM package and release follow this gate (closed 2026-10-20; release `0.8.0`) |
 | MP-0009 | 0.9.0 | Native compilation | WFC generates native x86, AMD64, and ARM64 code, with no translation layer, and the compiler/runtime corpus passes on all three |
 | MP-0010 | 0.10.0 | Compatibility closure candidate | Applicable requirements are implemented; remaining work is defect, evidence, documentation, and release closure |
 | MP-0011 | 1.0.0 | Mostly complete replacement | The 1.0 compatibility profile and all release-quality gates are approved |

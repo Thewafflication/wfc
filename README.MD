@@ -13,12 +13,12 @@ runtime and engineering-process foundations.
 
 ## Current Progress
 
-Milestones MP-0002 through MP-0007 are closed: the VB/VBA language runtime,
+Milestones MP-0002 through MP-0008 are closed: the VB/VBA language runtime,
 classes, projects and COM Automation, forms and intrinsic controls, ActiveX
 hosting and component authoring, the nine `MSComctlLib` common controls, and
 packaged programs (`wfc --build`). MP-0008 (running real VB6 projects,
-starting with archived games) is under way and then MP-0009 (native x86, AMD64 and ARM64
-code generation). See [the roadmap](planning/roadmap-1.0.md).
+starting with archived games) is closed and released as `0.8.0`; MP-0009 (native
+x86, AMD64 and ARM64 code generation) is next. See [the roadmap](planning/roadmap-1.0.md).
 
 The captures below come from the test suite, running real VB6 form projects in
 native Win32 windows.

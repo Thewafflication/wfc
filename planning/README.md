@@ -22,10 +22,9 @@
 
 ## Active Milestone
 
-MP-0008 — Project Compatibility (`0.8.0`), per the
-[MP-0008 plan](MP-0008-project-compatibility.md) and the
-[roadmap](roadmap-1.0.md). Progress is recorded in the
-[MP-0008 work log](work-log-mp-0008.md).
+MP-0009 — Native Compilation (`0.9.0`), per the
+[MP-0009 plan](MP-0009-native-compilation.md) and the
+[roadmap](roadmap-1.0.md). The plan awaits approval; no code has started.
 
 Closed milestones:
 
@@ -51,6 +50,10 @@ Closed milestones:
   with machine-code generation moved to MP-0009 (native x86, AMD64 and ARM64,
   no translation layer); see the [closeout record](MP-0007-closeout.md),
   [plan](MP-0007-native-compiler.md) and [work log](work-log-mp-0007.md).
+- MP-0008 — Project Compatibility (`0.8.0`), closed 2026-10-20 with native
+  machine code and reference-machine probes deferred; the first release
+  (`0.8.0`) follows; see the [closeout record](MP-0008-closeout.md),
+  [plan](MP-0008-project-compatibility.md) and [work log](work-log-mp-0008.md).
 
 The [language requirements index](../requirements/language/README.md) is the
 authoritative list of what has been specified and implemented, `REQ-0069`

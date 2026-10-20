@@ -1,7 +1,7 @@
 # MP-0008 — Project Compatibility
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Complete (closeout: [MP-0008-closeout.md](MP-0008-closeout.md))  
 **Target baseline:** 0.8.0  
 **Planned period:** 2026-10-12 through milestone closeout  
 **Inherited baseline:** MP-0007 closeout (`MP-0007-closeout.md`), `master` at the closeout commit  
@@ -142,11 +142,11 @@ increment as a normal Git change.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| Each corpus project loads and reaches its acceptance state | Acceptance tests | Required | Met for the seven corpus projects (2026-10-13): each is started in real windows and screenshotted, and scripted play sessions check Resta Um, Connect 4, SuMBOku, Executioner and Pipes; Capture King plays whole games, also two copies against each other over a virtual LAN |
-| Every corpus project has provenance and a license record | `PROVENANCE.md` | Required | Met: `tests/vb6games/*/PROVENANCE.md` for all seven; Rol An Go ARENA is excluded (no license) |
-| The corpus passes on x86, x64 and ARM64 | CI | Required | Met on the last green runs; ARM64 and x86 are slower, so waits in tests are causal (`waitfor`) instead of fixed times |
-| Every variance is traced to an approved scope or defect record | Work log, closeout | Required | Open: the variances are in the work log; the closeout collects them |
-| The WPM package verifies | Package verification | Required | Not started (needs the owner's decisions in the release plan) |
+| Each corpus project loads and reaches its acceptance state | Acceptance tests | Required | Pass |
+| Every corpus project has provenance and a license record | `PROVENANCE.md` | Required | Pass |
+| The corpus passes on x86, x64 and ARM64 | CI | Required | Pass |
+| Every variance is traced to an approved scope or defect record | Work log, closeout | Required | Pass (closeout, Variances) |
+| The WPM package verifies | Package verification | Required | Pass at the release tag |
 | Behavioral probes retained | None | Roadmap gate | Deferred |
 
 ## Deferred Objectives
