@@ -104,6 +104,10 @@ void print_newline() {
             return "Invalid procedure call or argument";
         case 6:
             return "Overflow";
+        case 7:
+            return "Out of memory";
+        case 9:
+            return "Subscript out of range";
         case 11:
             return "Division by zero";
         default:
@@ -377,6 +381,199 @@ std::int32_t double_sign(const double value) {
     return value > 0 ? 1 : (value < 0 ? -1 : 0);
 }
 
+// ----- Arrays -------------------------------------------------------------
+//
+// An array handle points to a `RtArray`; elements follow the header. Kind 0
+// holds 32-bit integers (Boolean, Integer, Long), kind 1 doubles and kind 2
+// string handles (released with the array). The null handle is an array that
+// has not been dimensioned.
+
+struct RtBound final {
+    std::int32_t lower;
+    std::int32_t upper;
+};
+
+struct RtArray final {
+    std::int32_t kind;
+    std::int32_t dims;
+    std::int32_t fixed;
+    std::int32_t count;
+    RtBound bounds[3];
+};
+
+[[nodiscard]] std::size_t element_size(const std::int32_t kind) {
+    return kind == 0 ? 4U : 8U;
+}
+
+[[nodiscard]] char* data_of(RtArray* array) {
+    return reinterpret_cast<char*>(array) + sizeof(RtArray);
+}
+
+void release_elements(RtArray* array) {
+    if (array->kind == 2) {
+        auto* handles = reinterpret_cast<RtString**>(data_of(array));
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            release(handles[i]);
+            handles[i] = nullptr;
+        }
+    }
+}
+
+void array_release(RtArray* array) {
+    if (array != nullptr) {
+        release_elements(array);
+        std::free(array);
+    }
+}
+
+void array_redim(RtArray** variable, const std::int32_t flags,
+                 const std::int32_t dims, const std::int64_t* bounds,
+                 const std::int32_t preserve) {
+    const std::int32_t kind = flags & 0xFF;
+    if (dims < 1 || dims > 3) {
+        raise_error(9);
+    }
+    RtArray header{};
+    header.kind = kind;
+    header.dims = dims;
+    header.fixed = (flags >> 8) & 1;
+    std::int64_t count = 1;
+    for (std::int32_t k = 0; k < dims; ++k) {
+        const auto lower = static_cast<std::int32_t>(bounds[2 * k]);
+        const auto upper = static_cast<std::int32_t>(bounds[2 * k + 1]);
+        if (upper < lower) {
+            raise_error(9);
+        }
+        header.bounds[k] = RtBound{lower, upper};
+        count *= static_cast<std::int64_t>(upper) - lower + 1;
+        if (count > (1LL << 28)) {
+            raise_error(7);
+        }
+    }
+    header.count = static_cast<std::int32_t>(count);
+    auto* array = static_cast<RtArray*>(
+        std::calloc(1, sizeof(RtArray) + static_cast<std::size_t>(count) *
+                                             element_size(kind)));
+    if (array == nullptr) {
+        raise_error(7);
+    }
+    *array = header;
+    RtArray* old = *variable;
+    if (preserve != 0 && old != nullptr && old->dims == dims &&
+        old->kind == kind) {
+        // Elements that exist in both keep their values.
+        const std::size_t size = element_size(kind);
+        for (std::int32_t at = 0; at < old->count; ++at) {
+            std::int32_t index[3] = {0, 0, 0};
+            std::int32_t rest = at;
+            for (std::int32_t k = dims - 1; k >= 0; --k) {
+                const std::int32_t extent =
+                    old->bounds[k].upper - old->bounds[k].lower + 1;
+                index[k] = old->bounds[k].lower + rest % extent;
+                rest /= extent;
+            }
+            std::int64_t target = 0;
+            bool inside = true;
+            for (std::int32_t k = 0; k < dims; ++k) {
+                if (index[k] < header.bounds[k].lower ||
+                    index[k] > header.bounds[k].upper) {
+                    inside = false;
+                    break;
+                }
+                target =
+                    target *
+                        (static_cast<std::int64_t>(header.bounds[k].upper) -
+                         header.bounds[k].lower + 1) +
+                    (index[k] - header.bounds[k].lower);
+            }
+            if (inside) {
+                char* from = data_of(old) + static_cast<std::size_t>(at) * size;
+                std::memcpy(
+                    data_of(array) + static_cast<std::size_t>(target) * size,
+                    from, size);
+                if (kind == 2) {
+                    std::memset(from, 0, size);  // the string moved
+                }
+            }
+        }
+    }
+    array_release(old);
+    *variable = array;
+}
+
+[[nodiscard]] RtArray* checked(RtArray* array, const std::int32_t dims) {
+    if (array == nullptr || array->dims != dims) {
+        raise_error(9);
+    }
+    return array;
+}
+
+[[nodiscard]] std::int64_t offset_in(const RtArray* array, const std::int32_t k,
+                                     const std::int32_t index) {
+    const auto& bound = array->bounds[k];
+    if (index < bound.lower || index > bound.upper) {
+        raise_error(9);
+    }
+    return static_cast<std::int64_t>(index) - bound.lower;
+}
+
+[[nodiscard]] std::int64_t extent_of(const RtArray* array,
+                                     const std::int32_t k) {
+    return static_cast<std::int64_t>(array->bounds[k].upper) -
+           array->bounds[k].lower + 1;
+}
+
+void* array_element1(RtArray* array, const std::int32_t i) {
+    static_cast<void>(checked(array, 1));
+    return data_of(array) + static_cast<std::size_t>(offset_in(array, 0, i)) *
+                                element_size(array->kind);
+}
+
+void* array_element2(RtArray* array, const std::int32_t i,
+                     const std::int32_t j) {
+    static_cast<void>(checked(array, 2));
+    const auto at =
+        offset_in(array, 0, i) * extent_of(array, 1) + offset_in(array, 1, j);
+    return data_of(array) +
+           static_cast<std::size_t>(at) * element_size(array->kind);
+}
+
+void* array_element3(RtArray* array, const std::int32_t i, const std::int32_t j,
+                     const std::int32_t k) {
+    static_cast<void>(checked(array, 3));
+    const auto at = (offset_in(array, 0, i) * extent_of(array, 1) +
+                     offset_in(array, 1, j)) *
+                        extent_of(array, 2) +
+                    offset_in(array, 2, k);
+    return data_of(array) +
+           static_cast<std::size_t>(at) * element_size(array->kind);
+}
+
+std::int32_t array_bound(const RtArray* array, const std::int32_t dimension,
+                         const std::int32_t which) {
+    if (array == nullptr || dimension < 1 || dimension > array->dims) {
+        raise_error(9);
+    }
+    const auto& bound = array->bounds[dimension - 1];
+    return which == 0 ? bound.lower : bound.upper;
+}
+
+void array_erase(RtArray** variable) {
+    RtArray* array = *variable;
+    if (array == nullptr) {
+        return;
+    }
+    if (array->fixed != 0) {
+        release_elements(array);
+        std::memset(
+            data_of(array), 0,
+            static_cast<std::size_t>(array->count) * element_size(array->kind));
+        return;
+    }
+    array_release(array);
+    *variable = nullptr;
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -422,7 +619,10 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&string_instr),        address_of(&string_space),
         address_of(&print_double),        address_of(&string_from_double),
         address_of(&double_to_long),      address_of(&math_function),
-        address_of(&double_sign),
+        address_of(&double_sign),         address_of(&array_redim),
+        address_of(&array_element1),      address_of(&array_element2),
+        address_of(&array_element3),      address_of(&array_bound),
+        address_of(&array_release),       address_of(&array_erase),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

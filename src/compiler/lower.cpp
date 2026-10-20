@@ -37,7 +37,14 @@ struct Value final {
 
 struct Variable final {
     Operand operand;
-    VbType type{VbType::none};
+    VbType type{VbType::none};  // the element type of an array
+    bool is_array{};
+};
+
+// A handle held by a variable of the procedure: released when it ends.
+struct Owned final {
+    Operand slot;
+    ir::Service release{ir::Service::string_release};
 };
 
 struct Signature final {
@@ -244,6 +251,9 @@ public:
             fail("the project has no Sub Main", Position{1, 1});
         }
         program_.entry = main->second.index;
+        if (!global_arrays_.empty()) {
+            make_start_function(main->second.index);
+        }
         return std::move(program_);
     }
 
@@ -258,6 +268,29 @@ private:
         }
     }
 
+    struct GlobalArray final {
+        Variable variable;
+        const Declaration* declaration;
+    };
+
+    // `__start`: allocates the module-level arrays, then runs Sub Main.
+    void make_start_function(const int main_index) {
+        ir::Function function;
+        function.name = "__start";
+        program_.functions.push_back(std::move(function));
+        auto& start = program_.functions.back();
+        FunctionBuilder builder(start);
+        builder_ = &builder;
+        for (const auto& array : global_arrays_) {
+            emit_array_allocation(array.variable, array.declaration->bounds,
+                                  true, false, true);
+        }
+        builder.call({}, main_index, {}, false);
+        builder.ret();
+        builder_ = nullptr;
+        program_.entry = static_cast<int>(program_.functions.size()) - 1;
+    }
+
     void declare_globals() {
         for (const auto& declaration : module_.globals) {
             require_type(declaration);
@@ -265,10 +298,14 @@ private:
                 fail("'" + declaration.name + "' is already declared",
                      declaration.at);
             }
-            globals_[declaration.name] = Variable{
+            const auto variable = Variable{
                 ir::global(static_cast<std::int64_t>(program_.globals.size())),
-                declaration.type};
+                declaration.type, declaration.is_array};
+            globals_[declaration.name] = variable;
             program_.globals.push_back(ir::Global{declaration.name});
+            if (declaration.is_array && !declaration.bounds.empty()) {
+                global_arrays_.push_back(GlobalArray{variable, &declaration});
+            }
         }
     }
 
@@ -356,11 +393,12 @@ private:
             const auto index = function.slot_count++;
             locals_[parameter.name] = Variable{
                 parameter.by_value ? ir::slot(index) : ir::indirect(index),
-                parameter.type};
+                parameter.type, parameter.is_array};
             if (parameter.by_value && parameter.type == VbType::string) {
                 // The callee owns its copy of a string parameter.
                 builder.runtime(Service::string_addref, {ir::slot(index)});
-                owned_slots_.push_back(ir::slot(index));
+                owned_slots_.push_back(
+                    Owned{ir::slot(index), Service::string_release});
             }
         }
         if (procedure.is_function) {
@@ -390,8 +428,8 @@ private:
             builder.insert_zero(entry_index_ + i, late_zero_[i]);
         }
         builder.place(end_label_);
-        for (const auto& slot : owned_slots_) {
-            builder.runtime(Service::string_release, {slot});
+        for (const auto& owned : owned_slots_) {
+            builder.runtime(owned.release, {owned.slot});
         }
         builder.ret();
         builder_ = nullptr;
@@ -414,11 +452,78 @@ private:
                  declaration.at);
         }
         const auto slot = builder_->new_temp();
+        if (declaration.is_array) {
+            // An array is a handle; a fixed-size one is allocated now.
+            builder_->move_wide(slot, ir::immediate(0));
+            const auto variable = Variable{slot, declaration.type, true};
+            locals_[declaration.name] = variable;
+            owned_slots_.push_back(Owned{slot, Service::array_release});
+            if (!declaration.bounds.empty()) {
+                emit_array_allocation(variable, declaration.bounds, true, false,
+                                      true);
+            }
+            return;
+        }
         zero(slot, declaration.type);
         locals_[declaration.name] = Variable{slot, declaration.type};
         if (declaration.type == VbType::string) {
-            owned_slots_.push_back(slot);
+            owned_slots_.push_back(Owned{slot, Service::string_release});
         }
+    }
+
+    [[nodiscard]] static int element_kind(const VbType type) {
+        return type == VbType::string ? 2 : (is_float(type) ? 1 : 0);
+    }
+
+    // Dimensions an array: the bounds are constants (`constant`) or
+    // expressions evaluated now (ReDim).
+    void emit_array_allocation(const Variable& variable,
+                               const std::vector<ArrayBound>& bounds,
+                               const bool fixed, const bool preserve,
+                               const bool constant) {
+        const auto dims = static_cast<int>(bounds.size());
+        if (dims < 1 || dims > 3) {
+            fail("arrays of one to three dimensions are compiled so far",
+                 Position{});
+        }
+        // The bounds go to consecutive slots; the service reads them upwards
+        // in memory, which is downwards in slot numbers.
+        const auto count = 2 * dims;
+        std::vector<Operand> slots;
+        for (int i = 0; i < count; ++i) {
+            slots.push_back(builder_->new_temp());
+        }
+        const auto place = [&](const int index) {
+            return slots[static_cast<std::size_t>(count - 1 - index)];
+        };
+        for (int k = 0; k < dims; ++k) {
+            const auto& bound = bounds[static_cast<std::size_t>(k)];
+            for (int side = 0; side < 2; ++side) {
+                const Expr* expression =
+                    side == 0 ? bound.low.get() : bound.high.get();
+                Operand value = ir::immediate(0);
+                if (expression != nullptr) {
+                    if (constant) {
+                        const auto folded = fold(*expression);
+                        value = fold_convert(folded, VbType::long_integer,
+                                             expression->at)
+                                    .operand;
+                    } else {
+                        value = to_long(lower_expression(*expression),
+                                        expression->at)
+                                    .operand;
+                    }
+                }
+                builder_->emit(Opcode::move, place(2 * k + side), value);
+            }
+        }
+        const auto block = builder_->new_temp();
+        builder_->emit(Opcode::address, block, place(0));
+        builder_->runtime(
+            Service::array_redim,
+            {address_of(variable.operand),
+             ir::immediate(element_kind(variable.type) | (fixed ? 0x100 : 0)),
+             ir::immediate(dims), block, ir::immediate(preserve ? 1 : 0)});
     }
 
     [[nodiscard]] Variable find_variable(const std::string& name,
@@ -503,6 +608,19 @@ private:
             case StmtKind::go_to:
                 builder_->jump(label_for(statement.text));
                 break;
+            case StmtKind::redim:
+                lower_redim(statement);
+                break;
+            case StmtKind::erase:
+                for (const auto& item : statement.items) {
+                    const auto variable = find_variable(item->text, item->at);
+                    if (!variable.is_array) {
+                        fail("'" + item->text + "' is not an array", item->at);
+                    }
+                    builder_->runtime(Service::array_erase,
+                                      {address_of(variable.operand)});
+                }
+                break;
         }
         flush_temps();
     }
@@ -514,8 +632,19 @@ private:
              constants_.contains(statement.text))) {
             fail("'" + statement.text + "' is a constant", statement.at);
         }
-        const auto target = find_variable(statement.text, statement.at);
+        auto target = find_variable(statement.text, statement.at);
         const auto value = lower_expression(*statement.expr);
+        if (!statement.items.empty()) {
+            if (!target.is_array) {
+                fail("'" + statement.text + "' is not an array", statement.at);
+            }
+            target =
+                Variable{element_address(target, statement.items, statement.at),
+                         target.type};
+        } else if (target.is_array) {
+            fail("the array '" + statement.text + "' needs an index",
+                 statement.at);
+        }
         if (target.type == VbType::string) {
             if (value.type != VbType::string) {
                 fail("a number cannot be assigned to a String variable yet",
@@ -712,11 +841,128 @@ private:
         return id;
     }
 
+    // The operand that reads or writes element `indices` of an array: the
+    // service checks the bounds (error 9) and returns the element's address.
+    [[nodiscard]] Operand element_address(const Variable& array,
+                                          const std::vector<ExprPtr>& indices,
+                                          const Position at) {
+        if (indices.empty() || indices.size() > 3U) {
+            fail("an array needs one to three indices", at);
+        }
+        std::vector<Operand> arguments;
+        const auto handle = builder_->new_temp();
+        builder_->move_wide(handle, array.operand);
+        arguments.push_back(handle);
+        for (const auto& index : indices) {
+            const auto value = lower_expression(*index);
+            if (!is_numeric(value.type)) {
+                fail("an array index must be a number", index->at);
+            }
+            arguments.push_back(to_long(value, index->at).operand);
+        }
+        const auto pointer = builder_->new_temp();
+        const Service service = indices.size() == 1U ? Service::array_element1
+                                : indices.size() == 2U
+                                    ? Service::array_element2
+                                    : Service::array_element3;
+        builder_->runtime(service, std::move(arguments), pointer, true);
+        return ir::indirect(pointer.value);
+    }
+
+    // The value of `array(indices)`.
+    [[nodiscard]] Value element_value(const Variable& array,
+                                      const std::vector<ExprPtr>& indices,
+                                      const Position at) {
+        const auto operand = element_address(array, indices, at);
+        if (array.type == VbType::string) {
+            const auto copy = builder_->new_temp();
+            builder_->move_wide(copy, operand);
+            return Value{copy, VbType::string};
+        }
+        return Value{operand, array.type};
+    }
+
+    [[nodiscard]] std::optional<Variable> find_array(
+        const std::string& name) const {
+        if (const auto found = locals_.find(name); found != locals_.end()) {
+            return found->second.is_array
+                       ? std::optional<Variable>(found->second)
+                       : std::nullopt;
+        }
+        if (const auto found = globals_.find(name); found != globals_.end()) {
+            return found->second.is_array
+                       ? std::optional<Variable>(found->second)
+                       : std::nullopt;
+        }
+        return std::nullopt;
+    }
+
+    void lower_redim(const Stmt& statement) {
+        for (const auto& declaration : statement.declarations) {
+            const auto variable =
+                find_variable(declaration.name, declaration.at);
+            if (!variable.is_array) {
+                fail("'" + declaration.name + "' is not an array",
+                     declaration.at);
+            }
+            if (declaration.type_given && declaration.type != variable.type) {
+                fail("ReDim cannot change the type of '" + declaration.name +
+                         "'",
+                     declaration.at);
+            }
+            emit_array_allocation(variable, declaration.bounds, false,
+                                  statement.preserve, false);
+        }
+    }
+
+    // The argument of an array parameter: the address of the array variable.
+    [[nodiscard]] Operand array_argument(const Expr& argument,
+                                         const VbType type) {
+        if (argument.kind != ExprKind::name) {
+            fail("an array argument must be the name of an array", argument.at);
+        }
+        const auto variable = find_variable(argument.text, argument.at);
+        if (!variable.is_array || variable.type != type) {
+            fail("'" + argument.text + "' is not an array of the type needed",
+                 argument.at);
+        }
+        return address_of(variable.operand);
+    }
+
+    // LBound(array [, dimension]) and UBound.
+    [[nodiscard]] Value lower_bound(const bool upper,
+                                    const std::vector<ExprPtr>& arguments,
+                                    const Position at) {
+        if (arguments.empty() || arguments.size() > 2U ||
+            arguments[0]->kind != ExprKind::name) {
+            fail("LBound and UBound need an array name and a dimension", at);
+        }
+        const auto variable = find_variable(arguments[0]->text, at);
+        if (!variable.is_array) {
+            fail("'" + arguments[0]->text + "' is not an array", at);
+        }
+        const auto handle = builder_->new_temp();
+        builder_->move_wide(handle, variable.operand);
+        Operand dimension = ir::immediate(1);
+        if (arguments.size() == 2U) {
+            dimension =
+                to_long(lower_expression(*arguments[1]), arguments[1]->at)
+                    .operand;
+        }
+        Value result;
+        result.type = VbType::long_integer;
+        result.operand = builder_->new_temp();
+        builder_->runtime(Service::array_bound,
+                          {handle, dimension, ir::immediate(upper ? 1 : 0)},
+                          result.operand);
+        return result;
+    }
+
     // A slot that owns a string for the whole procedure.
     [[nodiscard]] Operand reserve_owned_slot() {
         const auto slot = builder_->new_temp();
         late_zero_.push_back(slot);
-        owned_slots_.push_back(slot);
+        owned_slots_.push_back(Owned{slot, Service::string_release});
         return slot;
     }
 
@@ -1073,9 +1319,9 @@ private:
 
     [[nodiscard]] static bool is_special_builtin(const std::string& name) {
         static const char* const names[] = {
-            "cstr", "instr", "str", "cint", "clng", "cdbl",
-            "csng", "int",   "fix", "abs",  "sgn",  "sqr",
-            "sin",  "cos",   "tan", "atn",  "log",  "exp"};
+            "cstr", "instr", "str", "cint", "clng",   "cdbl",  "csng",
+            "int",  "fix",   "abs", "sgn",  "sqr",    "sin",   "cos",
+            "tan",  "atn",   "log", "exp",  "lbound", "ubound"};
         for (const char* candidate : names) {
             if (name == candidate) {
                 return true;
@@ -1123,6 +1369,10 @@ private:
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             const auto& parameter = signature.parameters[i];
             const auto& argument = *arguments[i];
+            if (parameter.is_array) {
+                passed.push_back(array_argument(argument, parameter.type));
+                continue;
+            }
             if (parameter.by_value && is_float(parameter.type)) {
                 double_args |= 1U << i;
             }
@@ -1239,6 +1489,9 @@ private:
         const Position at) {
         if (name == "instr") {
             return lower_instr(arguments, at);
+        }
+        if (name == "lbound" || name == "ubound") {
+            return lower_bound(name == "ubound", arguments, at);
         }
         if (arguments.size() != 1U) {
             fail(name + " takes 1 argument", at);
@@ -1457,6 +1710,10 @@ private:
                 }
                 const auto variable =
                     find_variable(expression.text, expression.at);
+                if (variable.is_array) {
+                    fail("the array '" + expression.text + "' needs an index",
+                         expression.at);
+                }
                 if (variable.type == VbType::string &&
                     variable.operand.kind != OperandKind::slot) {
                     // String handles are read through a slot.
@@ -1467,6 +1724,10 @@ private:
                 return Value{variable.operand, variable.type};
             }
             case ExprKind::call:
+                if (const auto array = find_array(expression.text)) {
+                    return element_value(*array, expression.operands,
+                                         expression.at);
+                }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true);
             case ExprKind::unary:
@@ -1724,8 +1985,9 @@ private:
     std::map<std::string, Variable> locals_;
     std::optional<Variable> result_variable_;
     std::vector<Loop> loops_;
-    std::vector<Operand> owned_slots_;  // string variables released at the end
-    std::vector<Operand> pending_;      // string temporaries of a statement
+    std::vector<Owned> owned_slots_;  // handles released when a procedure ends
+    std::vector<GlobalArray> global_arrays_;
+    std::vector<Operand> pending_;  // string temporaries of a statement
     std::map<std::string, Value> constants_;        // module constants
     std::map<std::string, Value> local_constants_;  // a procedure's constants
     std::map<std::string, int> labels_;

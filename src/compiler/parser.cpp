@@ -168,6 +168,22 @@ private:
         return type;
     }
 
+    // `[low To] high {, [low To] high} )`; the opening parenthesis is read.
+    void array_bounds(std::vector<ArrayBound>& into) {
+        do {
+            ArrayBound bound;
+            auto first = expression();
+            if (accept_word("to")) {
+                bound.low = std::move(first);
+                bound.high = expression();
+            } else {
+                bound.high = std::move(first);
+            }
+            into.push_back(std::move(bound));
+        } while (accept_symbol(","));
+        expect_symbol(")");
+    }
+
     [[nodiscard]] Declaration declarator() {
         if (current().kind != TokenKind::identifier) {
             fail("expected a variable name");
@@ -179,7 +195,11 @@ private:
         const VbType by_suffix = suffix_type(spelled);
         advance();
         if (is_symbol("(")) {
-            fail("arrays are not compiled yet");
+            advance();
+            declaration.is_array = true;
+            if (!accept_symbol(")")) {
+                array_bounds(declaration.bounds);
+            }
         }
         if (accept_word("as")) {
             if (is_word("new")) {
@@ -311,7 +331,10 @@ private:
         result.type = suffix_type(spelled);
         advance();
         if (is_symbol("(")) {
-            fail("array parameters are not compiled yet");
+            advance();
+            expect_symbol(")");
+            result.is_array = true;
+            result.by_value = false;
         }
         if (accept_word("as")) {
             result.type = type_name();
@@ -401,6 +424,23 @@ private:
         if (word == "select") {
             return select_statement();
         }
+        if (word == "redim") {
+            return redim_statement();
+        }
+        if (word == "erase") {
+            auto result = make(StmtKind::erase);
+            advance();
+            do {
+                auto name = make_expr(ExprKind::name, here());
+                if (current().kind != TokenKind::identifier) {
+                    fail("expected an array name");
+                }
+                name->text = without_suffix(current().text);
+                advance();
+                result->items.push_back(std::move(name));
+            } while (accept_symbol(","));
+            return result;
+        }
         if (word == "print") {
             return print_statement();
         }
@@ -434,13 +474,39 @@ private:
             return assignment_or_call();
         }
         if (word == "with" || word == "gosub" || word == "on" ||
-            word == "set" || word == "redim" || word == "open" ||
-            word == "close" || word == "static" || word == "erase" ||
-            word == "randomize" || word == "line" || word == "raiseevent") {
+            word == "set" || word == "open" || word == "close" ||
+            word == "static" || word == "randomize" || word == "line" ||
+            word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
         return assignment_or_call();
+    }
+
+    [[nodiscard]] StmtPtr redim_statement() {
+        auto result = make(StmtKind::redim);
+        advance();
+        if (accept_word("preserve")) {
+            result->preserve = true;
+        }
+        do {
+            if (current().kind != TokenKind::identifier) {
+                fail("expected an array name");
+            }
+            Declaration declaration;
+            declaration.at = here();
+            declaration.name = without_suffix(current().text);
+            declaration.is_array = true;
+            advance();
+            expect_symbol("(");
+            array_bounds(declaration.bounds);
+            if (accept_word("as")) {
+                declaration.type = type_name();
+                declaration.type_given = true;
+            }
+            result->declarations.push_back(std::move(declaration));
+        } while (accept_symbol(","));
+        return result;
     }
 
     [[nodiscard]] StmtPtr select_statement() {
@@ -516,9 +582,45 @@ private:
         return result;
     }
 
+    // Whether `name ( ... ) =` starts here: an assignment to an element.
+    [[nodiscard]] bool is_element_assignment() const {
+        if (!(ahead(1).kind == TokenKind::symbol && ahead(1).text == "(")) {
+            return false;
+        }
+        int depth = 0;
+        for (std::size_t i = 1;; ++i) {
+            const Token& token = ahead(i);
+            if (token.kind == TokenKind::end_of_statement ||
+                token.kind == TokenKind::end_of_file) {
+                return false;
+            }
+            if (token.kind == TokenKind::symbol && token.text == "(") {
+                ++depth;
+            } else if (token.kind == TokenKind::symbol && token.text == ")") {
+                if (--depth == 0) {
+                    const Token& next = ahead(i + 1);
+                    return next.kind == TokenKind::symbol && next.text == "=";
+                }
+            }
+        }
+    }
+
     [[nodiscard]] StmtPtr assignment_or_call() {
         if (current().kind != TokenKind::identifier) {
             fail("expected a statement");
+        }
+        if (is_element_assignment()) {
+            auto result = make(StmtKind::assign);
+            result->text = without_suffix(current().text);
+            advance();
+            expect_symbol("(");
+            do {
+                result->items.push_back(expression());
+            } while (accept_symbol(","));
+            expect_symbol(")");
+            expect_symbol("=");
+            result->expr = expression();
+            return result;
         }
         if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "=") {
             auto result = make(StmtKind::assign);

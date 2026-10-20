@@ -133,7 +133,17 @@ enum class Service : int {
     double_to_long = 30,       // (double) -> int32, rounded; error 6 if too big
     math_function = 31,        // (int which, double) -> double: MathFunction
     double_sign = 32,          // (double) -> -1, 0 or 1
-    count = 33,
+    // Arrays: a handle is a pointer to a reference-counted array object; the
+    // null handle is an array that has no elements yet (error 9 on access).
+    array_redim = 33,     // (handle* var, kind|fixed, dims, int64* bounds,
+                          //  preserve); bounds are lower, upper per dimension
+    array_element1 = 34,  // (handle, i) -> address of the element
+    array_element2 = 35,  // (handle, i, j)
+    array_element3 = 36,  // (handle, i, j, k)
+    array_bound = 37,     // (handle, dimension from 1, 0 lower or 1 upper)
+    array_release = 38,   // (handle)
+    array_erase = 39,     // (handle* var)
+    count = 40,
 };
 
 struct Instruction final {

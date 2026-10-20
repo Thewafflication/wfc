@@ -72,6 +72,8 @@ enum class StmtKind {
     const_decl,   // constants
     label,        // text = the label
     go_to,        // text = the label
+    redim,        // declarations (with bounds); preserve
+    erase,        // items: the names (as name expressions)
 };
 
 // One test of a Case: a value, a range (`low To high`) or `Is <op> low`.
@@ -96,10 +98,18 @@ struct ConstantDecl final {
     Position at;
 };
 
+// One dimension of an array: `low To high`, or just `high` (low is null).
+struct ArrayBound final {
+    ExprPtr low;
+    ExprPtr high;
+};
+
 struct Declaration final {
     std::string name;           // lower-case
     VbType type{VbType::none};  // none: no type given (a Variant)
     bool type_given{};
+    bool is_array{};
+    std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
     Position at;
 };
 
@@ -120,11 +130,13 @@ struct Stmt final {
     bool has_else{};
     std::vector<StmtPtr> body;  // loop body, or Case Else
     std::vector<CaseBlock> cases;
+    bool preserve{};  // ReDim Preserve
     std::vector<ConstantDecl> constants;
 };
 
 struct Parameter final {
     std::string name;
+    bool is_array{};            // `name() As Type`: always passed by reference
     VbType type{VbType::none};  // none: no type given (a Variant)
     bool by_value{};
 };
