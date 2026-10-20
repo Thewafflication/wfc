@@ -6,7 +6,9 @@ packages it signs. The private half lives only in the GitHub secret
 `WPM_RELEASE_PRIVATE_KEY` of the protected `release` environment; it is never
 committed or printed.
 
-To create the pair (the owner does this; WCRT's key is a separate key):
+The owner decided on 2026-10-20 to sign WFC packages with the same WPM key as
+WCRT (`wfc-release.public` is identical to `wcrt/release_keys/wpm-release.public`).
+To create a new pair instead (the owner does this):
 
 ```powershell
 wpm keygen wfc-release.private wfc-release.public

@@ -42,7 +42,7 @@ runtime for x86, x64 and ARM64, and the demonstration programs built from the
 | Gap | Owner action or work |
 | --- | --- |
 | The CI workflow had Debug only. A Release matrix now exists (`windows-<arch>-release` presets and a `Release` job that builds, runs the whole suite and records artifact digests); a package job and a publish job do not exist | Add them, modelled on WCRT's workflow, fail-closed |
-| A WPM signing key | Owner creates it with `wpm keygen`, commits `release_keys/wfc-release.public` and stores the private half as the secret `WPM_RELEASE_PRIVATE_KEY` of the protected `release` environment (steps in `release_keys/README.md`); the WCRT key is separate. The CI `package` job (version tags only) reads the secret, signs both packages and verifies them against the public key; it fails closed when either is missing |
+| A WPM signing key | Owner creates it with `wpm keygen`, commits `release_keys/wfc-release.public` and stores the private half as the secret `WPM_RELEASE_PRIVATE_KEY` of the protected `release` environment (steps in `release_keys/README.md`); on 2026-10-20 the owner chose to reuse the WCRT key (the secret `WPM_RELEASE_PRIVATE_KEY` is set at repository level and `release_keys/wfc-release.public` is the same public key); the protected `release` environment does not exist yet. The CI `package` job (version tags only) reads the secret, signs both packages and verifies them against the public key; it fails closed when either is missing |
 | Dependency on `wcrt` | The package records the exact `wcrt` revision (ADR-0002) |
 | Version number | `0.8.0` at the MP-0008 closeout, owner confirms |
 | Licenses of any further corpus games | Checked per game before it is packaged |
