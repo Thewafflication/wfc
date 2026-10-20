@@ -133,6 +133,25 @@ struct Win32Support {
         bool down = false;
         bool up = false;
         switch (message) {
+            case WM_CTLCOLORSTATIC:
+            case WM_CTLCOLOREDIT:
+            case WM_CTLCOLORLISTBOX:
+            case WM_CTLCOLORBTN:
+                // Controls inside a frame report to the frame's window.
+                if (host != nullptr) {
+                    if (HBRUSH brush =
+                            host->label_brush(reinterpret_cast<HWND>(lparam),
+                                              reinterpret_cast<HDC>(wparam))) {
+                        return reinterpret_cast<LRESULT>(brush);
+                    }
+                }
+                return DefSubclassProc(hwnd, message, wparam, lparam);
+            case WM_DRAWITEM:
+                if (host != nullptr &&
+                    host->draw_button(reinterpret_cast<const void*>(lparam))) {
+                    return TRUE;
+                }
+                return DefSubclassProc(hwnd, message, wparam, lparam);
             case WM_NCHITTEST: {
                 wchar_t class_name[16]{};
                 GetClassNameW(hwnd, class_name, 16);
@@ -1366,6 +1385,9 @@ void Win32Host::set_form_style(const WindowId window, const int style) {
     if (it == windows_.end() || it->second->hwnd == nullptr ||
         !it->second->is_form || it->second->mdi_child) {
         return;
+    }
+    if (fit_) {
+        return;  // full-screen forms never have a frame
     }
     DWORD flags = WS_CLIPCHILDREN;
     if (style == 0) {
