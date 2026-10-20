@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 #include "com_server.hpp"
+#include "compiler/compile.hpp"
+#include "compiler/native_host.hpp"
 #include "package.hpp"
 
 namespace {
@@ -96,6 +98,57 @@ int build_package(const int argument_count, const char* const arguments[]) {
     return 0;
 }
 
+// `wfc --native <project.vbp | module.bas>`: compiles the project to machine
+// code in memory and runs it (ADR-0008). Exit code 77 means that this
+// architecture has no back end yet.
+int run_native(const int argument_count, const char* const arguments[]) {
+    std::vector<std::filesystem::path> files;
+    for (int i = 2; i < argument_count; ++i) {
+        files.emplace_back(arguments[i]);
+    }
+    if (!files.empty() && files.front().extension() == ".vbp") {
+        for (auto& file : files) {
+            file = std::filesystem::absolute(file);
+        }
+    }
+    const auto project = wfc::load_project(files);
+    if (!project.ok) {
+        std::cerr << project.error << '\n';
+        return 2;
+    }
+    const auto architecture = wfc::compiler::host_architecture();
+    if (!wfc::compiler::native_back_end_available()) {
+        std::cerr << "native compilation is not available on this "
+                     "architecture yet\n";
+        return 77;
+    }
+    // The loader ends a project that starts at Sub Main with a `Call Main`
+    // statement for the interpreter; the compiler takes Sub Main as the entry.
+    std::string source = project.module_source;
+    if (const std::string_view call = "Call Main\n";
+        source.size() >= call.size() &&
+        std::string_view(source).substr(source.size() - call.size()) == call) {
+        source.resize(source.size() - call.size());
+    }
+    const auto compiled = wfc::compiler::compile_source(source, architecture);
+    if (!compiled.error.empty()) {
+        std::cerr << "native compile error";
+        if (compiled.error_at.line != 0) {
+            std::cerr << " (line " << compiled.error_at.line << ", column "
+                      << compiled.error_at.column << ")";
+        }
+        std::cerr << ": " << compiled.error << '\n';
+        return 3;
+    }
+    std::string problem;
+    const int code = wfc::compiler::run_native_image(compiled.image, problem);
+    if (!problem.empty()) {
+        std::cerr << problem << '\n';
+        return 2;
+    }
+    return code;
+}
+
 }  // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -127,6 +180,9 @@ int main(const int argument_count, const char* const arguments[]) {
     }
     if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {
         return build_package(argument_count, arguments);
+    }
+    if (argument_count >= 3 && std::string_view(arguments[1]) == "--native") {
+        return run_native(argument_count, arguments);
     }
     return run(argument_count, arguments);
 }
