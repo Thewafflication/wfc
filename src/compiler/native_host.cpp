@@ -1,7 +1,9 @@
 #include "native_host.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -303,6 +305,78 @@ RtString* string_space(const std::int32_t count) {
     return make_string(std::string(static_cast<std::size_t>(count), ' '));
 }
 
+// VB6 writes a Double with 15 significant digits and a Single with 7 (C's %G
+// rules: exponent form below 1E-4 or from 1E15 up); negative zero is "0".
+[[nodiscard]] std::string format_float(const double value, const int digits) {
+    if (std::isnan(value) || std::isinf(value)) {
+        return std::to_string(value);
+    }
+    char buffer[48];
+    std::snprintf(buffer, sizeof(buffer), "%.*G", digits, value);
+    std::string text = buffer;
+    return text == "-0" ? "0" : text;
+}
+
+void print_double(const double value, const std::int32_t digits) {
+    // A sign position before the number and a trailing space.
+    std::cout << (value >= 0 ? " " : "") << format_float(value, digits) << ' ';
+}
+
+RtString* string_from_double(const double value, const std::int32_t digits,
+                             const std::int32_t sign_space) {
+    const auto text = format_float(value, digits);
+    return make_string(sign_space != 0 && value >= 0 ? " " + text : text);
+}
+
+std::int32_t double_to_long(const double value) {
+    const double rounded = std::nearbyint(value);  // to even, as CInt and CLng
+    if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+        raise_error(6);
+    }
+    return static_cast<std::int32_t>(rounded);
+}
+
+double math_function(const std::int32_t which, const double value) {
+    switch (static_cast<ir::MathFunction>(which)) {
+        case ir::MathFunction::square_root:
+            if (value < 0) {
+                raise_error(5);
+            }
+            return std::sqrt(value);
+        case ir::MathFunction::sine:
+            return std::sin(value);
+        case ir::MathFunction::cosine:
+            return std::cos(value);
+        case ir::MathFunction::tangent:
+            return std::tan(value);
+        case ir::MathFunction::arctangent:
+            return std::atan(value);
+        case ir::MathFunction::logarithm:
+            if (value <= 0) {
+                raise_error(5);
+            }
+            return std::log(value);
+        case ir::MathFunction::exponential: {
+            const double result = std::exp(value);
+            if (std::isinf(result)) {
+                raise_error(6);
+            }
+            return result;
+        }
+        case ir::MathFunction::floor:
+            return std::floor(value);
+        case ir::MathFunction::truncate:
+            return std::trunc(value);
+        case ir::MathFunction::absolute:
+            return std::fabs(value);
+    }
+    return value;
+}
+
+std::int32_t double_sign(const double value) {
+    return value > 0 ? 1 : (value < 0 ? -1 : 0);
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -346,6 +420,9 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&string_asc),          address_of(&string_from_number),
         address_of(&string_from_integer), address_of(&string_from_boolean),
         address_of(&string_instr),        address_of(&string_space),
+        address_of(&print_double),        address_of(&string_from_double),
+        address_of(&double_to_long),      address_of(&math_function),
+        address_of(&double_sign),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

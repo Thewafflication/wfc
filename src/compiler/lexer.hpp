@@ -30,6 +30,9 @@ struct Token final {
     // The literal had an explicit type suffix or was written in hex or octal
     // (`&H10`, `5&`), which makes a whole number a Long.
     bool long_literal{};
+    // A floating-point literal with the suffix `!` (a Single); `#` and no
+    // suffix make a Double.
+    bool single_literal{};
     std::size_t line{1};
     std::size_t column{1};
 };

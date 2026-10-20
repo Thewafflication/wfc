@@ -252,8 +252,18 @@ private:
         token.line = line_;
         token.column = start_column;
         token.text = std::string(text_.substr(start, position_ - start));
+        // `5!` and `5#` are floating-point literals too.
+        if (!real && (peek() == '!' || peek() == '#')) {
+            real = true;
+        }
         if (real) {
             token.kind = TokenKind::real;
+            if (peek() == '!') {
+                token.single_literal = true;
+                ++position_;
+            } else if (peek() == '#') {
+                ++position_;
+            }
         } else {
             token.kind = TokenKind::integer;
             std::int64_t value = 0;

@@ -44,18 +44,29 @@ struct Operand final {
 }
 
 enum class Opcode {
-    move,            // dst = a
-    add,             // dst = a + b            (checked by `check`)
-    sub,             // dst = a - b
-    mul,             // dst = a * b
-    divide,          // dst = a \ b            (error 11 when b is zero)
-    modulo,          // dst = a Mod b
-    negate,          // dst = -a
-    bit_not,         // dst = Not a
-    bit_and,         // dst = a And b
-    bit_or,          // dst = a Or b
-    bit_xor,         // dst = a Xor b
-    compare,         // dst = -1 or 0 by `condition`
+    move,     // dst = a
+    add,      // dst = a + b            (checked by `check`)
+    sub,      // dst = a - b
+    mul,      // dst = a * b
+    divide,   // dst = a \ b            (error 11 when b is zero)
+    modulo,   // dst = a Mod b
+    negate,   // dst = -a
+    bit_not,  // dst = Not a
+    bit_and,  // dst = a And b
+    bit_or,   // dst = a Or b
+    bit_xor,  // dst = a Xor b
+    compare,  // dst = -1 or 0 by `condition`
+    // Floating point: a value is the eight bytes of an IEEE double (a Single
+    // is a double rounded to a float's precision); a literal is an immediate
+    // holding the bits.
+    fadd,            // dst = a + b            (error 6 on overflow)
+    fsub,            // dst = a - b
+    fmul,            // dst = a * b
+    fdivide,         // dst = a / b            (error 11 when b is zero)
+    fnegate,         // dst = -a
+    fcompare,        // dst = -1 or 0 by `condition`
+    int_to_double,   // dst = double(a), a 32-bit integer
+    round_single,    // dst = a rounded to a Single
     narrow,          // dst = a, error 6 unless it fits an Integer
     address,         // dst = the address of a (a slot or a global)
     jump,            // to `target`
@@ -117,7 +128,12 @@ enum class Service : int {
     string_from_boolean = 25,  // (int32) -> "True" or "False"
     string_instr = 26,         // (start, s, t) -> int32
     string_space = 27,         // (n) -> new handle
-    count = 28,
+    print_double = 28,         // (double, int digits)
+    string_from_double = 29,   // (double, int digits, int sign space) -> handle
+    double_to_long = 30,       // (double) -> int32, rounded; error 6 if too big
+    math_function = 31,        // (int which, double) -> double: MathFunction
+    double_sign = 32,          // (double) -> -1, 0 or 1
+    count = 33,
 };
 
 struct Instruction final {
@@ -131,20 +147,40 @@ struct Instruction final {
     // `move` copies eight bytes; `call` and `runtime` store an eight-byte
     // result (a string handle) instead of four.
     bool wide{};
+    // Bit i set: argument i is a double (passed in an SSE register); the
+    // result of a call or service is a double.
+    std::uint32_t double_args{};
+    bool double_result{};
     std::vector<Operand> args;
+};
+
+// The functions of the `math_function` service.
+enum class MathFunction : int {
+    square_root = 0,
+    sine = 1,
+    cosine = 2,
+    tangent = 3,
+    arctangent = 4,
+    logarithm = 5,
+    exponential = 6,
+    floor = 7,
+    truncate = 8,
+    absolute = 9,
 };
 
 struct Parameter final {
     bool by_value{};
-    bool wide{};  // eight bytes: a pointer (ByRef) or a string handle
+    bool wide{};       // eight bytes: a pointer (ByRef) or a string handle
+    bool is_double{};  // a ByVal Single or Double
 };
 
 struct Function final {
     std::string name;
     std::vector<Parameter> parameters;
     int slot_count{};
-    int result_slot{-1};  // -1 for a Sub
-    bool result_wide{};   // the result is a string handle
+    int result_slot{-1};   // -1 for a Sub
+    bool result_wide{};    // the result is a string handle
+    bool result_double{};  // the result is a Single or a Double
     std::vector<Instruction> code;
     int label_count{};
 };

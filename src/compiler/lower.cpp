@@ -1,6 +1,7 @@
 #include "lower.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <map>
 #include <optional>
 #include <utility>
@@ -47,6 +48,26 @@ struct Signature final {
 [[nodiscard]] bool is_integral(const VbType type) {
     return type == VbType::boolean || type == VbType::integer ||
            type == VbType::long_integer;
+}
+
+[[nodiscard]] bool is_float(const VbType type) {
+    return type == VbType::single_precision || type == VbType::double_precision;
+}
+
+[[nodiscard]] bool is_numeric(const VbType type) {
+    return is_integral(type) || is_float(type);
+}
+
+// Significant digits VB6 prints: 15 for a Double, 7 for a Single.
+[[nodiscard]] int digits_of(const VbType type) {
+    return type == VbType::single_precision ? 7 : 15;
+}
+
+// The bits of a double as an immediate operand.
+[[nodiscard]] Operand double_immediate(const double value) {
+    std::int64_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return ir::immediate(bits);
 }
 
 [[nodiscard]] Check check_for(const VbType type) {
@@ -113,10 +134,24 @@ public:
         instruction.condition = condition;
         function_.code.push_back(std::move(instruction));
     }
+    void fcompare(const Operand dst, const Operand a, const Operand b,
+                  const Condition condition) {
+        ir::Instruction instruction;
+        instruction.op = Opcode::fcompare;
+        instruction.dst = dst;
+        instruction.a = a;
+        instruction.b = b;
+        instruction.condition = condition;
+        function_.code.push_back(std::move(instruction));
+    }
     // A runtime service; `result` receives its value when given.
     void runtime(const Service service, std::vector<Operand> args,
-                 const Operand result = {}, const bool wide = false) {
+                 const Operand result = {}, const bool wide = false,
+                 const std::uint32_t double_args = 0,
+                 const bool double_result = false) {
         ir::Instruction instruction;
+        instruction.double_args = double_args;
+        instruction.double_result = double_result;
         instruction.op = Opcode::runtime;
         instruction.target = static_cast<int>(service);
         instruction.args = std::move(args);
@@ -131,8 +166,11 @@ public:
         function_.code.push_back(std::move(instruction));
     }
     void call(const Operand dst, const int callee, std::vector<Operand> args,
-              const bool wide) {
+              const bool wide, const std::uint32_t double_args = 0,
+              const bool double_result = false) {
         ir::Instruction instruction;
+        instruction.double_args = double_args;
+        instruction.double_result = double_result;
         instruction.op = Opcode::call;
         instruction.dst = dst;
         instruction.target = callee;
@@ -173,7 +211,6 @@ constexpr Builtin kBuiltins[] = {
     {"rtrim", 1, 1, Service::string_rtrim, VbType::string, "s"},
     {"chr", 1, 1, Service::string_chr, VbType::string, "n"},
     {"asc", 1, 1, Service::string_asc, VbType::integer, "s"},
-    {"str", 1, 1, Service::string_from_number, VbType::string, "n"},
     {"space", 1, 1, Service::string_space, VbType::string, "n"},
 };
 
@@ -253,7 +290,8 @@ private:
             for (const auto& parameter : procedure.parameters) {
                 function.parameters.push_back(ir::Parameter{
                     parameter.by_value,
-                    !parameter.by_value || parameter.type == VbType::string});
+                    !parameter.by_value || parameter.type == VbType::string,
+                    parameter.by_value && is_float(parameter.type)});
             }
             program_.functions.push_back(std::move(function));
         }
@@ -314,6 +352,7 @@ private:
             const auto result = builder.new_temp();
             function.result_slot = static_cast<int>(result.value);
             function.result_wide = procedure.return_type == VbType::string;
+            function.result_double = is_float(procedure.return_type);
             zero(result, procedure.return_type);
             result_variable_ = Variable{result, procedure.return_type};
         }
@@ -329,7 +368,7 @@ private:
     }
 
     void zero(const Operand slot, const VbType type) {
-        if (type == VbType::string) {
+        if (type == VbType::string || is_float(type)) {
             builder_->move_wide(slot, ir::immediate(0));
         } else {
             builder_->emit(Opcode::move, slot, ir::immediate(0));
@@ -434,7 +473,11 @@ private:
             return;
         }
         const auto converted = convert(value, target.type, statement.at);
-        builder_->emit(Opcode::move, target.operand, converted.operand);
+        if (is_float(target.type)) {
+            builder_->move_wide(target.operand, converted.operand);
+        } else {
+            builder_->emit(Opcode::move, target.operand, converted.operand);
+        }
     }
 
     // The address of a variable (a slot, a global, or a ByRef parameter).
@@ -456,6 +499,13 @@ private:
                 continue;
             }
             const auto value = lower_expression(*item);
+            if (is_float(value.type)) {
+                builder_->runtime(
+                    Service::print_double,
+                    {value.operand, ir::immediate(digits_of(value.type))}, {},
+                    false, 1U);
+                continue;
+            }
             const Service service =
                 value.type == VbType::boolean  ? Service::print_boolean
                 : value.type == VbType::string ? Service::print_string
@@ -470,9 +520,12 @@ private:
     // A condition is true when its value is not zero. The temporaries of
     // its evaluation are released before the branch.
     [[nodiscard]] Operand lower_condition(const Expr& expression) {
-        const auto value = lower_expression(expression);
-        if (!is_integral(value.type)) {
+        auto value = lower_expression(expression);
+        if (!is_numeric(value.type)) {
             fail("a condition needs a numeric or Boolean value", expression.at);
+        }
+        if (is_float(value.type)) {
+            value = convert(value, VbType::boolean, expression.at);
         }
         flush_temps();
         return value.operand;
@@ -621,6 +674,19 @@ private:
 
     // ----- Calls -----------------------------------------------------------
 
+    [[nodiscard]] static bool is_special_builtin(const std::string& name) {
+        static const char* const names[] = {
+            "cstr", "instr", "str", "cint", "clng", "cdbl",
+            "csng", "int",   "fix", "abs",  "sgn",  "sqr",
+            "sin",  "cos",   "tan", "atn",  "log",  "exp"};
+        for (const char* candidate : names) {
+            if (name == candidate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     [[nodiscard]] const Builtin* find_builtin(const std::string& name) const {
         for (const auto& builtin : kBuiltins) {
             if (name == builtin.name) {
@@ -640,7 +706,7 @@ private:
             if (const auto* builtin = find_builtin(name)) {
                 return lower_builtin(*builtin, arguments, at);
             }
-            if (name == "cstr" || name == "instr") {
+            if (is_special_builtin(name)) {
                 return lower_special_builtin(name, arguments, at);
             }
             fail("'" + name + "' is not a Sub or Function of the project", at);
@@ -656,9 +722,13 @@ private:
                  at);
         }
         std::vector<Operand> passed;
+        std::uint32_t double_args = 0;
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             const auto& parameter = signature.parameters[i];
             const auto& argument = *arguments[i];
+            if (parameter.by_value && is_float(parameter.type)) {
+                double_args |= 1U << i;
+            }
             if (parameter.by_value) {
                 const auto value = lower_expression(argument);
                 if (parameter.type == VbType::string) {
@@ -678,8 +748,8 @@ private:
         result.type = signature.return_type;
         const bool wide = signature.return_type == VbType::string;
         result.operand = wide ? new_owned_string() : builder_->new_temp();
-        builder_->call(result.operand, signature.index, std::move(passed),
-                       wide);
+        builder_->call(result.operand, signature.index, std::move(passed), wide,
+                       double_args, is_float(signature.return_type));
         return result;
     }
 
@@ -707,6 +777,9 @@ private:
             builder_->runtime(Service::string_assign,
                               {address_of(temp), value.operand});
             pending_.push_back(temp);
+        } else if (is_float(type)) {
+            builder_->move_wide(temp,
+                                convert(value, type, argument.at).operand);
         } else {
             builder_->emit(Opcode::move, temp,
                            convert(value, type, argument.at).operand);
@@ -741,12 +814,15 @@ private:
                              " needs a String argument here",
                          argument.at);
                 }
-            } else if (!is_integral(value.type)) {
+            } else if (!is_numeric(value.type)) {
                 fail(std::string(builtin.name) +
                          " needs a numeric argument here",
                      argument.at);
             }
-            passed.push_back(value.operand);
+            // A number argument is a 32-bit integer (Left, Mid, Chr, Space).
+            passed.push_back(builtin.parameters[i] == 'n'
+                                 ? to_long(value, argument.at).operand
+                                 : value.operand);
         }
         if (builtin.service == Service::string_mid && count == 2) {
             passed.push_back(ir::immediate(INT32_MIN));  // length omitted
@@ -760,16 +836,92 @@ private:
         return result;
     }
 
-    // CStr and the two forms of InStr.
+    // CStr, InStr and the numeric conversion and math functions.
     [[nodiscard]] Value lower_special_builtin(
         const std::string& name, const std::vector<ExprPtr>& arguments,
         const Position at) {
-        if (name == "cstr") {
-            if (arguments.size() != 1U) {
-                fail("CStr takes 1 argument", at);
-            }
-            return to_string_value(lower_expression(*arguments[0]), at);
+        if (name == "instr") {
+            return lower_instr(arguments, at);
         }
+        if (arguments.size() != 1U) {
+            fail(name + " takes 1 argument", at);
+        }
+        const auto value = lower_expression(*arguments[0]);
+        if (name == "cstr") {
+            return to_string_value(value, at);
+        }
+        if (name == "str") {
+            if (!is_numeric(value.type)) {
+                fail("Str needs a numeric argument", at);
+            }
+            Value result;
+            result.type = VbType::string;
+            result.operand = new_owned_string();
+            if (is_float(value.type)) {
+                builder_->runtime(
+                    Service::string_from_double,
+                    {value.operand, ir::immediate(digits_of(value.type)),
+                     ir::immediate(1)},
+                    result.operand, true, 1U);
+            } else {
+                builder_->runtime(Service::string_from_number,
+                                  {to_long(value, at).operand}, result.operand,
+                                  true);
+            }
+            return result;
+        }
+        if (!is_numeric(value.type)) {
+            fail(name + " needs a numeric argument", at);
+        }
+        if (name == "clng") {
+            return to_long(value, at);
+        }
+        if (name == "cint") {
+            return convert(value, VbType::integer, at);
+        }
+        if (name == "cdbl") {
+            auto result = to_double(value);
+            result.type = VbType::double_precision;
+            return result;
+        }
+        if (name == "csng") {
+            return convert(value, VbType::single_precision, at);
+        }
+        if (name == "int" || name == "fix") {
+            if (!is_float(value.type)) {
+                return value;
+            }
+            Value result =
+                math_value(name == "int" ? ir::MathFunction::floor
+                                         : ir::MathFunction::truncate,
+                           value);
+            result.type = value.type;
+            return result;
+        }
+        if (name == "abs") {
+            return lower_abs(value);
+        }
+        if (name == "sgn") {
+            Value result;
+            result.type = VbType::integer;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::double_sign, {to_double(value).operand},
+                              result.operand, false, 1U);
+            return result;
+        }
+        const ir::MathFunction which =
+            name == "sqr"   ? ir::MathFunction::square_root
+            : name == "sin" ? ir::MathFunction::sine
+            : name == "cos" ? ir::MathFunction::cosine
+            : name == "tan" ? ir::MathFunction::tangent
+            : name == "atn" ? ir::MathFunction::arctangent
+            : name == "log" ? ir::MathFunction::logarithm
+                            : ir::MathFunction::exponential;
+        return math_value(which, value);
+    }
+
+    [[nodiscard]] Value lower_instr(const std::vector<ExprPtr>& arguments,
+                                    const Position at) {
         if (arguments.size() < 2U || arguments.size() > 3U) {
             fail("InStr takes 2 or 3 arguments", at);
         }
@@ -777,10 +929,10 @@ private:
         std::size_t next = 0;
         if (arguments.size() == 3U) {
             const auto start = lower_expression(*arguments[0]);
-            if (!is_integral(start.type)) {
+            if (!is_numeric(start.type)) {
                 fail("InStr needs a numeric start", arguments[0]->at);
             }
-            passed.push_back(start.operand);
+            passed.push_back(to_long(start, at).operand);
             next = 1;
         } else {
             passed.push_back(ir::immediate(1));
@@ -800,17 +952,61 @@ private:
         return result;
     }
 
+    // A Double result of one of the math functions.
+    [[nodiscard]] Value math_value(const ir::MathFunction which,
+                                   const Value& argument) {
+        Value result;
+        result.type = VbType::double_precision;
+        result.operand = builder_->new_temp();
+        builder_->runtime(Service::math_function,
+                          {ir::immediate(static_cast<std::int64_t>(which)),
+                           to_double(argument).operand},
+                          result.operand, false, 2U, true);
+        return result;
+    }
+
+    // Abs keeps the type of its argument.
+    [[nodiscard]] Value lower_abs(const Value& value) {
+        if (is_float(value.type)) {
+            Value result = math_value(ir::MathFunction::absolute, value);
+            result.type = value.type;
+            return result;
+        }
+        const VbType type = arithmetic_type(value.type);
+        Value result;
+        result.type = type;
+        result.operand = builder_->new_temp();
+        builder_->emit(Opcode::move, result.operand, value.operand);
+        const int done = builder_->new_label();
+        const auto negative = builder_->new_temp();
+        builder_->compare(negative, value.operand, ir::immediate(0),
+                          Condition::less);
+        builder_->branch(Opcode::branch_zero, negative, done);
+        builder_->emit(Opcode::negate, result.operand, value.operand, {},
+                       check_for(type));
+        builder_->place(done);
+        return result;
+    }
+
     // A number or Boolean as a String (CStr); a String stays as it is.
     [[nodiscard]] Value to_string_value(const Value& value, const Position at) {
         if (value.type == VbType::string) {
             return value;
         }
-        if (!is_integral(value.type)) {
+        if (!is_numeric(value.type)) {
             fail("this value cannot be converted to a String yet", at);
         }
         Value result;
         result.type = VbType::string;
         result.operand = new_owned_string();
+        if (is_float(value.type)) {
+            builder_->runtime(
+                Service::string_from_double,
+                {value.operand, ir::immediate(digits_of(value.type)),
+                 ir::immediate(0)},
+                result.operand, true, 1U);
+            return result;
+        }
         builder_->runtime(value.type == VbType::boolean
                               ? Service::string_from_boolean
                               : Service::string_from_integer,
@@ -829,6 +1025,14 @@ private:
                 return Value{ir::immediate(expression.number),
                              is_long ? VbType::long_integer : VbType::integer};
             }
+            case ExprKind::real_literal:
+                if (expression.single_literal) {
+                    return Value{double_immediate(static_cast<double>(
+                                     static_cast<float>(expression.real))),
+                                 VbType::single_precision};
+                }
+                return Value{double_immediate(expression.real),
+                             VbType::double_precision};
             case ExprKind::boolean_literal:
                 return Value{ir::immediate(expression.number), VbType::boolean};
             case ExprKind::string_literal:
@@ -842,7 +1046,8 @@ private:
                       expression.text == current_->name) &&
                     !globals_.contains(expression.text) &&
                     (signatures_.contains(expression.text) ||
-                     find_builtin(expression.text) != nullptr)) {
+                     find_builtin(expression.text) != nullptr ||
+                     is_special_builtin(expression.text))) {
                     return lower_call(expression.text, {}, expression.at, true);
                 }
                 const auto variable =
@@ -869,13 +1074,18 @@ private:
 
     [[nodiscard]] Value lower_unary(const Expr& expression) {
         auto operand = lower_expression(*expression.operands[0]);
-        if (!is_integral(operand.type)) {
+        if (!is_numeric(operand.type)) {
             fail("the operator " + expression.text + " needs a numeric value",
                  expression.at);
         }
         const auto result = builder_->new_temp();
         if (expression.text == "not") {
+            operand = to_long_if_float(operand, expression.at);
             builder_->emit(Opcode::bit_not, result, operand.operand);
+            return Value{result, operand.type};
+        }
+        if (is_float(operand.type)) {
+            builder_->emit(Opcode::fnegate, result, operand.operand);
             return Value{result, operand.type};
         }
         const auto type = arithmetic_type(operand.type);
@@ -905,6 +1115,65 @@ private:
                             : Condition::greater_equal;
     }
 
+    // A floating-point value for arithmetic: an integer is converted.
+    [[nodiscard]] Value to_double(const Value& value) {
+        if (is_float(value.type)) {
+            return value;
+        }
+        Value result;
+        result.type = VbType::double_precision;
+        result.operand = builder_->new_temp();
+        builder_->emit(Opcode::int_to_double, result.operand, value.operand);
+        return result;
+    }
+
+    // A 32-bit integer for \, Mod, And, Or, Not and the conversions: a
+    // floating-point value is rounded (error 6 when it does not fit).
+    [[nodiscard]] Value to_long(const Value& value, const Position at) {
+        if (is_integral(value.type)) {
+            return value;
+        }
+        if (!is_float(value.type)) {
+            fail("this value cannot be converted to a number", at);
+        }
+        Value result;
+        result.type = VbType::long_integer;
+        result.operand = builder_->new_temp();
+        builder_->runtime(Service::double_to_long, {value.operand},
+                          result.operand, false, 1U);
+        return result;
+    }
+
+    [[nodiscard]] Value to_long_if_float(const Value& value,
+                                         const Position at) {
+        return is_float(value.type) ? to_long(value, at) : value;
+    }
+
+    [[nodiscard]] Value lower_float_arithmetic(const std::string& op,
+                                               const Value& left,
+                                               const Value& right) {
+        const bool both_integral =
+            is_integral(left.type) && is_integral(right.type);
+        VbType type = VbType::single_precision;
+        if (left.type == VbType::double_precision ||
+            right.type == VbType::double_precision ||
+            (op == "/" && both_integral)) {
+            type = VbType::double_precision;
+        }
+        const auto a = to_double(left);
+        const auto b = to_double(right);
+        const Opcode code = op == "+"   ? Opcode::fadd
+                            : op == "-" ? Opcode::fsub
+                            : op == "*" ? Opcode::fmul
+                                        : Opcode::fdivide;
+        const auto result = builder_->new_temp();
+        builder_->emit(code, result, a.operand, b.operand);
+        if (type == VbType::single_precision) {
+            builder_->emit(Opcode::round_single, result, result);
+        }
+        return Value{result, type};
+    }
+
     [[nodiscard]] Value lower_binary(const Expr& expression) {
         const std::string& op = expression.text;
         const auto left = lower_expression(*expression.operands[0]);
@@ -930,39 +1199,48 @@ private:
                 return Value{result, VbType::boolean};
             }
             fail("the operator " + op +
-                     " is not compiled for these String "
-                     "operands yet",
+                     " is not compiled for these String operands yet",
                  expression.at);
         }
-        if (!is_integral(left.type) || !is_integral(right.type)) {
+        if (!is_numeric(left.type) || !is_numeric(right.type)) {
             fail("the operator " + op + " needs numeric values", expression.at);
         }
+        const bool any_float = is_float(left.type) || is_float(right.type);
         const auto result = builder_->new_temp();
         if (is_comparison) {
-            builder_->compare(result, left.operand, right.operand,
-                              condition_of(op));
+            if (any_float) {
+                builder_->fcompare(result, to_double(left).operand,
+                                   to_double(right).operand, condition_of(op));
+            } else {
+                builder_->compare(result, left.operand, right.operand,
+                                  condition_of(op));
+            }
             return Value{result, VbType::boolean};
         }
         if (op == "and" || op == "or" || op == "xor") {
+            const auto a = to_long_if_float(left, expression.at);
+            const auto b = to_long_if_float(right, expression.at);
             const Opcode code = op == "and"  ? Opcode::bit_and
                                 : op == "or" ? Opcode::bit_or
                                              : Opcode::bit_xor;
-            builder_->emit(code, result, left.operand, right.operand);
+            builder_->emit(code, result, a.operand, b.operand);
             const VbType type =
-                left.type == VbType::boolean && right.type == VbType::boolean
+                a.type == VbType::boolean && b.type == VbType::boolean
                     ? VbType::boolean
-                : (left.type == VbType::long_integer ||
-                   right.type == VbType::long_integer)
+                : (a.type == VbType::long_integer ||
+                   b.type == VbType::long_integer)
                     ? VbType::long_integer
                     : VbType::integer;
             return Value{result, type};
         }
-        if (op == "/") {
-            fail("floating-point division (/) is not compiled yet; use \\",
-                 expression.at);
+        if (op == "/" || (any_float && (op == "+" || op == "-" || op == "*"))) {
+            return lower_float_arithmetic(op, left, right);
         }
-        const VbType type = (left.type == VbType::long_integer ||
-                             right.type == VbType::long_integer)
+        // Integer arithmetic; \ and Mod round floating-point operands.
+        const auto a = to_long_if_float(left, expression.at);
+        const auto b = to_long_if_float(right, expression.at);
+        const VbType type = any_float || a.type == VbType::long_integer ||
+                                    b.type == VbType::long_integer
                                 ? VbType::long_integer
                                 : VbType::integer;
         const Opcode code = op == "+"    ? Opcode::add
@@ -970,19 +1248,39 @@ private:
                             : op == "*"  ? Opcode::mul
                             : op == "\\" ? Opcode::divide
                                          : Opcode::modulo;
-        builder_->emit(code, result, left.operand, right.operand,
-                       check_for(type));
+        builder_->emit(code, result, a.operand, b.operand, check_for(type));
         return Value{result, type};
     }
 
     // Converts a value for an assignment or a parameter.
     [[nodiscard]] Value convert(const Value& value, const VbType to,
                                 const Position at) {
-        if (!is_integral(value.type)) {
+        if (!is_numeric(value.type)) {
             fail("this value cannot be converted yet", at);
         }
         if (value.type == to) {
             return value;
+        }
+        if (is_float(to)) {
+            auto result = to_double(value);
+            if (to == VbType::single_precision &&
+                (result.type == VbType::double_precision ||
+                 value.type == VbType::long_integer)) {
+                const auto rounded = builder_->new_temp();
+                builder_->emit(Opcode::round_single, rounded, result.operand);
+                return Value{rounded, to};
+            }
+            return Value{result.operand, to};
+        }
+        if (is_float(value.type)) {
+            if (to == VbType::boolean) {
+                const auto result = builder_->new_temp();
+                builder_->fcompare(result, value.operand, double_immediate(0.0),
+                                   Condition::not_equal);
+                return Value{result, VbType::boolean};
+            }
+            const auto whole = to_long(value, at);
+            return convert(whole, to, at);
         }
         if (to == VbType::boolean) {
             const auto result = builder_->new_temp();

@@ -1,5 +1,6 @@
 #include "parser.hpp"
 
+#include <cstdlib>
 #include <utility>
 
 #include "lexer.hpp"
@@ -122,6 +123,10 @@ private:
                 return VbType::integer;
             case '&':
                 return VbType::long_integer;
+            case '!':
+                return VbType::single_precision;
+            case '#':
+                return VbType::double_precision;
             case '$':
                 return VbType::string;
             default:
@@ -132,8 +137,7 @@ private:
     [[nodiscard]] static std::string without_suffix(std::string name) {
         if (!name.empty() && suffix_type(name) != VbType::none) {
             name.pop_back();
-        } else if (!name.empty() && (name.back() == '!' || name.back() == '#' ||
-                                     name.back() == '@')) {
+        } else if (!name.empty() && name.back() == '@') {
             name.pop_back();
         }
         return name;
@@ -151,6 +155,10 @@ private:
             type = VbType::long_integer;
         } else if (name == "boolean") {
             type = VbType::boolean;
+        } else if (name == "single") {
+            type = VbType::single_precision;
+        } else if (name == "double") {
+            type = VbType::double_precision;
         } else if (name == "string") {
             type = VbType::string;
         } else {
@@ -729,7 +737,11 @@ private:
             return result;
         }
         if (token.kind == TokenKind::real) {
-            fail("floating-point numbers are not compiled yet");
+            advance();
+            auto result = make_expr(ExprKind::real_literal, at);
+            result->real = std::strtod(token.text.c_str(), nullptr);
+            result->single_literal = token.single_literal;
+            return result;
         }
         if (token.kind == TokenKind::string) {
             advance();

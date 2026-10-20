@@ -223,6 +223,8 @@ private:
                     string_offsets_[static_cast<std::size_t>(operand.value)]);
                 break;
             case OperandKind::immediate:
+                load_bits(reg, operand);
+                break;
             case OperandKind::none:
                 load32(reg, operand);
                 break;
@@ -258,12 +260,102 @@ private:
         }
     }
 
-    // The result of a call or a service, in eax or rax.
+    // ----- SSE (floating point) --------------------------------------------
+
+    // movsd xmm, operand
+    void load_double(const int xmm, const Operand& operand) {
+        switch (operand.kind) {
+            case OperandKind::slot:
+                bytes({0xF2, 0x0F, 0x10});
+                byte(static_cast<std::uint8_t>(0x80 | (xmm << 3) | 5));
+                dword(static_cast<std::uint32_t>(slot_disp(operand.value)));
+                break;
+            case OperandKind::global:
+                bytes({0xF2, 0x0F, 0x10});
+                byte(static_cast<std::uint8_t>((xmm << 3) | 5));
+                rip_displacement(global_offset(operand.value));
+                break;
+            case OperandKind::indirect:
+                op_rbp(true, 0x8B, kR11, slot_disp(operand.value));
+                bytes({0xF2, 0x41, 0x0F, 0x10});
+                byte(static_cast<std::uint8_t>((xmm << 3) | (kR11 & 7)));
+                break;
+            case OperandKind::immediate:
+                load_bits(kEax, operand);
+                // movq xmm, rax
+                bytes({0x66, 0x48, 0x0F, 0x6E});
+                byte(static_cast<std::uint8_t>(0xC0 | (xmm << 3)));
+                break;
+            case OperandKind::literal:
+            case OperandKind::none:
+                break;
+        }
+    }
+
+    // movsd operand, xmm
+    void store_double(const Operand& operand, const int xmm) {
+        switch (operand.kind) {
+            case OperandKind::slot:
+                bytes({0xF2, 0x0F, 0x11});
+                byte(static_cast<std::uint8_t>(0x80 | (xmm << 3) | 5));
+                dword(static_cast<std::uint32_t>(slot_disp(operand.value)));
+                break;
+            case OperandKind::global:
+                bytes({0xF2, 0x0F, 0x11});
+                byte(static_cast<std::uint8_t>((xmm << 3) | 5));
+                rip_displacement(global_offset(operand.value));
+                break;
+            case OperandKind::indirect:
+                op_rbp(true, 0x8B, kR11, slot_disp(operand.value));
+                bytes({0xF2, 0x41, 0x0F, 0x11});
+                byte(static_cast<std::uint8_t>((xmm << 3) | (kR11 & 7)));
+                break;
+            case OperandKind::immediate:
+            case OperandKind::literal:
+            case OperandKind::none:
+                break;
+        }
+    }
+
+    // The eight bytes of a value in a general register: an immediate
+    // holding the bits of a double is loaded whole.
+    void load_bits(const int reg, const Operand& operand) {
+        if (operand.kind == OperandKind::immediate) {
+            rex(true, 0, reg);
+            byte(static_cast<std::uint8_t>(0xB8 + (reg & 7)));  // movabs
+            const auto bits = static_cast<std::uint64_t>(operand.value);
+            dword(static_cast<std::uint32_t>(bits));
+            dword(static_cast<std::uint32_t>(bits >> 32U));
+        } else {
+            load_wide(reg, operand);
+        }
+    }
+
+    void rip_displacement(const std::size_t target) {
+        const std::size_t after = image_.size() + 4U;
+        dword(static_cast<std::uint32_t>(static_cast<std::int64_t>(target) -
+                                         static_cast<std::int64_t>(after)));
+    }
+
+    // After a result in xmm0: error 6 when it is infinite or not a number.
+    void check_finite() {
+        bytes({0x66, 0x48, 0x0F, 0x7E, 0xC0});  // movq rax, xmm0
+        bytes({0x48, 0xD1, 0xE0});              // shl rax, 1
+        bytes({0x48, 0xBA});                    // mov rdx, 0xFFE0...
+        dword(0);
+        dword(0xFFE00000U);
+        bytes({0x48, 0x3B, 0xC2});  // cmp rax, rdx
+        jcc_overflow(0x3);          // jae
+    }
+
+    // The result of a call or a service, in eax, rax or xmm0.
     void store_result(const ir::Instruction& instruction) {
         if (instruction.dst.kind == OperandKind::none) {
             return;
         }
-        if (instruction.wide) {
+        if (instruction.double_result) {
+            store_double(instruction.dst, 0);
+        } else if (instruction.wide) {
             store_wide(instruction.dst, kEax);
         } else {
             store32(instruction.dst, kEax);
@@ -365,7 +457,10 @@ private:
         for (std::size_t i = 0; i < function.parameters.size(); ++i) {
             const bool wide = function.parameters[i].wide;
             const std::int32_t disp = slot_disp(static_cast<std::int64_t>(i));
-            if (i < 4U) {
+            if (i < 4U && function.parameters[i].is_double) {
+                store_double(ir::slot(static_cast<std::int64_t>(i)),
+                             static_cast<int>(i));
+            } else if (i < 4U) {
                 const int reg = i == 0   ? kEcx
                                 : i == 1 ? kEdx
                                 : i == 2 ? kR8
@@ -501,6 +596,75 @@ private:
                 bytes({0xF7, 0xD8});        // neg eax: 1 -> -1
                 store32(instruction.dst, kEax);
                 break;
+            case Opcode::fadd:
+            case Opcode::fsub:
+            case Opcode::fmul:
+            case Opcode::fdivide:
+                load_double(0, instruction.a);
+                load_double(1, instruction.b);
+                if (instruction.op == Opcode::fdivide) {
+                    bytes({0x66, 0x48, 0x0F, 0x7E, 0xC8});  // movq rax, xmm1
+                    bytes({0x48, 0xD1, 0xE0});              // shl rax, 1
+                    bytes({0x48, 0x85, 0xC0});              // test rax, rax
+                    jcc_zero_divisor();
+                }
+                bytes({0xF2, 0x0F,
+                       instruction.op == Opcode::fadd   ? std::uint8_t{0x58}
+                       : instruction.op == Opcode::fsub ? std::uint8_t{0x5C}
+                       : instruction.op == Opcode::fmul ? std::uint8_t{0x59}
+                                                        : std::uint8_t{0x5E},
+                       0xC1});
+                check_finite();
+                store_double(instruction.dst, 0);
+                break;
+            case Opcode::fnegate:
+                load_bits(kEax, instruction.a);
+                bytes({0x48, 0x0F, 0xBA, 0xF8, 0x3F});  // btc rax, 63
+                store_wide(instruction.dst, kEax);
+                break;
+            case Opcode::fcompare: {
+                load_double(0, instruction.a);
+                load_double(1, instruction.b);
+                bytes({0x66, 0x0F, 0x2E, 0xC1});  // ucomisd xmm0, xmm1
+                std::uint8_t cc = kCcEqual;
+                switch (instruction.condition) {
+                    case Condition::equal:
+                        cc = kCcEqual;
+                        break;
+                    case Condition::not_equal:
+                        cc = kCcNotEqual;
+                        break;
+                    case Condition::less:
+                        cc = 0x2;  // below
+                        break;
+                    case Condition::less_equal:
+                        cc = 0x6;  // below or equal
+                        break;
+                    case Condition::greater:
+                        cc = 0x7;  // above
+                        break;
+                    case Condition::greater_equal:
+                        cc = 0x3;  // above or equal
+                        break;
+                }
+                bytes({0x0F, static_cast<std::uint8_t>(0x90 | cc), 0xC0});
+                bytes({0x0F, 0xB6, 0xC0});  // movzx eax, al
+                bytes({0xF7, 0xD8});        // neg eax
+                store32(instruction.dst, kEax);
+                break;
+            }
+            case Opcode::int_to_double:
+                load32(kEax, instruction.a);
+                bytes({0xF2, 0x0F, 0x2A, 0xC0});  // cvtsi2sd xmm0, eax
+                store_double(instruction.dst, 0);
+                break;
+            case Opcode::round_single:
+                load_double(0, instruction.a);
+                bytes({0xF2, 0x0F, 0x5A, 0xC0});  // cvtsd2ss xmm0, xmm0
+                bytes({0xF3, 0x0F, 0x5A, 0xC0});  // cvtss2sd xmm0, xmm0
+                check_finite();
+                store_double(instruction.dst, 0);
+                break;
             case Opcode::narrow:
                 load32(kEax, instruction.a);
                 check_result(Check::int16);
@@ -535,7 +699,7 @@ private:
                 emit_call(instruction, call_fixups);
                 break;
             case Opcode::runtime:
-                emit_arguments(instruction.args);
+                emit_arguments(instruction);
                 call_service(static_cast<ir::Service>(instruction.target));
                 store_result(instruction);
                 break;
@@ -550,7 +714,9 @@ private:
             }
             case Opcode::ret:
                 if (function.result_slot >= 0) {
-                    if (function.result_wide) {
+                    if (function.result_double) {
+                        load_double(0, ir::slot(function.result_slot));
+                    } else if (function.result_wide) {
                         load_wide(kEax, ir::slot(function.result_slot));
                     } else {
                         load32(kEax, ir::slot(function.result_slot));
@@ -594,13 +760,21 @@ private:
     }
 
     // Loads the arguments of a call into rcx, rdx, r8, r9 and the stack.
-    void emit_arguments(const std::vector<Operand>& args) {
+    void emit_arguments(const ir::Instruction& instruction) {
+        const auto& args = instruction.args;
         static constexpr int registers[4] = {kEcx, kEdx, kR8, kR9};
         for (std::size_t i = 0; i < args.size(); ++i) {
-            if (i < 4U) {
+            const bool is_double = ((instruction.double_args >> i) & 1U) != 0U;
+            if (i < 4U && is_double) {
+                load_double(static_cast<int>(i), args[i]);
+            } else if (i < 4U) {
                 load_argument(registers[i], args[i]);
             } else {
-                load_argument(kEax, args[i]);
+                if (is_double) {
+                    load_bits(kEax, args[i]);
+                } else {
+                    load_argument(kEax, args[i]);
+                }
                 // mov [rsp + 32 + 8 * (i - 4)], rax
                 bytes({0x48, 0x89, 0x84, 0x24});
                 dword(static_cast<std::uint32_t>(
@@ -611,7 +785,7 @@ private:
 
     void emit_call(const ir::Instruction& instruction,
                    std::vector<std::pair<std::size_t, int>>& call_fixups) {
-        emit_arguments(instruction.args);
+        emit_arguments(instruction);
         byte(0xE8);  // call rel32
         call_fixups.emplace_back(image_.size(), instruction.target);
         dword(0);

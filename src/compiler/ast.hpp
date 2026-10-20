@@ -18,6 +18,8 @@ enum class VbType {
     boolean,
     integer,
     long_integer,
+    single_precision,
+    double_precision,
     string,
 };
 
@@ -31,6 +33,7 @@ using ExprPtr = std::unique_ptr<Expr>;
 
 enum class ExprKind {
     integer_literal,
+    real_literal,
     string_literal,
     boolean_literal,
     name,    // a variable, or a function called without arguments
@@ -44,7 +47,9 @@ struct Expr final {
     ExprKind kind{ExprKind::integer_literal};
     Position at;
     std::int64_t number{};
+    double real{};
     bool long_literal{};
+    bool single_literal{};
     std::string text;  // a literal's contents, a name, or an operator
     std::vector<ExprPtr>
         operands;  // call arguments, or the operator's operands
