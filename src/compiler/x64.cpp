@@ -92,15 +92,24 @@ private:
         std::size_t at = static_cast<std::size_t>(ir::Service::count) * 8U;
         globals_offset_ = at;
         at += program_.globals.size() * 8U;
+        // A literal is an immortal string: a reference count of -1, the
+        // length and the bytes (the layout of the runtime's strings).
         for (const auto& text : program_.strings) {
             string_offsets_.push_back(at);
-            at += text.size();
+            at += 8U + text.size() + 1U;
+            at = (at + 7U) & ~static_cast<std::size_t>(7U);
         }
         at = (at + 15U) & ~static_cast<std::size_t>(15U);
         image_.assign(at, 0);
         for (std::size_t i = 0; i < program_.strings.size(); ++i) {
-            std::memcpy(image_.data() + string_offsets_[i],
-                        program_.strings[i].data(), program_.strings[i].size());
+            const auto base = string_offsets_[i];
+            const std::int32_t immortal = -1;
+            const auto length =
+                static_cast<std::int32_t>(program_.strings[i].size());
+            std::memcpy(image_.data() + base, &immortal, 4U);
+            std::memcpy(image_.data() + base + 4U, &length, 4U);
+            std::memcpy(image_.data() + base + 8U, program_.strings[i].data(),
+                        program_.strings[i].size());
         }
     }
 
@@ -160,8 +169,9 @@ private:
     }
 
     // opcode with a [r11] operand
-    void op_r11(const std::uint8_t opcode, const int reg) {
-        rex(false, reg, kR11);
+    void op_r11(const std::uint8_t opcode, const int reg,
+                const bool wide = false) {
+        rex(wide, reg, kR11);
         byte(opcode);
         byte(static_cast<std::uint8_t>(((reg & 7) << 3) | (kR11 & 7)));
     }
@@ -186,6 +196,53 @@ private:
                 op_rbp(true, 0x8B, kR11, slot_disp(operand.value));
                 op_r11(0x8B, reg);
                 break;
+            case OperandKind::literal:
+                load_wide(reg, operand);
+                break;
+            case OperandKind::none:
+                break;
+        }
+    }
+
+    // Eight bytes: a pointer, a string handle or a zero-extended value.
+    void load_wide(const int reg, const Operand& operand) {
+        switch (operand.kind) {
+            case OperandKind::slot:
+                op_rbp(true, 0x8B, reg, slot_disp(operand.value));
+                break;
+            case OperandKind::global:
+                op_rip(true, {0x8B}, reg, global_offset(operand.value));
+                break;
+            case OperandKind::indirect:
+                op_rbp(true, 0x8B, kR11, slot_disp(operand.value));
+                op_r11(0x8B, reg, true);
+                break;
+            case OperandKind::literal:
+                op_rip(
+                    true, {0x8D}, reg,
+                    string_offsets_[static_cast<std::size_t>(operand.value)]);
+                break;
+            case OperandKind::immediate:
+            case OperandKind::none:
+                load32(reg, operand);
+                break;
+        }
+    }
+
+    void store_wide(const Operand& operand, const int reg) {
+        switch (operand.kind) {
+            case OperandKind::slot:
+                op_rbp(true, 0x89, reg, slot_disp(operand.value));
+                break;
+            case OperandKind::global:
+                op_rip(true, {0x89}, reg, global_offset(operand.value));
+                break;
+            case OperandKind::indirect:
+                op_rbp(true, 0x8B, kR11, slot_disp(operand.value));
+                op_r11(0x89, reg, true);
+                break;
+            case OperandKind::immediate:
+            case OperandKind::literal:
             case OperandKind::none:
                 break;
         }
@@ -193,10 +250,23 @@ private:
 
     // The 64-bit value of a slot (a pointer) or an ordinary value.
     void load_argument(const int reg, const Operand& operand) {
-        if (operand.kind == OperandKind::slot) {
-            op_rbp(true, 0x8B, reg, slot_disp(operand.value));
+        if (operand.kind == OperandKind::slot ||
+            operand.kind == OperandKind::literal) {
+            load_wide(reg, operand);
         } else {
             load32(reg, operand);
+        }
+    }
+
+    // The result of a call or a service, in eax or rax.
+    void store_result(const ir::Instruction& instruction) {
+        if (instruction.dst.kind == OperandKind::none) {
+            return;
+        }
+        if (instruction.wide) {
+            store_wide(instruction.dst, kEax);
+        } else {
+            store32(instruction.dst, kEax);
         }
     }
 
@@ -213,6 +283,7 @@ private:
                 op_r11(0x89, reg);
                 break;
             case OperandKind::immediate:
+            case OperandKind::literal:
             case OperandKind::none:
                 break;
         }
@@ -292,7 +363,7 @@ private:
         bytes({0x48, 0x81, 0xEC});  // sub rsp, frame
         dword(static_cast<std::uint32_t>(frame));
         for (std::size_t i = 0; i < function.parameters.size(); ++i) {
-            const bool wide = !function.parameters[i].by_value;
+            const bool wide = function.parameters[i].wide;
             const std::int32_t disp = slot_disp(static_cast<std::int64_t>(i));
             if (i < 4U) {
                 const int reg = i == 0   ? kEcx
@@ -364,8 +435,13 @@ private:
         std::vector<std::pair<std::size_t, int>>& call_fixups) {
         switch (instruction.op) {
             case Opcode::move:
-                load32(kEax, instruction.a);
-                store32(instruction.dst, kEax);
+                if (instruction.wide) {
+                    load_wide(kEax, instruction.a);
+                    store_wide(instruction.dst, kEax);
+                } else {
+                    load32(kEax, instruction.a);
+                    store32(instruction.dst, kEax);
+                }
                 break;
             case Opcode::add:
             case Opcode::sub:
@@ -461,10 +537,12 @@ private:
             case Opcode::runtime:
                 emit_arguments(instruction.args);
                 call_service(static_cast<ir::Service>(instruction.target));
+                store_result(instruction);
                 break;
             case Opcode::print_text: {
                 const auto index = static_cast<std::size_t>(instruction.target);
-                op_rip(true, {0x8D}, kEcx, string_offsets_[index]);  // lea rcx
+                op_rip(true, {0x8D}, kEcx,
+                       string_offsets_[index] + 8U);  // lea rcx, the bytes
                 load32(kEdx, ir::immediate(static_cast<std::int64_t>(
                                  program_.strings[index].size())));
                 call_service(ir::Service::print_text);
@@ -472,7 +550,11 @@ private:
             }
             case Opcode::ret:
                 if (function.result_slot >= 0) {
-                    load32(kEax, ir::slot(function.result_slot));
+                    if (function.result_wide) {
+                        load_wide(kEax, ir::slot(function.result_slot));
+                    } else {
+                        load32(kEax, ir::slot(function.result_slot));
+                    }
                 }
                 byte(0xC9);  // leave
                 byte(0xC3);  // ret
@@ -533,7 +615,7 @@ private:
         byte(0xE8);  // call rel32
         call_fixups.emplace_back(image_.size(), instruction.target);
         dword(0);
-        store32(instruction.dst, kEax);
+        store_result(instruction);
     }
 
     const ir::Program& program_;

@@ -17,8 +17,9 @@ enum class OperandKind {
     slot,       // value slot `index` of the current function's frame
     global,     // module-level variable `index`
     immediate,  // the constant `value`
-    indirect,   // the 32-bit value that slot `index` points to (a ByRef
-                // parameter)
+    indirect,   // the value that slot `index` points to (a ByRef parameter)
+    literal,    // the string literal `index` of the program (an immortal
+                // string handle)
 };
 
 struct Operand final {
@@ -37,6 +38,9 @@ struct Operand final {
 }
 [[nodiscard]] inline Operand indirect(const std::int64_t index) {
     return Operand{OperandKind::indirect, index};
+}
+[[nodiscard]] inline Operand literal(const std::int64_t index) {
+    return Operand{OperandKind::literal, index};
 }
 
 enum class Opcode {
@@ -89,7 +93,31 @@ enum class Service : int {
     print_newline = 3,  // ()
     raise_error = 4,    // (int32 VB error number); does not return
     end_program = 5,    // (); the End statement; does not return
-    count = 6,
+    // Strings: a handle is a pointer to a reference-counted byte string; the
+    // null handle is the empty string. Literals are immortal.
+    print_string = 6,          // (handle)
+    string_concat = 7,         // (a, b) -> new handle
+    string_assign = 8,         // (handle* variable, handle value)
+    string_release = 9,        // (handle)
+    string_addref = 10,        // (handle)
+    string_length = 11,        // (handle) -> int32
+    string_compare = 12,       // (a, b) -> -1, 0 or 1
+    string_left = 13,          // (s, n) -> new handle
+    string_right = 14,         // (s, n)
+    string_mid = 15,           // (s, start, length or -1)
+    string_upper = 16,         // (s)
+    string_lower = 17,         // (s)
+    string_trim = 18,          // (s)
+    string_ltrim = 19,         // (s)
+    string_rtrim = 20,         // (s)
+    string_chr = 21,           // (int32) -> new handle
+    string_asc = 22,           // (s) -> int32
+    string_from_number = 23,   // Str: (int32) -> " 5" or "-5"
+    string_from_integer = 24,  // CStr: (int32) -> "5"
+    string_from_boolean = 25,  // (int32) -> "True" or "False"
+    string_instr = 26,         // (start, s, t) -> int32
+    string_space = 27,         // (n) -> new handle
+    count = 28,
 };
 
 struct Instruction final {
@@ -100,11 +128,15 @@ struct Instruction final {
     Check check{Check::none};
     Condition condition{Condition::equal};
     int target{};
+    // `move` copies eight bytes; `call` and `runtime` store an eight-byte
+    // result (a string handle) instead of four.
+    bool wide{};
     std::vector<Operand> args;
 };
 
 struct Parameter final {
     bool by_value{};
+    bool wide{};  // eight bytes: a pointer (ByRef) or a string handle
 };
 
 struct Function final {
@@ -112,6 +144,7 @@ struct Function final {
     std::vector<Parameter> parameters;
     int slot_count{};
     int result_slot{-1};  // -1 for a Sub
+    bool result_wide{};   // the result is a string handle
     std::vector<Instruction> code;
     int label_count{};
 };
