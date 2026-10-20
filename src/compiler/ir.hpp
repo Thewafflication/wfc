@@ -69,6 +69,7 @@ enum class Opcode {
     round_single,    // dst = a rounded to a Single
     narrow,          // dst = a, error 6 unless it fits an Integer
     address,         // dst = the address of a (a slot or a global)
+    check_error,     // to `target` when a run-time error is pending
     jump,            // to `target`
     branch_zero,     // to `target` when a is 0
     branch_nonzero,  // to `target` when a is not 0
@@ -143,7 +144,15 @@ enum class Service : int {
     array_bound = 37,     // (handle, dimension from 1, 0 lower or 1 upper)
     array_release = 38,   // (handle)
     array_erase = 39,     // (handle* var)
-    count = 40,
+    // The error state. A raised error sets the pending flag (generated code
+    // tests it after every operation that can fail); a handler clears it.
+    error_number = 40,       // () -> int32, Err.Number
+    error_description = 41,  // () -> new handle, Err.Description
+    error_source = 42,       // () -> new handle, Err.Source
+    error_clear = 43,        // (), Err.Clear
+    error_raise = 44,        // (number, source handle, description handle)
+    error_acknowledge = 45,  // (), a handler took over: the flag is cleared
+    count = 46,
 };
 
 struct Instruction final {
@@ -189,6 +198,7 @@ struct Function final {
     std::vector<Parameter> parameters;
     int slot_count{};
     int result_slot{-1};   // -1 for a Sub
+    int error_label{-1};   // where a pending error goes (the end or a handler)
     bool result_wide{};    // the result is a string handle
     bool result_double{};  // the result is a Single or a Double
     std::vector<Instruction> code;

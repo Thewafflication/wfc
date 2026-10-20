@@ -73,6 +73,8 @@ enum class StmtKind {
     label,        // text = the label
     go_to,        // text = the label
     redim,        // declarations (with bounds); preserve
+    on_error,     // text: a label, "0" or "resume next"
+    resume,       // text: "", "next" or a label
     erase,        // items: the names (as name expressions)
 };
 

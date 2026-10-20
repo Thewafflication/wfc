@@ -80,6 +80,7 @@ public:
         result.image.table_count = static_cast<std::size_t>(ir::Service::count);
         result.image.entry =
             function_starts[static_cast<std::size_t>(program_.entry)];
+        result.image.error_flag = flag_offset_;
         result.image.bytes = std::move(image_);
         return result;
     }
@@ -90,6 +91,8 @@ private:
     void layout() {
         table_offset_ = 0;
         std::size_t at = static_cast<std::size_t>(ir::Service::count) * 8U;
+        flag_offset_ = at;  // the pending-error flag, then the globals
+        at += 8U;
         globals_offset_ = at;
         at += program_.globals.size() * 8U;
         // A literal is an immortal string: a reference count of -1, the
@@ -331,6 +334,15 @@ private:
         }
     }
 
+    // A displacement from the end of the instruction, which has `extra` more
+    // bytes after the displacement.
+    void rip_displacement_after(const std::size_t target,
+                                const std::size_t extra) {
+        const std::size_t after = image_.size() + 4U + extra;
+        dword(static_cast<std::uint32_t>(static_cast<std::int64_t>(target) -
+                                         static_cast<std::int64_t>(after)));
+    }
+
     void rip_displacement(const std::size_t target) {
         const std::size_t after = image_.size() + 4U;
         dword(static_cast<std::uint32_t>(static_cast<std::int64_t>(target) -
@@ -477,18 +489,18 @@ private:
             emit_instruction(function, instruction, call_fixups);
         }
         // Every function ends with `ret`; the stubs follow it.
+        emit_stubs(function);
         patch_labels();
-        emit_stubs();
     }
 
-    void emit_stubs() {
+    void emit_stubs(const ir::Function& function) {
         if (!state_.overflow_jumps.empty()) {
             const std::size_t here = image_.size();
             for (const auto& jump : state_.overflow_jumps) {
                 patch32(jump.at,
                         static_cast<std::int32_t>(here - (jump.at + 4U)));
             }
-            emit_error_call(6);
+            emit_error_call(6, function);
         }
         if (!state_.zero_jumps.empty()) {
             const std::size_t here = image_.size();
@@ -496,14 +508,15 @@ private:
                 patch32(jump.at,
                         static_cast<std::int32_t>(here - (jump.at + 4U)));
             }
-            emit_error_call(11);
+            emit_error_call(11, function);
         }
     }
 
-    void emit_error_call(const int number) {
+    // Raises the error and goes to where this function handles errors.
+    void emit_error_call(const int number, const ir::Function& function) {
         load32(kEcx, ir::immediate(number));
         call_service(ir::Service::raise_error);
-        byte(0xCC);  // int3: the service does not return
+        jmp(function.error_label);
     }
 
     void call_service(const ir::Service service) {
@@ -679,6 +692,13 @@ private:
                 }
                 op_rbp(true, 0x89, kEax, slot_disp(instruction.dst.value));
                 break;
+            case Opcode::check_error:
+                // cmp dword [rip + flag], 0 ; jne target
+                bytes({0x83, 0x3D});
+                rip_displacement_after(flag_offset_, 1U);
+                byte(0x00);
+                jcc(kCcNotEqual, instruction.target);
+                break;
             case Opcode::jump:
                 jmp(instruction.target);
                 break;
@@ -795,6 +815,7 @@ private:
     const ir::Program& program_;
     std::vector<std::uint8_t> image_;
     std::size_t table_offset_{};
+    std::size_t flag_offset_{};
     std::size_t globals_offset_{};
     std::vector<std::size_t> string_offsets_;
     FunctionState state_;

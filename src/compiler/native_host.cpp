@@ -98,7 +98,7 @@ void print_newline() {
     std::cout << '\n';
 }
 
-[[nodiscard]] std::string_view error_text(const std::int32_t number) {
+[[nodiscard]] std::string standard_error_text(const std::int32_t number) {
     switch (number) {
         case 5:
             return "Invalid procedure call or argument";
@@ -110,17 +110,33 @@ void print_newline() {
             return "Subscript out of range";
         case 11:
             return "Division by zero";
+        case 13:
+            return "Type mismatch";
         default:
             return "Application-defined or object-defined error";
     }
 }
 
-[[noreturn]] void raise_error(const std::int32_t number) {
-    std::cout.flush();
-    std::cerr << "Run-time error '" << number << "': " << error_text(number)
-              << '\n';
-    std::cerr.flush();
-    std::exit(1);
+// The error state: Err and the flag that generated code tests after every
+// operation that can fail. `pending` points into the loaded image.
+struct ErrorState final {
+    std::int32_t* pending{};
+    std::int32_t number{};
+    std::string description;
+    std::string source;
+};
+
+ErrorState g_error;
+
+// Records a run-time error and marks it pending. The caller returns at once;
+// generated code sees the flag and goes to the procedure's handler.
+void raise_error(const std::int32_t number) {
+    g_error.number = number;
+    g_error.description = standard_error_text(number);
+    g_error.source = "Project1";
+    if (g_error.pending != nullptr) {
+        *g_error.pending = 1;
+    }
 }
 
 [[noreturn]] void end_program() {
@@ -174,6 +190,7 @@ std::int32_t string_compare(const RtString* a, const RtString* b) {
 RtString* string_left(RtString* text, const std::int32_t count) {
     if (count < 0) {
         raise_error(5);
+        return nullptr;
     }
     if (count >= length_of(text)) {
         return retain(text);
@@ -184,6 +201,7 @@ RtString* string_left(RtString* text, const std::int32_t count) {
 RtString* string_right(RtString* text, const std::int32_t count) {
     if (count < 0) {
         raise_error(5);
+        return nullptr;
     }
     if (count >= length_of(text)) {
         return retain(text);
@@ -196,6 +214,7 @@ RtString* string_mid(RtString* text, const std::int32_t start,
                      const std::int32_t count) {
     if (start < 1 || (count < 0 && count != kOmitted)) {
         raise_error(5);
+        return nullptr;
     }
     if (start > length_of(text)) {
         return nullptr;
@@ -260,6 +279,7 @@ RtString* string_rtrim(const RtString* text) {
 RtString* string_chr(const std::int32_t code) {
     if (code < 0 || code > 255) {
         raise_error(5);
+        return nullptr;
     }
     const char c = static_cast<char>(code);
     return make_string(&c, 1U);
@@ -268,6 +288,7 @@ RtString* string_chr(const std::int32_t code) {
 std::int32_t string_asc(const RtString* text) {
     if (length_of(text) == 0) {
         raise_error(5);
+        return 0;
     }
     return static_cast<unsigned char>(text->data[0]);
 }
@@ -289,6 +310,7 @@ std::int32_t string_instr(const std::int32_t start, const RtString* text,
                           const RtString* pattern) {
     if (start < 1) {
         raise_error(5);
+        return 0;
     }
     const auto content = view_of(text);
     if (static_cast<std::size_t>(start) > content.size()) {
@@ -305,6 +327,7 @@ std::int32_t string_instr(const std::int32_t start, const RtString* text,
 RtString* string_space(const std::int32_t count) {
     if (count < 0) {
         raise_error(5);
+        return nullptr;
     }
     return make_string(std::string(static_cast<std::size_t>(count), ' '));
 }
@@ -336,6 +359,7 @@ std::int32_t double_to_long(const double value) {
     const double rounded = std::nearbyint(value);  // to even, as CInt and CLng
     if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
         raise_error(6);
+        return 0;
     }
     return static_cast<std::int32_t>(rounded);
 }
@@ -345,6 +369,7 @@ double math_function(const std::int32_t which, const double value) {
         case ir::MathFunction::square_root:
             if (value < 0) {
                 raise_error(5);
+                return 0;
             }
             return std::sqrt(value);
         case ir::MathFunction::sine:
@@ -358,12 +383,14 @@ double math_function(const std::int32_t which, const double value) {
         case ir::MathFunction::logarithm:
             if (value <= 0) {
                 raise_error(5);
+                return 0;
             }
             return std::log(value);
         case ir::MathFunction::exponential: {
             const double result = std::exp(value);
             if (std::isinf(result)) {
                 raise_error(6);
+                return 0;
             }
             return result;
         }
@@ -432,6 +459,7 @@ void array_redim(RtArray** variable, const std::int32_t flags,
     const std::int32_t kind = flags & 0xFF;
     if (dims < 1 || dims > 3) {
         raise_error(9);
+        return;
     }
     RtArray header{};
     header.kind = kind;
@@ -443,11 +471,13 @@ void array_redim(RtArray** variable, const std::int32_t flags,
         const auto upper = static_cast<std::int32_t>(bounds[2 * k + 1]);
         if (upper < lower) {
             raise_error(9);
+            return;
         }
         header.bounds[k] = RtBound{lower, upper};
         count *= static_cast<std::int64_t>(upper) - lower + 1;
         if (count > (1LL << 28)) {
             raise_error(7);
+            return;
         }
     }
     header.count = static_cast<std::int32_t>(count);
@@ -456,6 +486,7 @@ void array_redim(RtArray** variable, const std::int32_t flags,
                                              element_size(kind)));
     if (array == nullptr) {
         raise_error(7);
+        return;
     }
     *array = header;
     RtArray* old = *variable;
@@ -501,18 +532,13 @@ void array_redim(RtArray** variable, const std::int32_t flags,
     *variable = array;
 }
 
-[[nodiscard]] RtArray* checked(RtArray* array, const std::int32_t dims) {
-    if (array == nullptr || array->dims != dims) {
-        raise_error(9);
-    }
-    return array;
-}
-
+// The offset of an index inside a dimension, or -1 after raising error 9.
 [[nodiscard]] std::int64_t offset_in(const RtArray* array, const std::int32_t k,
                                      const std::int32_t index) {
     const auto& bound = array->bounds[k];
     if (index < bound.lower || index > bound.upper) {
         raise_error(9);
+        return -1;
     }
     return static_cast<std::int64_t>(index) - bound.lower;
 }
@@ -523,36 +549,56 @@ void array_redim(RtArray** variable, const std::int32_t flags,
            array->bounds[k].lower + 1;
 }
 
+[[nodiscard]] bool has_dims(const RtArray* array, const std::int32_t dims) {
+    if (array == nullptr || array->dims != dims) {
+        raise_error(9);
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] void* element_at(RtArray* array, const std::int64_t at) {
+    return at < 0 ? nullptr
+                  : data_of(array) + static_cast<std::size_t>(at) *
+                                         element_size(array->kind);
+}
+
 void* array_element1(RtArray* array, const std::int32_t i) {
-    static_cast<void>(checked(array, 1));
-    return data_of(array) + static_cast<std::size_t>(offset_in(array, 0, i)) *
-                                element_size(array->kind);
+    if (!has_dims(array, 1)) {
+        return nullptr;
+    }
+    return element_at(array, offset_in(array, 0, i));
 }
 
 void* array_element2(RtArray* array, const std::int32_t i,
                      const std::int32_t j) {
-    static_cast<void>(checked(array, 2));
-    const auto at =
-        offset_in(array, 0, i) * extent_of(array, 1) + offset_in(array, 1, j);
-    return data_of(array) +
-           static_cast<std::size_t>(at) * element_size(array->kind);
+    if (!has_dims(array, 2)) {
+        return nullptr;
+    }
+    const auto a = offset_in(array, 0, i);
+    const auto b = offset_in(array, 1, j);
+    return element_at(array, a < 0 || b < 0 ? -1 : a * extent_of(array, 1) + b);
 }
 
 void* array_element3(RtArray* array, const std::int32_t i, const std::int32_t j,
                      const std::int32_t k) {
-    static_cast<void>(checked(array, 3));
-    const auto at = (offset_in(array, 0, i) * extent_of(array, 1) +
-                     offset_in(array, 1, j)) *
-                        extent_of(array, 2) +
-                    offset_in(array, 2, k);
-    return data_of(array) +
-           static_cast<std::size_t>(at) * element_size(array->kind);
+    if (!has_dims(array, 3)) {
+        return nullptr;
+    }
+    const auto a = offset_in(array, 0, i);
+    const auto b = offset_in(array, 1, j);
+    const auto c = offset_in(array, 2, k);
+    return element_at(
+        array, a < 0 || b < 0 || c < 0
+                   ? -1
+                   : (a * extent_of(array, 1) + b) * extent_of(array, 2) + c);
 }
 
 std::int32_t array_bound(const RtArray* array, const std::int32_t dimension,
                          const std::int32_t which) {
     if (array == nullptr || dimension < 1 || dimension > array->dims) {
         raise_error(9);
+        return 0;
     }
     const auto& bound = array->bounds[dimension - 1];
     return which == 0 ? bound.lower : bound.upper;
@@ -572,6 +618,43 @@ void array_erase(RtArray** variable) {
     }
     array_release(array);
     *variable = nullptr;
+}
+
+std::int32_t error_number() {
+    return g_error.number;
+}
+
+RtString* error_description() {
+    return make_string(g_error.description);
+}
+
+RtString* error_source() {
+    return make_string(g_error.source);
+}
+
+void error_clear() {
+    g_error.number = 0;
+    g_error.description.clear();
+    g_error.source.clear();
+}
+
+// Err.Raise number[, source[, description]]
+void error_raise(const std::int32_t number, const RtString* source,
+                 const RtString* description) {
+    raise_error(number);
+    if (length_of(description) != 0) {
+        g_error.description = std::string(view_of(description));
+    }
+    if (length_of(source) != 0) {
+        g_error.source = std::string(view_of(source));
+    }
+}
+
+// A handler took over: the error is no longer pending.
+void error_acknowledge() {
+    if (g_error.pending != nullptr) {
+        *g_error.pending = 0;
+    }
 }
 
 using EntryFunction = void (*)();
@@ -623,6 +706,9 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&array_element1),      address_of(&array_element2),
         address_of(&array_element3),      address_of(&array_bound),
         address_of(&array_release),       address_of(&array_erase),
+        address_of(&error_number),        address_of(&error_description),
+        address_of(&error_source),        address_of(&error_clear),
+        address_of(&error_raise),         address_of(&error_acknowledge),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
@@ -633,12 +719,24 @@ int run_native_image(const NativeImage& image, std::string& error) {
         return -1;
     }
     FlushInstructionCache(GetCurrentProcess(), memory, image.bytes.size());
+    g_error = ErrorState{};
+    g_error.pending = reinterpret_cast<std::int32_t*>(
+        static_cast<std::uint8_t*>(memory) + image.error_flag);
     const auto entry = reinterpret_cast<EntryFunction>(
         static_cast<std::uint8_t*>(memory) + image.entry);
     entry();
     std::cout.flush();
+    int code = 0;
+    if (*g_error.pending != 0) {
+        // An error that no handler took ends the program.
+        std::cerr << "Run-time error '" << g_error.number
+                  << "': " << g_error.description << '\n';
+        std::cerr.flush();
+        code = 1;
+    }
+    g_error.pending = nullptr;
     VirtualFree(memory, 0, MEM_RELEASE);
-    return 0;
+    return code;
 #else
     static_cast<void>(image);
     error = "native programs run on Windows only";

@@ -27,7 +27,8 @@ struct NativeImage final {
     Architecture architecture{Architecture::x64};
     std::vector<std::uint8_t> bytes;
     std::size_t table_count{};
-    std::size_t entry{};  // offset of the function that starts the program
+    std::size_t entry{};       // offset of the function that starts the program
+    std::size_t error_flag{};  // offset of the 32-bit pending-error flag
 };
 
 // Version of the entry table layout (the order of `ir::Service`). The loader

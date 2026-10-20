@@ -96,6 +96,42 @@ public:
         return ir::slot(function_.slot_count++);
     }
     [[nodiscard]] std::size_t position() const { return function_.code.size(); }
+    // Where a pending run-time error goes after a call or a service.
+    void set_error_label(const int label) {
+        error_label_ = label;
+        function_.error_label = label;
+    }
+    void check_error() {
+        if (error_label_ < 0) {
+            return;
+        }
+        ir::Instruction instruction;
+        instruction.op = Opcode::check_error;
+        instruction.target = error_label_;
+        function_.code.push_back(std::move(instruction));
+    }
+    [[nodiscard]] static bool may_raise(const Service service) {
+        switch (service) {
+            case Service::string_left:
+            case Service::string_right:
+            case Service::string_mid:
+            case Service::string_chr:
+            case Service::string_asc:
+            case Service::string_instr:
+            case Service::string_space:
+            case Service::double_to_long:
+            case Service::math_function:
+            case Service::array_redim:
+            case Service::array_element1:
+            case Service::array_element2:
+            case Service::array_element3:
+            case Service::array_bound:
+            case Service::error_raise:
+                return true;
+            default:
+                return false;
+        }
+    }
     // A slot that starts as the empty string or 0.0, set before the body.
     void insert_zero(const std::size_t index, const Operand slot) {
         ir::Instruction instruction;
@@ -179,6 +215,9 @@ public:
         instruction.dst = result;
         instruction.wide = wide;
         function_.code.push_back(std::move(instruction));
+        if (may_raise(service)) {
+            check_error();
+        }
     }
     void print_text(const int string_index) {
         ir::Instruction instruction;
@@ -198,6 +237,7 @@ public:
         instruction.args = std::move(args);
         instruction.wide = wide;
         function_.code.push_back(std::move(instruction));
+        check_error();
     }
     void ret() {
         ir::Instruction instruction;
@@ -207,6 +247,7 @@ public:
 
 private:
     ir::Function& function_;
+    int error_label_{-1};
 };
 
 // A builtin function: its VB name, its arguments and the service behind it.
@@ -281,11 +322,14 @@ private:
         auto& start = program_.functions.back();
         FunctionBuilder builder(start);
         builder_ = &builder;
+        const int finish = builder.new_label();
+        builder.set_error_label(finish);
         for (const auto& array : global_arrays_) {
             emit_array_allocation(array.variable, array.declaration->bounds,
                                   true, false, true);
         }
         builder.call({}, main_index, {}, false);
+        builder.place(finish);
         builder.ret();
         builder_ = nullptr;
         program_.entry = static_cast<int>(program_.functions.size()) - 1;
@@ -410,13 +454,20 @@ private:
             result_variable_ = Variable{result, procedure.return_type};
         }
         end_label_ = builder.new_label();
+        builder.set_error_label(end_label_);
+        error_label_ = end_label_;
         entry_index_ = builder.position();
         late_zero_.clear();
         local_constants_.clear();
         labels_.clear();
         defined_labels_.clear();
+        setup_error_handling(procedure, builder);
         declare_locals_of(procedure.body);
         lower_block(procedure.body);
+        if (uses_errors_) {
+            builder.jump(end_label_);
+            emit_error_dispatch();
+        }
         for (const auto& [name, id] : labels_) {
             static_cast<void>(id);
             if (!defined_labels_.contains(name)) {
@@ -433,6 +484,197 @@ private:
         }
         builder.ret();
         builder_ = nullptr;
+    }
+
+    // ----- Error handling --------------------------------------------------
+    //
+    // A procedure with `On Error` keeps its handler (0 none, 1 Resume Next,
+    // 2 and up the GoTo handlers) and the number of the running statement in
+    // slots. Every pending error goes to one dispatch, which acts on them.
+
+    static bool contains_on_error(const std::vector<StmtPtr>& statements) {
+        for (const auto& statement : statements) {
+            if (statement->kind == StmtKind::on_error) {
+                return true;
+            }
+            for (const auto& block : statement->blocks) {
+                if (contains_on_error(block)) {
+                    return true;
+                }
+            }
+            for (const auto& block : statement->cases) {
+                if (contains_on_error(block.body)) {
+                    return true;
+                }
+            }
+            if (contains_on_error(statement->body)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void setup_error_handling(const Procedure& procedure,
+                              FunctionBuilder& builder) {
+        uses_errors_ = contains_on_error(procedure.body);
+        start_labels_.clear();
+        end_labels_.clear();
+        handler_labels_.clear();
+        current_id_ = -1;
+        if (!uses_errors_) {
+            return;
+        }
+        handler_slot_ = builder.new_temp();
+        saved_handler_slot_ = builder.new_temp();
+        stmt_id_slot_ = builder.new_temp();
+        error_stmt_slot_ = builder.new_temp();
+        for (const auto& slot : {handler_slot_, saved_handler_slot_,
+                                 stmt_id_slot_, error_stmt_slot_}) {
+            builder.emit(Opcode::move, slot, ir::immediate(0));
+        }
+        dispatch_label_ = builder.new_label();
+        resume_next_label_ = builder.new_label();
+        resume_retry_label_ = builder.new_label();
+        builder.set_error_label(dispatch_label_);
+        error_label_ = dispatch_label_;
+    }
+
+    // Marks the statement that is running (errors resume relative to it).
+    void touch_statement(const int id) {
+        if (uses_errors_ && id >= 0) {
+            builder_->emit(Opcode::move, stmt_id_slot_, ir::immediate(id));
+        }
+    }
+
+    // Jumps to `labels[k]` when the running statement is k.
+    void dispatch_on_statement(const std::vector<int>& labels) {
+        for (std::size_t k = 0; k < labels.size(); ++k) {
+            const auto same = builder_->new_temp();
+            builder_->compare(same, error_stmt_slot_,
+                              ir::immediate(static_cast<std::int64_t>(k)),
+                              Condition::equal);
+            builder_->branch(Opcode::branch_nonzero, same, labels[k]);
+        }
+        builder_->jump(end_label_);
+    }
+
+    void emit_error_dispatch() {
+        builder_->place(dispatch_label_);
+        // The statement that failed: a Resume goes back to or past it.
+        builder_->emit(Opcode::move, error_stmt_slot_, stmt_id_slot_);
+        const auto none = builder_->new_temp();
+        builder_->compare(none, handler_slot_, ir::immediate(0),
+                          Condition::equal);
+        // No handler: the error stays pending and leaves the procedure.
+        builder_->branch(Opcode::branch_nonzero, none, end_label_);
+        builder_->runtime(Service::error_acknowledge, {});
+        const auto resume_next = builder_->new_temp();
+        builder_->compare(resume_next, handler_slot_, ir::immediate(1),
+                          Condition::equal);
+        builder_->branch(Opcode::branch_nonzero, resume_next,
+                         resume_next_label_);
+        // A GoTo handler runs with the handler off until a Resume.
+        const auto which = builder_->new_temp();
+        builder_->emit(Opcode::move, which, handler_slot_);
+        builder_->emit(Opcode::move, handler_slot_, ir::immediate(0));
+        for (std::size_t i = 0; i < handler_labels_.size(); ++i) {
+            const auto matches = builder_->new_temp();
+            builder_->compare(matches, which,
+                              ir::immediate(static_cast<std::int64_t>(i + 2U)),
+                              Condition::equal);
+            builder_->branch(Opcode::branch_nonzero, matches,
+                             handler_labels_[i]);
+        }
+        builder_->jump(end_label_);
+        builder_->place(resume_next_label_);
+        dispatch_on_statement(end_labels_);
+        builder_->place(resume_retry_label_);
+        dispatch_on_statement(start_labels_);
+    }
+
+    void lower_on_error(const Stmt& statement) {
+        std::int64_t handler = 0;
+        if (statement.text == "resume next") {
+            handler = 1;
+        } else if (statement.text != "0") {
+            const int target = label_for(statement.text);
+            std::size_t index = 0;
+            while (index < handler_labels_.size() &&
+                   handler_labels_[index] != target) {
+                ++index;
+            }
+            if (index == handler_labels_.size()) {
+                handler_labels_.push_back(target);
+            }
+            handler = static_cast<std::int64_t>(index) + 2;
+        }
+        builder_->emit(Opcode::move, handler_slot_, ir::immediate(handler));
+        if (handler != 0) {
+            builder_->emit(Opcode::move, saved_handler_slot_,
+                           ir::immediate(handler));
+        }
+    }
+
+    void lower_resume(const Stmt& statement) {
+        // Resume switches the handler on again.
+        builder_->emit(Opcode::move, handler_slot_, saved_handler_slot_);
+        if (statement.text.empty()) {
+            builder_->jump(resume_retry_label_);
+        } else if (statement.text == "next") {
+            builder_->jump(resume_next_label_);
+        } else {
+            builder_->jump(label_for(statement.text));
+        }
+    }
+
+    // `Err.Number`, `Err.Description`, `Err.Source`.
+    [[nodiscard]] Value lower_err_member(const Expr& expression) {
+        const std::string member = expression.text.substr(4);
+        Value result;
+        if (member == "number") {
+            result.type = VbType::long_integer;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::error_number, {}, result.operand);
+            return result;
+        }
+        if (member == "description" || member == "source") {
+            result.type = VbType::string;
+            result.operand = new_owned_string();
+            builder_->runtime(member == "description"
+                                  ? Service::error_description
+                                  : Service::error_source,
+                              {}, result.operand, true);
+            return result;
+        }
+        fail("Err." + member + " is not compiled yet", expression.at);
+    }
+
+    // `Err.Clear` and `Err.Raise number [, source [, description]]`.
+    void lower_err_statement(const Stmt& statement) {
+        if (statement.text == "err.clear") {
+            builder_->runtime(Service::error_clear, {});
+            return;
+        }
+        if (statement.text != "err.raise" || statement.items.empty() ||
+            statement.items.size() > 3U) {
+            fail(statement.text + " is not compiled yet", statement.at);
+        }
+        std::vector<Operand> arguments;
+        const auto number = lower_expression(*statement.items[0]);
+        arguments.push_back(to_long(number, statement.at).operand);
+        for (std::size_t i = 1; i < 3U; ++i) {
+            if (i < statement.items.size()) {
+                const auto text = lower_expression(*statement.items[i]);
+                if (text.type != VbType::string) {
+                    fail("Err.Raise needs String arguments here",
+                         statement.items[i]->at);
+                }
+                arguments.push_back(text.operand);
+            } else {
+                arguments.push_back(ir::immediate(0));
+            }
+        }
+        builder_->runtime(Service::error_raise, std::move(arguments));
     }
 
     void zero(const Operand slot, const VbType type) {
@@ -564,6 +806,23 @@ private:
     }
 
     void lower_statement(const Stmt& statement) {
+        int id = -1;
+        if (uses_errors_) {
+            id = static_cast<int>(start_labels_.size());
+            start_labels_.push_back(builder_->new_label());
+            end_labels_.push_back(builder_->new_label());
+            builder_->place(start_labels_.back());
+            current_id_ = id;
+            touch_statement(id);
+        }
+        lower_statement_body(statement);
+        flush_temps();
+        if (id >= 0) {
+            builder_->place(end_labels_[static_cast<std::size_t>(id)]);
+        }
+    }
+
+    void lower_statement_body(const Stmt& statement) {
         switch (statement.kind) {
             case StmtKind::dim:
                 break;  // declared when the procedure starts
@@ -608,6 +867,12 @@ private:
             case StmtKind::go_to:
                 builder_->jump(label_for(statement.text));
                 break;
+            case StmtKind::on_error:
+                lower_on_error(statement);
+                break;
+            case StmtKind::resume:
+                lower_resume(statement);
+                break;
             case StmtKind::redim:
                 lower_redim(statement);
                 break;
@@ -622,7 +887,6 @@ private:
                 }
                 break;
         }
-        flush_temps();
     }
 
     void lower_assignment(const Stmt& statement) {
@@ -672,15 +936,30 @@ private:
         return pointer;
     }
 
+    // A Print evaluates all its items first and then writes them, so a
+    // function called by a later item cannot change what an earlier one shows.
     void lower_print(const Stmt& statement) {
-        for (const auto& item : statement.items) {
-            if (item->kind == ExprKind::string_literal) {
-                program_.strings.push_back(item->text);
-                builder_->print_text(
-                    static_cast<int>(program_.strings.size() - 1U));
+        struct Item final {
+            int literal{-1};
+            Value value;
+        };
+        std::vector<Item> items;
+        for (const auto& expression : statement.items) {
+            Item item;
+            if (expression->kind == ExprKind::string_literal) {
+                program_.strings.push_back(expression->text);
+                item.literal = static_cast<int>(program_.strings.size() - 1U);
+            } else {
+                item.value = snapshot(lower_expression(*expression));
+            }
+            items.push_back(item);
+        }
+        for (const auto& item : items) {
+            if (item.literal >= 0) {
+                builder_->print_text(item.literal);
                 continue;
             }
-            const auto value = lower_expression(*item);
+            const auto& value = item.value;
             if (is_float(value.type)) {
                 builder_->runtime(
                     Service::print_double,
@@ -697,6 +976,28 @@ private:
         if (statement.newline) {
             builder_->runtime(Service::print_newline, {});
         }
+    }
+
+    // A copy of a variable's value as it is now (a String keeps a reference).
+    [[nodiscard]] Value snapshot(const Value& value) {
+        const auto kind = value.operand.kind;
+        const bool is_variable = kind == OperandKind::slot ||
+                                 kind == OperandKind::global ||
+                                 kind == OperandKind::indirect;
+        if (!is_variable) {
+            return value;
+        }
+        const auto copy = builder_->new_temp();
+        if (value.type == VbType::string) {
+            builder_->move_wide(copy, value.operand);
+            builder_->runtime(Service::string_addref, {copy});
+            pending_.push_back(copy);
+        } else if (is_float(value.type)) {
+            builder_->move_wide(copy, value.operand);
+        } else {
+            builder_->emit(Opcode::move, copy, value.operand);
+        }
+        return Value{copy, value.type};
     }
 
     // A condition is true when its value is not zero. The temporaries of
@@ -733,7 +1034,9 @@ private:
         const int top = builder_->new_label();
         const int done = builder_->new_label();
         loops_.push_back(Loop{"do", done});
+        const int id = current_id_;
         builder_->place(top);
+        touch_statement(id);
         const auto condition = lower_condition(*statement.expr);
         builder_->branch(Opcode::branch_zero, condition, done);
         lower_block(statement.body);
@@ -746,7 +1049,9 @@ private:
         const int top = builder_->new_label();
         const int done = builder_->new_label();
         loops_.push_back(Loop{"do", done});
+        const int id = current_id_;
         builder_->place(top);
+        touch_statement(id);
         if (statement.expr && !statement.test_after) {
             const auto condition = lower_condition(*statement.expr);
             builder_->branch(
@@ -755,6 +1060,7 @@ private:
         }
         lower_block(statement.body);
         if (statement.expr && statement.test_after) {
+            touch_statement(id);
             // Loop While repeats while true; Loop Until repeats while false.
             const auto condition = lower_condition(*statement.expr);
             builder_->branch(
@@ -801,7 +1107,9 @@ private:
         const int top = builder_->new_label();
         const int done = builder_->new_label();
         loops_.push_back(Loop{"for", done});
+        const int id = current_id_;
         builder_->place(top);
+        touch_statement(id);
         const auto keep_going = builder_->new_temp();
         if (constant_step.has_value()) {
             builder_->compare(keep_going, variable.operand, limit,
@@ -824,6 +1132,7 @@ private:
         }
         builder_->branch(Opcode::branch_zero, keep_going, done);
         lower_block(statement.body);
+        touch_statement(id);
         builder_->emit(Opcode::add, variable.operand, variable.operand, step,
                        check_for(variable.type));
         builder_->jump(top);
@@ -1435,6 +1744,10 @@ private:
     }
 
     void lower_call_statement(const Stmt& statement) {
+        if (statement.text.rfind("err.", 0) == 0) {
+            lower_err_statement(statement);
+            return;
+        }
         static_cast<void>(
             lower_call(statement.text, statement.items, statement.at, false));
     }
@@ -1691,6 +2004,9 @@ private:
                                  program_.strings.size() - 1)),
                              VbType::string};
             case ExprKind::name: {
+                if (expression.text.rfind("err.", 0) == 0) {
+                    return lower_err_member(expression);
+                }
                 if (!locals_.contains(expression.text) &&
                     !(result_variable_.has_value() &&
                       expression.text == current_->name) &&
@@ -1995,6 +2311,19 @@ private:
     std::vector<Operand> late_zero_;  // hidden string slots, zeroed at entry
     std::size_t entry_index_{};
     const Procedure* current_{};
+    int error_label_{-1};
+    bool uses_errors_{};
+    Operand handler_slot_;
+    Operand saved_handler_slot_;
+    Operand stmt_id_slot_;
+    Operand error_stmt_slot_;
+    int dispatch_label_{};
+    int resume_next_label_{};
+    int resume_retry_label_{};
+    int current_id_{-1};
+    std::vector<int> start_labels_;
+    std::vector<int> end_labels_;
+    std::vector<int> handler_labels_;
     FunctionBuilder* builder_{};
     int end_label_{};
 };

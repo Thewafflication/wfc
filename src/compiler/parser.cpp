@@ -424,6 +424,22 @@ private:
         if (word == "select") {
             return select_statement();
         }
+        if (word == "on" && ahead(1).kind == TokenKind::identifier &&
+            ahead(1).text == "error") {
+            return on_error_statement();
+        }
+        if (word == "resume") {
+            auto result = make(StmtKind::resume);
+            advance();
+            if (accept_word("next")) {
+                result->text = "next";
+            } else if (current().kind == TokenKind::identifier &&
+                       !is_word("else")) {
+                result->text = without_suffix(current().text);
+                advance();
+            }
+            return result;
+        }
         if (word == "redim") {
             return redim_statement();
         }
@@ -481,6 +497,34 @@ private:
                  " is not compiled yet");
         }
         return assignment_or_call();
+    }
+
+    // On Error GoTo label | On Error GoTo 0 | On Error Resume Next
+    [[nodiscard]] StmtPtr on_error_statement() {
+        auto result = make(StmtKind::on_error);
+        advance();
+        advance();
+        if (accept_word("resume")) {
+            expect_word("next");
+            result->text = "resume next";
+            return result;
+        }
+        expect_word("goto");
+        if (current().kind == TokenKind::integer) {
+            if (current().number != 0) {
+                fail("On Error GoTo " + std::to_string(current().number) +
+                     " is not compiled yet");
+            }
+            result->text = "0";
+            advance();
+            return result;
+        }
+        if (current().kind != TokenKind::identifier) {
+            fail("expected a label after On Error GoTo");
+        }
+        result->text = without_suffix(current().text);
+        advance();
+        return result;
     }
 
     [[nodiscard]] StmtPtr redim_statement() {
@@ -639,9 +683,18 @@ private:
             fail("expected the procedure name");
         }
         result->text = without_suffix(current().text);
+        const bool is_err = current().text == "err";
         advance();
         if (is_symbol(".")) {
-            fail("members of objects are not compiled yet");
+            if (!is_err) {
+                fail("members of objects are not compiled yet");
+            }
+            advance();
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a member name after Err.");
+            }
+            result->text = "err." + current().text;
+            advance();
         }
         if (accept_symbol("(")) {
             if (!accept_symbol(")")) {
@@ -970,7 +1023,18 @@ private:
             }
             advance();
             if (is_symbol(".")) {
-                fail("members of objects are not compiled yet");
+                // Only the Err object has members so far.
+                if (token.text != "err") {
+                    fail("members of objects are not compiled yet");
+                }
+                advance();
+                if (current().kind != TokenKind::identifier) {
+                    fail("expected a member name after Err.");
+                }
+                auto member = make_expr(ExprKind::name, at);
+                member->text = "err." + current().text;
+                advance();
+                return member;
             }
             if (is_symbol("(")) {
                 advance();
