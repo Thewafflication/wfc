@@ -28,7 +28,7 @@ public:
             } else if (is_word("dim") || is_word("private") ||
                        is_word("public") || is_word("friend") ||
                        is_word("static") || is_word("sub") ||
-                       is_word("function")) {
+                       is_word("function") || is_word("const")) {
                 declaration_or_procedure(module);
             } else {
                 fail("expected a declaration, Sub or Function");
@@ -212,6 +212,11 @@ private:
             procedure(module, is_public);
             return;
         }
+        if (accept_word("const")) {
+            constants(module.constants);
+            expect_end_of_statement();
+            return;
+        }
         if (accept_word("dim") || saw_scope) {
             do {
                 module.globals.push_back(declarator());
@@ -220,6 +225,32 @@ private:
             return;
         }
         fail("expected a declaration, Sub or Function");
+    }
+
+    // `name [As Type] = expression {, name [As Type] = expression}`
+    void constants(std::vector<ConstantDecl>& into) {
+        do {
+            if (current().kind != TokenKind::identifier) {
+                fail("expected the constant name");
+            }
+            ConstantDecl constant;
+            constant.at = here();
+            const std::string spelled = current().text;
+            constant.name = without_suffix(spelled);
+            const VbType by_suffix = suffix_type(spelled);
+            advance();
+            if (by_suffix != VbType::none) {
+                constant.type = by_suffix;
+                constant.type_given = true;
+            }
+            if (accept_word("as")) {
+                constant.type = type_name();
+                constant.type_given = true;
+            }
+            expect_symbol("=");
+            constant.value = expression();
+            into.push_back(std::move(constant));
+        } while (accept_symbol(","));
     }
 
     void procedure(Module& module, const bool is_public) {
@@ -339,8 +370,36 @@ private:
             fail("expected a statement");
         }
         const std::string word = current().text;
+        if (current().line_start &&
+            ahead(1).kind == TokenKind::end_of_statement &&
+            ahead(1).text == ":" && word != "else") {
+            auto result = make(StmtKind::label);
+            result->text = without_suffix(word);
+            advance();
+            advance();
+            return result;
+        }
         if (word == "dim") {
             return dim_statement();
+        }
+        if (word == "const") {
+            auto result = make(StmtKind::const_decl);
+            advance();
+            constants(result->constants);
+            return result;
+        }
+        if (word == "goto") {
+            auto result = make(StmtKind::go_to);
+            advance();
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a label after GoTo");
+            }
+            result->text = without_suffix(current().text);
+            advance();
+            return result;
+        }
+        if (word == "select") {
+            return select_statement();
         }
         if (word == "print") {
             return print_statement();
@@ -374,15 +433,60 @@ private:
             advance();
             return assignment_or_call();
         }
-        if (word == "select" || word == "with" || word == "goto" ||
-            word == "gosub" || word == "on" || word == "set" ||
-            word == "redim" || word == "const" || word == "open" ||
+        if (word == "with" || word == "gosub" || word == "on" ||
+            word == "set" || word == "redim" || word == "open" ||
             word == "close" || word == "static" || word == "erase" ||
             word == "randomize" || word == "line" || word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
         return assignment_or_call();
+    }
+
+    [[nodiscard]] StmtPtr select_statement() {
+        auto result = make(StmtKind::select_case);
+        advance();
+        expect_word("case");
+        result->expr = expression();
+        expect_end_of_statement();
+        while (is_word("case")) {
+            advance();
+            if (accept_word("else")) {
+                expect_end_of_statement();
+                result->body = block({"case", "end"});
+                result->has_else = true;
+                break;
+            }
+            CaseBlock block_of_case;
+            do {
+                CaseClause clause;
+                if (accept_word("is")) {
+                    if (current().kind != TokenKind::symbol ||
+                        !(current().text == "=" || current().text == "<>" ||
+                          current().text == "<" || current().text == ">" ||
+                          current().text == "<=" || current().text == ">=")) {
+                        fail("expected a comparison operator after Is");
+                    }
+                    clause.kind = CaseClause::Kind::relation;
+                    clause.op = current().text;
+                    advance();
+                    clause.low = expression();
+                } else {
+                    clause.low = expression();
+                    if (accept_word("to")) {
+                        clause.kind = CaseClause::Kind::range;
+                        clause.high = expression();
+                    }
+                }
+                block_of_case.clauses.push_back(std::move(clause));
+            } while (accept_symbol(","));
+            expect_end_of_statement();
+            block_of_case.body = block({"case", "end"});
+            result->cases.push_back(std::move(block_of_case));
+        }
+        expect_word("end");
+        expect_word("select");
+        return result;
     }
 
     [[nodiscard]] StmtPtr dim_statement() {

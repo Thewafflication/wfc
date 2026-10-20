@@ -66,8 +66,34 @@ enum class StmtKind {
     for_loop,  // text = variable; expr, limit, step; body
     do_loop,   // condition tested before or after; `until` flips it
     while_loop,
-    call,  // a Sub or Function called as a statement
-    exit,  // text: "sub", "function", "for", "do"
+    call,         // a Sub or Function called as a statement
+    exit,         // text: "sub", "function", "for", "do"
+    select_case,  // expr = subject; cases; body = Case Else when has_else
+    const_decl,   // constants
+    label,        // text = the label
+    go_to,        // text = the label
+};
+
+// One test of a Case: a value, a range (`low To high`) or `Is <op> low`.
+struct CaseClause final {
+    enum class Kind { value, range, relation };
+    Kind kind{Kind::value};
+    ExprPtr low;
+    ExprPtr high;
+    std::string op;
+};
+
+struct CaseBlock final {
+    std::vector<CaseClause> clauses;
+    std::vector<StmtPtr> body;
+};
+
+struct ConstantDecl final {
+    std::string name;  // lower-case
+    VbType type{VbType::none};
+    bool type_given{};
+    ExprPtr value;
+    Position at;
 };
 
 struct Declaration final {
@@ -92,7 +118,9 @@ struct Stmt final {
     std::vector<ExprPtr> conditions;           // If / ElseIf
     std::vector<std::vector<StmtPtr>> blocks;  // bodies (the last may be Else)
     bool has_else{};
-    std::vector<StmtPtr> body;  // loop body
+    std::vector<StmtPtr> body;  // loop body, or Case Else
+    std::vector<CaseBlock> cases;
+    std::vector<ConstantDecl> constants;
 };
 
 struct Parameter final {
@@ -114,6 +142,7 @@ struct Procedure final {
 
 struct Module final {
     std::string name;
+    std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;
     std::vector<Procedure> procedures;
 };

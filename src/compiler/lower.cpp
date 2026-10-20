@@ -1,9 +1,11 @@
 #include "lower.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <map>
 #include <optional>
+#include <set>
 #include <utility>
 
 namespace wfc::compiler {
@@ -85,6 +87,18 @@ public:
 
     [[nodiscard]] Operand new_temp() {
         return ir::slot(function_.slot_count++);
+    }
+    [[nodiscard]] std::size_t position() const { return function_.code.size(); }
+    // A slot that starts as the empty string or 0.0, set before the body.
+    void insert_zero(const std::size_t index, const Operand slot) {
+        ir::Instruction instruction;
+        instruction.op = Opcode::move;
+        instruction.dst = slot;
+        instruction.a = ir::immediate(0);
+        instruction.wide = true;
+        function_.code.insert(
+            function_.code.begin() + static_cast<std::ptrdiff_t>(index),
+            std::move(instruction));
     }
     [[nodiscard]] int new_label() { return function_.label_count++; }
     void place(const int label) {
@@ -219,6 +233,7 @@ public:
     explicit Lowerer(const Module& module) : module_(module) {}
 
     ir::Program run() {
+        declare_constants(module_.constants, constants_);
         declare_globals();
         declare_procedures();
         for (const auto& procedure : module_.procedures) {
@@ -357,8 +372,23 @@ private:
             result_variable_ = Variable{result, procedure.return_type};
         }
         end_label_ = builder.new_label();
+        entry_index_ = builder.position();
+        late_zero_.clear();
+        local_constants_.clear();
+        labels_.clear();
+        defined_labels_.clear();
         declare_locals_of(procedure.body);
         lower_block(procedure.body);
+        for (const auto& [name, id] : labels_) {
+            static_cast<void>(id);
+            if (!defined_labels_.contains(name)) {
+                fail("the label '" + name + "' is not defined", procedure.at);
+            }
+        }
+        // Hidden slots that hold strings across statements start empty.
+        for (std::size_t i = 0; i < late_zero_.size(); ++i) {
+            builder.insert_zero(entry_index_ + i, late_zero_[i]);
+        }
         builder.place(end_label_);
         for (const auto& slot : owned_slots_) {
             builder.runtime(Service::string_release, {slot});
@@ -456,11 +486,34 @@ private:
             case StmtKind::exit:
                 lower_exit(statement);
                 break;
+            case StmtKind::select_case:
+                lower_select(statement);
+                break;
+            case StmtKind::const_decl:
+                declare_constants(statement.constants, local_constants_);
+                break;
+            case StmtKind::label: {
+                if (!defined_labels_.insert(statement.text).second) {
+                    fail("the label '" + statement.text + "' is defined twice",
+                         statement.at);
+                }
+                builder_->place(label_for(statement.text));
+                break;
+            }
+            case StmtKind::go_to:
+                builder_->jump(label_for(statement.text));
+                break;
         }
         flush_temps();
     }
 
     void lower_assignment(const Stmt& statement) {
+        if (!locals_.contains(statement.text) &&
+            !globals_.contains(statement.text) &&
+            (local_constants_.contains(statement.text) ||
+             constants_.contains(statement.text))) {
+            fail("'" + statement.text + "' is a constant", statement.at);
+        }
         const auto target = find_variable(statement.text, statement.at);
         const auto value = lower_expression(*statement.expr);
         if (target.type == VbType::string) {
@@ -647,6 +700,350 @@ private:
         builder_->jump(top);
         builder_->place(done);
         loops_.pop_back();
+    }
+
+    [[nodiscard]] int label_for(const std::string& name) {
+        const auto found = labels_.find(name);
+        if (found != labels_.end()) {
+            return found->second;
+        }
+        const int id = builder_->new_label();
+        labels_[name] = id;
+        return id;
+    }
+
+    // A slot that owns a string for the whole procedure.
+    [[nodiscard]] Operand reserve_owned_slot() {
+        const auto slot = builder_->new_temp();
+        late_zero_.push_back(slot);
+        owned_slots_.push_back(slot);
+        return slot;
+    }
+
+    // One test of a Case against the subject; true when it matches.
+    [[nodiscard]] Value case_test(const CaseClause& clause,
+                                  const Value& subject, const Position at) {
+        if (clause.kind == CaseClause::Kind::range) {
+            const auto low = compare_values(">=", subject,
+                                            lower_expression(*clause.low), at);
+            const auto high = compare_values(
+                "<=", subject, lower_expression(*clause.high), at);
+            const auto both = builder_->new_temp();
+            builder_->emit(Opcode::bit_and, both, low.operand, high.operand);
+            return Value{both, VbType::boolean};
+        }
+        const std::string op =
+            clause.kind == CaseClause::Kind::relation ? clause.op : "=";
+        return compare_values(op, subject, lower_expression(*clause.low), at);
+    }
+
+    void lower_select(const Stmt& statement) {
+        auto subject = lower_expression(*statement.expr);
+        if (subject.type == VbType::string) {
+            // The subject is read by every test: keep it in a slot of its own.
+            const auto slot = reserve_owned_slot();
+            builder_->runtime(Service::string_assign,
+                              {address_of(slot), subject.operand});
+            subject = Value{slot, VbType::string};
+        } else if (is_numeric(subject.type)) {
+            const auto copy = builder_->new_temp();
+            if (is_float(subject.type)) {
+                builder_->move_wide(copy, subject.operand);
+            } else {
+                builder_->emit(Opcode::move, copy, subject.operand);
+            }
+            subject = Value{copy, subject.type};
+        } else {
+            fail("Select Case needs a number or a String", statement.at);
+        }
+        flush_temps();
+        const int end = builder_->new_label();
+        for (const auto& block : statement.cases) {
+            const int body = builder_->new_label();
+            const int next = builder_->new_label();
+            for (const auto& clause : block.clauses) {
+                const auto test = case_test(clause, subject, statement.at);
+                flush_temps();
+                builder_->branch(Opcode::branch_nonzero, test.operand, body);
+            }
+            builder_->jump(next);
+            builder_->place(body);
+            lower_block(block.body);
+            builder_->jump(end);
+            builder_->place(next);
+        }
+        if (statement.has_else) {
+            lower_block(statement.body);
+        }
+        builder_->place(end);
+    }
+
+    // ----- Constants -------------------------------------------------------
+
+    void declare_constants(const std::vector<ConstantDecl>& declarations,
+                           std::map<std::string, Value>& into) {
+        for (const auto& declaration : declarations) {
+            if (into.contains(declaration.name) ||
+                globals_.contains(declaration.name) ||
+                signatures_.contains(declaration.name)) {
+                fail("'" + declaration.name + "' is already declared",
+                     declaration.at);
+            }
+            auto value = fold(*declaration.value);
+            if (declaration.type_given) {
+                value = fold_convert(value, declaration.type, declaration.at);
+            }
+            into[declaration.name] = value;
+        }
+    }
+
+    [[nodiscard]] std::optional<Value> find_constant(
+        const std::string& name) const {
+        if (const auto found = local_constants_.find(name);
+            found != local_constants_.end()) {
+            return found->second;
+        }
+        if (const auto found = constants_.find(name);
+            found != constants_.end()) {
+            return found->second;
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static double double_of(const Value& value) {
+        if (is_float(value.type)) {
+            double result = 0;
+            const auto bits = value.operand.value;
+            std::memcpy(&result, &bits, sizeof(result));
+            return result;
+        }
+        return static_cast<double>(value.operand.value);
+    }
+
+    [[nodiscard]] Value float_constant(const double number, const VbType type) {
+        const double stored =
+            type == VbType::single_precision
+                ? static_cast<double>(static_cast<float>(number))
+                : number;
+        if (std::isinf(stored) || std::isnan(stored)) {
+            fail("the constant overflows", Position{});
+        }
+        return Value{double_immediate(stored), type};
+    }
+
+    [[nodiscard]] Value integer_constant(const std::int64_t number,
+                                         const VbType type, const Position at) {
+        if (type == VbType::integer && (number < -32768 || number > 32767)) {
+            fail("the constant overflows an Integer", at);
+        }
+        if (type == VbType::long_integer &&
+            (number < -2147483648LL || number > 2147483647LL)) {
+            fail("the constant overflows a Long", at);
+        }
+        return Value{ir::immediate(number), type};
+    }
+
+    [[nodiscard]] std::string literal_text(const Value& value) const {
+        if (value.type == VbType::string) {
+            return program_
+                .strings[static_cast<std::size_t>(value.operand.value)];
+        }
+        if (value.type == VbType::boolean) {
+            return value.operand.value != 0 ? "True" : "False";
+        }
+        if (is_float(value.type)) {
+            char buffer[48];
+            std::snprintf(buffer, sizeof(buffer), "%.*G", digits_of(value.type),
+                          double_of(value));
+            return buffer;
+        }
+        return std::to_string(value.operand.value);
+    }
+
+    [[nodiscard]] Value string_constant(const std::string& text) {
+        program_.strings.push_back(text);
+        return Value{ir::literal(static_cast<std::int64_t>(
+                         program_.strings.size() - 1U)),
+                     VbType::string};
+    }
+
+    // Evaluates a constant expression at compile time.
+    [[nodiscard]] Value fold(const Expr& expression) {
+        switch (expression.kind) {
+            case ExprKind::integer_literal: {
+                const bool is_long = expression.long_literal ||
+                                     expression.number > 32767 ||
+                                     expression.number < -32768;
+                return Value{ir::immediate(expression.number),
+                             is_long ? VbType::long_integer : VbType::integer};
+            }
+            case ExprKind::real_literal:
+                return float_constant(expression.real,
+                                      expression.single_literal
+                                          ? VbType::single_precision
+                                          : VbType::double_precision);
+            case ExprKind::boolean_literal:
+                return Value{ir::immediate(expression.number), VbType::boolean};
+            case ExprKind::string_literal:
+                return string_constant(expression.text);
+            case ExprKind::name: {
+                if (const auto found = find_constant(expression.text)) {
+                    return *found;
+                }
+                fail("'" + expression.text + "' is not a constant",
+                     expression.at);
+            }
+            case ExprKind::call:
+                fail("a function call is not a constant expression",
+                     expression.at);
+            case ExprKind::unary:
+                return fold_unary(expression);
+            case ExprKind::binary:
+                return fold_binary(expression);
+        }
+        fail("unsupported constant expression", expression.at);
+    }
+
+    [[nodiscard]] Value fold_unary(const Expr& expression) {
+        const auto operand = fold(*expression.operands[0]);
+        if (!is_numeric(operand.type)) {
+            fail("the operator " + expression.text + " needs a number",
+                 expression.at);
+        }
+        if (expression.text == "not") {
+            const auto whole = is_float(operand.type)
+                                   ? static_cast<std::int64_t>(
+                                         std::nearbyint(double_of(operand)))
+                                   : operand.operand.value;
+            return Value{ir::immediate(~whole), operand.type};
+        }
+        if (is_float(operand.type)) {
+            return float_constant(-double_of(operand), operand.type);
+        }
+        return integer_constant(-operand.operand.value,
+                                arithmetic_type(operand.type), expression.at);
+    }
+
+    [[nodiscard]] Value fold_binary(const Expr& expression) {
+        const std::string& op = expression.text;
+        const auto left = fold(*expression.operands[0]);
+        const auto right = fold(*expression.operands[1]);
+        const Position at = expression.at;
+        const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
+                                   op == ">" || op == "<=" || op == ">=";
+        if (op == "&" || (op == "+" && left.type == VbType::string &&
+                          right.type == VbType::string)) {
+            return string_constant(literal_text(left) + literal_text(right));
+        }
+        if (left.type == VbType::string || right.type == VbType::string) {
+            if (is_comparison && left.type == right.type) {
+                const int order =
+                    literal_text(left).compare(literal_text(right));
+                return Value{ir::immediate(compare_result(op, order) ? -1 : 0),
+                             VbType::boolean};
+            }
+            fail("the operator " + op + " is not allowed on these constants",
+                 at);
+        }
+        if (!is_numeric(left.type) || !is_numeric(right.type)) {
+            fail("the operator " + op + " needs numbers", at);
+        }
+        const bool any_float = is_float(left.type) || is_float(right.type);
+        if (is_comparison) {
+            const double a = double_of(left);
+            const double b = double_of(right);
+            const int order = a < b ? -1 : (a > b ? 1 : 0);
+            return Value{ir::immediate(compare_result(op, order) ? -1 : 0),
+                         VbType::boolean};
+        }
+        const auto whole = [&](const Value& value) {
+            return is_float(value.type) ? static_cast<std::int64_t>(
+                                              std::nearbyint(double_of(value)))
+                                        : value.operand.value;
+        };
+        if (op == "and" || op == "or" || op == "xor") {
+            const auto a = whole(left);
+            const auto b = whole(right);
+            const auto bits = op == "and"  ? (a & b)
+                              : op == "or" ? (a | b)
+                                           : (a ^ b);
+            const VbType type =
+                left.type == VbType::boolean && right.type == VbType::boolean
+                    ? VbType::boolean
+                : (left.type == VbType::long_integer ||
+                   right.type == VbType::long_integer || any_float)
+                    ? VbType::long_integer
+                    : VbType::integer;
+            return Value{ir::immediate(bits), type};
+        }
+        if (op == "/" || (any_float && (op == "+" || op == "-" || op == "*"))) {
+            const double a = double_of(left);
+            const double b = double_of(right);
+            if (op == "/" && b == 0.0) {
+                fail("division by zero in a constant", at);
+            }
+            const double result = op == "+"   ? a + b
+                                  : op == "-" ? a - b
+                                  : op == "*" ? a * b
+                                              : a / b;
+            VbType type = VbType::single_precision;
+            if (left.type == VbType::double_precision ||
+                right.type == VbType::double_precision ||
+                (op == "/" && !any_float)) {
+                type = VbType::double_precision;
+            }
+            return float_constant(result, type);
+        }
+        const auto a = whole(left);
+        const auto b = whole(right);
+        const VbType type = any_float || left.type == VbType::long_integer ||
+                                    right.type == VbType::long_integer
+                                ? VbType::long_integer
+                                : VbType::integer;
+        if ((op == "\\" || op == "mod") && b == 0) {
+            fail("division by zero in a constant", at);
+        }
+        const std::int64_t result = op == "+"    ? a + b
+                                    : op == "-"  ? a - b
+                                    : op == "*"  ? a * b
+                                    : op == "\\" ? a / b
+                                                 : a % b;
+        return integer_constant(result, type, at);
+    }
+
+    [[nodiscard]] static bool compare_result(const std::string& op,
+                                             const int order) {
+        return op == "="    ? order == 0
+               : op == "<>" ? order != 0
+               : op == "<"  ? order < 0
+               : op == ">"  ? order > 0
+               : op == "<=" ? order <= 0
+                            : order >= 0;
+    }
+
+    // Converts a constant to the declared type at compile time.
+    [[nodiscard]] Value fold_convert(const Value& value, const VbType to,
+                                     const Position at) {
+        if (to == VbType::string) {
+            if (value.type != VbType::string) {
+                fail("a String constant needs a String value", at);
+            }
+            return value;
+        }
+        if (!is_numeric(value.type)) {
+            fail("a numeric constant needs a numeric value", at);
+        }
+        if (is_float(to)) {
+            return float_constant(double_of(value), to);
+        }
+        const auto whole =
+            is_float(value.type)
+                ? static_cast<std::int64_t>(std::nearbyint(double_of(value)))
+                : value.operand.value;
+        if (to == VbType::boolean) {
+            return Value{ir::immediate(whole != 0 ? -1 : 0), VbType::boolean};
+        }
+        return integer_constant(whole, to, at);
     }
 
     void lower_exit(const Stmt& statement) {
@@ -1050,6 +1447,14 @@ private:
                      is_special_builtin(expression.text))) {
                     return lower_call(expression.text, {}, expression.at, true);
                 }
+                if (!locals_.contains(expression.text) &&
+                    !globals_.contains(expression.text) &&
+                    !(result_variable_.has_value() &&
+                      expression.text == current_->name)) {
+                    if (const auto constant = find_constant(expression.text)) {
+                        return *constant;
+                    }
+                }
                 const auto variable =
                     find_variable(expression.text, expression.at);
                 if (variable.type == VbType::string &&
@@ -1174,6 +1579,33 @@ private:
         return Value{result, type};
     }
 
+    // `left op right` for the six comparison operators.
+    [[nodiscard]] Value compare_values(const std::string& op, const Value& left,
+                                       const Value& right, const Position at) {
+        if (left.type == VbType::string && right.type == VbType::string) {
+            const auto order = builder_->new_temp();
+            builder_->runtime(Service::string_compare,
+                              {left.operand, right.operand}, order);
+            const auto result = builder_->new_temp();
+            builder_->compare(result, order, ir::immediate(0),
+                              condition_of(op));
+            return Value{result, VbType::boolean};
+        }
+        if (!is_numeric(left.type) || !is_numeric(right.type)) {
+            fail("the operator " + op + " needs two numbers or two Strings",
+                 at);
+        }
+        const auto result = builder_->new_temp();
+        if (is_float(left.type) || is_float(right.type)) {
+            builder_->fcompare(result, to_double(left).operand,
+                               to_double(right).operand, condition_of(op));
+        } else {
+            builder_->compare(result, left.operand, right.operand,
+                              condition_of(op));
+        }
+        return Value{result, VbType::boolean};
+    }
+
     [[nodiscard]] Value lower_binary(const Expr& expression) {
         const std::string& op = expression.text;
         const auto left = lower_expression(*expression.operands[0]);
@@ -1183,20 +1615,13 @@ private:
         if (op == "&") {
             return concatenate(left, right, expression.at);
         }
+        if (is_comparison) {
+            return compare_values(op, left, right, expression.at);
+        }
         if (left.type == VbType::string || right.type == VbType::string) {
             if (op == "+" && left.type == VbType::string &&
                 right.type == VbType::string) {
                 return concatenate(left, right, expression.at);
-            }
-            if (is_comparison && left.type == VbType::string &&
-                right.type == VbType::string) {
-                const auto order = builder_->new_temp();
-                builder_->runtime(Service::string_compare,
-                                  {left.operand, right.operand}, order);
-                const auto result = builder_->new_temp();
-                builder_->compare(result, order, ir::immediate(0),
-                                  condition_of(op));
-                return Value{result, VbType::boolean};
             }
             fail("the operator " + op +
                      " is not compiled for these String operands yet",
@@ -1207,16 +1632,6 @@ private:
         }
         const bool any_float = is_float(left.type) || is_float(right.type);
         const auto result = builder_->new_temp();
-        if (is_comparison) {
-            if (any_float) {
-                builder_->fcompare(result, to_double(left).operand,
-                                   to_double(right).operand, condition_of(op));
-            } else {
-                builder_->compare(result, left.operand, right.operand,
-                                  condition_of(op));
-            }
-            return Value{result, VbType::boolean};
-        }
         if (op == "and" || op == "or" || op == "xor") {
             const auto a = to_long_if_float(left, expression.at);
             const auto b = to_long_if_float(right, expression.at);
@@ -1311,6 +1726,12 @@ private:
     std::vector<Loop> loops_;
     std::vector<Operand> owned_slots_;  // string variables released at the end
     std::vector<Operand> pending_;      // string temporaries of a statement
+    std::map<std::string, Value> constants_;        // module constants
+    std::map<std::string, Value> local_constants_;  // a procedure's constants
+    std::map<std::string, int> labels_;
+    std::set<std::string> defined_labels_;
+    std::vector<Operand> late_zero_;  // hidden string slots, zeroed at entry
+    std::size_t entry_index_{};
     const Procedure* current_{};
     FunctionBuilder* builder_{};
     int end_label_{};

@@ -65,13 +65,14 @@ private:
         result_.error_column = column();
     }
 
-    void push_end_of_statement() {
+    void push_end_of_statement(const bool colon = false) {
         if (result_.tokens.empty() ||
             result_.tokens.back().kind == TokenKind::end_of_statement) {
             return;
         }
         Token token;
         token.kind = TokenKind::end_of_statement;
+        token.text = colon ? ":" : "\n";
         token.line = line_;
         token.column = column();
         result_.tokens.push_back(token);
@@ -97,6 +98,7 @@ private:
         }
         if (c == '\n') {
             push_end_of_statement();
+            at_line_start_ = true;
             new_line();
             return;
         }
@@ -115,7 +117,7 @@ private:
             return;
         }
         if (c == ':') {
-            push_end_of_statement();
+            push_end_of_statement(true);
             ++position_;
             return;
         }
@@ -169,6 +171,8 @@ private:
         }
         token.line = line_;
         token.column = start_column;
+        token.line_start = at_line_start_;
+        at_line_start_ = false;
         // `Rem` starts a comment.
         if (token.text == "rem") {
             skip_comment();
@@ -188,6 +192,7 @@ private:
     }
 
     void based_number() {
+        at_line_start_ = false;
         const auto start_column = column();
         const bool is_hex = lower(peek(1)) == 'h';
         position_ += 2U;
@@ -226,6 +231,7 @@ private:
     }
 
     void number() {
+        at_line_start_ = false;
         const auto start = position_;
         const auto start_column = column();
         bool real = false;
@@ -289,6 +295,7 @@ private:
     }
 
     void string_literal() {
+        at_line_start_ = false;
         const auto start_column = column();
         ++position_;
         std::string contents;
@@ -319,6 +326,7 @@ private:
     }
 
     void symbol() {
+        at_line_start_ = false;
         const auto start_column = column();
         const char c = text_[position_];
         std::string text(1, c);
@@ -342,6 +350,7 @@ private:
     }
 
     std::string_view text_;
+    bool at_line_start_{true};
     std::size_t position_{};
     std::size_t line_{1};
     std::size_t line_start_{};
