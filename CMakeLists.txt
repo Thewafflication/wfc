@@ -21,6 +21,20 @@ target_sources(
     src/com_server.cpp
     src/com_server.hpp
     src/evaluator.cpp
+    src/compiler/ast.hpp
+    src/compiler/compile.cpp
+    src/compiler/compile.hpp
+    src/compiler/ir.hpp
+    src/compiler/lexer.cpp
+    src/compiler/lexer.hpp
+    src/compiler/lower.cpp
+    src/compiler/lower.hpp
+    src/compiler/native_host.cpp
+    src/compiler/native_host.hpp
+    src/compiler/native_image.hpp
+    src/compiler/parser.cpp
+    src/compiler/parser.hpp
+    src/compiler/x64.cpp
     src/interpreter/assignment.cpp
     src/interpreter/builtin_functions.cpp
     src/interpreter/builtin_misc.cpp
@@ -2313,6 +2327,31 @@ Print v.x & q.x]=]
     TC-MP0002-diagnostic-catalog
     PROPERTIES LABELS "integration;mp-0002;diagnostics"
   )
+
+  # Native compilation (MP-0009, ADR-0008): each tests/native/*.bas program
+  # must print and end the same as the interpreter runs it. Only the AMD64
+  # back end exists so far.
+  if("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "x64")
+    file(
+      GLOB wfc_native_programs
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/native/*.bas"
+    )
+    foreach(native_program IN LISTS wfc_native_programs)
+      get_filename_component(native_name "${native_program}" NAME_WE)
+      add_test(
+        NAME TC-MP0009-native-${native_name}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROGRAM=${native_program}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/native/run_native_compare.cmake"
+      )
+      set_tests_properties(
+        TC-MP0009-native-${native_name}
+        PROPERTIES LABELS "integration;mp-0009;native" TIMEOUT 60
+      )
+    endforeach()
+  endif()
 
   # A project with a UserDocument (ActiveX Document) is refused with the
   # unsupported-feature message (legacy-feature-dispositions.md).
