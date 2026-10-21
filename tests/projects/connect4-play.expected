@@ -1,5 +1,5 @@
-FMain.Picture1.scalewidth = 30660
-FMain.Picture1.scaleheight = 18330
+FMain.Picture1.scalewidth = 30240
+FMain.Picture1.scaleheight = 17460
 FMain.LbPlayerName.caption = Player1
 FMain.BtnUndo.enabled = False
 FMain.BtnRedo.enabled = False
