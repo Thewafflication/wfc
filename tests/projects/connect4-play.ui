@@ -1,33 +1,34 @@
 # Connect 4: player 1 stacks column 1, player 2 column 2; player 1 wins
 # with four in a column. Undo takes the last chip back.
 get FMain.Picture1 scalewidth
+get FMain.Picture1 scaleheight
 get FMain.LbPlayerName caption
 get FMain.BtnUndo enabled
 get FMain.BtnRedo enabled
-mousedown FMain.Picture1 1 1591 4000
+mousedown FMain.Picture1 1 6165 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 3094 4000
+mousedown FMain.Picture1 1 9220 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 1591 4000
+mousedown FMain.Picture1 1 6165 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 3094 4000
+mousedown FMain.Picture1 1 9220 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 1591 4000
+mousedown FMain.Picture1 1 6165 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 3094 4000
-click FMain.Picture1
-get FMain.LbPlayerName caption
-answer msgbox 1
-mousedown FMain.Picture1 1 1591 4000
+mousedown FMain.Picture1 1 9220 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
 answer msgbox 1
-mousedown FMain.Picture1 1 3094 4000
+mousedown FMain.Picture1 1 6165 4000
+click FMain.Picture1
+get FMain.LbPlayerName caption
+answer msgbox 1
+mousedown FMain.Picture1 1 9220 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
 get FMain.BtnUndo enabled
