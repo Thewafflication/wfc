@@ -21,6 +21,7 @@ enum class VbType {
     single_precision,
     double_precision,
     string,
+    record,  // a user-defined type: its name is kept beside the type
 };
 
 struct Position final {
@@ -39,6 +40,7 @@ enum class ExprKind {
     name,    // a variable, or a function called without arguments
     call,    // `name(args)`: a function call (arrays come later)
     unary,   // op: "-", "not"
+    member,  // text = the field; operands[0] = the record it belongs to
     binary,  // op: "+", "-", "*", "\\", "mod", "=", "<>", "<", ">", "<=",
              // ">=", "and", "or", "xor", "&"
 };
@@ -110,6 +112,7 @@ struct Declaration final {
     std::string name;           // lower-case
     VbType type{VbType::none};  // none: no type given (a Variant)
     bool type_given{};
+    std::string type_name;  // the user-defined type, when type is record
     bool is_array{};
     std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
     Position at;
@@ -131,6 +134,7 @@ struct Stmt final {
     std::vector<std::vector<StmtPtr>> blocks;  // bodies (the last may be Else)
     bool has_else{};
     std::vector<StmtPtr> body;  // loop body, or Case Else
+    ExprPtr target;             // an assignment to a field: `a.b.c = expr`
     std::vector<CaseBlock> cases;
     bool preserve{};  // ReDim Preserve
     std::vector<ConstantDecl> constants;
@@ -138,6 +142,7 @@ struct Stmt final {
 
 struct Parameter final {
     std::string name;
+    std::string type_name;      // the user-defined type, when type is record
     bool is_array{};            // `name() As Type`: always passed by reference
     VbType type{VbType::none};  // none: no type given (a Variant)
     bool by_value{};
@@ -154,8 +159,22 @@ struct Procedure final {
     std::vector<StmtPtr> body;
 };
 
+struct FieldDecl final {
+    std::string name;  // lower-case
+    VbType type{VbType::none};
+    std::string type_name;
+    Position at;
+};
+
+struct TypeDecl final {
+    std::string name;  // lower-case
+    std::vector<FieldDecl> fields;
+    Position at;
+};
+
 struct Module final {
     std::string name;
+    std::vector<TypeDecl> types;
     std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;
     std::vector<Procedure> procedures;

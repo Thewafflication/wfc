@@ -692,6 +692,13 @@ private:
                 }
                 op_rbp(true, 0x89, kEax, slot_disp(instruction.dst.value));
                 break;
+            case Opcode::pointer_add:
+                load_wide(kEax, instruction.a);
+                bytes({0x48, 0x05});  // add rax, imm32
+                dword(static_cast<std::uint32_t>(
+                    static_cast<std::int32_t>(instruction.b.value)));
+                store_wide(instruction.dst, kEax);
+                break;
             case Opcode::check_error:
                 // cmp dword [rip + flag], 0 ; jne target
                 bytes({0x83, 0x3D});

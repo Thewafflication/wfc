@@ -69,6 +69,7 @@ enum class Opcode {
     round_single,    // dst = a rounded to a Single
     narrow,          // dst = a, error 6 unless it fits an Integer
     address,         // dst = the address of a (a slot or a global)
+    pointer_add,     // dst = a (a slot holding a pointer) + the immediate b
     check_error,     // to `target` when a run-time error is pending
     jump,            // to `target`
     branch_zero,     // to `target` when a is 0

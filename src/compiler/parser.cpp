@@ -28,7 +28,8 @@ public:
             } else if (is_word("dim") || is_word("private") ||
                        is_word("public") || is_word("friend") ||
                        is_word("static") || is_word("sub") ||
-                       is_word("function") || is_word("const")) {
+                       is_word("function") || is_word("const") ||
+                       is_word("type")) {
                 declaration_or_procedure(module);
             } else {
                 fail("expected a declaration, Sub or Function");
@@ -143,7 +144,7 @@ private:
         return name;
     }
 
-    [[nodiscard]] VbType type_name() {
+    [[nodiscard]] VbType type_name(std::string* record_name = nullptr) {
         if (current().kind != TokenKind::identifier) {
             fail("expected a type name");
         }
@@ -161,6 +162,13 @@ private:
             type = VbType::double_precision;
         } else if (name == "string") {
             type = VbType::string;
+            if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "*") {
+                fail("fixed-length strings are not compiled yet");
+            }
+        } else if (record_name != nullptr) {
+            // Any other name is a user-defined type; the compiler checks it.
+            type = VbType::record;
+            *record_name = name;
         } else {
             fail("the type " + current().spelling + " is not compiled yet");
         }
@@ -205,7 +213,7 @@ private:
             if (is_word("new")) {
                 fail("objects are not compiled yet");
             }
-            declaration.type = type_name();
+            declaration.type = type_name(&declaration.type_name);
             declaration.type_given = true;
         } else if (by_suffix != VbType::none) {
             declaration.type = by_suffix;
@@ -232,6 +240,10 @@ private:
             procedure(module, is_public);
             return;
         }
+        if (is_word("type")) {
+            type_declaration(module);
+            return;
+        }
         if (accept_word("const")) {
             constants(module.constants);
             expect_end_of_statement();
@@ -245,6 +257,51 @@ private:
             return;
         }
         fail("expected a declaration, Sub or Function");
+    }
+
+    // Type Name / fields / End Type
+    void type_declaration(Module& module) {
+        TypeDecl type;
+        type.at = here();
+        advance();
+        if (current().kind != TokenKind::identifier) {
+            fail("expected the name of the type");
+        }
+        type.name = current().text;
+        advance();
+        expect_end_of_statement();
+        while (!(is_word("end") && ahead(1).kind == TokenKind::identifier &&
+                 ahead(1).text == "type")) {
+            if (at_end_of_file()) {
+                fail("expected End Type");
+            }
+            FieldDecl field;
+            field.at = here();
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a field name");
+            }
+            const std::string spelled = current().text;
+            field.name = without_suffix(spelled);
+            const VbType by_suffix = suffix_type(spelled);
+            advance();
+            if (is_symbol("(")) {
+                fail("arrays in types are not compiled yet");
+            }
+            if (accept_word("as")) {
+                field.type = type_name(&field.type_name);
+            } else if (by_suffix != VbType::none) {
+                field.type = by_suffix;
+            } else {
+                fail("the field '" + field.name +
+                     "' needs a type (Variant is not compiled yet)");
+            }
+            expect_end_of_statement();
+            type.fields.push_back(std::move(field));
+        }
+        advance();
+        advance();
+        expect_end_of_statement();
+        module.types.push_back(std::move(type));
     }
 
     // `name [As Type] = expression {, name [As Type] = expression}`
@@ -337,7 +394,7 @@ private:
             result.by_value = false;
         }
         if (accept_word("as")) {
-            result.type = type_name();
+            result.type = type_name(&result.type_name);
         }
         return result;
     }
@@ -545,7 +602,7 @@ private:
             expect_symbol("(");
             array_bounds(declaration.bounds);
             if (accept_word("as")) {
-                declaration.type = type_name();
+                declaration.type = type_name(&declaration.type_name);
                 declaration.type_given = true;
             }
             result->declarations.push_back(std::move(declaration));
@@ -649,9 +706,53 @@ private:
         }
     }
 
+    // Whether `name [(...)] . field ... =` starts here: an assignment to a
+    // field of a record.
+    [[nodiscard]] bool is_field_assignment() const {
+        std::size_t i = 1;
+        bool saw_field = false;
+        while (true) {
+            const Token& token = ahead(i);
+            if (token.kind == TokenKind::symbol && token.text == "(") {
+                int depth = 0;
+                while (true) {
+                    const Token& inner = ahead(i);
+                    if (inner.kind == TokenKind::end_of_statement ||
+                        inner.kind == TokenKind::end_of_file) {
+                        return false;
+                    }
+                    if (inner.kind == TokenKind::symbol && inner.text == "(") {
+                        ++depth;
+                    } else if (inner.kind == TokenKind::symbol &&
+                               inner.text == ")") {
+                        if (--depth == 0) {
+                            break;
+                        }
+                    }
+                    ++i;
+                }
+                ++i;
+            } else if (token.kind == TokenKind::symbol && token.text == "." &&
+                       ahead(i + 1).kind == TokenKind::identifier) {
+                saw_field = true;
+                i += 2;
+            } else {
+                return saw_field && token.kind == TokenKind::symbol &&
+                       token.text == "=";
+            }
+        }
+    }
+
     [[nodiscard]] StmtPtr assignment_or_call() {
         if (current().kind != TokenKind::identifier) {
             fail("expected a statement");
+        }
+        if (is_field_assignment()) {
+            auto result = make(StmtKind::assign);
+            result->target = primary();
+            expect_symbol("=");
+            result->expr = expression();
+            return result;
         }
         if (is_element_assignment()) {
             auto result = make(StmtKind::assign);
@@ -1022,11 +1123,8 @@ private:
                 return result;
             }
             advance();
-            if (is_symbol(".")) {
-                // Only the Err object has members so far.
-                if (token.text != "err") {
-                    fail("members of objects are not compiled yet");
-                }
+            if (is_symbol(".") && token.text == "err") {
+                // The Err object.
                 advance();
                 if (current().kind != TokenKind::identifier) {
                     fail("expected a member name after Err.");
@@ -1036,21 +1134,34 @@ private:
                 advance();
                 return member;
             }
+            ExprPtr node;
             if (is_symbol("(")) {
                 advance();
-                auto result = make_expr(ExprKind::call, at);
-                result->text = without_suffix(token.text);
+                node = make_expr(ExprKind::call, at);
+                node->text = without_suffix(token.text);
                 if (!accept_symbol(")")) {
                     do {
-                        result->operands.push_back(expression());
+                        node->operands.push_back(expression());
                     } while (accept_symbol(","));
                     expect_symbol(")");
                 }
-                return result;
+            } else {
+                node = make_expr(ExprKind::name, at);
+                node->text = without_suffix(token.text);
             }
-            auto result = make_expr(ExprKind::name, at);
-            result->text = without_suffix(token.text);
-            return result;
+            // `.field` chains: a.b.c, array(i).field
+            while (is_symbol(".")) {
+                advance();
+                if (current().kind != TokenKind::identifier) {
+                    fail("expected a field name after '.'");
+                }
+                auto field = make_expr(ExprKind::member, at);
+                field->text = without_suffix(current().text);
+                advance();
+                field->operands.push_back(std::move(node));
+                node = std::move(field);
+            }
+            return node;
         }
         fail("expected an expression");
     }

@@ -39,6 +39,30 @@ struct Variable final {
     Operand operand;
     VbType type{VbType::none};  // the element type of an array
     bool is_array{};
+    int udt{-1};  // the index of the user-defined type when type is record
+};
+
+// A field of a user-defined type and where it lies.
+struct FieldInfo final {
+    std::string name;
+    VbType type{VbType::none};
+    int udt{-1};
+    std::int64_t offset{};
+};
+
+struct UdtInfo final {
+    std::string name;
+    std::vector<FieldInfo> fields;
+    std::int64_t size{};  // a multiple of 8
+    // Offsets of the String handles inside, nested records included.
+    std::vector<std::int64_t> string_offsets;
+};
+
+// A local record with String fields: they are released when the procedure
+// ends.
+struct OwnedRecord final {
+    Operand slot;
+    int udt{-1};
 };
 
 // A handle held by a variable of the procedure: released when it ends.
@@ -281,6 +305,7 @@ public:
     explicit Lowerer(const Module& module) : module_(module) {}
 
     ir::Program run() {
+        declare_types();
         declare_constants(module_.constants, constants_);
         declare_globals();
         declare_procedures();
@@ -335,6 +360,173 @@ private:
         program_.entry = static_cast<int>(program_.functions.size()) - 1;
     }
 
+    // ----- User-defined types ----------------------------------------------
+
+    [[nodiscard]] int find_udt(const std::string& name,
+                               const Position at) const {
+        const auto found = udt_index_.find(name);
+        if (found == udt_index_.end()) {
+            fail("the type '" + name + "' is not declared", at);
+        }
+        return found->second;
+    }
+
+    void declare_types() {
+        for (const auto& declaration : module_.types) {
+            if (udt_index_.contains(declaration.name)) {
+                fail("the type '" + declaration.name + "' is declared twice",
+                     declaration.at);
+            }
+            UdtInfo info;
+            info.name = declaration.name;
+            std::int64_t offset = 0;
+            for (const auto& field : declaration.fields) {
+                FieldInfo entry;
+                entry.name = field.name;
+                entry.type = field.type;
+                std::int64_t size = 4;
+                if (field.type == VbType::record) {
+                    entry.udt = find_udt(field.type_name, field.at);
+                    size = udts_[static_cast<std::size_t>(entry.udt)].size;
+                } else if (field.type == VbType::string ||
+                           is_float(field.type)) {
+                    size = 8;
+                }
+                const std::int64_t align = size >= 8 ? 8 : 4;
+                offset = (offset + align - 1) / align * align;
+                entry.offset = offset;
+                if (field.type == VbType::string) {
+                    info.string_offsets.push_back(offset);
+                } else if (entry.udt >= 0) {
+                    for (const auto inner :
+                         udts_[static_cast<std::size_t>(entry.udt)]
+                             .string_offsets) {
+                        info.string_offsets.push_back(offset + inner);
+                    }
+                }
+                offset += size;
+                info.fields.push_back(std::move(entry));
+            }
+            info.size = std::max<std::int64_t>(8, (offset + 7) / 8 * 8);
+            udt_index_[declaration.name] = static_cast<int>(udts_.size());
+            udts_.push_back(std::move(info));
+        }
+    }
+
+    // The leaf fields of a record (nested records flattened): offset, type.
+    void leaves_of(const int udt, const std::int64_t base,
+                   std::vector<std::pair<std::int64_t, VbType>>& into) const {
+        for (const auto& field : udts_[static_cast<std::size_t>(udt)].fields) {
+            if (field.type == VbType::record) {
+                leaves_of(field.udt, base + field.offset, into);
+            } else {
+                into.emplace_back(base + field.offset, field.type);
+            }
+        }
+    }
+
+    // A slot holding the address of the record `variable` stands for.
+    [[nodiscard]] Operand struct_pointer(const Variable& variable) {
+        if (variable.operand.kind == OperandKind::indirect) {
+            return ir::slot(variable.operand.value);
+        }
+        const auto pointer = builder_->new_temp();
+        builder_->emit(Opcode::address, pointer, variable.operand);
+        return pointer;
+    }
+
+    [[nodiscard]] Operand pointer_plus(const Operand& pointer,
+                                       const std::int64_t offset) {
+        if (offset == 0) {
+            return pointer;
+        }
+        const auto moved = builder_->new_temp();
+        builder_->emit(Opcode::pointer_add, moved, pointer,
+                       ir::immediate(offset));
+        return moved;
+    }
+
+    // The place an expression stands for: a variable, an array element or a
+    // field of a record.
+    [[nodiscard]] Variable lower_place(const Expr& expression) {
+        switch (expression.kind) {
+            case ExprKind::name:
+                return find_variable(expression.text, expression.at);
+            case ExprKind::call: {
+                const auto array = find_array(expression.text);
+                if (!array.has_value()) {
+                    fail("'" + expression.text + "' is not an array",
+                         expression.at);
+                }
+                return Variable{
+                    element_address(*array, expression.operands, expression.at),
+                    array->type, false, array->udt};
+            }
+            case ExprKind::member: {
+                const auto base = lower_place(*expression.operands[0]);
+                if (base.type != VbType::record || base.is_array) {
+                    fail("'." + expression.text + "' needs a record before it",
+                         expression.at);
+                }
+                const auto& info = udts_[static_cast<std::size_t>(base.udt)];
+                for (const auto& field : info.fields) {
+                    if (field.name == expression.text) {
+                        const auto where =
+                            pointer_plus(struct_pointer(base), field.offset);
+                        const Operand place = where.kind == OperandKind::slot
+                                                  ? ir::indirect(where.value)
+                                                  : where;
+                        return Variable{place, field.type, false, field.udt};
+                    }
+                }
+                fail("the type '" + info.name + "' has no field '" +
+                         expression.text + "'",
+                     expression.at);
+            }
+            default:
+                fail("this cannot be assigned to", expression.at);
+        }
+    }
+
+    // `destination = source` for records of one type.
+    void copy_record(const Variable& destination, const Variable& source,
+                     const Position at) {
+        if (source.type != VbType::record || source.udt != destination.udt ||
+            source.is_array || destination.is_array) {
+            fail("a record can only be assigned a record of its own type", at);
+        }
+        std::vector<std::pair<std::int64_t, VbType>> leaves;
+        leaves_of(destination.udt, 0, leaves);
+        const auto to = struct_pointer(destination);
+        const auto from = struct_pointer(source);
+        for (const auto& [offset, type] : leaves) {
+            const auto target = ir::indirect(pointer_plus(to, offset).value);
+            const auto origin = ir::indirect(pointer_plus(from, offset).value);
+            if (type == VbType::string) {
+                const auto handle = builder_->new_temp();
+                builder_->move_wide(handle, origin);
+                builder_->runtime(Service::string_assign,
+                                  {ir::slot(target.value), handle});
+            } else if (is_float(type)) {
+                builder_->move_wide(target, origin);
+            } else {
+                builder_->emit(Opcode::move, target, origin);
+            }
+        }
+    }
+
+    // Releases the Strings inside a local record when its procedure ends.
+    void release_record(const OwnedRecord& record) {
+        const auto base = struct_pointer(Variable{record.slot, VbType::record});
+        for (const auto offset :
+             udts_[static_cast<std::size_t>(record.udt)].string_offsets) {
+            const auto field = pointer_plus(base, offset);
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, ir::indirect(field.value));
+            builder_->runtime(Service::string_release, {handle});
+        }
+    }
+
     void declare_globals() {
         for (const auto& declaration : module_.globals) {
             require_type(declaration);
@@ -342,11 +534,23 @@ private:
                 fail("'" + declaration.name + "' is already declared",
                      declaration.at);
             }
+            int record = -1;
+            std::int64_t slots = 1;
+            if (declaration.type == VbType::record) {
+                if (declaration.is_array) {
+                    fail("arrays of records are not compiled yet",
+                         declaration.at);
+                }
+                record = find_udt(declaration.type_name, declaration.at);
+                slots = udts_[static_cast<std::size_t>(record)].size / 8;
+            }
             const auto variable = Variable{
                 ir::global(static_cast<std::int64_t>(program_.globals.size())),
-                declaration.type, declaration.is_array};
+                declaration.type, declaration.is_array, record};
             globals_[declaration.name] = variable;
-            program_.globals.push_back(ir::Global{declaration.name});
+            for (std::int64_t i = 0; i < slots; ++i) {
+                program_.globals.push_back(ir::Global{declaration.name});
+            }
             if (declaration.is_array && !declaration.bounds.empty()) {
                 global_arrays_.push_back(GlobalArray{variable, &declaration});
             }
@@ -367,12 +571,23 @@ private:
                          "compiled yet)",
                      procedure.at);
             }
+            if (procedure.return_type == VbType::record) {
+                fail("a Function cannot return a record", procedure.at);
+            }
             for (const auto& parameter : procedure.parameters) {
                 if (parameter.type == VbType::none) {
                     fail("the parameter '" + parameter.name +
                              "' needs an explicit type (Variant is not "
                              "compiled yet)",
                          procedure.at);
+                }
+                if (parameter.type == VbType::record) {
+                    if (parameter.by_value || parameter.is_array) {
+                        fail("a record parameter must be passed ByRef",
+                             procedure.at);
+                    }
+                    static_cast<void>(
+                        find_udt(parameter.type_name, procedure.at));
                 }
             }
             Signature signature;
@@ -425,6 +640,7 @@ private:
         locals_.clear();
         loops_.clear();
         owned_slots_.clear();
+        owned_records_.clear();
         pending_.clear();
         current_ = &procedure;
         result_variable_.reset();
@@ -437,7 +653,10 @@ private:
             const auto index = function.slot_count++;
             locals_[parameter.name] = Variable{
                 parameter.by_value ? ir::slot(index) : ir::indirect(index),
-                parameter.type, parameter.is_array};
+                parameter.type, parameter.is_array,
+                parameter.type == VbType::record
+                    ? find_udt(parameter.type_name, procedure.at)
+                    : -1};
             if (parameter.by_value && parameter.type == VbType::string) {
                 // The callee owns its copy of a string parameter.
                 builder.runtime(Service::string_addref, {ir::slot(index)});
@@ -481,6 +700,9 @@ private:
         builder.place(end_label_);
         for (const auto& owned : owned_slots_) {
             builder.runtime(owned.release, {owned.slot});
+        }
+        for (const auto& record : owned_records_) {
+            release_record(record);
         }
         builder.ret();
         builder_ = nullptr;
@@ -693,6 +915,27 @@ private:
             fail("'" + declaration.name + "' is already declared",
                  declaration.at);
         }
+        if (declaration.type == VbType::record) {
+            if (declaration.is_array) {
+                fail("arrays of records are not compiled yet", declaration.at);
+            }
+            const int record = find_udt(declaration.type_name, declaration.at);
+            const auto slots = udts_[static_cast<std::size_t>(record)].size / 8;
+            // The record lives in consecutive slots; its first byte is in the
+            // last one (memory runs up while slot numbers run down).
+            Operand last;
+            for (std::int64_t i = 0; i < slots; ++i) {
+                last = builder_->new_temp();
+                builder_->move_wide(last, ir::immediate(0));
+            }
+            locals_[declaration.name] =
+                Variable{last, VbType::record, false, record};
+            if (!udts_[static_cast<std::size_t>(record)]
+                     .string_offsets.empty()) {
+                owned_records_.push_back(OwnedRecord{last, record});
+            }
+            return;
+        }
         const auto slot = builder_->new_temp();
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
@@ -896,7 +1139,16 @@ private:
              constants_.contains(statement.text))) {
             fail("'" + statement.text + "' is a constant", statement.at);
         }
+        if (statement.target) {
+            // `a.b.c = expr`
+            lower_place_assignment(statement);
+            return;
+        }
         auto target = find_variable(statement.text, statement.at);
+        if (target.type == VbType::record && statement.items.empty()) {
+            copy_record(target, lower_place(*statement.expr), statement.at);
+            return;
+        }
         const auto value = lower_expression(*statement.expr);
         if (!statement.items.empty()) {
             if (!target.is_array) {
@@ -923,6 +1175,93 @@ private:
             builder_->move_wide(target.operand, converted.operand);
         } else {
             builder_->emit(Opcode::move, target.operand, converted.operand);
+        }
+    }
+
+    void lower_place_assignment(const Stmt& statement) {
+        // The value is evaluated first: it may change what the place is.
+        const auto probe = statement.expr.get();
+        const auto destination_type = place_type_of(*statement.target);
+        if (destination_type == VbType::record) {
+            const auto source = lower_place(*probe);
+            const auto destination = lower_place(*statement.target);
+            copy_record(destination, source, statement.at);
+            return;
+        }
+        const auto value = lower_expression(*probe);
+        const auto target = lower_place(*statement.target);
+        if (target.type == VbType::string) {
+            if (value.type != VbType::string) {
+                fail("a number cannot be assigned to a String field yet",
+                     statement.at);
+            }
+            builder_->runtime(Service::string_assign,
+                              {address_of(target.operand), value.operand});
+            return;
+        }
+        const auto converted = convert(value, target.type, statement.at);
+        if (is_float(target.type)) {
+            builder_->move_wide(target.operand, converted.operand);
+        } else {
+            builder_->emit(Opcode::move, target.operand, converted.operand);
+        }
+    }
+
+    // The type of a place without generating code for it.
+    [[nodiscard]] VbType place_type_of(const Expr& expression) {
+        switch (expression.kind) {
+            case ExprKind::name:
+                return find_variable(expression.text, expression.at).type;
+            case ExprKind::call: {
+                const auto array = find_array(expression.text);
+                return array.has_value() ? array->type : VbType::none;
+            }
+            case ExprKind::member: {
+                int udt = -1;
+                const auto base = base_udt_of(*expression.operands[0], udt);
+                if (!base || udt < 0) {
+                    return VbType::none;
+                }
+                for (const auto& field :
+                     udts_[static_cast<std::size_t>(udt)].fields) {
+                    if (field.name == expression.text) {
+                        return field.type;
+                    }
+                }
+                return VbType::none;
+            }
+            default:
+                return VbType::none;
+        }
+    }
+
+    // The record type a place of record type has (no code is generated).
+    [[nodiscard]] bool base_udt_of(const Expr& expression, int& udt) {
+        switch (expression.kind) {
+            case ExprKind::name:
+                udt = find_variable(expression.text, expression.at).udt;
+                return true;
+            case ExprKind::call: {
+                const auto array = find_array(expression.text);
+                udt = array.has_value() ? array->udt : -1;
+                return true;
+            }
+            case ExprKind::member: {
+                int outer = -1;
+                if (!base_udt_of(*expression.operands[0], outer) || outer < 0) {
+                    return false;
+                }
+                for (const auto& field :
+                     udts_[static_cast<std::size_t>(outer)].fields) {
+                    if (field.name == expression.text) {
+                        udt = field.udt;
+                        return true;
+                    }
+                }
+                return false;
+            }
+            default:
+                return false;
         }
     }
 
@@ -1712,6 +2051,17 @@ private:
     // The address argument of a ByRef parameter.
     [[nodiscard]] Operand by_reference(const Expr& argument,
                                        const VbType type) {
+        const bool is_element =
+            argument.kind == ExprKind::call && find_array(argument.text);
+        if (argument.kind == ExprKind::member || is_element ||
+            (type == VbType::record && argument.kind == ExprKind::name)) {
+            const auto place = lower_place(argument);
+            if (place.type != type) {
+                fail("ByRef argument type mismatch", argument.at);
+            }
+            return type == VbType::record ? struct_pointer(place)
+                                          : address_of(place.operand);
+        }
         if (argument.kind == ExprKind::name &&
             !signatures_.contains(argument.text)) {
             const auto variable = find_variable(argument.text, argument.at);
@@ -2046,6 +2396,19 @@ private:
                 }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true);
+            case ExprKind::member: {
+                const auto place = lower_place(expression);
+                if (place.type == VbType::record) {
+                    fail("a record cannot be used as a value here",
+                         expression.at);
+                }
+                if (place.type == VbType::string) {
+                    const auto copy = builder_->new_temp();
+                    builder_->move_wide(copy, place.operand);
+                    return Value{copy, VbType::string};
+                }
+                return Value{place.operand, place.type};
+            }
             case ExprKind::unary:
                 return lower_unary(expression);
             case ExprKind::binary:
@@ -2303,6 +2666,9 @@ private:
     std::vector<Loop> loops_;
     std::vector<Owned> owned_slots_;  // handles released when a procedure ends
     std::vector<GlobalArray> global_arrays_;
+    std::vector<UdtInfo> udts_;
+    std::map<std::string, int> udt_index_;
+    std::vector<OwnedRecord> owned_records_;
     std::vector<Operand> pending_;  // string temporaries of a statement
     std::map<std::string, Value> constants_;        // module constants
     std::map<std::string, Value> local_constants_;  // a procedure's constants
