@@ -24,7 +24,7 @@ public:
         skip_ends();
         while (!at_end_of_file()) {
             if (accept_word("option")) {
-                option_statement();
+                option_statement(module);
             } else if (is_word("dim") || is_word("private") ||
                        is_word("public") || is_word("friend") ||
                        is_word("static") || is_word("sub") ||
@@ -110,10 +110,28 @@ private:
 
     // ----- Declarations ----------------------------------------------------
 
-    void option_statement() {
+    void option_statement(Module& module) {
         if (accept_word("explicit")) {
             expect_end_of_statement();
             return;
+        }
+        if (accept_word("base")) {
+            if (current().kind != TokenKind::integer ||
+                (current().number != 0 && current().number != 1)) {
+                fail("Option Base must be 0 or 1");
+            }
+            module.option_base = static_cast<int>(current().number);
+            advance();
+            expect_end_of_statement();
+            return;
+        }
+        if (accept_word("compare")) {
+            if (accept_word("binary")) {
+                expect_end_of_statement();
+                return;
+            }
+            fail("Option Compare " + current().spelling +
+                 " is not compiled yet");
         }
         fail("Option " + current().spelling + " is not compiled yet");
     }
@@ -459,7 +477,7 @@ private:
             advance();
             return result;
         }
-        if (word == "dim") {
+        if (word == "dim" || word == "static") {
             return dim_statement();
         }
         if (word == "const") {
@@ -658,9 +676,11 @@ private:
 
     [[nodiscard]] StmtPtr dim_statement() {
         auto result = make(StmtKind::dim);
+        const bool is_static = is_word("static");
         advance();
         do {
             result->declarations.push_back(declarator());
+            result->declarations.back().is_static = is_static;
         } while (accept_symbol(","));
         return result;
     }
@@ -669,16 +689,22 @@ private:
         auto result = make(StmtKind::print);
         advance();
         while (!at_end_of_statement() && !is_word("else")) {
-            result->items.push_back(expression());
+            // A separator with no item before it (`Print , x`) is an empty
+            // item.
+            result->items.push_back(
+                is_symbol(",") || is_symbol(";") ? nullptr : expression());
+            char separator = ' ';
             if (accept_symbol(";")) {
-                result->newline =
-                    at_end_of_statement() || is_word("else") ? false : true;
-                continue;
+                separator = ';';
+            } else if (accept_symbol(",")) {
+                separator = ',';
             }
-            if (is_symbol(",")) {
-                fail("a comma in Print (tab zones) is not compiled yet");
+            result->separators.push_back(separator);
+            if (separator == ' ') {
+                break;
             }
-            break;
+            result->newline =
+                at_end_of_statement() || is_word("else") ? false : true;
         }
         return result;
     }
@@ -1078,10 +1104,26 @@ private:
         return power();
     }
 
+    // `^` is left to right and binds tighter than a unary minus; the exponent
+    // may carry a sign of its own.
     [[nodiscard]] ExprPtr power() {
         auto left = primary();
-        if (is_symbol("^")) {
-            fail("the operator ^ is not compiled yet");
+        while (is_symbol("^")) {
+            const auto at = here();
+            advance();
+            bool negate = false;
+            if (is_symbol("-") || is_symbol("+")) {
+                negate = is_symbol("-");
+                advance();
+            }
+            auto exponent = primary();
+            if (negate) {
+                auto minus = make_expr(ExprKind::unary, at);
+                minus->text = "-";
+                minus->operands.push_back(std::move(exponent));
+                exponent = std::move(minus);
+            }
+            left = binary("^", std::move(left), std::move(exponent), at);
         }
         return left;
     }

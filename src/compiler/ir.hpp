@@ -156,7 +156,9 @@ enum class Service : int {
     error_clear = 43,        // (), Err.Clear
     error_raise = 44,        // (number, source handle, description handle)
     error_acknowledge = 45,  // (), a handler took over: the flag is cleared
-    count = 46,
+    print_zone = 46,         // (), a comma in Print: to the next 14-column zone
+    double_power = 47,       // (double, double) -> double: a ^ b
+    count = 48,
 };
 
 struct Instruction final {

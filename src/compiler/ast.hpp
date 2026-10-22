@@ -114,6 +114,7 @@ struct Declaration final {
     bool type_given{};
     std::string type_name;  // the user-defined type, when type is record
     bool is_array{};
+    bool is_static{};                // `Static` inside a procedure
     std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
     Position at;
 };
@@ -128,6 +129,8 @@ struct Stmt final {
     ExprPtr step;   // For step
     std::vector<ExprPtr> items;  // Print items, or call arguments
     bool newline{true};
+    // Print: the separator after each item: ' ' (none), ';' or ','.
+    std::string separators;
     bool until{};                              // Do ... Until / Loop Until
     bool test_after{};                         // Do ... Loop While/Until
     std::vector<ExprPtr> conditions;           // If / ElseIf
@@ -178,6 +181,7 @@ struct Module final {
     std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;
     std::vector<Procedure> procedures;
+    int option_base{0};  // the lower bound of an array that gives none
 };
 
 struct ParseResult final {

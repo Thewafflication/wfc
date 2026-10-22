@@ -81,21 +81,40 @@ void release(RtString* text) {
 
 // ----- The services, in the order of `ir::Service` ----------------------
 
+// The column of the output line the next character lands in (a comma in a
+// Print moves to the next zone of 14 columns).
+int g_column = 0;
+
+void put(const char* text, const std::size_t length) {
+    std::cout.write(text, static_cast<std::streamsize>(length));
+    for (std::size_t i = 0; i < length; ++i) {
+        g_column = text[i] == '\n' ? 0 : g_column + 1;
+    }
+}
+
+void put(const std::string& text) {
+    put(text.data(), text.size());
+}
+
 void print_number(const std::int32_t value) {
     // VB6 prints a number with a sign position and a trailing space.
-    std::cout << (value >= 0 ? " " : "") << value << ' ';
+    put(std::string(value >= 0 ? " " : "") + std::to_string(value) + ' ');
 }
 
 void print_boolean(const std::int32_t value) {
-    std::cout << (value != 0 ? "True" : "False");
+    put(std::string(value != 0 ? "True" : "False"));
 }
 
 void print_text(const char* text, const std::int32_t length) {
-    std::cout.write(text, length);
+    put(text, static_cast<std::size_t>(length));
 }
 
 void print_newline() {
-    std::cout << '\n';
+    put("\n", 1U);
+}
+
+void print_zone() {
+    put(std::string(static_cast<std::size_t>(14 - g_column % 14), ' '));
 }
 
 [[nodiscard]] std::string standard_error_text(const std::int32_t number) {
@@ -146,8 +165,7 @@ void raise_error(const std::int32_t number) {
 
 void print_string(const RtString* text) {
     const auto content = view_of(text);
-    std::cout.write(content.data(),
-                    static_cast<std::streamsize>(content.size()));
+    put(content.data(), content.size());
 }
 
 RtString* string_concat(const RtString* a, const RtString* b) {
@@ -346,7 +364,7 @@ RtString* string_space(const std::int32_t count) {
 
 void print_double(const double value, const std::int32_t digits) {
     // A sign position before the number and a trailing space.
-    std::cout << (value >= 0 ? " " : "") << format_float(value, digits) << ' ';
+    put(std::string(value >= 0 ? " " : "") + format_float(value, digits) + ' ');
 }
 
 RtString* string_from_double(const double value, const std::int32_t digits,
@@ -402,6 +420,19 @@ double math_function(const std::int32_t which, const double value) {
             return std::fabs(value);
     }
     return value;
+}
+
+double double_power(const double base, const double exponent) {
+    if (base == 0.0 && exponent < 0.0) {
+        raise_error(11);
+        return 0.0;
+    }
+    const double result = std::pow(base, exponent);
+    if (!std::isfinite(result)) {
+        raise_error(6);
+        return 0.0;
+    }
+    return result;
 }
 
 std::int32_t double_sign(const double value) {
@@ -744,6 +775,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&error_number),        address_of(&error_description),
         address_of(&error_source),        address_of(&error_clear),
         address_of(&error_raise),         address_of(&error_acknowledge),
+        address_of(&print_zone),          address_of(&double_power),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
@@ -755,6 +787,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
     }
     FlushInstructionCache(GetCurrentProcess(), memory, image.bytes.size());
     g_error = ErrorState{};
+    g_column = 0;
     g_error.pending = reinterpret_cast<std::int32_t*>(
         static_cast<std::uint8_t*>(memory) + image.error_flag);
     const auto entry = reinterpret_cast<EntryFunction>(

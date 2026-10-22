@@ -145,6 +145,7 @@ public:
             case Service::string_space:
             case Service::double_to_long:
             case Service::math_function:
+            case Service::double_power:
             case Service::array_redim:
             case Service::array_element1:
             case Service::array_element2:
@@ -905,6 +906,29 @@ private:
         }
     }
 
+    // A Static variable keeps its value between calls: a cell of the globals
+    // area that only this procedure names.
+    void declare_static(const Declaration& declaration) {
+        if (declaration.is_array && !declaration.bounds.empty()) {
+            fail("a fixed-size Static array is not compiled yet",
+                 declaration.at);
+        }
+        int record = -1;
+        std::int64_t cells = 1;
+        if (declaration.type == VbType::record) {
+            record = find_udt(declaration.type_name, declaration.at);
+            if (!declaration.is_array) {
+                cells = udts_[static_cast<std::size_t>(record)].size / 8;
+            }
+        }
+        locals_[declaration.name] = Variable{
+            ir::global(static_cast<std::int64_t>(program_.globals.size())),
+            declaration.type, declaration.is_array, record};
+        for (std::int64_t i = 0; i < cells; ++i) {
+            program_.globals.push_back(ir::Global{declaration.name});
+        }
+    }
+
     void declare_local(const Declaration& declaration) {
         require_type(declaration);
         if (locals_.contains(declaration.name) ||
@@ -912,6 +936,10 @@ private:
              declaration.name == current_->name)) {
             fail("'" + declaration.name + "' is already declared",
                  declaration.at);
+        }
+        if (declaration.is_static) {
+            declare_static(declaration);
+            return;
         }
         if (declaration.type == VbType::record && declaration.is_array) {
             // An array of records: a handle like any array.
@@ -1021,7 +1049,8 @@ private:
             for (int side = 0; side < 2; ++side) {
                 const Expr* expression =
                     side == 0 ? bound.low.get() : bound.high.get();
-                Operand value = ir::immediate(0);
+                Operand value =
+                    ir::immediate(side == 0 ? module_.option_base : 0);
                 if (expression != nullptr) {
                     if (constant) {
                         const auto folded = fold(*expression);
@@ -1344,12 +1373,15 @@ private:
     void lower_print(const Stmt& statement) {
         struct Item final {
             int literal{-1};
+            bool empty{};
             Value value;
         };
         std::vector<Item> items;
         for (const auto& expression : statement.items) {
             Item item;
-            if (expression->kind == ExprKind::string_literal) {
+            if (!expression) {
+                item.empty = true;
+            } else if (expression->kind == ExprKind::string_literal) {
                 program_.strings.push_back(expression->text);
                 item.literal = static_cast<int>(program_.strings.size() - 1U);
             } else {
@@ -1357,24 +1389,28 @@ private:
             }
             items.push_back(item);
         }
-        for (const auto& item : items) {
-            if (item.literal >= 0) {
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            const auto& item = items[i];
+            if (item.empty) {
+                // nothing to write before the separator
+            } else if (item.literal >= 0) {
                 builder_->print_text(item.literal);
-                continue;
+            } else if (is_float(item.value.type)) {
+                builder_->runtime(Service::print_double,
+                                  {item.value.operand,
+                                   ir::immediate(digits_of(item.value.type))},
+                                  {}, false, 1U);
+            } else {
+                const Service service =
+                    item.value.type == VbType::boolean  ? Service::print_boolean
+                    : item.value.type == VbType::string ? Service::print_string
+                                                        : Service::print_number;
+                builder_->runtime(service, {item.value.operand});
             }
-            const auto& value = item.value;
-            if (is_float(value.type)) {
-                builder_->runtime(
-                    Service::print_double,
-                    {value.operand, ir::immediate(digits_of(value.type))}, {},
-                    false, 1U);
-                continue;
+            if (i < statement.separators.size() &&
+                statement.separators[i] == ',') {
+                builder_->runtime(Service::print_zone, {});
             }
-            const Service service =
-                value.type == VbType::boolean  ? Service::print_boolean
-                : value.type == VbType::string ? Service::print_string
-                                               : Service::print_number;
-            builder_->runtime(service, {value.operand});
         }
         if (statement.newline) {
             builder_->runtime(Service::print_newline, {});
@@ -1936,6 +1972,18 @@ private:
                     ? VbType::long_integer
                     : VbType::integer;
             return Value{ir::immediate(bits), type};
+        }
+        if (op == "^") {
+            const double a = double_of(left);
+            const double b = double_of(right);
+            if (a == 0.0 && b < 0.0) {
+                fail("division by zero in a constant", at);
+            }
+            const double result = std::pow(a, b);
+            if (!std::isfinite(result)) {
+                fail("overflow in a constant", at);
+            }
+            return float_constant(result, VbType::double_precision);
         }
         if (op == "/" || (any_float && (op == "+" || op == "-" || op == "*"))) {
             const double a = double_of(left);
@@ -2639,6 +2687,13 @@ private:
         }
         const bool any_float = is_float(left.type) || is_float(right.type);
         const auto result = builder_->new_temp();
+        if (op == "^") {
+            builder_->runtime(
+                Service::double_power,
+                {to_double(left).operand, to_double(right).operand}, result,
+                false, 3U, true);
+            return Value{result, VbType::double_precision};
+        }
         if (op == "and" || op == "or" || op == "xor") {
             const auto a = to_long_if_float(left, expression.at);
             const auto b = to_long_if_float(right, expression.at);
