@@ -28,6 +28,7 @@ using ir::Operand;
 using ir::OperandKind;
 
 constexpr std::uint32_t kFp = 29;
+constexpr std::uint32_t kSp = 31;
 constexpr std::uint32_t kLr = 30;
 constexpr std::uint32_t kScratchA = 15;  // address of a distant slot
 constexpr std::uint32_t kScratchB = 16;  // values, the service address
@@ -239,13 +240,24 @@ private:
                  (base << 5) | reg);
             return;
         }
-        move_immediate(kScratchA, static_cast<std::uint64_t>(offset), true);
-        emit(0x8B000000U | (kScratchA << 16) | (base << 5) | kScratchA);
+        if (base == kSp) {
+            // beyond the reach of one instruction: through x29, which is at
+            // a known distance from sp
+            move_immediate(kScratchA,
+                           static_cast<std::uint64_t>(offset - fp_offset_),
+                           true);
+            emit(0x8B000000U | (kScratchA << 16) | (kFp << 5) | kScratchA);
+        } else {
+            move_immediate(kScratchA, static_cast<std::uint64_t>(offset), true);
+            emit(0x8B000000U | (kScratchA << 16) | (base << 5) | kScratchA);
+        }
         emit(opcode | (kScratchA << 5) | reg);
     }
 
-    [[nodiscard]] static std::int64_t slot_offset(const std::int64_t slot) {
-        return 16 + 8 * slot;
+    // Higher slots are at lower addresses (as on the other back ends, which
+    // some services rely on to read consecutive slots upward).
+    [[nodiscard]] std::int64_t slot_offset(const std::int64_t slot) const {
+        return out_ + 8 * (slots_ - 1 - slot);
     }
 
     [[nodiscard]] std::size_t global_at(const std::int64_t index) const {
@@ -260,7 +272,12 @@ private:
                  (src << 5) | dst);
         } else {
             move_immediate(kScratchA, static_cast<std::uint64_t>(imm), true);
-            emit(0x8B000000U | (kScratchA << 16) | (src << 5) | dst);
+            if (src == kSp) {
+                // add xd, sp, x15 (the extended form reads sp)
+                emit(0x8B206000U | (kScratchA << 16) | (src << 5) | dst);
+            } else {
+                emit(0x8B000000U | (kScratchA << 16) | (src << 5) | dst);
+            }
         }
     }
 
@@ -273,7 +290,7 @@ private:
         const Access slot_access = wide ? Access::load64 : Access::load32;
         switch (operand.kind) {
             case OperandKind::slot:
-                memory(slot_access, reg, kFp, slot_offset(operand.value));
+                memory(slot_access, reg, kSp, slot_offset(operand.value));
                 break;
             case OperandKind::immediate:
                 move_immediate(reg, static_cast<std::uint64_t>(operand.value),
@@ -284,7 +301,7 @@ private:
                 memory(slot_access, reg, kScratchC, 0);
                 break;
             case OperandKind::indirect:
-                memory(Access::load64, kScratchC, kFp,
+                memory(Access::load64, kScratchC, kSp,
                        slot_offset(operand.value));
                 memory(slot_access, reg, kScratchC, 0);
                 break;
@@ -303,14 +320,14 @@ private:
         const Access slot_access = wide ? Access::store64 : Access::store32;
         switch (operand.kind) {
             case OperandKind::slot:
-                memory(slot_access, reg, kFp, slot_offset(operand.value));
+                memory(slot_access, reg, kSp, slot_offset(operand.value));
                 break;
             case OperandKind::global:
                 address_of(kScratchC, global_at(operand.value));
                 memory(slot_access, reg, kScratchC, 0);
                 break;
             case OperandKind::indirect:
-                memory(Access::load64, kScratchC, kFp,
+                memory(Access::load64, kScratchC, kSp,
                        slot_offset(operand.value));
                 memory(slot_access, reg, kScratchC, 0);
                 break;
@@ -464,7 +481,9 @@ private:
             }
         }
         out_ = static_cast<std::int64_t>((out_words * 8U + 15U) & ~15U);
-        total_ = (out_ + 16 + 8 * function.slot_count + 15) & ~15LL;
+        slots_ = function.slot_count;
+        fp_offset_ = out_ + 8 * slots_;
+        total_ = (fp_offset_ + 16 + 15) & ~15LL;
         // prologue
         if (total_ < 4096) {
             emit(0xD1000000U | (static_cast<std::uint32_t>(total_) << 10) |
@@ -473,29 +492,28 @@ private:
             move_immediate(kScratchB, static_cast<std::uint64_t>(total_), true);
             emit(0xCB206000U | (kScratchB << 16) | (31U << 5) | 31U);
         }
-        // stp x29, x30, [sp, #out]
-        emit(0xA9000000U |
-             ((static_cast<std::uint32_t>(out_ / 8) & 0x7FU) << 15) |
-             (kLr << 10) | (31U << 5) | kFp);
-        add_immediate(kFp, 31, out_);  // add x29, sp, #out
+        // x16 = sp + fp_offset; stp x29, x30, [x16]; mov x29, x16
+        add_immediate(kScratchB, kSp, fp_offset_);
+        emit(0xA9000000U | (kLr << 10) | (kScratchB << 5) | kFp);
+        emit(0x91000000U | (kScratchB << 5) | kFp);
         std::uint32_t int_index = 0;
         std::uint32_t float_index = 0;
-        std::int64_t stack_offset = total_ - out_;
+        std::int64_t stack_offset = total_ - fp_offset_;
         for (std::size_t i = 0; i < function.parameters.size(); ++i) {
             const auto offset = slot_offset(static_cast<std::int64_t>(i));
             if (function.parameters[i].is_double) {
                 if (float_index < 8) {
-                    memory(Access::store_double, float_index++, kFp, offset);
+                    memory(Access::store_double, float_index++, kSp, offset);
                 } else {
                     memory(Access::load64, kScratchB, kFp, stack_offset);
-                    memory(Access::store64, kScratchB, kFp, offset);
+                    memory(Access::store64, kScratchB, kSp, offset);
                     stack_offset += 8;
                 }
             } else if (int_index < 8) {
-                memory(Access::store64, int_index++, kFp, offset);
+                memory(Access::store64, int_index++, kSp, offset);
             } else {
                 memory(Access::load64, kScratchB, kFp, stack_offset);
-                memory(Access::store64, kScratchB, kFp, offset);
+                memory(Access::store64, kScratchB, kSp, offset);
                 stack_offset += 8;
             }
         }
@@ -720,7 +738,7 @@ private:
                 if (instruction.a.kind == OperandKind::global) {
                     address_of(0, global_at(instruction.a.value));
                 } else {
-                    add_immediate(0, kFp, slot_offset(instruction.a.value));
+                    add_immediate(0, kSp, slot_offset(instruction.a.value));
                 }
                 store(instruction.dst, 0, true);
                 break;
@@ -784,19 +802,12 @@ private:
                         load(0, ir::slot(function.result_slot), true);
                     }
                 }
-                // ldp x29, x30, [sp, #out]; add sp, sp, #total; ret
-                emit(0xA9400000U |
-                     ((static_cast<std::uint32_t>(out_ / 8) & 0x7FU) << 15) |
-                     (kLr << 10) | (31U << 5) | kFp);
-                if (total_ < 4096) {
-                    emit(0x91000000U |
-                         (static_cast<std::uint32_t>(total_) << 10) |
-                         (31U << 5) | 31U);
-                } else {
-                    move_immediate(kScratchB,
-                                   static_cast<std::uint64_t>(total_), true);
-                    emit(0x8B206000U | (kScratchB << 16) | (31U << 5) | 31U);
-                }
+                // mov x16, x29; ldp x29, x30, [x16]; add sp, x16, #rest; ret
+                emit(0x91000000U | (kFp << 5) | kScratchB);
+                emit(0xA9400000U | (kLr << 10) | (kScratchB << 5) | kFp);
+                emit(0x91000000U |
+                     (static_cast<std::uint32_t>(total_ - fp_offset_) << 10) |
+                     (kScratchB << 5) | kSp);
                 emit(0xD65F03C0U);
                 break;
         }
@@ -855,6 +866,8 @@ private:
     FunctionState state_;
     std::int64_t out_{};
     std::int64_t total_{};
+    std::int64_t slots_{};
+    std::int64_t fp_offset_{};
 };
 
 }  // namespace
