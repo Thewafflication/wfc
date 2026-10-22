@@ -126,7 +126,9 @@ private:
 
     void layout() {
         std::size_t at = static_cast<std::size_t>(ir::Service::count) * 8U;
-        flag_offset_ = at;  // the pending-error flag, then the globals
+        flag_offset_ = at;  // the pending-error flag
+        at += 8U;
+        limit_offset_ = at;  // the lowest stack address a call may reach
         at += 8U;
         globals_offset_ = at;
         at += program_.globals.size() * 8U;
@@ -354,6 +356,7 @@ private:
     struct FunctionState final {
         std::vector<std::int64_t> label_positions;
         std::vector<Fixup> fixups;
+        std::vector<std::size_t> stack_jumps;     // b.lo to the stack stub
         std::vector<std::size_t> overflow_jumps;  // b.cond to the stub
         std::vector<std::size_t> zero_jumps;
     };
@@ -496,6 +499,14 @@ private:
         add_immediate(kScratchB, kSp, fp_offset_);
         emit(0xA9000000U | (kLr << 10) | (kScratchB << 5) | kFp);
         emit(0x91000000U | (kScratchB << 5) | kFp);
+        // Out of stack space: error 28 when sp is below the limit.
+        address_of(kScratchB, limit_offset_);
+        memory(Access::load64, kScratchB, kScratchB, 0);
+        emit(0x91000000U | (kSp << 5) | kScratchC);  // mov x17, sp
+        emit(0xEB00001FU | (kScratchB << 16) |
+             (kScratchC << 5));  // cmp x17, x16
+        state_.stack_jumps.push_back(image_.size());
+        emit(0x54000000U | 0x3U);  // b.lo the stack stub
         std::uint32_t int_index = 0;
         std::uint32_t float_index = 0;
         std::int64_t stack_offset = total_ - fp_offset_;
@@ -541,7 +552,25 @@ private:
         return words;
     }
 
+    void emit_epilogue() {
+        // mov x16, x29; ldp x29, x30, [x16]; add sp, x16, #rest; ret
+        emit(0x91000000U | (kFp << 5) | kScratchB);
+        emit(0xA9400000U | (kLr << 10) | (kScratchB << 5) | kFp);
+        emit(0x91000000U |
+             (static_cast<std::uint32_t>(total_ - fp_offset_) << 10) |
+             (kScratchB << 5) | kSp);
+        emit(0xD65F03C0U);
+    }
+
     void emit_stubs(const ir::Function& function) {
+        if (!state_.stack_jumps.empty()) {
+            for (const auto at : state_.stack_jumps) {
+                resolve_conditional(at);
+            }
+            move_immediate(0, 28, false);
+            call_service(ir::Service::raise_error);
+            emit_epilogue();  // the caller sees the pending error
+        }
         const auto stub = [&](std::vector<std::size_t>& jumps,
                               const int number) {
             if (jumps.empty()) {
@@ -860,6 +889,7 @@ private:
     const ir::Program& program_;
     std::vector<std::uint8_t> image_;
     std::size_t flag_offset_{};
+    std::size_t limit_offset_{};
     std::size_t globals_offset_{};
     std::vector<std::size_t> string_offsets_;
     std::vector<std::pair<std::size_t, int>> call_fixups_;

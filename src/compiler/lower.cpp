@@ -2168,8 +2168,9 @@ private:
                                        const VbType type) {
         const bool is_element =
             argument.kind == ExprKind::call && find_array(argument.text);
-        if (argument.kind == ExprKind::member || is_element ||
-            (type == VbType::record && argument.kind == ExprKind::name)) {
+        if (!argument.parenthesized &&
+            (argument.kind == ExprKind::member || is_element ||
+             (type == VbType::record && argument.kind == ExprKind::name))) {
             const auto place = lower_place(argument);
             if (place.type != type) {
                 fail("ByRef argument type mismatch", argument.at);
@@ -2177,7 +2178,7 @@ private:
             return type == VbType::record ? struct_pointer(place)
                                           : address_of(place.operand);
         }
-        if (argument.kind == ExprKind::name &&
+        if (!argument.parenthesized && argument.kind == ExprKind::name &&
             !signatures_.contains(argument.text)) {
             const auto variable = find_variable(argument.text, argument.at);
             if (variable.type != type) {

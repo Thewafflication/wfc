@@ -91,7 +91,9 @@ private:
     void layout() {
         table_offset_ = 0;
         std::size_t at = static_cast<std::size_t>(ir::Service::count) * 8U;
-        flag_offset_ = at;  // the pending-error flag, then the globals
+        flag_offset_ = at;  // the pending-error flag
+        at += 8U;
+        limit_offset_ = at;  // the lowest stack address a call may reach
         at += 8U;
         globals_offset_ = at;
         at += program_.globals.size() * 8U;
@@ -402,6 +404,7 @@ private:
     struct FunctionState final {
         std::vector<std::int64_t> label_positions;
         std::vector<Fixup> fixups;
+        std::vector<std::size_t> stack_jumps;
         std::vector<Fixup> overflow_jumps;
         std::vector<Fixup> zero_jumps;
         int outgoing{};
@@ -466,6 +469,14 @@ private:
         bytes({0x48, 0x89, 0xE5});  // mov rbp, rsp
         bytes({0x48, 0x81, 0xEC});  // sub rsp, frame
         dword(static_cast<std::uint32_t>(frame));
+        // Out of stack space: error 28 when rsp is below the limit.
+        bytes({0x48, 0x3B, 0x25});  // cmp rsp, [rip + limit]
+        dword(static_cast<std::uint32_t>(
+            static_cast<std::int64_t>(limit_offset_) -
+            static_cast<std::int64_t>(image_.size() + 4U)));
+        bytes({0x0F, 0x82});  // jb the stack stub
+        state_.stack_jumps.push_back(image_.size());
+        dword(0);
         for (std::size_t i = 0; i < function.parameters.size(); ++i) {
             const bool wide = function.parameters[i].wide;
             const std::int32_t disp = slot_disp(static_cast<std::int64_t>(i));
@@ -494,6 +505,16 @@ private:
     }
 
     void emit_stubs(const ir::Function& function) {
+        if (!state_.stack_jumps.empty()) {
+            const std::size_t here = image_.size();
+            for (const auto at : state_.stack_jumps) {
+                patch32(at, static_cast<std::int32_t>(here - (at + 4U)));
+            }
+            load32(kEcx, ir::immediate(28));
+            call_service(ir::Service::raise_error);
+            byte(0xC9);  // leave
+            byte(0xC3);  // ret: the caller sees the pending error
+        }
         if (!state_.overflow_jumps.empty()) {
             const std::size_t here = image_.size();
             for (const auto& jump : state_.overflow_jumps) {
@@ -823,6 +844,7 @@ private:
     std::vector<std::uint8_t> image_;
     std::size_t table_offset_{};
     std::size_t flag_offset_{};
+    std::size_t limit_offset_{};
     std::size_t globals_offset_{};
     std::vector<std::size_t> string_offsets_;
     FunctionState state_;

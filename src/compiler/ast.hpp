@@ -52,7 +52,8 @@ struct Expr final {
     double real{};
     bool long_literal{};
     bool single_literal{};
-    std::string text;  // a literal's contents, a name, or an operator
+    bool parenthesized{};  // `(x)`: a value, never a variable passed ByRef
+    std::string text;      // a literal's contents, a name, or an operator
     std::vector<ExprPtr>
         operands;  // call arguments, or the operator's operands
 };

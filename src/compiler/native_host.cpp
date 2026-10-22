@@ -131,6 +131,8 @@ void print_zone() {
             return "Division by zero";
         case 13:
             return "Type mismatch";
+        case 28:
+            return "Out of stack space";
         default:
             return "Application-defined or object-defined error";
     }
@@ -788,6 +790,18 @@ int run_native_image(const NativeImage& image, std::string& error) {
     FlushInstructionCache(GetCurrentProcess(), memory, image.bytes.size());
     g_error = ErrorState{};
     g_column = 0;
+    // The stack limit: half of the stack that is left (the services need some
+    // room too).
+    {
+        ULONG_PTR low = 0;
+        ULONG_PTR high = 0;
+        GetCurrentThreadStackLimits(&low, &high);
+        const auto here = reinterpret_cast<std::uintptr_t>(&previous);
+        const std::uintptr_t remaining = here > low ? here - low : 0;
+        const std::uintptr_t limit = here - remaining / 2;
+        std::memcpy(static_cast<std::uint8_t*>(memory) + image.error_flag + 8U,
+                    &limit, sizeof(limit));
+    }
     g_error.pending = reinterpret_cast<std::int32_t*>(
         static_cast<std::uint8_t*>(memory) + image.error_flag);
     const auto entry = reinterpret_cast<EntryFunction>(

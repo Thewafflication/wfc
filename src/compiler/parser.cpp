@@ -830,6 +830,10 @@ private:
                 } while (accept_symbol(","));
                 expect_symbol(")");
             }
+            // `Name (x)` without Call passes the parenthesized value.
+            if (!with_call_keyword && result->items.size() == 1U) {
+                result->items.front()->parenthesized = true;
+            }
         } else if (!with_call_keyword) {
             // `name arg, arg`: arguments without parentheses.
             while (!at_end_of_statement() && !is_word("else")) {
@@ -1155,6 +1159,7 @@ private:
             advance();
             auto inner = expression();
             expect_symbol(")");
+            inner->parenthesized = true;
             return inner;
         }
         if (token.kind == TokenKind::identifier) {

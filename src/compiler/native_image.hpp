@@ -27,8 +27,11 @@ struct NativeImage final {
     Architecture architecture{Architecture::x64};
     std::vector<std::uint8_t> bytes;
     std::size_t table_count{};
-    std::size_t entry{};       // offset of the function that starts the program
-    std::size_t error_flag{};  // offset of the 32-bit pending-error flag
+    std::size_t entry{};  // offset of the function that starts the program
+    // Offset of the 32-bit pending-error flag. The pointer-sized stack limit
+    // follows it eight bytes later: the lowest stack address a call may
+    // reach, set by the loader (error 28 below it).
+    std::size_t error_flag{};
 };
 
 // Version of the entry table layout (the order of `ir::Service`). The loader
