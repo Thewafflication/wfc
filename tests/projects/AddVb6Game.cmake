@@ -1,7 +1,8 @@
 # Registers the screenshot test of one corpus game (included by the top-level
 # CMakeLists.txt, which sets vb6games_dir and project_checks).
 # Optional fifth and sixth arguments: a ui-script that drives the windows and
-# the screenshot file it must take.
+# the screenshot file it must take; an optional seventh, the WFC_RANDOM_SEED of
+# the run (a game that plays at random must not end before the screenshot).
 function(add_vb6_game name vbp forms milliseconds)
   if(EXISTS "${vb6games_dir}/${vbp}")
     set(script_arguments "")
@@ -11,6 +12,9 @@ function(add_vb6_game name vbp forms milliseconds)
         "-DSCRIPT=${project_checks}/${ARGV4}"
         "-DFILES=${ARGV5}"
       )
+    endif()
+    if(ARGC GREATER 6)
+      list(APPEND script_arguments "-DSEED=${ARGV6}")
     endif()
     add_test(
       NAME TC-MP0008-vb6games-${name}

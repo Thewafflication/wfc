@@ -8,6 +8,10 @@ if(NOT DEFINED MILLISECONDS)
   set(MILLISECONDS 5000)
 endif()
 file(REMOVE_RECURSE "${SHOTS}")
+# A fixed seed makes `Randomize` repeatable for programs that play at random.
+if(DEFINED SEED)
+  set(ENV{WFC_RANDOM_SEED} "${SEED}")
+endif()
 # Programs write beside themselves (settings, logs): run a copy, so the
 # corpus submodule stays clean.
 get_filename_component(project_dir "${PROJECT}" DIRECTORY)
