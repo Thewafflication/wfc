@@ -36,6 +36,7 @@ target_sources(
     src/compiler/parser.hpp
     src/compiler/x64.cpp
     src/compiler/x86.cpp
+    src/compiler/arm64.cpp
     src/interpreter/assignment.cpp
     src/interpreter/builtin_functions.cpp
     src/interpreter/builtin_misc.cpp
@@ -2332,11 +2333,12 @@ Print v.x & q.x]=]
   )
 
   # Native compilation (MP-0009, ADR-0008): each tests/native/*.bas program
-  # must print and end the same as the interpreter runs it. The AMD64 and x86
-  # back ends exist so far.
+  # must print and end the same as the interpreter runs it. There are back
+  # ends for AMD64, x86 and ARM64.
   if(
     "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "x64"
     OR "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Win32"
+    OR "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "ARM64"
   )
     file(
       GLOB wfc_native_programs

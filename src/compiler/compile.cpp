@@ -13,15 +13,11 @@ BackEndResult generate_code(const ir::Program& program,
     if (architecture == Architecture::x86) {
         return generate_x86(program);
     }
-    BackEndResult result;
-    result.error = std::string("there is no back end for ") +
-                   (architecture == Architecture::x86 ? "x86" : "ARM64") +
-                   " yet";
-    return result;
+    return generate_arm64(program);
 }
 
 bool native_back_end_available() {
-    return host_architecture() != Architecture::arm64;
+    return true;
 }
 
 CompileResult compile_source(const std::string_view source,

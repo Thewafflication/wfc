@@ -61,4 +61,7 @@ struct BackEndResult final {
 // The x86 back end (x86.cpp).
 [[nodiscard]] BackEndResult generate_x86(const ir::Program& program);
 
+// The ARM64 back end (arm64.cpp).
+[[nodiscard]] BackEndResult generate_arm64(const ir::Program& program);
+
 }  // namespace wfc::compiler
