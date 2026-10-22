@@ -179,6 +179,7 @@ struct Procedure final {
     std::string spelling;
     Position at;
     PropertyKind property{PropertyKind::none};
+    bool is_default{};  // `Attribute Name.VB_UserMemId = 0`: the default member
     bool is_function{};
     bool is_public{true};
     VbType return_type{VbType::none};
@@ -204,7 +205,8 @@ struct TypeDecl final {
 
 struct Module final {
     std::string name;
-    bool is_class{};  // a class module: `globals` are its fields
+    std::string display_name;  // the name as written
+    bool is_class{};           // a class module: `globals` are its fields
     std::vector<TypeDecl> types;
     std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;

@@ -1,0 +1,3 @@
+Module=Main; main.bas
+Class=Item; Item.cls
+Startup="Sub Main"

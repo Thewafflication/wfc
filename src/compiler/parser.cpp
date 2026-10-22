@@ -24,6 +24,7 @@ public:
         Module module;
         module.is_class = options_.is_class;
         module.name = options_.name;
+        module.display_name = options_.display_name;
         skip_ends();
         while (!at_end_of_file()) {
             if (is_word("attribute")) {
@@ -436,6 +437,10 @@ private:
         }
         expect_end_of_statement();
         result.body = block({"end"});
+        if (!default_member_.empty() && default_member_ == result.name) {
+            result.is_default = true;
+        }
+        default_member_.clear();
         expect_word("end");
         const char* closing = is_property          ? "property"
                               : result.is_function ? "function"
@@ -675,7 +680,13 @@ private:
             return with_statement();
         }
         if (word == "attribute") {
-            // `Attribute Name = value`: a file-format line, no code.
+            // `Attribute Name = value`: a file-format line, no code;
+            // `Attribute Name.VB_UserMemId = 0` makes Name the default member.
+            if (ahead(1).kind == TokenKind::identifier &&
+                ahead(2).kind == TokenKind::symbol && ahead(2).text == "." &&
+                ahead(3).text == "vb_usermemid" && ahead(5).number == 0) {
+                default_member_ = ahead(1).text;
+            }
             auto result = make(StmtKind::dim);
             while (!at_end_of_statement()) {
                 advance();
@@ -1451,6 +1462,7 @@ private:
     }
 
     std::vector<Token> tokens_;
+    std::string default_member_;  // set by an Attribute line in a procedure
     const ParseOptions& options_;
     std::size_t index_{};
 };

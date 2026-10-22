@@ -13,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #ifdef _WIN32
@@ -20,6 +21,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
+
+#include "../interpreter/interpreter.hpp"
 
 namespace wfc::compiler {
 
@@ -943,16 +946,28 @@ struct ClassRecord final {
     std::int32_t size;
     std::int32_t terminate;
     std::int32_t count;
-    std::int32_t handles[1];  // offset, kind (ir::HandleKind) pairs
+    std::int32_t name_length;
+    std::int32_t handles[1];  // offset, kind (ir::HandleKind) pairs, the name
 };
 
 struct RtObject final {
     std::int32_t refs;
     std::int32_t pad;
     const ClassRecord* record;
+    wfc::detail::NativeStore* store;  // the store of a Collection (WfcStore)
 };
 
-constexpr std::size_t kObjectHeaderSize = 16U;
+[[nodiscard]] std::string class_name_of(const ClassRecord* record) {
+    return std::string(
+        reinterpret_cast<const char*>(&record->handles[2 * record->count]),
+        static_cast<std::size_t>(record->name_length));
+}
+
+// The Variant wrapper of each object that has crossed into the Variant world.
+std::unordered_map<struct RtObject*, std::weak_ptr<wfc::detail::InstanceData>>
+    g_wrappers;
+
+constexpr std::size_t kObjectHeaderSize = 24U;
 static_assert(sizeof(RtObject) <= kObjectHeaderSize);
 
 std::uint8_t* g_image_base = nullptr;
@@ -1024,6 +1039,8 @@ void object_release(RtObject* object) {
         release_cell(fields + object->record->handles[2 * i],
                      object->record->handles[2 * i + 1]);
     }
+    g_wrappers.erase(object);
+    delete object->store;
     std::free(object);
 }
 
@@ -1045,6 +1062,78 @@ std::int32_t object_is(const RtObject* a, const RtObject* b) {
 
 std::int32_t object_is_null(const RtObject* object) {
     return object == nullptr ? -1 : 0;
+}
+
+// An object inside the engine's world: it keeps the object alive and says
+// what it is; its members are not reached late bound yet.
+class CompiledObject final : public wfc::detail::NativeObject {
+public:
+    explicit CompiledObject(RtObject* object) : object_(object) {
+        object_addref(object_);
+    }
+    ~CompiledObject() override { object_release(object_); }
+    [[nodiscard]] std::string type_name() const override {
+        return class_name_of(object_->record);
+    }
+    [[nodiscard]] bool has_member(const std::string&) const override {
+        return false;
+    }
+    [[nodiscard]] bool get(wfc::detail::Interpreter&, const std::string&,
+                           std::vector<wfc::detail::CallArgument>&,
+                           wfc::detail::Value&,
+                           wfc::detail::NativeFailure&) override {
+        return false;
+    }
+    [[nodiscard]] bool put(wfc::detail::Interpreter&, const std::string&,
+                           std::vector<wfc::detail::CallArgument>&,
+                           const wfc::detail::Value&,
+                           wfc::detail::NativeFailure&) override {
+        return false;
+    }
+    [[nodiscard]] RtObject* object() const { return object_; }
+
+private:
+    RtObject* object_;
+};
+
+// The Value that stands for an object (one wrapper per object while any copy
+// of the Value lives, so that `Is` still works).
+[[nodiscard]] wfc::detail::Value wrap_object(RtObject* object) {
+    using namespace wfc::detail;
+    if (object == nullptr) {
+        return Value{Nothing{}};
+    }
+    if (const auto found = g_wrappers.find(object); found != g_wrappers.end()) {
+        if (auto alive = found->second.lock()) {
+            return Value{ObjectInstance{std::move(alive)}};
+        }
+    }
+    auto data = std::make_shared<InstanceData>();
+    data->class_name = "wfcnative";
+    data->native = std::make_shared<CompiledObject>(object);
+    g_wrappers[object] = data;
+    return Value{ObjectInstance{std::move(data)}};
+}
+
+// The compiled object a Value stands for (null for Nothing and Empty).
+[[nodiscard]] RtObject* object_of(const wfc::detail::Value& value,
+                                  bool& valid) {
+    using namespace wfc::detail;
+    valid = true;
+    if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
+        if (const auto* compiled =
+                dynamic_cast<CompiledObject*>(instance->data->native.get())) {
+            return compiled->object();
+        }
+        valid = false;  // an object of the engine: not reachable yet
+        return nullptr;
+    }
+    if (std::holds_alternative<Nothing>(value) ||
+        std::holds_alternative<Empty>(value)) {
+        return nullptr;
+    }
+    valid = false;
+    return nullptr;
 }
 
 void* inline_element(void* base, const std::int32_t index,
@@ -1083,6 +1172,8 @@ void randomize(const std::int32_t has_seed, const double seed,
     engine().randomize(has_seed != 0, seed, is_timer != 0);
 }
 
+RtVariant* variant_from_object(RtObject* object);
+
 RtVariant* variant_call(const RtString* name, const std::int32_t count,
                         const char* block) {
     std::vector<wfc::detail::Value> arguments;
@@ -1091,13 +1182,62 @@ RtVariant* variant_call(const RtString* name, const std::int32_t count,
         std::memcpy(&handle, block + 8 * i, sizeof(handle));
         arguments.push_back(value_of(handle));
     }
+    // WfcStore works on the store of the object it is given: lend it.
+    RtObject* lender = nullptr;
+    std::shared_ptr<wfc::detail::InstanceData> lent;
+    if (view_of(name) == "wfcstore" && arguments.size() >= 2U) {
+        bool valid = false;
+        lender = object_of(arguments[1], valid);
+        if (lender != nullptr) {
+            lent = std::get<wfc::detail::ObjectInstance>(arguments[1]).data;
+            lent->store.reset(lender->store);
+            lender->store = nullptr;
+        }
+    }
     wfc::detail::NativeError problem;
     auto result = engine().call_function(view_of(name), arguments, problem);
+    if (lender != nullptr) {
+        lender->store = lent->store.release();
+    }
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;
     }
     return box(std::move(*result));
+}
+
+RtVariant* variant_from_object(RtObject* object) {
+    return box(wrap_object(object));
+}
+
+RtObject* variant_to_object(const RtVariant* handle) {
+    bool valid = false;
+    RtObject* object = object_of(value_of(handle), valid);
+    if (!valid) {
+        raise_error(13);
+        return nullptr;
+    }
+    object_addref(object);
+    return object;
+}
+
+std::int32_t variant_array_count(const RtVariant* handle) {
+    if (const auto* array =
+            std::get_if<wfc::detail::ArrayValue>(&value_of(handle))) {
+        return static_cast<std::int32_t>(array->elements.size());
+    }
+    return 0;
+}
+
+RtVariant* variant_array_item(const RtVariant* handle, const std::int32_t i) {
+    if (const auto* array =
+            std::get_if<wfc::detail::ArrayValue>(&value_of(handle));
+        array != nullptr && i >= 0 &&
+        static_cast<std::size_t>(i) < array->elements.size()) {
+        return box(array->elements[static_cast<std::size_t>(i)]);
+    }
+    raise_error(9);
+    return nullptr;
 }
 
 using EntryFunction = void (*)();
@@ -1170,7 +1310,9 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&inline_element),      address_of(&variant_call),
         address_of(&variant_missing),     address_of(&variant_is_missing),
         address_of(&array_count),         address_of(&array_flat_element),
-        address_of(&randomize),
+        address_of(&randomize),           address_of(&variant_from_object),
+        address_of(&variant_to_object),   address_of(&variant_array_count),
+        address_of(&variant_array_item),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

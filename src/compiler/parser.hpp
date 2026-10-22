@@ -12,6 +12,7 @@ struct ParseOptions final {
     std::set<std::string> class_names;  // lower-case names of the classes
     bool is_class{};                    // the source is a class module
     std::string name;                   // the module or class name
+    std::string display_name;           // the name as written
 };
 
 // Parses one module. On a syntax error, or on a construct the compiler does

@@ -109,6 +109,7 @@ struct ClassInfo final {
     int new_function{-1};
     int initialize{-1};
     int terminate{-1};
+    std::string default_member;  // the member `x(args)` calls
 };
 
 [[nodiscard]] bool is_integral(const VbType type) {
@@ -198,6 +199,8 @@ public:
             case Service::math_function:
             case Service::double_power:
             case Service::object_new:
+            case Service::variant_to_object:
+            case Service::variant_array_item:
             case Service::object_check:
             case Service::inline_element:
             case Service::array_flat_element:
@@ -882,16 +885,22 @@ private:
                 blob.append(reinterpret_cast<const char*>(&value),
                             sizeof(value));
             };
+            const std::string& shown = info.module->display_name.empty()
+                                           ? info.name
+                                           : info.module->display_name;
             put(static_cast<std::int32_t>(info.layout.size));
             put(-1);
             put(static_cast<std::int32_t>(info.handles.size()));
+            put(static_cast<std::int32_t>(shown.size()));
             for (const auto& [at, kind] : info.handles) {
                 put(static_cast<std::int32_t>(at));
                 put(kind);
             }
+            blob += shown;
             program_.strings.push_back(std::move(blob));
             info.record = static_cast<int>(program_.strings.size() - 1U);
-            program_.classes.push_back(ir::Class{info.name, info.record, -1});
+            program_.classes.push_back(
+                ir::Class{info.name, shown, info.record, -1});
         }
     }
 
@@ -918,6 +927,9 @@ private:
                 if (!table->emplace(procedure.name, signature).second) {
                     fail("'" + procedure.spelling + "' is already declared",
                          procedure.at);
+                }
+                if (procedure.is_default) {
+                    info.default_member = procedure.name;
                 }
                 if (procedure.name == "class_initialize") {
                     info.initialize = signature.index;
@@ -2627,6 +2639,16 @@ private:
                                    const std::vector<ExprPtr>& arguments,
                                    const Position at, const bool want_value,
                                    const char suffix = '\0') {
+        if (const Signature* own = own_member(name)) {
+            if (want_value && !own->is_function) {
+                fail("'" + name + "' is a Sub and has no value", at);
+            }
+            std::vector<const Expr*> own_arguments;
+            for (const auto& argument : arguments) {
+                own_arguments.push_back(argument.get());
+            }
+            return emit_call(*own, name, own_arguments, me_, nullptr, at);
+        }
         const auto found = signatures_.find(name);
         if (found == signatures_.end()) {
             for (const auto& argument : arguments) {
@@ -2704,8 +2726,11 @@ private:
             return text.operand;
         }
         if (parameter.type == VbType::object) {
-            require_class(cls, value, at);
-            return value.operand;
+            const auto object = value.type == VbType::variant
+                                    ? from_variant(value, VbType::object, at)
+                                    : value;
+            require_class(cls, object, at);
+            return object.operand;
         }
         return convert(value, parameter.type, at).operand;
     }
@@ -2927,8 +2952,67 @@ private:
             2U);
     }
 
+    // For Each over an object that lists its items (a Collection).
+    void lower_for_each_object(const Stmt& statement, const int cls) {
+        const auto& info = classes_[static_cast<std::size_t>(cls)];
+        const auto lister = info.methods.find("wfcitems");
+        if (lister == info.methods.end()) {
+            fail("For Each needs a collection here", statement.at);
+        }
+        const auto base = lower_expression(*statement.expr);
+        builder_->runtime(Service::object_check, {base.operand});
+        const auto items = emit_call(lister->second, "wfcitems", {},
+                                     base.operand, nullptr, statement.at);
+        const auto control = find_variable(statement.text, statement.at);
+        if (control.is_array || control.type == VbType::record) {
+            fail("this For Each variable is not compiled yet", statement.at);
+        }
+        // The loop keeps the list of items alive.
+        const auto holder = builder_->new_temp();
+        builder_->move_wide(holder, ir::immediate(0));
+        builder_->runtime(Service::variant_assign,
+                          {address_of(holder), items.operand});
+        const auto count = builder_->new_temp();
+        builder_->runtime(Service::variant_array_count, {holder}, count);
+        const auto index = builder_->new_temp();
+        builder_->emit(Opcode::move, index, ir::immediate(0));
+        const int top = builder_->new_label();
+        const int done = builder_->new_label();
+        loops_.push_back(Loop{"for", done});
+        const int id = current_id_;
+        flush_temps();
+        builder_->place(top);
+        touch_statement(id);
+        const auto finished = builder_->new_temp();
+        builder_->compare(finished, index, count, Condition::greater_equal);
+        builder_->branch(Opcode::branch_nonzero, finished, done);
+        Value element;
+        element.type = VbType::variant;
+        element.operand = new_owned_variant();
+        builder_->runtime(Service::variant_array_item, {holder, index},
+                          element.operand, true);
+        if (control.type == VbType::object) {
+            assign_object(control, element, statement.at);
+        } else {
+            store_loop_value(control, element, statement.at);
+        }
+        flush_temps();
+        lower_block(statement.body);
+        touch_statement(id);
+        builder_->emit(Opcode::add, index, index, ir::immediate(1));
+        builder_->jump(top);
+        builder_->place(done);
+        builder_->runtime(Service::variant_release, {holder});
+        loops_.pop_back();
+    }
+
     // For Each over an array.
     void lower_for_each(const Stmt& statement) {
+        int object_cls = -1;
+        if (object_class_of(*statement.expr, object_cls) && object_cls >= 0) {
+            lower_for_each_object(statement, object_cls);
+            return;
+        }
         const auto array = statement.expr->kind == ExprKind::name
                                ? find_array(statement.expr->text)
                                : std::nullopt;
@@ -3464,24 +3548,66 @@ private:
     [[nodiscard]] Value lower_object_call(const Expr& expression,
                                           const bool want_value) {
         const auto base = lower_expression(*expression.operands[0]);
-        const auto& info = class_of_value(base, expression.at);
-        builder_->runtime(Service::object_check, {base.operand});
         std::vector<const Expr*> arguments;
         for (std::size_t i = 1; i < expression.operands.size(); ++i) {
             arguments.push_back(expression.operands[i].get());
         }
-        const Signature* signature = member_signature(info, expression.text);
+        return call_member(base, expression.text, arguments, expression.at,
+                           want_value);
+    }
+
+    [[nodiscard]] Value call_member(const Value& base, const std::string& name,
+                                    const std::vector<const Expr*>& arguments,
+                                    const Position at, const bool want_value) {
+        const auto& info = class_of_value(base, at);
+        builder_->runtime(Service::object_check, {base.operand});
+        const Signature* signature = member_signature(info, name);
         if (signature == nullptr) {
-            fail("the class '" + info.name + "' has no method '" +
-                     expression.text + "'",
-                 expression.at);
+            fail("the class '" + info.name + "' has no method '" + name + "'",
+                 at);
         }
         if (want_value && !signature->is_function) {
-            fail("'" + expression.text + "' is a Sub and has no value",
-                 expression.at);
+            fail("'" + name + "' is a Sub and has no value", at);
         }
-        return emit_call(*signature, expression.text, arguments, base.operand,
-                         nullptr, expression.at);
+        return emit_call(*signature, name, arguments, base.operand, nullptr,
+                         at);
+    }
+
+    // `x(args)` where x is an object whose class has a default member.
+    [[nodiscard]] std::optional<Value> lower_default_call(
+        const Expr& expression) {
+        if (!has_variable(expression.text) ||
+            find_array(expression.text).has_value()) {
+            return std::nullopt;
+        }
+        const auto variable = find_variable(expression.text, expression.at);
+        if (variable.type != VbType::object || variable.udt < 0 ||
+            classes_[static_cast<std::size_t>(variable.udt)]
+                .default_member.empty()) {
+            return std::nullopt;
+        }
+        Expr name;
+        name.kind = ExprKind::name;
+        name.text = expression.text;
+        name.at = expression.at;
+        const auto base = lower_expression(name);
+        std::vector<const Expr*> arguments;
+        for (const auto& argument : expression.operands) {
+            arguments.push_back(argument.get());
+        }
+        return call_member(
+            base,
+            classes_[static_cast<std::size_t>(variable.udt)].default_member,
+            arguments, expression.at, true);
+    }
+
+    // A call to a method of the class being compiled.
+    [[nodiscard]] const Signature* own_member(const std::string& name) const {
+        if (current_class_ < 0 || has_variable(name)) {
+            return nullptr;
+        }
+        return member_signature(
+            classes_[static_cast<std::size_t>(current_class_)], name);
     }
 
     [[nodiscard]] Value lower_new(const Expr& expression) {
@@ -3554,7 +3680,7 @@ private:
     void lower_set(const Stmt& statement) {
         const Expr& target = *statement.target;
         const auto value = lower_expression(*statement.expr);
-        if (value.type != VbType::object) {
+        if (value.type != VbType::object && value.type != VbType::variant) {
             fail("Set needs an object", statement.at);
         }
         if (target.kind == ExprKind::member ||
@@ -3594,12 +3720,21 @@ private:
 
     void assign_object(const Variable& place, const Value& value,
                        const Position at) {
+        if (place.type == VbType::variant) {
+            const auto boxed = to_variant(value, at);
+            builder_->runtime(Service::variant_assign,
+                              {address_of(place.operand), boxed.operand});
+            return;
+        }
         if (place.type != VbType::object) {
             fail("Set needs an object variable", at);
         }
-        require_class(place.udt, value, at);
+        const auto object = value.type == VbType::variant
+                                ? from_variant(value, VbType::object, at)
+                                : value;
+        require_class(place.udt, object, at);
         builder_->runtime(Service::object_assign,
-                          {address_of(place.operand), value.operand});
+                          {address_of(place.operand), object.operand});
     }
 
     // ----- Variants (ADR-0009) ---------------------------------------------
@@ -3636,6 +3771,10 @@ private:
                 break;
             case VbType::string:
                 builder_->runtime(Service::variant_from_string, {value.operand},
+                                  result.operand, true);
+                break;
+            case VbType::object:
+                builder_->runtime(Service::variant_from_object, {value.operand},
                                   result.operand, true);
                 break;
             default:
@@ -3681,6 +3820,12 @@ private:
             case VbType::string:
                 result.operand = new_owned_string();
                 builder_->runtime(Service::variant_to_string, {value.operand},
+                                  result.operand, true);
+                return result;
+            case VbType::object:
+                result.operand = new_owned_object();
+                result.cls = -1;
+                builder_->runtime(Service::variant_to_object, {value.operand},
                                   result.operand, true);
                 return result;
             default:
@@ -3842,7 +3987,8 @@ private:
                     return lower_err_member(expression);
                 }
                 if (!has_variable(expression.text) &&
-                    (signatures_.contains(expression.text) ||
+                    (own_member(expression.text) != nullptr ||
+                     signatures_.contains(expression.text) ||
                      find_builtin(expression.text) != nullptr ||
                      is_special_builtin(expression.text) ||
                      is_library_function(expression.text))) {
@@ -3894,6 +4040,9 @@ private:
                 return Value{variable.operand, variable.type, cls};
             }
             case ExprKind::call:
+                if (const auto called = lower_default_call(expression)) {
+                    return *called;
+                }
                 if (const auto array = find_array(expression.text)) {
                     for (const auto& index : expression.operands) {
                         if (!index) {
@@ -4119,14 +4268,21 @@ private:
         const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
                                    op == ">" || op == "<=" || op == ">=";
         if (op == "is") {
-            if (left.type != VbType::object || right.type != VbType::object) {
+            const auto as_object = [&](const Value& value) {
+                return value.type == VbType::variant
+                           ? from_variant(value, VbType::object, expression.at)
+                           : value;
+            };
+            const auto first = as_object(left);
+            const auto second = as_object(right);
+            if (first.type != VbType::object || second.type != VbType::object) {
                 fail("Is needs two objects", expression.at);
             }
             Value result;
             result.type = VbType::boolean;
             result.operand = builder_->new_temp();
-            builder_->runtime(Service::object_is, {left.operand, right.operand},
-                              result.operand);
+            builder_->runtime(Service::object_is,
+                              {first.operand, second.operand}, result.operand);
             return result;
         }
         if (left.type == VbType::object || right.type == VbType::object) {

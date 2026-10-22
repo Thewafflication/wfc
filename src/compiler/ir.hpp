@@ -205,7 +205,12 @@ enum class Service : int {
     array_flat_element =
         81,          // (handle, index from 0) -> address of the element
     randomize = 82,  // (has seed, seed double, is Timer)
-    count = 83,
+    // Objects in Variants and Variant arrays.
+    variant_from_object = 83,  // (object) -> new handle (Nothing allowed)
+    variant_to_object = 84,    // (handle) -> new object reference
+    variant_array_count = 85,  // (handle) -> number of elements, 0 for none
+    variant_array_item = 86,   // (handle, index from 0) -> new handle
+    count = 87,
 };
 
 struct Instruction final {
@@ -231,13 +236,15 @@ struct Instruction final {
 enum class HandleKind : int { string = 0, variant = 1, object = 2, array = 3 };
 
 // The offset of the fields behind the header of an object.
-inline constexpr int kObjectHeader = 16;
+inline constexpr int kObjectHeader = 24;
 
 // A class: its record is a literal of the program holding int32 values: the
 // size of the fields, the image offset of Class_Terminate (-1 for none;
-// filled in by the back end), a count and (offset, HandleKind) pairs.
+// filled in by the back end), a count, the length of the class name,
+// (offset, HandleKind) pairs and the name.
 struct Class final {
     std::string name;
+    std::string display_name;
     int record{-1};     // the literal that holds the record
     int terminate{-1};  // the function of Class_Terminate
 };

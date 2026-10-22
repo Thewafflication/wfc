@@ -1,6 +1,9 @@
 #include "compile.hpp"
 
+#include <algorithm>
 #include <cctype>
+
+#include "../interpreter/builtin_class_sources.hpp"
 
 #include "lower.hpp"
 #include "parser.hpp"
@@ -42,16 +45,33 @@ CompileResult compile_project(const std::string_view source,
                               const std::vector<ClassSource>& classes,
                               const Architecture architecture) {
     CompileResult result;
+    // Collection is compiled from its VB source when the program uses it.
+    std::vector<ClassSource> all = classes;
+    {
+        std::string text = lower_case(std::string(source));
+        for (const auto& item : classes) {
+            text += lower_case(item.source);
+        }
+        const bool defined = std::any_of(
+            classes.begin(), classes.end(), [](const ClassSource& item) {
+                return lower_case(item.name) == "collection";
+            });
+        if (!defined && text.find("collection") != std::string::npos) {
+            all.push_back(ClassSource{
+                "Collection", std::string(wfc::detail::kCollectionSource)});
+        }
+    }
     ParseOptions options;
-    for (const auto& item : classes) {
+    for (const auto& item : all) {
         options.class_names.insert(lower_case(item.name));
     }
     std::vector<Module> class_modules;
-    class_modules.reserve(classes.size());
-    for (const auto& item : classes) {
+    class_modules.reserve(all.size());
+    for (const auto& item : all) {
         ParseOptions class_options = options;
         class_options.is_class = true;
         class_options.name = lower_case(item.name);
+        class_options.display_name = item.name;
         auto parsed_class = parse_module(item.source, class_options);
         if (!parsed_class.error.empty()) {
             result.error = "class " + item.name + ": " + parsed_class.error;
