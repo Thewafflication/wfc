@@ -94,6 +94,9 @@ enum class StmtKind {
                   // member or member_call
     with_block,   // `With expr`: expr; body
     for_each,     // `For Each text In expr`: body
+    engine,       // a statement the shared runtime runs: `text` is the
+                  // statement with wfcarg0, wfcarg1, ... for the `items`;
+    // `separators` says per item: 'i' read, 'b' read and written back
 };
 
 // One test of a Case: a value, a range (`low To high`) or `Is <op> low`.

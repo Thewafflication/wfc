@@ -3,6 +3,8 @@
 #include "native_engine.hpp"
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <set>
 
@@ -302,6 +304,59 @@ struct NativeSupport {
         return flag;
     }
 
+    static bool run_statement(Interpreter& in, const std::string& text,
+                              std::vector<Value>& values,
+                              const std::uint32_t variant_mask,
+                              NativeError& error) {
+        static std::string statement;  // the interpreter reads it while it runs
+        statement = text;
+        char* trace = nullptr;
+        std::size_t trace_size = 0;
+        const bool tracing =
+            _dupenv_s(&trace, &trace_size, "WFC_NATIVE_TRACE") == 0 &&
+            trace != nullptr;
+        std::free(trace);
+        if (tracing) {
+            std::fprintf(stderr, "[engine statement] %s\n", text.c_str());
+            for (const auto& value : values) {
+                std::fprintf(stderr, "    [%s]\n", render(value).c_str());
+            }
+        }
+        auto& scope = in.module_scope();
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            const std::string name = "wfcarg" + std::to_string(i);
+            scope.variables[name] = values[i];
+            if (std::holds_alternative<Empty>(values[i]) ||
+                ((variant_mask >> i) & 1U) != 0U) {
+                scope.variant_variables.insert(name);
+            }
+        }
+        in.source_ = statement;
+        in.main_source_ = statement;
+        in.error_source_data_ = statement.data();
+        in.offset_ = 0;
+        in.error_ = wfc::Evaluation{};
+        in.execute_ = true;
+        const bool ok = in.parse_statement();
+        if (ok) {
+            for (std::size_t i = 0; i < values.size(); ++i) {
+                const std::string name = "wfcarg" + std::to_string(i);
+                if (const auto found = scope.variables.find(name);
+                    found != scope.variables.end()) {
+                    values[i] = found->second;
+                }
+            }
+        } else {
+            take_error(in, error);
+        }
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            const std::string name = "wfcarg" + std::to_string(i);
+            scope.variables.erase(name);
+            scope.variant_variables.erase(name);
+        }
+        return ok;
+    }
+
     static bool like(const std::string& text, const std::string& pattern) {
         return Interpreter::like_match(text, pattern, false);
     }
@@ -421,7 +476,9 @@ struct NativeSupport {
 };
 
 NativeEngine::NativeEngine()
-    : interpreter_(std::make_unique<Interpreter>(std::string_view{})) {}
+    : interpreter_(std::make_unique<Interpreter>(std::string_view{})) {
+    interpreter_->set_vb_number_spacing(true);
+}
 
 NativeEngine::~NativeEngine() = default;
 
@@ -468,6 +525,14 @@ void NativeEngine::randomize(const bool has_seed, const double seed,
 
 bool NativeEngine::like(const std::string& text, const std::string& pattern) {
     return NativeSupport::like(text, pattern);
+}
+
+bool NativeEngine::run_statement(const std::string& text,
+                                 std::vector<Value>& values,
+                                 const std::uint32_t variant_mask,
+                                 NativeError& error) {
+    return NativeSupport::run_statement(*interpreter_, text, values,
+                                        variant_mask, error);
 }
 
 std::optional<Value> NativeEngine::call_function(

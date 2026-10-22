@@ -215,7 +215,11 @@ enum class Service : int {
     object_is_class = 88,      // (handle, class record) -> -1 or 0
     string_mid_assign = 89,    // (handle* variable, start, length or -1, text)
     variant_from_byte = 90,    // (int32) -> new handle, a Byte
-    count = 91,
+    // A statement the shared runtime runs: (template literal, count, block of
+    // argument handles, block of result handles, mask of the arguments that
+    // are Variant variables).
+    engine_statement = 91,
+    count = 92,
 };
 
 struct Instruction final {

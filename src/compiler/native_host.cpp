@@ -207,7 +207,32 @@ void string_addref(RtString* text) {
     static_cast<void>(retain(text));
 }
 
+// Strings are UTF-8; Visual Basic counts and cuts them in UTF-16 units. ASCII
+// text takes the quick paths here; anything else goes to the interpreter's own
+// functions (defined with the Variants).
+[[nodiscard]] bool all_ascii(const std::string_view text) {
+    return std::all_of(text.begin(), text.end(), [](const char c) {
+        return static_cast<unsigned char>(c) < 0x80U;
+    });
+}
+
+RtString* via_engine_text(std::string_view function,
+                          std::vector<wfc::detail::Value> arguments);
+std::int32_t via_engine_long(std::string_view function,
+                             std::vector<wfc::detail::Value> arguments);
+
+[[nodiscard]] wfc::detail::Value text_value(const RtString* text) {
+    return wfc::detail::Value{std::string(view_of(text))};
+}
+
+[[nodiscard]] wfc::detail::Value long_value(const std::int32_t number) {
+    return wfc::detail::Value{static_cast<wfc::detail::Integer>(number)};
+}
+
 std::int32_t string_length(const RtString* text) {
+    if (!all_ascii(view_of(text))) {
+        return via_engine_long("len", {text_value(text)});
+    }
     return length_of(text);
 }
 
@@ -249,6 +274,9 @@ void string_mid_assign(RtString** variable, const std::int32_t start,
 }
 
 RtString* string_left(RtString* text, const std::int32_t count) {
+    if (!all_ascii(view_of(text))) {
+        return via_engine_text("left", {text_value(text), long_value(count)});
+    }
     if (count < 0) {
         raise_error(5);
         return nullptr;
@@ -260,6 +288,9 @@ RtString* string_left(RtString* text, const std::int32_t count) {
 }
 
 RtString* string_right(RtString* text, const std::int32_t count) {
+    if (!all_ascii(view_of(text))) {
+        return via_engine_text("right", {text_value(text), long_value(count)});
+    }
     if (count < 0) {
         raise_error(5);
         return nullptr;
@@ -273,6 +304,14 @@ RtString* string_right(RtString* text, const std::int32_t count) {
 
 RtString* string_mid(RtString* text, const std::int32_t start,
                      const std::int32_t count) {
+    if (!all_ascii(view_of(text))) {
+        std::vector<wfc::detail::Value> arguments{text_value(text),
+                                                  long_value(start)};
+        if (count != kOmitted) {
+            arguments.push_back(long_value(count));
+        }
+        return via_engine_text("mid", std::move(arguments));
+    }
     if (start < 1 || (count < 0 && count != kOmitted)) {
         raise_error(5);
         return nullptr;
@@ -299,12 +338,18 @@ RtString* string_mid(RtString* text, const std::int32_t start,
 }
 
 RtString* string_upper(const RtString* text) {
+    if (!all_ascii(view_of(text))) {
+        return via_engine_text("ucase", {text_value(text)});
+    }
     std::string result(view_of(text));
     std::transform(result.begin(), result.end(), result.begin(), to_upper);
     return make_string(result);
 }
 
 RtString* string_lower(const RtString* text) {
+    if (!all_ascii(view_of(text))) {
+        return via_engine_text("lcase", {text_value(text)});
+    }
     std::string result(view_of(text));
     std::transform(result.begin(), result.end(), result.begin(), to_lower);
     return make_string(result);
@@ -338,6 +383,9 @@ RtString* string_rtrim(const RtString* text) {
 }
 
 RtString* string_chr(const std::int32_t code) {
+    if (code > 127 && code <= 255) {
+        return via_engine_text("chr", {long_value(code)});
+    }
     if (code < 0 || code > 255) {
         raise_error(5);
         return nullptr;
@@ -350,6 +398,9 @@ std::int32_t string_asc(const RtString* text) {
     if (length_of(text) == 0) {
         raise_error(5);
         return 0;
+    }
+    if (static_cast<unsigned char>(text->data[0]) >= 0x80U) {
+        return via_engine_long("asc", {text_value(text)});
     }
     return static_cast<unsigned char>(text->data[0]);
 }
@@ -372,6 +423,10 @@ std::int32_t string_instr(const std::int32_t start, const RtString* text,
     if (start < 1) {
         raise_error(5);
         return 0;
+    }
+    if (!all_ascii(view_of(text)) || !all_ascii(view_of(pattern))) {
+        return via_engine_long("instr", {long_value(start), text_value(text),
+                                         text_value(pattern)});
     }
     const auto content = view_of(text);
     if (static_cast<std::size_t>(start) > content.size()) {
@@ -1216,6 +1271,51 @@ void randomize(const std::int32_t has_seed, const double seed,
 
 RtVariant* variant_from_object(RtObject* object);
 
+RtString* via_engine_text(std::string_view function,
+                          std::vector<wfc::detail::Value> arguments) {
+    wfc::detail::NativeError problem;
+    auto result = engine().call_function(function, arguments, problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return make_string(wfc::detail::NativeEngine::render(*result));
+}
+
+std::int32_t via_engine_long(std::string_view function,
+                             std::vector<wfc::detail::Value> arguments) {
+    wfc::detail::NativeError problem;
+    auto result = engine().call_function(function, arguments, problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return 0;
+    }
+    const auto number = engine().to_long(*result, problem);
+    return number.value_or(0);
+}
+
+void engine_statement(const RtString* text, const std::int32_t count,
+                      const char* in_block, char* out_block,
+                      const std::int32_t variant_mask) {
+    std::vector<wfc::detail::Value> values;
+    for (std::int32_t i = 0; i < count; ++i) {
+        RtVariant* handle;
+        std::memcpy(&handle, in_block + 8 * i, sizeof(handle));
+        values.push_back(value_of(handle));
+    }
+    wfc::detail::NativeError problem;
+    if (!engine().run_statement(std::string(view_of(text)), values,
+                                static_cast<std::uint32_t>(variant_mask),
+                                problem)) {
+        raise_engine_error(problem);
+        return;
+    }
+    for (std::int32_t i = 0; i < count; ++i) {
+        RtVariant* handle = box(std::move(values[static_cast<std::size_t>(i)]));
+        std::memcpy(out_block + 8 * i, &handle, sizeof(handle));
+    }
+}
+
 RtVariant* variant_call(const RtString* name, const std::int32_t count,
                         const char* block) {
     std::vector<wfc::detail::Value> arguments;
@@ -1356,7 +1456,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&variant_to_object),   address_of(&variant_array_count),
         address_of(&variant_array_item),  address_of(&string_like),
         address_of(&object_is_class),     address_of(&string_mid_assign),
-        address_of(&variant_from_byte),
+        address_of(&variant_from_byte),   address_of(&engine_statement),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

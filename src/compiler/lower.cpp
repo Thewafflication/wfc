@@ -208,6 +208,7 @@ public:
             case Service::inline_element:
             case Service::array_flat_element:
             case Service::string_mid_assign:
+            case Service::engine_statement:
             case Service::variant_call:
             case Service::variant_binary:
             case Service::variant_negate:
@@ -1674,6 +1675,9 @@ private:
                 break;
             case StmtKind::for_each:
                 lower_for_each(statement);
+                break;
+            case StmtKind::engine:
+                lower_engine_statement(statement);
                 break;
             case StmtKind::call_member:
                 static_cast<void>(lower_object_call(*statement.expr, false));
@@ -3996,6 +4000,89 @@ private:
              ir::literal(classes_[static_cast<std::size_t>(cls)].record)},
             result.operand);
         return result;
+    }
+
+    // A statement the shared runtime runs with the values of its arguments;
+    // the arguments that are read and written come back into their places.
+    void lower_engine_statement(const Stmt& statement) {
+        const std::size_t count = statement.items.size();
+        std::vector<Operand> inputs;
+        std::vector<Operand> outputs;
+        // Each block is made of consecutive slots.
+        for (std::size_t i = 0; i < count; ++i) {
+            inputs.push_back(builder_->new_temp());
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            outputs.push_back(builder_->new_temp());
+        }
+        std::vector<std::optional<Variable>> places(count);
+        std::int64_t variant_mask = 0;
+        for (std::size_t i = 0; i < count; ++i) {
+            Value boxed;
+            if (statement.separators[i] == 'b') {
+                const auto place = lower_place(*statement.items[i]);
+                if (place.type == VbType::record || place.is_array ||
+                    place.type == VbType::object) {
+                    fail("this variable cannot be read from a file here",
+                         statement.at);
+                }
+                places[i] = place;
+                if (place.type == VbType::variant) {
+                    variant_mask |= std::int64_t{1} << i;
+                }
+                Value current;
+                current.type = place.type;
+                current.operand = place.operand;
+                if (is_handle(place.type)) {
+                    const auto copy = builder_->new_temp();
+                    builder_->move_wide(copy, place.operand);
+                    current.operand = copy;
+                }
+                boxed = to_variant(current, statement.at);
+            } else {
+                const auto value = lower_expression(*statement.items[i]);
+                if (value.type == VbType::variant) {
+                    variant_mask |= std::int64_t{1} << i;
+                }
+                boxed = to_variant(value, statement.at);
+            }
+            builder_->move_wide(inputs[count - 1 - i], boxed.operand);
+            builder_->move_wide(outputs[count - 1 - i], ir::immediate(0));
+            pending_.push_back(
+                Owned{outputs[count - 1 - i], Service::variant_release});
+        }
+        Operand in_block = ir::immediate(0);
+        Operand out_block = ir::immediate(0);
+        if (count > 0) {
+            in_block = builder_->new_temp();
+            builder_->emit(Opcode::address, in_block, inputs[count - 1]);
+            out_block = builder_->new_temp();
+            builder_->emit(Opcode::address, out_block, outputs[count - 1]);
+        }
+        program_.strings.push_back(statement.text);
+        const auto literal = ir::literal(
+            static_cast<std::int64_t>(program_.strings.size() - 1U));
+        builder_->runtime(
+            Service::engine_statement,
+            {literal, ir::immediate(static_cast<std::int64_t>(count)), in_block,
+             out_block, ir::immediate(variant_mask)});
+        for (std::size_t i = 0; i < count; ++i) {
+            if (!places[i].has_value()) {
+                continue;
+            }
+            Value result;
+            result.type = VbType::variant;
+            result.operand = outputs[count - 1 - i];
+            if (places[i]->type == VbType::variant) {
+                builder_->runtime(
+                    Service::variant_assign,
+                    {address_of(places[i]->operand), result.operand});
+            } else {
+                store_value(*places[i],
+                            from_variant(result, places[i]->type, statement.at),
+                            statement.at);
+            }
+        }
     }
 
     // Mid(variable, start[, length]) = text

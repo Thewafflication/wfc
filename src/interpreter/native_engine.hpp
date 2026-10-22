@@ -57,6 +57,12 @@ public:
     [[nodiscard]] std::optional<Value> call_function(
         std::string_view name, const std::vector<Value>& arguments,
         NativeError& error);
+    // Runs one statement of the interpreter with values for wfcarg0, wfcarg1,
+    // ...; the variables come back in `values`. False means an error.
+    [[nodiscard]] bool run_statement(const std::string& text,
+                                     std::vector<Value>& values,
+                                     std::uint32_t variant_mask,
+                                     NativeError& error);
     // `text Like pattern`.
     [[nodiscard]] static bool like(const std::string& text,
                                    const std::string& pattern);

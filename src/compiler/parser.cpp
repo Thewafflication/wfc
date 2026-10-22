@@ -679,8 +679,53 @@ private:
             } while (accept_symbol(","));
             return result;
         }
+        if (word == "error" && ahead(1).kind != TokenKind::symbol) {
+            // `Error number` raises a run-time error.
+            auto result = make(StmtKind::call);
+            advance();
+            result->text = "err.raise";
+            result->items.push_back(expression());
+            return result;
+        }
         if (word == "print") {
             return print_statement();
+        }
+        if (word == "write" && ahead(1).kind == TokenKind::symbol &&
+            ahead(1).text == "#") {
+            advance();
+            return file_print_statement("Write");
+        }
+        if (word == "input" && ahead(1).kind == TokenKind::symbol &&
+            ahead(1).text == "#") {
+            return input_statement(false);
+        }
+        if (word == "line" && ahead(1).kind == TokenKind::identifier &&
+            ahead(1).text == "input") {
+            advance();
+            return input_statement(true);
+        }
+        if (word == "open") {
+            return open_statement();
+        }
+        if (word == "close") {
+            return close_statement();
+        }
+        if ((word == "get" || word == "put") &&
+            ahead(1).kind == TokenKind::symbol && ahead(1).text == "#") {
+            return get_put_statement(word == "get");
+        }
+        if (word == "seek" && ahead(1).kind == TokenKind::symbol &&
+            ahead(1).text == "#") {
+            return simple_engine_statement("Seek #");
+        }
+        if (word == "kill" || word == "mkdir" || word == "rmdir" ||
+            word == "chdir" || word == "chdrive" || word == "filecopy" ||
+            word == "setattr") {
+            return simple_engine_statement(current().spelling + " ");
+        }
+        if (word == "name" && (ahead(1).kind == TokenKind::string ||
+                               ahead(1).kind == TokenKind::identifier)) {
+            return name_statement();
         }
         if (word == "if") {
             return if_statement();
@@ -736,9 +781,8 @@ private:
             }
             return result;
         }
-        if (word == "gosub" || word == "on" || word == "open" ||
-            word == "close" || word == "static" || word == "line" ||
-            word == "raiseevent") {
+        if (word == "gosub" || word == "on" || word == "static" ||
+            word == "line" || word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
@@ -856,7 +900,158 @@ private:
         return result;
     }
 
+    // ----- Statements the shared runtime runs ------------------------------
+
+    // Adds `expression` as argument __k of the statement; returns its name.
+    static std::string engine_argument(Stmt& statement, ExprPtr expression,
+                                       const char mode) {
+        const std::string name =
+            "wfcarg" + std::to_string(statement.items.size());
+        statement.items.push_back(std::move(expression));
+        statement.separators.push_back(mode);
+        return name;
+    }
+
+    // `Print #n, items` and `Write #n, items`: the current token is the `#`.
+    [[nodiscard]] StmtPtr file_print_statement(const std::string& keyword) {
+        auto result = make(StmtKind::engine);
+        advance();  // #
+        result->text =
+            keyword + " #" + engine_argument(*result, expression(), 'i');
+        if (!accept_symbol(",")) {
+            return result;
+        }
+        result->text += ",";
+        while (!at_end_of_statement() && !is_word("else")) {
+            if (is_symbol(";") || is_symbol(",")) {
+                result->text += current().text;
+                advance();
+                continue;
+            }
+            result->text += " ";
+            if ((is_word("spc") || is_word("tab")) &&
+                ahead(1).kind == TokenKind::symbol && ahead(1).text == "(") {
+                const std::string function = current().spelling;
+                advance();
+                advance();
+                result->text += function + "(" +
+                                engine_argument(*result, expression(), 'i') +
+                                ")";
+                expect_symbol(")");
+                continue;
+            }
+            result->text += engine_argument(*result, expression(), 'i');
+        }
+        return result;
+    }
+
+    // `Input #n, a, b` and `Line Input #n, a`.
+    [[nodiscard]] StmtPtr input_statement(const bool line) {
+        auto result = make(StmtKind::engine);
+        advance();  // Input
+        advance();  // #
+        result->text = std::string(line ? "Line Input" : "Input") + " #" +
+                       engine_argument(*result, expression(), 'i');
+        expect_symbol(",");
+        std::string separator = ", ";
+        do {
+            result->text +=
+                separator + engine_argument(*result, expression(), 'b');
+            separator = ", ";
+        } while (accept_symbol(","));
+        return result;
+    }
+
+    // `Open path For mode [Access ...] [Lock ...] As #n [Len = n]`
+    [[nodiscard]] StmtPtr open_statement() {
+        auto result = make(StmtKind::engine);
+        advance();
+        result->text =
+            "Open " + engine_argument(*result, expression(), 'i') + " ";
+        while (current().kind == TokenKind::identifier && !is_word("as")) {
+            result->text += current().spelling + " ";
+            advance();
+        }
+        expect_word("as");
+        static_cast<void>(accept_symbol("#"));
+        result->text += "As #" + engine_argument(*result, expression(), 'i');
+        if (accept_word("len")) {
+            expect_symbol("=");
+            result->text +=
+                " Len = " + engine_argument(*result, expression(), 'i');
+        }
+        return result;
+    }
+
+    // `Close`, `Close #1`, `Close #1, #2`
+    [[nodiscard]] StmtPtr close_statement() {
+        auto result = make(StmtKind::engine);
+        advance();
+        result->text = "Close";
+        std::string separator = " ";
+        while (!at_end_of_statement() && !is_word("else")) {
+            static_cast<void>(accept_symbol("#"));
+            result->text +=
+                separator + "#" + engine_argument(*result, expression(), 'i');
+            separator = ", ";
+            if (!accept_symbol(",")) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    // `Get #n, [position], variable` and `Put #n, [position], value`
+    [[nodiscard]] StmtPtr get_put_statement(const bool get) {
+        auto result = make(StmtKind::engine);
+        const std::string keyword = current().spelling;
+        advance();
+        advance();  // #
+        result->text =
+            keyword + " #" + engine_argument(*result, expression(), 'i') + ",";
+        expect_symbol(",");
+        if (!is_symbol(",")) {
+            result->text += " " + engine_argument(*result, expression(), 'i');
+        }
+        result->text += ",";
+        expect_symbol(",");
+        result->text +=
+            " " + engine_argument(*result, expression(), get ? 'b' : 'i');
+        return result;
+    }
+
+    // `Kill path`, `Seek #n, position`, `FileCopy a, b`, ...
+    [[nodiscard]] StmtPtr simple_engine_statement(const std::string& prefix) {
+        auto result = make(StmtKind::engine);
+        advance();
+        if (prefix.back() == '#') {
+            advance();  // the # of Seek
+        }
+        result->text = prefix;
+        std::string separator;
+        do {
+            result->text +=
+                separator + engine_argument(*result, expression(), 'i');
+            separator = ", ";
+        } while (accept_symbol(","));
+        return result;
+    }
+
+    // `Name old As new`
+    [[nodiscard]] StmtPtr name_statement() {
+        auto result = make(StmtKind::engine);
+        advance();
+        result->text = "Name " + engine_argument(*result, expression(), 'i');
+        expect_word("as");
+        result->text += " As " + engine_argument(*result, expression(), 'i');
+        return result;
+    }
+
     [[nodiscard]] StmtPtr print_statement() {
+        if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "#") {
+            advance();
+            return file_print_statement("Print");
+        }
         auto result = make(StmtKind::print);
         advance();
         while (!at_end_of_statement() && !is_word("else")) {
