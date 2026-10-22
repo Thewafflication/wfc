@@ -1,5 +1,7 @@
 #include "lower.hpp"
 
+#include "library.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -198,6 +200,7 @@ public:
             case Service::object_new:
             case Service::object_check:
             case Service::inline_element:
+            case Service::variant_call:
             case Service::variant_binary:
             case Service::variant_negate:
             case Service::variant_not:
@@ -2618,7 +2621,8 @@ private:
     // unused temporary for a Sub).
     [[nodiscard]] Value lower_call(const std::string& name,
                                    const std::vector<ExprPtr>& arguments,
-                                   const Position at, const bool want_value) {
+                                   const Position at, const bool want_value,
+                                   const char suffix = '\0') {
         const auto found = signatures_.find(name);
         if (found == signatures_.end()) {
             if (const auto* builtin = find_builtin(name)) {
@@ -2626,6 +2630,14 @@ private:
             }
             if (is_special_builtin(name)) {
                 return lower_special_builtin(name, arguments, at);
+            }
+            if (is_library_function(name)) {
+                // `Date$` and `Left$` are other functions than `Date`, `Left`.
+                const std::string spelled =
+                    suffix == '$' && is_library_function(name + "$")
+                        ? name + "$"
+                        : name;
+                return lower_library_call(spelled, arguments, at);
             }
             fail("'" + name + "' is not a Sub or Function of the project", at);
         }
@@ -2909,6 +2921,10 @@ private:
         }
         if (name == "cstr") {
             return to_string_value(value, at);
+        }
+        if (value.type == VbType::string && name != "str") {
+            // A numeric String reaches the conversion and math functions.
+            return emit_library_call(name, {to_variant(value, at)});
         }
         if (name == "str") {
             if (!is_numeric(value.type)) {
@@ -3553,6 +3569,51 @@ private:
         return result;
     }
 
+    // A function of the VBA library called through the shared runtime: the
+    // arguments are Variants and so is the result.
+    [[nodiscard]] Value lower_library_call(
+        const std::string& name, const std::vector<ExprPtr>& arguments,
+        const Position at) {
+        std::vector<Value> boxed;
+        for (const auto& argument : arguments) {
+            if (!argument) {
+                fail("an omitted argument is not compiled yet", at);
+            }
+            boxed.push_back(to_variant(lower_expression(*argument), at));
+        }
+        return emit_library_call(name, boxed);
+    }
+
+    [[nodiscard]] Value emit_library_call(const std::string& name,
+                                          const std::vector<Value>& boxed) {
+        // The handles go to consecutive slots; the service reads them upwards
+        // in memory, which is downwards in slot numbers.
+        const std::size_t count = boxed.size();
+        std::vector<Operand> slots;
+        for (std::size_t i = 0; i < count; ++i) {
+            slots.push_back(builder_->new_temp());
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            builder_->move_wide(slots[count - 1 - i], boxed[i].operand);
+        }
+        Operand block = ir::immediate(0);
+        if (count > 0) {
+            block = builder_->new_temp();
+            builder_->emit(Opcode::address, block, slots[count - 1]);
+        }
+        program_.strings.push_back(name);
+        const auto literal = ir::literal(
+            static_cast<std::int64_t>(program_.strings.size() - 1U));
+        Value result;
+        result.type = VbType::variant;
+        result.operand = new_owned_variant();
+        builder_->runtime(
+            Service::variant_call,
+            {literal, ir::immediate(static_cast<std::int64_t>(count)), block},
+            result.operand, true);
+        return result;
+    }
+
     // TypeName, VarType, IsNull, IsEmpty, IsNumeric and CVar.
     [[nodiscard]] Value lower_variant_function(const std::string& name,
                                                const Expr& argument,
@@ -3623,8 +3684,10 @@ private:
                 if (!has_variable(expression.text) &&
                     (signatures_.contains(expression.text) ||
                      find_builtin(expression.text) != nullptr ||
-                     is_special_builtin(expression.text))) {
-                    return lower_call(expression.text, {}, expression.at, true);
+                     is_special_builtin(expression.text) ||
+                     is_library_function(expression.text))) {
+                    return lower_call(expression.text, {}, expression.at, true,
+                                      expression.suffix);
                 }
                 if (!has_variable(expression.text)) {
                     if (const auto constant = find_constant(expression.text)) {
@@ -3676,7 +3739,7 @@ private:
                                          expression.at);
                 }
                 return lower_call(expression.text, expression.operands,
-                                  expression.at, true);
+                                  expression.at, true, expression.suffix);
             case ExprKind::member: {
                 int cls = -1;
                 if (object_class_of(*expression.operands[0], cls)) {
@@ -3730,6 +3793,15 @@ private:
     }
 
     [[nodiscard]] Value lower_unary(const Expr& expression) {
+        // -n for a literal: an Integer when it fits (-32768 is one).
+        if (expression.text == "-" &&
+            expression.operands[0]->kind == ExprKind::integer_literal &&
+            (!expression.operands[0]->long_literal ||
+             expression.operands[0]->number == 32768) &&
+            expression.operands[0]->number <= 32768) {
+            return Value{ir::immediate(-expression.operands[0]->number),
+                         VbType::integer};
+        }
         auto operand = lower_expression(*expression.operands[0]);
         if (operand.type == VbType::variant) {
             Value result;

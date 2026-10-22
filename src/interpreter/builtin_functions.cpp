@@ -251,7 +251,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     // function's own arity check below rejects this with `WFC0072` if
     // it actually requires one or more arguments.
     std::vector<Value> arguments;
-    if (consume('(')) {
+    if (preset_arguments_ != nullptr) {
+        arguments = *preset_arguments_;
+    } else if (consume('(')) {
         skip_horizontal_whitespace();
         if (!consume(')')) {
             while (true) {

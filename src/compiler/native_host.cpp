@@ -1,5 +1,7 @@
 #include "native_host.hpp"
 
+#include "library.hpp"
+
 #include "../interpreter/native_engine.hpp"
 
 #include <algorithm>
@@ -11,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -1043,6 +1046,31 @@ void* inline_element(void* base, const std::int32_t index,
            static_cast<std::int64_t>(index - lower) * size;
 }
 
+}  // namespace
+
+bool is_library_function(const std::string_view name) {
+    return wfc::detail::NativeEngine::is_library_function(name);
+}
+
+namespace {
+
+RtVariant* variant_call(const RtString* name, const std::int32_t count,
+                        const char* block) {
+    std::vector<wfc::detail::Value> arguments;
+    for (std::int32_t i = 0; i < count; ++i) {
+        RtVariant* handle;
+        std::memcpy(&handle, block + 8 * i, sizeof(handle));
+        arguments.push_back(value_of(handle));
+    }
+    wfc::detail::NativeError problem;
+    auto result = engine().call_function(view_of(name), arguments, problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -1110,7 +1138,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&object_addref),       address_of(&object_release),
         address_of(&object_assign),       address_of(&object_check),
         address_of(&object_is),           address_of(&object_is_null),
-        address_of(&inline_element),
+        address_of(&inline_element),      address_of(&variant_call),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

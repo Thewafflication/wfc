@@ -2247,6 +2247,9 @@ private:
     std::string err_help_file_;
     Integer err_help_context_{};
     bool variant_operand_seen_{};
+    // Arguments already evaluated for the next library function call (native
+    // programs call the library with values instead of source text).
+    std::vector<Value>* preset_arguments_{};
     bool vb_number_spacing_{};
     std::map<std::string, std::string> app_properties_;
     // `.res` file behind LoadResString/LoadResData (REQ-0287) and its parsed

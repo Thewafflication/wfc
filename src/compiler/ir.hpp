@@ -196,7 +196,10 @@ enum class Service : int {
     // The address of element `index` of a fixed array inside a record:
     // (base, index, lower bound, count, element size); error 9 outside.
     inline_element = 76,  // -> pointer
-    count = 77,
+    // A function of the VBA library with Variant arguments: (name literal,
+    // count, block of argument handles read upward in memory) -> new handle.
+    variant_call = 77,
+    count = 78,
 };
 
 struct Instruction final {

@@ -1368,6 +1368,7 @@ private:
                 advance();
                 node = make_expr(ExprKind::call, at);
                 node->text = without_suffix(token.text);
+                node->suffix = token.text.back() == '$' ? '$' : '\0';
                 if (!accept_symbol(")")) {
                     do {
                         node->operands.push_back(expression());
@@ -1377,6 +1378,7 @@ private:
             } else {
                 node = make_expr(ExprKind::name, at);
                 node->text = without_suffix(token.text);
+                node->suffix = token.text.back() == '$' ? '$' : '\0';
             }
             return member_chain(std::move(node), at);
         }

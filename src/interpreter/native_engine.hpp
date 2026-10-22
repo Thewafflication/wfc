@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "vb_value.hpp"
 
@@ -50,6 +51,14 @@ public:
                                                      NativeError& error);
     [[nodiscard]] std::optional<bool> to_boolean(const Value& value,
                                                  NativeError& error);
+
+    // Calls a function of the VBA library (Format, IIf, Now, ...) with
+    // evaluated arguments; the name is lower case.
+    [[nodiscard]] std::optional<Value> call_function(
+        std::string_view name, const std::vector<Value>& arguments,
+        NativeError& error);
+    // Whether the name is a function of the library.
+    [[nodiscard]] static bool is_library_function(std::string_view name);
 
     // The text `Print` writes for a Value (numbers carry their sign position
     // and trailing space).

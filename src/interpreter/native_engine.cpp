@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <limits>
+#include <set>
 
 #include "interpreter.hpp"
 
@@ -301,6 +302,47 @@ struct NativeSupport {
         return flag;
     }
 
+    static std::optional<Value> call_function(
+        Interpreter& in, const std::string_view name,
+        const std::vector<Value>& arguments, NativeError& error) {
+        std::vector<Value> preset = arguments;
+        in.preset_arguments_ = &preset;
+        auto result = in.parse_function_call(name, 0U);
+        in.preset_arguments_ = nullptr;
+        if (!result.has_value()) {
+            take_error(in, error);
+        }
+        return result;
+    }
+
+    static bool is_library_function(const std::string_view name) {
+        static const std::set<std::string, std::less<>> names = {
+            "len",       "lenb",     "lcase",    "lcase$",     "ucase",
+            "ucase$",    "ltrim",    "ltrim$",   "rtrim",      "rtrim$",
+            "trim",      "trim$",    "left",     "left$",      "leftb",
+            "leftb$",    "right",    "right$",   "rightb",     "rightb$",
+            "mid",       "mid$",     "midb",     "midb$",      "asc",
+            "ascb",      "ascw",     "chrb",     "chrb$",      "chr",
+            "chr$",      "chrw",     "chrw$",    "strreverse", "space",
+            "space$",    "string",   "string$",  "instr",      "instrb",
+            "instrrev",  "strcomp",  "replace",  "hex",        "hex$",
+            "oct",       "oct$",     "str",      "str$",       "val",
+            "abs",       "sgn",      "cstr",     "clng",       "cbool",
+            "cbyte",     "cint",     "cdbl",     "csng",       "ccur",
+            "cvar",      "cdec",     "macid",    "error",      "error$",
+            "isnumeric", "typename", "vartype",  "iif",        "choose",
+            "switch",    "int",      "fix",      "round",      "sqr",
+            "sin",       "cos",      "tan",      "atn",        "exp",
+            "log",       "isarray",  "isobject", "isnull",     "isempty",
+            "iserror",   "lbound",   "ubound",   "qbcolor",    "rgb",
+            "strconv",   "format",   "format$",  "rnd",        "array",
+            "split",     "join",     "filter"};
+        return names.contains(name) ||
+               Interpreter::is_date_function_name(name) ||
+               Interpreter::is_file_function_name(name) ||
+               Interpreter::is_misc_function_name(name);
+    }
+
     static std::string type_name(Interpreter& in, const Value& value) {
         if (std::holds_alternative<Integer>(value)) {
             return "Long";
@@ -399,6 +441,16 @@ std::optional<std::string> NativeEngine::to_text(const Value& value,
 std::optional<bool> NativeEngine::to_boolean(const Value& value,
                                              NativeError& error) {
     return NativeSupport::to_boolean(*interpreter_, value, error);
+}
+
+std::optional<Value> NativeEngine::call_function(
+    const std::string_view name, const std::vector<Value>& arguments,
+    NativeError& error) {
+    return NativeSupport::call_function(*interpreter_, name, arguments, error);
+}
+
+bool NativeEngine::is_library_function(const std::string_view name) {
+    return NativeSupport::is_library_function(name);
 }
 
 std::string NativeEngine::render(const Value& value) {

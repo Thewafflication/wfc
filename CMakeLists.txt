@@ -29,6 +29,7 @@ target_sources(
     src/compiler/lexer.hpp
     src/compiler/lower.cpp
     src/compiler/lower.hpp
+    src/compiler/library.hpp
     src/compiler/native_host.cpp
     src/compiler/native_host.hpp
     src/compiler/native_image.hpp
