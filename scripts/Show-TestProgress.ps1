@@ -189,6 +189,16 @@ $timer.Add_Tick({
             $script:done -eq $script:total) {
             $close.Start()
         }
+        # A commit routine that never writes its marker (a manual push)
+        # would leave the window open for ever: after a clean gate, close
+        # it a minute later unless the routine reports a failure.
+        elseif ($script:failed -eq 0 -and $script:done -eq $script:total) {
+            $fallback.Start()
+        }
+    }
+    if ($chunk -match '(?m)^\[commit\] failed') {
+        $fallback.Stop()
+        $status.Text += ' - failed'
     }
     # The commit routine ends its log with "[commit] pushed" or
     # "[commit] failed": the window stays open for the whole gate and
@@ -201,7 +211,10 @@ $timer.Add_Tick({
 $close = New-Object Windows.Forms.Timer
 $close.Interval = 8000
 $close.Add_Tick({ $close.Stop(); $form.Close() })
+$fallback = New-Object Windows.Forms.Timer
+$fallback.Interval = 60000
+$fallback.Add_Tick({ $fallback.Stop(); $form.Close() })
 $timer.Start()
-$form.Add_FormClosed({ $timer.Stop(); $close.Stop() })
+$form.Add_FormClosed({ $timer.Stop(); $close.Stop(); $fallback.Stop() })
 [void]$form.ShowDialog()
 if ($process -and -not $process.HasExited) { $process.Kill() }
