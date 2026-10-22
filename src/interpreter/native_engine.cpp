@@ -302,6 +302,20 @@ struct NativeSupport {
         return flag;
     }
 
+    static void randomize(Interpreter& in, const bool has_seed, double seed,
+                          const bool is_timer) {
+        if (!has_seed) {
+            in.rnd_state_ = in.seed_from_number(in.entropy_seed());
+            return;
+        }
+        if (is_timer) {
+            if (const auto fixed = in.fixed_random_seed()) {
+                seed = *fixed;  // `Randomize Timer` replays under a test
+            }
+        }
+        in.rnd_state_ = in.seed_from_number(seed);
+    }
+
     static std::optional<Value> call_function(
         Interpreter& in, const std::string_view name,
         const std::vector<Value>& arguments, NativeError& error) {
@@ -441,6 +455,11 @@ std::optional<std::string> NativeEngine::to_text(const Value& value,
 std::optional<bool> NativeEngine::to_boolean(const Value& value,
                                              NativeError& error) {
     return NativeSupport::to_boolean(*interpreter_, value, error);
+}
+
+void NativeEngine::randomize(const bool has_seed, const double seed,
+                             const bool is_timer) {
+    NativeSupport::randomize(*interpreter_, has_seed, seed, is_timer);
 }
 
 std::optional<Value> NativeEngine::call_function(

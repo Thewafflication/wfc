@@ -57,6 +57,8 @@ public:
     [[nodiscard]] std::optional<Value> call_function(
         std::string_view name, const std::vector<Value>& arguments,
         NativeError& error);
+    // `Randomize [seed]`.
+    void randomize(bool has_seed, double seed, bool is_timer);
     // Whether the name is a function of the library.
     [[nodiscard]] static bool is_library_function(std::string_view name);
 

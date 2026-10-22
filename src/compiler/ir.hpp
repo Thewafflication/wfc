@@ -199,7 +199,13 @@ enum class Service : int {
     // A function of the VBA library with Variant arguments: (name literal,
     // count, block of argument handles read upward in memory) -> new handle.
     variant_call = 77,
-    count = 78,
+    variant_missing = 78,     // () -> new handle: an omitted Optional Variant
+    variant_is_missing = 79,  // (handle) -> -1 for the omitted argument
+    array_count = 80,         // (handle) -> number of elements
+    array_flat_element =
+        81,          // (handle, index from 0) -> address of the element
+    randomize = 82,  // (has seed, seed double, is Timer)
+    count = 83,
 };
 
 struct Instruction final {

@@ -26,7 +26,12 @@ public:
         module.name = options_.name;
         skip_ends();
         while (!at_end_of_file()) {
-            if (accept_word("option")) {
+            if (is_word("attribute")) {
+                // `Attribute Name = value`: a file-format line, no code.
+                while (!at_end_of_statement()) {
+                    advance();
+                }
+            } else if (accept_word("option")) {
                 option_statement(module);
             } else if (is_word("dim") || is_word("private") ||
                        is_word("public") || is_word("friend") ||
@@ -447,8 +452,11 @@ private:
 
     [[nodiscard]] Parameter parameter() {
         Parameter result;
-        if (is_word("optional") || is_word("paramarray")) {
-            fail("Optional and ParamArray parameters are not compiled yet");
+        if (is_word("paramarray")) {
+            fail("ParamArray parameters are not compiled yet");
+        }
+        if (accept_word("optional")) {
+            result.is_optional = true;
         }
         if (accept_word("byval")) {
             result.by_value = true;
@@ -473,6 +481,10 @@ private:
         }
         if (result.type == VbType::none) {
             result.type = VbType::variant;
+        }
+        if (result.is_optional && accept_symbol("=")) {
+            result.default_value =
+                std::shared_ptr<Expr>(expression().release());
         }
         return result;
     }
@@ -662,9 +674,17 @@ private:
         if (word == "with") {
             return with_statement();
         }
+        if (word == "attribute") {
+            // `Attribute Name = value`: a file-format line, no code.
+            auto result = make(StmtKind::dim);
+            while (!at_end_of_statement()) {
+                advance();
+            }
+            return result;
+        }
         if (word == "gosub" || word == "on" || word == "open" ||
-            word == "close" || word == "static" || word == "randomize" ||
-            word == "line" || word == "raiseevent") {
+            word == "close" || word == "static" || word == "line" ||
+            word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
@@ -1051,8 +1071,21 @@ private:
     [[nodiscard]] StmtPtr for_statement() {
         auto result = make(StmtKind::for_loop);
         advance();
-        if (is_word("each")) {
-            fail("For Each is not compiled yet");
+        if (accept_word("each")) {
+            result->kind = StmtKind::for_each;
+            if (current().kind != TokenKind::identifier) {
+                fail("expected the loop variable");
+            }
+            result->text = without_suffix(current().text);
+            advance();
+            expect_word("in");
+            result->expr = expression();
+            result->body = block({"next"});
+            expect_word("next");
+            if (current().kind == TokenKind::identifier) {
+                advance();  // the optional variable after Next
+            }
+            return result;
         }
         if (current().kind != TokenKind::identifier) {
             fail("expected the loop variable");
@@ -1371,7 +1404,9 @@ private:
                 node->suffix = token.text.back() == '$' ? '$' : '\0';
                 if (!accept_symbol(")")) {
                     do {
-                        node->operands.push_back(expression());
+                        // An omitted argument is null.
+                        node->operands.push_back(is_symbol(",") ? nullptr
+                                                                : expression());
                     } while (accept_symbol(","));
                     expect_symbol(")");
                 }

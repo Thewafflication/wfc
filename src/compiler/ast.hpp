@@ -91,6 +91,7 @@ enum class StmtKind {
     call_member,  // an object's member called as a statement: expr is a
                   // member or member_call
     with_block,   // `With expr`: expr; body
+    for_each,     // `For Each text In expr`: body
 };
 
 // One test of a Case: a value, a range (`low To high`) or `Is <op> low`.
@@ -162,6 +163,8 @@ struct Stmt final {
 
 struct Parameter final {
     std::string name;
+    bool is_optional{};                   // `Optional`
+    std::shared_ptr<Expr> default_value;  // `= constant`, null for none
     std::string type_name;      // the user-defined type, when type is record
     bool is_array{};            // `name() As Type`: always passed by reference
     VbType type{VbType::none};  // none: no type given (a Variant)

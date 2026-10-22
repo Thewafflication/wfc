@@ -680,6 +680,18 @@ std::int32_t array_bound(const RtArray* array, const std::int32_t dimension,
     return which == 0 ? bound.lower : bound.upper;
 }
 
+std::int32_t array_count(const RtArray* array) {
+    return array == nullptr ? 0 : array->count;
+}
+
+void* array_flat_element(RtArray* array, const std::int32_t index) {
+    if (array == nullptr || index < 0 || index >= array->count) {
+        raise_error(9);
+        return nullptr;
+    }
+    return element_at(array, index);
+}
+
 void array_erase(RtArray** variable) {
     RtArray* array = *variable;
     if (array == nullptr) {
@@ -1054,6 +1066,23 @@ bool is_library_function(const std::string_view name) {
 
 namespace {
 
+// The argument of an omitted Optional Variant: an Empty that IsMissing knows.
+RtVariant g_missing{1000000000, wfc::detail::Value{wfc::detail::Empty{}}};
+
+RtVariant* variant_missing() {
+    ++g_missing.refs;
+    return &g_missing;
+}
+
+std::int32_t variant_is_missing(const RtVariant* handle) {
+    return handle == &g_missing ? -1 : 0;
+}
+
+void randomize(const std::int32_t has_seed, const double seed,
+               const std::int32_t is_timer) {
+    engine().randomize(has_seed != 0, seed, is_timer != 0);
+}
+
 RtVariant* variant_call(const RtString* name, const std::int32_t count,
                         const char* block) {
     std::vector<wfc::detail::Value> arguments;
@@ -1139,6 +1168,9 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&object_assign),       address_of(&object_check),
         address_of(&object_is),           address_of(&object_is_null),
         address_of(&inline_element),      address_of(&variant_call),
+        address_of(&variant_missing),     address_of(&variant_is_missing),
+        address_of(&array_count),         address_of(&array_flat_element),
+        address_of(&randomize),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

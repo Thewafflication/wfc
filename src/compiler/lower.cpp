@@ -200,6 +200,7 @@ public:
             case Service::object_new:
             case Service::object_check:
             case Service::inline_element:
+            case Service::array_flat_element:
             case Service::variant_call:
             case Service::variant_binary:
             case Service::variant_negate:
@@ -1623,6 +1624,9 @@ private:
             case StmtKind::with_block:
                 lower_with(statement);
                 break;
+            case StmtKind::for_each:
+                lower_for_each(statement);
+                break;
             case StmtKind::call_member:
                 static_cast<void>(lower_object_call(*statement.expr, false));
                 break;
@@ -2599,7 +2603,7 @@ private:
             "csng",      "int",    "fix",      "abs",     "sgn",    "sqr",
             "sin",       "cos",    "tan",      "atn",     "log",    "exp",
             "lbound",    "ubound", "typename", "vartype", "isnull", "isempty",
-            "isnumeric", "cvar"};
+            "isnumeric", "cvar",   "ismissing"};
         for (const char* candidate : names) {
             if (name == candidate) {
                 return true;
@@ -2625,6 +2629,13 @@ private:
                                    const char suffix = '\0') {
         const auto found = signatures_.find(name);
         if (found == signatures_.end()) {
+            for (const auto& argument : arguments) {
+                if (!argument) {
+                    fail("an omitted argument is not compiled for '" + name +
+                             "' yet",
+                         at);
+                }
+            }
             if (const auto* builtin = find_builtin(name)) {
                 return lower_builtin(*builtin, arguments, at);
             }
@@ -2647,9 +2658,6 @@ private:
         }
         std::vector<const Expr*> pointers;
         for (const auto& argument : arguments) {
-            if (!argument) {
-                fail("an omitted argument is not compiled yet", at);
-            }
             pointers.push_back(argument.get());
         }
         return emit_call(signature, name, pointers, std::nullopt, nullptr, at);
@@ -2702,6 +2710,36 @@ private:
         return convert(value, parameter.type, at).operand;
     }
 
+    // The value an omitted Optional parameter receives.
+    [[nodiscard]] Value omitted_value(const Parameter& parameter,
+                                      const Position at) {
+        if (!parameter.is_optional) {
+            fail("Argument not optional", at);
+        }
+        if (parameter.default_value) {
+            return fold(*parameter.default_value);
+        }
+        switch (parameter.type) {
+            case VbType::variant: {
+                Value missing;
+                missing.type = VbType::variant;
+                missing.operand = new_owned_variant();
+                builder_->runtime(Service::variant_missing, {}, missing.operand,
+                                  true);
+                return missing;
+            }
+            case VbType::string:
+                return string_constant("");
+            case VbType::single_precision:
+            case VbType::double_precision:
+                return float_constant(0.0, parameter.type);
+            case VbType::object:
+                return Value{ir::immediate(0), VbType::object, -1};
+            default:
+                return Value{ir::immediate(0), parameter.type};
+        }
+    }
+
     // Calls a procedure: `me` is the object of a method, `trailing` an
     // already evaluated last argument (the value of a Property Let or Set).
     [[nodiscard]] Value emit_call(const Signature& signature,
@@ -2711,7 +2749,13 @@ private:
                                   const Value* trailing, const Position at) {
         const std::size_t given =
             arguments.size() + (trailing != nullptr ? 1U : 0U);
-        if (given != signature.parameters.size()) {
+        // Omitted trailing arguments must be Optional.
+        std::size_t required = signature.parameters.size();
+        while (required > 0 &&
+               signature.parameters[required - 1U].is_optional) {
+            --required;
+        }
+        if (given > signature.parameters.size() || given < required) {
             fail("'" + name + "' takes " +
                      std::to_string(signature.parameters.size()) +
                      " argument(s), not " + std::to_string(given),
@@ -2723,9 +2767,22 @@ private:
         if (me.has_value()) {
             passed.push_back(*me);
         }
-        for (std::size_t i = 0; i < given; ++i) {
+        for (std::size_t i = 0; i < signature.parameters.size(); ++i) {
             const auto& parameter = signature.parameters[i];
             const bool is_trailing = i >= arguments.size();
+            if (i >= given || (!is_trailing && arguments[i] == nullptr)) {
+                // An omitted Optional argument takes its default.
+                if (parameter.by_value && is_float(parameter.type)) {
+                    double_args |= 1U << (i + shift);
+                }
+                const auto value = omitted_value(parameter, at);
+                passed.push_back(
+                    parameter.by_value
+                        ? pass_value(parameter, signature.parameter_cls[i],
+                                     value, at)
+                        : reference_to_value(value, parameter.type, at));
+                continue;
+            }
             if (parameter.is_array) {
                 if (is_trailing) {
                     fail("an array cannot be passed here", at);
@@ -2837,8 +2894,97 @@ private:
             lower_err_statement(statement);
             return;
         }
+        if (statement.text == "randomize" &&
+            !signatures_.contains("randomize")) {
+            lower_randomize(statement);
+            return;
+        }
         static_cast<void>(
             lower_call(statement.text, statement.items, statement.at, false));
+    }
+
+    void lower_randomize(const Stmt& statement) {
+        if (statement.items.size() > 1U) {
+            fail("Randomize takes one argument", statement.at);
+        }
+        Operand seed = double_immediate(0.0);
+        std::int64_t has_seed = 0;
+        std::int64_t is_timer = 0;
+        if (!statement.items.empty() && statement.items[0]) {
+            const Expr& argument = *statement.items[0];
+            const auto value = lower_expression(argument);
+            seed = to_double(value.type == VbType::boolean
+                                 ? convert(value, VbType::integer, statement.at)
+                                 : value)
+                       .operand;
+            has_seed = 1;
+            is_timer =
+                argument.kind == ExprKind::name && argument.text == "timer";
+        }
+        builder_->runtime(
+            Service::randomize,
+            {ir::immediate(has_seed), seed, ir::immediate(is_timer)}, {}, false,
+            2U);
+    }
+
+    // For Each over an array.
+    void lower_for_each(const Stmt& statement) {
+        const auto array = statement.expr->kind == ExprKind::name
+                               ? find_array(statement.expr->text)
+                               : std::nullopt;
+        if (!array.has_value() || array->type == VbType::record) {
+            fail("For Each is compiled over arrays of simple values so far",
+                 statement.at);
+        }
+        const auto control = find_variable(statement.text, statement.at);
+        if (control.is_array || control.type == VbType::record ||
+            control.type == VbType::object) {
+            fail("this For Each variable is not compiled yet", statement.at);
+        }
+        const auto handle = builder_->new_temp();
+        builder_->move_wide(handle, array->operand);
+        const auto count = builder_->new_temp();
+        builder_->runtime(Service::array_count, {handle}, count);
+        const auto index = builder_->new_temp();
+        builder_->emit(Opcode::move, index, ir::immediate(0));
+        const int top = builder_->new_label();
+        const int done = builder_->new_label();
+        loops_.push_back(Loop{"for", done});
+        const int id = current_id_;
+        builder_->place(top);
+        touch_statement(id);
+        const auto finished = builder_->new_temp();
+        builder_->compare(finished, index, count, Condition::greater_equal);
+        builder_->branch(Opcode::branch_nonzero, finished, done);
+        const auto address = builder_->new_temp();
+        builder_->runtime(Service::array_flat_element, {handle, index}, address,
+                          true);
+        Value element{ir::indirect(address.value), array->type};
+        if (is_handle(array->type)) {
+            const auto copy = builder_->new_temp();
+            builder_->move_wide(copy, element.operand);
+            element.operand = copy;
+        }
+        store_loop_value(control, element, statement.at);
+        flush_temps();
+        lower_block(statement.body);
+        touch_statement(id);
+        builder_->emit(Opcode::add, index, index, ir::immediate(1));
+        builder_->jump(top);
+        builder_->place(done);
+        loops_.pop_back();
+    }
+
+    // Assigns the next element to the variable of a For Each.
+    void store_loop_value(const Variable& control, const Value& element,
+                          const Position at) {
+        if (control.type == VbType::variant) {
+            const auto boxed = to_variant(element, at);
+            builder_->runtime(Service::variant_assign,
+                              {address_of(control.operand), boxed.operand});
+            return;
+        }
+        store_value(control, element, at);
     }
 
     // ----- Builtin functions -----------------------------------------------
@@ -2908,6 +3054,20 @@ private:
         if (name == "typename" || name == "vartype" || name == "isnull" ||
             name == "isempty" || name == "isnumeric" || name == "cvar") {
             return lower_variant_function(name, *arguments[0], at);
+        }
+        if (name == "ismissing") {
+            // IsMissing(parameter): true for an omitted Optional Variant.
+            const auto value = lower_expression(*arguments[0]);
+            Value result;
+            result.type = VbType::boolean;
+            result.operand = builder_->new_temp();
+            if (value.type == VbType::variant) {
+                builder_->runtime(Service::variant_is_missing, {value.operand},
+                                  result.operand);
+            } else {
+                builder_->emit(Opcode::move, result.operand, ir::immediate(0));
+            }
+            return result;
         }
         auto value = lower_expression(*arguments[0]);
         if (value.type == VbType::variant) {
@@ -3735,6 +3895,12 @@ private:
             }
             case ExprKind::call:
                 if (const auto array = find_array(expression.text)) {
+                    for (const auto& index : expression.operands) {
+                        if (!index) {
+                            fail("an array index cannot be omitted",
+                                 expression.at);
+                        }
+                    }
                     return element_value(*array, expression.operands,
                                          expression.at);
                 }
