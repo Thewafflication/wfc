@@ -16,6 +16,7 @@ namespace wfc::compiler {
 enum class VbType {
     none,  // a Sub has no value
     boolean,
+    byte,  // 0 to 255, held in 32 bits
     integer,
     long_integer,
     single_precision,
@@ -48,6 +49,7 @@ enum class ExprKind {
                   // are the arguments
     new_object,   // `New Class`: text = the class name
     with_target,  // the object of the enclosing With: `.member` starts here
+    type_of,      // `TypeOf operands[0] Is text`
     binary,       // op: "+", "-", "*", "\\", "mod", "=", "<>", "<", ">", "<=",
                   // ">=", "and", "or", "xor", "&"
 };
@@ -203,8 +205,21 @@ struct TypeDecl final {
     Position at;
 };
 
+struct EnumMember final {
+    std::string name;  // lower-case
+    ExprPtr value;     // null: the previous value plus one
+    Position at;
+};
+
+struct EnumDecl final {
+    std::string name;  // lower-case
+    std::vector<EnumMember> members;
+    Position at;
+};
+
 struct Module final {
     std::string name;
+    std::vector<EnumDecl> enums;
     std::string display_name;  // the name as written
     bool is_class{};           // a class module: `globals` are its fields
     std::vector<TypeDecl> types;

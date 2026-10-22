@@ -83,6 +83,7 @@ enum class Opcode {
 
 enum class Check {
     none,
+    byte,   // the result must be 0 to 255
     int16,  // the result must fit an Integer
     int32,  // the result must fit a Long
 };
@@ -210,7 +211,11 @@ enum class Service : int {
     variant_to_object = 84,    // (handle) -> new object reference
     variant_array_count = 85,  // (handle) -> number of elements, 0 for none
     variant_array_item = 86,   // (handle, index from 0) -> new handle
-    count = 87,
+    string_like = 87,          // (text, pattern) -> -1 or 0
+    object_is_class = 88,      // (handle, class record) -> -1 or 0
+    string_mid_assign = 89,    // (handle* variable, start, length or -1, text)
+    variant_from_byte = 90,    // (int32) -> new handle, a Byte
+    count = 91,
 };
 
 struct Instruction final {

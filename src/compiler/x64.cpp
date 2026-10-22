@@ -447,6 +447,10 @@ private:
             bytes({0x0F, 0xBF, 0xD0});  // movsx edx, ax
             bytes({0x3B, 0xD0});        // cmp edx, eax
             jcc_overflow(kCcNotEqual);
+        } else if (check == Check::byte) {
+            byte(0x3D);  // cmp eax, 255
+            dword(255U);
+            jcc_overflow(0x7);  // above (unsigned): negative or over 255
         }
     }
 
@@ -702,7 +706,8 @@ private:
                 break;
             case Opcode::narrow:
                 load32(kEax, instruction.a);
-                check_result(Check::int16);
+                check_result(instruction.check == Check::byte ? Check::byte
+                                                              : Check::int16);
                 store32(instruction.dst, kEax);
                 break;
             case Opcode::address:

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
+#include <sstream>
 
 #include "../interpreter/builtin_class_sources.hpp"
 
@@ -73,6 +75,33 @@ namespace {
         }
     }
     return false;
+}
+
+// The names of the Enums a source declares (`[Public|Private] Enum Name`).
+void collect_enum_names(const std::string& source,
+                        std::set<std::string>& into) {
+    std::size_t position = 0;
+    while (position < source.size()) {
+        auto end = source.find('\n', position);
+        if (end == std::string::npos) {
+            end = source.size();
+        }
+        std::istringstream words(
+            lower_case(source.substr(position, end - position)));
+        std::string word;
+        words >> word;
+        if (word == "public" || word == "private" || word == "global") {
+            words >> word;
+        }
+        if (word == "enum") {
+            std::string name;
+            words >> name;
+            if (!name.empty() && name.front() != '\'') {
+                into.insert(name);
+            }
+        }
+        position = end + 1U;
+    }
 }
 
 // The source of the `App` class with the project's own values.
@@ -166,7 +195,9 @@ CompileResult compile_project(const std::string_view source,
     ParseOptions options;
     for (const auto& item : all) {
         options.class_names.insert(lower_case(item.name));
+        collect_enum_names(item.source, options.enum_names);
     }
+    collect_enum_names(std::string(source), options.enum_names);
     std::vector<Module> class_modules;
     class_modules.reserve(all.size());
     for (const auto& item : all) {

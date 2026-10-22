@@ -218,6 +218,36 @@ std::int32_t string_compare(const RtString* a, const RtString* b) {
     return order < 0 ? -1 : (order > 0 ? 1 : 0);
 }
 
+std::int32_t string_like(const RtString* text, const RtString* pattern) {
+    return wfc::detail::NativeEngine::like(std::string(view_of(text)),
+                                           std::string(view_of(pattern)))
+               ? -1
+               : 0;
+}
+
+// Mid(variable, start[, length]) = text
+void string_mid_assign(RtString** variable, const std::int32_t start,
+                       const std::int32_t length, const RtString* text) {
+    if (start < 1 || length < -1) {
+        raise_error(5);
+        return;
+    }
+    std::string target(view_of(*variable));
+    const auto begin = static_cast<std::size_t>(start - 1);
+    if (begin >= target.size()) {
+        return;
+    }
+    std::size_t count = std::min<std::size_t>(
+        static_cast<std::size_t>(length_of(text)), target.size() - begin);
+    if (length >= 0) {
+        count = std::min(count, static_cast<std::size_t>(length));
+    }
+    target.replace(begin, count, view_of(text).substr(0, count));
+    RtString* replaced = make_string(target);
+    release(*variable);
+    *variable = replaced;
+}
+
 RtString* string_left(RtString* text, const std::int32_t count) {
     if (count < 0) {
         raise_error(5);
@@ -803,6 +833,10 @@ RtVariant* variant_from_long(const std::int32_t value) {
     return box(wfc::detail::Value{static_cast<wfc::detail::Integer>(value)});
 }
 
+RtVariant* variant_from_byte(const std::int32_t value) {
+    return box(wfc::detail::Value{static_cast<wfc::detail::Byte>(value)});
+}
+
 RtVariant* variant_from_integer(const std::int32_t value) {
     return box(wfc::detail::Value{static_cast<wfc::detail::Int16>(value)});
 }
@@ -1060,6 +1094,14 @@ std::int32_t object_is(const RtObject* a, const RtObject* b) {
     return a == b ? -1 : 0;
 }
 
+std::int32_t object_is_class(const RtObject* object,
+                             const RtString* record_literal) {
+    return object != nullptr && reinterpret_cast<const char*>(object->record) ==
+                                    record_literal->data
+               ? -1
+               : 0;
+}
+
 std::int32_t object_is_null(const RtObject* object) {
     return object == nullptr ? -1 : 0;
 }
@@ -1312,7 +1354,9 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&array_count),         address_of(&array_flat_element),
         address_of(&randomize),           address_of(&variant_from_object),
         address_of(&variant_to_object),   address_of(&variant_array_count),
-        address_of(&variant_array_item),
+        address_of(&variant_array_item),  address_of(&string_like),
+        address_of(&object_is_class),     address_of(&string_mid_assign),
+        address_of(&variant_from_byte),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

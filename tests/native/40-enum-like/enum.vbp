@@ -1,0 +1,4 @@
+Module=Main; main.bas
+Class=Animal; Animal.cls
+Class=Dog; Dog.cls
+Startup="Sub Main"

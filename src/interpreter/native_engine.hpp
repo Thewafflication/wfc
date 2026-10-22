@@ -57,6 +57,9 @@ public:
     [[nodiscard]] std::optional<Value> call_function(
         std::string_view name, const std::vector<Value>& arguments,
         NativeError& error);
+    // `text Like pattern`.
+    [[nodiscard]] static bool like(const std::string& text,
+                                   const std::string& pattern);
     // `Randomize [seed]`.
     void randomize(bool has_seed, double seed, bool is_timer);
     // Whether the name is a function of the library.

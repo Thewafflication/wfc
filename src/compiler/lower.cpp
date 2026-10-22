@@ -113,8 +113,8 @@ struct ClassInfo final {
 };
 
 [[nodiscard]] bool is_integral(const VbType type) {
-    return type == VbType::boolean || type == VbType::integer ||
-           type == VbType::long_integer;
+    return type == VbType::boolean || type == VbType::byte ||
+           type == VbType::integer || type == VbType::long_integer;
 }
 
 [[nodiscard]] bool is_float(const VbType type) {
@@ -156,12 +156,15 @@ struct ClassInfo final {
 }
 
 [[nodiscard]] Check check_for(const VbType type) {
-    return type == VbType::long_integer ? Check::int32 : Check::int16;
+    return type == VbType::long_integer ? Check::int32
+           : type == VbType::byte       ? Check::byte
+                                        : Check::int16;
 }
 
 // The type a value has in arithmetic: a Boolean counts as an Integer.
 [[nodiscard]] VbType arithmetic_type(const VbType type) {
-    return type == VbType::boolean ? VbType::integer : type;
+    return type == VbType::boolean || type == VbType::byte ? VbType::integer
+                                                           : type;
 }
 
 class FunctionBuilder final {
@@ -204,6 +207,7 @@ public:
             case Service::object_check:
             case Service::inline_element:
             case Service::array_flat_element:
+            case Service::string_mid_assign:
             case Service::variant_call:
             case Service::variant_binary:
             case Service::variant_negate:
@@ -374,6 +378,7 @@ public:
 
     ir::Program run() {
         register_classes();
+        declare_enums();
         declare_constants(module_.constants, constants_);
         declare_types();
         declare_class_layouts();
@@ -789,6 +794,37 @@ private:
         }
         program_.functions.push_back(std::move(function));
         return signature;
+    }
+
+    // ----- Enums -----------------------------------------------------------
+
+    // The members of an Enum are Long constants, also reached as Enum.Member.
+    void declare_enums() {
+        const auto declare = [&](const Module& module) {
+            for (const auto& declaration : module.enums) {
+                std::int64_t next = 0;
+                for (const auto& member : declaration.members) {
+                    std::int64_t value = next;
+                    if (member.value) {
+                        const auto folded = fold(*member.value);
+                        if (!is_integral(folded.type)) {
+                            fail("an Enum value must be a whole number",
+                                 member.at);
+                        }
+                        value = folded.operand.value;
+                    }
+                    const Value constant{ir::immediate(value),
+                                         VbType::long_integer};
+                    constants_[member.name] = constant;
+                    constants_[declaration.name + "." + member.name] = constant;
+                    next = value + 1;
+                }
+            }
+        };
+        declare(module_);
+        for (const Module* module : class_modules_) {
+            declare(*module);
+        }
     }
 
     // ----- Classes ---------------------------------------------------------
@@ -1714,6 +1750,11 @@ private:
             lower_place_assignment(statement);
             return;
         }
+        if (statement.text == "mid" && !statement.items.empty() &&
+            !has_variable("mid") && !signatures_.contains("mid")) {
+            lower_mid_statement(statement);
+            return;
+        }
         auto target = find_variable(statement.text, statement.at);
         if (target.type == VbType::record) {
             const auto source = lower_place(*statement.expr);
@@ -2359,6 +2400,9 @@ private:
 
     [[nodiscard]] Value integer_constant(const std::int64_t number,
                                          const VbType type, const Position at) {
+        if (type == VbType::byte && (number < 0 || number > 255)) {
+            fail("the constant overflows a Byte", at);
+        }
         if (type == VbType::integer && (number < -32768 || number > 32767)) {
             fail("the constant overflows an Integer", at);
         }
@@ -3761,6 +3805,10 @@ private:
                 builder_->runtime(Service::variant_from_boolean,
                                   {value.operand}, result.operand, true);
                 break;
+            case VbType::byte:
+                builder_->runtime(Service::variant_from_byte, {value.operand},
+                                  result.operand, true);
+                break;
             case VbType::single_precision:
                 builder_->runtime(Service::variant_from_single, {value.operand},
                                   result.operand, true, 1U);
@@ -3791,15 +3839,18 @@ private:
         switch (to) {
             case VbType::long_integer:
             case VbType::integer:
+            case VbType::byte:
             case VbType::boolean: {
                 result.operand = builder_->new_temp();
                 builder_->runtime(to == VbType::boolean
                                       ? Service::variant_to_boolean
                                       : Service::variant_to_long,
                                   {value.operand}, result.operand);
-                if (to == VbType::integer) {
+                if (to == VbType::integer || to == VbType::byte) {
                     const auto narrow = builder_->new_temp();
-                    builder_->emit(Opcode::narrow, narrow, result.operand);
+                    builder_->emit(
+                        Opcode::narrow, narrow, result.operand, {},
+                        to == VbType::byte ? Check::byte : Check::none);
                     result.operand = narrow;
                 }
                 return result;
@@ -3917,6 +3968,61 @@ private:
             {literal, ir::immediate(static_cast<std::int64_t>(count)), block},
             result.operand, true);
         return result;
+    }
+
+    // `TypeOf x Is Class`.
+    [[nodiscard]] Value lower_type_of(const Expr& expression) {
+        auto operand = lower_expression(*expression.operands[0]);
+        if (operand.type == VbType::variant) {
+            operand = from_variant(operand, VbType::object, expression.at);
+        }
+        if (operand.type != VbType::object) {
+            fail("TypeOf needs an object", expression.at);
+        }
+        Value result;
+        result.type = VbType::boolean;
+        result.operand = builder_->new_temp();
+        if (expression.text == "object") {
+            const auto empty = builder_->new_temp();
+            builder_->runtime(Service::object_is_null, {operand.operand},
+                              empty);
+            builder_->emit(Opcode::bit_not, result.operand, empty);
+            return result;
+        }
+        const int cls = find_class(expression.text, expression.at);
+        builder_->runtime(
+            Service::object_is_class,
+            {operand.operand,
+             ir::literal(classes_[static_cast<std::size_t>(cls)].record)},
+            result.operand);
+        return result;
+    }
+
+    // Mid(variable, start[, length]) = text
+    void lower_mid_statement(const Stmt& statement) {
+        if (statement.items.size() < 2U || statement.items.size() > 3U ||
+            !statement.items[0] || statement.items[0]->kind != ExprKind::name) {
+            fail("Mid needs a String variable, a start and a length",
+                 statement.at);
+        }
+        const auto target =
+            find_variable(statement.items[0]->text, statement.at);
+        if (target.type != VbType::string || target.is_array) {
+            fail("Mid needs a String variable", statement.at);
+        }
+        const auto start =
+            to_long(lower_expression(*statement.items[1]), statement.at);
+        Operand length = ir::immediate(-1);
+        if (statement.items.size() == 3U) {
+            length =
+                to_long(lower_expression(*statement.items[2]), statement.at)
+                    .operand;
+        }
+        const auto text =
+            to_string_value(lower_expression(*statement.expr), statement.at);
+        builder_->runtime(
+            Service::string_mid_assign,
+            {address_of(target.operand), start.operand, length, text.operand});
     }
 
     // TypeName, VarType, IsNull, IsEmpty, IsNumeric and CVar.
@@ -4055,7 +4161,17 @@ private:
                 }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true, expression.suffix);
+            case ExprKind::type_of:
+                return lower_type_of(expression);
             case ExprKind::member: {
+                if (expression.operands[0]->kind == ExprKind::name &&
+                    !has_variable(expression.operands[0]->text)) {
+                    const auto qualified = constants_.find(
+                        expression.operands[0]->text + "." + expression.text);
+                    if (qualified != constants_.end()) {
+                        return qualified->second;
+                    }
+                }
                 int cls = -1;
                 if (object_class_of(*expression.operands[0], cls)) {
                     return lower_object_member(expression);
@@ -4191,7 +4307,7 @@ private:
             return from_variant(value, VbType::long_integer, at);
         }
         if (is_integral(value.type)) {
-            return value;
+            return Value{value.operand, VbType::long_integer};
         }
         if (!is_float(value.type)) {
             fail("this value cannot be converted to a number", at);
@@ -4267,6 +4383,16 @@ private:
         const auto right = lower_expression(*expression.operands[1]);
         const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
                                    op == ">" || op == "<=" || op == ">=";
+        if (op == "like") {
+            const auto text = to_string_value(left, expression.at);
+            const auto pattern = to_string_value(right, expression.at);
+            Value result;
+            result.type = VbType::boolean;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::string_like,
+                              {text.operand, pattern.operand}, result.operand);
+            return result;
+        }
         if (op == "is") {
             const auto as_object = [&](const Value& value) {
                 return value.type == VbType::variant
@@ -4329,6 +4455,8 @@ private:
             const VbType type =
                 a.type == VbType::boolean && b.type == VbType::boolean
                     ? VbType::boolean
+                : a.type == VbType::byte && b.type == VbType::byte
+                    ? VbType::byte
                 : (a.type == VbType::long_integer ||
                    b.type == VbType::long_integer)
                     ? VbType::long_integer
@@ -4344,6 +4472,8 @@ private:
         const VbType type = any_float || a.type == VbType::long_integer ||
                                     b.type == VbType::long_integer
                                 ? VbType::long_integer
+                            : a.type == VbType::byte && b.type == VbType::byte
+                                ? VbType::byte
                                 : VbType::integer;
         const Opcode code = op == "+"    ? Opcode::add
                             : op == "-"  ? Opcode::sub
@@ -4398,6 +4528,17 @@ private:
             builder_->compare(result, value.operand, ir::immediate(0),
                               Condition::not_equal);
             return Value{result, VbType::boolean};
+        }
+        if (to == VbType::byte) {
+            if (value.operand.kind == OperandKind::immediate &&
+                value.operand.value >= 0 && value.operand.value <= 255) {
+                return Value{value.operand, VbType::byte};
+            }
+            // A value outside 0 to 255 is run-time error 6.
+            const auto result = builder_->new_temp();
+            builder_->emit(Opcode::narrow, result, value.operand, {},
+                           Check::byte);
+            return Value{result, VbType::byte};
         }
         if (to == VbType::integer && value.type == VbType::long_integer) {
             if (value.operand.kind == OperandKind::immediate &&

@@ -302,6 +302,10 @@ struct NativeSupport {
         return flag;
     }
 
+    static bool like(const std::string& text, const std::string& pattern) {
+        return Interpreter::like_match(text, pattern, false);
+    }
+
     static void randomize(Interpreter& in, const bool has_seed, double seed,
                           const bool is_timer) {
         if (!has_seed) {
@@ -460,6 +464,10 @@ std::optional<bool> NativeEngine::to_boolean(const Value& value,
 void NativeEngine::randomize(const bool has_seed, const double seed,
                              const bool is_timer) {
     NativeSupport::randomize(*interpreter_, has_seed, seed, is_timer);
+}
+
+bool NativeEngine::like(const std::string& text, const std::string& pattern) {
+    return NativeSupport::like(text, pattern);
 }
 
 std::optional<Value> NativeEngine::call_function(

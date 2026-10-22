@@ -189,8 +189,12 @@ private:
             type = VbType::single_precision;
         } else if (name == "double") {
             type = VbType::double_precision;
+        } else if (name == "byte") {
+            type = VbType::byte;
         } else if (name == "variant") {
             type = VbType::variant;
+        } else if (options_.enum_names.contains(name)) {
+            type = VbType::long_integer;
         } else if (name == "object") {
             type = VbType::object;
             if (record_name != nullptr) {
@@ -290,8 +294,12 @@ private:
             procedure(module, is_public);
             return;
         }
-        if (is_word("event") || is_word("implements") || is_word("enum") ||
-            is_word("declare") || is_word("withevents")) {
+        if (is_word("enum")) {
+            enum_block(module);
+            return;
+        }
+        if (is_word("event") || is_word("implements") || is_word("declare") ||
+            is_word("withevents")) {
             fail(current().spelling + " is not compiled yet");
         }
         if (is_word("type")) {
@@ -313,6 +321,41 @@ private:
             return;
         }
         fail("expected a declaration, Sub or Function");
+    }
+
+    // Enum Name / members / End Enum
+    void enum_block(Module& module) {
+        EnumDecl declaration;
+        declaration.at = here();
+        advance();
+        if (current().kind != TokenKind::identifier) {
+            fail("expected the name of the Enum");
+        }
+        declaration.name = current().text;
+        advance();
+        expect_end_of_statement();
+        while (!(is_word("end") && ahead(1).kind == TokenKind::identifier &&
+                 ahead(1).text == "enum")) {
+            if (at_end_of_file()) {
+                fail("expected End Enum");
+            }
+            if (current().kind != TokenKind::identifier) {
+                fail("expected the name of an Enum member");
+            }
+            EnumMember member;
+            member.at = here();
+            member.name = without_suffix(current().text);
+            advance();
+            if (accept_symbol("=")) {
+                member.value = expression();
+            }
+            expect_end_of_statement();
+            declaration.members.push_back(std::move(member));
+        }
+        advance();
+        advance();
+        expect_end_of_statement();
+        module.enums.push_back(std::move(declaration));
     }
 
     // Type Name / fields / End Type
@@ -1249,7 +1292,9 @@ private:
             left = binary("is", std::move(left), concatenation(), at);
         }
         if (is_word("like")) {
-            fail(current().spelling + " is not compiled yet");
+            const auto at = here();
+            advance();
+            left = binary("like", std::move(left), concatenation(), at);
         }
         return left;
     }
@@ -1376,6 +1421,18 @@ private:
             expect_symbol(")");
             inner->parenthesized = true;
             return inner;
+        }
+        if (token.kind == TokenKind::identifier && token.text == "typeof") {
+            advance();
+            auto result = make_expr(ExprKind::type_of, at);
+            result->operands.push_back(concatenation());
+            expect_word("is");
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a class name after TypeOf ... Is");
+            }
+            result->text = current().text;
+            advance();
+            return result;
         }
         if (token.kind == TokenKind::identifier && token.text == "new") {
             advance();

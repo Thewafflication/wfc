@@ -458,6 +458,9 @@ private:
             emit(0x13003C00U | (0U << 5) | 1U);          // sxth w1, w0
             emit(0x6B00001FU | (1U << 16) | (0U << 5));  // cmp w0, w1
             overflow_if(kNe);
+        } else if (check == Check::byte) {
+            emit(0x7100001FU | (255U << 10) | (0U << 5));  // cmp w0, #255
+            overflow_if(0x8U);                             // b.hi
         }
     }
 
@@ -761,7 +764,8 @@ private:
                 break;
             case Opcode::narrow:
                 load(0, instruction.a, false);
-                check_result(Check::int16);
+                check_result(instruction.check == Check::byte ? Check::byte
+                                                              : Check::int16);
                 store(instruction.dst, 0, false);
                 break;
             case Opcode::address:

@@ -10,6 +10,7 @@ namespace wfc::compiler {
 
 struct ParseOptions final {
     std::set<std::string> class_names;  // lower-case names of the classes
+    std::set<std::string> enum_names;   // lower-case names of the enums
     bool is_class{};                    // the source is a class module
     std::string name;                   // the module or class name
     std::string display_name;           // the name as written
