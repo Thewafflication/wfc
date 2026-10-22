@@ -158,7 +158,31 @@ enum class Service : int {
     error_acknowledge = 45,  // (), a handler took over: the flag is cleared
     print_zone = 46,         // (), a comma in Print: to the next 14-column zone
     double_power = 47,       // (double, double) -> double: a ^ b
-    count = 48,
+    // Variants (ADR-0009): a handle to a reference-counted box that holds an
+    // interpreter Value; the null handle is Empty. A service that fails sets
+    // the pending error and returns the null handle or 0.
+    variant_from_long = 48,     // (int32) -> new handle
+    variant_from_integer = 49,  // (int32) -> new handle, an Integer (Int16)
+    variant_from_double = 50,   // (double) -> new handle
+    variant_from_single = 51,   // (double) -> new handle, a Single
+    variant_from_string = 52,   // (string handle) -> new handle
+    variant_from_boolean = 53,  // (int32) -> new handle
+    variant_null = 54,          // () -> new handle holding Null
+    variant_assign = 55,        // (handle* variable, handle value)
+    variant_release = 56,       // (handle)
+    variant_addref = 57,        // (handle)
+    variant_binary = 58,        // (VariantOp, a, b) -> new handle
+    variant_negate = 59,        // (a) -> new handle
+    variant_not = 60,           // (a) -> new handle
+    variant_to_long = 61,       // (handle) -> int32
+    variant_to_double = 62,     // (handle) -> double
+    variant_to_string = 63,     // (handle) -> new string handle
+    variant_to_boolean = 64,    // (handle) -> -1 or 0
+    variant_print = 65,         // (handle)
+    variant_type_name = 66,     // (handle) -> new string handle
+    variant_var_type = 67,      // (handle) -> int32
+    variant_is_numeric = 68,    // (handle) -> -1 or 0
+    count = 69,
 };
 
 struct Instruction final {
@@ -177,6 +201,29 @@ struct Instruction final {
     std::uint32_t double_args{};
     bool double_result{};
     std::vector<Operand> args;
+};
+
+// The operator of the `variant_binary` service.
+enum class VariantOp : int {
+    add = 0,
+    subtract = 1,
+    multiply = 2,
+    divide = 3,
+    integer_divide = 4,
+    modulo = 5,
+    concatenate = 6,
+    power = 7,
+    equal = 8,
+    not_equal = 9,
+    less = 10,
+    greater = 11,
+    less_equal = 12,
+    greater_equal = 13,
+    logical_and = 14,
+    logical_or = 15,
+    logical_xor = 16,
+    equivalence = 17,
+    implication = 18,
 };
 
 // The functions of the `math_function` service.

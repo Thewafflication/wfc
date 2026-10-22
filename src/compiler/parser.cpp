@@ -178,6 +178,8 @@ private:
             type = VbType::single_precision;
         } else if (name == "double") {
             type = VbType::double_precision;
+        } else if (name == "variant") {
+            type = VbType::variant;
         } else if (name == "string") {
             type = VbType::string;
             if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "*") {
@@ -235,6 +237,9 @@ private:
             declaration.type_given = true;
         } else if (by_suffix != VbType::none) {
             declaration.type = by_suffix;
+            declaration.type_given = true;
+        } else {
+            declaration.type = VbType::variant;
             declaration.type_given = true;
         }
         return declaration;
@@ -370,11 +375,13 @@ private:
             }
         }
         if (result.is_function) {
-            // Without `As` a Function returns a Variant, which the compiler
-            // does not support yet: the return type stays `none`.
+            // Without `As` a Function returns a Variant.
             result.return_type = by_suffix;
             if (accept_word("as")) {
                 result.return_type = type_name();
+            }
+            if (result.return_type == VbType::none) {
+                result.return_type = VbType::variant;
             }
         }
         expect_end_of_statement();
@@ -413,6 +420,9 @@ private:
         }
         if (accept_word("as")) {
             result.type = type_name(&result.type_name);
+        }
+        if (result.type == VbType::none) {
+            result.type = VbType::variant;
         }
         return result;
     }

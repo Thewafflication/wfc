@@ -350,6 +350,7 @@ class Interpreter;
 struct CallArgument;
 struct FormRuntime;
 struct FormSupport;
+struct NativeSupport;
 
 // A failure a native object reports instead of a value.
 struct NativeFailure {
@@ -1766,6 +1767,7 @@ private:
     [[nodiscard]] std::string com_type_name(InstanceData& instance);
     // Forms and intrinsic controls (REQ-0289); forms.cpp.
     friend struct FormSupport;
+    friend struct NativeSupport;
     friend struct ComServerSupport;
     // Whether `member` of `instance` is served by its native object rather
     // than by VB members of the instance's class.

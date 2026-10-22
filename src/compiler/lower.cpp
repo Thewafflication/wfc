@@ -91,6 +91,11 @@ struct Signature final {
     return is_integral(type) || is_float(type);
 }
 
+// A value held as a handle: a String or a Variant.
+[[nodiscard]] bool is_handle(const VbType type) {
+    return type == VbType::string || type == VbType::variant;
+}
+
 // Significant digits VB6 prints: 15 for a Double, 7 for a Single.
 [[nodiscard]] int digits_of(const VbType type) {
     return type == VbType::single_precision ? 7 : 15;
@@ -146,6 +151,13 @@ public:
             case Service::double_to_long:
             case Service::math_function:
             case Service::double_power:
+            case Service::variant_binary:
+            case Service::variant_negate:
+            case Service::variant_not:
+            case Service::variant_to_long:
+            case Service::variant_to_double:
+            case Service::variant_to_string:
+            case Service::variant_to_boolean:
             case Service::array_redim:
             case Service::array_element1:
             case Service::array_element2:
@@ -328,6 +340,9 @@ private:
     // ----- Declarations ----------------------------------------------------
 
     static void require_type(const Declaration& declaration) {
+        if (declaration.type == VbType::variant && declaration.is_array) {
+            fail("an array of Variants is not compiled yet", declaration.at);
+        }
         if (!declaration.type_given || declaration.type == VbType::none) {
             fail("'" + declaration.name +
                      "' needs an explicit type (Variant is not compiled yet)",
@@ -385,6 +400,9 @@ private:
                 FieldInfo entry;
                 entry.name = field.name;
                 entry.type = field.type;
+                if (field.type == VbType::variant) {
+                    fail("a Variant field is not compiled yet", field.at);
+                }
                 std::int64_t size = 4;
                 if (field.type == VbType::record) {
                     entry.udt = find_udt(field.type_name, field.at);
@@ -600,7 +618,7 @@ private:
             for (const auto& parameter : procedure.parameters) {
                 function.parameters.push_back(ir::Parameter{
                     parameter.by_value,
-                    !parameter.by_value || parameter.type == VbType::string,
+                    !parameter.by_value || is_handle(parameter.type),
                     parameter.by_value && is_float(parameter.type)});
             }
             program_.functions.push_back(std::move(function));
@@ -656,17 +674,21 @@ private:
                 parameter.type == VbType::record
                     ? find_udt(parameter.type_name, procedure.at)
                     : -1};
-            if (parameter.by_value && parameter.type == VbType::string) {
-                // The callee owns its copy of a string parameter.
-                builder.runtime(Service::string_addref, {ir::slot(index)});
+            if (parameter.by_value && is_handle(parameter.type)) {
+                // The callee owns its copy of a String or Variant parameter.
+                const bool text = parameter.type == VbType::string;
+                builder.runtime(
+                    text ? Service::string_addref : Service::variant_addref,
+                    {ir::slot(index)});
                 owned_slots_.push_back(
-                    Owned{ir::slot(index), Service::string_release});
+                    Owned{ir::slot(index), text ? Service::string_release
+                                                : Service::variant_release});
             }
         }
         if (procedure.is_function) {
             const auto result = builder.new_temp();
             function.result_slot = static_cast<int>(result.value);
-            function.result_wide = procedure.return_type == VbType::string;
+            function.result_wide = is_handle(procedure.return_type);
             function.result_double = is_float(procedure.return_type);
             zero(result, procedure.return_type);
             result_variable_ = Variable{result, procedure.return_type};
@@ -899,7 +921,7 @@ private:
     }
 
     void zero(const Operand slot, const VbType type) {
-        if (type == VbType::string || is_float(type)) {
+        if (is_handle(type) || is_float(type)) {
             builder_->move_wide(slot, ir::immediate(0));
         } else {
             builder_->emit(Opcode::move, slot, ir::immediate(0));
@@ -974,6 +996,9 @@ private:
             }
             return;
         }
+        if (declaration.type == VbType::variant && declaration.is_array) {
+            fail("an array of Variants is not compiled yet", declaration.at);
+        }
         const auto slot = builder_->new_temp();
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
@@ -991,6 +1016,8 @@ private:
         locals_[declaration.name] = Variable{slot, declaration.type};
         if (declaration.type == VbType::string) {
             owned_slots_.push_back(Owned{slot, Service::string_release});
+        } else if (declaration.type == VbType::variant) {
+            owned_slots_.push_back(Owned{slot, Service::variant_release});
         }
     }
 
@@ -1104,14 +1131,21 @@ private:
     // A string temporary owned by the current statement.
     [[nodiscard]] Operand new_owned_string() {
         const auto temp = builder_->new_temp();
-        pending_.push_back(temp);
+        pending_.push_back(Owned{temp, Service::string_release});
         return temp;
     }
 
-    // Releases the string temporaries of the statement that just ended.
+    // A Variant temporary owned by the current statement.
+    [[nodiscard]] Operand new_owned_variant() {
+        const auto temp = builder_->new_temp();
+        pending_.push_back(Owned{temp, Service::variant_release});
+        return temp;
+    }
+
+    // Releases the temporaries of the statement that just ended.
     void flush_temps() {
         for (const auto& temp : pending_) {
-            builder_->runtime(Service::string_release, {temp});
+            builder_->runtime(temp.release, {temp.slot});
         }
         pending_.clear();
     }
@@ -1254,13 +1288,23 @@ private:
             fail("the array '" + statement.text + "' needs an index",
                  statement.at);
         }
+        if (target.type == VbType::variant) {
+            const auto boxed = to_variant(value, statement.at);
+            builder_->runtime(Service::variant_assign,
+                              {address_of(target.operand), boxed.operand});
+            return;
+        }
         if (target.type == VbType::string) {
-            if (value.type != VbType::string) {
+            const auto text =
+                value.type == VbType::variant
+                    ? from_variant(value, VbType::string, statement.at)
+                    : value;
+            if (text.type != VbType::string) {
                 fail("a number cannot be assigned to a String variable yet",
                      statement.at);
             }
             builder_->runtime(Service::string_assign,
-                              {address_of(target.operand), value.operand});
+                              {address_of(target.operand), text.operand});
             return;
         }
         const auto converted = convert(value, target.type, statement.at);
@@ -1283,13 +1327,23 @@ private:
         }
         const auto value = lower_expression(*probe);
         const auto target = lower_place(*statement.target);
+        if (target.type == VbType::variant) {
+            const auto boxed = to_variant(value, statement.at);
+            builder_->runtime(Service::variant_assign,
+                              {address_of(target.operand), boxed.operand});
+            return;
+        }
         if (target.type == VbType::string) {
-            if (value.type != VbType::string) {
+            const auto text =
+                value.type == VbType::variant
+                    ? from_variant(value, VbType::string, statement.at)
+                    : value;
+            if (text.type != VbType::string) {
                 fail("a number cannot be assigned to a String field yet",
                      statement.at);
             }
             builder_->runtime(Service::string_assign,
-                              {address_of(target.operand), value.operand});
+                              {address_of(target.operand), text.operand});
             return;
         }
         const auto converted = convert(value, target.type, statement.at);
@@ -1404,7 +1458,9 @@ private:
                 const Service service =
                     item.value.type == VbType::boolean  ? Service::print_boolean
                     : item.value.type == VbType::string ? Service::print_string
-                                                        : Service::print_number;
+                    : item.value.type == VbType::variant
+                        ? Service::variant_print
+                        : Service::print_number;
                 builder_->runtime(service, {item.value.operand});
             }
             if (i < statement.separators.size() &&
@@ -1427,10 +1483,14 @@ private:
             return value;
         }
         const auto copy = builder_->new_temp();
-        if (value.type == VbType::string) {
+        if (is_handle(value.type)) {
+            const bool text = value.type == VbType::string;
             builder_->move_wide(copy, value.operand);
-            builder_->runtime(Service::string_addref, {copy});
-            pending_.push_back(copy);
+            builder_->runtime(
+                text ? Service::string_addref : Service::variant_addref,
+                {copy});
+            pending_.push_back(Owned{copy, text ? Service::string_release
+                                                : Service::variant_release});
         } else if (is_float(value.type)) {
             builder_->move_wide(copy, value.operand);
         } else {
@@ -1443,6 +1503,9 @@ private:
     // its evaluation are released before the branch.
     [[nodiscard]] Operand lower_condition(const Expr& expression) {
         auto value = lower_expression(expression);
+        if (value.type == VbType::variant) {
+            value = from_variant(value, VbType::boolean, expression.at);
+        }
         if (!is_numeric(value.type)) {
             fail("a condition needs a numeric or Boolean value", expression.at);
         }
@@ -2082,9 +2145,11 @@ private:
 
     [[nodiscard]] static bool is_special_builtin(const std::string& name) {
         static const char* const names[] = {
-            "cstr", "instr", "str", "cint", "clng",   "cdbl",  "csng",
-            "int",  "fix",   "abs", "sgn",  "sqr",    "sin",   "cos",
-            "tan",  "atn",   "log", "exp",  "lbound", "ubound"};
+            "cstr",      "instr",  "str",      "cint",    "clng",   "cdbl",
+            "csng",      "int",    "fix",      "abs",     "sgn",    "sqr",
+            "sin",       "cos",    "tan",      "atn",     "log",    "exp",
+            "lbound",    "ubound", "typename", "vartype", "isnull", "isempty",
+            "isnumeric", "cvar"};
         for (const char* candidate : names) {
             if (name == candidate) {
                 return true;
@@ -2141,11 +2206,17 @@ private:
             }
             if (parameter.by_value) {
                 const auto value = lower_expression(argument);
-                if (parameter.type == VbType::string) {
-                    if (value.type != VbType::string) {
+                if (parameter.type == VbType::variant) {
+                    passed.push_back(to_variant(value, argument.at).operand);
+                } else if (parameter.type == VbType::string) {
+                    const auto text =
+                        value.type == VbType::variant
+                            ? from_variant(value, VbType::string, argument.at)
+                            : value;
+                    if (text.type != VbType::string) {
                         fail("a String argument is needed here", argument.at);
                     }
-                    passed.push_back(value.operand);
+                    passed.push_back(text.operand);
                 } else {
                     passed.push_back(
                         convert(value, parameter.type, argument.at).operand);
@@ -2156,8 +2227,11 @@ private:
         }
         Value result;
         result.type = signature.return_type;
-        const bool wide = signature.return_type == VbType::string;
-        result.operand = wide ? new_owned_string() : builder_->new_temp();
+        const bool wide = is_handle(signature.return_type);
+        result.operand = !wide ? builder_->new_temp()
+                         : signature.return_type == VbType::variant
+                             ? new_owned_variant()
+                             : new_owned_string();
         builder_->call(result.operand, signature.index, std::move(passed), wide,
                        double_args, is_float(signature.return_type));
         return result;
@@ -2168,7 +2242,11 @@ private:
                                        const VbType type) {
         const bool is_element =
             argument.kind == ExprKind::call && find_array(argument.text);
-        if (!argument.parenthesized &&
+        // Anything but a Variant place goes to a Variant parameter through a
+        // temporary.
+        const bool through_temporary =
+            type == VbType::variant && place_type_of(argument) != type;
+        if (!argument.parenthesized && !through_temporary &&
             (argument.kind == ExprKind::member || is_element ||
              (type == VbType::record && argument.kind == ExprKind::name))) {
             const auto place = lower_place(argument);
@@ -2178,7 +2256,8 @@ private:
             return type == VbType::record ? struct_pointer(place)
                                           : address_of(place.operand);
         }
-        if (!argument.parenthesized && argument.kind == ExprKind::name &&
+        if (!argument.parenthesized && !through_temporary &&
+            argument.kind == ExprKind::name &&
             !signatures_.contains(argument.text)) {
             const auto variable = find_variable(argument.text, argument.at);
             if (variable.type != type) {
@@ -2198,7 +2277,13 @@ private:
             builder_->move_wide(temp, ir::immediate(0));
             builder_->runtime(Service::string_assign,
                               {address_of(temp), value.operand});
-            pending_.push_back(temp);
+            pending_.push_back(Owned{temp, Service::string_release});
+        } else if (type == VbType::variant) {
+            const auto boxed = to_variant(value, argument.at);
+            builder_->move_wide(temp, ir::immediate(0));
+            builder_->runtime(Service::variant_assign,
+                              {address_of(temp), boxed.operand});
+            pending_.push_back(Owned{temp, Service::variant_release});
         } else if (is_float(type)) {
             builder_->move_wide(temp,
                                 convert(value, type, argument.at).operand);
@@ -2233,7 +2318,14 @@ private:
         std::vector<Operand> passed;
         for (int i = 0; i < count; ++i) {
             const auto& argument = *arguments[static_cast<std::size_t>(i)];
-            const auto value = lower_expression(argument);
+            auto value = lower_expression(argument);
+            if (value.type == VbType::variant) {
+                value = from_variant(value,
+                                     builtin.parameters[i] == 's'
+                                         ? VbType::string
+                                         : VbType::long_integer,
+                                     argument.at);
+            }
             if (builtin.parameters[i] == 's') {
                 if (value.type != VbType::string) {
                     fail(std::string(builtin.name) +
@@ -2275,7 +2367,20 @@ private:
         if (arguments.size() != 1U) {
             fail(name + " takes 1 argument", at);
         }
-        const auto value = lower_expression(*arguments[0]);
+        if (name == "typename" || name == "vartype" || name == "isnull" ||
+            name == "isempty" || name == "isnumeric" || name == "cvar") {
+            return lower_variant_function(name, *arguments[0], at);
+        }
+        auto value = lower_expression(*arguments[0]);
+        if (value.type == VbType::variant) {
+            value = from_variant(value,
+                                 name == "cstr"   ? VbType::string
+                                 : name == "clng" ? VbType::long_integer
+                                 : name == "cint" ? VbType::integer
+                                 : name == "csng" ? VbType::single_precision
+                                                  : VbType::double_precision,
+                                 at);
+        }
         if (name == "cstr") {
             return to_string_value(value, at);
         }
@@ -2422,6 +2527,9 @@ private:
         if (value.type == VbType::string) {
             return value;
         }
+        if (value.type == VbType::variant) {
+            return from_variant(value, VbType::string, at);
+        }
         if (!is_numeric(value.type)) {
             fail("this value cannot be converted to a String yet", at);
         }
@@ -2440,6 +2548,170 @@ private:
                               ? Service::string_from_boolean
                               : Service::string_from_integer,
                           {value.operand}, result.operand, true);
+        return result;
+    }
+
+    // ----- Variants (ADR-0009) ---------------------------------------------
+
+    // A typed value boxed as a Variant (a temporary owned by the statement); a
+    // Variant stays as it is.
+    [[nodiscard]] Value to_variant(const Value& value, const Position at) {
+        if (value.type == VbType::variant) {
+            return value;
+        }
+        Value result;
+        result.type = VbType::variant;
+        result.operand = new_owned_variant();
+        switch (value.type) {
+            case VbType::long_integer:
+                builder_->runtime(Service::variant_from_long, {value.operand},
+                                  result.operand, true);
+                break;
+            case VbType::integer:
+                builder_->runtime(Service::variant_from_integer,
+                                  {value.operand}, result.operand, true);
+                break;
+            case VbType::boolean:
+                builder_->runtime(Service::variant_from_boolean,
+                                  {value.operand}, result.operand, true);
+                break;
+            case VbType::single_precision:
+                builder_->runtime(Service::variant_from_single, {value.operand},
+                                  result.operand, true, 1U);
+                break;
+            case VbType::double_precision:
+                builder_->runtime(Service::variant_from_double, {value.operand},
+                                  result.operand, true, 1U);
+                break;
+            case VbType::string:
+                builder_->runtime(Service::variant_from_string, {value.operand},
+                                  result.operand, true);
+                break;
+            default:
+                fail("this value cannot be stored in a Variant", at);
+        }
+        return result;
+    }
+
+    // A typed value from a Variant, converted as an assignment would.
+    [[nodiscard]] Value from_variant(const Value& value, const VbType to,
+                                     const Position at) {
+        Value result;
+        result.type = to;
+        switch (to) {
+            case VbType::long_integer:
+            case VbType::integer:
+            case VbType::boolean: {
+                result.operand = builder_->new_temp();
+                builder_->runtime(to == VbType::boolean
+                                      ? Service::variant_to_boolean
+                                      : Service::variant_to_long,
+                                  {value.operand}, result.operand);
+                if (to == VbType::integer) {
+                    const auto narrow = builder_->new_temp();
+                    builder_->emit(Opcode::narrow, narrow, result.operand);
+                    result.operand = narrow;
+                }
+                return result;
+            }
+            case VbType::single_precision:
+            case VbType::double_precision: {
+                result.operand = builder_->new_temp();
+                builder_->runtime(Service::variant_to_double, {value.operand},
+                                  result.operand, false, 0U, true);
+                if (to == VbType::single_precision) {
+                    const auto rounded = builder_->new_temp();
+                    builder_->emit(Opcode::round_single, rounded,
+                                   result.operand);
+                    result.operand = rounded;
+                }
+                return result;
+            }
+            case VbType::string:
+                result.operand = new_owned_string();
+                builder_->runtime(Service::variant_to_string, {value.operand},
+                                  result.operand, true);
+                return result;
+            default:
+                fail("a Variant cannot be converted to this type yet", at);
+        }
+    }
+
+    // `left op right` where an operand is a Variant: the engine decides.
+    [[nodiscard]] Value variant_operation(const std::string& op,
+                                          const Value& left, const Value& right,
+                                          const Position at) {
+        static const std::map<std::string, ir::VariantOp> codes = {
+            {"+", ir::VariantOp::add},
+            {"-", ir::VariantOp::subtract},
+            {"*", ir::VariantOp::multiply},
+            {"/", ir::VariantOp::divide},
+            {"\\", ir::VariantOp::integer_divide},
+            {"mod", ir::VariantOp::modulo},
+            {"&", ir::VariantOp::concatenate},
+            {"^", ir::VariantOp::power},
+            {"=", ir::VariantOp::equal},
+            {"<>", ir::VariantOp::not_equal},
+            {"<", ir::VariantOp::less},
+            {">", ir::VariantOp::greater},
+            {"<=", ir::VariantOp::less_equal},
+            {">=", ir::VariantOp::greater_equal},
+            {"and", ir::VariantOp::logical_and},
+            {"or", ir::VariantOp::logical_or},
+            {"xor", ir::VariantOp::logical_xor},
+        };
+        const auto found = codes.find(op);
+        if (found == codes.end()) {
+            fail("the operator " + op + " is not compiled for Variants yet",
+                 at);
+        }
+        const auto a = to_variant(left, at);
+        const auto b = to_variant(right, at);
+        Value result;
+        result.type = VbType::variant;
+        result.operand = new_owned_variant();
+        builder_->runtime(
+            Service::variant_binary,
+            {ir::immediate(static_cast<std::int64_t>(found->second)), a.operand,
+             b.operand},
+            result.operand, true);
+        return result;
+    }
+
+    // TypeName, VarType, IsNull, IsEmpty, IsNumeric and CVar.
+    [[nodiscard]] Value lower_variant_function(const std::string& name,
+                                               const Expr& argument,
+                                               const Position at) {
+        const auto boxed = to_variant(lower_expression(argument), at);
+        if (name == "cvar") {
+            return boxed;
+        }
+        Value result;
+        if (name == "typename") {
+            result.type = VbType::string;
+            result.operand = new_owned_string();
+            builder_->runtime(Service::variant_type_name, {boxed.operand},
+                              result.operand, true);
+            return result;
+        }
+        result.operand = builder_->new_temp();
+        if (name == "isnumeric") {
+            result.type = VbType::boolean;
+            builder_->runtime(Service::variant_is_numeric, {boxed.operand},
+                              result.operand);
+            return result;
+        }
+        const auto type = builder_->new_temp();
+        builder_->runtime(Service::variant_var_type, {boxed.operand}, type);
+        if (name == "vartype") {
+            result.type = VbType::long_integer;
+            builder_->emit(Opcode::move, result.operand, type);
+            return result;
+        }
+        result.type = VbType::boolean;
+        builder_->compare(result.operand, type,
+                          ir::immediate(name == "isnull" ? 1 : 0),
+                          Condition::equal);
         return result;
     }
 
@@ -2490,18 +2762,34 @@ private:
                         return *constant;
                     }
                 }
+                if (!locals_.contains(expression.text) &&
+                    !globals_.contains(expression.text) &&
+                    !(result_variable_.has_value() &&
+                      expression.text == current_->name)) {
+                    if (expression.text == "empty") {
+                        return Value{ir::immediate(0), VbType::variant};
+                    }
+                    if (expression.text == "null") {
+                        Value null;
+                        null.type = VbType::variant;
+                        null.operand = new_owned_variant();
+                        builder_->runtime(Service::variant_null, {},
+                                          null.operand, true);
+                        return null;
+                    }
+                }
                 const auto variable =
                     find_variable(expression.text, expression.at);
                 if (variable.is_array) {
                     fail("the array '" + expression.text + "' needs an index",
                          expression.at);
                 }
-                if (variable.type == VbType::string &&
+                if (is_handle(variable.type) &&
                     variable.operand.kind != OperandKind::slot) {
-                    // String handles are read through a slot.
+                    // Handles are read through a slot.
                     const auto copy = builder_->new_temp();
                     builder_->move_wide(copy, variable.operand);
-                    return Value{copy, VbType::string};
+                    return Value{copy, variable.type};
                 }
                 return Value{variable.operand, variable.type};
             }
@@ -2518,10 +2806,10 @@ private:
                     fail("a record cannot be used as a value here",
                          expression.at);
                 }
-                if (place.type == VbType::string) {
+                if (is_handle(place.type)) {
                     const auto copy = builder_->new_temp();
                     builder_->move_wide(copy, place.operand);
-                    return Value{copy, VbType::string};
+                    return Value{copy, place.type};
                 }
                 return Value{place.operand, place.type};
             }
@@ -2535,6 +2823,16 @@ private:
 
     [[nodiscard]] Value lower_unary(const Expr& expression) {
         auto operand = lower_expression(*expression.operands[0]);
+        if (operand.type == VbType::variant) {
+            Value result;
+            result.type = VbType::variant;
+            result.operand = new_owned_variant();
+            builder_->runtime(expression.text == "not"
+                                  ? Service::variant_not
+                                  : Service::variant_negate,
+                              {operand.operand}, result.operand, true);
+            return result;
+        }
         if (!is_numeric(operand.type)) {
             fail("the operator " + expression.text + " needs a numeric value",
                  expression.at);
@@ -2578,6 +2876,9 @@ private:
 
     // A floating-point value for arithmetic: an integer is converted.
     [[nodiscard]] Value to_double(const Value& value) {
+        if (value.type == VbType::variant) {
+            return from_variant(value, VbType::double_precision, Position{});
+        }
         if (is_float(value.type)) {
             return value;
         }
@@ -2591,6 +2892,9 @@ private:
     // A 32-bit integer for \, Mod, And, Or, Not and the conversions: a
     // floating-point value is rounded (error 6 when it does not fit).
     [[nodiscard]] Value to_long(const Value& value, const Position at) {
+        if (value.type == VbType::variant) {
+            return from_variant(value, VbType::long_integer, at);
+        }
         if (is_integral(value.type)) {
             return value;
         }
@@ -2668,6 +2972,9 @@ private:
         const auto right = lower_expression(*expression.operands[1]);
         const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
                                    op == ">" || op == "<=" || op == ">=";
+        if (left.type == VbType::variant || right.type == VbType::variant) {
+            return variant_operation(op, left, right, expression.at);
+        }
         if (op == "&") {
             return concatenate(left, right, expression.at);
         }
@@ -2733,6 +3040,12 @@ private:
     // Converts a value for an assignment or a parameter.
     [[nodiscard]] Value convert(const Value& value, const VbType to,
                                 const Position at) {
+        if (value.type == VbType::variant) {
+            return to == VbType::variant ? value : from_variant(value, to, at);
+        }
+        if (to == VbType::variant) {
+            return to_variant(value, at);
+        }
         if (!is_numeric(value.type)) {
             fail("this value cannot be converted yet", at);
         }
@@ -2793,7 +3106,7 @@ private:
     std::map<std::string, int> udt_index_;
     std::vector<OwnedRecord> owned_records_;
     std::map<int, int> descriptors_;  // record type -> string blob index
-    std::vector<Operand> pending_;    // string temporaries of a statement
+    std::vector<Owned> pending_;      // handle temporaries of a statement
     std::map<std::string, Value> constants_;        // module constants
     std::map<std::string, Value> local_constants_;  // a procedure's constants
     std::map<std::string, int> labels_;

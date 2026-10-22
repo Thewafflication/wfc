@@ -1,5 +1,7 @@
 #include "native_host.hpp"
 
+#include "../interpreter/native_engine.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -7,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <string_view>
 
 #ifdef _WIN32
@@ -725,6 +728,193 @@ void error_acknowledge() {
     }
 }
 
+// ----- Variants (ADR-0009) ------------------------------------------------
+//
+// A Variant handle points to a `RtVariant`: a reference count and an
+// interpreter `Value` that never changes after it is boxed. The null handle is
+// Empty. The engine implements every operator and conversion.
+
+struct RtVariant final {
+    std::int32_t refs;
+    wfc::detail::Value value;
+};
+
+std::unique_ptr<wfc::detail::NativeEngine> g_engine;
+
+[[nodiscard]] wfc::detail::NativeEngine& engine() {
+    if (!g_engine) {
+        g_engine = std::make_unique<wfc::detail::NativeEngine>();
+    }
+    return *g_engine;
+}
+
+[[nodiscard]] const wfc::detail::Value& value_of(const RtVariant* handle) {
+    static const wfc::detail::Value empty{wfc::detail::Empty{}};
+    return handle == nullptr ? empty : handle->value;
+}
+
+[[nodiscard]] RtVariant* box(wfc::detail::Value value) {
+    if (std::holds_alternative<wfc::detail::Empty>(value)) {
+        return nullptr;  // Empty is the null handle
+    }
+    return new RtVariant{1, std::move(value)};
+}
+
+RtVariant* variant_retain(RtVariant* handle) {
+    if (handle != nullptr) {
+        ++handle->refs;
+    }
+    return handle;
+}
+
+void variant_release(RtVariant* handle) {
+    if (handle != nullptr && --handle->refs == 0) {
+        delete handle;
+    }
+}
+
+// Makes an error of the engine the pending error.
+void raise_engine_error(const wfc::detail::NativeError& problem) {
+    raise_error(problem.number);
+    g_error.description = problem.description;
+}
+
+RtVariant* variant_from_long(const std::int32_t value) {
+    return box(wfc::detail::Value{static_cast<wfc::detail::Integer>(value)});
+}
+
+RtVariant* variant_from_integer(const std::int32_t value) {
+    return box(wfc::detail::Value{static_cast<wfc::detail::Int16>(value)});
+}
+
+RtVariant* variant_from_double(const double value) {
+    return box(wfc::detail::Value{value});
+}
+
+RtVariant* variant_from_single(const double value) {
+    return box(wfc::detail::Value{static_cast<float>(value)});
+}
+
+RtVariant* variant_from_string(const RtString* text) {
+    return box(wfc::detail::Value{std::string(view_of(text))});
+}
+
+RtVariant* variant_from_boolean(const std::int32_t value) {
+    return box(wfc::detail::Value{value != 0});
+}
+
+RtVariant* variant_null() {
+    return box(wfc::detail::Value{wfc::detail::Null{}});
+}
+
+void variant_assign(RtVariant** variable, RtVariant* value) {
+    variant_retain(value);
+    variant_release(*variable);
+    *variable = value;
+}
+
+void variant_addref(RtVariant* handle) {
+    static_cast<void>(variant_retain(handle));
+}
+
+RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
+                          const RtVariant* b) {
+    static const char* const names[] = {
+        "+", "-", "*",  "/",  "\\",  "mod", "&",   "^",   "=",  "<>",
+        "<", ">", "<=", ">=", "and", "or",  "xor", "eqv", "imp"};
+    wfc::detail::NativeError problem;
+    auto result = engine().binary(names[op], value_of(a), value_of(b), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
+RtVariant* variant_negate(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    auto result = engine().negate(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
+RtVariant* variant_not(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    auto result = engine().logical_not(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
+std::int32_t variant_to_long(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    const auto result = engine().to_long(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return 0;
+    }
+    return *result;
+}
+
+double variant_to_double(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    const auto result = engine().to_double(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return 0.0;
+    }
+    return *result;
+}
+
+RtString* variant_to_string(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    const auto result = engine().to_text(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return make_string(*result);
+}
+
+std::int32_t variant_to_boolean(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    const auto result = engine().to_boolean(value_of(a), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return 0;
+    }
+    return *result ? -1 : 0;
+}
+
+void variant_print(const RtVariant* a) {
+    put(wfc::detail::NativeEngine::print_text(value_of(a)));
+}
+
+RtString* variant_type_name(const RtVariant* a) {
+    return make_string(engine().type_name(value_of(a)));
+}
+
+std::int32_t variant_var_type(const RtVariant* a) {
+    return wfc::detail::NativeEngine::var_type(value_of(a));
+}
+
+std::int32_t variant_is_numeric(const RtVariant* a) {
+    wfc::detail::NativeError problem;
+    const auto& value = value_of(a);
+    if (std::holds_alternative<std::string>(value)) {
+        return engine().to_double(value, problem).has_value() ? -1 : 0;
+    }
+    const int type = wfc::detail::NativeEngine::var_type(value);
+    return (type >= 2 && type <= 7) || type == 11 || type == 14 || type == 17
+               ? -1
+               : 0;
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -778,6 +968,17 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&error_source),        address_of(&error_clear),
         address_of(&error_raise),         address_of(&error_acknowledge),
         address_of(&print_zone),          address_of(&double_power),
+        address_of(&variant_from_long),   address_of(&variant_from_integer),
+        address_of(&variant_from_double), address_of(&variant_from_single),
+        address_of(&variant_from_string), address_of(&variant_from_boolean),
+        address_of(&variant_null),        address_of(&variant_assign),
+        address_of(&variant_release),     address_of(&variant_addref),
+        address_of(&variant_binary),      address_of(&variant_negate),
+        address_of(&variant_not),         address_of(&variant_to_long),
+        address_of(&variant_to_double),   address_of(&variant_to_string),
+        address_of(&variant_to_boolean),  address_of(&variant_print),
+        address_of(&variant_type_name),   address_of(&variant_var_type),
+        address_of(&variant_is_numeric),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

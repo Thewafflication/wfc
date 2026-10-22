@@ -21,7 +21,8 @@ enum class VbType {
     single_precision,
     double_precision,
     string,
-    record,  // a user-defined type: its name is kept beside the type
+    variant,  // a handle to a boxed interpreter value (ADR-0009)
+    record,   // a user-defined type: its name is kept beside the type
 };
 
 struct Position final {

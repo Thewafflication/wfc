@@ -57,6 +57,8 @@ target_sources(
     src/interpreter/resources.cpp
     src/interpreter/com_automation.cpp
     src/interpreter/format.cpp
+    src/interpreter/native_engine.cpp
+    src/interpreter/native_engine.hpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
     src/interpreter/interpreter.hpp
