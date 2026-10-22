@@ -138,7 +138,10 @@ enum class Service : int {
     // Arrays: a handle is a pointer to a reference-counted array object; the
     // null handle is an array that has no elements yet (error 9 on access).
     array_redim = 33,     // (handle* var, kind|fixed, dims, int64* bounds,
-                          //  preserve); bounds are lower, upper per dimension
+                          //  preserve, element size, string offsets);
+                          //  bounds are lower, upper per dimension; kind 3 is
+                          //  a record whose size and String offsets (a count
+                          //  then the offsets, as int32) follow
     array_element1 = 34,  // (handle, i) -> address of the element
     array_element2 = 35,  // (handle, i, j)
     array_element3 = 36,  // (handle, i, j, k)

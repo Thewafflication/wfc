@@ -426,10 +426,13 @@ struct RtArray final {
     std::int32_t fixed;
     std::int32_t count;
     RtBound bounds[3];
+    std::int32_t size;  // bytes per element
+    std::int32_t pad;
+    const std::int32_t* strings;  // kind 3: a count, then the String offsets
 };
 
-[[nodiscard]] std::size_t element_size(const std::int32_t kind) {
-    return kind == 0 ? 4U : 8U;
+[[nodiscard]] std::size_t element_size(const RtArray* array) {
+    return static_cast<std::size_t>(array->size);
 }
 
 [[nodiscard]] char* data_of(RtArray* array) {
@@ -437,7 +440,19 @@ struct RtArray final {
 }
 
 void release_elements(RtArray* array) {
-    if (array->kind == 2) {
+    if (array->kind == 3 && array->strings != nullptr) {
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            char* base =
+                data_of(array) + static_cast<std::size_t>(i) *
+                                     static_cast<std::size_t>(array->size);
+            for (std::int32_t k = 0; k < array->strings[0]; ++k) {
+                auto** handle =
+                    reinterpret_cast<RtString**>(base + array->strings[1 + k]);
+                release(*handle);
+                *handle = nullptr;
+            }
+        }
+    } else if (array->kind == 2) {
         auto* handles = reinterpret_cast<RtString**>(data_of(array));
         for (std::int32_t i = 0; i < array->count; ++i) {
             release(handles[i]);
@@ -455,7 +470,8 @@ void array_release(RtArray* array) {
 
 void array_redim(RtArray** variable, const std::int32_t flags,
                  const std::int32_t dims, const std::int64_t* bounds,
-                 const std::int32_t preserve) {
+                 const std::int32_t preserve, const std::int32_t record_size,
+                 const std::int32_t* record_strings) {
     const std::int32_t kind = flags & 0xFF;
     if (dims < 1 || dims > 3) {
         raise_error(9);
@@ -465,6 +481,8 @@ void array_redim(RtArray** variable, const std::int32_t flags,
     header.kind = kind;
     header.dims = dims;
     header.fixed = (flags >> 8) & 1;
+    header.size = kind == 0 ? 4 : (kind == 3 ? record_size : 8);
+    header.strings = kind == 3 ? record_strings : nullptr;
     std::int64_t count = 1;
     for (std::int32_t k = 0; k < dims; ++k) {
         const auto lower = static_cast<std::int32_t>(bounds[2 * k]);
@@ -481,9 +499,9 @@ void array_redim(RtArray** variable, const std::int32_t flags,
         }
     }
     header.count = static_cast<std::int32_t>(count);
-    auto* array = static_cast<RtArray*>(
-        std::calloc(1, sizeof(RtArray) + static_cast<std::size_t>(count) *
-                                             element_size(kind)));
+    auto* array = static_cast<RtArray*>(std::calloc(
+        1, sizeof(RtArray) + static_cast<std::size_t>(count) *
+                                 static_cast<std::size_t>(header.size)));
     if (array == nullptr) {
         raise_error(7);
         return;
@@ -493,7 +511,7 @@ void array_redim(RtArray** variable, const std::int32_t flags,
     if (preserve != 0 && old != nullptr && old->dims == dims &&
         old->kind == kind) {
         // Elements that exist in both keep their values.
-        const std::size_t size = element_size(kind);
+        const std::size_t size = static_cast<std::size_t>(header.size);
         for (std::int32_t at = 0; at < old->count; ++at) {
             std::int32_t index[3] = {0, 0, 0};
             std::int32_t rest = at;
@@ -524,6 +542,10 @@ void array_redim(RtArray** variable, const std::int32_t flags,
                     from, size);
                 if (kind == 2) {
                     std::memset(from, 0, size);  // the string moved
+                } else if (kind == 3 && old->strings != nullptr) {
+                    for (std::int32_t k = 0; k < old->strings[0]; ++k) {
+                        std::memset(from + old->strings[1 + k], 0, 8U);
+                    }
                 }
             }
         }
@@ -559,8 +581,8 @@ void array_redim(RtArray** variable, const std::int32_t flags,
 
 [[nodiscard]] void* element_at(RtArray* array, const std::int64_t at) {
     return at < 0 ? nullptr
-                  : data_of(array) + static_cast<std::size_t>(at) *
-                                         element_size(array->kind);
+                  : data_of(array) +
+                        static_cast<std::size_t>(at) * element_size(array);
 }
 
 void* array_element1(RtArray* array, const std::int32_t i) {
@@ -613,7 +635,7 @@ void array_erase(RtArray** variable) {
         release_elements(array);
         std::memset(
             data_of(array), 0,
-            static_cast<std::size_t>(array->count) * element_size(array->kind));
+            static_cast<std::size_t>(array->count) * element_size(array));
         return;
     }
     array_release(array);

@@ -537,12 +537,10 @@ private:
             int record = -1;
             std::int64_t slots = 1;
             if (declaration.type == VbType::record) {
-                if (declaration.is_array) {
-                    fail("arrays of records are not compiled yet",
-                         declaration.at);
-                }
                 record = find_udt(declaration.type_name, declaration.at);
-                slots = udts_[static_cast<std::size_t>(record)].size / 8;
+                if (!declaration.is_array) {
+                    slots = udts_[static_cast<std::size_t>(record)].size / 8;
+                }
             }
             const auto variable = Variable{
                 ir::global(static_cast<std::int64_t>(program_.globals.size())),
@@ -582,7 +580,7 @@ private:
                          procedure.at);
                 }
                 if (parameter.type == VbType::record) {
-                    if (parameter.by_value || parameter.is_array) {
+                    if (parameter.by_value) {
                         fail("a record parameter must be passed ByRef",
                              procedure.at);
                     }
@@ -915,10 +913,22 @@ private:
             fail("'" + declaration.name + "' is already declared",
                  declaration.at);
         }
-        if (declaration.type == VbType::record) {
-            if (declaration.is_array) {
-                fail("arrays of records are not compiled yet", declaration.at);
+        if (declaration.type == VbType::record && declaration.is_array) {
+            // An array of records: a handle like any array.
+            const int record = find_udt(declaration.type_name, declaration.at);
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, ir::immediate(0));
+            const auto variable =
+                Variable{handle, VbType::record, true, record};
+            locals_[declaration.name] = variable;
+            owned_slots_.push_back(Owned{handle, Service::array_release});
+            if (!declaration.bounds.empty()) {
+                emit_array_allocation(variable, declaration.bounds, true, false,
+                                      true);
             }
+            return;
+        }
+        if (declaration.type == VbType::record) {
             const int record = find_udt(declaration.type_name, declaration.at);
             const auto slots = udts_[static_cast<std::size_t>(record)].size / 8;
             // The record lives in consecutive slots; its first byte is in the
@@ -957,7 +967,32 @@ private:
     }
 
     [[nodiscard]] static int element_kind(const VbType type) {
-        return type == VbType::string ? 2 : (is_float(type) ? 1 : 0);
+        return type == VbType::record
+                   ? 3
+                   : (type == VbType::string ? 2 : (is_float(type) ? 1 : 0));
+    }
+
+    // The String offsets of a record type as a read-only blob of the image: a
+    // count and the offsets (int32); it is stored like a String literal.
+    [[nodiscard]] int descriptor_of(const int udt) {
+        const auto found = descriptors_.find(udt);
+        if (found != descriptors_.end()) {
+            return found->second;
+        }
+        const auto& offsets =
+            udts_[static_cast<std::size_t>(udt)].string_offsets;
+        std::string blob;
+        const auto put = [&blob](const std::int32_t value) {
+            blob.append(reinterpret_cast<const char*>(&value), sizeof(value));
+        };
+        put(static_cast<std::int32_t>(offsets.size()));
+        for (const auto offset : offsets) {
+            put(static_cast<std::int32_t>(offset));
+        }
+        program_.strings.push_back(std::move(blob));
+        const int index = static_cast<int>(program_.strings.size() - 1U);
+        descriptors_[udt] = index;
+        return index;
     }
 
     // Dimensions an array: the bounds are constants (`constant`) or
@@ -1004,11 +1039,23 @@ private:
         }
         const auto block = builder_->new_temp();
         builder_->emit(Opcode::address, block, place(0));
+        Operand record_size = ir::immediate(0);
+        Operand record_strings = ir::immediate(0);
+        if (variable.type == VbType::record) {
+            record_size = ir::immediate(
+                udts_[static_cast<std::size_t>(variable.udt)].size);
+            // The bytes of the descriptor start after the 8-byte string header.
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle,
+                                ir::literal(descriptor_of(variable.udt)));
+            record_strings = pointer_plus(handle, 8);
+        }
         builder_->runtime(
             Service::array_redim,
             {address_of(variable.operand),
              ir::immediate(element_kind(variable.type) | (fixed ? 0x100 : 0)),
-             ir::immediate(dims), block, ir::immediate(preserve ? 1 : 0)});
+             ir::immediate(dims), block, ir::immediate(preserve ? 1 : 0),
+             record_size, record_strings});
     }
 
     [[nodiscard]] Variable find_variable(const std::string& name,
@@ -1145,8 +1192,21 @@ private:
             return;
         }
         auto target = find_variable(statement.text, statement.at);
-        if (target.type == VbType::record && statement.items.empty()) {
-            copy_record(target, lower_place(*statement.expr), statement.at);
+        if (target.type == VbType::record) {
+            const auto source = lower_place(*statement.expr);
+            if (!statement.items.empty()) {
+                if (!target.is_array) {
+                    fail("'" + statement.text + "' is not an array",
+                         statement.at);
+                }
+                target = Variable{
+                    element_address(target, statement.items, statement.at),
+                    VbType::record, false, target.udt};
+            } else if (target.is_array) {
+                fail("the array '" + statement.text + "' needs an index",
+                     statement.at);
+            }
+            copy_record(target, source, statement.at);
             return;
         }
         const auto value = lower_expression(*statement.expr);
@@ -1156,7 +1216,11 @@ private:
             }
             target =
                 Variable{element_address(target, statement.items, statement.at),
-                         target.type};
+                         target.type, false, target.udt};
+            if (target.type == VbType::record) {
+                copy_record(target, lower_place(*statement.expr), statement.at);
+                return;
+            }
         } else if (target.is_array) {
             fail("the array '" + statement.text + "' needs an index",
                  statement.at);
@@ -1522,6 +1586,9 @@ private:
                                       const std::vector<ExprPtr>& indices,
                                       const Position at) {
         const auto operand = element_address(array, indices, at);
+        if (array.type == VbType::record) {
+            fail("a record cannot be used as a value here", at);
+        }
         if (array.type == VbType::string) {
             const auto copy = builder_->new_temp();
             builder_->move_wide(copy, operand);
@@ -2669,7 +2736,8 @@ private:
     std::vector<UdtInfo> udts_;
     std::map<std::string, int> udt_index_;
     std::vector<OwnedRecord> owned_records_;
-    std::vector<Operand> pending_;  // string temporaries of a statement
+    std::map<int, int> descriptors_;  // record type -> string blob index
+    std::vector<Operand> pending_;    // string temporaries of a statement
     std::map<std::string, Value> constants_;        // module constants
     std::map<std::string, Value> local_constants_;  // a procedure's constants
     std::map<std::string, int> labels_;
