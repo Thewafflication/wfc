@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,11 +25,16 @@ struct ClassSource final {
     std::string source;
 };
 
+// What a project says about itself that the built-in classes use.
+struct ProjectInfo final {
+    std::map<std::string, std::string> app_properties;  // the `App` object
+};
+
 // Parses, checks, lowers and generates code for a standard module and the
 // class modules of its project.
 [[nodiscard]] CompileResult compile_project(
     std::string_view source, const std::vector<ClassSource>& classes,
-    Architecture architecture);
+    Architecture architecture, const ProjectInfo& info = {});
 
 // The same for a standard module alone.
 [[nodiscard]] CompileResult compile_source(std::string_view source,

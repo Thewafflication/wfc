@@ -160,8 +160,10 @@ int run_native(const int argument_count, const char* const arguments[]) {
         classes.push_back(wfc::compiler::ClassSource{project.class_names[i],
                                                      project.class_sources[i]});
     }
+    wfc::compiler::ProjectInfo info;
+    info.app_properties = project.app_properties;
     const auto compiled =
-        wfc::compiler::compile_project(source, classes, architecture);
+        wfc::compiler::compile_project(source, classes, architecture, info);
     if (!compiled.error.empty()) {
         std::cerr << "native compile error";
         if (compiled.error_at.line != 0) {
