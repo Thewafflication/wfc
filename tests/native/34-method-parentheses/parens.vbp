@@ -1,0 +1,3 @@
+Module=Main; main.bas
+Class=Acc2; Acc2.cls
+Startup="Sub Main"

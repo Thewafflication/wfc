@@ -193,7 +193,10 @@ enum class Service : int {
     object_check = 73,    // (handle): error 91 when it is Nothing
     object_is = 74,       // (a, b) -> -1 when they are the same object
     object_is_null = 75,  // (handle) -> -1 for Nothing
-    count = 76,
+    // The address of element `index` of a fixed array inside a record:
+    // (base, index, lower bound, count, element size); error 9 outside.
+    inline_element = 76,  // -> pointer
+    count = 77,
 };
 
 struct Instruction final {

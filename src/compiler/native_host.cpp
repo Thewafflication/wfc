@@ -1032,6 +1032,17 @@ std::int32_t object_is_null(const RtObject* object) {
     return object == nullptr ? -1 : 0;
 }
 
+void* inline_element(void* base, const std::int32_t index,
+                     const std::int32_t lower, const std::int32_t count,
+                     const std::int32_t size) {
+    if (index < lower || index - lower >= count) {
+        raise_error(9);
+        return nullptr;
+    }
+    return static_cast<char*>(base) +
+           static_cast<std::int64_t>(index - lower) * size;
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -1099,6 +1110,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&object_addref),       address_of(&object_release),
         address_of(&object_assign),       address_of(&object_check),
         address_of(&object_is),           address_of(&object_is_null),
+        address_of(&inline_element),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

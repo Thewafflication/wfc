@@ -335,7 +335,12 @@ private:
             const VbType by_suffix = suffix_type(spelled);
             advance();
             if (is_symbol("(")) {
-                fail("arrays in types are not compiled yet");
+                advance();
+                field.is_array = true;
+                array_bounds(field.bounds);
+                if (field.bounds.size() != 1U) {
+                    fail("an array in a type has one dimension here");
+                }
             }
             if (accept_word("as")) {
                 field.type = type_name(&field.type_name);
@@ -518,7 +523,33 @@ private:
         return result;
     }
 
+    [[nodiscard]] StmtPtr with_member_statement() {
+        auto assignment = make(StmtKind::assign);
+        auto chain = primary();
+        if (is_symbol("=")) {
+            advance();
+            assignment->target = std::move(chain);
+            assignment->expr = expression();
+            return assignment;
+        }
+        return finish_member_statement(std::move(chain), false);
+    }
+
+    [[nodiscard]] StmtPtr with_statement() {
+        auto result = make(StmtKind::with_block);
+        advance();
+        result->expr = expression();
+        expect_end_of_statement();
+        result->body = block({"end"});
+        expect_word("end");
+        expect_word("with");
+        return result;
+    }
+
     [[nodiscard]] StmtPtr statement() {
+        if (current().kind == TokenKind::symbol && current().text == ".") {
+            return with_member_statement();
+        }
         if (current().kind != TokenKind::identifier) {
             fail("expected a statement");
         }
@@ -628,9 +659,12 @@ private:
             result->expr = expression();
             return result;
         }
-        if (word == "with" || word == "gosub" || word == "on" ||
-            word == "open" || word == "close" || word == "static" ||
-            word == "randomize" || word == "line" || word == "raiseevent") {
+        if (word == "with") {
+            return with_statement();
+        }
+        if (word == "gosub" || word == "on" || word == "open" ||
+            word == "close" || word == "static" || word == "randomize" ||
+            word == "line" || word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
@@ -902,8 +936,17 @@ private:
 
     // `obj.Member args` or `Call obj.Member(args)`: the member is called.
     [[nodiscard]] StmtPtr member_statement(const bool with_call_keyword) {
+        return finish_member_statement(primary(), with_call_keyword);
+    }
+
+    [[nodiscard]] StmtPtr finish_member_statement(
+        ExprPtr chain, const bool with_call_keyword) {
         auto result = make(StmtKind::call_member);
-        auto chain = primary();
+        // `obj.Member (x)` without Call passes the parenthesized value.
+        if (!with_call_keyword && chain->kind == ExprKind::member_call &&
+            chain->operands.size() == 2U) {
+            chain->operands[1]->parenthesized = true;
+        }
         if (chain->kind == ExprKind::member && !with_call_keyword) {
             // Arguments without parentheses: `obj.Member a, b`.
             auto call = make_expr(ExprKind::member_call, chain->at);
@@ -1335,31 +1378,39 @@ private:
                 node = make_expr(ExprKind::name, at);
                 node->text = without_suffix(token.text);
             }
-            // `.member` chains: a.b.c, array(i).field, obj.Method(args)
-            while (is_symbol(".")) {
-                advance();
-                if (current().kind != TokenKind::identifier) {
-                    fail("expected a member name after '.'");
-                }
-                auto field = make_expr(ExprKind::member, at);
-                field->text = without_suffix(current().text);
-                advance();
-                field->operands.push_back(std::move(node));
-                if (is_symbol("(")) {
-                    advance();
-                    field->kind = ExprKind::member_call;
-                    if (!accept_symbol(")")) {
-                        do {
-                            field->operands.push_back(expression());
-                        } while (accept_symbol(","));
-                        expect_symbol(")");
-                    }
-                }
-                node = std::move(field);
-            }
-            return node;
+            return member_chain(std::move(node), at);
+        }
+        if (token.kind == TokenKind::symbol && token.text == ".") {
+            // `.member` inside a With block.
+            return member_chain(make_expr(ExprKind::with_target, at), at);
         }
         fail("expected an expression");
+    }
+
+    // `.member` chains: a.b.c, array(i).field, obj.Method(args)
+    [[nodiscard]] ExprPtr member_chain(ExprPtr node, const Position at) {
+        while (is_symbol(".")) {
+            advance();
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a member name after '.'");
+            }
+            auto field = make_expr(ExprKind::member, at);
+            field->text = without_suffix(current().text);
+            advance();
+            field->operands.push_back(std::move(node));
+            if (is_symbol("(")) {
+                advance();
+                field->kind = ExprKind::member_call;
+                if (!accept_symbol(")")) {
+                    do {
+                        field->operands.push_back(expression());
+                    } while (accept_symbol(","));
+                    expect_symbol(")");
+                }
+            }
+            node = std::move(field);
+        }
+        return node;
     }
 
     std::vector<Token> tokens_;

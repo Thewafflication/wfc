@@ -1,0 +1,3 @@
+Module=Main; main.bas
+Class=Board; Board.cls
+Startup="Sub Main"

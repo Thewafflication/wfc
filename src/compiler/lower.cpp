@@ -55,6 +55,9 @@ struct FieldInfo final {
     bool is_array{};
     bool is_public{};
     bool auto_new{};
+    std::int64_t lower{};         // an array inside a record: first index,
+    std::int64_t count{1};        // number of elements,
+    std::int64_t element_size{};  // and the size of an element
 };
 
 struct UdtInfo final {
@@ -194,6 +197,7 @@ public:
             case Service::double_power:
             case Service::object_new:
             case Service::object_check:
+            case Service::inline_element:
             case Service::variant_binary:
             case Service::variant_negate:
             case Service::variant_not:
@@ -363,8 +367,8 @@ public:
 
     ir::Program run() {
         register_classes();
-        declare_types();
         declare_constants(module_.constants, constants_);
+        declare_types();
         declare_class_layouts();
         declare_globals();
         declare_procedures();
@@ -471,16 +475,36 @@ private:
                            is_float(field.type)) {
                     size = 8;
                 }
-                const std::int64_t align = size >= 8 ? 8 : 4;
+                entry.element_size = size;
+                if (field.is_array) {
+                    const auto& bound = field.bounds.front();
+                    const std::int64_t low =
+                        bound.low ? fold(*bound.low).operand.value
+                                  : module_.option_base;
+                    const std::int64_t high = fold(*bound.high).operand.value;
+                    if (high < low || high - low > 1000000) {
+                        fail("the bounds of the array '" + field.name +
+                                 "' are not valid",
+                             field.at);
+                    }
+                    entry.is_array = true;
+                    entry.lower = low;
+                    entry.count = high - low + 1;
+                    size *= entry.count;
+                }
+                const std::int64_t align = entry.element_size >= 8 ? 8 : 4;
                 offset = (offset + align - 1) / align * align;
                 entry.offset = offset;
-                if (field.type == VbType::string) {
-                    info.string_offsets.push_back(offset);
-                } else if (entry.udt >= 0) {
-                    for (const auto inner :
-                         udts_[static_cast<std::size_t>(entry.udt)]
-                             .string_offsets) {
-                        info.string_offsets.push_back(offset + inner);
+                for (std::int64_t i = 0; i < entry.count; ++i) {
+                    const std::int64_t at = offset + i * entry.element_size;
+                    if (field.type == VbType::string) {
+                        info.string_offsets.push_back(at);
+                    } else if (entry.udt >= 0) {
+                        for (const auto inner :
+                             udts_[static_cast<std::size_t>(entry.udt)]
+                                 .string_offsets) {
+                            info.string_offsets.push_back(at + inner);
+                        }
                     }
                 }
                 offset += size;
@@ -496,10 +520,14 @@ private:
     void leaves_of(const int udt, const std::int64_t base,
                    std::vector<std::pair<std::int64_t, VbType>>& into) const {
         for (const auto& field : udts_[static_cast<std::size_t>(udt)].fields) {
-            if (field.type == VbType::record) {
-                leaves_of(field.udt, base + field.offset, into);
-            } else {
-                into.emplace_back(base + field.offset, field.type);
+            for (std::int64_t i = 0; i < field.count; ++i) {
+                const std::int64_t at =
+                    base + field.offset + i * field.element_size;
+                if (field.type == VbType::record) {
+                    leaves_of(field.udt, at, into);
+                } else {
+                    into.emplace_back(at, field.type);
+                }
             }
         }
     }
@@ -540,6 +568,53 @@ private:
                 return Variable{
                     element_address(*array, expression.operands, expression.at),
                     array->type, false, array->udt};
+            }
+            case ExprKind::with_target: {
+                const auto& target = current_with(expression.at);
+                if (target.object) {
+                    fail("an object cannot be used as a record here",
+                         expression.at);
+                }
+                return Variable{ir::indirect(target.operand.value),
+                                VbType::record, false, target.index};
+            }
+            case ExprKind::member_call: {
+                // `record.field(index)`: an element of an array in a record.
+                if (expression.operands.size() != 2U) {
+                    fail("an array in a record takes one index", expression.at);
+                }
+                const auto base = lower_place(*expression.operands[0]);
+                if (base.type != VbType::record || base.is_array) {
+                    fail("'." + expression.text + "' needs a record before it",
+                         expression.at);
+                }
+                const auto& info = udts_[static_cast<std::size_t>(base.udt)];
+                for (const auto& field : info.fields) {
+                    if (field.name != expression.text) {
+                        continue;
+                    }
+                    if (!field.is_array) {
+                        fail("'" + expression.text + "' is not an array",
+                             expression.at);
+                    }
+                    const auto first =
+                        pointer_plus(struct_pointer(base), field.offset);
+                    const auto index =
+                        to_long(lower_expression(*expression.operands[1]),
+                                expression.at);
+                    const auto element = builder_->new_temp();
+                    builder_->runtime(
+                        Service::inline_element,
+                        {first, index.operand, ir::immediate(field.lower),
+                         ir::immediate(field.count),
+                         ir::immediate(field.element_size)},
+                        element, true);
+                    return Variable{ir::indirect(element.value), field.type,
+                                    false, field.udt};
+                }
+                fail("the type '" + info.name + "' has no field '" +
+                         expression.text + "'",
+                     expression.at);
             }
             case ExprKind::member: {
                 int object_cls = -1;
@@ -752,10 +827,13 @@ private:
                 std::vector<std::int64_t> inner_strings;
                 if (declaration.is_array) {
                     if (declaration.type == VbType::variant ||
-                        declaration.type == VbType::record ||
                         declaration.type == VbType::object) {
                         fail("this array in a class is not compiled yet",
                              declaration.at);
+                    }
+                    if (declaration.type == VbType::record) {
+                        entry.udt =
+                            find_udt(declaration.type_name, declaration.at);
                     }
                     size = 8;
                     kind = static_cast<int>(ir::HandleKind::array);
@@ -867,6 +945,23 @@ private:
         builder.move_wide(result, ir::immediate(0));
         builder.runtime(Service::object_new, {ir::literal(info.record)}, result,
                         true);
+        // The fixed-size arrays of the fields.
+        local_constants_.clear();
+        declare_constants(info.module->constants, local_constants_);
+        current_class_ = static_cast<int>(c);
+        for (std::size_t i = 0; i < info.module->globals.size(); ++i) {
+            const auto& declaration = info.module->globals[i];
+            if (!declaration.is_array || declaration.bounds.empty()) {
+                continue;
+            }
+            const auto& field = info.layout.fields[i];
+            const auto where =
+                pointer_plus(result, ir::kObjectHeader + field.offset);
+            emit_array_allocation(Variable{ir::indirect(where.value),
+                                           field.type, true, field.udt},
+                                  declaration.bounds, true, false, true);
+        }
+        current_class_ = -1;
         if (info.initialize >= 0) {
             builder.call({}, info.initialize, {result}, false);
         }
@@ -1522,6 +1617,9 @@ private:
             case StmtKind::set_object:
                 lower_set(statement);
                 break;
+            case StmtKind::with_block:
+                lower_with(statement);
+                break;
             case StmtKind::call_member:
                 static_cast<void>(lower_object_call(*statement.expr, false));
                 break;
@@ -1698,7 +1796,8 @@ private:
                 const auto array = find_array(expression.text);
                 return array.has_value() ? array->type : VbType::none;
             }
-            case ExprKind::member: {
+            case ExprKind::member:
+            case ExprKind::member_call: {
                 int udt = -1;
                 const auto base = base_udt_of(*expression.operands[0], udt);
                 if (!base || udt < 0) {
@@ -1726,12 +1825,18 @@ private:
                 udt = variable.type == VbType::record ? variable.udt : -1;
                 return true;
             }
+            case ExprKind::with_target:
+                udt = !with_targets_.empty() && !with_targets_.back().object
+                          ? with_targets_.back().index
+                          : -1;
+                return true;
             case ExprKind::call: {
                 const auto array = find_array(expression.text);
                 udt = array.has_value() ? array->udt : -1;
                 return true;
             }
-            case ExprKind::member: {
+            case ExprKind::member:
+            case ExprKind::member_call: {
                 int outer = -1;
                 if (!base_udt_of(*expression.operands[0], outer) || outer < 0) {
                     return false;
@@ -2651,8 +2756,12 @@ private:
         // temporary.
         const bool through_temporary =
             type == VbType::variant && place_type_of(argument) != type;
+        int argument_cls = -1;
+        const bool record_member =
+            argument.kind == ExprKind::member_call &&
+            !object_class_of(*argument.operands[0], argument_cls);
         if (!argument.parenthesized && !through_temporary &&
-            (argument.kind == ExprKind::member || is_element ||
+            (argument.kind == ExprKind::member || record_member || is_element ||
              (type == VbType::record && argument.kind == ExprKind::name))) {
             const auto place = lower_place(argument);
             if (place.type != type) {
@@ -2970,6 +3079,45 @@ private:
 
     // ----- Objects ---------------------------------------------------------
 
+    // The target of an enclosing With block.
+    struct WithTarget final {
+        bool object{};
+        Operand operand;  // a slot: the object, or a pointer to the record
+        int index{-1};    // the class, or the record type
+    };
+
+    [[nodiscard]] const WithTarget& current_with(const Position at) const {
+        if (with_targets_.empty()) {
+            fail("a leading '.' needs an enclosing With block", at);
+        }
+        return with_targets_.back();
+    }
+
+    void lower_with(const Stmt& statement) {
+        int cls = -1;
+        if (object_class_of(*statement.expr, cls)) {
+            const auto value = lower_expression(*statement.expr);
+            const auto slot = builder_->new_temp();
+            builder_->move_wide(slot, ir::immediate(0));
+            builder_->runtime(Service::object_assign,
+                              {address_of(slot), value.operand});
+            with_targets_.push_back(WithTarget{true, slot, value.cls});
+            lower_block(statement.body);
+            with_targets_.pop_back();
+            builder_->runtime(Service::object_release, {slot});
+            return;
+        }
+        const auto place = lower_place(*statement.expr);
+        if (place.type != VbType::record || place.is_array) {
+            fail("With needs an object or a record", statement.at);
+        }
+        const auto slot = builder_->new_temp();
+        builder_->move_wide(slot, struct_pointer(place));
+        with_targets_.push_back(WithTarget{false, slot, place.udt});
+        lower_block(statement.body);
+        with_targets_.pop_back();
+    }
+
     [[nodiscard]] static const Signature* member_signature(
         const ClassInfo& info, const std::string& name) {
         if (const auto found = info.methods.find(name);
@@ -3027,6 +3175,12 @@ private:
             }
             case ExprKind::new_object:
                 cls = find_class(expression.text, expression.at);
+                return true;
+            case ExprKind::with_target:
+                if (with_targets_.empty() || !with_targets_.back().object) {
+                    return false;
+                }
+                cls = with_targets_.back().index;
                 return true;
             case ExprKind::member:
             case ExprKind::member_call: {
@@ -3540,10 +3694,33 @@ private:
                 }
                 return Value{place.operand, place.type};
             }
-            case ExprKind::member_call:
-                return lower_object_call(expression, true);
+            case ExprKind::member_call: {
+                int cls = -1;
+                if (object_class_of(*expression.operands[0], cls)) {
+                    return lower_object_call(expression, true);
+                }
+                const auto place = lower_place(expression);
+                if (place.type == VbType::record) {
+                    fail("a record cannot be used as a value here",
+                         expression.at);
+                }
+                if (is_handle(place.type)) {
+                    const auto copy = builder_->new_temp();
+                    builder_->move_wide(copy, place.operand);
+                    return Value{copy, place.type};
+                }
+                return Value{place.operand, place.type};
+            }
             case ExprKind::new_object:
                 return lower_new(expression);
+            case ExprKind::with_target: {
+                const auto& target = current_with(expression.at);
+                if (!target.object) {
+                    fail("a record cannot be used as a value here",
+                         expression.at);
+                }
+                return Value{target.operand, VbType::object, target.index};
+            }
             case ExprKind::unary:
                 return lower_unary(expression);
             case ExprKind::binary:
@@ -3857,7 +4034,8 @@ private:
     std::vector<Loop> loops_;
     std::vector<Owned> owned_slots_;  // handles released when a procedure ends
     std::vector<GlobalArray> global_arrays_;
-    std::vector<Operand> global_objects_;  // module-level objects
+    std::vector<Operand> global_objects_;   // module-level objects
+    std::vector<WithTarget> with_targets_;  // the enclosing With blocks
     std::vector<UdtInfo> udts_;
     std::map<std::string, int> udt_index_;
     std::vector<OwnedRecord> owned_records_;

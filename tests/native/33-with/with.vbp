@@ -1,0 +1,3 @@
+Module=Main; main.bas
+Class=Box; Box.cls
+Startup="Sub Main"

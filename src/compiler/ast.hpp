@@ -47,6 +47,7 @@ enum class ExprKind {
     member_call,  // text = the member; operands[0] = the object; the rest
                   // are the arguments
     new_object,   // `New Class`: text = the class name
+    with_target,  // the object of the enclosing With: `.member` starts here
     binary,       // op: "+", "-", "*", "\\", "mod", "=", "<>", "<", ">", "<=",
                   // ">=", "and", "or", "xor", "&"
 };
@@ -88,6 +89,7 @@ enum class StmtKind {
     set_object,   // `Set target = expr`
     call_member,  // an object's member called as a statement: expr is a
                   // member or member_call
+    with_block,   // `With expr`: expr; body
 };
 
 // One test of a Case: a value, a range (`low To high`) or `Is <op> low`.
@@ -185,6 +187,8 @@ struct FieldDecl final {
     std::string name;  // lower-case
     VbType type{VbType::none};
     std::string type_name;
+    bool is_array{};                 // a fixed array inside the type
+    std::vector<ArrayBound> bounds;  // its one dimension
     Position at;
 };
 
