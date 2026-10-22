@@ -2364,6 +2364,10 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
             const int y = to_y(operation.y1);
             const int cx = std::max(to_x(operation.x2), 1);
             const int cy = std::max(to_y(operation.y2), 1);
+            // A picture drawn at another size is resampled smoothly (the
+            // default mode drops or ANDs pixels, which ruins detailed art).
+            SetStretchBltMode(dc, HALFTONE);
+            SetBrushOrgEx(dc, 0, 0, nullptr);
             if (operation.has_source && operation.source_width > 0 &&
                 operation.source_height > 0) {
                 // The source rectangle is in twips of the natural size.

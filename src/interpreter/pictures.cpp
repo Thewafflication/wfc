@@ -58,6 +58,47 @@ namespace {
     return static_cast<unsigned char>(data[at]);
 }
 
+// A GIF may carry the size a program lays it out at in a comment
+// ("wfc:size=WxH", pixels at 96 dpi), so that a sprite drawn with more
+// pixels keeps its place in the layout and is only resampled.
+[[nodiscard]] bool gif_design_size(const std::string& bytes,
+                                   std::uint32_t& width,
+                                   std::uint32_t& height) {
+    std::size_t at = 13;
+    if (bytes.size() > 10U && (byte_at(bytes, 10) & 0x80U) != 0U) {
+        at += 3U * (1U << ((byte_at(bytes, 10) & 7U) + 1U));
+    }
+    while (at + 2U < bytes.size() && byte_at(bytes, at) == 0x21U) {
+        const auto label = byte_at(bytes, at + 1U);
+        std::size_t cursor = at + 2U;
+        std::string text;
+        while (cursor < bytes.size() && byte_at(bytes, cursor) != 0U) {
+            const std::size_t length = byte_at(bytes, cursor);
+            text.append(bytes, cursor + 1U, length);
+            cursor += 1U + length;
+        }
+        if (label == 0xFEU && text.compare(0, 9, "wfc:size=") == 0) {
+            std::uint32_t values[2] = {0, 0};
+            int index = 0;
+            for (std::size_t i = 9; i < text.size() && index < 2; ++i) {
+                if (text[i] >= '0' && text[i] <= '9') {
+                    values[index] = values[index] * 10U +
+                                    static_cast<std::uint32_t>(text[i] - '0');
+                } else {
+                    ++index;
+                }
+            }
+            if (values[0] > 0U && values[1] > 0U) {
+                width = values[0];
+                height = values[1];
+                return true;
+            }
+        }
+        at = cursor + 1U;
+    }
+    return false;
+}
+
 }  // namespace
 
 bool read_picture_header(const std::string& bytes, PictureInfo& info) {
@@ -109,8 +150,11 @@ bool read_picture_header(const std::string& bytes, PictureInfo& info) {
         return true;
     }
     if (bytes.compare(0, 4, "GIF8") == 0) {
-        info = PictureInfo{PictureType::bitmap, himetric(le16(bytes, 6)),
-                           himetric(le16(bytes, 8))};
+        std::uint32_t design_width = le16(bytes, 6);
+        std::uint32_t design_height = le16(bytes, 8);
+        static_cast<void>(gif_design_size(bytes, design_width, design_height));
+        info = PictureInfo{PictureType::bitmap, himetric(design_width),
+                           himetric(design_height)};
         return true;
     }
     if (byte_at(bytes, 0) == 0xFFU && byte_at(bytes, 1) == 0xD8U) {

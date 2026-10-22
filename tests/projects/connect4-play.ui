@@ -5,30 +5,30 @@ get FMain.Picture1 scaleheight
 get FMain.LbPlayerName caption
 get FMain.BtnUndo enabled
 get FMain.BtnRedo enabled
-mousedown FMain.Picture1 1 7436 4000
+mousedown FMain.Picture1 1 10221 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 9997 4000
+mousedown FMain.Picture1 1 13134 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 7436 4000
+mousedown FMain.Picture1 1 10221 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 9997 4000
+mousedown FMain.Picture1 1 13134 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 7436 4000
+mousedown FMain.Picture1 1 10221 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
-mousedown FMain.Picture1 1 9997 4000
-click FMain.Picture1
-get FMain.LbPlayerName caption
-answer msgbox 1
-mousedown FMain.Picture1 1 7436 4000
+mousedown FMain.Picture1 1 13134 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
 answer msgbox 1
-mousedown FMain.Picture1 1 9997 4000
+mousedown FMain.Picture1 1 10221 4000
+click FMain.Picture1
+get FMain.LbPlayerName caption
+answer msgbox 1
+mousedown FMain.Picture1 1 13134 4000
 click FMain.Picture1
 get FMain.LbPlayerName caption
 get FMain.BtnUndo enabled
