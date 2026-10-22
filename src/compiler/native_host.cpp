@@ -441,9 +441,16 @@ struct RtArray final {
 
 // A string element occupies eight bytes on every architecture (the generated
 // code uses 8-byte cells), whatever the size of a pointer.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4324)  // padded to eight bytes on purpose
+#endif
 struct alignas(8) HandleCell final {
     RtString* handle;
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 void release_elements(RtArray* array) {
     if (array->kind == 3 && array->strings != nullptr) {

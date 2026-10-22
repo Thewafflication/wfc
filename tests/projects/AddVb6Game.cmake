@@ -33,12 +33,18 @@ endfunction()
 
 # Registers a scripted play session of a corpus game: the headless program
 # runs the script, whose `get`, `messages` lines state what it expects.
-# An optional fifth argument is the WFC_RANDOM_SEED of the session.
+# An optional fifth argument is the WFC_RANDOM_SEED of the session, an optional
+# sixth the screen size "WIDTHxHEIGHT" the program sees (WFC_SCREEN), so a
+# layout that follows the screen does not depend on the machine's display.
 function(add_vb6_play name vbp script expected)
   if(EXISTS "${vb6games_dir}/${vbp}")
     set(seed_argument "")
-    if(ARGC GREATER 4)
+    if(ARGC GREATER 4 AND NOT "${ARGV4}" STREQUAL "")
       set(seed_argument "-DSEED=${ARGV4}")
+    endif()
+    set(screen_argument "")
+    if(ARGC GREATER 5)
+      set(screen_argument "-DSCREEN=${ARGV5}")
     endif()
     add_test(
       NAME TC-MP0008-vb6games-${name}
@@ -47,8 +53,8 @@ function(add_vb6_play name vbp script expected)
         "-DPROJECT=${vb6games_dir}/${vbp}"
         "-DSCRIPT=${project_checks}/${script}"
         "-DEXPECTED=${project_checks}/${expected}"
-        "-DWORK=${CMAKE_BINARY_DIR}/vb6games-${name}" ${seed_argument} -P
-        "${project_checks}/run_project_script.cmake"
+        "-DWORK=${CMAKE_BINARY_DIR}/vb6games-${name}" ${seed_argument}
+        ${screen_argument} -P "${project_checks}/run_project_script.cmake"
     )
     set_tests_properties(
       TC-MP0008-vb6games-${name}

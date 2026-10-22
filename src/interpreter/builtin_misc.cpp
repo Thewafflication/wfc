@@ -6,6 +6,8 @@
 #include "interpreter.hpp"
 #include "pictures.hpp"
 
+#include <cstdlib>
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -49,11 +51,20 @@ BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
 // pixels, 2/3 horizontal and vertical DPI, 4 the installed font count.
 [[nodiscard]] Integer system_metric(const Integer index) {
 #ifdef _WIN32
-    if (index == 0) {
-        return GetSystemMetrics(SM_CXSCREEN);
-    }
-    if (index == 1) {
-        return GetSystemMetrics(SM_CYSCREEN);
+    if (index == 0 || index == 1) {
+        // WFC_SCREEN ("WIDTHxHEIGHT") pretends the screen has that size.
+        char text[64] = {};
+        if (GetEnvironmentVariableA("WFC_SCREEN", text, sizeof(text)) > 0) {
+            char* rest = nullptr;
+            const long width = std::strtol(text, &rest, 10);
+            if (*rest == 'x') {
+                const long height = std::strtol(rest + 1, nullptr, 10);
+                if (width > 0 && height > 0) {
+                    return static_cast<Integer>(index == 0 ? width : height);
+                }
+            }
+        }
+        return GetSystemMetrics(index == 0 ? SM_CXSCREEN : SM_CYSCREEN);
     }
     if (index == 2 || index == 3) {
         int dpi = 96;

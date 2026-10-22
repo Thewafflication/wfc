@@ -452,6 +452,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     connect4/PConnect4.vbp
     connect4-play.ui
     connect4-play.expected
+    ""
+    2560x1440
   )
   add_vb6_play(
     sumboku-solve

@@ -11,6 +11,10 @@ file(COPY "${project_dir}/" DESTINATION "${WORK}")
 if(DEFINED SEED)
   set(ENV{WFC_RANDOM_SEED} "${SEED}")
 endif()
+# A fixed screen size keeps a layout that follows the screen repeatable.
+if(DEFINED SCREEN)
+  set(ENV{WFC_SCREEN} "${SCREEN}")
+endif()
 execute_process(
   COMMAND "${WFC}" "${WORK}/${project_file}" --ui-script "${SCRIPT}"
   RESULT_VARIABLE result
