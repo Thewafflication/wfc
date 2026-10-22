@@ -439,6 +439,12 @@ struct RtArray final {
     return reinterpret_cast<char*>(array) + sizeof(RtArray);
 }
 
+// A string element occupies eight bytes on every architecture (the generated
+// code uses 8-byte cells), whatever the size of a pointer.
+struct alignas(8) HandleCell final {
+    RtString* handle;
+};
+
 void release_elements(RtArray* array) {
     if (array->kind == 3 && array->strings != nullptr) {
         for (std::int32_t i = 0; i < array->count; ++i) {
@@ -453,10 +459,10 @@ void release_elements(RtArray* array) {
             }
         }
     } else if (array->kind == 2) {
-        auto* handles = reinterpret_cast<RtString**>(data_of(array));
+        auto* cells = reinterpret_cast<HandleCell*>(data_of(array));
         for (std::int32_t i = 0; i < array->count; ++i) {
-            release(handles[i]);
-            handles[i] = nullptr;
+            release(cells[i].handle);
+            cells[i].handle = nullptr;
         }
     }
 }
