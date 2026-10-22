@@ -33,21 +33,28 @@ struct LowerFailure final {
 struct Value final {
     Operand operand;
     VbType type{VbType::none};
+    int cls{-1};  // the class when type is object (-1: any, or Nothing)
 };
 
 struct Variable final {
     Operand operand;
     VbType type{VbType::none};  // the element type of an array
     bool is_array{};
-    int udt{-1};  // the index of the user-defined type when type is record
+    // The index of the user-defined type when type is record, of the class
+    // when type is object (-1: late bound).
+    int udt{-1};
+    bool auto_new{};  // `Dim x As New Class`: created on first use
 };
 
-// A field of a user-defined type and where it lies.
+// A field of a user-defined type or a class and where it lies.
 struct FieldInfo final {
     std::string name;
     VbType type{VbType::none};
     int udt{-1};
     std::int64_t offset{};
+    bool is_array{};
+    bool is_public{};
+    bool auto_new{};
 };
 
 struct UdtInfo final {
@@ -75,7 +82,28 @@ struct Signature final {
     int index{};
     std::vector<Parameter> parameters;
     VbType return_type{VbType::none};
+    int return_cls{-1};  // the class of an object result
     bool is_function{};
+    // The classes of the parameters that are objects (-1 elsewhere).
+    std::vector<int> parameter_cls;
+};
+
+// A compiled class: the layout of its fields behind the object header, its
+// members and its record in the image.
+struct ClassInfo final {
+    std::string name;
+    const Module* module{};
+    UdtInfo layout;
+    // Offset and ir::HandleKind of every field that holds a counted handle.
+    std::vector<std::pair<std::int64_t, int>> handles;
+    std::map<std::string, Signature> methods;  // Subs and Functions
+    std::map<std::string, Signature> getters;
+    std::map<std::string, Signature> letters;
+    std::map<std::string, Signature> setters;
+    int record{-1};
+    int new_function{-1};
+    int initialize{-1};
+    int terminate{-1};
 };
 
 [[nodiscard]] bool is_integral(const VbType type) {
@@ -91,9 +119,22 @@ struct Signature final {
     return is_integral(type) || is_float(type);
 }
 
-// A value held as a handle: a String or a Variant.
+// A value held as a counted handle: a String, a Variant or an object.
 [[nodiscard]] bool is_handle(const VbType type) {
-    return type == VbType::string || type == VbType::variant;
+    return type == VbType::string || type == VbType::variant ||
+           type == VbType::object;
+}
+
+[[nodiscard]] Service release_service(const VbType type) {
+    return type == VbType::string    ? Service::string_release
+           : type == VbType::variant ? Service::variant_release
+                                     : Service::object_release;
+}
+
+[[nodiscard]] Service addref_service(const VbType type) {
+    return type == VbType::string    ? Service::string_addref
+           : type == VbType::variant ? Service::variant_addref
+                                     : Service::object_addref;
 }
 
 // Significant digits VB6 prints: 15 for a Double, 7 for a Single.
@@ -151,6 +192,8 @@ public:
             case Service::double_to_long:
             case Service::math_function:
             case Service::double_power:
+            case Service::object_new:
+            case Service::object_check:
             case Service::variant_binary:
             case Service::variant_negate:
             case Service::variant_not:
@@ -315,22 +358,32 @@ constexpr Builtin kBuiltins[] = {
 
 class Lowerer final {
 public:
-    explicit Lowerer(const Module& module) : module_(module) {}
+    Lowerer(const Module& module, std::vector<const Module*> class_modules)
+        : module_(module), class_modules_(std::move(class_modules)) {}
 
     ir::Program run() {
+        register_classes();
         declare_types();
         declare_constants(module_.constants, constants_);
+        declare_class_layouts();
         declare_globals();
         declare_procedures();
+        declare_class_members();
         for (const auto& procedure : module_.procedures) {
-            lower_procedure(procedure);
+            lower_procedure(procedure, -1);
+        }
+        for (std::size_t c = 0; c < classes_.size(); ++c) {
+            for (const auto& procedure : classes_[c].module->procedures) {
+                lower_procedure(procedure, static_cast<int>(c));
+            }
+            lower_class_new(c);
         }
         const auto main = signatures_.find("main");
         if (main == signatures_.end() || main->second.is_function) {
             fail("the project has no Sub Main", Position{1, 1});
         }
         program_.entry = main->second.index;
-        if (!global_arrays_.empty()) {
+        if (!global_arrays_.empty() || !global_objects_.empty()) {
             make_start_function(main->second.index);
         }
         return std::move(program_);
@@ -370,6 +423,13 @@ private:
                                   true, false, true);
         }
         builder.call({}, main_index, {}, false);
+        // The module-level objects end with the program.
+        for (const auto& object : global_objects_) {
+            const auto handle =
+                builder.new_temp();  // handles go through a slot
+            builder.move_wide(handle, object);
+            builder.runtime(Service::object_release, {handle});
+        }
         builder.place(finish);
         builder.ret();
         builder_ = nullptr;
@@ -482,6 +542,10 @@ private:
                     array->type, false, array->udt};
             }
             case ExprKind::member: {
+                int object_cls = -1;
+                if (object_class_of(*expression.operands[0], object_cls)) {
+                    return lower_object_field(expression);
+                }
                 const auto base = lower_place(*expression.operands[0]);
                 if (base.type != VbType::record || base.is_array) {
                     fail("'." + expression.text + "' needs a record before it",
@@ -560,11 +624,21 @@ private:
                 if (!declaration.is_array) {
                     slots = udts_[static_cast<std::size_t>(record)].size / 8;
                 }
+            } else if (declaration.type == VbType::object) {
+                if (declaration.is_array) {
+                    fail("an array of objects is not compiled yet",
+                         declaration.at);
+                }
+                record = class_of(declaration.type_name, declaration.at);
             }
             const auto variable = Variable{
                 ir::global(static_cast<std::int64_t>(program_.globals.size())),
-                declaration.type, declaration.is_array, record};
+                declaration.type, declaration.is_array, record,
+                declaration.is_new};
             globals_[declaration.name] = variable;
+            if (declaration.type == VbType::object) {
+                global_objects_.push_back(variable.operand);
+            }
             for (std::int64_t i = 0; i < slots; ++i) {
                 program_.globals.push_back(ir::Global{declaration.name});
             }
@@ -581,47 +655,247 @@ private:
                 fail("'" + procedure.spelling + "' is already declared",
                      procedure.at);
             }
-            if (procedure.is_function &&
-                procedure.return_type == VbType::none) {
-                fail("the Function " + procedure.spelling +
-                         " needs an explicit return type (Variant is not "
-                         "compiled yet)",
+            signatures_[procedure.name] =
+                declare_function(procedure, procedure.name, false);
+        }
+    }
+
+    // The signature and the empty IR function of a procedure; a method gets the
+    // object (Me) before its parameters.
+    [[nodiscard]] Signature declare_function(const Procedure& procedure,
+                                             const std::string& name,
+                                             const bool method) {
+        if (procedure.return_type == VbType::record) {
+            fail("a Function cannot return a record", procedure.at);
+        }
+        Signature signature;
+        for (const auto& parameter : procedure.parameters) {
+            if (parameter.type == VbType::none) {
+                fail("the parameter '" + parameter.name + "' needs a type",
                      procedure.at);
             }
-            if (procedure.return_type == VbType::record) {
-                fail("a Function cannot return a record", procedure.at);
-            }
-            for (const auto& parameter : procedure.parameters) {
-                if (parameter.type == VbType::none) {
-                    fail("the parameter '" + parameter.name +
-                             "' needs an explicit type (Variant is not "
-                             "compiled yet)",
+            if (parameter.type == VbType::record) {
+                if (parameter.by_value) {
+                    fail("a record parameter must be passed ByRef",
                          procedure.at);
                 }
-                if (parameter.type == VbType::record) {
-                    if (parameter.by_value) {
-                        fail("a record parameter must be passed ByRef",
-                             procedure.at);
+                static_cast<void>(find_udt(parameter.type_name, procedure.at));
+            }
+            signature.parameter_cls.push_back(
+                parameter.type == VbType::object
+                    ? class_of(parameter.type_name, procedure.at)
+                    : -1);
+        }
+        signature.index = static_cast<int>(program_.functions.size());
+        signature.parameters = procedure.parameters;
+        signature.return_type = procedure.return_type;
+        signature.is_function = procedure.is_function;
+        if (procedure.return_type == VbType::object) {
+            signature.return_cls =
+                class_of(procedure.return_type_name, procedure.at);
+        }
+        ir::Function function;
+        function.name = name;
+        if (method) {
+            function.parameters.push_back(ir::Parameter{true, true, false});
+        }
+        for (const auto& parameter : procedure.parameters) {
+            function.parameters.push_back(
+                ir::Parameter{parameter.by_value,
+                              !parameter.by_value || is_handle(parameter.type),
+                              parameter.by_value && is_float(parameter.type)});
+        }
+        program_.functions.push_back(std::move(function));
+        return signature;
+    }
+
+    // ----- Classes ---------------------------------------------------------
+
+    void register_classes() {
+        for (const Module* module : class_modules_) {
+            ClassInfo info;
+            info.name = module->name;
+            info.module = module;
+            class_index_[info.name] = static_cast<int>(classes_.size());
+            classes_.push_back(std::move(info));
+        }
+    }
+
+    [[nodiscard]] int find_class(const std::string& name,
+                                 const Position at) const {
+        const auto found = class_index_.find(name);
+        if (found == class_index_.end()) {
+            fail("the class '" + name + "' is not declared", at);
+        }
+        return found->second;
+    }
+
+    // The class a type name stands for (-1 for plain Object).
+    [[nodiscard]] int class_of(const std::string& type_name,
+                               const Position at) const {
+        return type_name.empty() ? -1 : find_class(type_name, at);
+    }
+
+    // The layout of the fields of every class and its record in the image.
+    void declare_class_layouts() {
+        for (auto& info : classes_) {
+            std::int64_t offset = 0;
+            for (const auto& declaration : info.module->globals) {
+                FieldInfo entry;
+                entry.name = declaration.name;
+                entry.type = declaration.type;
+                entry.is_array = declaration.is_array;
+                entry.is_public = declaration.is_public;
+                entry.auto_new = declaration.is_new;
+                std::int64_t size = 4;
+                int kind = -1;
+                std::vector<std::int64_t> inner_strings;
+                if (declaration.is_array) {
+                    if (declaration.type == VbType::variant ||
+                        declaration.type == VbType::record ||
+                        declaration.type == VbType::object) {
+                        fail("this array in a class is not compiled yet",
+                             declaration.at);
                     }
-                    static_cast<void>(
-                        find_udt(parameter.type_name, procedure.at));
+                    size = 8;
+                    kind = static_cast<int>(ir::HandleKind::array);
+                } else if (declaration.type == VbType::record) {
+                    entry.udt = find_udt(declaration.type_name, declaration.at);
+                    const auto& inner =
+                        udts_[static_cast<std::size_t>(entry.udt)];
+                    size = inner.size;
+                    inner_strings = inner.string_offsets;
+                } else if (declaration.type == VbType::object) {
+                    entry.udt = class_of(declaration.type_name, declaration.at);
+                    size = 8;
+                    kind = static_cast<int>(ir::HandleKind::object);
+                } else if (declaration.type == VbType::string) {
+                    size = 8;
+                    kind = static_cast<int>(ir::HandleKind::string);
+                } else if (declaration.type == VbType::variant) {
+                    size = 8;
+                    kind = static_cast<int>(ir::HandleKind::variant);
+                } else if (is_float(declaration.type)) {
+                    size = 8;
+                }
+                const std::int64_t align = size >= 8 ? 8 : 4;
+                offset = (offset + align - 1) / align * align;
+                entry.offset = offset;
+                if (kind >= 0) {
+                    info.handles.emplace_back(offset, kind);
+                }
+                for (const auto inner : inner_strings) {
+                    info.handles.emplace_back(
+                        offset + inner,
+                        static_cast<int>(ir::HandleKind::string));
+                }
+                offset += size;
+                info.layout.fields.push_back(std::move(entry));
+            }
+            info.layout.size = std::max<std::int64_t>(8, (offset + 7) / 8 * 8);
+            // The record: size, the offset of Terminate (filled in later), the
+            // counted handles.
+            std::string blob;
+            const auto put = [&blob](const std::int32_t value) {
+                blob.append(reinterpret_cast<const char*>(&value),
+                            sizeof(value));
+            };
+            put(static_cast<std::int32_t>(info.layout.size));
+            put(-1);
+            put(static_cast<std::int32_t>(info.handles.size()));
+            for (const auto& [at, kind] : info.handles) {
+                put(static_cast<std::int32_t>(at));
+                put(kind);
+            }
+            program_.strings.push_back(std::move(blob));
+            info.record = static_cast<int>(program_.strings.size() - 1U);
+            program_.classes.push_back(ir::Class{info.name, info.record, -1});
+        }
+    }
+
+    void declare_class_members() {
+        for (std::size_t c = 0; c < classes_.size(); ++c) {
+            auto& info = classes_[c];
+            for (const auto& procedure : info.module->procedures) {
+                const auto signature = declare_function(
+                    procedure, info.name + "." + procedure.name, true);
+                auto* table = &info.methods;
+                switch (procedure.property) {
+                    case PropertyKind::get:
+                        table = &info.getters;
+                        break;
+                    case PropertyKind::let:
+                        table = &info.letters;
+                        break;
+                    case PropertyKind::set:
+                        table = &info.setters;
+                        break;
+                    case PropertyKind::none:
+                        break;
+                }
+                if (!table->emplace(procedure.name, signature).second) {
+                    fail("'" + procedure.spelling + "' is already declared",
+                         procedure.at);
+                }
+                if (procedure.name == "class_initialize") {
+                    info.initialize = signature.index;
+                }
+                if (procedure.name == "class_terminate") {
+                    info.terminate = signature.index;
                 }
             }
-            Signature signature;
-            signature.index = static_cast<int>(signatures_.size());
-            signature.parameters = procedure.parameters;
-            signature.return_type = procedure.return_type;
-            signature.is_function = procedure.is_function;
-            signatures_[procedure.name] = signature;
             ir::Function function;
-            function.name = procedure.name;
-            for (const auto& parameter : procedure.parameters) {
-                function.parameters.push_back(ir::Parameter{
-                    parameter.by_value,
-                    !parameter.by_value || is_handle(parameter.type),
-                    parameter.by_value && is_float(parameter.type)});
-            }
+            function.name = info.name + ".__new";
+            info.new_function = static_cast<int>(program_.functions.size());
             program_.functions.push_back(std::move(function));
+            program_.classes[c].terminate = info.terminate;
+        }
+    }
+
+    // `Class.__new`: makes an object and runs Class_Initialize.
+    void lower_class_new(const std::size_t c) {
+        auto& info = classes_[c];
+        auto& function =
+            program_.functions[static_cast<std::size_t>(info.new_function)];
+        FunctionBuilder builder(function);
+        builder_ = &builder;
+        const auto result = builder.new_temp();
+        function.result_slot = static_cast<int>(result.value);
+        function.result_wide = true;
+        const int finish = builder.new_label();
+        builder.set_error_label(finish);
+        builder.move_wide(result, ir::immediate(0));
+        builder.runtime(Service::object_new, {ir::literal(info.record)}, result,
+                        true);
+        if (info.initialize >= 0) {
+            builder.call({}, info.initialize, {result}, false);
+        }
+        builder.place(finish);
+        builder.ret();
+        builder_ = nullptr;
+    }
+
+    [[nodiscard]] const Signature& class_signature(
+        const int cls, const Procedure& procedure) const {
+        const auto& info = classes_[static_cast<std::size_t>(cls)];
+        const auto& table =
+            procedure.property == PropertyKind::get   ? info.getters
+            : procedure.property == PropertyKind::let ? info.letters
+            : procedure.property == PropertyKind::set ? info.setters
+                                                      : info.methods;
+        return table.at(procedure.name);
+    }
+
+    // The fields of the class as places behind the object pointer, computed
+    // once when a method starts.
+    void materialize_fields(const int cls) {
+        const auto& info = classes_[static_cast<std::size_t>(cls)];
+        for (const auto& field : info.layout.fields) {
+            const auto where =
+                pointer_plus(me_, ir::kObjectHeader + field.offset);
+            fields_[field.name] =
+                Variable{ir::indirect(where.value), field.type, field.is_array,
+                         field.udt, field.auto_new};
         }
     }
 
@@ -648,8 +922,9 @@ private:
         }
     }
 
-    void lower_procedure(const Procedure& procedure) {
-        const auto& signature = signatures_.at(procedure.name);
+    void lower_procedure(const Procedure& procedure, const int cls) {
+        const auto& signature = cls < 0 ? signatures_.at(procedure.name)
+                                        : class_signature(cls, procedure);
         auto& function =
             program_.functions[static_cast<std::size_t>(signature.index)];
         FunctionBuilder builder(function);
@@ -659,10 +934,17 @@ private:
         owned_slots_.clear();
         owned_records_.clear();
         pending_.clear();
+        fields_.clear();
         current_ = &procedure;
+        current_class_ = cls;
         result_variable_.reset();
-        // Parameters occupy the first slots.
-        for (const auto& parameter : procedure.parameters) {
+        me_ = {};
+        if (cls >= 0) {
+            me_ = ir::slot(function.slot_count++);  // the object comes first
+        }
+        // Parameters occupy the next slots.
+        for (std::size_t i = 0; i < procedure.parameters.size(); ++i) {
+            const auto& parameter = procedure.parameters[i];
             if (locals_.contains(parameter.name)) {
                 fail("the parameter '" + parameter.name + "' is declared twice",
                      procedure.at);
@@ -673,16 +955,14 @@ private:
                 parameter.type, parameter.is_array,
                 parameter.type == VbType::record
                     ? find_udt(parameter.type_name, procedure.at)
-                    : -1};
+                : parameter.type == VbType::object ? signature.parameter_cls[i]
+                                                   : -1};
             if (parameter.by_value && is_handle(parameter.type)) {
-                // The callee owns its copy of a String or Variant parameter.
-                const bool text = parameter.type == VbType::string;
-                builder.runtime(
-                    text ? Service::string_addref : Service::variant_addref,
-                    {ir::slot(index)});
+                // The callee owns its copy of a handle parameter.
+                builder.runtime(addref_service(parameter.type),
+                                {ir::slot(index)});
                 owned_slots_.push_back(
-                    Owned{ir::slot(index), text ? Service::string_release
-                                                : Service::variant_release});
+                    Owned{ir::slot(index), release_service(parameter.type)});
             }
         }
         if (procedure.is_function) {
@@ -691,7 +971,8 @@ private:
             function.result_wide = is_handle(procedure.return_type);
             function.result_double = is_float(procedure.return_type);
             zero(result, procedure.return_type);
-            result_variable_ = Variable{result, procedure.return_type};
+            result_variable_ = Variable{result, procedure.return_type, false,
+                                        signature.return_cls};
         }
         end_label_ = builder.new_label();
         builder.set_error_label(end_label_);
@@ -699,9 +980,17 @@ private:
         entry_index_ = builder.position();
         late_zero_.clear();
         local_constants_.clear();
+        if (cls >= 0) {
+            declare_constants(
+                classes_[static_cast<std::size_t>(cls)].module->constants,
+                local_constants_);
+        }
         labels_.clear();
         defined_labels_.clear();
         setup_error_handling(procedure, builder);
+        if (cls >= 0) {
+            materialize_fields(cls);
+        }
         declare_locals_of(procedure.body);
         lower_block(procedure.body);
         if (uses_errors_) {
@@ -906,7 +1195,7 @@ private:
         const auto number = lower_expression(*statement.items[0]);
         arguments.push_back(to_long(number, statement.at).operand);
         for (std::size_t i = 1; i < 3U; ++i) {
-            if (i < statement.items.size()) {
+            if (i < statement.items.size() && statement.items[i]) {
                 const auto text = lower_expression(*statement.items[i]);
                 if (text.type != VbType::string) {
                     fail("Err.Raise needs String arguments here",
@@ -942,10 +1231,15 @@ private:
             if (!declaration.is_array) {
                 cells = udts_[static_cast<std::size_t>(record)].size / 8;
             }
+        } else if (declaration.type == VbType::object) {
+            if (declaration.is_array) {
+                fail("an array of objects is not compiled yet", declaration.at);
+            }
+            record = class_of(declaration.type_name, declaration.at);
         }
         locals_[declaration.name] = Variable{
             ir::global(static_cast<std::int64_t>(program_.globals.size())),
-            declaration.type, declaration.is_array, record};
+            declaration.type, declaration.is_array, record, declaration.is_new};
         for (std::int64_t i = 0; i < cells; ++i) {
             program_.globals.push_back(ir::Global{declaration.name});
         }
@@ -961,6 +1255,19 @@ private:
         }
         if (declaration.is_static) {
             declare_static(declaration);
+            return;
+        }
+        if (declaration.type == VbType::object) {
+            if (declaration.is_array) {
+                fail("an array of objects is not compiled yet", declaration.at);
+            }
+            const auto slot = builder_->new_temp();
+            builder_->move_wide(slot, ir::immediate(0));
+            locals_[declaration.name] =
+                Variable{slot, VbType::object, false,
+                         class_of(declaration.type_name, declaration.at),
+                         declaration.is_new};
+            owned_slots_.push_back(Owned{slot, Service::object_release});
             return;
         }
         if (declaration.type == VbType::record && declaration.is_array) {
@@ -1018,6 +1325,8 @@ private:
             owned_slots_.push_back(Owned{slot, Service::string_release});
         } else if (declaration.type == VbType::variant) {
             owned_slots_.push_back(Owned{slot, Service::variant_release});
+        } else if (declaration.type == VbType::object) {
+            owned_slots_.push_back(Owned{slot, Service::object_release});
         }
     }
 
@@ -1122,10 +1431,20 @@ private:
         if (result_variable_.has_value() && name == current_->name) {
             return *result_variable_;
         }
+        if (const auto found = fields_.find(name); found != fields_.end()) {
+            return found->second;
+        }
         if (const auto found = globals_.find(name); found != globals_.end()) {
             return found->second;
         }
         fail("'" + name + "' is not declared", at);
+    }
+
+    // Whether the name is a variable, a field or the result of the procedure.
+    [[nodiscard]] bool has_variable(const std::string& name) const {
+        return locals_.contains(name) || fields_.contains(name) ||
+               globals_.contains(name) ||
+               (result_variable_.has_value() && name == current_->name);
     }
 
     // A string temporary owned by the current statement.
@@ -1200,6 +1519,12 @@ private:
             case StmtKind::call:
                 lower_call_statement(statement);
                 break;
+            case StmtKind::set_object:
+                lower_set(statement);
+                break;
+            case StmtKind::call_member:
+                static_cast<void>(lower_object_call(*statement.expr, false));
+                break;
             case StmtKind::exit:
                 lower_exit(statement);
                 break;
@@ -1210,6 +1535,24 @@ private:
                 declare_constants(statement.constants, local_constants_);
                 break;
             case StmtKind::label: {
+                if (statement.maybe_call &&
+                    (signatures_.contains(statement.text) ||
+                     (current_class_ >= 0 &&
+                      classes_[static_cast<std::size_t>(current_class_)]
+                          .methods.contains(statement.text)))) {
+                    // `Name : ...` where Name is a procedure: a call.
+                    if (current_class_ >= 0 &&
+                        !signatures_.contains(statement.text)) {
+                        static_cast<void>(emit_call(
+                            classes_[static_cast<std::size_t>(current_class_)]
+                                .methods.at(statement.text),
+                            statement.text, {}, me_, nullptr, statement.at));
+                    } else {
+                        static_cast<void>(lower_call(statement.text, {},
+                                                     statement.at, false));
+                    }
+                    break;
+                }
                 if (!defined_labels_.insert(statement.text).second) {
                     fail("the label '" + statement.text + "' is defined twice",
                          statement.at);
@@ -1288,34 +1631,19 @@ private:
             fail("the array '" + statement.text + "' needs an index",
                  statement.at);
         }
-        if (target.type == VbType::variant) {
-            const auto boxed = to_variant(value, statement.at);
-            builder_->runtime(Service::variant_assign,
-                              {address_of(target.operand), boxed.operand});
-            return;
-        }
-        if (target.type == VbType::string) {
-            const auto text =
-                value.type == VbType::variant
-                    ? from_variant(value, VbType::string, statement.at)
-                    : value;
-            if (text.type != VbType::string) {
-                fail("a number cannot be assigned to a String variable yet",
-                     statement.at);
-            }
-            builder_->runtime(Service::string_assign,
-                              {address_of(target.operand), text.operand});
-            return;
-        }
-        const auto converted = convert(value, target.type, statement.at);
-        if (is_float(target.type)) {
-            builder_->move_wide(target.operand, converted.operand);
-        } else {
-            builder_->emit(Opcode::move, target.operand, converted.operand);
-        }
+        store_value(target, value, statement.at);
     }
 
     void lower_place_assignment(const Stmt& statement) {
+        const Expr& target_expression = *statement.target;
+        if (target_expression.kind == ExprKind::member ||
+            target_expression.kind == ExprKind::member_call) {
+            int cls = -1;
+            if (object_class_of(*target_expression.operands[0], cls)) {
+                lower_object_assignment(statement);
+                return;
+            }
+        }
         // The value is evaluated first: it may change what the place is.
         const auto probe = statement.expr.get();
         const auto destination_type = place_type_of(*statement.target);
@@ -1327,26 +1655,33 @@ private:
         }
         const auto value = lower_expression(*probe);
         const auto target = lower_place(*statement.target);
+        store_value(target, value, statement.at);
+    }
+
+    // `target = value` for a place that is not a record or an array.
+    void store_value(const Variable& target, const Value& value,
+                     const Position at) {
+        if (target.type == VbType::object) {
+            fail("Set is needed to assign an object", at);
+        }
         if (target.type == VbType::variant) {
-            const auto boxed = to_variant(value, statement.at);
+            const auto boxed = to_variant(value, at);
             builder_->runtime(Service::variant_assign,
                               {address_of(target.operand), boxed.operand});
             return;
         }
         if (target.type == VbType::string) {
-            const auto text =
-                value.type == VbType::variant
-                    ? from_variant(value, VbType::string, statement.at)
-                    : value;
+            const auto text = value.type == VbType::variant
+                                  ? from_variant(value, VbType::string, at)
+                                  : value;
             if (text.type != VbType::string) {
-                fail("a number cannot be assigned to a String field yet",
-                     statement.at);
+                fail("a number cannot be assigned to a String yet", at);
             }
             builder_->runtime(Service::string_assign,
                               {address_of(target.operand), text.operand});
             return;
         }
-        const auto converted = convert(value, target.type, statement.at);
+        const auto converted = convert(value, target.type, at);
         if (is_float(target.type)) {
             builder_->move_wide(target.operand, converted.operand);
         } else {
@@ -1385,9 +1720,12 @@ private:
     // The record type a place of record type has (no code is generated).
     [[nodiscard]] bool base_udt_of(const Expr& expression, int& udt) {
         switch (expression.kind) {
-            case ExprKind::name:
-                udt = find_variable(expression.text, expression.at).udt;
+            case ExprKind::name: {
+                const auto variable =
+                    find_variable(expression.text, expression.at);
+                udt = variable.type == VbType::record ? variable.udt : -1;
                 return true;
+            }
             case ExprKind::call: {
                 const auto array = find_array(expression.text);
                 udt = array.has_value() ? array->udt : -1;
@@ -1440,6 +1778,9 @@ private:
                 item.literal = static_cast<int>(program_.strings.size() - 1U);
             } else {
                 item.value = snapshot(lower_expression(*expression));
+                if (item.value.type == VbType::object) {
+                    fail("an object cannot be printed", expression->at);
+                }
             }
             items.push_back(item);
         }
@@ -1484,13 +1825,9 @@ private:
         }
         const auto copy = builder_->new_temp();
         if (is_handle(value.type)) {
-            const bool text = value.type == VbType::string;
             builder_->move_wide(copy, value.operand);
-            builder_->runtime(
-                text ? Service::string_addref : Service::variant_addref,
-                {copy});
-            pending_.push_back(Owned{copy, text ? Service::string_release
-                                                : Service::variant_release});
+            builder_->runtime(addref_service(value.type), {copy});
+            pending_.push_back(Owned{copy, release_service(value.type)});
         } else if (is_float(value.type)) {
             builder_->move_wide(copy, value.operand);
         } else {
@@ -1699,6 +2036,11 @@ private:
     [[nodiscard]] std::optional<Variable> find_array(
         const std::string& name) const {
         if (const auto found = locals_.find(name); found != locals_.end()) {
+            return found->second.is_array
+                       ? std::optional<Variable>(found->second)
+                       : std::nullopt;
+        }
+        if (const auto found = fields_.find(name); found != fields_.end()) {
             return found->second.is_array
                        ? std::optional<Variable>(found->second)
                        : std::nullopt;
@@ -2186,52 +2528,115 @@ private:
         if (want_value && !signature.is_function) {
             fail("'" + name + "' is a Sub and has no value", at);
         }
-        if (arguments.size() != signature.parameters.size()) {
+        std::vector<const Expr*> pointers;
+        for (const auto& argument : arguments) {
+            if (!argument) {
+                fail("an omitted argument is not compiled yet", at);
+            }
+            pointers.push_back(argument.get());
+        }
+        return emit_call(signature, name, pointers, std::nullopt, nullptr, at);
+    }
+
+    // A temporary owned by the statement, released by its type.
+    [[nodiscard]] Operand new_owned(const VbType type) {
+        return type == VbType::string    ? new_owned_string()
+               : type == VbType::variant ? new_owned_variant()
+                                         : new_owned_object();
+    }
+
+    [[nodiscard]] Operand new_owned_object() {
+        const auto temp = builder_->new_temp();
+        pending_.push_back(Owned{temp, Service::object_release});
+        return temp;
+    }
+
+    // Checks that an object value fits an object parameter or variable of the
+    // class `cls` (-1: any).
+    static void require_class(const int cls, const Value& value,
+                              const Position at) {
+        if (value.type != VbType::object) {
+            fail("an object is needed here", at);
+        }
+        if (cls >= 0 && value.cls >= 0 && cls != value.cls) {
+            fail("the object is of another class", at);
+        }
+    }
+
+    // The operand a ByVal parameter receives.
+    [[nodiscard]] Operand pass_value(const Parameter& parameter, const int cls,
+                                     const Value& value, const Position at) {
+        if (parameter.type == VbType::variant) {
+            return to_variant(value, at).operand;
+        }
+        if (parameter.type == VbType::string) {
+            const auto text = value.type == VbType::variant
+                                  ? from_variant(value, VbType::string, at)
+                                  : value;
+            if (text.type != VbType::string) {
+                fail("a String argument is needed here", at);
+            }
+            return text.operand;
+        }
+        if (parameter.type == VbType::object) {
+            require_class(cls, value, at);
+            return value.operand;
+        }
+        return convert(value, parameter.type, at).operand;
+    }
+
+    // Calls a procedure: `me` is the object of a method, `trailing` an
+    // already evaluated last argument (the value of a Property Let or Set).
+    [[nodiscard]] Value emit_call(const Signature& signature,
+                                  const std::string& name,
+                                  const std::vector<const Expr*>& arguments,
+                                  const std::optional<Operand>& me,
+                                  const Value* trailing, const Position at) {
+        const std::size_t given =
+            arguments.size() + (trailing != nullptr ? 1U : 0U);
+        if (given != signature.parameters.size()) {
             fail("'" + name + "' takes " +
                      std::to_string(signature.parameters.size()) +
-                     " argument(s), not " + std::to_string(arguments.size()),
+                     " argument(s), not " + std::to_string(given),
                  at);
         }
         std::vector<Operand> passed;
         std::uint32_t double_args = 0;
-        for (std::size_t i = 0; i < arguments.size(); ++i) {
+        const std::size_t shift = me.has_value() ? 1U : 0U;
+        if (me.has_value()) {
+            passed.push_back(*me);
+        }
+        for (std::size_t i = 0; i < given; ++i) {
             const auto& parameter = signature.parameters[i];
-            const auto& argument = *arguments[i];
+            const bool is_trailing = i >= arguments.size();
             if (parameter.is_array) {
-                passed.push_back(array_argument(argument, parameter.type));
+                if (is_trailing) {
+                    fail("an array cannot be passed here", at);
+                }
+                passed.push_back(array_argument(*arguments[i], parameter.type));
                 continue;
             }
             if (parameter.by_value && is_float(parameter.type)) {
-                double_args |= 1U << i;
+                double_args |= 1U << (i + shift);
             }
             if (parameter.by_value) {
-                const auto value = lower_expression(argument);
-                if (parameter.type == VbType::variant) {
-                    passed.push_back(to_variant(value, argument.at).operand);
-                } else if (parameter.type == VbType::string) {
-                    const auto text =
-                        value.type == VbType::variant
-                            ? from_variant(value, VbType::string, argument.at)
-                            : value;
-                    if (text.type != VbType::string) {
-                        fail("a String argument is needed here", argument.at);
-                    }
-                    passed.push_back(text.operand);
-                } else {
-                    passed.push_back(
-                        convert(value, parameter.type, argument.at).operand);
-                }
+                const auto value =
+                    is_trailing ? *trailing : lower_expression(*arguments[i]);
+                passed.push_back(
+                    pass_value(parameter, signature.parameter_cls[i], value,
+                               is_trailing ? at : arguments[i]->at));
                 continue;
             }
-            passed.push_back(by_reference(argument, parameter.type));
+            passed.push_back(
+                is_trailing ? reference_to_value(*trailing, parameter.type, at)
+                            : by_reference(*arguments[i], parameter.type));
         }
         Value result;
         result.type = signature.return_type;
+        result.cls = signature.return_cls;
         const bool wide = is_handle(signature.return_type);
-        result.operand = !wide ? builder_->new_temp()
-                         : signature.return_type == VbType::variant
-                             ? new_owned_variant()
-                             : new_owned_string();
+        result.operand =
+            wide ? new_owned(signature.return_type) : builder_->new_temp();
         builder_->call(result.operand, signature.index, std::move(passed), wide,
                        double_args, is_float(signature.return_type));
         return result;
@@ -2267,11 +2672,24 @@ private:
             return address_of(variable.operand);
         }
         // An expression is passed by reference through a temporary.
-        const auto value = lower_expression(argument);
+        return reference_to_value(lower_expression(argument), type,
+                                  argument.at);
+    }
+
+    // The address of a temporary that holds `value`, for a ByRef parameter.
+    [[nodiscard]] Operand reference_to_value(const Value& value,
+                                             const VbType type,
+                                             const Position at) {
         const auto temp = builder_->new_temp();
-        if (type == VbType::string) {
+        if (type == VbType::object) {
+            require_class(-1, value, at);
+            builder_->move_wide(temp, ir::immediate(0));
+            builder_->runtime(Service::object_assign,
+                              {address_of(temp), value.operand});
+            pending_.push_back(Owned{temp, Service::object_release});
+        } else if (type == VbType::string) {
             if (value.type != VbType::string) {
-                fail("a String argument is needed here", argument.at);
+                fail("a String argument is needed here", at);
             }
             // The temporary holds its own reference until the call ends.
             builder_->move_wide(temp, ir::immediate(0));
@@ -2279,17 +2697,16 @@ private:
                               {address_of(temp), value.operand});
             pending_.push_back(Owned{temp, Service::string_release});
         } else if (type == VbType::variant) {
-            const auto boxed = to_variant(value, argument.at);
+            const auto boxed = to_variant(value, at);
             builder_->move_wide(temp, ir::immediate(0));
             builder_->runtime(Service::variant_assign,
                               {address_of(temp), boxed.operand});
             pending_.push_back(Owned{temp, Service::variant_release});
         } else if (is_float(type)) {
-            builder_->move_wide(temp,
-                                convert(value, type, argument.at).operand);
+            builder_->move_wide(temp, convert(value, type, at).operand);
         } else {
             builder_->emit(Opcode::move, temp,
-                           convert(value, type, argument.at).operand);
+                           convert(value, type, at).operand);
         }
         return address_of(temp);
     }
@@ -2551,6 +2968,310 @@ private:
         return result;
     }
 
+    // ----- Objects ---------------------------------------------------------
+
+    [[nodiscard]] static const Signature* member_signature(
+        const ClassInfo& info, const std::string& name) {
+        if (const auto found = info.methods.find(name);
+            found != info.methods.end()) {
+            return &found->second;
+        }
+        if (const auto found = info.getters.find(name);
+            found != info.getters.end()) {
+            return &found->second;
+        }
+        return nullptr;
+    }
+
+    // Whether an expression is an object, decided without generating code;
+    // `cls` is its class (-1: late bound, or Nothing).
+    [[nodiscard]] bool object_class_of(const Expr& expression, int& cls) {
+        switch (expression.kind) {
+            case ExprKind::name: {
+                if (!has_variable(expression.text)) {
+                    if (expression.text == "me" && current_class_ >= 0) {
+                        cls = current_class_;
+                        return true;
+                    }
+                    if (expression.text == "nothing") {
+                        cls = -1;
+                        return true;
+                    }
+                    const auto found = signatures_.find(expression.text);
+                    if (found != signatures_.end() &&
+                        found->second.return_type == VbType::object) {
+                        cls = found->second.return_cls;
+                        return true;
+                    }
+                    return false;
+                }
+                const auto variable =
+                    find_variable(expression.text, expression.at);
+                if (variable.type == VbType::object && !variable.is_array) {
+                    cls = variable.udt;
+                    return true;
+                }
+                return false;
+            }
+            case ExprKind::call: {
+                if (find_array(expression.text).has_value()) {
+                    return false;
+                }
+                const auto found = signatures_.find(expression.text);
+                if (found != signatures_.end() &&
+                    found->second.return_type == VbType::object) {
+                    cls = found->second.return_cls;
+                    return true;
+                }
+                return false;
+            }
+            case ExprKind::new_object:
+                cls = find_class(expression.text, expression.at);
+                return true;
+            case ExprKind::member:
+            case ExprKind::member_call: {
+                int base = -1;
+                if (!object_class_of(*expression.operands[0], base) ||
+                    base < 0) {
+                    return false;
+                }
+                const auto& info = classes_[static_cast<std::size_t>(base)];
+                for (const auto& field : info.layout.fields) {
+                    if (field.name == expression.text) {
+                        if (field.type == VbType::object && !field.is_array &&
+                            expression.kind == ExprKind::member) {
+                            cls = field.udt;
+                            return true;
+                        }
+                        return false;
+                    }
+                }
+                const Signature* signature =
+                    member_signature(info, expression.text);
+                if (signature != nullptr &&
+                    signature->return_type == VbType::object) {
+                    cls = signature->return_cls;
+                    return true;
+                }
+                return false;
+            }
+            default:
+                return false;
+        }
+    }
+
+    // The class of an object value; a late-bound object is not compiled yet.
+    [[nodiscard]] const ClassInfo& class_of_value(const Value& value,
+                                                  const Position at) const {
+        if (value.type != VbType::object || value.cls < 0) {
+            fail("a member of a late-bound object is not compiled yet", at);
+        }
+        return classes_[static_cast<std::size_t>(value.cls)];
+    }
+
+    [[nodiscard]] Variable field_place(const Value& base,
+                                       const FieldInfo& field,
+                                       const Position at) {
+        if (!field.is_public && current_class_ != base.cls) {
+            fail("the field '" + field.name + "' is private", at);
+        }
+        const auto where =
+            pointer_plus(base.operand, ir::kObjectHeader + field.offset);
+        return Variable{ir::indirect(where.value), field.type, field.is_array,
+                        field.udt, field.auto_new};
+    }
+
+    // The place of a field of an object.
+    [[nodiscard]] Variable lower_object_field(const Expr& expression) {
+        const auto base = lower_expression(*expression.operands[0]);
+        const auto& info = class_of_value(base, expression.at);
+        builder_->runtime(Service::object_check, {base.operand});
+        for (const auto& field : info.layout.fields) {
+            if (field.name == expression.text) {
+                return field_place(base, field, expression.at);
+            }
+        }
+        fail("the class '" + info.name + "' has no field '" + expression.text +
+                 "'",
+             expression.at);
+    }
+
+    // `obj.Member` read as a value: a field, a Property Get or a Function
+    // without arguments.
+    [[nodiscard]] Value lower_object_member(const Expr& expression) {
+        const auto base = lower_expression(*expression.operands[0]);
+        const auto& info = class_of_value(base, expression.at);
+        builder_->runtime(Service::object_check, {base.operand});
+        for (const auto& field : info.layout.fields) {
+            if (field.name != expression.text) {
+                continue;
+            }
+            const auto place = field_place(base, field, expression.at);
+            if (place.type == VbType::record || place.is_array) {
+                fail("this field cannot be used as a value here",
+                     expression.at);
+            }
+            const int cls = place.type == VbType::object ? place.udt : -1;
+            if (is_handle(place.type)) {
+                const auto copy = builder_->new_temp();
+                builder_->move_wide(copy, place.operand);
+                return Value{copy, place.type, cls};
+            }
+            return Value{place.operand, place.type, cls};
+        }
+        const Signature* signature = member_signature(info, expression.text);
+        if (signature == nullptr || !signature->is_function) {
+            fail("the class '" + info.name + "' has no property or function '" +
+                     expression.text + "'",
+                 expression.at);
+        }
+        return emit_call(*signature, expression.text, {}, base.operand, nullptr,
+                         expression.at);
+    }
+
+    // `obj.Member(args)` or `obj.Member`: a method called for its value or as
+    // a statement.
+    [[nodiscard]] Value lower_object_call(const Expr& expression,
+                                          const bool want_value) {
+        const auto base = lower_expression(*expression.operands[0]);
+        const auto& info = class_of_value(base, expression.at);
+        builder_->runtime(Service::object_check, {base.operand});
+        std::vector<const Expr*> arguments;
+        for (std::size_t i = 1; i < expression.operands.size(); ++i) {
+            arguments.push_back(expression.operands[i].get());
+        }
+        const Signature* signature = member_signature(info, expression.text);
+        if (signature == nullptr) {
+            fail("the class '" + info.name + "' has no method '" +
+                     expression.text + "'",
+                 expression.at);
+        }
+        if (want_value && !signature->is_function) {
+            fail("'" + expression.text + "' is a Sub and has no value",
+                 expression.at);
+        }
+        return emit_call(*signature, expression.text, arguments, base.operand,
+                         nullptr, expression.at);
+    }
+
+    [[nodiscard]] Value lower_new(const Expr& expression) {
+        const int cls = find_class(expression.text, expression.at);
+        Value result;
+        result.type = VbType::object;
+        result.cls = cls;
+        result.operand = new_owned_object();
+        builder_->call(result.operand,
+                       classes_[static_cast<std::size_t>(cls)].new_function, {},
+                       true);
+        return result;
+    }
+
+    // `Dim x As New Class`: the object is made when the variable is first used.
+    void ensure_object(const Variable& variable) {
+        if (variable.udt < 0) {
+            return;
+        }
+        const auto created = builder_->new_temp();
+        builder_->move_wide(created, ir::immediate(0));
+        pending_.push_back(Owned{created, Service::object_release});
+        const auto empty = builder_->new_temp();
+        const auto handle = builder_->new_temp();  // handles go through a slot
+        builder_->move_wide(handle, variable.operand);
+        builder_->runtime(Service::object_is_null, {handle}, empty);
+        const int done = builder_->new_label();
+        builder_->branch(Opcode::branch_zero, empty, done);
+        builder_->call(
+            created,
+            classes_[static_cast<std::size_t>(variable.udt)].new_function, {},
+            true);
+        builder_->runtime(Service::object_assign,
+                          {address_of(variable.operand), created});
+        builder_->place(done);
+    }
+
+    // `obj.Member = value`: a field, or Property Let.
+    void lower_object_assignment(const Stmt& statement) {
+        const Expr& target = *statement.target;
+        const auto value = lower_expression(*statement.expr);
+        const auto base = lower_expression(*target.operands[0]);
+        const auto& info = class_of_value(base, statement.at);
+        builder_->runtime(Service::object_check, {base.operand});
+        std::vector<const Expr*> arguments;
+        for (std::size_t i = 1; i < target.operands.size(); ++i) {
+            arguments.push_back(target.operands[i].get());
+        }
+        if (const auto found = info.letters.find(target.text);
+            found != info.letters.end()) {
+            static_cast<void>(emit_call(found->second, target.text, arguments,
+                                        base.operand, &value, statement.at));
+            return;
+        }
+        if (target.kind == ExprKind::member) {
+            for (const auto& field : info.layout.fields) {
+                if (field.name == target.text) {
+                    store_value(field_place(base, field, statement.at), value,
+                                statement.at);
+                    return;
+                }
+            }
+        }
+        fail("the class '" + info.name + "' has no field or Property Let '" +
+                 target.text + "'",
+             statement.at);
+    }
+
+    // `Set target = value`.
+    void lower_set(const Stmt& statement) {
+        const Expr& target = *statement.target;
+        const auto value = lower_expression(*statement.expr);
+        if (value.type != VbType::object) {
+            fail("Set needs an object", statement.at);
+        }
+        if (target.kind == ExprKind::member ||
+            target.kind == ExprKind::member_call) {
+            int cls = -1;
+            if (object_class_of(*target.operands[0], cls)) {
+                const auto base = lower_expression(*target.operands[0]);
+                const auto& info = class_of_value(base, statement.at);
+                builder_->runtime(Service::object_check, {base.operand});
+                if (const auto found = info.setters.find(target.text);
+                    found != info.setters.end()) {
+                    std::vector<const Expr*> arguments;
+                    for (std::size_t i = 1; i < target.operands.size(); ++i) {
+                        arguments.push_back(target.operands[i].get());
+                    }
+                    static_cast<void>(emit_call(found->second, target.text,
+                                                arguments, base.operand, &value,
+                                                statement.at));
+                    return;
+                }
+                for (const auto& field : info.layout.fields) {
+                    if (field.name == target.text &&
+                        target.kind == ExprKind::member) {
+                        const auto place =
+                            field_place(base, field, statement.at);
+                        assign_object(place, value, statement.at);
+                        return;
+                    }
+                }
+                fail("the class '" + info.name + "' has no object field or " +
+                         "Property Set '" + target.text + "'",
+                     statement.at);
+            }
+        }
+        assign_object(lower_place(target), value, statement.at);
+    }
+
+    void assign_object(const Variable& place, const Value& value,
+                       const Position at) {
+        if (place.type != VbType::object) {
+            fail("Set needs an object variable", at);
+        }
+        require_class(place.udt, value, at);
+        builder_->runtime(Service::object_assign,
+                          {address_of(place.operand), value.operand});
+    }
+
     // ----- Variants (ADR-0009) ---------------------------------------------
 
     // A typed value boxed as a Variant (a temporary owned by the statement); a
@@ -2745,27 +3466,24 @@ private:
                 if (expression.text.rfind("err.", 0) == 0) {
                     return lower_err_member(expression);
                 }
-                if (!locals_.contains(expression.text) &&
-                    !(result_variable_.has_value() &&
-                      expression.text == current_->name) &&
-                    !globals_.contains(expression.text) &&
+                if (!has_variable(expression.text) &&
                     (signatures_.contains(expression.text) ||
                      find_builtin(expression.text) != nullptr ||
                      is_special_builtin(expression.text))) {
                     return lower_call(expression.text, {}, expression.at, true);
                 }
-                if (!locals_.contains(expression.text) &&
-                    !globals_.contains(expression.text) &&
-                    !(result_variable_.has_value() &&
-                      expression.text == current_->name)) {
+                if (!has_variable(expression.text)) {
                     if (const auto constant = find_constant(expression.text)) {
                         return *constant;
                     }
                 }
-                if (!locals_.contains(expression.text) &&
-                    !globals_.contains(expression.text) &&
-                    !(result_variable_.has_value() &&
-                      expression.text == current_->name)) {
+                if (!has_variable(expression.text)) {
+                    if (expression.text == "me" && current_class_ >= 0) {
+                        return Value{me_, VbType::object, current_class_};
+                    }
+                    if (expression.text == "nothing") {
+                        return Value{ir::immediate(0), VbType::object, -1};
+                    }
                     if (expression.text == "empty") {
                         return Value{ir::immediate(0), VbType::variant};
                     }
@@ -2784,14 +3502,19 @@ private:
                     fail("the array '" + expression.text + "' needs an index",
                          expression.at);
                 }
+                if (variable.type == VbType::object && variable.auto_new) {
+                    ensure_object(variable);
+                }
+                const int cls =
+                    variable.type == VbType::object ? variable.udt : -1;
                 if (is_handle(variable.type) &&
                     variable.operand.kind != OperandKind::slot) {
                     // Handles are read through a slot.
                     const auto copy = builder_->new_temp();
                     builder_->move_wide(copy, variable.operand);
-                    return Value{copy, variable.type};
+                    return Value{copy, variable.type, cls};
                 }
-                return Value{variable.operand, variable.type};
+                return Value{variable.operand, variable.type, cls};
             }
             case ExprKind::call:
                 if (const auto array = find_array(expression.text)) {
@@ -2801,6 +3524,10 @@ private:
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true);
             case ExprKind::member: {
+                int cls = -1;
+                if (object_class_of(*expression.operands[0], cls)) {
+                    return lower_object_member(expression);
+                }
                 const auto place = lower_place(expression);
                 if (place.type == VbType::record) {
                     fail("a record cannot be used as a value here",
@@ -2813,6 +3540,10 @@ private:
                 }
                 return Value{place.operand, place.type};
             }
+            case ExprKind::member_call:
+                return lower_object_call(expression, true);
+            case ExprKind::new_object:
+                return lower_new(expression);
             case ExprKind::unary:
                 return lower_unary(expression);
             case ExprKind::binary:
@@ -2972,6 +3703,21 @@ private:
         const auto right = lower_expression(*expression.operands[1]);
         const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
                                    op == ">" || op == "<=" || op == ">=";
+        if (op == "is") {
+            if (left.type != VbType::object || right.type != VbType::object) {
+                fail("Is needs two objects", expression.at);
+            }
+            Value result;
+            result.type = VbType::boolean;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::object_is, {left.operand, right.operand},
+                              result.operand);
+            return result;
+        }
+        if (left.type == VbType::object || right.type == VbType::object) {
+            fail("an object cannot be used with the operator " + op,
+                 expression.at);
+        }
         if (left.type == VbType::variant || right.type == VbType::variant) {
             return variant_operation(op, left, right, expression.at);
         }
@@ -3040,6 +3786,9 @@ private:
     // Converts a value for an assignment or a parameter.
     [[nodiscard]] Value convert(const Value& value, const VbType to,
                                 const Position at) {
+        if (value.type == VbType::object || to == VbType::object) {
+            fail("an object cannot be converted", at);
+        }
         if (value.type == VbType::variant) {
             return to == VbType::variant ? value : from_variant(value, to, at);
         }
@@ -3094,6 +3843,12 @@ private:
     }
 
     const Module& module_;
+    std::vector<const Module*> class_modules_;
+    std::vector<ClassInfo> classes_;
+    std::map<std::string, int> class_index_;
+    std::map<std::string, Variable> fields_;  // the fields of Me, per method
+    Operand me_;                              // the object of a method
+    int current_class_{-1};
     ir::Program program_;
     std::map<std::string, Variable> globals_;
     std::map<std::string, Signature> signatures_;
@@ -3102,6 +3857,7 @@ private:
     std::vector<Loop> loops_;
     std::vector<Owned> owned_slots_;  // handles released when a procedure ends
     std::vector<GlobalArray> global_arrays_;
+    std::vector<Operand> global_objects_;  // module-level objects
     std::vector<UdtInfo> udts_;
     std::map<std::string, int> udt_index_;
     std::vector<OwnedRecord> owned_records_;
@@ -3133,10 +3889,11 @@ private:
 
 }  // namespace
 
-LowerResult lower_module(const Module& module) {
+LowerResult lower_module(const Module& module,
+                         const std::vector<const Module*>& classes) {
     LowerResult result;
     try {
-        Lowerer lowerer(module);
+        Lowerer lowerer(module, classes);
         result.program = lowerer.run();
     } catch (const LowerFailure& failure) {
         result.error = failure.message;

@@ -1,0 +1,3 @@
+Module=Main; main.bas
+Class=Foo; Foo.cls
+Startup="Sub Main"

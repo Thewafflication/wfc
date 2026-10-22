@@ -148,7 +148,20 @@ int run_native(const int argument_count, const char* const arguments[]) {
         std::string_view(source).substr(source.size() - call.size()) == call) {
         source.resize(source.size() - call.size());
     }
-    const auto compiled = wfc::compiler::compile_source(source, architecture);
+    std::vector<wfc::compiler::ClassSource> classes;
+    for (std::size_t i = 0; i < project.class_names.size(); ++i) {
+        if (i < project.class_form_texts.size() &&
+            !project.class_form_texts[i].empty()) {
+            std::cerr << "native compile error: the form "
+                      << project.class_names[i] << " is not compiled yet"
+                      << '\n';
+            return 3;
+        }
+        classes.push_back(wfc::compiler::ClassSource{project.class_names[i],
+                                                     project.class_sources[i]});
+    }
+    const auto compiled =
+        wfc::compiler::compile_project(source, classes, architecture);
     if (!compiled.error.empty()) {
         std::cerr << "native compile error";
         if (compiled.error_at.line != 0) {

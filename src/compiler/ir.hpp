@@ -182,7 +182,18 @@ enum class Service : int {
     variant_type_name = 66,     // (handle) -> new string handle
     variant_var_type = 67,      // (handle) -> int32
     variant_is_numeric = 68,    // (handle) -> -1 or 0
-    count = 69,
+    // Objects of compiled classes (ADR-0009). A handle points to a block with
+    // a 16-byte header (reference count, class record) and the fields behind
+    // it; the null handle is Nothing. A class record is a literal of the
+    // program (`Class::record`), see `HandleKind`.
+    object_new = 69,      // (class record) -> new handle, fields zeroed
+    object_addref = 70,   // (handle)
+    object_release = 71,  // (handle): Terminate runs when the count reaches 0
+    object_assign = 72,   // (handle* variable, handle value)
+    object_check = 73,    // (handle): error 91 when it is Nothing
+    object_is = 74,       // (a, b) -> -1 when they are the same object
+    object_is_null = 75,  // (handle) -> -1 for Nothing
+    count = 76,
 };
 
 struct Instruction final {
@@ -201,6 +212,22 @@ struct Instruction final {
     std::uint32_t double_args{};
     bool double_result{};
     std::vector<Operand> args;
+};
+
+// A field or element that holds a counted handle, as the class records and
+// the descriptors of record arrays name it.
+enum class HandleKind : int { string = 0, variant = 1, object = 2, array = 3 };
+
+// The offset of the fields behind the header of an object.
+inline constexpr int kObjectHeader = 16;
+
+// A class: its record is a literal of the program holding int32 values: the
+// size of the fields, the image offset of Class_Terminate (-1 for none;
+// filled in by the back end), a count and (offset, HandleKind) pairs.
+struct Class final {
+    std::string name;
+    int record{-1};     // the literal that holds the record
+    int terminate{-1};  // the function of Class_Terminate
 };
 
 // The operator of the `variant_binary` service.
@@ -263,6 +290,7 @@ struct Global final {
 };
 
 struct Program final {
+    std::vector<Class> classes;
     std::vector<Function> functions;
     std::vector<Global> globals;
     std::vector<std::string> strings;

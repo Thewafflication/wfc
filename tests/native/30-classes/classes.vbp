@@ -1,0 +1,4 @@
+Module=Main; main.bas
+Class=Counter; Counter.cls
+Class=Person; Person.cls
+Startup="Sub Main"

@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,24 @@ struct BackEndResult final {
 #else
     return Architecture::x86;
 #endif
+}
+
+// Writes the image offset of each class's Terminate function into its record
+// (a literal of the image; `string_offsets` says where each literal lies).
+inline void patch_class_records(
+    std::vector<std::uint8_t>& image, const ir::Program& program,
+    const std::vector<std::size_t>& string_offsets,
+    const std::vector<std::size_t>& function_starts) {
+    for (const auto& item : program.classes) {
+        if (item.terminate < 0) {
+            continue;
+        }
+        const auto at =
+            string_offsets[static_cast<std::size_t>(item.record)] + 8U + 4U;
+        const auto offset = static_cast<std::int32_t>(
+            function_starts[static_cast<std::size_t>(item.terminate)]);
+        std::memcpy(image.data() + at, &offset, sizeof(offset));
+    }
 }
 
 // Generates machine code for the program. `error` says why a back end cannot.

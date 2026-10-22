@@ -17,10 +17,13 @@ struct ParseFailure final {
 
 class Parser final {
 public:
-    explicit Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)) {}
+    Parser(std::vector<Token> tokens, const ParseOptions& options)
+        : tokens_(std::move(tokens)), options_(options) {}
 
     Module parse() {
         Module module;
+        module.is_class = options_.is_class;
+        module.name = options_.name;
         skip_ends();
         while (!at_end_of_file()) {
             if (accept_word("option")) {
@@ -28,8 +31,10 @@ public:
             } else if (is_word("dim") || is_word("private") ||
                        is_word("public") || is_word("friend") ||
                        is_word("static") || is_word("sub") ||
-                       is_word("function") || is_word("const") ||
-                       is_word("type")) {
+                       is_word("function") || is_word("property") ||
+                       is_word("const") || is_word("type") ||
+                       is_word("event") || is_word("implements") ||
+                       is_word("enum") || is_word("declare")) {
                 declaration_or_procedure(module);
             } else {
                 fail("expected a declaration, Sub or Function");
@@ -180,6 +185,16 @@ private:
             type = VbType::double_precision;
         } else if (name == "variant") {
             type = VbType::variant;
+        } else if (name == "object") {
+            type = VbType::object;
+            if (record_name != nullptr) {
+                record_name->clear();
+            }
+        } else if (options_.class_names.contains(name)) {
+            type = VbType::object;
+            if (record_name != nullptr) {
+                *record_name = name;
+            }
         } else if (name == "string") {
             type = VbType::string;
             if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "*") {
@@ -230,10 +245,12 @@ private:
             }
         }
         if (accept_word("as")) {
-            if (is_word("new")) {
-                fail("objects are not compiled yet");
-            }
+            declaration.is_new = accept_word("new");
             declaration.type = type_name(&declaration.type_name);
+            if (declaration.is_new && (declaration.type != VbType::object ||
+                                       declaration.type_name.empty())) {
+                fail("New needs the name of a class");
+            }
             declaration.type_given = true;
         } else if (by_suffix != VbType::none) {
             declaration.type = by_suffix;
@@ -248,10 +265,14 @@ private:
     void declaration_or_procedure(Module& module) {
         bool is_public = true;
         bool saw_scope = false;
+        bool saw_public = false;
         while (is_word("private") || is_word("public") || is_word("friend") ||
                is_word("static")) {
             if (is_word("private")) {
                 is_public = false;
+            }
+            if (is_word("public")) {
+                saw_public = true;
             }
             if (is_word("static")) {
                 fail("Static is not compiled yet");
@@ -259,9 +280,13 @@ private:
             saw_scope = true;
             advance();
         }
-        if (is_word("sub") || is_word("function")) {
+        if (is_word("sub") || is_word("function") || is_word("property")) {
             procedure(module, is_public);
             return;
+        }
+        if (is_word("event") || is_word("implements") || is_word("enum") ||
+            is_word("declare") || is_word("withevents")) {
+            fail(current().spelling + " is not compiled yet");
         }
         if (is_word("type")) {
             type_declaration(module);
@@ -274,7 +299,9 @@ private:
         }
         if (accept_word("dim") || saw_scope) {
             do {
-                module.globals.push_back(declarator());
+                auto declaration = declarator();
+                declaration.is_public = saw_public;
+                module.globals.push_back(std::move(declaration));
             } while (accept_symbol(","));
             expect_end_of_statement();
             return;
@@ -357,8 +384,21 @@ private:
         Procedure result;
         result.is_public = is_public;
         result.is_function = is_word("function");
+        const bool is_property = is_word("property");
         result.at = here();
         advance();
+        if (is_property) {
+            if (accept_word("get")) {
+                result.property = PropertyKind::get;
+                result.is_function = true;
+            } else if (accept_word("let")) {
+                result.property = PropertyKind::let;
+            } else if (accept_word("set")) {
+                result.property = PropertyKind::set;
+            } else {
+                fail("expected Get, Let or Set after Property");
+            }
+        }
         if (current().kind != TokenKind::identifier) {
             fail("expected the procedure name");
         }
@@ -378,7 +418,7 @@ private:
             // Without `As` a Function returns a Variant.
             result.return_type = by_suffix;
             if (accept_word("as")) {
-                result.return_type = type_name();
+                result.return_type = type_name(&result.return_type_name);
             }
             if (result.return_type == VbType::none) {
                 result.return_type = VbType::variant;
@@ -387,9 +427,14 @@ private:
         expect_end_of_statement();
         result.body = block({"end"});
         expect_word("end");
-        if (!accept_word(result.is_function ? "function" : "sub")) {
-            fail(result.is_function ? "expected End Function"
-                                    : "expected End Sub");
+        const char* closing = is_property          ? "property"
+                              : result.is_function ? "function"
+                                                   : "sub";
+        if (!accept_word(closing)) {
+            fail(std::string("expected End ") + (is_property ? "Property"
+                                                 : result.is_function
+                                                     ? "Function"
+                                                     : "Sub"));
         }
         expect_end_of_statement();
         module.procedures.push_back(std::move(result));
@@ -459,7 +504,7 @@ private:
                 return next.kind == TokenKind::identifier &&
                        (next.text == "if" || next.text == "sub" ||
                         next.text == "function" || next.text == "select" ||
-                        next.text == "with");
+                        next.text == "with" || next.text == "property");
             }
             return true;
         }
@@ -483,6 +528,7 @@ private:
             ahead(1).text == ":" && word != "else") {
             auto result = make(StmtKind::label);
             result->text = without_suffix(word);
+            result->maybe_call = result->at.column != 1;
             advance();
             advance();
             return result;
@@ -574,10 +620,17 @@ private:
             advance();
             return assignment_or_call();
         }
+        if (word == "set") {
+            auto result = make(StmtKind::set_object);
+            advance();
+            result->target = primary();
+            expect_symbol("=");
+            result->expr = expression();
+            return result;
+        }
         if (word == "with" || word == "gosub" || word == "on" ||
-            word == "set" || word == "open" || word == "close" ||
-            word == "static" || word == "randomize" || word == "line" ||
-            word == "raiseevent") {
+            word == "open" || word == "close" || word == "static" ||
+            word == "randomize" || word == "line" || word == "raiseevent") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }
@@ -811,10 +864,67 @@ private:
             result->expr = expression();
             return result;
         }
+        if (starts_member_chain()) {
+            return member_statement(false);
+        }
         return call_statement(false);
     }
 
+    // Whether `name[(...)] . member ...` starts here (not the Err object).
+    [[nodiscard]] bool starts_member_chain() const {
+        if (current().kind != TokenKind::identifier ||
+            current().text == "err") {
+            return false;
+        }
+        std::size_t i = 1;
+        if (ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") {
+            int depth = 0;
+            while (true) {
+                const Token& token = ahead(i);
+                if (token.kind == TokenKind::end_of_statement ||
+                    token.kind == TokenKind::end_of_file) {
+                    return false;
+                }
+                if (token.kind == TokenKind::symbol && token.text == "(") {
+                    ++depth;
+                } else if (token.kind == TokenKind::symbol &&
+                           token.text == ")") {
+                    if (--depth == 0) {
+                        break;
+                    }
+                }
+                ++i;
+            }
+            ++i;
+        }
+        return ahead(i).kind == TokenKind::symbol && ahead(i).text == ".";
+    }
+
+    // `obj.Member args` or `Call obj.Member(args)`: the member is called.
+    [[nodiscard]] StmtPtr member_statement(const bool with_call_keyword) {
+        auto result = make(StmtKind::call_member);
+        auto chain = primary();
+        if (chain->kind == ExprKind::member && !with_call_keyword) {
+            // Arguments without parentheses: `obj.Member a, b`.
+            auto call = make_expr(ExprKind::member_call, chain->at);
+            call->text = chain->text;
+            call->operands.push_back(std::move(chain->operands[0]));
+            while (!at_end_of_statement() && !is_word("else")) {
+                call->operands.push_back(expression());
+                if (!accept_symbol(",")) {
+                    break;
+                }
+            }
+            chain = std::move(call);
+        }
+        result->expr = std::move(chain);
+        return result;
+    }
+
     [[nodiscard]] StmtPtr call_statement(const bool with_call_keyword) {
+        if (with_call_keyword && starts_member_chain()) {
+            return member_statement(true);
+        }
         auto result = make(StmtKind::call);
         if (current().kind != TokenKind::identifier) {
             fail("expected the procedure name");
@@ -836,7 +946,9 @@ private:
         if (accept_symbol("(")) {
             if (!accept_symbol(")")) {
                 do {
-                    result->items.push_back(expression());
+                    // An omitted argument (`Err.Raise 5, , "text"`) is null.
+                    result->items.push_back(is_symbol(",") ? nullptr
+                                                           : expression());
                 } while (accept_symbol(","));
                 expect_symbol(")");
             }
@@ -847,7 +959,8 @@ private:
         } else if (!with_call_keyword) {
             // `name arg, arg`: arguments without parentheses.
             while (!at_end_of_statement() && !is_word("else")) {
-                result->items.push_back(expression());
+                result->items.push_back(is_symbol(",") ? nullptr
+                                                       : expression());
                 if (!accept_symbol(",")) {
                     break;
                 }
@@ -1043,7 +1156,12 @@ private:
             advance();
             left = binary(op, std::move(left), concatenation(), at);
         }
-        if (is_word("like") || is_word("is")) {
+        if (is_word("is")) {
+            const auto at = here();
+            advance();
+            left = binary("is", std::move(left), concatenation(), at);
+        }
+        if (is_word("like")) {
             fail(current().spelling + " is not compiled yet");
         }
         return left;
@@ -1172,6 +1290,17 @@ private:
             inner->parenthesized = true;
             return inner;
         }
+        if (token.kind == TokenKind::identifier && token.text == "new") {
+            advance();
+            if (current().kind != TokenKind::identifier ||
+                !options_.class_names.contains(current().text)) {
+                fail("New needs the name of a class");
+            }
+            auto result = make_expr(ExprKind::new_object, at);
+            result->text = current().text;
+            advance();
+            return result;
+        }
         if (token.kind == TokenKind::identifier) {
             if (token.text == "true" || token.text == "false") {
                 advance();
@@ -1206,16 +1335,26 @@ private:
                 node = make_expr(ExprKind::name, at);
                 node->text = without_suffix(token.text);
             }
-            // `.field` chains: a.b.c, array(i).field
+            // `.member` chains: a.b.c, array(i).field, obj.Method(args)
             while (is_symbol(".")) {
                 advance();
                 if (current().kind != TokenKind::identifier) {
-                    fail("expected a field name after '.'");
+                    fail("expected a member name after '.'");
                 }
                 auto field = make_expr(ExprKind::member, at);
                 field->text = without_suffix(current().text);
                 advance();
                 field->operands.push_back(std::move(node));
+                if (is_symbol("(")) {
+                    advance();
+                    field->kind = ExprKind::member_call;
+                    if (!accept_symbol(")")) {
+                        do {
+                            field->operands.push_back(expression());
+                        } while (accept_symbol(","));
+                        expect_symbol(")");
+                    }
+                }
                 node = std::move(field);
             }
             return node;
@@ -1224,12 +1363,14 @@ private:
     }
 
     std::vector<Token> tokens_;
+    const ParseOptions& options_;
     std::size_t index_{};
 };
 
 }  // namespace
 
-ParseResult parse_module(const std::string_view source) {
+ParseResult parse_module(const std::string_view source,
+                         const ParseOptions& options) {
     ParseResult result;
     auto lexed = tokenize(source);
     if (!lexed.error.empty()) {
@@ -1238,7 +1379,7 @@ ParseResult parse_module(const std::string_view source) {
         return result;
     }
     try {
-        Parser parser(std::move(lexed.tokens));
+        Parser parser(std::move(lexed.tokens), options);
         result.module = parser.parse();
     } catch (const ParseFailure& failure) {
         result.error = failure.message;

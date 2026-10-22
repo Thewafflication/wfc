@@ -64,6 +64,30 @@ the native runtime would double the work and let the two drift.
    included) as a library. Packaging (`MP-0009` stage 7) ships that runtime with
    the native payload.
 
+## Compiled classes (MP-0009 #14)
+
+A class module compiles to functions, not to interpreted source:
+
+- An object is a block with a 16-byte header (reference count, class record)
+  followed by the fields, laid out like the fields of a record. A handle points
+  to the block; the null handle is `Nothing`. Variables own a reference; a
+  function result transfers one; temporaries are released at the end of the
+  statement; a ByVal parameter is copied (addref) and released on return.
+- Each method is an ordinary function whose first parameter is the object
+  (`Me`); Property Get, Let and Set are methods with their own tables.
+  `Class_Initialize` runs in a generated `Class.__new` that also allocates the
+  object; `Class_Terminate` is reached through the class record when the count
+  reaches zero.
+- A class record is a literal of the image: the size of the fields, the image
+  offset of `Class_Terminate` (patched by the back end) and the offsets and
+  kinds (String, Variant, object, array) of the fields that hold counted
+  handles. The runtime releases them when it frees the object.
+- Early-bound members (`x.Field`, `x.Method args`, `x.Prop = v`, `Set x.Prop =
+  o`) are direct accesses and calls; `Dim x As New Class` makes the object when
+  the variable is first used. Late-bound access to a compiled object, objects in
+  Variants and arrays of objects follow in later increments (the object model of
+  the engine, above).
+
 ## Alternatives considered
 
 - **A native tagged 16-byte Variant with its own arithmetic.** Faster, but a

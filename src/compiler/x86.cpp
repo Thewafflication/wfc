@@ -83,6 +83,7 @@ public:
                             function_starts[static_cast<std::size_t>(callee)] -
                             (at + 4U)));
         }
+        patch_class_records(image_, program_, string_offsets_, function_starts);
         BackEndResult result;
         result.image.architecture = Architecture::x86;
         result.image.table_count = static_cast<std::size_t>(ir::Service::count);

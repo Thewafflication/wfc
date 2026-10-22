@@ -2361,6 +2361,28 @@ Print v.x & q.x]=]
         PROPERTIES LABELS "integration;mp-0009;native" TIMEOUT 60
       )
     endforeach()
+    # A project (a directory with a .vbp, modules and classes) is compared the
+    # same way.
+    file(
+      GLOB wfc_native_projects
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/native/*/*.vbp"
+    )
+    foreach(native_project IN LISTS wfc_native_projects)
+      get_filename_component(native_directory "${native_project}" DIRECTORY)
+      get_filename_component(native_name "${native_directory}" NAME)
+      add_test(
+        NAME TC-MP0009-native-${native_name}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DPROGRAM=${native_project}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/native/run_native_compare.cmake"
+      )
+      set_tests_properties(
+        TC-MP0009-native-${native_name}
+        PROPERTIES LABELS "integration;mp-0009;native" TIMEOUT 60
+      )
+    endforeach()
   endif()
 
   # A project with a UserDocument (ActiveX Document) is refused with the

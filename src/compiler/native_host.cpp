@@ -136,6 +136,8 @@ void print_zone() {
             return "Type mismatch";
         case 28:
             return "Out of stack space";
+        case 91:
+            return "Object variable or With block variable not set";
         default:
             return "Application-defined or object-defined error";
     }
@@ -915,6 +917,121 @@ std::int32_t variant_is_numeric(const RtVariant* a) {
                : 0;
 }
 
+// ----- Objects of compiled classes (ADR-0009) ------------------------------
+//
+// An object is a block: a 16-byte header (the reference count and the class
+// record), then the fields. The class record is a literal of the image: the
+// size of the fields, the image offset of Class_Terminate (-1 for none), and
+// the offsets and kinds of the fields that hold counted handles.
+
+struct ClassRecord final {
+    std::int32_t size;
+    std::int32_t terminate;
+    std::int32_t count;
+    std::int32_t handles[1];  // offset, kind (ir::HandleKind) pairs
+};
+
+struct RtObject final {
+    std::int32_t refs;
+    std::int32_t pad;
+    const ClassRecord* record;
+};
+
+constexpr std::size_t kObjectHeaderSize = 16U;
+static_assert(sizeof(RtObject) <= kObjectHeaderSize);
+
+std::uint8_t* g_image_base = nullptr;
+
+void object_release(RtObject* object);
+
+// Releases the counted handle at `cell`, of the given kind.
+void release_cell(void* cell, const std::int32_t kind) {
+    switch (static_cast<ir::HandleKind>(kind)) {
+        case ir::HandleKind::string:
+            release(*static_cast<RtString**>(cell));
+            *static_cast<RtString**>(cell) = nullptr;
+            break;
+        case ir::HandleKind::variant:
+            variant_release(*static_cast<RtVariant**>(cell));
+            *static_cast<RtVariant**>(cell) = nullptr;
+            break;
+        case ir::HandleKind::object:
+            object_release(*static_cast<RtObject**>(cell));
+            *static_cast<RtObject**>(cell) = nullptr;
+            break;
+        case ir::HandleKind::array:
+            array_release(*static_cast<RtArray**>(cell));
+            *static_cast<RtArray**>(cell) = nullptr;
+            break;
+    }
+}
+
+RtObject* object_new(const RtString* record_literal) {
+    const auto* record =
+        reinterpret_cast<const ClassRecord*>(record_literal->data);
+    auto* object = static_cast<RtObject*>(std::calloc(
+        1, kObjectHeaderSize + static_cast<std::size_t>(record->size)));
+    if (object == nullptr) {
+        raise_error(7);
+        return nullptr;
+    }
+    object->refs = 1;
+    object->record = record;
+    return object;
+}
+
+void object_addref(RtObject* object) {
+    if (object != nullptr) {
+        ++object->refs;
+    }
+}
+
+void object_release(RtObject* object) {
+    if (object == nullptr || --object->refs > 0) {
+        return;
+    }
+    object->refs = 1000000;  // a release inside Terminate must not recurse
+    if (object->record->terminate >= 0) {
+        // Class_Terminate runs even while an error is pending: it sees none.
+        const std::int32_t saved =
+            g_error.pending != nullptr ? *g_error.pending : 0;
+        if (g_error.pending != nullptr) {
+            *g_error.pending = 0;
+        }
+        reinterpret_cast<void (*)(void*)>(g_image_base +
+                                          object->record->terminate)(object);
+        if (g_error.pending != nullptr && *g_error.pending == 0) {
+            *g_error.pending = saved;
+        }
+    }
+    auto* fields = reinterpret_cast<std::uint8_t*>(object) + kObjectHeaderSize;
+    for (std::int32_t i = 0; i < object->record->count; ++i) {
+        release_cell(fields + object->record->handles[2 * i],
+                     object->record->handles[2 * i + 1]);
+    }
+    std::free(object);
+}
+
+void object_assign(RtObject** variable, RtObject* value) {
+    object_addref(value);
+    object_release(*variable);
+    *variable = value;
+}
+
+void object_check(const RtObject* object) {
+    if (object == nullptr) {
+        raise_error(91);
+    }
+}
+
+std::int32_t object_is(const RtObject* a, const RtObject* b) {
+    return a == b ? -1 : 0;
+}
+
+std::int32_t object_is_null(const RtObject* object) {
+    return object == nullptr ? -1 : 0;
+}
+
 using EntryFunction = void (*)();
 
 template <typename Function>
@@ -978,7 +1095,10 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&variant_to_double),   address_of(&variant_to_string),
         address_of(&variant_to_boolean),  address_of(&variant_print),
         address_of(&variant_type_name),   address_of(&variant_var_type),
-        address_of(&variant_is_numeric),
+        address_of(&variant_is_numeric),  address_of(&object_new),
+        address_of(&object_addref),       address_of(&object_release),
+        address_of(&object_assign),       address_of(&object_check),
+        address_of(&object_is),           address_of(&object_is_null),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
@@ -991,6 +1111,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
     FlushInstructionCache(GetCurrentProcess(), memory, image.bytes.size());
     g_error = ErrorState{};
     g_column = 0;
+    g_image_base = static_cast<std::uint8_t*>(memory);
     // The stack limit: half of the stack that is left (the services need some
     // room too).
     {

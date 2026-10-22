@@ -111,6 +111,7 @@ public:
             patch(at, 0x94000000U |
                           (static_cast<std::uint32_t>(words) & 0x03FFFFFFU));
         }
+        patch_class_records(image_, program_, string_offsets_, function_starts);
         BackEndResult result;
         result.image.architecture = Architecture::arm64;
         result.image.table_count = static_cast<std::size_t>(ir::Service::count);

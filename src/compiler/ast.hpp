@@ -22,6 +22,8 @@ enum class VbType {
     double_precision,
     string,
     variant,  // a handle to a boxed interpreter value (ADR-0009)
+    object,   // a class instance (its class name is kept beside the type) or
+              // a late-bound object (empty class name)
     record,   // a user-defined type: its name is kept beside the type
 };
 
@@ -38,12 +40,15 @@ enum class ExprKind {
     real_literal,
     string_literal,
     boolean_literal,
-    name,    // a variable, or a function called without arguments
-    call,    // `name(args)`: a function call (arrays come later)
-    unary,   // op: "-", "not"
-    member,  // text = the field; operands[0] = the record it belongs to
-    binary,  // op: "+", "-", "*", "\\", "mod", "=", "<>", "<", ">", "<=",
-             // ">=", "and", "or", "xor", "&"
+    name,         // a variable, or a function called without arguments
+    call,         // `name(args)`: a function call (arrays come later)
+    unary,        // op: "-", "not"
+    member,       // text = the field; operands[0] = the record or object
+    member_call,  // text = the member; operands[0] = the object; the rest
+                  // are the arguments
+    new_object,   // `New Class`: text = the class name
+    binary,       // op: "+", "-", "*", "\\", "mod", "=", "<>", "<", ">", "<=",
+                  // ">=", "and", "or", "xor", "&"
 };
 
 struct Expr final {
@@ -80,6 +85,9 @@ enum class StmtKind {
     on_error,     // text: a label, "0" or "resume next"
     resume,       // text: "", "next" or a label
     erase,        // items: the names (as name expressions)
+    set_object,   // `Set target = expr`
+    call_member,  // an object's member called as a statement: expr is a
+                  // member or member_call
 };
 
 // One test of a Case: a value, a range (`low To high`) or `Is <op> low`.
@@ -116,6 +124,8 @@ struct Declaration final {
     bool type_given{};
     std::string type_name;  // the user-defined type, when type is record
     bool is_array{};
+    bool is_public{};                // `Public` (a field of a class)
+    bool is_new{};                   // `As New Class`
     bool is_static{};                // `Static` inside a procedure
     std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
     Position at;
@@ -131,6 +141,8 @@ struct Stmt final {
     ExprPtr step;   // For step
     std::vector<ExprPtr> items;  // Print items, or call arguments
     bool newline{true};
+    // A label that is not in the first column may be a call (`Bump : Bump`).
+    bool maybe_call{};
     // Print: the separator after each item: ' ' (none), ';' or ','.
     std::string separators;
     bool until{};                              // Do ... Until / Loop Until
@@ -153,13 +165,18 @@ struct Parameter final {
     bool by_value{};
 };
 
+// Property Get, Let or Set; none for a Sub or a Function.
+enum class PropertyKind { none, get, let, set };
+
 struct Procedure final {
     std::string name;  // lower-case
     std::string spelling;
     Position at;
+    PropertyKind property{PropertyKind::none};
     bool is_function{};
     bool is_public{true};
     VbType return_type{VbType::none};
+    std::string return_type_name;  // the class, when the type is an object
     std::vector<Parameter> parameters;
     std::vector<StmtPtr> body;
 };
@@ -179,6 +196,7 @@ struct TypeDecl final {
 
 struct Module final {
     std::string name;
+    bool is_class{};  // a class module: `globals` are its fields
     std::vector<TypeDecl> types;
     std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;
