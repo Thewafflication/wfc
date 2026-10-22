@@ -28,6 +28,10 @@ struct ClassSource final {
 // What a project says about itself that the built-in classes use.
 struct ProjectInfo final {
     std::map<std::string, std::string> app_properties;  // the `App` object
+    // The forms (lower case names) live in the engine; code reaches them by
+    // name. A project with forms ends by running them.
+    std::vector<std::string> form_names;
+    std::string startup_form;
 };
 
 // Parses, checks, lowers and generates code for a standard module and the

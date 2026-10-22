@@ -11,6 +11,7 @@
 #include "com_server.hpp"
 #include "compiler/compile.hpp"
 #include "compiler/native_host.hpp"
+#include "interpreter/native_engine.hpp"
 #include "package.hpp"
 
 namespace {
@@ -121,8 +122,28 @@ int build_package(const int argument_count, const char* const arguments[]) {
 // architecture has no back end yet.
 int run_native(const int argument_count, const char* const arguments[]) {
     std::vector<std::filesystem::path> files;
+    wfc::EvaluationOptions options;
+    bool fit_screen = false;
+    const auto absolute_text = [](const std::string& text) {
+        return text.empty() ? text : std::filesystem::absolute(text).string();
+    };
+    std::string ui_script_override;
     for (int i = 2; i < argument_count; ++i) {
-        files.emplace_back(arguments[i]);
+        const std::string_view argument = arguments[i];
+        if (argument == "--gui") {
+            options.ui_mode = "win32";
+        } else if (argument == "--fullscreen") {
+            options.ui_mode = "win32";
+            fit_screen = true;
+        } else if (argument == "--exit-after" && i + 1 < argument_count) {
+            options.exit_after_ms = std::atol(arguments[++i]);
+        } else if (argument == "--ui-script" && i + 1 < argument_count) {
+            ui_script_override = absolute_text(arguments[++i]);
+        } else if (argument == "--screenshots" && i + 1 < argument_count) {
+            options.screenshot_directory = absolute_text(arguments[++i]);
+        } else {
+            files.emplace_back(arguments[i]);
+        }
     }
     if (!files.empty() && files.front().extension() == ".vbp") {
         for (auto& file : files) {
@@ -133,6 +154,10 @@ int run_native(const int argument_count, const char* const arguments[]) {
     if (!project.ok) {
         std::cerr << project.error << '\n';
         return 2;
+    }
+    if (!files.empty() && files.front().extension() == ".vbp") {
+        std::error_code ignored;
+        std::filesystem::current_path(files.front().parent_path(), ignored);
     }
     const auto architecture = wfc::compiler::host_architecture();
     if (!wfc::compiler::native_back_end_available()) {
@@ -149,19 +174,55 @@ int run_native(const int argument_count, const char* const arguments[]) {
         source.resize(source.size() - call.size());
     }
     std::vector<wfc::compiler::ClassSource> classes;
+    wfc::detail::EngineSetup setup;
+    wfc::compiler::ProjectInfo info;
+    const auto lower = [](std::string text) {
+        for (auto& c : text) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return text;
+    };
     for (std::size_t i = 0; i < project.class_names.size(); ++i) {
         if (i < project.class_form_texts.size() &&
             !project.class_form_texts[i].empty()) {
-            std::cerr << "native compile error: the form "
-                      << project.class_names[i] << " is not compiled yet"
-                      << '\n';
-            return 3;
+            // A form lives in the engine; its code is not compiled yet, so
+            // only the design is loaded.
+            setup.classes.push_back(wfc::ClassModuleSource{
+                project.class_names[i], std::string_view{},
+                project.class_form_texts[i],
+                project.class_form_directories[i]});
+            info.form_names.push_back(lower(project.class_names[i]));
+            continue;
         }
         classes.push_back(wfc::compiler::ClassSource{project.class_names[i],
                                                      project.class_sources[i]});
     }
-    wfc::compiler::ProjectInfo info;
     info.app_properties = project.app_properties;
+    info.startup_form = lower(project.startup_form);
+    options.vb6_print_spacing = true;
+    options.app_properties = project.app_properties;
+    options.per_module_option_explicit = project.per_module_option_explicit;
+    options.option_explicit_ranges = project.option_explicit_ranges;
+    options.resource_file = project.resource_file;
+    options.type_libraries = project.type_libraries;
+    options.startup_form = project.startup_form;
+    options.ui_script =
+        ui_script_override.empty() ? project.ui_script : ui_script_override;
+    if (const auto forced = environment_text("WFC_FULLSCREEN");
+        !forced.empty() && forced != "0") {
+        options.ui_mode = "win32";
+        fit_screen = true;
+    }
+    options.fit_screen = fit_screen;
+    options.fit_width = project.largest_form_width;
+    options.fit_height = project.largest_form_height;
+    options.fit_screen_size = environment_text("WFC_SCREEN");
+    setup.options = options;
+    setup.scan_text = project.module_source;
+    for (const auto& text : project.class_sources) {
+        setup.scan_text += '\n';
+        setup.scan_text += text;
+    }
     const auto compiled =
         wfc::compiler::compile_project(source, classes, architecture, info);
     if (!compiled.error.empty()) {
@@ -174,7 +235,8 @@ int run_native(const int argument_count, const char* const arguments[]) {
         return 3;
     }
     std::string problem;
-    const int code = wfc::compiler::run_native_image(compiled.image, problem);
+    const int code =
+        wfc::compiler::run_native_image(compiled.image, problem, &setup);
     if (!problem.empty()) {
         std::cerr << problem << '\n';
         return 2;

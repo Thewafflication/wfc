@@ -2,6 +2,7 @@
 
 #include "native_engine.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -304,6 +305,178 @@ struct NativeSupport {
         return flag;
     }
 
+    static std::string lower(std::string text) {
+        for (auto& c : text) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return text;
+    }
+
+    static void fail(Interpreter& in, const int number, NativeError& error) {
+        error.number = number;
+        error.description =
+            Interpreter::vb_error_description(static_cast<Integer>(number));
+        static_cast<void>(in);
+    }
+
+    static bool start(std::unique_ptr<Interpreter>& interpreter,
+                      EngineSetup setup, NativeError& error) {
+        static EngineSetup kept;  // the interpreter reads its sources later
+        kept = std::move(setup);
+        interpreter =
+            std::make_unique<Interpreter>(std::string_view{}, kept.classes);
+        auto& in = *interpreter;
+        in.native_scan_text_ = kept.scan_text;
+        const auto& options = kept.options;
+        in.set_vb_number_spacing(true);
+        in.set_app_properties(options.app_properties);
+        in.set_resource_file(options.resource_file);
+        in.set_type_libraries(options.type_libraries);
+        in.set_startup_form(options.startup_form);
+        in.set_ui_script(options.ui_script);
+        in.set_exit_after(options.exit_after_ms);
+        in.set_ui_mode(options.ui_mode);
+        in.set_fit_screen(options.fit_screen, options.fit_width,
+                          options.fit_height, options.fit_screen_size);
+        in.set_screenshot_directory(options.screenshot_directory);
+        if (!in.initialize_program()) {
+            take_error(in, error);
+            return false;
+        }
+        return true;
+    }
+
+    static std::optional<Value> global(Interpreter& in, const std::string& name,
+                                       NativeError& error) {
+        const auto found = in.find_variable(lower(name));
+        if (found.value == nullptr) {
+            if (!in.error_.diagnostic.empty()) {
+                take_error(in, error);
+            } else {
+                fail(in, 424, error);
+            }
+            return std::nullopt;
+        }
+        return *found.value;
+    }
+
+    // Binds the values to wfcarg0.. in the module scope while `body` runs.
+    template <typename Body>
+    static auto with_arguments(Interpreter& in,
+                               const std::vector<Value>& values, Body&& body) {
+        auto& scope = in.module_scope();
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            const std::string name = "wfcarg" + std::to_string(i);
+            scope.variables[name] = values[i];
+            if (std::holds_alternative<Empty>(values[i])) {
+                scope.variant_variables.insert(name);
+            }
+        }
+        auto result = body();
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            const std::string name = "wfcarg" + std::to_string(i);
+            scope.variables.erase(name);
+            scope.variant_variables.erase(name);
+        }
+        return result;
+    }
+
+    // `name(wfcarg1, wfcarg2, ...)`: the member and its arguments as source.
+    static std::string member_text(const std::string& name,
+                                   const std::size_t count,
+                                   const std::size_t first) {
+        std::string text = name;
+        if (count > 0) {
+            text += '(';
+            for (std::size_t i = 0; i < count; ++i) {
+                text +=
+                    (i > 0 ? ", wfcarg" : "wfcarg") + std::to_string(first + i);
+            }
+            text += ')';
+        }
+        return text;
+    }
+
+    static std::optional<Value> member_get(Interpreter& in, const Value& object,
+                                           const std::string& name,
+                                           const std::vector<Value>& arguments,
+                                           NativeError& error) {
+        if (!std::holds_alternative<ObjectInstance>(object)) {
+            fail(in,
+                 std::holds_alternative<Nothing>(object) ||
+                         std::holds_alternative<Empty>(object)
+                     ? 91
+                     : 424,
+                 error);
+            return std::nullopt;
+        }
+        static std::string text;  // the interpreter reads it while it runs
+        text = member_text(name, arguments.size(), 1);
+        std::vector<Value> bound{object};
+        bound.insert(bound.end(), arguments.begin(), arguments.end());
+        return with_arguments(in, bound, [&]() -> std::optional<Value> {
+            in.source_ = text;
+            in.main_source_ = text;
+            in.error_source_data_ = text.data();
+            in.offset_ = 0;
+            in.error_ = wfc::Evaluation{};
+            in.execute_ = true;
+            auto result = in.parse_member_access_after_dot(object, 0, false);
+            if (!result.has_value()) {
+                take_error(in, error);
+            }
+            return result;
+        });
+    }
+
+    static bool member_put(Interpreter& in, const Value& object,
+                           const std::string& name,
+                           const std::vector<Value>& arguments,
+                           const Value& value, const bool is_set,
+                           NativeError& error) {
+        if (!std::holds_alternative<ObjectInstance>(object)) {
+            fail(in,
+                 std::holds_alternative<Nothing>(object) ||
+                         std::holds_alternative<Empty>(object)
+                     ? 91
+                     : 424,
+                 error);
+            return false;
+        }
+        std::vector<Value> bound{object, value};
+        bound.insert(bound.end(), arguments.begin(), arguments.end());
+        const std::string text =
+            std::string(is_set ? "Set " : "") + "wfcarg0." +
+            member_text(name, arguments.size(), 2) + " = wfcarg1";
+        // Both are Variants: the statement assigns what they hold.
+        return run_statement(in, text, bound, 0x3U, error);
+    }
+
+    static std::optional<std::vector<Value>> items(Interpreter& in,
+                                                   const Value& object,
+                                                   NativeError& error) {
+        const auto* instance = std::get_if<ObjectInstance>(&object);
+        if (instance == nullptr || instance->data->native == nullptr) {
+            fail(in, 438, error);
+            return std::nullopt;
+        }
+        std::vector<Value> list;
+        if (!instance->data->native->enumerate(in, list)) {
+            fail(in, 438, error);
+            return std::nullopt;
+        }
+        return list;
+    }
+
+    static bool run_forms(Interpreter& in, NativeError& error) {
+        in.execute_ = true;
+        if (!in.run_forms_at_exit()) {
+            take_error(in, error);
+            return false;
+        }
+        return true;
+    }
+
     static bool run_statement(Interpreter& in, const std::string& text,
                               std::vector<Value>& values,
                               const std::uint32_t variant_mask,
@@ -459,17 +632,12 @@ struct NativeSupport {
         if (std::holds_alternative<Nothing>(value)) {
             return "Nothing";
         }
-        if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
-            if (instance->data->native != nullptr &&
-                instance->data->class_name == "wfcnative") {
-                return instance->data->native->type_name();
+        if (std::holds_alternative<ObjectInstance>(value)) {
+            NativeError ignored;
+            if (const auto name =
+                    call_function(in, "typename", {value}, ignored)) {
+                return render(*name);
             }
-            const auto found =
-                in.class_definitions_.find(instance->data->class_name);
-            if (found != in.class_definitions_.end()) {
-                return found->second.display_name;
-            }
-            return instance->data->class_name;
         }
         return "Variant()";
     }
@@ -525,6 +693,48 @@ void NativeEngine::randomize(const bool has_seed, const double seed,
 
 bool NativeEngine::like(const std::string& text, const std::string& pattern) {
     return NativeSupport::like(text, pattern);
+}
+
+bool NativeEngine::start(EngineSetup setup, NativeError& error) {
+    return NativeSupport::start(interpreter_, std::move(setup), error);
+}
+
+std::optional<Value> NativeEngine::global(const std::string& name,
+                                          NativeError& error) {
+    return NativeSupport::global(*interpreter_, name, error);
+}
+
+std::optional<Value> NativeEngine::member_get(
+    const Value& object, const std::string& name,
+    const std::vector<Value>& arguments, NativeError& error) {
+    return NativeSupport::member_get(*interpreter_, object, name, arguments,
+                                     error);
+}
+
+bool NativeEngine::member_put(const Value& object, const std::string& name,
+                              const std::vector<Value>& arguments,
+                              const Value& value, const bool is_set,
+                              NativeError& error) {
+    return NativeSupport::member_put(*interpreter_, object, name, arguments,
+                                     value, is_set, error);
+}
+
+std::optional<std::vector<Value>> NativeEngine::items(const Value& object,
+                                                      NativeError& error) {
+    return NativeSupport::items(*interpreter_, object, error);
+}
+
+bool NativeEngine::run_forms(NativeError& error) {
+    return NativeSupport::run_forms(*interpreter_, error);
+}
+
+bool NativeEngine::same_object(const Value& a, const Value& b) {
+    const auto* first = std::get_if<ObjectInstance>(&a);
+    const auto* second = std::get_if<ObjectInstance>(&b);
+    if (first != nullptr && second != nullptr) {
+        return first->data == second->data;
+    }
+    return first == nullptr && second == nullptr;
 }
 
 bool NativeEngine::run_statement(const std::string& text,

@@ -208,6 +208,11 @@ public:
             case Service::inline_element:
             case Service::array_flat_element:
             case Service::string_mid_assign:
+            case Service::host_global:
+            case Service::variant_member_get:
+            case Service::variant_member_put:
+            case Service::variant_items:
+            case Service::run_forms:
             case Service::engine_statement:
             case Service::variant_call:
             case Service::variant_binary:
@@ -374,8 +379,11 @@ constexpr Builtin kBuiltins[] = {
 
 class Lowerer final {
 public:
-    Lowerer(const Module& module, std::vector<const Module*> class_modules)
-        : module_(module), class_modules_(std::move(class_modules)) {}
+    Lowerer(const Module& module, std::vector<const Module*> class_modules,
+            const LowerOptions& options)
+        : module_(module),
+          class_modules_(std::move(class_modules)),
+          options_(options) {}
 
     ir::Program run() {
         register_classes();
@@ -396,12 +404,17 @@ public:
             lower_class_new(c);
         }
         const auto main = signatures_.find("main");
-        if (main == signatures_.end() || main->second.is_function) {
+        const bool has_main =
+            main != signatures_.end() && !main->second.is_function;
+        if (!has_main && !options_.has_forms) {
             fail("the project has no Sub Main", Position{1, 1});
         }
-        program_.entry = main->second.index;
-        if (!global_arrays_.empty() || !global_objects_.empty()) {
-            make_start_function(main->second.index);
+        if (has_main) {
+            program_.entry = main->second.index;
+        }
+        if (!global_arrays_.empty() || !global_objects_.empty() ||
+            options_.has_forms || !has_main) {
+            make_start_function(has_main ? main->second.index : -1);
         }
         return std::move(program_);
     }
@@ -439,7 +452,13 @@ private:
             emit_array_allocation(array.variable, array.declaration->bounds,
                                   true, false, true);
         }
-        builder.call({}, main_index, {}, false);
+        if (main_index >= 0 && (options_.startup_form.empty() ||
+                                options_.startup_form == "sub main")) {
+            builder.call({}, main_index, {}, false);
+        }
+        if (options_.has_forms) {
+            builder.runtime(Service::run_forms, {});
+        }
         // The module-level objects end with the program.
         for (const auto& object : global_objects_) {
             const auto handle =
@@ -1800,8 +1819,7 @@ private:
         const Expr& target_expression = *statement.target;
         if (target_expression.kind == ExprKind::member ||
             target_expression.kind == ExprKind::member_call) {
-            int cls = -1;
-            if (object_class_of(*target_expression.operands[0], cls)) {
+            if (!is_record_place(*target_expression.operands[0])) {
                 lower_object_assignment(statement);
                 return;
             }
@@ -1884,6 +1902,10 @@ private:
     [[nodiscard]] bool base_udt_of(const Expr& expression, int& udt) {
         switch (expression.kind) {
             case ExprKind::name: {
+                if (!has_variable(expression.text)) {
+                    udt = -1;  // a function, a constant or an engine object
+                    return true;
+                }
                 const auto variable =
                     find_variable(expression.text, expression.at);
                 udt = variable.type == VbType::record ? variable.udt : -1;
@@ -3387,11 +3409,79 @@ private:
 
     // ----- Objects ---------------------------------------------------------
 
+    // ----- Late-bound objects (objects of the engine) ----------------------
+
+    // A value that is reached by name at run time: a Variant, or an object
+    // whose class is not known here.
+    [[nodiscard]] static bool late_bound(const Value& value) {
+        return value.type == VbType::variant ||
+               (value.type == VbType::object && value.cls < 0);
+    }
+
+    // Whether the expression is a record (so its members are fields).
+    [[nodiscard]] bool is_record_place(const Expr& expression) {
+        int udt = -1;
+        return base_udt_of(expression, udt) && udt >= 0;
+    }
+
+    [[nodiscard]] std::vector<Value> box_arguments(
+        const std::vector<const Expr*>& arguments, const Position at) {
+        std::vector<Value> boxed;
+        for (const Expr* argument : arguments) {
+            if (argument == nullptr) {
+                fail("an omitted argument is not compiled for this call yet",
+                     at);
+            }
+            boxed.push_back(to_variant(lower_expression(*argument), at));
+        }
+        return boxed;
+    }
+
+    [[nodiscard]] Operand name_literal(const std::string& name) {
+        program_.strings.push_back(name);
+        return ir::literal(
+            static_cast<std::int64_t>(program_.strings.size() - 1U));
+    }
+
+    // `object.name(arguments)` read or called, found by name.
+    [[nodiscard]] Value late_get(const Value& base, const std::string& name,
+                                 const std::vector<const Expr*>& arguments,
+                                 const Position at) {
+        const auto object = to_variant(base, at);
+        const auto boxed = box_arguments(arguments, at);
+        const Operand block = argument_block(boxed);
+        Value result;
+        result.type = VbType::variant;
+        result.operand = new_owned_variant();
+        builder_->runtime(
+            Service::variant_member_get,
+            {object.operand, name_literal(name),
+             ir::immediate(static_cast<std::int64_t>(boxed.size())), block},
+            result.operand, true);
+        return result;
+    }
+
+    // `object.name(arguments) = value` (Let) or `Set object.name = value`.
+    void late_put(const Value& base, const std::string& name,
+                  const std::vector<const Expr*>& arguments, const Value& value,
+                  const bool is_set, const Position at) {
+        const auto object = to_variant(base, at);
+        const auto boxed = box_arguments(arguments, at);
+        const Operand block = argument_block(boxed);
+        const auto assigned = to_variant(value, at);
+        builder_->runtime(
+            Service::variant_member_put,
+            {object.operand, name_literal(name),
+             ir::immediate(static_cast<std::int64_t>(boxed.size())), block,
+             assigned.operand, ir::immediate(is_set ? 1 : 0)});
+    }
+
     // The target of an enclosing With block.
     struct WithTarget final {
         bool object{};
         Operand operand;  // a slot: the object, or a pointer to the record
         int index{-1};    // the class, or the record type
+        bool late{};      // a Variant holding an object of the engine
     };
 
     [[nodiscard]] const WithTarget& current_with(const Position at) const {
@@ -3403,8 +3493,35 @@ private:
 
     void lower_with(const Stmt& statement) {
         int cls = -1;
+        if (!is_record_place(*statement.expr) &&
+            !object_class_of(*statement.expr, cls)) {
+            // An object reached by name: it is held as a Variant.
+            const auto value =
+                to_variant(lower_expression(*statement.expr), statement.at);
+            const auto slot = builder_->new_temp();
+            builder_->move_wide(slot, ir::immediate(0));
+            builder_->runtime(Service::variant_assign,
+                              {address_of(slot), value.operand});
+            with_targets_.push_back(WithTarget{false, slot, -1, true});
+            lower_block(statement.body);
+            with_targets_.pop_back();
+            builder_->runtime(Service::variant_release, {slot});
+            return;
+        }
         if (object_class_of(*statement.expr, cls)) {
             const auto value = lower_expression(*statement.expr);
+            if (late_bound(value)) {
+                const auto boxed = to_variant(value, statement.at);
+                const auto slot = builder_->new_temp();
+                builder_->move_wide(slot, ir::immediate(0));
+                builder_->runtime(Service::variant_assign,
+                                  {address_of(slot), boxed.operand});
+                with_targets_.push_back(WithTarget{false, slot, -1, true});
+                lower_block(statement.body);
+                with_targets_.pop_back();
+                builder_->runtime(Service::variant_release, {slot});
+                return;
+            }
             const auto slot = builder_->new_temp();
             builder_->move_wide(slot, ir::immediate(0));
             builder_->runtime(Service::object_assign,
@@ -3562,6 +3679,9 @@ private:
     // without arguments.
     [[nodiscard]] Value lower_object_member(const Expr& expression) {
         const auto base = lower_expression(*expression.operands[0]);
+        if (late_bound(base)) {
+            return late_get(base, expression.text, {}, expression.at);
+        }
         const auto& info = class_of_value(base, expression.at);
         builder_->runtime(Service::object_check, {base.operand});
         for (const auto& field : info.layout.fields) {
@@ -3607,6 +3727,9 @@ private:
     [[nodiscard]] Value call_member(const Value& base, const std::string& name,
                                     const std::vector<const Expr*>& arguments,
                                     const Position at, const bool want_value) {
+        if (late_bound(base)) {
+            return late_get(base, name, arguments, at);
+        }
         const auto& info = class_of_value(base, at);
         builder_->runtime(Service::object_check, {base.operand});
         const Signature* signature = member_signature(info, name);
@@ -3698,12 +3821,16 @@ private:
         const Expr& target = *statement.target;
         const auto value = lower_expression(*statement.expr);
         const auto base = lower_expression(*target.operands[0]);
-        const auto& info = class_of_value(base, statement.at);
-        builder_->runtime(Service::object_check, {base.operand});
         std::vector<const Expr*> arguments;
         for (std::size_t i = 1; i < target.operands.size(); ++i) {
             arguments.push_back(target.operands[i].get());
         }
+        if (late_bound(base)) {
+            late_put(base, target.text, arguments, value, false, statement.at);
+            return;
+        }
+        const auto& info = class_of_value(base, statement.at);
+        builder_->runtime(Service::object_check, {base.operand});
         if (const auto found = info.letters.find(target.text);
             found != info.letters.end()) {
             static_cast<void>(emit_call(found->second, target.text, arguments,
@@ -3733,9 +3860,17 @@ private:
         }
         if (target.kind == ExprKind::member ||
             target.kind == ExprKind::member_call) {
-            int cls = -1;
-            if (object_class_of(*target.operands[0], cls)) {
+            if (!is_record_place(*target.operands[0])) {
                 const auto base = lower_expression(*target.operands[0]);
+                if (late_bound(base)) {
+                    std::vector<const Expr*> arguments;
+                    for (std::size_t i = 1; i < target.operands.size(); ++i) {
+                        arguments.push_back(target.operands[i].get());
+                    }
+                    late_put(base, target.text, arguments, value, true,
+                             statement.at);
+                    return;
+                }
                 const auto& info = class_of_value(base, statement.at);
                 builder_->runtime(Service::object_check, {base.operand});
                 if (const auto found = info.setters.find(target.text);
@@ -3944,10 +4079,10 @@ private:
         return emit_library_call(name, boxed);
     }
 
-    [[nodiscard]] Value emit_library_call(const std::string& name,
-                                          const std::vector<Value>& boxed) {
-        // The handles go to consecutive slots; the service reads them upwards
-        // in memory, which is downwards in slot numbers.
+    // The handles of boxed arguments in consecutive slots, as the services
+    // read them: upwards in memory, which is downwards in slot numbers. The
+    // result is the address of the first (or 0 for none).
+    [[nodiscard]] Operand argument_block(const std::vector<Value>& boxed) {
         const std::size_t count = boxed.size();
         std::vector<Operand> slots;
         for (std::size_t i = 0; i < count; ++i) {
@@ -3961,6 +4096,13 @@ private:
             block = builder_->new_temp();
             builder_->emit(Opcode::address, block, slots[count - 1]);
         }
+        return block;
+    }
+
+    [[nodiscard]] Value emit_library_call(const std::string& name,
+                                          const std::vector<Value>& boxed) {
+        const std::size_t count = boxed.size();
+        const Operand block = argument_block(boxed);
         program_.strings.push_back(name);
         const auto literal = ir::literal(
             static_cast<std::int64_t>(program_.strings.size() - 1U));
@@ -4200,6 +4342,15 @@ private:
                     if (expression.text == "nothing") {
                         return Value{ir::immediate(0), VbType::object, -1};
                     }
+                    if (options_.host_globals.contains(expression.text)) {
+                        Value host;
+                        host.type = VbType::variant;
+                        host.operand = new_owned_variant();
+                        builder_->runtime(Service::host_global,
+                                          {name_literal(expression.text)},
+                                          host.operand, true);
+                        return host;
+                    }
                     if (expression.text == "empty") {
                         return Value{ir::immediate(0), VbType::variant};
                     }
@@ -4259,8 +4410,7 @@ private:
                         return qualified->second;
                     }
                 }
-                int cls = -1;
-                if (object_class_of(*expression.operands[0], cls)) {
+                if (!is_record_place(*expression.operands[0])) {
                     return lower_object_member(expression);
                 }
                 const auto place = lower_place(expression);
@@ -4276,8 +4426,7 @@ private:
                 return Value{place.operand, place.type};
             }
             case ExprKind::member_call: {
-                int cls = -1;
-                if (object_class_of(*expression.operands[0], cls)) {
+                if (!is_record_place(*expression.operands[0])) {
                     return lower_object_call(expression, true);
                 }
                 const auto place = lower_place(expression);
@@ -4296,6 +4445,9 @@ private:
                 return lower_new(expression);
             case ExprKind::with_target: {
                 const auto& target = current_with(expression.at);
+                if (target.late) {
+                    return Value{target.operand, VbType::variant};
+                }
                 if (!target.object) {
                     fail("a record cannot be used as a value here",
                          expression.at);
@@ -4481,6 +4633,24 @@ private:
             return result;
         }
         if (op == "is") {
+            const auto typed = [](const Value& value) {
+                return value.type == VbType::object && value.cls >= 0;
+            };
+            if ((left.type == VbType::variant ||
+                 right.type == VbType::variant || late_bound(left) ||
+                 late_bound(right)) &&
+                !typed(left) && !typed(right)) {
+                // Objects of the engine are compared as Variants.
+                const auto first = to_variant(left, expression.at);
+                const auto second = to_variant(right, expression.at);
+                Value result;
+                result.type = VbType::boolean;
+                result.operand = builder_->new_temp();
+                builder_->runtime(Service::variant_is,
+                                  {first.operand, second.operand},
+                                  result.operand);
+                return result;
+            }
             const auto as_object = [&](const Value& value) {
                 return value.type == VbType::variant
                            ? from_variant(value, VbType::object, expression.at)
@@ -4642,6 +4812,7 @@ private:
     }
 
     const Module& module_;
+    LowerOptions options_;
     std::vector<const Module*> class_modules_;
     std::vector<ClassInfo> classes_;
     std::map<std::string, int> class_index_;
@@ -4690,10 +4861,11 @@ private:
 }  // namespace
 
 LowerResult lower_module(const Module& module,
-                         const std::vector<const Module*>& classes) {
+                         const std::vector<const Module*>& classes,
+                         const LowerOptions& options) {
     LowerResult result;
     try {
-        Lowerer lowerer(module, classes);
+        Lowerer lowerer(module, classes, options);
         result.program = lowerer.run();
     } catch (const LowerFailure& failure) {
         result.error = failure.message;

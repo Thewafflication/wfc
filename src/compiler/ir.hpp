@@ -219,7 +219,15 @@ enum class Service : int {
     // argument handles, block of result handles, mask of the arguments that
     // are Variant variables).
     engine_statement = 91,
-    count = 92,
+    // Objects of the engine (forms, controls) reached by name, late bound.
+    host_global = 92,         // (name literal) -> new handle
+    variant_member_get = 93,  // (object, name literal, count, block) -> handle
+    variant_member_put = 94,  // (object, name, count, block, value, is Set)
+    variant_is = 95,          // (a, b) -> -1 when they are the same object
+    variant_type_of = 96,     // (object, class record) -> -1 or 0
+    variant_items = 97,       // (object) -> new handle: a Variant array
+    run_forms = 98,           // () shows the startup form and runs the events
+    count = 99,
 };
 
 struct Instruction final {

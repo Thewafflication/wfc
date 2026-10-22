@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "vb_value.hpp"
+#include "wfc/evaluator.hpp"
 
 namespace wfc::detail {
 
@@ -22,6 +23,14 @@ class Interpreter;
 struct NativeError final {
     int number{};
     std::string description;
+};
+
+// What a project gives the engine: the forms it loads and the options of the
+// run (the form code is compiled, so the classes carry design data only).
+struct EngineSetup final {
+    std::vector<wfc::ClassModuleSource> classes;
+    wfc::EvaluationOptions options;
+    std::string scan_text;  // the compiled program's source
 };
 
 class NativeEngine final {
@@ -63,6 +72,26 @@ public:
                                      std::vector<Value>& values,
                                      std::uint32_t variant_mask,
                                      NativeError& error);
+    // Loads the forms of the project into the engine.
+    [[nodiscard]] bool start(EngineSetup setup, NativeError& error);
+    // A global object of the engine (a form by its predeclared name, Forms).
+    [[nodiscard]] std::optional<Value> global(const std::string& name,
+                                              NativeError& error);
+    // `object.name(arguments)` read, called, and assigned (`Let` or `Set`).
+    [[nodiscard]] std::optional<Value> member_get(
+        const Value& object, const std::string& name,
+        const std::vector<Value>& arguments, NativeError& error);
+    [[nodiscard]] bool member_put(const Value& object, const std::string& name,
+                                  const std::vector<Value>& arguments,
+                                  const Value& value, bool is_set,
+                                  NativeError& error);
+    // The items `For Each` visits in an object.
+    [[nodiscard]] std::optional<std::vector<Value>> items(const Value& object,
+                                                          NativeError& error);
+    // Shows the startup form and runs the events until the forms are gone.
+    [[nodiscard]] bool run_forms(NativeError& error);
+    // Whether two Values are the same object (or both Nothing).
+    [[nodiscard]] static bool same_object(const Value& a, const Value& b);
     // `text Like pattern`.
     [[nodiscard]] static bool like(const std::string& text,
                                    const std::string& pattern);

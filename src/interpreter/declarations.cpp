@@ -1401,7 +1401,8 @@ void Interpreter::scan_builtin_classes() {
     };
     const auto any_source_mentions = [&](const std::string_view needle,
                                          const bool whole_word) {
-        bool found = text_mentions(source_, needle, whole_word);
+        bool found = text_mentions(source_, needle, whole_word) ||
+                     text_mentions(native_scan_text_, needle, whole_word);
         for (const auto& module : class_sources_) {
             found = found || text_mentions(module.source, needle, whole_word);
         }

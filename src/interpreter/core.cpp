@@ -161,7 +161,7 @@ std::string Interpreter::failing_module_name() const {
     return {};
 }
 
-wfc::Evaluation Interpreter::evaluate_program_text() {
+bool Interpreter::initialize_program() {
     scan_option_explicit();
     scan_deftypes();
     scan_module_names();
@@ -171,7 +171,7 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
     register_type_libraries();
     register_native_types();
     if (!scan_classes()) {
-        return std::move(error_);
+        return false;
     }
     register_predeclared_instances();
     {
@@ -183,7 +183,11 @@ wfc::Evaluation Interpreter::evaluate_program_text() {
         native_class.display_name = "Object";
         class_definitions_.try_emplace("wfcnative", std::move(native_class));
     }
-    if (!scan_procedures()) {
+    return scan_procedures();
+}
+
+wfc::Evaluation Interpreter::evaluate_program_text() {
+    if (!initialize_program()) {
         return std::move(error_);
     }
     if (!serve_mode_.empty() && !com_serve()) {

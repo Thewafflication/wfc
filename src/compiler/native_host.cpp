@@ -1294,6 +1294,89 @@ std::int32_t via_engine_long(std::string_view function,
     return number.value_or(0);
 }
 
+// The arguments of a late-bound call: handles read upward from the block.
+[[nodiscard]] std::vector<wfc::detail::Value> block_values(
+    const std::int32_t count, const char* block) {
+    std::vector<wfc::detail::Value> values;
+    for (std::int32_t i = 0; i < count; ++i) {
+        RtVariant* handle;
+        std::memcpy(&handle, block + 8 * i, sizeof(handle));
+        values.push_back(value_of(handle));
+    }
+    return values;
+}
+
+RtVariant* host_global(const RtString* name) {
+    wfc::detail::NativeError problem;
+    auto result = engine().global(std::string(view_of(name)), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
+RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
+                              const std::int32_t count, const char* block) {
+    wfc::detail::NativeError problem;
+    auto result =
+        engine().member_get(value_of(object), std::string(view_of(name)),
+                            block_values(count, block), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
+void variant_member_put(const RtVariant* object, const RtString* name,
+                        const std::int32_t count, const char* block,
+                        const RtVariant* value, const std::int32_t is_set) {
+    wfc::detail::NativeError problem;
+    if (!engine().member_put(value_of(object), std::string(view_of(name)),
+                             block_values(count, block), value_of(value),
+                             is_set != 0, problem)) {
+        raise_engine_error(problem);
+    }
+}
+
+std::int32_t variant_is(const RtVariant* a, const RtVariant* b) {
+    return wfc::detail::NativeEngine::same_object(value_of(a), value_of(b)) ? -1
+                                                                            : 0;
+}
+
+std::int32_t variant_type_of(const RtVariant* object,
+                             const RtString* record_literal) {
+    bool valid = false;
+    const RtObject* compiled = object_of(value_of(object), valid);
+    return valid && compiled != nullptr &&
+                   reinterpret_cast<const char*>(compiled->record) ==
+                       record_literal->data
+               ? -1
+               : 0;
+}
+
+RtVariant* variant_items(const RtVariant* object) {
+    wfc::detail::NativeError problem;
+    auto items = engine().items(value_of(object), problem);
+    if (!items.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    wfc::detail::ArrayValue array{};
+    array.elements = std::move(*items);
+    array.is_variant_element = true;
+    array.element_type_index = wfc::detail::Value{wfc::detail::Empty{}}.index();
+    return box(wfc::detail::Value{std::move(array)});
+}
+
+void run_forms() {
+    wfc::detail::NativeError problem;
+    if (!engine().run_forms(problem)) {
+        raise_engine_error(problem);
+    }
+}
+
 void engine_statement(const RtString* text, const std::int32_t count,
                       const char* in_block, char* out_block,
                       const std::int32_t variant_mask) {
@@ -1391,7 +1474,8 @@ template <typename Function>
 
 }  // namespace
 
-int run_native_image(const NativeImage& image, std::string& error) {
+int run_native_image(const NativeImage& image, std::string& error,
+                     const wfc::detail::EngineSetup* setup) {
 #ifdef _WIN32
     if (image.architecture != host_architecture()) {
         error = "the image was made for another architecture";
@@ -1457,6 +1541,10 @@ int run_native_image(const NativeImage& image, std::string& error) {
         address_of(&variant_array_item),  address_of(&string_like),
         address_of(&object_is_class),     address_of(&string_mid_assign),
         address_of(&variant_from_byte),   address_of(&engine_statement),
+        address_of(&host_global),         address_of(&variant_member_get),
+        address_of(&variant_member_put),  address_of(&variant_is),
+        address_of(&variant_type_of),     address_of(&variant_items),
+        address_of(&run_forms),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
@@ -1470,6 +1558,15 @@ int run_native_image(const NativeImage& image, std::string& error) {
     g_error = ErrorState{};
     g_column = 0;
     g_image_base = static_cast<std::uint8_t*>(memory);
+    g_engine.reset();
+    if (setup != nullptr) {
+        wfc::detail::NativeError problem;
+        if (!engine().start(*setup, problem)) {
+            error = problem.description;
+            VirtualFree(memory, 0, MEM_RELEASE);
+            return -1;
+        }
+    }
     // The stack limit: half of the stack that is left (the services need some
     // room too).
     {
@@ -1501,6 +1598,7 @@ int run_native_image(const NativeImage& image, std::string& error) {
     return code;
 #else
     static_cast<void>(image);
+    static_cast<void>(setup);
     error = "native programs run on Windows only";
     return -1;
 #endif

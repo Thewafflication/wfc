@@ -196,10 +196,8 @@ private:
         } else if (options_.enum_names.contains(name)) {
             type = VbType::long_integer;
         } else if (name == "object") {
-            type = VbType::object;
-            if (record_name != nullptr) {
-                record_name->clear();
-            }
+            // A late-bound object is held like a Variant.
+            type = VbType::variant;
         } else if (options_.class_names.contains(name)) {
             type = VbType::object;
             if (record_name != nullptr) {
@@ -717,6 +715,10 @@ private:
         if (word == "seek" && ahead(1).kind == TokenKind::symbol &&
             ahead(1).text == "#") {
             return simple_engine_statement("Seek #");
+        }
+        if ((word == "load" || word == "unload") &&
+            ahead(1).kind == TokenKind::identifier) {
+            return simple_engine_statement(current().spelling + " ");
         }
         if (word == "kill" || word == "mkdir" || word == "rmdir" ||
             word == "chdir" || word == "chdrive" || word == "filecopy" ||

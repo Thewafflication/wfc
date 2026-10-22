@@ -37,6 +37,15 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $Log = [IO.Path]::GetFullPath($Log)
+# One window per log: a second start finds the first and leaves.
+$hash = [BitConverter]::ToString(
+    [Security.Cryptography.SHA1]::Create().ComputeHash(
+        [Text.Encoding]::UTF8.GetBytes($Log.ToLowerInvariant()))
+).Replace('-', '')
+$created = $false
+$single = New-Object Threading.Mutex($true, "Local\WfcTestProgress$hash",
+    [ref]$created)
+if (-not $created) { exit 0 }
 New-Item -ItemType Directory -Force -Path (Split-Path $Log) | Out-Null
 $process = $null
 if ($Run) {
@@ -218,3 +227,4 @@ $timer.Start()
 $form.Add_FormClosed({ $timer.Stop(); $close.Stop(); $fallback.Stop() })
 [void]$form.ShowDialog()
 if ($process -and -not $process.HasExited) { $process.Kill() }
+$single.ReleaseMutex()

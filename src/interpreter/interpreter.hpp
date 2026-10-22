@@ -605,6 +605,9 @@ public:
 
     [[nodiscard]] std::string failing_module_name() const;
 
+    // Scans the program text and the classes (everything before the first
+    // statement runs).
+    [[nodiscard]] bool initialize_program();
     [[nodiscard]] wfc::Evaluation evaluate_program_text();
 
 private:
@@ -1768,6 +1771,9 @@ private:
     // Forms and intrinsic controls (REQ-0289); forms.cpp.
     friend struct FormSupport;
     friend struct NativeSupport;
+    // The text of a compiled program, so the built-in classes it mentions are
+    // registered for the engine.
+    std::string native_scan_text_;
     friend struct ComServerSupport;
     // Whether `member` of `instance` is served by its native object rather
     // than by VB members of the instance's class.

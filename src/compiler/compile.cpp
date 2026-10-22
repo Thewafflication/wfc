@@ -234,7 +234,12 @@ CompileResult compile_project(const std::string_view source,
     for (const auto& module : class_modules) {
         class_pointers.push_back(&module);
     }
-    auto lowered = lower_module(parsed.module, class_pointers);
+    LowerOptions lower_options;
+    lower_options.host_globals.insert(info.form_names.begin(),
+                                      info.form_names.end());
+    lower_options.has_forms = !info.form_names.empty();
+    lower_options.startup_form = info.startup_form;
+    auto lowered = lower_module(parsed.module, class_pointers, lower_options);
     if (!lowered.error.empty()) {
         result.error = lowered.error;
         result.error_at = lowered.error_at;

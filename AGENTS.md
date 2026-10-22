@@ -15,6 +15,18 @@
   require asking the owner. This includes `cmake` (configure and build), `ctest`,
   and running the produced `wfc` binaries for the x64 debug preset. Do not pause
   to request approval before invoking these; just run them and report results.
+- Land every change the same way: stage the named paths and run plain
+  `git commit`, then `git push origin <branch>:master`. The pre-commit hook
+  is the gate (lint, x64 debug build, full test suite); never run those
+  stages by hand in place of it, and never skip it with `--no-verify`. Its
+  first step opens the always-on-top test progress window
+  (`scripts/Show-TestProgress.ps1`), so the owner can watch the run; do not
+  suppress or replace it.
+- Only one commit gate may run at a time (`out/commit-gate.lock`, taken by
+  `scripts/Start-CommitGate.ps1`; the progress window is likewise a single
+  instance). Do not start a second `git commit`, build or `ctest` run in the
+  same checkout while a gate is running, and do not edit sources until it
+  ends. If a commit is refused because a gate is running, wait for it.
 - The preferred Codex launch posture for this repository is workspace write
   access with on-request approvals:
 
