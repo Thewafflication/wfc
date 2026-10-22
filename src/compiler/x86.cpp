@@ -474,10 +474,11 @@ private:
         dword(static_cast<std::uint32_t>(frame));
         bytes({0x89, 0x5D, 0xFC});  // mov [ebp - 4], ebx
         // ebx = the address of the image
+        const std::size_t call_at = image_.size();
         bytes({0xE8, 0x00, 0x00, 0x00, 0x00});  // call $ + 5
         byte(0x5B);                             // pop ebx
         bytes({0x81, 0xEB});                    // sub ebx, position
-        dword(static_cast<std::uint32_t>(image_.size() - 1U));
+        dword(static_cast<std::uint32_t>(call_at + 5U));
         // Parameters: cdecl arguments from [ebp + 8], four bytes each and
         // eight for a double.
         std::int32_t offset = 8;
