@@ -78,9 +78,11 @@ public:
     [[nodiscard]] std::optional<Value> global(const std::string& name,
                                               NativeError& error);
     // `object.name(arguments)` read, called, and assigned (`Let` or `Set`).
-    [[nodiscard]] std::optional<Value> member_get(
-        const Value& object, const std::string& name,
-        const std::vector<Value>& arguments, NativeError& error);
+    // By-reference arguments come back changed in `arguments`.
+    [[nodiscard]] std::optional<Value> member_get(const Value& object,
+                                                  const std::string& name,
+                                                  std::vector<Value>& arguments,
+                                                  NativeError& error);
     [[nodiscard]] bool member_put(const Value& object, const std::string& name,
                                   const std::vector<Value>& arguments,
                                   const Value& value, bool is_set,

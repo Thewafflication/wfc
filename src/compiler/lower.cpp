@@ -208,6 +208,7 @@ public:
             case Service::inline_element:
             case Service::array_flat_element:
             case Service::string_mid_assign:
+            case Service::thunk_arg:
             case Service::host_global:
             case Service::variant_member_get:
             case Service::variant_member_put:
@@ -994,12 +995,48 @@ private:
                     info.terminate = signature.index;
                 }
             }
+            declare_member_table(c);
             ir::Function function;
             function.name = info.name + ".__new";
             info.new_function = static_cast<int>(program_.functions.size());
             program_.functions.push_back(std::move(function));
             program_.classes[c].terminate = info.terminate;
         }
+    }
+
+    // The members the shared runtime may call are the thunks that compile.cpp
+    // added ("wfcthunk_<kind>_<name>"): they go into the class record.
+    void declare_member_table(const std::size_t c) {
+        auto& info = classes_[c];
+        std::string& blob =
+            program_.strings[static_cast<std::size_t>(info.record)];
+        const auto put = [&blob](const std::int32_t value) {
+            blob.append(reinterpret_cast<const char*>(&value), sizeof(value));
+        };
+        std::vector<ir::ClassMember> members;
+        const std::string prefix = "wfcthunk_";
+        for (const auto& procedure : info.module->procedures) {
+            if (procedure.name.rfind(prefix, 0) != 0) {
+                continue;
+            }
+            const auto rest = procedure.name.substr(prefix.size());
+            const auto split = rest.find('_');
+            if (split == std::string::npos) {
+                continue;
+            }
+            ir::ClassMember member;
+            member.key = rest.substr(0, split) + ":" + rest.substr(split + 1);
+            member.function = info.methods.at(procedure.name).index;
+            members.push_back(std::move(member));
+        }
+        put(static_cast<std::int32_t>(members.size()));
+        for (auto& member : members) {
+            put(static_cast<std::int32_t>(member.key.size()));
+            member.patch_at = blob.size();
+            put(-1);
+            blob += member.key;
+        }
+        program_.classes[c].members = std::move(members);
     }
 
     // `Class.__new`: makes an object and runs Class_Initialize.
@@ -2728,6 +2765,10 @@ private:
                          at);
                 }
             }
+            if (name == "wfcargcount" || name == "wfcarg" ||
+                name == "wfcstorearg") {
+                return lower_thunk_intrinsic(name, arguments, at);
+            }
             if (const auto* builtin = find_builtin(name)) {
                 return lower_builtin(*builtin, arguments, at);
             }
@@ -2753,6 +2794,38 @@ private:
             pointers.push_back(argument.get());
         }
         return emit_call(signature, name, pointers, std::nullopt, nullptr, at);
+    }
+
+    // WfcArgCount(), WfcArg(i) and WfcStoreArg i, value: how a thunk reaches
+    // the arguments of the call that the shared runtime made.
+    [[nodiscard]] Value lower_thunk_intrinsic(
+        const std::string& name, const std::vector<ExprPtr>& arguments,
+        const Position at) {
+        if (name == "wfcargcount") {
+            Value result;
+            result.type = VbType::long_integer;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::thunk_count, {}, result.operand);
+            return result;
+        }
+        if (arguments.empty() || !arguments[0]) {
+            fail("the thunk intrinsic needs an index", at);
+        }
+        const auto index = to_long(lower_expression(*arguments[0]), at);
+        if (name == "wfcarg") {
+            Value result;
+            result.type = VbType::variant;
+            result.operand = new_owned_variant();
+            builder_->runtime(Service::thunk_arg, {index.operand},
+                              result.operand, true);
+            return result;
+        }
+        if (arguments.size() < 2U || !arguments[1]) {
+            fail("WfcStoreArg needs a value", at);
+        }
+        const auto value = to_variant(lower_expression(*arguments[1]), at);
+        builder_->runtime(Service::thunk_store, {index.operand, value.operand});
+        return Value{builder_->new_temp(), VbType::none};
     }
 
     // A temporary owned by the statement, released by its type.
@@ -3449,7 +3522,8 @@ private:
                                  const Position at) {
         const auto object = to_variant(base, at);
         const auto boxed = box_arguments(arguments, at);
-        const Operand block = argument_block(boxed);
+        std::vector<Operand> slots;
+        const Operand block = argument_block(boxed, &slots);
         Value result;
         result.type = VbType::variant;
         result.operand = new_owned_variant();
@@ -3458,6 +3532,21 @@ private:
             {object.operand, name_literal(name),
              ir::immediate(static_cast<std::int64_t>(boxed.size())), block},
             result.operand, true);
+        // The slots now hold the values after the call (the service released
+        // the old ones): the temporaries own them, and a variable that was
+        // passed gets its value back (by reference).
+        for (std::size_t i = 0; i < boxed.size(); ++i) {
+            builder_->move_wide(boxed[i].operand, slots[boxed.size() - 1 - i]);
+            const Expr* argument = arguments[i];
+            if (argument != nullptr && argument->kind == ExprKind::name &&
+                !argument->parenthesized && has_variable(argument->text)) {
+                const auto variable = find_variable(argument->text, at);
+                if (!variable.is_array && variable.type != VbType::record &&
+                    variable.type != VbType::object) {
+                    store_value(variable, boxed[i], at);
+                }
+            }
+        }
         return result;
     }
 
@@ -4082,11 +4171,16 @@ private:
     // The handles of boxed arguments in consecutive slots, as the services
     // read them: upwards in memory, which is downwards in slot numbers. The
     // result is the address of the first (or 0 for none).
-    [[nodiscard]] Operand argument_block(const std::vector<Value>& boxed) {
+    [[nodiscard]] Operand argument_block(
+        const std::vector<Value>& boxed,
+        std::vector<Operand>* slots_out = nullptr) {
         const std::size_t count = boxed.size();
         std::vector<Operand> slots;
         for (std::size_t i = 0; i < count; ++i) {
             slots.push_back(builder_->new_temp());
+        }
+        if (slots_out != nullptr) {
+            *slots_out = slots;
         }
         for (std::size_t i = 0; i < count; ++i) {
             builder_->move_wide(slots[count - 1 - i], boxed[i].operand);

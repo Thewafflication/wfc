@@ -227,7 +227,13 @@ enum class Service : int {
     variant_type_of = 96,     // (object, class record) -> -1 or 0
     variant_items = 97,       // (object) -> new handle: a Variant array
     run_forms = 98,           // () shows the startup form and runs the events
-    count = 99,
+    // The arguments of a call made from the shared runtime into a member of a
+    // compiled class (its thunk): how many, the i-th (new handle), and a
+    // by-reference argument's new value.
+    thunk_count = 99,   // () -> count
+    thunk_arg = 100,    // (i) -> new handle
+    thunk_store = 101,  // (i, handle)
+    count = 102,
 };
 
 struct Instruction final {
@@ -259,11 +265,23 @@ inline constexpr int kObjectHeader = 24;
 // size of the fields, the image offset of Class_Terminate (-1 for none;
 // filled in by the back end), a count, the length of the class name,
 // (offset, HandleKind) pairs and the name.
+// A member the shared runtime can call: its thunk (a function of one object
+// that fetches its arguments with the thunk services). The record holds, after
+// the name, a count and for each member the length of its key ("call:name",
+// "get:name", "let:name" or "set:name"), the image offset of the thunk (patched
+// in at `patch_at` bytes into the record) and the key.
+struct ClassMember final {
+    std::string key;
+    int function{-1};
+    std::size_t patch_at{};
+};
+
 struct Class final {
     std::string name;
     std::string display_name;
     int record{-1};     // the literal that holds the record
     int terminate{-1};  // the function of Class_Terminate
+    std::vector<ClassMember> members;
 };
 
 // The operator of the `variant_binary` service.

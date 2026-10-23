@@ -1,0 +1,4 @@
+Type=Exe
+Module=Main; main.bas
+Class=Counter; Counter.cls
+Startup="Sub Main"

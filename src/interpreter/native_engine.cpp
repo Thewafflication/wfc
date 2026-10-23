@@ -362,8 +362,8 @@ struct NativeSupport {
 
     // Binds the values to wfcarg0.. in the module scope while `body` runs.
     template <typename Body>
-    static auto with_arguments(Interpreter& in,
-                               const std::vector<Value>& values, Body&& body) {
+    static auto with_arguments(Interpreter& in, std::vector<Value>& values,
+                               Body&& body) {
         auto& scope = in.module_scope();
         for (std::size_t i = 0; i < values.size(); ++i) {
             const std::string name = "wfcarg" + std::to_string(i);
@@ -375,6 +375,10 @@ struct NativeSupport {
         auto result = body();
         for (std::size_t i = 0; i < values.size(); ++i) {
             const std::string name = "wfcarg" + std::to_string(i);
+            if (const auto found = scope.variables.find(name);
+                found != scope.variables.end()) {
+                values[i] = found->second;  // a by-reference argument
+            }
             scope.variables.erase(name);
             scope.variant_variables.erase(name);
         }
@@ -399,7 +403,7 @@ struct NativeSupport {
 
     static std::optional<Value> member_get(Interpreter& in, const Value& object,
                                            const std::string& name,
-                                           const std::vector<Value>& arguments,
+                                           std::vector<Value>& arguments,
                                            NativeError& error) {
         if (!std::holds_alternative<ObjectInstance>(object)) {
             fail(in,
@@ -414,19 +418,23 @@ struct NativeSupport {
         text = member_text(name, arguments.size(), 1);
         std::vector<Value> bound{object};
         bound.insert(bound.end(), arguments.begin(), arguments.end());
-        return with_arguments(in, bound, [&]() -> std::optional<Value> {
+        auto result = with_arguments(in, bound, [&]() -> std::optional<Value> {
             in.source_ = text;
             in.main_source_ = text;
             in.error_source_data_ = text.data();
             in.offset_ = 0;
             in.error_ = wfc::Evaluation{};
             in.execute_ = true;
-            auto result = in.parse_member_access_after_dot(object, 0, false);
-            if (!result.has_value()) {
+            auto found = in.parse_member_access_after_dot(object, 0, false);
+            if (!found.has_value()) {
                 take_error(in, error);
             }
-            return result;
+            return found;
         });
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            arguments[i] = bound[i + 1];  // by reference: the call changed it
+        }
+        return result;
     }
 
     static bool member_put(Interpreter& in, const Value& object,
@@ -704,9 +712,10 @@ std::optional<Value> NativeEngine::global(const std::string& name,
     return NativeSupport::global(*interpreter_, name, error);
 }
 
-std::optional<Value> NativeEngine::member_get(
-    const Value& object, const std::string& name,
-    const std::vector<Value>& arguments, NativeError& error) {
+std::optional<Value> NativeEngine::member_get(const Value& object,
+                                              const std::string& name,
+                                              std::vector<Value>& arguments,
+                                              NativeError& error) {
     return NativeSupport::member_get(*interpreter_, object, name, arguments,
                                      error);
 }

@@ -62,14 +62,18 @@ inline void patch_class_records(
     const std::vector<std::size_t>& string_offsets,
     const std::vector<std::size_t>& function_starts) {
     for (const auto& item : program.classes) {
-        if (item.terminate < 0) {
-            continue;
+        const auto base = string_offsets[static_cast<std::size_t>(item.record)];
+        if (item.terminate >= 0) {
+            const auto offset = static_cast<std::int32_t>(
+                function_starts[static_cast<std::size_t>(item.terminate)]);
+            std::memcpy(image.data() + base + 8U + 4U, &offset, sizeof(offset));
         }
-        const auto at =
-            string_offsets[static_cast<std::size_t>(item.record)] + 8U + 4U;
-        const auto offset = static_cast<std::int32_t>(
-            function_starts[static_cast<std::size_t>(item.terminate)]);
-        std::memcpy(image.data() + at, &offset, sizeof(offset));
+        for (const auto& member : item.members) {
+            const auto offset = static_cast<std::int32_t>(
+                function_starts[static_cast<std::size_t>(member.function)]);
+            std::memcpy(image.data() + base + 8U + member.patch_at, &offset,
+                        sizeof(offset));
+        }
     }
 }
 

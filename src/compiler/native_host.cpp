@@ -1163,6 +1163,110 @@ std::int32_t object_is_null(const RtObject* object) {
 
 // An object inside the engine's world: it keeps the object alive and says
 // what it is; its members are not reached late bound yet.
+// The arguments of the call into a compiled member that is running (the
+// thunk services read them; calls nest, so each frame remembers the last).
+struct ThunkFrame final {
+    std::vector<RtVariant*> arguments;
+    std::vector<bool> stored;
+};
+
+ThunkFrame* g_thunk = nullptr;
+
+std::int32_t thunk_count() {
+    return g_thunk == nullptr
+               ? 0
+               : static_cast<std::int32_t>(g_thunk->arguments.size());
+}
+
+RtVariant* thunk_arg(const std::int32_t i) {
+    if (g_thunk == nullptr || i < 0 ||
+        static_cast<std::size_t>(i) >= g_thunk->arguments.size()) {
+        return nullptr;
+    }
+    return variant_retain(g_thunk->arguments[static_cast<std::size_t>(i)]);
+}
+
+void thunk_store(const std::int32_t i, RtVariant* value) {
+    if (g_thunk == nullptr || i < 0 ||
+        static_cast<std::size_t>(i) >= g_thunk->arguments.size()) {
+        return;
+    }
+    const auto at = static_cast<std::size_t>(i);
+    variant_release(g_thunk->arguments[at]);
+    g_thunk->arguments[at] = variant_retain(value);
+    g_thunk->stored[at] = true;
+}
+
+// The image offset of the thunk with this key ("call:name", "get:name", ...)
+// in a class record, or -1.
+[[nodiscard]] std::int32_t find_thunk(const ClassRecord* record,
+                                      const std::string& key) {
+    const char* at =
+        reinterpret_cast<const char*>(&record->handles[2 * record->count]) +
+        record->name_length;
+    std::int32_t count = 0;
+    std::memcpy(&count, at, sizeof(count));
+    at += sizeof(count);
+    for (std::int32_t i = 0; i < count; ++i) {
+        std::int32_t length = 0;
+        std::int32_t offset = 0;
+        std::memcpy(&length, at, sizeof(length));
+        std::memcpy(&offset, at + 4, sizeof(offset));
+        at += 8;
+        if (static_cast<std::size_t>(length) == key.size() &&
+            std::memcmp(at, key.data(), key.size()) == 0) {
+            return offset;
+        }
+        at += length;
+    }
+    return -1;
+}
+
+[[nodiscard]] std::string lower_text(std::string text) {
+    for (auto& c : text) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return text;
+}
+
+// Calls a thunk of the object with the arguments the shared runtime has.
+void call_thunk(RtObject* object, const std::int32_t offset,
+                std::vector<wfc::detail::CallArgument>& arguments,
+                const wfc::detail::Value* assigned, wfc::detail::Value& result,
+                wfc::detail::NativeFailure& failure) {
+    ThunkFrame frame;
+    for (const auto& argument : arguments) {
+        frame.arguments.push_back(box(argument.value));
+    }
+    if (assigned != nullptr) {
+        frame.arguments.push_back(box(*assigned));
+    }
+    frame.stored.assign(frame.arguments.size(), false);
+    ThunkFrame* saved = g_thunk;
+    g_thunk = &frame;
+    object_addref(object);
+    RtVariant* returned = reinterpret_cast<RtVariant* (*)(RtObject*)>(
+        g_image_base + offset)(object);
+    g_thunk = saved;
+    if (g_error.pending != nullptr && *g_error.pending != 0) {
+        failure.number = g_error.number;
+        failure.description = g_error.description;
+        *g_error.pending = 0;
+    } else {
+        result = value_of(returned);
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            if (frame.stored[i] && arguments[i].byref_target != nullptr) {
+                *arguments[i].byref_target = value_of(frame.arguments[i]);
+            }
+        }
+    }
+    variant_release(returned);
+    for (auto* handle : frame.arguments) {
+        variant_release(handle);
+    }
+    object_release(object);
+}
+
 class CompiledObject final : public wfc::detail::NativeObject {
 public:
     explicit CompiledObject(RtObject* object) : object_(object) {
@@ -1172,19 +1276,48 @@ public:
     [[nodiscard]] std::string type_name() const override {
         return class_name_of(object_->record);
     }
-    [[nodiscard]] bool has_member(const std::string&) const override {
+    [[nodiscard]] bool has_member(const std::string& name) const override {
+        for (const char* kind : {"call:", "get:", "let:", "set:"}) {
+            if (find_thunk(object_->record, kind + lower_text(name)) >= 0) {
+                return true;
+            }
+        }
         return false;
     }
-    [[nodiscard]] bool get(wfc::detail::Interpreter&, const std::string&,
-                           std::vector<wfc::detail::CallArgument>&,
-                           wfc::detail::Value&,
-                           wfc::detail::NativeFailure&) override {
+    [[nodiscard]] bool get(wfc::detail::Interpreter&, const std::string& name,
+                           std::vector<wfc::detail::CallArgument>& arguments,
+                           wfc::detail::Value& result,
+                           wfc::detail::NativeFailure& failure) override {
+        for (const char* kind : {"call:", "get:"}) {
+            const auto offset =
+                find_thunk(object_->record, kind + lower_text(name));
+            if (offset >= 0) {
+                result = wfc::detail::Value{wfc::detail::Empty{}};
+                call_thunk(object_, offset, arguments, nullptr, result,
+                           failure);
+                return true;
+            }
+        }
         return false;
     }
-    [[nodiscard]] bool put(wfc::detail::Interpreter&, const std::string&,
-                           std::vector<wfc::detail::CallArgument>&,
-                           const wfc::detail::Value&,
-                           wfc::detail::NativeFailure&) override {
+    [[nodiscard]] bool put(wfc::detail::Interpreter&, const std::string& name,
+                           std::vector<wfc::detail::CallArgument>& arguments,
+                           const wfc::detail::Value& value,
+                           wfc::detail::NativeFailure& failure) override {
+        const bool is_object =
+            std::holds_alternative<wfc::detail::ObjectInstance>(value) ||
+            std::holds_alternative<wfc::detail::Nothing>(value);
+        for (const char* kind : is_object ? std::array{"set:", "let:"}
+                                          : std::array{"let:", "set:"}) {
+            const auto offset =
+                find_thunk(object_->record, kind + lower_text(name));
+            if (offset >= 0) {
+                wfc::detail::Value ignored;
+                call_thunk(object_, offset, arguments, &value, ignored,
+                           failure);
+                return true;
+            }
+        }
         return false;
     }
     [[nodiscard]] RtObject* object() const { return object_; }
@@ -1319,12 +1452,21 @@ RtVariant* host_global(const RtString* name) {
 RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
                               const std::int32_t count, const char* block) {
     wfc::detail::NativeError problem;
-    auto result =
-        engine().member_get(value_of(object), std::string(view_of(name)),
-                            block_values(count, block), problem);
+    auto arguments = block_values(count, block);
+    auto result = engine().member_get(
+        value_of(object), std::string(view_of(name)), arguments, problem);
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;
+    }
+    // By-reference arguments: the slots now hold the values the call left.
+    auto* slots = const_cast<char*>(block);
+    for (std::int32_t i = 0; i < count; ++i) {
+        RtVariant* old;
+        std::memcpy(&old, slots + 8 * i, sizeof(old));
+        RtVariant* now = box(arguments[static_cast<std::size_t>(i)]);
+        variant_release(old);
+        std::memcpy(slots + 8 * i, &now, sizeof(now));
     }
     return box(std::move(*result));
 }
@@ -1544,7 +1686,8 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&host_global),         address_of(&variant_member_get),
         address_of(&variant_member_put),  address_of(&variant_is),
         address_of(&variant_type_of),     address_of(&variant_items),
-        address_of(&run_forms),
+        address_of(&run_forms),           address_of(&thunk_count),
+        address_of(&thunk_arg),           address_of(&thunk_store),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
