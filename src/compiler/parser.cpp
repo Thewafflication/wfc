@@ -316,7 +316,11 @@ private:
             enum_block(module);
             return;
         }
-        if (is_word("event") || is_word("implements") || is_word("declare") ||
+        if (is_word("declare")) {
+            declare_statement(module);
+            return;
+        }
+        if (is_word("event") || is_word("implements") ||
             is_word("withevents")) {
             fail(current().spelling + " is not compiled yet");
         }
@@ -339,6 +343,52 @@ private:
             return;
         }
         fail("expected a declaration, Sub or Function");
+    }
+
+    // `Declare Function|Sub name Lib "library" [Alias "export"] [(...)] [As
+    // type]`: the routine is called through the shared runtime, which has the
+    // whole declaration.
+    void declare_statement(Module& module) {
+        DeclareDecl declared;
+        declared.at = here();
+        advance();  // Declare
+        if (accept_word("function")) {
+            declared.is_function = true;
+        } else {
+            expect_word("sub");
+        }
+        if (current().kind != TokenKind::identifier) {
+            fail("expected the name of the routine");
+        }
+        declared.name = without_suffix(current().text);
+        advance();
+        expect_word("lib");
+        if (current().kind != TokenKind::string) {
+            fail("expected the name of the library");
+        }
+        advance();
+        if (accept_word("alias")) {
+            if (current().kind != TokenKind::string) {
+                fail("expected the export name");
+            }
+            advance();
+        }
+        if (is_symbol("(")) {
+            int depth = 0;
+            do {
+                if (is_symbol("(")) {
+                    ++depth;
+                } else if (is_symbol(")")) {
+                    --depth;
+                }
+                advance();
+            } while (depth > 0 && !at_end_of_statement());
+        }
+        if (accept_word("as")) {
+            declared.return_type = type_name();
+        }
+        module.declares.push_back(std::move(declared));
+        expect_end_of_statement();
     }
 
     // Enum Name / members / End Enum
@@ -518,8 +568,22 @@ private:
 
     [[nodiscard]] Parameter parameter() {
         Parameter result;
-        if (is_word("paramarray")) {
-            fail("ParamArray parameters are not compiled yet");
+        if (accept_word("paramarray")) {
+            if (current().kind != TokenKind::identifier) {
+                fail("expected a parameter name");
+            }
+            result.name = without_suffix(current().text);
+            advance();
+            expect_symbol("(");
+            expect_symbol(")");
+            if (accept_word("as")) {
+                static_cast<void>(type_name());
+            }
+            result.type = VbType::variant;
+            result.is_array = true;
+            result.is_optional = true;
+            result.is_param_array = true;
+            return result;
         }
         if (accept_word("optional")) {
             result.is_optional = true;
@@ -1470,6 +1534,30 @@ private:
         return result;
     }
 
+    // Whether the parenthesis here closes before the end of the statement
+    // with more after it (`(a) + 1`, `(a), b`): it opens an expression.
+    [[nodiscard]] bool parenthesis_starts_expression() const {
+        int depth = 0;
+        for (std::size_t i = 0;; ++i) {
+            const Token& token = ahead(i);
+            if (token.kind == TokenKind::end_of_statement ||
+                token.kind == TokenKind::end_of_file) {
+                return false;
+            }
+            if (token.kind == TokenKind::symbol && token.text == "(") {
+                ++depth;
+            } else if (token.kind == TokenKind::symbol && token.text == ")") {
+                if (--depth == 0) {
+                    const Token& after = ahead(i + 1);
+                    return !(after.kind == TokenKind::end_of_statement ||
+                             after.kind == TokenKind::end_of_file ||
+                             (after.kind == TokenKind::identifier &&
+                              after.text == "else"));
+                }
+            }
+        }
+    }
+
     [[nodiscard]] StmtPtr call_statement(const bool with_call_keyword) {
         if (with_call_keyword && starts_member_chain()) {
             return member_statement(true);
@@ -1491,6 +1579,18 @@ private:
             }
             result->text = "err." + current().text;
             advance();
+        }
+        if (is_symbol("(") && !with_call_keyword && !is_err &&
+            parenthesis_starts_expression()) {
+            // `Name (a) + 1, b`: the arguments are not in parentheses.
+            while (!at_end_of_statement() && !is_word("else")) {
+                result->items.push_back(is_symbol(",") ? nullptr
+                                                       : expression());
+                if (!accept_symbol(",")) {
+                    break;
+                }
+            }
+            return result;
         }
         if (accept_symbol("(")) {
             if (!accept_symbol(")")) {
@@ -1633,12 +1733,12 @@ private:
         auto result = make(StmtKind::exit);
         advance();
         if (is_word("sub") || is_word("function") || is_word("for") ||
-            is_word("do")) {
+            is_word("do") || is_word("property")) {
             result->text = current().text;
             advance();
             return result;
         }
-        fail("expected Sub, Function, For or Do after Exit");
+        fail("expected Sub, Function, Property, For or Do after Exit");
     }
 
     // ----- Expressions -----------------------------------------------------

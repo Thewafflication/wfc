@@ -174,6 +174,7 @@ struct Parameter final {
     bool is_array{};            // `name() As Type`: always passed by reference
     VbType type{VbType::none};  // none: no type given (a Variant)
     bool by_value{};
+    bool is_param_array{};  // `ParamArray name() As Variant`: the rest
 };
 
 // Property Get, Let or Set; none for a Sub or a Function.
@@ -220,7 +221,17 @@ struct EnumDecl final {
     Position at;
 };
 
+// A routine of a DLL (`Declare Function ... Lib "..."`): the shared runtime
+// calls it.
+struct DeclareDecl final {
+    std::string name;  // lower-case
+    bool is_function{};
+    VbType return_type{VbType::none};
+    Position at;
+};
+
 struct Module final {
+    std::vector<DeclareDecl> declares;
     std::string name;
     std::vector<EnumDecl> enums;
     std::string display_name;  // the name as written

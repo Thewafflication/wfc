@@ -339,8 +339,7 @@ struct NativeSupport {
                       EngineSetup setup, NativeError& error) {
         static EngineSetup kept;  // the interpreter reads its sources later
         kept = std::move(setup);
-        interpreter =
-            std::make_unique<Interpreter>(std::string_view{}, kept.classes);
+        interpreter = std::make_unique<Interpreter>(kept.program, kept.classes);
         auto& in = *interpreter;
         in.native_scan_text_ = kept.scan_text;
         const auto& options = kept.options;

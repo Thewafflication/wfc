@@ -590,6 +590,11 @@ struct alignas(8) HandleCell final {
 #pragma warning(pop)
 #endif
 
+struct RtVariant;
+struct RtObject;
+void variant_release(RtVariant* handle);
+void object_release(RtObject* object);
+
 void release_elements(RtArray* array) {
     if (array->kind == 3 && array->strings != nullptr) {
         for (std::int32_t i = 0; i < array->count; ++i) {
@@ -608,6 +613,16 @@ void release_elements(RtArray* array) {
         for (std::int32_t i = 0; i < array->count; ++i) {
             release(cells[i].handle);
             cells[i].handle = nullptr;
+        }
+    } else if (array->kind == 4 || array->kind == 5) {
+        auto* cells = reinterpret_cast<void**>(data_of(array));
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            if (array->kind == 4) {
+                variant_release(static_cast<RtVariant*>(cells[i]));
+            } else {
+                object_release(static_cast<RtObject*>(cells[i]));
+            }
+            cells[i] = nullptr;
         }
     }
 }
@@ -633,12 +648,13 @@ void array_redim(RtArray** variable, const std::int32_t flags,
     header.dims = dims;
     header.fixed = (flags >> 8) & 1;
     header.size = kind == 0 ? 4 : (kind == 3 ? record_size : 8);
+    const bool empty_allowed = (flags & 0x200) != 0;
     header.strings = kind == 3 ? record_strings : nullptr;
     std::int64_t count = 1;
     for (std::int32_t k = 0; k < dims; ++k) {
         const auto lower = static_cast<std::int32_t>(bounds[2 * k]);
         const auto upper = static_cast<std::int32_t>(bounds[2 * k + 1]);
-        if (upper < lower) {
+        if (upper < lower && !(empty_allowed && upper == lower - 1)) {
             raise_error(9);
             return;
         }
@@ -691,8 +707,8 @@ void array_redim(RtArray** variable, const std::int32_t flags,
                 std::memcpy(
                     data_of(array) + static_cast<std::size_t>(target) * size,
                     from, size);
-                if (kind == 2) {
-                    std::memset(from, 0, size);  // the string moved
+                if (kind == 2 || kind == 4 || kind == 5) {
+                    std::memset(from, 0, size);  // the handle moved
                 } else if (kind == 3 && old->strings != nullptr) {
                     for (std::int32_t k = 0; k < old->strings[0]; ++k) {
                         std::memset(from + old->strings[1 + k], 0, 8U);

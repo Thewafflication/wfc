@@ -117,6 +117,64 @@ int build_package(const int argument_count, const char* const arguments[]) {
 #endif
 }
 
+// The `Declare` statements of a source (with their continuation lines): the
+// shared runtime calls the routines of the DLLs.
+std::string declares_of(const std::string& source) {
+    std::string found;
+    std::size_t position = 0;
+    while (position < source.size()) {
+        auto end = source.find('\n', position);
+        if (end == std::string::npos) {
+            end = source.size();
+        }
+        std::string line = source.substr(position, end - position);
+        position = end + 1U;
+        std::string lowered;
+        for (const char c : line) {
+            lowered.push_back(
+                static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        const auto first = lowered.find_first_not_of(" \t");
+        if (first == std::string::npos) {
+            continue;
+        }
+        std::string_view rest = std::string_view(lowered).substr(first);
+        for (const std::string_view scope : {"public ", "private "}) {
+            if (rest.substr(0, scope.size()) == scope) {
+                rest.remove_prefix(scope.size());
+                break;
+            }
+        }
+        if (rest.substr(0, 8) != "declare ") {
+            continue;
+        }
+        // The declaration goes on while a line ends with a continuation.
+        auto trim_end = [](std::string& text) {
+            while (!text.empty() &&
+                   (text.back() == '\r' || text.back() == ' ' ||
+                    text.back() == '\t')) {
+                text.pop_back();
+            }
+        };
+        trim_end(line);
+        std::string joined = line;
+        while (!joined.empty() && joined.back() == '_' &&
+               position < source.size()) {
+            joined.pop_back();
+            auto next_end = source.find('\n', position);
+            if (next_end == std::string::npos) {
+                next_end = source.size();
+            }
+            std::string next = source.substr(position, next_end - position);
+            position = next_end + 1U;
+            trim_end(next);
+            joined += next;
+        }
+        found += joined + '\n';
+    }
+    return found;
+}
+
 // `wfc --native <project.vbp | module.bas>`: compiles the project to machine
 // code in memory and runs it (ADR-0008). Exit code 77 means that this
 // architecture has no back end yet.
@@ -220,6 +278,10 @@ int run_native(const int argument_count, const char* const arguments[]) {
     options.fit_height = project.largest_form_height;
     options.fit_screen_size = environment_text("WFC_SCREEN");
     setup.options = options;
+    setup.program = declares_of(project.module_source);
+    for (const auto& text : project.class_sources) {
+        setup.program += declares_of(text);
+    }
     setup.scan_text = project.module_source;
     for (const auto& text : project.class_sources) {
         setup.scan_text += '\n';

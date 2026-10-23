@@ -391,6 +391,7 @@ public:
           options_(options) {}
 
     ir::Program run() {
+        register_externals();
         register_classes();
         declare_enums();
         declare_constants(module_.constants, constants_);
@@ -428,9 +429,6 @@ private:
     // ----- Declarations ----------------------------------------------------
 
     static void require_type(const Declaration& declaration) {
-        if (declaration.type == VbType::variant && declaration.is_array) {
-            fail("an array of Variants is not compiled yet", declaration.at);
-        }
         if (!declaration.type_given || declaration.type == VbType::none) {
             fail("'" + declaration.name +
                      "' needs an explicit type (Variant is not compiled yet)",
@@ -737,10 +735,6 @@ private:
                     slots = udts_[static_cast<std::size_t>(record)].size / 8;
                 }
             } else if (declaration.type == VbType::object) {
-                if (declaration.is_array) {
-                    fail("an array of objects is not compiled yet",
-                         declaration.at);
-                }
                 record = class_of(declaration.type_name, declaration.at);
             }
             const auto variable = Variable{
@@ -853,6 +847,18 @@ private:
     }
 
     // ----- Classes ---------------------------------------------------------
+
+    void register_externals() {
+        const auto add = [&](const Module& module) {
+            for (const auto& declared : module.declares) {
+                externals_[declared.name] = declared;
+            }
+        };
+        add(module_);
+        for (const Module* module : class_modules_) {
+            add(*module);
+        }
+    }
 
     void register_classes() {
         for (const Module* module : class_modules_) {
@@ -1446,9 +1452,6 @@ private:
                 cells = udts_[static_cast<std::size_t>(record)].size / 8;
             }
         } else if (declaration.type == VbType::object) {
-            if (declaration.is_array) {
-                fail("an array of objects is not compiled yet", declaration.at);
-            }
             record = class_of(declaration.type_name, declaration.at);
         }
         locals_[declaration.name] = Variable{
@@ -1471,10 +1474,7 @@ private:
             declare_static(declaration);
             return;
         }
-        if (declaration.type == VbType::object) {
-            if (declaration.is_array) {
-                fail("an array of objects is not compiled yet", declaration.at);
-            }
+        if (declaration.type == VbType::object && !declaration.is_array) {
             const auto slot = builder_->new_temp();
             builder_->move_wide(slot, ir::immediate(0));
             locals_[declaration.name] =
@@ -1517,9 +1517,6 @@ private:
             }
             return;
         }
-        if (declaration.type == VbType::variant && declaration.is_array) {
-            fail("an array of Variants is not compiled yet", declaration.at);
-        }
         const auto slot = builder_->new_temp();
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
@@ -1545,9 +1542,11 @@ private:
     }
 
     [[nodiscard]] static int element_kind(const VbType type) {
-        return type == VbType::record
-                   ? 3
-                   : (type == VbType::string ? 2 : (is_float(type) ? 1 : 0));
+        return type == VbType::record    ? 3
+               : type == VbType::variant ? 4
+               : type == VbType::object  ? 5
+               : type == VbType::string  ? 2
+                                         : (is_float(type) ? 1 : 0);
     }
 
     // The String offsets of a record type as a read-only blob of the image: a
@@ -2272,10 +2271,12 @@ private:
         if (array.type == VbType::record) {
             fail("a record cannot be used as a value here", at);
         }
-        if (array.type == VbType::string) {
+        if (is_handle(array.type)) {
+            // A handle is read through a slot.
             const auto copy = builder_->new_temp();
             builder_->move_wide(copy, operand);
-            return Value{copy, VbType::string};
+            return Value{copy, array.type,
+                         array.type == VbType::object ? array.udt : -1};
         }
         return Value{operand, array.type};
     }
@@ -2724,6 +2725,10 @@ private:
     }
 
     void lower_exit(const Stmt& statement) {
+        if (statement.text == "property") {
+            builder_->jump(end_label_);
+            return;
+        }
         if (statement.text == "sub" || statement.text == "function") {
             if ((statement.text == "function") != current_->is_function) {
                 fail("Exit " + statement.text + " is outside a " +
@@ -2797,6 +2802,10 @@ private:
                          at);
                 }
             }
+            if (const auto external = externals_.find(name);
+                external != externals_.end()) {
+                return lower_external_call(external->second, arguments, at);
+            }
             if (name == "wfcdebugprint") {
                 for (const auto& argument : arguments) {
                     static_cast<void>(snapshot(lower_expression(*argument)));
@@ -2839,6 +2848,59 @@ private:
             pointers.push_back(argument.get());
         }
         return emit_call(signature, name, pointers, std::nullopt, nullptr, at);
+    }
+
+    // A routine of a DLL: the shared runtime calls it with the arguments; a
+    // variable passed to it gets its value back.
+    [[nodiscard]] Value lower_external_call(
+        const DeclareDecl& declared, const std::vector<ExprPtr>& arguments,
+        const Position at) {
+        std::string text = declared.is_function ? "wfcarg0 = " : "";
+        text += declared.name;
+        std::vector<EngineArgument> list;
+        list.push_back(EngineArgument{nullptr, 'i'});
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            if (!arguments[i]) {
+                fail("an omitted argument is not compiled for '" +
+                         declared.name + "' yet",
+                     at);
+            }
+            const Expr& argument = *arguments[i];
+            char mode = 'i';
+            if (argument.kind == ExprKind::name && !argument.parenthesized &&
+                has_variable(argument.text)) {
+                const auto variable = find_variable(argument.text, at);
+                if (variable.type == VbType::record ||
+                    variable.type == VbType::object || variable.is_array) {
+                    fail(
+                        "an argument of this type is not compiled for the "
+                        "routine '" +
+                            declared.name + "' yet",
+                        at);
+                }
+                mode = 'b';
+            }
+            text += (i == 0 ? (declared.is_function ? "(" : " ") : ", ") +
+                    std::string("wfcarg") + std::to_string(i + 1);
+            list.push_back(EngineArgument{&argument, mode});
+        }
+        if (declared.is_function && arguments.empty()) {
+            text += "()";
+        } else if (declared.is_function) {
+            text += ")";
+        }
+        const auto outputs = emit_engine_statement(text, list, at);
+        if (!declared.is_function) {
+            return Value{builder_->new_temp(), VbType::none};
+        }
+        Value result;
+        result.type = VbType::variant;
+        result.operand = outputs[0];
+        if (declared.return_type == VbType::none ||
+            declared.return_type == VbType::variant) {
+            return result;
+        }
+        return from_variant(result, declared.return_type, at);
     }
 
     // WfcArgCount(), WfcArg(i) and WfcStoreArg i, value: how a thunk reaches
@@ -2962,13 +3024,16 @@ private:
                                   const Value* trailing, const Position at) {
         const std::size_t given =
             arguments.size() + (trailing != nullptr ? 1U : 0U);
+        const bool has_rest = !signature.parameters.empty() &&
+                              signature.parameters.back().is_param_array;
         // Omitted trailing arguments must be Optional.
         std::size_t required = signature.parameters.size();
         while (required > 0 &&
                signature.parameters[required - 1U].is_optional) {
             --required;
         }
-        if (given > signature.parameters.size() || given < required) {
+        if ((given > signature.parameters.size() && !has_rest) ||
+            given < required) {
             fail("'" + name + "' takes " +
                      std::to_string(signature.parameters.size()) +
                      " argument(s), not " + std::to_string(given),
@@ -2983,6 +3048,14 @@ private:
         for (std::size_t i = 0; i < signature.parameters.size(); ++i) {
             const auto& parameter = signature.parameters[i];
             const bool is_trailing = i >= arguments.size();
+            if (parameter.is_param_array) {
+                std::vector<const Expr*> rest;
+                for (std::size_t k = i; k < arguments.size(); ++k) {
+                    rest.push_back(arguments[k]);
+                }
+                passed.push_back(rest_array(rest, at));
+                continue;
+            }
             if (i >= given || (!is_trailing && arguments[i] == nullptr)) {
                 // An omitted Optional argument takes its default.
                 if (parameter.by_value && is_float(parameter.type)) {
@@ -3027,6 +3100,43 @@ private:
         builder_->call(result.operand, signature.index, std::move(passed), wide,
                        double_args, is_float(signature.return_type));
         return result;
+    }
+
+    // The arguments that a ParamArray takes: an array of Variants made for the
+    // call; the result is the address of the variable that holds it.
+    [[nodiscard]] Operand rest_array(const std::vector<const Expr*>& rest,
+                                     const Position at) {
+        const auto slot = builder_->new_temp();
+        builder_->move_wide(slot, ir::immediate(0));
+        pending_.push_back(Owned{slot, Service::array_release});
+        // The bounds are read upwards in memory: the lower bound has the
+        // higher slot number, which lies lower.
+        const auto upper = builder_->new_temp();
+        const auto lower = builder_->new_temp();
+        builder_->emit(Opcode::move, lower, ir::immediate(0));
+        builder_->emit(
+            Opcode::move, upper,
+            ir::immediate(static_cast<std::int64_t>(rest.size()) - 1));
+        const auto block = builder_->new_temp();
+        builder_->emit(Opcode::address, block, lower);
+        builder_->runtime(
+            Service::array_redim,
+            {address_of(slot), ir::immediate(4 | 0x200), ir::immediate(1),
+             block, ir::immediate(0), ir::immediate(0), ir::immediate(0)});
+        for (std::size_t k = 0; k < rest.size(); ++k) {
+            if (rest[k] == nullptr) {
+                fail("an omitted argument is not compiled here yet", at);
+            }
+            const auto value = to_variant(lower_expression(*rest[k]), at);
+            const auto element = builder_->new_temp();
+            builder_->runtime(
+                Service::array_element1,
+                {slot, ir::immediate(static_cast<std::int64_t>(k))}, element,
+                true);
+            builder_->runtime(Service::variant_assign,
+                              {element, value.operand});
+        }
+        return address_of(slot);
     }
 
     // The address argument of a ByRef parameter.
@@ -3272,16 +3382,25 @@ private:
                  at);
         }
         std::vector<Operand> passed;
+        std::vector<Value> lowered;
+        bool any_variant = false;
+        for (int i = 0; i < count; ++i) {
+            lowered.push_back(
+                lower_expression(*arguments[static_cast<std::size_t>(i)]));
+            any_variant = any_variant || lowered.back().type == VbType::variant;
+        }
+        if (any_variant) {
+            // A Variant may hold Null (Len(Null) is Null) or text that is
+            // not a number: the library works on Variants.
+            std::vector<Value> boxed;
+            for (const auto& value : lowered) {
+                boxed.push_back(to_variant(value, at));
+            }
+            return emit_library_call(builtin.name, boxed);
+        }
         for (int i = 0; i < count; ++i) {
             const auto& argument = *arguments[static_cast<std::size_t>(i)];
-            auto value = lower_expression(argument);
-            if (value.type == VbType::variant) {
-                value = from_variant(value,
-                                     builtin.parameters[i] == 's'
-                                         ? VbType::string
-                                         : VbType::long_integer,
-                                     argument.at);
-            }
+            auto value = lowered[static_cast<std::size_t>(i)];
             if (builtin.parameters[i] == 's') {
                 if (value.type != VbType::string) {
                     fail(std::string(builtin.name) +
@@ -4341,8 +4460,31 @@ private:
 
     // A statement the shared runtime runs with the values of its arguments;
     // the arguments that are read and written come back into their places.
+    // An argument of a statement the shared runtime runs: an expression (null
+    // for an empty Variant) and how it is passed: 'i' in, 'b' both ways (a
+    // variable that gets its value back).
+    struct EngineArgument final {
+        const Expr* expr{};
+        char mode{'i'};
+    };
+
     void lower_engine_statement(const Stmt& statement) {
-        const std::size_t count = statement.items.size();
+        std::vector<EngineArgument> list;
+        for (std::size_t i = 0; i < statement.items.size(); ++i) {
+            list.push_back(EngineArgument{statement.items[i].get(),
+                                          statement.separators[i]});
+        }
+        static_cast<void>(
+            emit_engine_statement(statement.text, list, statement.at));
+    }
+
+    // Runs the statement `text` in the shared runtime with the arguments as
+    // wfcarg0, wfcarg1, ...; returns the slots that hold the values the
+    // arguments have afterwards (owned Variants), in order.
+    [[nodiscard]] std::vector<Operand> emit_engine_statement(
+        const std::string& text, const std::vector<EngineArgument>& list,
+        const Position at) {
+        const std::size_t count = list.size();
         std::vector<Operand> inputs;
         std::vector<Operand> outputs;
         // Each block is made of consecutive slots.
@@ -4356,12 +4498,16 @@ private:
         std::int64_t variant_mask = 0;
         for (std::size_t i = 0; i < count; ++i) {
             Value boxed;
-            if (statement.separators[i] == 'b') {
-                const auto place = lower_place(*statement.items[i]);
+            if (list[i].expr == nullptr) {
+                // An empty Variant: the statement fills it.
+                variant_mask |= std::int64_t{1} << i;
+                boxed.type = VbType::variant;
+                boxed.operand = ir::immediate(0);
+            } else if (list[i].mode == 'b') {
+                const auto place = lower_place(*list[i].expr);
                 if (place.type == VbType::record || place.is_array ||
                     place.type == VbType::object) {
-                    fail("this variable cannot be read from a file here",
-                         statement.at);
+                    fail("this variable cannot be read from a file here", at);
                 }
                 places[i] = place;
                 if (place.type == VbType::variant) {
@@ -4375,13 +4521,13 @@ private:
                     builder_->move_wide(copy, place.operand);
                     current.operand = copy;
                 }
-                boxed = to_variant(current, statement.at);
+                boxed = to_variant(current, at);
             } else {
-                const auto value = lower_expression(*statement.items[i]);
+                const auto value = lower_expression(*list[i].expr);
                 if (value.type == VbType::variant) {
                     variant_mask |= std::int64_t{1} << i;
                 }
-                boxed = to_variant(value, statement.at);
+                boxed = to_variant(value, at);
             }
             builder_->move_wide(inputs[count - 1 - i], boxed.operand);
             builder_->move_wide(outputs[count - 1 - i], ir::immediate(0));
@@ -4396,13 +4542,17 @@ private:
             out_block = builder_->new_temp();
             builder_->emit(Opcode::address, out_block, outputs[count - 1]);
         }
-        program_.strings.push_back(statement.text);
+        program_.strings.push_back(text);
         const auto literal = ir::literal(
             static_cast<std::int64_t>(program_.strings.size() - 1U));
         builder_->runtime(
             Service::engine_statement,
             {literal, ir::immediate(static_cast<std::int64_t>(count)), in_block,
              out_block, ir::immediate(variant_mask)});
+        std::vector<Operand> results;
+        for (std::size_t i = 0; i < count; ++i) {
+            results.push_back(outputs[count - 1 - i]);
+        }
         for (std::size_t i = 0; i < count; ++i) {
             if (!places[i].has_value()) {
                 continue;
@@ -4416,10 +4566,10 @@ private:
                     {address_of(places[i]->operand), result.operand});
             } else {
                 store_value(*places[i],
-                            from_variant(result, places[i]->type, statement.at),
-                            statement.at);
+                            from_variant(result, places[i]->type, at), at);
             }
         }
+        return results;
     }
 
     // Mid(variable, start[, length]) = text
@@ -5011,6 +5161,7 @@ private:
     }
 
     const Module& module_;
+    std::map<std::string, DeclareDecl> externals_;
     LowerOptions options_;
     std::vector<const Module*> class_modules_;
     std::vector<ClassInfo> classes_;

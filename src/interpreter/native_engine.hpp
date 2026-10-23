@@ -31,6 +31,7 @@ struct EngineSetup final {
     std::vector<wfc::ClassModuleSource> classes;
     wfc::EvaluationOptions options;
     std::string scan_text;  // the compiled program's source
+    std::string program;    // what the engine runs itself: the Declares
 };
 
 class NativeEngine final {
