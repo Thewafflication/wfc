@@ -87,6 +87,9 @@ public:
                                   const std::vector<Value>& arguments,
                                   const Value& value, bool is_set,
                                   NativeError& error);
+    // A new instance of a form of the project.
+    [[nodiscard]] std::optional<Value> new_form(const std::string& name,
+                                                NativeError& error);
     // The items `For Each` visits in an object.
     [[nodiscard]] std::optional<std::vector<Value>> items(const Value& object,
                                                           NativeError& error);
@@ -94,6 +97,11 @@ public:
     [[nodiscard]] bool run_forms(NativeError& error);
     // Whether two Values are the same object (or both Nothing).
     [[nodiscard]] static bool same_object(const Value& a, const Value& b);
+    // What the interpreter has printed since the last call (the output of
+    // forms and the like); `line_open` says a line is still open.
+    [[nodiscard]] std::string take_output(bool& line_open);
+    // The line that was open has been ended by the caller.
+    void close_output_line();
     // `text Like pattern`.
     [[nodiscard]] static bool like(const std::string& text,
                                    const std::string& pattern);

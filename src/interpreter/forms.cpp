@@ -5370,6 +5370,14 @@ bool Interpreter::native_owns(InstanceData& instance,
     if (instance.class_name == "wfcnative") {
         return true;
     }
+    // Compiled code draws on a form with `form.Print`, `form.Line`, ...
+    if (member == "print" || member == "line" || member == "circle" ||
+        member == "pset" || member == "scale") {
+        const ControlObject* surface = control_of(instance);
+        if (surface != nullptr && FormSupport::is_surface(*surface)) {
+            return true;
+        }
+    }
     const auto class_iterator = class_definitions_.find(instance.class_name);
     if (class_iterator != class_definitions_.end()) {
         const auto& definition = class_iterator->second;

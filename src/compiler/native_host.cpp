@@ -94,7 +94,14 @@ void release(RtString* text) {
 // Print moves to the next zone of 14 columns).
 int g_column = 0;
 
+// The output of the interpreter (forms) comes in order with the program's own.
+void flush_engine_output();
+bool g_engine_line_open = false;
+void end_engine_line();
+
 void put(const char* text, const std::size_t length) {
+    flush_engine_output();
+    end_engine_line();
     std::cout.write(text, static_cast<std::streamsize>(length));
     for (std::size_t i = 0; i < length; ++i) {
         g_column = text[i] == '\n' ? 0 : g_column + 1;
@@ -171,8 +178,10 @@ void raise_error(const std::int32_t number) {
     }
 }
 
+void finish_output();
+
 [[noreturn]] void end_program() {
-    std::cout.flush();
+    finish_output();
     std::exit(0);
 }
 
@@ -851,6 +860,39 @@ std::unique_ptr<wfc::detail::NativeEngine> g_engine;
         g_engine = std::make_unique<wfc::detail::NativeEngine>();
     }
     return *g_engine;
+}
+
+// The end of the program: what the interpreter printed, and its open line.
+void finish_output() {
+    flush_engine_output();
+    if (g_engine_line_open) {
+        std::cout.put(char{10});
+        g_engine_line_open = false;
+    }
+    std::cout.flush();
+}
+
+void flush_engine_output() {
+    if (!g_engine) {
+        return;
+    }
+    bool open = false;
+    const std::string text = g_engine->take_output(open);
+    if (!text.empty()) {
+        std::cout.write(text.data(), static_cast<std::streamsize>(text.size()));
+        g_column = 0;
+    }
+    g_engine_line_open = open;
+}
+
+// The program prints after the interpreter left a line open: end it.
+void end_engine_line() {
+    if (g_engine_line_open && g_engine) {
+        std::cout.put('\n');
+        g_engine->close_output_line();
+        g_engine_line_open = false;
+        g_column = 0;
+    }
 }
 
 [[nodiscard]] const wfc::detail::Value& value_of(const RtVariant* handle) {
@@ -1599,6 +1641,16 @@ RtVariant* host_global(const RtString* name) {
     return box(std::move(*result));
 }
 
+RtVariant* host_new(const RtString* name) {
+    wfc::detail::NativeError problem;
+    auto result = engine().new_form(std::string(view_of(name)), problem);
+    if (!result.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    return box(std::move(*result));
+}
+
 RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
                               const std::int32_t count, const char* block) {
     wfc::detail::NativeError problem;
@@ -1808,57 +1860,109 @@ int run_native_image(const NativeImage& image, std::string& error,
     std::memcpy(memory, image.bytes.data(), image.bytes.size());
     // The entry table: one pointer per service.
     void* table[count] = {
-        address_of(&print_number),        address_of(&print_boolean),
-        address_of(&print_text),          address_of(&print_newline),
-        address_of(&raise_error),         address_of(&end_program),
-        address_of(&print_string),        address_of(&string_concat),
-        address_of(&string_assign),       address_of(&string_release),
-        address_of(&string_addref),       address_of(&string_length),
-        address_of(&string_compare),      address_of(&string_left),
-        address_of(&string_right),        address_of(&string_mid),
-        address_of(&string_upper),        address_of(&string_lower),
-        address_of(&string_trim),         address_of(&string_ltrim),
-        address_of(&string_rtrim),        address_of(&string_chr),
-        address_of(&string_asc),          address_of(&string_from_number),
-        address_of(&string_from_integer), address_of(&string_from_boolean),
-        address_of(&string_instr),        address_of(&string_space),
-        address_of(&print_double),        address_of(&string_from_double),
-        address_of(&double_to_long),      address_of(&math_function),
-        address_of(&double_sign),         address_of(&array_redim),
-        address_of(&array_element1),      address_of(&array_element2),
-        address_of(&array_element3),      address_of(&array_bound),
-        address_of(&array_release),       address_of(&array_erase),
-        address_of(&error_number),        address_of(&error_description),
-        address_of(&error_source),        address_of(&error_clear),
-        address_of(&error_raise),         address_of(&error_acknowledge),
-        address_of(&print_zone),          address_of(&double_power),
-        address_of(&variant_from_long),   address_of(&variant_from_integer),
-        address_of(&variant_from_double), address_of(&variant_from_single),
-        address_of(&variant_from_string), address_of(&variant_from_boolean),
-        address_of(&variant_null),        address_of(&variant_assign),
-        address_of(&variant_release),     address_of(&variant_addref),
-        address_of(&variant_binary),      address_of(&variant_negate),
-        address_of(&variant_not),         address_of(&variant_to_long),
-        address_of(&variant_to_double),   address_of(&variant_to_string),
-        address_of(&variant_to_boolean),  address_of(&variant_print),
-        address_of(&variant_type_name),   address_of(&variant_var_type),
-        address_of(&variant_is_numeric),  address_of(&object_new),
-        address_of(&object_addref),       address_of(&object_release),
-        address_of(&object_assign),       address_of(&object_check),
-        address_of(&object_is),           address_of(&object_is_null),
-        address_of(&inline_element),      address_of(&variant_call),
-        address_of(&variant_missing),     address_of(&variant_is_missing),
-        address_of(&array_count),         address_of(&array_flat_element),
-        address_of(&randomize),           address_of(&variant_from_object),
-        address_of(&variant_to_object),   address_of(&variant_array_count),
-        address_of(&variant_array_item),  address_of(&string_like),
-        address_of(&object_is_class),     address_of(&string_mid_assign),
-        address_of(&variant_from_byte),   address_of(&engine_statement),
-        address_of(&host_global),         address_of(&variant_member_get),
-        address_of(&variant_member_put),  address_of(&variant_is),
-        address_of(&variant_type_of),     address_of(&variant_items),
-        address_of(&run_forms),           address_of(&thunk_count),
-        address_of(&thunk_arg),           address_of(&thunk_store),
+        address_of(&print_number),
+        address_of(&print_boolean),
+        address_of(&print_text),
+        address_of(&print_newline),
+        address_of(&raise_error),
+        address_of(&end_program),
+        address_of(&print_string),
+        address_of(&string_concat),
+        address_of(&string_assign),
+        address_of(&string_release),
+        address_of(&string_addref),
+        address_of(&string_length),
+        address_of(&string_compare),
+        address_of(&string_left),
+        address_of(&string_right),
+        address_of(&string_mid),
+        address_of(&string_upper),
+        address_of(&string_lower),
+        address_of(&string_trim),
+        address_of(&string_ltrim),
+        address_of(&string_rtrim),
+        address_of(&string_chr),
+        address_of(&string_asc),
+        address_of(&string_from_number),
+        address_of(&string_from_integer),
+        address_of(&string_from_boolean),
+        address_of(&string_instr),
+        address_of(&string_space),
+        address_of(&print_double),
+        address_of(&string_from_double),
+        address_of(&double_to_long),
+        address_of(&math_function),
+        address_of(&double_sign),
+        address_of(&array_redim),
+        address_of(&array_element1),
+        address_of(&array_element2),
+        address_of(&array_element3),
+        address_of(&array_bound),
+        address_of(&array_release),
+        address_of(&array_erase),
+        address_of(&error_number),
+        address_of(&error_description),
+        address_of(&error_source),
+        address_of(&error_clear),
+        address_of(&error_raise),
+        address_of(&error_acknowledge),
+        address_of(&print_zone),
+        address_of(&double_power),
+        address_of(&variant_from_long),
+        address_of(&variant_from_integer),
+        address_of(&variant_from_double),
+        address_of(&variant_from_single),
+        address_of(&variant_from_string),
+        address_of(&variant_from_boolean),
+        address_of(&variant_null),
+        address_of(&variant_assign),
+        address_of(&variant_release),
+        address_of(&variant_addref),
+        address_of(&variant_binary),
+        address_of(&variant_negate),
+        address_of(&variant_not),
+        address_of(&variant_to_long),
+        address_of(&variant_to_double),
+        address_of(&variant_to_string),
+        address_of(&variant_to_boolean),
+        address_of(&variant_print),
+        address_of(&variant_type_name),
+        address_of(&variant_var_type),
+        address_of(&variant_is_numeric),
+        address_of(&object_new),
+        address_of(&object_addref),
+        address_of(&object_release),
+        address_of(&object_assign),
+        address_of(&object_check),
+        address_of(&object_is),
+        address_of(&object_is_null),
+        address_of(&inline_element),
+        address_of(&variant_call),
+        address_of(&variant_missing),
+        address_of(&variant_is_missing),
+        address_of(&array_count),
+        address_of(&array_flat_element),
+        address_of(&randomize),
+        address_of(&variant_from_object),
+        address_of(&variant_to_object),
+        address_of(&variant_array_count),
+        address_of(&variant_array_item),
+        address_of(&string_like),
+        address_of(&object_is_class),
+        address_of(&string_mid_assign),
+        address_of(&variant_from_byte),
+        address_of(&engine_statement),
+        address_of(&host_global),
+        address_of(&variant_member_get),
+        address_of(&variant_member_put),
+        address_of(&variant_is),
+        address_of(&variant_type_of),
+        address_of(&variant_items),
+        address_of(&run_forms),
+        address_of(&thunk_count),
+        address_of(&thunk_arg),
+        address_of(&thunk_store),
+        address_of(&host_new),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
@@ -1904,7 +2008,7 @@ int run_native_image(const NativeImage& image, std::string& error,
     const auto entry = reinterpret_cast<EntryFunction>(
         static_cast<std::uint8_t*>(memory) + image.entry);
     entry();
-    std::cout.flush();
+    finish_output();
     int code = 0;
     if (*g_error.pending != 0) {
         // An error that no handler took ends the program.

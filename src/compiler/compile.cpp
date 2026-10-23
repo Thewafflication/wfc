@@ -77,9 +77,9 @@ namespace {
     return false;
 }
 
-// The names of the Enums a source declares (`[Public|Private] Enum Name`).
-void collect_enum_names(const std::string& source,
-                        std::set<std::string>& into) {
+// The names a source declares with a keyword (`[Public|Private] Enum Name`).
+void collect_names(const std::string& source, const std::string& keyword,
+                   std::set<std::string>& into) {
     std::size_t position = 0;
     while (position < source.size()) {
         auto end = source.find('\n', position);
@@ -93,7 +93,7 @@ void collect_enum_names(const std::string& source,
         if (word == "public" || word == "private" || word == "global") {
             words >> word;
         }
-        if (word == "enum") {
+        if (word == keyword) {
             std::string name;
             words >> name;
             if (!name.empty() && name.front() != '\'') {
@@ -102,6 +102,11 @@ void collect_enum_names(const std::string& source,
         }
         position = end + 1U;
     }
+}
+
+void collect_enum_names(const std::string& source,
+                        std::set<std::string>& into) {
+    collect_names(source, "enum", into);
 }
 
 // The source of the `App` class with the project's own values.
@@ -194,6 +199,29 @@ void collect_enum_names(const std::string& source,
 // (WfcStoreArg). compile_project parses it as part of the class.
 [[nodiscard]] std::string thunk_source(const Module& module) {
     std::string out = "Option Explicit\n";
+    // Public fields are members too.
+    for (const auto& field : module.globals) {
+        if (!field.is_public || field.is_array || field.name == "wfchost") {
+            continue;
+        }
+        Parameter shape;
+        shape.type = field.type;
+        shape.type_name = field.type_name;
+        std::string type;
+        bool is_object = false;
+        if (!thunk_type(shape, type, is_object)) {
+            continue;
+        }
+        const std::string set = is_object ? "Set " : "";
+        out += "Public Function WfcThunk_get_" + field.name +
+               "() As Variant\n" + set + "WfcThunk_get_" + field.name +
+               " = Me." + field.name + "\nEnd Function\n";
+        out += "Public Function WfcThunk_" +
+               std::string(is_object ? "set_" : "let_") + field.name +
+               "() As Variant\nDim wfcp0 As " + type + "\n" + set +
+               "wfcp0 = WfcArg(0)\n" + set + "Me." + field.name +
+               " = wfcp0\nEnd Function\n";
+    }
     for (const auto& procedure : module.procedures) {
         if (procedure.name.rfind("wfcthunk_", 0) == 0) {
             continue;
@@ -335,9 +363,14 @@ CompileResult compile_project(const std::string_view source,
     ParseOptions options;
     for (const auto& item : all) {
         options.class_names.insert(lower_case(item.name));
+        if (item.is_form) {
+            options.form_names.insert(lower_case(item.name));
+        }
         collect_enum_names(item.source, options.enum_names);
+        collect_names(item.source, "type", options.type_names);
     }
     collect_enum_names(std::string(source), options.enum_names);
+    collect_names(std::string(source), "type", options.type_names);
     std::vector<Module> class_modules;
     class_modules.reserve(all.size());
     for (const auto& item : all) {
@@ -398,6 +431,9 @@ CompileResult compile_project(const std::string_view source,
     LowerOptions lower_options;
     lower_options.host_globals.insert(info.form_names.begin(),
                                       info.form_names.end());
+    // Objects every program of the engine has.
+    lower_options.host_globals.insert("forms");
+    lower_options.host_globals.insert("printer");
     lower_options.has_forms = !info.form_names.empty();
     lower_options.startup_form = info.startup_form;
     auto lowered = lower_module(parsed.module, class_pointers, lower_options);

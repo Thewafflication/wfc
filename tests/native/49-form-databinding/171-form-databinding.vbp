@@ -1,0 +1,5 @@
+Type=Exe
+Class=Person; 171-form-databinding.cls.person
+Form=171-form-databinding.frm
+Startup="Form1"
+WfcUiScript=171-form-databinding.ui

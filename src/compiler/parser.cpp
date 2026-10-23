@@ -174,6 +174,20 @@ private:
         return name;
     }
 
+    // The types of the objects the engine provides (forms and controls).
+    [[nodiscard]] static bool is_engine_type(const std::string& name) {
+        static const std::set<std::string> names = {
+            "control",     "form",        "textbox",      "commandbutton",
+            "label",       "picturebox",  "image",        "listbox",
+            "combobox",    "checkbox",    "optionbutton", "frame",
+            "timer",       "shape",       "line",         "hscrollbar",
+            "vscrollbar",  "menu",        "stdpicture",   "picture",
+            "font",        "stdfont",     "printer",      "mdiform",
+            "usercontrol", "data",        "ole",          "drivelistbox",
+            "dirlistbox",  "filelistbox", "commondialog", "winsock"};
+        return names.contains(name);
+    }
+
     [[nodiscard]] VbType type_name(std::string* record_name = nullptr) {
         if (current().kind != TokenKind::identifier) {
             fail("expected a type name");
@@ -198,6 +212,11 @@ private:
             type = VbType::long_integer;
         } else if (name == "object") {
             // A late-bound object is held like a Variant.
+            type = VbType::variant;
+        } else if (options_.form_names.contains(name) ||
+                   (is_engine_type(name) &&
+                    !options_.type_names.contains(name))) {
+            // A form or a control: an object of the engine, late bound.
             type = VbType::variant;
         } else if (options_.class_names.contains(name)) {
             type = VbType::object;
@@ -717,9 +736,40 @@ private:
             ahead(1).text == "#") {
             return simple_engine_statement("Seek #");
         }
+        if (options_.is_form && (word == "load" || word == "unload") &&
+            ahead(1).kind == TokenKind::identifier &&
+            ahead(2).kind == TokenKind::symbol && ahead(2).text == "(") {
+            // `Load Control(i)`: an element of a control array of the form;
+            // the statement runs in the scope of the form (argument 0).
+            auto result = make(StmtKind::engine);
+            const std::string keyword = current().spelling;
+            advance();
+            const std::string name = current().spelling;
+            advance();
+            advance();  // (
+            const auto me = engine_argument(
+                *result, make_expr(ExprKind::name, here()), 'i');
+            result->items.back()->text = "me";
+            result->text = "@" + keyword + " " + name + "(" +
+                           engine_argument(*result, expression(), 'i') + ")";
+            expect_symbol(")");
+            return result;
+        }
         if ((word == "load" || word == "unload") &&
             ahead(1).kind == TokenKind::identifier) {
             return simple_engine_statement(current().spelling + " ");
+        }
+        if ((word == "sendkeys" || word == "appactivate" ||
+             word == "savesetting" || word == "deletesetting" ||
+             word == "savepicture") &&
+            !(ahead(1).kind == TokenKind::symbol && ahead(1).text == "=")) {
+            return simple_engine_statement(current().spelling + " ");
+        }
+        if (word == "beep") {
+            auto result = make(StmtKind::engine);
+            advance();
+            result->text = "Beep";
+            return result;
         }
         if (word == "kill" || word == "mkdir" || word == "rmdir" ||
             word == "chdir" || word == "chdrive" || word == "filecopy" ||
@@ -783,6 +833,20 @@ private:
                 advance();
             }
             return result;
+        }
+        if (options_.is_form &&
+            (word == "line" || word == "circle" || word == "pset" ||
+             word == "scale") &&
+            ((ahead(1).kind == TokenKind::symbol &&
+              (ahead(1).text == "(" || ahead(1).text == "-")) ||
+             (ahead(1).kind == TokenKind::identifier &&
+              ahead(1).text == "step") ||
+             (word == "scale" &&
+              (ahead(1).kind == TokenKind::end_of_statement ||
+               ahead(1).kind == TokenKind::end_of_file)))) {
+            std::string keyword = current().spelling;
+            return surface_statement(make_expr(ExprKind::name, here()),
+                                     keyword);
         }
         if (word == "gosub" || word == "on" || word == "static" ||
             word == "line" || word == "raiseevent") {
@@ -1055,6 +1119,10 @@ private:
             advance();
             return file_print_statement("Print");
         }
+        if (options_.is_form) {
+            return surface_statement(make_expr(ExprKind::name, here_me()),
+                                     "Print");
+        }
         auto result = make(StmtKind::print);
         advance();
         while (!at_end_of_statement() && !is_word("else")) {
@@ -1076,6 +1144,146 @@ private:
                 at_end_of_statement() || is_word("else") ? false : true;
         }
         return result;
+    }
+
+    [[nodiscard]] Position here_me() const { return here(); }
+
+    // `Print`, `Line`, `Circle`, `PSet` and `Scale` draw on a form or a picture
+    // box: the shared runtime runs the statement with the object as its first
+    // argument. The current token is the keyword.
+    [[nodiscard]] StmtPtr surface_statement(ExprPtr target,
+                                            const std::string& keyword) {
+        if (target->kind == ExprKind::name && target->text.empty()) {
+            target->text = "me";
+        }
+        auto result = make(StmtKind::engine);
+        advance();  // the keyword
+        result->text = engine_argument(*result, std::move(target), 'i') + "." +
+                       keyword + " ";
+        if (keyword == "Print") {
+            while (!at_end_of_statement() && !is_word("else")) {
+                if (is_symbol(";") || is_symbol(",")) {
+                    result->text += current().text;
+                    advance();
+                    continue;
+                }
+                result->text += " ";
+                if ((is_word("spc") || is_word("tab")) &&
+                    ahead(1).kind == TokenKind::symbol &&
+                    ahead(1).text == "(") {
+                    const std::string function = current().spelling;
+                    advance();
+                    advance();
+                    result->text +=
+                        function + "(" +
+                        engine_argument(*result, expression(), 'i') + ")";
+                    expect_symbol(")");
+                    continue;
+                }
+                result->text += engine_argument(*result, expression(), 'i');
+            }
+            return result;
+        }
+        // Coordinates in parentheses, joined by `-`, then arguments and the
+        // B and BF flags of Line.
+        while (!at_end_of_statement() && !is_word("else")) {
+            if (is_symbol("(")) {
+                advance();
+                result->text += "(";
+                bool first = true;
+                do {
+                    result->text += (first ? "" : ", ") +
+                                    engine_argument(*result, expression(), 'i');
+                    first = false;
+                } while (accept_symbol(","));
+                expect_symbol(")");
+                result->text += ")";
+            } else if (is_symbol("-")) {
+                advance();
+                result->text += "-";
+            } else if (is_symbol(",")) {
+                advance();
+                result->text += ", ";
+            } else if (is_word("step")) {
+                advance();
+                result->text += "Step ";
+            } else if ((is_word("b") || is_word("bf")) &&
+                       (ahead(1).kind == TokenKind::end_of_statement ||
+                        ahead(1).kind == TokenKind::end_of_file ||
+                        (ahead(1).kind == TokenKind::symbol &&
+                         ahead(1).text == ","))) {
+                result->text += current().spelling;
+                advance();
+            } else {
+                result->text += engine_argument(*result, expression(), 'i');
+            }
+        }
+        return result;
+    }
+
+    // `object.Print`, `.Line`, `.Circle`, `.PSet` and `.Scale` as a
+    // statement; null when the statement is something else.
+    [[nodiscard]] StmtPtr member_surface_statement() {
+        if (current().kind != TokenKind::identifier ||
+            current().text == "err") {
+            return nullptr;
+        }
+        const auto skip_parentheses = [&](std::size_t i) {
+            int depth = 0;
+            while (true) {
+                const Token& token = ahead(i);
+                if (token.kind == TokenKind::end_of_statement ||
+                    token.kind == TokenKind::end_of_file) {
+                    return std::size_t{0};
+                }
+                if (token.kind == TokenKind::symbol && token.text == "(") {
+                    ++depth;
+                } else if (token.kind == TokenKind::symbol &&
+                           token.text == ")") {
+                    if (--depth == 0) {
+                        return i + 1;
+                    }
+                }
+                ++i;
+            }
+        };
+        std::size_t i = 1;
+        if (ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") {
+            i = skip_parentheses(i);
+            if (i == 0) {
+                return nullptr;
+            }
+        }
+        while (ahead(i).kind == TokenKind::symbol && ahead(i).text == "." &&
+               ahead(i + 1).kind == TokenKind::identifier) {
+            const std::string member = ahead(i + 1).text;
+            const Token& after = ahead(i + 2);
+            const bool surface = member == "print" || member == "line" ||
+                                 member == "circle" || member == "pset" ||
+                                 member == "scale";
+            if (surface && !(after.kind == TokenKind::symbol &&
+                             (after.text == "=" || after.text == "."))) {
+                // The object is everything before the dot.
+                const std::size_t dot = index_ + i;
+                const Token saved = tokens_[dot];
+                tokens_[dot].kind = TokenKind::end_of_statement;
+                auto object = primary();
+                tokens_[dot] = saved;
+                advance();  // the dot
+                std::string keyword = current().spelling;
+                keyword[0] = static_cast<char>(
+                    std::toupper(static_cast<unsigned char>(keyword[0])));
+                return surface_statement(std::move(object), keyword);
+            }
+            i += 2;
+            if (ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") {
+                i = skip_parentheses(i);
+                if (i == 0) {
+                    return nullptr;
+                }
+            }
+        }
+        return nullptr;
     }
 
     // Whether `name ( ... ) =` starts here: an assignment to an element.
@@ -1170,10 +1378,36 @@ private:
             result->expr = expression();
             return result;
         }
+        if (current().text == "debug" && ahead(1).kind == TokenKind::symbol &&
+            ahead(1).text == "." && ahead(2).text == "print") {
+            return debug_print_statement();
+        }
+        if (auto drawn = member_surface_statement()) {
+            return drawn;
+        }
         if (starts_member_chain()) {
             return member_statement(false);
         }
         return call_statement(false);
+    }
+
+    // `Debug.Print items`.
+    [[nodiscard]] StmtPtr debug_print_statement() {
+        // The Immediate window shows nothing in a compiled program: the
+        // items are evaluated and dropped.
+        auto result = make(StmtKind::call);
+        advance();
+        advance();
+        advance();
+        result->text = "wfcdebugprint";
+        while (!at_end_of_statement() && !is_word("else")) {
+            if (is_symbol(";") || is_symbol(",")) {
+                advance();
+                continue;
+            }
+            result->items.push_back(expression());
+        }
+        return result;
     }
 
     // Whether `name[(...)] . member ...` starts here (not the Err object).

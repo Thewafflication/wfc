@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <limits>
 #include <set>
+#include <unordered_set>
 
 #include "interpreter.hpp"
 
@@ -16,7 +17,22 @@ namespace wfc::detail {
 // A friend of `Interpreter`: the operators and conversions are its private
 // members.
 struct NativeSupport {
+    [[nodiscard]] static bool trace_enabled() {
+        char* trace = nullptr;
+        std::size_t trace_size = 0;
+        const bool on =
+            _dupenv_s(&trace, &trace_size, "WFC_NATIVE_TRACE") == 0 &&
+            trace != nullptr;
+        std::free(trace);
+        return on;
+    }
+
     static void take_error(Interpreter& in, NativeError& error) {
+        if (trace_enabled()) {
+            std::fprintf(stderr, "[engine error] %s in [%.60s]\n",
+                         in.error_.diagnostic.c_str(),
+                         std::string(in.source_).c_str());
+        }
         error.number = static_cast<int>(in.runtime_error_number());
         if (error.number == 0) {
             error.number = 5;  // an error with no Visual Basic number
@@ -414,8 +430,12 @@ struct NativeSupport {
                  error);
             return std::nullopt;
         }
-        static std::string text;  // the interpreter reads it while it runs
-        text = member_text(name, arguments.size(), 1);
+        static std::unordered_set<std::string> texts;
+        const std::string& text =
+            *texts.insert(member_text(name, arguments.size(), 1)).first;
+        if (trace_enabled()) {
+            std::fprintf(stderr, "[engine member] %s\n", text.c_str());
+        }
         std::vector<Value> bound{object};
         bound.insert(bound.end(), arguments.begin(), arguments.end());
         auto result = with_arguments(in, bound, [&]() -> std::optional<Value> {
@@ -460,6 +480,17 @@ struct NativeSupport {
         return run_statement(in, text, bound, 0x3U, error);
     }
 
+    static std::optional<Value> new_form(Interpreter& in,
+                                         const std::string& name,
+                                         NativeError& error) {
+        in.execute_ = true;
+        auto made = in.instantiate_class(lower(name), 0);
+        if (!made.has_value()) {
+            take_error(in, error);
+        }
+        return made;
+    }
+
     static std::optional<std::vector<Value>> items(Interpreter& in,
                                                    const Value& object,
                                                    NativeError& error) {
@@ -489,8 +520,10 @@ struct NativeSupport {
                               std::vector<Value>& values,
                               const std::uint32_t variant_mask,
                               NativeError& error) {
-        static std::string statement;  // the interpreter reads it while it runs
-        statement = text;
+        // The interpreter keeps pointers into the text it runs, so every
+        // statement gets text of its own.
+        static std::unordered_set<std::string> texts;
+        const std::string& statement = *texts.insert(text).first;
         char* trace = nullptr;
         std::size_t trace_size = 0;
         const bool tracing =
@@ -512,13 +545,33 @@ struct NativeSupport {
                 scope.variant_variables.insert(name);
             }
         }
-        in.source_ = statement;
-        in.main_source_ = statement;
-        in.error_source_data_ = statement.data();
+        // "@Statement ...": argument 0 is the form whose code it is, so the
+        // names of its controls are in scope.
+        std::string_view code = statement;
+        InstanceData* self = nullptr;
+        if (!code.empty() && code.front() == '@') {
+            code.remove_prefix(1);
+            if (!values.empty()) {
+                if (const auto* form =
+                        std::get_if<ObjectInstance>(&values[0])) {
+                    self = form->data.get();
+                }
+            }
+        }
+        if (self != nullptr) {
+            in.instance_scopes_.push_back(self);
+        }
+        in.source_ = code;
+        in.main_source_ = code;
+        in.error_source_data_ = code.data();
         in.offset_ = 0;
         in.error_ = wfc::Evaluation{};
         in.execute_ = true;
+        in.print_surface_ = nullptr;  // a Print of an earlier statement
         const bool ok = in.parse_statement();
+        if (self != nullptr) {
+            in.instance_scopes_.pop_back();
+        }
         if (ok) {
             for (std::size_t i = 0; i < values.size(); ++i) {
                 const std::string name = "wfcarg" + std::to_string(i);
@@ -536,6 +589,16 @@ struct NativeSupport {
             scope.variant_variables.erase(name);
         }
         return ok;
+    }
+
+    static std::string take_output(Interpreter& in, bool& line_open) {
+        line_open = in.has_output_line_;
+        return std::exchange(in.output_, {});
+    }
+
+    static void close_output_line(Interpreter& in) {
+        in.has_output_line_ = false;
+        in.output_line_open_ = false;
     }
 
     static bool like(const std::string& text, const std::string& pattern) {
@@ -728,6 +791,11 @@ bool NativeEngine::member_put(const Value& object, const std::string& name,
                                      value, is_set, error);
 }
 
+std::optional<Value> NativeEngine::new_form(const std::string& name,
+                                            NativeError& error) {
+    return NativeSupport::new_form(*interpreter_, name, error);
+}
+
 std::optional<std::vector<Value>> NativeEngine::items(const Value& object,
                                                       NativeError& error) {
     return NativeSupport::items(*interpreter_, object, error);
@@ -758,6 +826,14 @@ std::optional<Value> NativeEngine::call_function(
     const std::string_view name, const std::vector<Value>& arguments,
     NativeError& error) {
     return NativeSupport::call_function(*interpreter_, name, arguments, error);
+}
+
+std::string NativeEngine::take_output(bool& line_open) {
+    return NativeSupport::take_output(*interpreter_, line_open);
+}
+
+void NativeEngine::close_output_line() {
+    NativeSupport::close_output_line(*interpreter_);
 }
 
 bool NativeEngine::is_library_function(const std::string_view name) {

@@ -242,6 +242,39 @@ std::optional<Value> Interpreter::evaluate_misc_function(
             member.push_back(ascii_lower(c));
         }
         InstanceData& instance = *holder->data;
+        if (instance.native != nullptr && instance.class_name == "wfcnative") {
+            // An object of the engine or of compiled code: its own members.
+            const int native_kind = static_cast<int>(*call_type);
+            std::vector<CallArgument> native_arguments;
+            for (std::size_t i = 3; i < count; ++i) {
+                native_arguments.push_back(CallArgument{arguments[i], nullptr});
+            }
+            Value result{Empty{}};
+            NativeFailure failure;
+            bool known = false;
+            if ((native_kind == 4 || native_kind == 8) &&
+                !native_arguments.empty()) {
+                const Value assigned = native_arguments.back().value;
+                native_arguments.pop_back();
+                known = instance.native->put(*this, member, native_arguments,
+                                             assigned, failure);
+            } else {
+                known = instance.native->get(*this, member, native_arguments,
+                                             result, failure);
+            }
+            if (!known) {
+                static_cast<void>(raise_runtime(
+                    438, "Object doesn't support this property or method",
+                    offset));
+                return std::nullopt;
+            }
+            if (failure.number != 0) {
+                static_cast<void>(
+                    raise_runtime(failure.number, failure.description, offset));
+                return std::nullopt;
+            }
+            return result;
+        }
         const ClassDef& class_def = class_definitions_.at(instance.class_name);
         std::vector<CallArgument> call_arguments;
         for (std::size_t i = 3; i < count; ++i) {

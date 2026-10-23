@@ -1,0 +1,5 @@
+Type=Exe
+Form=152-form-timer-arrays.form1.frm
+Form=152-form-timer-arrays.form2.frm
+Startup="Form1"
+WfcUiScript=152-form-timer-arrays.ui

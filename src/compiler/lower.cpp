@@ -1,5 +1,7 @@
 #include "lower.hpp"
 
+#include "../interpreter/vb_text.hpp"
+
 #include "library.hpp"
 
 #include <algorithm>
@@ -210,6 +212,7 @@ public:
             case Service::array_flat_element:
             case Service::string_mid_assign:
             case Service::thunk_arg:
+            case Service::host_new:
             case Service::host_global:
             case Service::variant_member_get:
             case Service::variant_member_put:
@@ -2453,6 +2456,19 @@ private:
             found != constants_.end()) {
             return found->second;
         }
+        // The constants of the language: vbCrLf, vbYesNo, vbRed, ...
+        if (const auto number = wfc::detail::vba_constant_value(name)) {
+            const bool is_long = *number > 32767 || *number < -32768;
+            return Value{ir::immediate(*number),
+                         is_long ? VbType::long_integer : VbType::integer};
+        }
+        if (const auto text = wfc::detail::vba_string_constant(name)) {
+            auto* self = const_cast<Lowerer*>(this);
+            self->program_.strings.push_back(*text);
+            return Value{ir::literal(static_cast<std::int64_t>(
+                             program_.strings.size() - 1)),
+                         VbType::string};
+        }
         return std::nullopt;
     }
 
@@ -2780,6 +2796,12 @@ private:
                              "' yet",
                          at);
                 }
+            }
+            if (name == "wfcdebugprint") {
+                for (const auto& argument : arguments) {
+                    static_cast<void>(snapshot(lower_expression(*argument)));
+                }
+                return Value{builder_->new_temp(), VbType::none};
             }
             if (name == "wfcargcount" || name == "wfcarg" ||
                 name == "wfcstorearg") {
@@ -3927,6 +3949,16 @@ private:
 
     [[nodiscard]] Value lower_new(const Expr& expression) {
         const int cls = find_class(expression.text, expression.at);
+        if (classes_[static_cast<std::size_t>(cls)].is_form) {
+            // A new instance of a form is made by the engine.
+            Value host;
+            host.type = VbType::variant;
+            host.operand = new_owned_variant();
+            builder_->runtime(Service::host_new,
+                              {name_literal(expression.text)}, host.operand,
+                              true);
+            return host;
+        }
         Value result;
         result.type = VbType::object;
         result.cls = cls;

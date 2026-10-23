@@ -13,6 +13,8 @@ struct ParseOptions final {
     std::set<std::string> enum_names;   // lower-case names of the enums
     bool is_class{};                    // the source is a class module
     bool is_form{};                     // ... of a form
+    std::set<std::string> form_names;   // lower-case names of the forms
+    std::set<std::string> type_names;   // lower-case names of the Types
     std::string name;                   // the module or class name
     std::string display_name;           // the name as written
 };

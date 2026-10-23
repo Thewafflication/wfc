@@ -233,7 +233,8 @@ enum class Service : int {
     thunk_count = 99,   // () -> count
     thunk_arg = 100,    // (i) -> new handle
     thunk_store = 101,  // (i, handle)
-    count = 102,
+    host_new = 102,     // (form name literal) -> new handle: a new form
+    count = 103,
 };
 
 struct Instruction final {
