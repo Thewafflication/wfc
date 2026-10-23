@@ -1,0 +1,4 @@
+Type=Exe
+Form=form.frm
+Startup="Form1"
+WfcUiScript=form.ui

@@ -311,6 +311,12 @@ public:
     }
 
     [[nodiscard]] bool has_member(const std::string& member) const override {
+        if (is_form && g_native_hooks != nullptr) {
+            if (const auto owner = self.lock();
+                owner != nullptr && g_native_hooks->has(*owner, member)) {
+                return true;
+            }
+        }
         return member == "name" || member == "index" ||
                member == "linkexecute" || member == "linkpoke" ||
                member == "linkrequest" || member == "linksend" ||
@@ -2547,6 +2553,27 @@ struct FormSupport {
             }
             return in.dispatch_event_to_sinks(*self, event, sink_call, offset);
         };
+        // The handler may be compiled code.
+        if (g_native_hooks != nullptr && g_native_hooks->has(form, handler)) {
+            std::vector<CallArgument> compiled_call;
+            if (index >= 0) {
+                compiled_call.push_back(CallArgument{
+                    Value{static_cast<Int16>(index)}, nullptr, false, {}});
+            }
+            for (auto& argument : arguments) {
+                compiled_call.push_back(
+                    CallArgument{argument, &argument, false, {}});
+            }
+            Value ignored{Empty{}};
+            NativeFailure failure;
+            static_cast<void>(g_native_hooks->get(form, handler, compiled_call,
+                                                  ignored, failure));
+            if (failure.number != 0) {
+                return in.raise_runtime(failure.number, failure.description,
+                                        offset);
+            }
+            return to_sinks();
+        }
         if (method == class_iterator->second.methods.end()) {
             return to_sinks();
         }
@@ -5025,6 +5052,13 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
     if (!FormSupport::touch(in, *this, failure)) {
         return true;
     }
+    if (is_form && g_native_hooks != nullptr) {
+        if (const auto owner = self.lock();
+            owner != nullptr && g_native_hooks->has(*owner, member)) {
+            return g_native_hooks->get(*owner, member, arguments, result,
+                                       failure);
+        }
+    }
     if (member == "linkexecute" || member == "linkpoke" ||
         member == "linkrequest" || member == "linksend" ||
         member == "linkopen") {
@@ -5166,6 +5200,13 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
                         const Value& value, NativeFailure& failure) {
     if (!FormSupport::touch(in, *this, failure)) {
         return true;
+    }
+    if (is_form && g_native_hooks != nullptr) {
+        if (const auto owner = self.lock();
+            owner != nullptr && g_native_hooks->has(*owner, member)) {
+            return g_native_hooks->put(*owner, member, arguments, value,
+                                       failure);
+        }
     }
     if (is_activex() && FormSupport::activex_forwards(*this, member)) {
         return FormSupport::activex_put(in, *this, member, arguments, value,
@@ -5826,6 +5867,9 @@ bool Interpreter::create_form_instance(
         }
     };
     add_controls(add_controls, root);
+    if (g_native_hooks != nullptr) {
+        g_native_hooks->form_created(instance);
+    }
     // Form_Initialize / UserControl_Initialize: the instance now exists.
     static std::set<const InstanceData*> initializing;
     if (initializing.insert(instance.get()).second) {

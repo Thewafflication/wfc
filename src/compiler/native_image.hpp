@@ -24,8 +24,15 @@ namespace wfc::compiler {
 
 enum class Architecture { x86, x64, arm64 };
 
+// A class of the program: its lower-case name and where its record lies.
+struct ImageClass final {
+    std::string name;
+    std::size_t record{};
+};
+
 struct NativeImage final {
     Architecture architecture{Architecture::x64};
+    std::vector<ImageClass> classes;
     std::vector<std::uint8_t> bytes;
     std::size_t table_count{};
     std::size_t entry{};  // offset of the function that starts the program
@@ -57,12 +64,14 @@ struct BackEndResult final {
 
 // Writes the image offset of each class's Terminate function into its record
 // (a literal of the image; `string_offsets` says where each literal lies).
-inline void patch_class_records(
+inline std::vector<ImageClass> patch_class_records(
     std::vector<std::uint8_t>& image, const ir::Program& program,
     const std::vector<std::size_t>& string_offsets,
     const std::vector<std::size_t>& function_starts) {
+    std::vector<ImageClass> table;
     for (const auto& item : program.classes) {
         const auto base = string_offsets[static_cast<std::size_t>(item.record)];
+        table.push_back(ImageClass{item.name, base + 8U});
         if (item.terminate >= 0) {
             const auto offset = static_cast<std::int32_t>(
                 function_starts[static_cast<std::size_t>(item.terminate)]);
@@ -75,6 +84,7 @@ inline void patch_class_records(
                         sizeof(offset));
         }
     }
+    return table;
 }
 
 // Generates machine code for the program. `error` says why a back end cannot.

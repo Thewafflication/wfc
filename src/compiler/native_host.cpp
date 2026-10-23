@@ -1298,7 +1298,27 @@ public:
                 return true;
             }
         }
-        return false;
+        wfc::detail::Value host;
+        if (!form_host(host, failure)) {
+            return false;
+        }
+        if (failure.number != 0) {
+            return true;
+        }
+        std::vector<wfc::detail::Value> values;
+        for (const auto& argument : arguments) {
+            values.push_back(argument.value);
+        }
+        wfc::detail::NativeError problem;
+        auto found =
+            engine().member_get(host, lower_text(name), values, problem);
+        if (!found.has_value()) {
+            failure.number = problem.number;
+            failure.description = problem.description;
+        } else {
+            result = std::move(*found);
+        }
+        return true;
     }
     [[nodiscard]] bool put(wfc::detail::Interpreter&, const std::string& name,
                            std::vector<wfc::detail::CallArgument>& arguments,
@@ -1318,13 +1338,143 @@ public:
                 return true;
             }
         }
-        return false;
+        wfc::detail::Value host;
+        if (!form_host(host, failure)) {
+            return false;
+        }
+        if (failure.number != 0) {
+            return true;
+        }
+        std::vector<wfc::detail::Value> values;
+        for (const auto& argument : arguments) {
+            values.push_back(argument.value);
+        }
+        wfc::detail::NativeError problem;
+        if (!engine().member_put(host, lower_text(name), values, value,
+                                 is_object, problem)) {
+            failure.number = problem.number;
+            failure.description = problem.description;
+        }
+        return true;
     }
     [[nodiscard]] RtObject* object() const { return object_; }
 
 private:
+    // The form of the engine this object stands for (false: not a form).
+    [[nodiscard]] bool form_host(wfc::detail::Value& host,
+                                 wfc::detail::NativeFailure& failure) const {
+        const auto offset = find_thunk(object_->record, "call:wfcgethost");
+        if (offset < 0) {
+            return false;
+        }
+        std::vector<wfc::detail::CallArgument> none;
+        host = wfc::detail::Value{wfc::detail::Empty{}};
+        call_thunk(object_, offset, none, nullptr, host, failure);
+        return true;
+    }
+
     RtObject* object_;
 };
+
+// The forms of the engine get their code from compiled classes.
+std::unordered_map<std::string, const ClassRecord*> g_class_records;
+
+class FormHooks final : public wfc::detail::NativeHooks {
+public:
+    void form_created(
+        const std::shared_ptr<wfc::detail::InstanceData>& form) override {
+        const auto found = g_class_records.find(lower_text(form->class_name));
+        if (found == g_class_records.end()) {
+            return;
+        }
+        const ClassRecord* record = found->second;
+        const auto made = find_thunk(record, "new:");
+        if (made < 0) {
+            return;
+        }
+        auto* object = reinterpret_cast<RtObject* (*)()>(g_image_base + made)();
+        if (object == nullptr ||
+            (g_error.pending != nullptr && *g_error.pending != 0)) {
+            if (g_error.pending != nullptr) {
+                *g_error.pending = 0;
+            }
+            return;
+        }
+        // The compiled code reaches the window through this link.
+        if (const auto link = find_thunk(record, "call:wfcsethost");
+            link >= 0) {
+            std::vector<wfc::detail::CallArgument> arguments;
+            arguments.push_back(wfc::detail::CallArgument{
+                wfc::detail::Value{wfc::detail::ObjectInstance{form}},
+                nullptr,
+                false,
+                {}});
+            wfc::detail::Value ignored;
+            wfc::detail::NativeFailure failure;
+            call_thunk(object, link, arguments, nullptr, ignored, failure);
+        }
+        form->compiled = std::shared_ptr<void>(object, [](void* held) {
+            object_release(static_cast<RtObject*>(held));
+        });
+    }
+
+    bool has(wfc::detail::InstanceData& form,
+             const std::string& name) override {
+        auto* object = static_cast<RtObject*>(form.compiled.get());
+        if (object == nullptr) {
+            return false;
+        }
+        const std::string key = lower_text(name);
+        for (const char* kind : {"call:", "get:", "let:", "set:"}) {
+            if (find_thunk(object->record, kind + key) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool get(wfc::detail::InstanceData& form, const std::string& name,
+             std::vector<wfc::detail::CallArgument>& arguments,
+             wfc::detail::Value& result,
+             wfc::detail::NativeFailure& failure) override {
+        auto* object = static_cast<RtObject*>(form.compiled.get());
+        if (object == nullptr) {
+            return false;
+        }
+        for (const char* kind : {"call:", "get:"}) {
+            const auto offset =
+                find_thunk(object->record, kind + lower_text(name));
+            if (offset >= 0) {
+                result = wfc::detail::Value{wfc::detail::Empty{}};
+                call_thunk(object, offset, arguments, nullptr, result, failure);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool put(wfc::detail::InstanceData& form, const std::string& name,
+             std::vector<wfc::detail::CallArgument>& arguments,
+             const wfc::detail::Value& value,
+             wfc::detail::NativeFailure& failure) override {
+        auto* object = static_cast<RtObject*>(form.compiled.get());
+        if (object == nullptr) {
+            return false;
+        }
+        for (const char* kind : {"let:", "set:"}) {
+            const auto offset =
+                find_thunk(object->record, kind + lower_text(name));
+            if (offset >= 0) {
+                wfc::detail::Value ignored;
+                call_thunk(object, offset, arguments, &value, ignored, failure);
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+FormHooks g_form_hooks;
 
 // The Value that stands for an object (one wrapper per object while any copy
 // of the Value lives, so that `Is` still works).
@@ -1519,6 +1669,27 @@ void run_forms() {
     }
 }
 
+// What the engine sees of a value: a compiled form is its window.
+[[nodiscard]] wfc::detail::Value engine_value(const wfc::detail::Value& value) {
+    if (const auto* instance =
+            std::get_if<wfc::detail::ObjectInstance>(&value)) {
+        if (const auto* compiled =
+                dynamic_cast<CompiledObject*>(instance->data->native.get())) {
+            const auto offset =
+                find_thunk(compiled->object()->record, "call:wfcgethost");
+            if (offset >= 0) {
+                std::vector<wfc::detail::CallArgument> none;
+                wfc::detail::Value host{wfc::detail::Empty{}};
+                wfc::detail::NativeFailure failure;
+                call_thunk(compiled->object(), offset, none, nullptr, host,
+                           failure);
+                return host;
+            }
+        }
+    }
+    return value;
+}
+
 void engine_statement(const RtString* text, const std::int32_t count,
                       const char* in_block, char* out_block,
                       const std::int32_t variant_mask) {
@@ -1526,7 +1697,7 @@ void engine_statement(const RtString* text, const std::int32_t count,
     for (std::int32_t i = 0; i < count; ++i) {
         RtVariant* handle;
         std::memcpy(&handle, in_block + 8 * i, sizeof(handle));
-        values.push_back(value_of(handle));
+        values.push_back(engine_value(value_of(handle)));
     }
     wfc::detail::NativeError problem;
     if (!engine().run_statement(std::string(view_of(text)), values,
@@ -1702,6 +1873,11 @@ int run_native_image(const NativeImage& image, std::string& error,
     g_column = 0;
     g_image_base = static_cast<std::uint8_t*>(memory);
     g_engine.reset();
+    g_class_records.clear();
+    for (const auto& item : image.classes) {
+        g_class_records[item.name] =
+            reinterpret_cast<const ClassRecord*>(g_image_base + item.record);
+    }
     if (setup != nullptr) {
         wfc::detail::NativeError problem;
         if (!engine().start(*setup, problem)) {
@@ -1709,6 +1885,7 @@ int run_native_image(const NativeImage& image, std::string& error,
             VirtualFree(memory, 0, MEM_RELEASE);
             return -1;
         }
+        wfc::detail::g_native_hooks = &g_form_hooks;
     }
     // The stack limit: half of the stack that is left (the services need some
     // room too).
@@ -1736,6 +1913,10 @@ int run_native_image(const NativeImage& image, std::string& error,
         std::cerr.flush();
         code = 1;
     }
+    wfc::detail::g_native_hooks = nullptr;
+    // Forms hold compiled objects: they end while the code still exists.
+    g_engine.reset();
+    g_engine.reset();
     g_error.pending = nullptr;
     VirtualFree(memory, 0, MEM_RELEASE);
     return code;

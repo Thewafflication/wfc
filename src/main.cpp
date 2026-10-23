@@ -192,6 +192,8 @@ int run_native(const int argument_count, const char* const arguments[]) {
                 project.class_form_texts[i],
                 project.class_form_directories[i]});
             info.form_names.push_back(lower(project.class_names[i]));
+            classes.push_back(wfc::compiler::ClassSource{
+                project.class_names[i], project.class_sources[i], true});
             continue;
         }
         classes.push_back(wfc::compiler::ClassSource{project.class_names[i],

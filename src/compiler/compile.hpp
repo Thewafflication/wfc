@@ -23,6 +23,7 @@ struct CompileResult final {
 struct ClassSource final {
     std::string name;
     std::string source;
+    bool is_form{};  // the code of a form (its design lives in the engine)
 };
 
 // What a project says about itself that the built-in classes use.

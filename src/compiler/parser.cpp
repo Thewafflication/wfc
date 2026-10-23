@@ -23,6 +23,7 @@ public:
     Module parse() {
         Module module;
         module.is_class = options_.is_class;
+        module.is_form = options_.is_form;
         module.name = options_.name;
         module.display_name = options_.display_name;
         skip_ends();

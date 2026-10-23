@@ -435,6 +435,8 @@ struct InstanceData : std::enable_shared_from_this<InstanceData> {
         event_sinks;
     // `Static` locals of this instance's methods (VB6 keeps them per object).
     std::map<const void*, Scope> static_scopes;
+    // The compiled object that holds the code of this form (native programs).
+    std::shared_ptr<void> compiled;
 };
 
 // One evaluated call argument. `byref_target` is non-null only when the
@@ -454,6 +456,26 @@ struct CallArgument {
     // `name:=value` (lowercased); empty for a positional argument.
     std::string name{};
 };
+
+// What a native program gives the forms of the engine: the code of a form is
+// compiled, so its event handlers and public members live outside the engine.
+struct NativeHooks {
+    virtual ~NativeHooks() = default;
+    // A form has been made; it gets its compiled code.
+    virtual void form_created(const std::shared_ptr<InstanceData>& form) = 0;
+    // Whether the compiled code of the form has a member of this name.
+    virtual bool has(InstanceData& form, const std::string& name) = 0;
+    // Calls or reads a member (false: there is none). A failure is reported
+    // in `failure`; by-reference arguments are written back.
+    virtual bool get(InstanceData& form, const std::string& name,
+                     std::vector<CallArgument>& arguments, Value& result,
+                     NativeFailure& failure) = 0;
+    virtual bool put(InstanceData& form, const std::string& name,
+                     std::vector<CallArgument>& arguments, const Value& value,
+                     NativeFailure& failure) = 0;
+};
+
+inline NativeHooks* g_native_hooks = nullptr;
 
 class Interpreter final {
 public:

@@ -343,9 +343,19 @@ CompileResult compile_project(const std::string_view source,
     for (const auto& item : all) {
         ParseOptions class_options = options;
         class_options.is_class = true;
+        class_options.is_form = item.is_form;
         class_options.name = lower_case(item.name);
         class_options.display_name = item.name;
-        auto parsed_class = parse_module(item.source, class_options);
+        // A form is compiled as a class that holds the form of the engine.
+        const std::string text =
+            item.is_form ? item.source +
+                               "\nPublic wfchost As Variant\n"
+                               "Public Sub WfcSetHost(ByVal h As Variant)\n"
+                               "wfchost = h\nEnd Sub\n"
+                               "Public Function WfcGetHost() As Variant\n"
+                               "WfcGetHost = wfchost\nEnd Function\n"
+                         : item.source;
+        auto parsed_class = parse_module(text, class_options);
         if (!parsed_class.error.empty()) {
             result.error = "class " + item.name + ": " + parsed_class.error;
             result.error_at = parsed_class.error_at;

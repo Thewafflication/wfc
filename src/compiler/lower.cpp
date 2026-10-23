@@ -110,6 +110,7 @@ struct ClassInfo final {
     int initialize{-1};
     int terminate{-1};
     std::string default_member;  // the member `x(args)` calls
+    bool is_form{};              // names it does not declare are the form's
 };
 
 [[nodiscard]] bool is_integral(const VbType type) {
@@ -855,6 +856,7 @@ private:
             ClassInfo info;
             info.name = module->name;
             info.module = module;
+            info.is_form = module->is_form;
             class_index_[info.name] = static_cast<int>(classes_.size());
             classes_.push_back(std::move(info));
         }
@@ -995,11 +997,11 @@ private:
                     info.terminate = signature.index;
                 }
             }
-            declare_member_table(c);
             ir::Function function;
             function.name = info.name + ".__new";
             info.new_function = static_cast<int>(program_.functions.size());
             program_.functions.push_back(std::move(function));
+            declare_member_table(c);
             program_.classes[c].terminate = info.terminate;
         }
     }
@@ -1029,6 +1031,11 @@ private:
             member.function = info.methods.at(procedure.name).index;
             members.push_back(std::move(member));
         }
+        // How the shared runtime makes an object of the class (a form).
+        ir::ClassMember made;
+        made.key = "new:";
+        made.function = info.new_function;
+        members.push_back(std::move(made));
         put(static_cast<std::int32_t>(members.size()));
         for (auto& member : members) {
             put(static_cast<std::int32_t>(member.key.size()));
@@ -1813,6 +1820,15 @@ private:
         if (statement.text == "mid" && !statement.items.empty() &&
             !has_variable("mid") && !signatures_.contains("mid")) {
             lower_mid_statement(statement);
+            return;
+        }
+        if (in_form() && !has_variable(statement.text)) {
+            std::vector<const Expr*> indexes;
+            for (const auto& item : statement.items) {
+                indexes.push_back(item.get());
+            }
+            late_put(host_of_me(statement.at), statement.text, indexes,
+                     lower_expression(*statement.expr), false, statement.at);
             return;
         }
         auto target = find_variable(statement.text, statement.at);
@@ -2783,6 +2799,13 @@ private:
                         : name;
                 return lower_library_call(spelled, arguments, at);
             }
+            if (in_form()) {
+                std::vector<const Expr*> pointers;
+                for (const auto& argument : arguments) {
+                    pointers.push_back(argument.get());
+                }
+                return late_get(host_of_me(at), name, pointers, at);
+            }
             fail("'" + name + "' is not a Sub or Function of the project", at);
         }
         const auto& signature = found->second;
@@ -3484,6 +3507,31 @@ private:
 
     // ----- Late-bound objects (objects of the engine) ----------------------
 
+    // Whether the code being lowered is a form's: a name it does not declare
+    // belongs to the form of the engine (a control, a property, a method).
+    [[nodiscard]] bool in_form() const {
+        return current_class_ >= 0 &&
+               classes_[static_cast<std::size_t>(current_class_)].is_form;
+    }
+
+    // The form of the engine that a compiled form stands for.
+    [[nodiscard]] Value form_host(const Value& base, const ClassInfo& info,
+                                  const Position at) {
+        const auto found = info.methods.find("wfcgethost");
+        if (found == info.methods.end()) {
+            fail("the form has no link to its window", at);
+        }
+        builder_->runtime(Service::object_check, {base.operand});
+        return emit_call(found->second, "wfcgethost", {}, base.operand, nullptr,
+                         at);
+    }
+
+    [[nodiscard]] Value host_of_me(const Position at) {
+        return form_host(Value{me_, VbType::object, current_class_},
+                         classes_[static_cast<std::size_t>(current_class_)],
+                         at);
+    }
+
     // A value that is reached by name at run time: a Variant, or an object
     // whose class is not known here.
     [[nodiscard]] static bool late_bound(const Value& value) {
@@ -3791,6 +3839,10 @@ private:
             return Value{place.operand, place.type, cls};
         }
         const Signature* signature = member_signature(info, expression.text);
+        if (signature == nullptr && info.is_form) {
+            return late_get(form_host(base, info, expression.at),
+                            expression.text, {}, expression.at);
+        }
         if (signature == nullptr || !signature->is_function) {
             fail("the class '" + info.name + "' has no property or function '" +
                      expression.text + "'",
@@ -3822,6 +3874,9 @@ private:
         const auto& info = class_of_value(base, at);
         builder_->runtime(Service::object_check, {base.operand});
         const Signature* signature = member_signature(info, name);
+        if (signature == nullptr && info.is_form) {
+            return late_get(form_host(base, info, at), name, arguments, at);
+        }
         if (signature == nullptr) {
             fail("the class '" + info.name + "' has no method '" + name + "'",
                  at);
@@ -3935,6 +3990,11 @@ private:
                 }
             }
         }
+        if (info.is_form) {
+            late_put(form_host(base, info, statement.at), target.text,
+                     arguments, value, false, statement.at);
+            return;
+        }
         fail("the class '" + info.name + "' has no field or Property Let '" +
                  target.text + "'",
              statement.at);
@@ -3981,6 +4041,15 @@ private:
                         assign_object(place, value, statement.at);
                         return;
                     }
+                }
+                if (info.is_form) {
+                    std::vector<const Expr*> indexes;
+                    for (std::size_t i = 1; i < target.operands.size(); ++i) {
+                        indexes.push_back(target.operands[i].get());
+                    }
+                    late_put(form_host(base, info, statement.at), target.text,
+                             indexes, value, true, statement.at);
+                    return;
                 }
                 fail("the class '" + info.name + "' has no object field or " +
                          "Property Set '" + target.text + "'",
@@ -4456,6 +4525,10 @@ private:
                                           null.operand, true);
                         return null;
                     }
+                }
+                if (in_form() && !has_variable(expression.text)) {
+                    return late_get(host_of_me(expression.at), expression.text,
+                                    {}, expression.at);
                 }
                 const auto variable =
                     find_variable(expression.text, expression.at);
