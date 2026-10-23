@@ -12,7 +12,17 @@ namespace {
 // The enumerations of the language (VbMsgBoxResult, ColorConstants, ...): they
 // are Long as types, and `Enumeration.member` names one of their constants.
 [[nodiscard]] bool is_library_enumeration(const std::string& name) {
-    static const std::set<std::string> names = {"colorconstants",
+    static const std::set<std::string> names = {"vba",
+                                                "strings",
+                                                "math",
+                                                "conversion",
+                                                "information",
+                                                "interaction",
+                                                "datetime",
+                                                "filesystem",
+                                                "constants",
+                                                "financial",
+                                                "colorconstants",
                                                 "vbmsgboxresult",
                                                 "vbmsgboxstyle",
                                                 "systemcolorconstants",
@@ -283,8 +293,7 @@ private:
             // A user-defined type; the compiler checks it.
             type = VbType::record;
             *record_name = name;
-        } else if (record_name != nullptr && name != "date" &&
-                   name != "currency" && name != "decimal") {
+        } else if (record_name != nullptr) {
             // Any other name is a class the engine provides (a dialog, a
             // Dictionary, a control): objects of it are late bound.
             type = VbType::variant;
@@ -2072,6 +2081,12 @@ private:
             result->single_literal = token.single_literal;
             return result;
         }
+        if (token.kind == TokenKind::date) {
+            advance();
+            auto result = make_expr(ExprKind::date_literal, at);
+            result->real = std::strtod(token.text.c_str(), nullptr);
+            return result;
+        }
         if (token.kind == TokenKind::string) {
             advance();
             auto result = make_expr(ExprKind::string_literal, at);
@@ -2224,8 +2239,8 @@ ParseResult parse_module(const std::string_view source,
                 lexed.tokens[i + 1].kind == TokenKind::symbol &&
                 lexed.tokens[i + 1].text == "." &&
                 lexed.tokens[i + 2].kind == TokenKind::identifier &&
-                !(i > 0 && lexed.tokens[i - 1].kind == TokenKind::symbol &&
-                  lexed.tokens[i - 1].text == ".");
+                !(!kept.empty() && kept.back().kind == TokenKind::symbol &&
+                  kept.back().text == ".");
             if (qualifier) {
                 ++i;  // the module name and its dot
                 continue;

@@ -51,7 +51,24 @@ struct Variable final {
     bool auto_new{};           // `Dim x As New Class`: created on first use
     std::string event_prefix;  // a WithEvents variable: "name_"
     int fixed{};               // `String * n`: the length
+    char coerce{};  // a Variant that keeps a type: 'd' Date, 'c' Currency, 'm'
+                    // Decimal
 };
+
+// The type a Variant variable keeps: Date, Currency and Decimal values are
+// converted when they are stored.
+[[nodiscard]] char coerce_kind(const std::string& type_name) {
+    if (type_name == "date") {
+        return 'd';
+    }
+    if (type_name == "currency") {
+        return 'c';
+    }
+    if (type_name == "decimal") {
+        return 'm';
+    }
+    return 0;
+}
 
 // A field of a user-defined type or a class and where it lies.
 struct FieldInfo final {
@@ -63,6 +80,7 @@ struct FieldInfo final {
     bool is_public{};
     bool auto_new{};
     bool with_events{};
+    char coerce{};                // see Variable
     std::int64_t lower{};         // an array inside a record: first index,
     std::int64_t count{1};        // number of elements,
     std::int64_t element_size{};  // and the size of an element
@@ -779,10 +797,13 @@ private:
             } else if (declaration.type == VbType::object) {
                 record = class_of(declaration.type_name, declaration.at);
             }
-            const auto variable = Variable{
+            auto variable = Variable{
                 ir::global(static_cast<std::int64_t>(program_.globals.size())),
                 declaration.type, declaration.is_array, record,
                 declaration.is_new};
+            if (declaration.type == VbType::variant && !declaration.is_array) {
+                variable.coerce = coerce_kind(declaration.type_name);
+            }
             globals_[declaration.name] = variable;
             if (declaration.type == VbType::object) {
                 global_objects_.push_back(variable.operand);
@@ -960,6 +981,10 @@ private:
                 entry.is_public = declaration.is_public;
                 entry.auto_new = declaration.is_new;
                 entry.with_events = declaration.with_events;
+                if (declaration.type == VbType::variant &&
+                    !declaration.is_array) {
+                    entry.coerce = coerce_kind(declaration.type_name);
+                }
                 std::int64_t size = 4;
                 int kind = -1;
                 std::vector<std::int64_t> inner_strings;
@@ -1188,7 +1213,9 @@ private:
                          field.is_array,
                          field.udt,
                          field.auto_new,
-                         field.with_events ? field.name + "_" : std::string{}};
+                         field.with_events ? field.name + "_" : std::string{},
+                         0,
+                         field.coerce};
         }
     }
 
@@ -1254,6 +1281,10 @@ private:
                     ? find_udt(parameter.type_name, procedure.at)
                 : parameter.type == VbType::object ? signature.parameter_cls[i]
                                                    : -1};
+            if (parameter.type == VbType::variant && !parameter.is_array) {
+                locals_[parameter.name].coerce =
+                    coerce_kind(parameter.type_name);
+            }
             if (parameter.by_value && is_handle(parameter.type)) {
                 // The callee owns its copy of a handle parameter.
                 builder.runtime(addref_service(parameter.type),
@@ -1270,6 +1301,10 @@ private:
             zero(result, procedure.return_type);
             result_variable_ = Variable{result, procedure.return_type, false,
                                         signature.return_cls};
+            if (procedure.return_type == VbType::variant) {
+                result_variable_->coerce =
+                    coerce_kind(procedure.return_type_name);
+            }
         }
         end_label_ = builder.new_label();
         builder.set_error_label(end_label_);
@@ -1624,6 +1659,16 @@ private:
         }
         zero(slot, declaration.type);
         locals_[declaration.name] = Variable{slot, declaration.type};
+        if (declaration.type == VbType::variant) {
+            locals_[declaration.name].coerce =
+                coerce_kind(declaration.type_name);
+            if (locals_[declaration.name].coerce != 0) {
+                // A Date starts as the date 0, a Currency as 0.
+                store_value(locals_[declaration.name],
+                            Value{ir::immediate(0), VbType::integer},
+                            declaration.at);
+            }
+        }
         if (declaration.type == VbType::string) {
             owned_slots_.push_back(Owned{slot, Service::string_release});
             if (declaration.fixed_length > 0) {
@@ -2054,7 +2099,7 @@ private:
             self.kind = ExprKind::name;
             self.text = statement.text;
             self.at = statement.at;
-            list.push_back(EngineArgument{&self, 'i', std::nullopt});
+            list.push_back(EngineArgument{&self, 'b', std::nullopt});
             for (std::size_t i = 0; i < statement.items.size(); ++i) {
                 text += (i == 0 ? "" : ", ") + std::string("wfcarg") +
                         std::to_string(i + 2);
@@ -2116,7 +2161,13 @@ private:
             fail("Set is needed to assign an object", at);
         }
         if (target.type == VbType::variant) {
-            const auto boxed = to_variant(value, at);
+            auto boxed = to_variant(value, at);
+            if (target.coerce != 0) {
+                boxed = emit_library_call(target.coerce == 'd'   ? "cdate"
+                                          : target.coerce == 'c' ? "ccur"
+                                                                 : "cdec",
+                                          {boxed});
+            }
             builder_->runtime(Service::variant_assign,
                               {address_of(target.operand), boxed.operand});
             return;
@@ -2238,12 +2289,24 @@ private:
             int literal{-1};
             bool empty{};
             Value value;
+            char position{};  // 't' Tab(n), 's' Spc(n), 'z' Tab
         };
         std::vector<Item> items;
         for (const auto& expression : statement.items) {
             Item item;
             if (!expression) {
                 item.empty = true;
+            } else if (expression->kind == ExprKind::name &&
+                       expression->text == "tab" && !has_variable("tab")) {
+                item.position = 'z';
+            } else if (expression->kind == ExprKind::call &&
+                       (expression->text == "tab" ||
+                        expression->text == "spc") &&
+                       expression->operands.size() == 1U &&
+                       !find_array(expression->text).has_value()) {
+                item.position = expression->text == "tab" ? 't' : 's';
+                item.value = to_long(lower_expression(*expression->operands[0]),
+                                     expression->at);
             } else if (expression->kind == ExprKind::string_literal) {
                 program_.strings.push_back(expression->text);
                 item.literal = static_cast<int>(program_.strings.size() - 1U);
@@ -2259,6 +2322,12 @@ private:
             const auto& item = items[i];
             if (item.empty) {
                 // nothing to write before the separator
+            } else if (item.position == 'z') {
+                builder_->runtime(Service::print_zone, {});
+            } else if (item.position != 0) {
+                builder_->runtime(item.position == 't' ? Service::print_tab
+                                                       : Service::print_spc,
+                                  {item.value.operand});
             } else if (item.literal >= 0) {
                 builder_->print_text(item.literal);
             } else if (is_float(item.value.type)) {
@@ -2655,14 +2724,18 @@ private:
     [[nodiscard]] Value lower_bound(const bool upper,
                                     const std::vector<ExprPtr>& arguments,
                                     const Position at) {
-        if (arguments.empty() || arguments.size() > 2U ||
-            arguments[0]->kind != ExprKind::name) {
-            fail("LBound and UBound need an array name and a dimension", at);
+        if (arguments.empty() || arguments.size() > 2U) {
+            fail("LBound and UBound need an array and a dimension", at);
+        }
+        if (arguments[0]->kind != ExprKind::name ||
+            !has_variable(arguments[0]->text) ||
+            !find_variable(arguments[0]->text, at).is_array) {
+            // A Variant that holds an array, or an array the runtime owns.
+            const auto answer =
+                lower_library_call(upper ? "ubound" : "lbound", arguments, at);
+            return from_variant(answer, VbType::long_integer, at);
         }
         const auto variable = find_variable(arguments[0]->text, at);
-        if (!variable.is_array) {
-            fail("'" + arguments[0]->text + "' is not an array", at);
-        }
         const auto handle = builder_->new_temp();
         builder_->move_wide(handle, variable.operand);
         Operand dimension = ir::immediate(1);
@@ -4989,13 +5062,37 @@ private:
     [[nodiscard]] Value lower_library_call(
         const std::string& name, const std::vector<ExprPtr>& arguments,
         const Position at) {
+        bool omitted = false;
+        for (const auto& argument : arguments) {
+            omitted = omitted || !argument;
+        }
+        if (omitted) {
+            // The runtime gives an omitted argument its default: it runs
+            // the call as written.
+            std::string text = "wfcarg0 = " + name + "(";
+            std::vector<EngineArgument> list;
+            list.push_back(EngineArgument{nullptr, 'i', std::nullopt});
+            for (std::size_t i = 0; i < arguments.size(); ++i) {
+                if (i > 0) {
+                    text += ", ";
+                }
+                if (arguments[i]) {
+                    text += "wfcarg" + std::to_string(i + 1);
+                    list.push_back(
+                        EngineArgument{arguments[i].get(), 'i', std::nullopt});
+                } else {
+                    list.push_back(EngineArgument{nullptr, 'i', std::nullopt});
+                }
+            }
+            text += ")";
+            const auto outputs = emit_engine_statement(text, list, at);
+            Value result;
+            result.type = VbType::variant;
+            result.operand = outputs[0];
+            return result;
+        }
         std::vector<Value> boxed;
         for (const auto& argument : arguments) {
-            if (!argument) {
-                // An omitted argument is an Empty Variant.
-                boxed.push_back(Value{ir::immediate(0), VbType::variant});
-                continue;
-            }
             boxed.push_back(to_variant(lower_expression(*argument), at));
         }
         return emit_library_call(name, boxed);
@@ -5307,6 +5404,12 @@ private:
                              VbType::double_precision};
             case ExprKind::boolean_literal:
                 return Value{ir::immediate(expression.number), VbType::boolean};
+            case ExprKind::date_literal:
+                return emit_library_call(
+                    "cdate",
+                    {to_variant(Value{double_immediate(expression.real),
+                                      VbType::double_precision},
+                                expression.at)});
             case ExprKind::string_literal:
                 program_.strings.push_back(expression.text);
                 return Value{ir::literal(static_cast<std::int64_t>(

@@ -17,6 +17,7 @@ enum class TokenKind {
     integer,     // `number` holds the value
     real,        // a floating-point literal; `text` holds the digits
     string,      // `text` holds the contents without quotes
+    date,        // `#1/5/2020#`: `text` holds the serial number
     symbol,      // an operator or punctuation: text is e.g. "<=", "(", ","
     end_of_statement,  // a line break or a colon
     end_of_file,

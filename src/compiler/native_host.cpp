@@ -129,6 +129,24 @@ void print_newline() {
     put("\n", 1U);
 }
 
+// Tab(n): to column n (a new line first when the column has passed).
+void print_tab(const std::int32_t column) {
+    const auto at = static_cast<std::int32_t>(g_column) + 1;
+    if (column < at) {
+        put("\n", 1U);
+        put(std::string(static_cast<std::size_t>(column > 1 ? column - 1 : 0),
+                        ' '));
+    } else {
+        put(std::string(static_cast<std::size_t>(column - at), ' '));
+    }
+}
+
+void print_spc(const std::int32_t count) {
+    if (count > 0) {
+        put(std::string(static_cast<std::size_t>(count), ' '));
+    }
+}
+
 void print_zone() {
     put(std::string(static_cast<std::size_t>(14 - g_column % 14), ' '));
 }
@@ -1155,7 +1173,7 @@ std::int32_t variant_is_numeric(const RtVariant* a) {
         return engine().to_double(value, problem).has_value() ? -1 : 0;
     }
     const int type = wfc::detail::NativeEngine::var_type(value);
-    return (type >= 2 && type <= 7) || type == 11 || type == 14 || type == 17
+    return (type >= 2 && type <= 6) || type == 11 || type == 14 || type == 17
                ? -1
                : 0;
 }
@@ -2510,6 +2528,8 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&array_from_variant),
         address_of(&udt_to_engine),
         address_of(&udt_from_engine),
+        address_of(&print_tab),
+        address_of(&print_spc),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

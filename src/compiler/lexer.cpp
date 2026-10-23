@@ -1,6 +1,9 @@
 #include "lexer.hpp"
 
 #include <cctype>
+#include <cstdio>
+
+#include "../interpreter/vb_date.hpp"
 
 namespace wfc::compiler {
 
@@ -136,6 +139,9 @@ private:
         }
         if (c == '"') {
             string_literal();
+            return;
+        }
+        if (c == '#' && date_literal()) {
             return;
         }
         symbol();
@@ -292,6 +298,35 @@ private:
             }
         }
         result_.tokens.push_back(std::move(token));
+    }
+
+    // `#1/5/2020 3:04 PM#`: a date; false when this `#` is something else
+    // (a file number).
+    [[nodiscard]] bool date_literal() {
+        std::size_t end = position_ + 1U;
+        while (end < text_.size() && text_[end] != '#' && text_[end] != '\n') {
+            ++end;
+        }
+        if (end >= text_.size() || text_[end] != '#' || end == position_ + 1U ||
+            !is_digit(text_[position_ + 1U])) {
+            return false;
+        }
+        const auto inner = text_.substr(position_ + 1U, end - position_ - 1U);
+        const auto serial = wfc::detail::parse_date_text(inner);
+        if (!serial.has_value()) {
+            return false;
+        }
+        at_line_start_ = false;
+        char buffer[48];
+        std::snprintf(buffer, sizeof(buffer), "%.17g", *serial);
+        Token token;
+        token.kind = TokenKind::date;
+        token.text = buffer;
+        token.line = line_;
+        token.column = column();
+        result_.tokens.push_back(std::move(token));
+        position_ = end + 1U;
+        return true;
     }
 
     void string_literal() {

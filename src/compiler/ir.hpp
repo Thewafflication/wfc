@@ -247,7 +247,9 @@ enum class Service : int {
     // runtime and read back (descriptor literal, record address[, value]).
     udt_to_engine = 110,
     udt_from_engine = 111,
-    count = 112,
+    print_tab = 112,  // (column) Tab(n) in Print
+    print_spc = 113,  // (count) Spc(n) in Print
+    count = 114,
 };
 
 struct Instruction final {

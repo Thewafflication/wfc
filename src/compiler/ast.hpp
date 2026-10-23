@@ -40,6 +40,7 @@ enum class ExprKind {
     integer_literal,
     real_literal,
     string_literal,
+    date_literal,  // `#1/5/2020#`: text = the serial of the date, as digits
     boolean_literal,
     name,         // a variable, or a function called without arguments
     call,         // `name(args)`: a function call (arrays come later)

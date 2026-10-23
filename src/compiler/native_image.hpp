@@ -44,7 +44,7 @@ struct NativeImage final {
 
 // Version of the entry table layout (the order of `ir::Service`). The loader
 // refuses an image made for another version.
-inline constexpr int kRuntimeApiVersion = 1;
+inline constexpr int kRuntimeApiVersion = 2;
 
 struct BackEndResult final {
     NativeImage image;
