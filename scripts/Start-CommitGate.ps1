@@ -46,16 +46,13 @@ if (Test-Path $lock) {
 }
 Set-Content -Path $lock -Value $owner -Encoding ascii
 
+# Started through the shell: a window that inherited the hook's output pipe
+# would keep the hook (and the commit) waiting until it was closed.
 $info = New-Object Diagnostics.ProcessStartInfo
 $info.FileName = 'pwsh'
 $info.Arguments = '-NoProfile -File "' +
     (Join-Path $PSScriptRoot 'Show-TestProgress.ps1') + '"'
-$info.UseShellExecute = $false
-$info.CreateNoWindow = $true
-# Redirected, so the window does not inherit the hook's output handles: the
-# hook would otherwise wait for the window to close before it could finish.
-$info.RedirectStandardInput = $true
-$info.RedirectStandardOutput = $true
-$info.RedirectStandardError = $true
+$info.UseShellExecute = $true
+$info.WindowStyle = 'Hidden'
 [void][Diagnostics.Process]::Start($info)
 Write-Output "[PASS] commit gate started (git process $owner)"

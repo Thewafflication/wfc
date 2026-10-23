@@ -223,11 +223,31 @@ $close = New-Object Windows.Forms.Timer
 $close.Interval = 8000
 $close.Add_Tick({ $close.Stop(); $form.Close() })
 $fallback = New-Object Windows.Forms.Timer
-$fallback.Interval = 60000
+$fallback.Interval = 20000
 $fallback.Add_Tick({ $fallback.Stop(); $form.Close() })
+$idle = New-Object Windows.Forms.Timer
+$idle.Interval = 10000
+$idle.Add_Tick({
+    $quiet = ((Get-Date) - (Get-Item $Log).LastWriteTime).TotalSeconds
+    $finished = $script:total -gt 0 -or
+        (Select-String -Path $Log -Pattern 'Total Test time|\[commit\]' `
+            -Quiet)
+    # Finished (passed or failed): five minutes to read it. Otherwise a log
+    # that has not moved for half an hour belongs to a run that is gone.
+    if (($finished -and $quiet -gt 300) -or $quiet -gt 1800) { $form.Close() }
+})
 $timer.Start()
+$idle.Start()
 $form.Add_FormClosed({ $timer.Stop(); $close.Stop(); $fallback.Stop() })
-$form.Add_Shown({ $form.Activate() })
+Add-Type -Name Native -Namespace Wfc -MemberDefinition @'
+[DllImport("user32.dll")]
+public static extern bool ShowWindow(IntPtr window, int command);
+'@
+$form.Add_Shown({
+    # The first show follows the hidden start of the process.
+    [void][Wfc.Native]::ShowWindow($form.Handle, 5)
+    $form.Activate()
+})
 [void]$form.ShowDialog()
 if ($process -and -not $process.HasExited) { $process.Kill() }
 $single.ReleaseMutex()
