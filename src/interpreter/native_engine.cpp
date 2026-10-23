@@ -678,14 +678,32 @@ struct NativeSupport {
         if (self != nullptr) {
             in.instance_scopes_.push_back(self);
         }
-        in.source_ = code;
-        in.main_source_ = code;
-        in.error_source_data_ = code.data();
-        in.offset_ = 0;
-        in.error_ = wfc::Evaluation{};
-        in.execute_ = true;
-        in.print_surface_ = nullptr;  // a Print of an earlier statement
-        const bool ok = in.parse_statement();
+        const auto attempt = [&](const std::string_view text_to_run) {
+            in.source_ = text_to_run;
+            in.main_source_ = text_to_run;
+            in.error_source_data_ = text_to_run.data();
+            in.offset_ = 0;
+            in.error_ = wfc::Evaluation{};
+            in.execute_ = true;
+            in.print_surface_ = nullptr;  // a Print of an earlier statement
+            return in.parse_statement();
+        };
+        bool ok = false;
+        if (!code.empty() && code.front() == '?') {
+            // "?target = value": the value is an object when it is one (Set),
+            // else it is the value of a Let.
+            code.remove_prefix(1);
+            const std::string& object_form =
+                *texts.insert("Set " + std::string(code)).first;
+            ok = attempt(object_form);
+            if (!ok) {
+                NativeError scratch;
+                take_error(in, scratch);
+                ok = attempt(code);
+            }
+        } else {
+            ok = attempt(code);
+        }
         if (self != nullptr) {
             in.instance_scopes_.pop_back();
         }
@@ -696,6 +714,11 @@ struct NativeSupport {
                     found != scope.variables.end()) {
                     values[i] = found->second;
                 }
+            }
+            if (tracing && !values.empty()) {
+                std::fprintf(stderr, "    => %s",
+                             type_name(in, values[0]).c_str());
+                std::fputc(10, stderr);
             }
         } else {
             take_error(in, error);

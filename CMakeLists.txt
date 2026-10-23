@@ -490,6 +490,33 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     2
   )
   add_vb6_play(pipes-play pipes/pipes.vbp pipes-play.ui pipes-play.expected 1)
+  # The same sessions with the programs compiled to machine code (MP-0009).
+  add_vb6_native_play(
+    restaum-solve
+    restaum/source/BrainVita.vbp
+    restaum-solve.ui
+    restaum-solve.expected
+  )
+  add_vb6_native_play(
+    executioner-play
+    executioner/Executioner.vbp
+    executioner-play.ui
+    executioner-play.expected
+    1
+  )
+  add_vb6_native_play(
+    pipes-play
+    pipes/pipes.vbp
+    pipes-play.ui
+    pipes-play.expected
+    1
+  )
+  add_vb6_native_play(
+    sumboku-solve
+    sumboku/PSuMBOku.vbp
+    sumboku-solve.ui
+    sumboku-solve.expected
+  )
   add_vb6_game(restaum restaum/source/BrainVita.vbp "Form1" 5000)
   add_vb6_package(clix clix/src/Clix.vbp frmMain 3)
   add_vb6_package(connect4 connect4/PConnect4.vbp FMain)

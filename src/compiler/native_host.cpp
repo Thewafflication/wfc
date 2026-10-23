@@ -202,6 +202,18 @@ RtString* string_concat(const RtString* a, const RtString* b) {
     return make_string(joined);
 }
 
+// A fixed-length String: the text cut or padded with blanks to its length.
+RtString* string_fixed(const RtString* text, const std::int32_t length) {
+    std::string result(view_of(text));
+    result.resize(static_cast<std::size_t>(length), ' ');
+    return make_string(result);
+}
+
+void trace_call(const RtString* name) {
+    std::fputs(std::string(view_of(name)).c_str(), stderr);
+    std::fputc(10, stderr);
+}
+
 void string_assign(RtString** variable, RtString* value) {
     retain(value);
     release(*variable);
@@ -1868,6 +1880,69 @@ RtVariant* host_new(const RtString* name) {
     return box(std::move(*result));
 }
 
+// `words = Split(text)`: the array a Variant holds becomes the array of the
+// variable (element kind 0 whole numbers, 1 fractions, 2 Strings, 4 Variants).
+void array_from_variant(RtArray** variable, const RtVariant* source,
+                        const std::int32_t kind) {
+    const auto* held = std::get_if<wfc::detail::ArrayValue>(&value_of(source));
+    if (held == nullptr) {
+        raise_error(13);
+        return;
+    }
+    const auto count = static_cast<std::int32_t>(held->elements.size());
+    RtArray header{};
+    header.kind = kind;
+    header.dims = 1;
+    header.size = kind == 0 ? 4 : 8;
+    header.count = count;
+    header.bounds[0] =
+        RtBound{static_cast<std::int32_t>(held->lower_bound),
+                static_cast<std::int32_t>(held->lower_bound) + count - 1};
+    auto* array = static_cast<RtArray*>(std::calloc(
+        1, sizeof(RtArray) + static_cast<std::size_t>(count) *
+                                 static_cast<std::size_t>(header.size)));
+    if (array == nullptr) {
+        raise_error(7);
+        return;
+    }
+    *array = header;
+    wfc::detail::NativeError problem;
+    for (std::int32_t i = 0; i < count; ++i) {
+        const auto& item = held->elements[static_cast<std::size_t>(i)];
+        char* where =
+            data_of(array) + static_cast<std::size_t>(i) * header.size;
+        if (kind == 2) {
+            const auto text = engine().to_text(item, problem);
+            if (!text.has_value()) {
+                array_release(array);
+                raise_engine_error(problem);
+                return;
+            }
+            *reinterpret_cast<RtString**>(where) = make_string(*text);
+        } else if (kind == 4) {
+            *reinterpret_cast<RtVariant**>(where) = box(item);
+        } else if (kind == 1) {
+            const auto number = engine().to_double(item, problem);
+            if (!number.has_value()) {
+                array_release(array);
+                raise_engine_error(problem);
+                return;
+            }
+            std::memcpy(where, &*number, sizeof(double));
+        } else {
+            const auto number = engine().to_long(item, problem);
+            if (!number.has_value()) {
+                array_release(array);
+                raise_engine_error(problem);
+                return;
+            }
+            std::memcpy(where, &*number, sizeof(std::int32_t));
+        }
+    }
+    array_release(*variable);
+    *variable = array;
+}
+
 // `RaiseEvent Name(args)`: every sink of the object runs its handler.
 void raise_event(RtObject* source, const RtString* name,
                  const std::int32_t count, const char* block) {
@@ -2278,6 +2353,9 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&events_attach),
         address_of(&events_detach),
         address_of(&raise_event),
+        address_of(&string_fixed),
+        address_of(&trace_call),
+        address_of(&array_from_variant),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

@@ -66,6 +66,13 @@ public:
                     ahead(3).text == "true") {
                     module.predeclared = true;
                 }
+                if (ahead(1).kind == TokenKind::identifier &&
+                    ahead(2).kind == TokenKind::symbol &&
+                    ahead(2).text == "." &&
+                    ahead(3).text == "vb_varusermemid" &&
+                    ahead(5).number == 0) {
+                    module.default_member = ahead(1).text;
+                }
                 while (!at_end_of_statement()) {
                     advance();
                 }
@@ -265,9 +272,6 @@ private:
             }
         } else if (name == "string") {
             type = VbType::string;
-            if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "*") {
-                fail("fixed-length strings are not compiled yet");
-            }
         } else if (record_name != nullptr &&
                    options_.type_names.contains(name)) {
             // A user-defined type; the compiler checks it.
@@ -322,6 +326,15 @@ private:
         if (accept_word("as")) {
             declaration.is_new = accept_word("new");
             declaration.type = type_name(&declaration.type_name);
+            if (declaration.type == VbType::string && is_symbol("*")) {
+                // `String * n`: fixed length.
+                advance();
+                if (current().kind != TokenKind::integer) {
+                    fail("expected the length of the String");
+                }
+                declaration.fixed_length = static_cast<int>(current().number);
+                advance();
+            }
             if (declaration.is_new && !((declaration.type == VbType::object ||
                                          declaration.type == VbType::variant) &&
                                         !declaration.type_name.empty())) {
@@ -952,7 +965,9 @@ private:
             // `Attribute Name.VB_UserMemId = 0` makes Name the default member.
             if (ahead(1).kind == TokenKind::identifier &&
                 ahead(2).kind == TokenKind::symbol && ahead(2).text == "." &&
-                ahead(3).text == "vb_usermemid" && ahead(5).number == 0) {
+                (ahead(3).text == "vb_usermemid" ||
+                 ahead(3).text == "vb_varusermemid") &&
+                ahead(5).number == 0) {
                 default_member_ = ahead(1).text;
             }
             auto result = make(StmtKind::dim);

@@ -240,7 +240,10 @@ enum class Service : int {
     events_attach = 104,  // (source, sink, prefix literal)
     events_detach = 105,  // (source, sink, prefix literal)
     raise_event = 106,    // (source, event name literal, count, block)
-    count = 107,
+    string_fixed = 107,   // (text, length) -> new string: cut or padded
+    trace_call = 108,     // (name literal) a procedure starts (a debugging aid)
+    array_from_variant = 109,  // (array* variable, variant, element kind)
+    count = 110,
 };
 
 struct Instruction final {

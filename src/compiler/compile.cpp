@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <set>
 #include <sstream>
 
@@ -197,7 +199,10 @@ void collect_enum_names(const std::string& source,
 // shared runtime calls with the arguments of a late-bound call (WfcArg), which
 // calls the member with them and hands by-reference arguments back
 // (WfcStoreArg). compile_project parses it as part of the class.
-[[nodiscard]] std::string thunk_source(const Module& module) {
+[[nodiscard]] std::string thunk_source(
+    const Module& module,
+    const std::map<std::string, std::pair<std::string, std::size_t>>&
+        default_members) {
     std::string out = "Option Explicit\n";
     // Public fields are members too.
     for (const auto& field : module.globals) {
@@ -213,9 +218,34 @@ void collect_enum_names(const std::string& source,
             continue;
         }
         const std::string set = is_object ? "Set " : "";
-        out += "Public Function WfcThunk_get_" + field.name +
-               "() As Variant\n" + set + "WfcThunk_get_" + field.name +
-               " = Me." + field.name + "\nEnd Function\n";
+        const auto default_member = default_members.find(field.type_name);
+        if (is_object && default_member != default_members.end() &&
+            !default_member->second.first.empty()) {
+            // `obj.Items(i)` is the default member of the object in the field.
+            const std::string function = "WfcThunk_get_" + field.name;
+            const std::string call =
+                "Me." + field.name + "." + default_member->second.first;
+            const std::size_t most =
+                std::min<std::size_t>(default_member->second.second, 3U);
+            out += "Public Function " + function +
+                   "() As Variant\nDim wfcn As Long\nwfcn = WfcArgCount()\n"
+                   "Select Case wfcn\nCase 0\nSet " +
+                   function + " = Me." + field.name + "\n";
+            for (std::size_t n = 1; n <= most; ++n) {
+                out += "Case " + std::to_string(n) + "\n" + function + " = " +
+                       call + "(";
+                for (std::size_t k = 0; k < n; ++k) {
+                    out += (k > 0 ? ", " : "") + std::string("WfcArg(") +
+                           std::to_string(k) + ")";
+                }
+                out += ")\n";
+            }
+            out += "End Select\nEnd Function\n";
+        } else {
+            out += "Public Function WfcThunk_get_" + field.name +
+                   "() As Variant\n" + set + "WfcThunk_get_" + field.name +
+                   " = Me." + field.name + "\nEnd Function\n";
+        }
         out += "Public Function WfcThunk_" +
                std::string(is_object ? "set_" : "let_") + field.name +
                "() As Variant\nDim wfcp0 As " + type + "\n" + set +
@@ -396,18 +426,41 @@ CompileResult compile_project(const std::string_view source,
             result.error_at = parsed_class.error_at;
             return result;
         }
-        // The members the shared runtime can call get thunks.
-        auto thunks =
-            parse_module(thunk_source(parsed_class.module), class_options);
-        if (!thunks.error.empty()) {
-            result.error = "class " + item.name + " (thunks): " + thunks.error;
-            result.error_at = thunks.error_at;
-            return result;
-        }
-        for (auto& procedure : thunks.module.procedures) {
-            parsed_class.module.procedures.push_back(std::move(procedure));
-        }
         class_modules.push_back(std::move(parsed_class.module));
+    }
+    // The members the shared runtime can call get thunks.
+    {
+        std::map<std::string, std::pair<std::string, std::size_t>>
+            default_members;
+        for (const auto& module : class_modules) {
+            std::string member = module.default_member;
+            std::size_t parameters = 0;
+            for (const auto& procedure : module.procedures) {
+                if (procedure.is_default) {
+                    member = procedure.spelling;
+                    parameters = procedure.parameters.size();
+                }
+            }
+            default_members[module.name] = {member, parameters};
+        }
+        for (std::size_t i = 0; i < class_modules.size(); ++i) {
+            ParseOptions class_options = options;
+            class_options.is_class = true;
+            class_options.is_form = all[i].is_form;
+            class_options.name = lower_case(all[i].name);
+            class_options.display_name = all[i].name;
+            auto thunks = parse_module(
+                thunk_source(class_modules[i], default_members), class_options);
+            if (!thunks.error.empty()) {
+                result.error =
+                    "class " + all[i].name + " (thunks): " + thunks.error;
+                result.error_at = thunks.error_at;
+                return result;
+            }
+            for (auto& procedure : thunks.module.procedures) {
+                class_modules[i].procedures.push_back(std::move(procedure));
+            }
+        }
     }
     auto parsed = parse_module(source, options);
     if (!parsed.error.empty()) {
@@ -450,6 +503,8 @@ CompileResult compile_project(const std::string_view source,
     // Objects every program of the engine has.
     lower_options.host_globals.insert("forms");
     lower_options.host_globals.insert("printer");
+    lower_options.host_globals.insert("printers");
+    lower_options.host_globals.insert("licenses");
     lower_options.has_forms = !info.form_names.empty();
     for (const auto& item : all) {
         if (item.is_form) {
@@ -464,6 +519,25 @@ CompileResult compile_project(const std::string_view source,
         result.error = lowered.error;
         result.error_at = lowered.error_at;
         return result;
+    }
+    char* dump_frames = nullptr;
+    std::size_t dump_size = 0;
+    const bool frames_wanted =
+        _dupenv_s(&dump_frames, &dump_size, "WFC_DUMP_FRAMES") == 0 &&
+        dump_frames != nullptr;
+    std::free(dump_frames);
+    if (frames_wanted) {
+        // The largest frames, for finding what exhausts the stack.
+        std::vector<std::pair<int, std::string>> frames;
+        for (const auto& function : lowered.program.functions) {
+            frames.emplace_back(function.slot_count, function.name);
+        }
+        std::sort(frames.rbegin(), frames.rend());
+        for (std::size_t i = 0; i < frames.size() && i < 8U; ++i) {
+            std::fprintf(stderr, "frame %d slots: %s", frames[i].first,
+                         frames[i].second.c_str());
+            std::fputc(10, stderr);
+        }
     }
     auto generated = generate_code(lowered.program, architecture);
     if (!generated.error.empty()) {

@@ -15,8 +15,14 @@ endif()
 if(DEFINED SCREEN)
   set(ENV{WFC_SCREEN} "${SCREEN}")
 endif()
+# NATIVE compiles the project to machine code and runs that.
+set(native_option "")
+if(DEFINED NATIVE)
+  set(native_option "--native")
+endif()
 execute_process(
-  COMMAND "${WFC}" "${WORK}/${project_file}" --ui-script "${SCRIPT}"
+  COMMAND
+    "${WFC}" ${native_option} "${WORK}/${project_file}" --ui-script "${SCRIPT}"
   RESULT_VARIABLE result
   ERROR_VARIABLE errors
   OUTPUT_VARIABLE output

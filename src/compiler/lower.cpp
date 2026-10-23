@@ -50,6 +50,7 @@ struct Variable final {
     int udt{-1};
     bool auto_new{};           // `Dim x As New Class`: created on first use
     std::string event_prefix;  // a WithEvents variable: "name_"
+    int fixed{};               // `String * n`: the length
 };
 
 // A field of a user-defined type or a class and where it lies.
@@ -399,6 +400,13 @@ public:
     [[nodiscard]] std::string where() const { return context(); }
 
     ir::Program run() {
+        {
+            char* trace = nullptr;
+            std::size_t size = 0;
+            trace_calls_ = _dupenv_s(&trace, &size, "WFC_TRACE_CALLS") == 0 &&
+                           trace != nullptr;
+            std::free(trace);
+        }
         register_externals();
         register_classes();
         mark_interfaces();
@@ -750,6 +758,12 @@ private:
 
     void declare_globals() {
         for (const auto& declaration : module_.globals) {
+            if (declaration.fixed_length > 0) {
+                fail(
+                    "a fixed-length String outside a procedure is not "
+                    "compiled yet",
+                    declaration.at);
+            }
             require_type(declaration);
             if (globals_.contains(declaration.name)) {
                 fail("'" + declaration.name + "' is already declared",
@@ -894,6 +908,7 @@ private:
             info.name = module->name;
             info.module = module;
             info.is_form = module->is_form;
+            info.default_member = module->default_member;
             info.implements.insert(module->implements.begin(),
                                    module->implements.end());
             class_index_[info.name] = static_cast<int>(classes_.size());
@@ -934,6 +949,10 @@ private:
         for (auto& info : classes_) {
             std::int64_t offset = 0;
             for (const auto& declaration : info.module->globals) {
+                if (declaration.fixed_length > 0) {
+                    fail("a fixed-length String in a class is not compiled yet",
+                         declaration.at);
+                }
                 FieldInfo entry;
                 entry.name = declaration.name;
                 entry.type = declaration.type;
@@ -1252,6 +1271,15 @@ private:
         builder.set_error_label(end_label_);
         error_label_ = end_label_;
         entry_index_ = builder.position();
+        if (trace_calls_) {
+            program_.strings.push_back(
+                (cls >= 0 ? classes_[static_cast<std::size_t>(cls)].name + "."
+                          : std::string{}) +
+                procedure.name);
+            builder.runtime(Service::trace_call,
+                            {ir::literal(static_cast<std::int64_t>(
+                                program_.strings.size() - 1U))});
+        }
         late_zero_.clear();
         local_constants_.clear();
         if (cls >= 0) {
@@ -1592,6 +1620,16 @@ private:
         locals_[declaration.name] = Variable{slot, declaration.type};
         if (declaration.type == VbType::string) {
             owned_slots_.push_back(Owned{slot, Service::string_release});
+            if (declaration.fixed_length > 0) {
+                // It always has its length: blanks to begin with.
+                locals_[declaration.name].fixed = declaration.fixed_length;
+                program_.strings.push_back(std::string(
+                    static_cast<std::size_t>(declaration.fixed_length), ' '));
+                builder_->runtime(
+                    Service::string_assign,
+                    {address_of(slot), ir::literal(static_cast<std::int64_t>(
+                                           program_.strings.size() - 1U))});
+            }
         } else if (declaration.type == VbType::variant) {
             owned_slots_.push_back(Owned{slot, Service::variant_release});
             if (declaration.is_new && !declaration.type_name.empty()) {
@@ -1908,6 +1946,47 @@ private:
             return;
         }
         auto target = find_variable(statement.text, statement.at);
+        if (target.type == VbType::object && !target.is_array &&
+            target.udt >= 0 && statement.items.empty() &&
+            !classes_[static_cast<std::size_t>(target.udt)]
+                 .default_member.empty()) {
+            // `obj = value` sets the default member of the object.
+            const auto& info = classes_[static_cast<std::size_t>(target.udt)];
+            const auto value = lower_expression(*statement.expr);
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, target.operand);
+            const Value base{handle, VbType::object, target.udt};
+            builder_->runtime(Service::object_check, {base.operand});
+            for (const auto& field : info.layout.fields) {
+                if (field.name == info.default_member) {
+                    store_value(field_place(base, field, statement.at), value,
+                                statement.at);
+                    return;
+                }
+            }
+            if (const auto found = info.letters.find(info.default_member);
+                found != info.letters.end()) {
+                static_cast<void>(emit_call(found->second, info.default_member,
+                                            {}, base.operand, &value,
+                                            statement.at));
+                return;
+            }
+            fail("the default member of '" + info.name + "' cannot be set",
+                 statement.at);
+        }
+        if (target.is_array && statement.items.empty() &&
+            statement.expr->kind != ExprKind::name &&
+            target.type != VbType::record && target.type != VbType::object) {
+            // `words = Split(text)`: the array a Variant holds.
+            const auto source = lower_expression(*statement.expr);
+            if (source.type != VbType::variant) {
+                fail("an array can only be assigned an array", statement.at);
+            }
+            builder_->runtime(Service::array_from_variant,
+                              {address_of(target.operand), source.operand,
+                               ir::immediate(element_kind(target.type))});
+            return;
+        }
         if (target.is_array && statement.items.empty()) {
             // `copy = original`: the whole array.
             if (statement.expr->kind != ExprKind::name) {
@@ -1996,7 +2075,16 @@ private:
             return;
         }
         if (target.type == VbType::string) {
-            const auto text = to_string_value(value, at);
+            auto text = to_string_value(value, at);
+            if (target.fixed > 0) {
+                Value fitted;
+                fitted.type = VbType::string;
+                fitted.operand = new_owned_string();
+                builder_->runtime(Service::string_fixed,
+                                  {text.operand, ir::immediate(target.fixed)},
+                                  fitted.operand, true);
+                text = fitted;
+            }
             builder_->runtime(Service::string_assign,
                               {address_of(target.operand), text.operand});
             return;
@@ -2999,7 +3087,10 @@ private:
         }
         if (found == signatures_.end()) {
             for (const auto& argument : arguments) {
-                if (!argument) {
+                if (!argument &&
+                    (find_builtin(name) != nullptr ||
+                     is_special_builtin(name) || !is_library_function(name)) &&
+                    !externals_.contains(name)) {
                     fail("an omitted argument is not compiled for '" + name +
                              "' yet",
                          at);
@@ -3188,7 +3279,11 @@ private:
     // the object implements it as Interface_Member, or is of the interface
     // class itself.
     [[nodiscard]] bool by_interface(const Value& base) const {
-        return base.type == VbType::object && base.cls >= 0 &&
+        // Me is of the class itself: its members are called directly.
+        const bool is_me = current_class_ >= 0 &&
+                           base.operand.kind == me_.kind &&
+                           base.operand.value == me_.value;
+        return base.type == VbType::object && base.cls >= 0 && !is_me &&
                classes_[static_cast<std::size_t>(base.cls)].is_interface;
     }
 
@@ -3428,6 +3523,9 @@ private:
             if (variable.type != type) {
                 fail("ByRef argument type mismatch for '" + argument.text + "'",
                      argument.at);
+            }
+            if (variable.type == VbType::object && variable.auto_new) {
+                ensure_object(variable);  // `As New`: made when referenced
             }
             return address_of(variable.operand);
         }
@@ -3903,7 +4001,8 @@ private:
     }
 
     // A number or Boolean as a String (CStr); a String stays as it is.
-    [[nodiscard]] Value to_string_value(const Value& value, const Position at) {
+    [[nodiscard]] Value to_string_value(const Value& given, const Position at) {
+        const Value value = default_value(given, at);
         if (value.type == VbType::string) {
             return value;
         }
@@ -4369,6 +4468,28 @@ private:
             return late_get(form_host(base, info, at), name, arguments, at);
         }
         if (signature == nullptr) {
+            // A field that holds an object with a default member:
+            // `obj.Items(i)` is `obj.Items.Item(i)`.
+            for (const auto& field : info.layout.fields) {
+                if (field.name != name) {
+                    continue;
+                }
+                const auto place = field_place(base, field, at);
+                if (place.type == VbType::object && place.udt >= 0 &&
+                    !classes_[static_cast<std::size_t>(place.udt)]
+                         .default_member.empty()) {
+                    const auto copy = builder_->new_temp();
+                    builder_->move_wide(copy, place.operand);
+                    return call_member(
+                        Value{copy, VbType::object, place.udt},
+                        classes_[static_cast<std::size_t>(place.udt)]
+                            .default_member,
+                        arguments, at, want_value);
+                }
+                if (place.type == VbType::variant) {
+                    break;
+                }
+            }
             fail("the class '" + info.name + "' has no method '" + name + "'",
                  at);
         }
@@ -4757,7 +4878,9 @@ private:
         std::vector<Value> boxed;
         for (const auto& argument : arguments) {
             if (!argument) {
-                fail("an omitted argument is not compiled yet", at);
+                // An omitted argument is an Empty Variant.
+                boxed.push_back(Value{ir::immediate(0), VbType::variant});
+                continue;
             }
             boxed.push_back(to_variant(lower_expression(*argument), at));
         }
@@ -5159,6 +5282,37 @@ private:
                     return element_value(*array, expression.operands,
                                          expression.at);
                 }
+                if (has_variable(expression.text) &&
+                    find_variable(expression.text, expression.at).type ==
+                        VbType::variant) {
+                    // `v(i)` on a Variant: an element of the array it holds,
+                    // or the default member of the object it holds.
+                    Expr name;
+                    name.kind = ExprKind::name;
+                    name.text = expression.text;
+                    name.at = expression.at;
+                    std::string text = "?wfcarg0 = wfcarg1(";
+                    std::vector<EngineArgument> list;
+                    list.push_back(EngineArgument{nullptr, 'i'});
+                    list.push_back(EngineArgument{&name, 'i'});
+                    for (std::size_t i = 0; i < expression.operands.size();
+                         ++i) {
+                        if (!expression.operands[i]) {
+                            fail("an index cannot be omitted", expression.at);
+                        }
+                        text += (i > 0 ? ", wfcarg" : "wfcarg") +
+                                std::to_string(i + 2);
+                        list.push_back(
+                            EngineArgument{expression.operands[i].get(), 'i'});
+                    }
+                    text += ")";
+                    const auto outputs =
+                        emit_engine_statement(text, list, expression.at);
+                    Value result;
+                    result.type = VbType::variant;
+                    result.operand = outputs[0];
+                    return result;
+                }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true, expression.suffix);
             case ExprKind::type_of:
@@ -5303,7 +5457,8 @@ private:
 
     // A 32-bit integer for \, Mod, And, Or, Not and the conversions: a
     // floating-point value is rounded (error 6 when it does not fit).
-    [[nodiscard]] Value to_long(const Value& value, const Position at) {
+    [[nodiscard]] Value to_long(const Value& given, const Position at) {
+        const Value value = default_value(given, at);
         if (value.type == VbType::variant) {
             return from_variant(value, VbType::long_integer, at);
         }
@@ -5383,10 +5538,44 @@ private:
         return Value{result, VbType::boolean};
     }
 
+    // An object used as a value is its default member (`If v > 9`).
+    [[nodiscard]] Value default_value(const Value& value, const Position at) {
+        if (value.type != VbType::object || value.cls < 0) {
+            return value;
+        }
+        const auto& info = classes_[static_cast<std::size_t>(value.cls)];
+        if (info.default_member.empty()) {
+            return value;
+        }
+        builder_->runtime(Service::object_check, {value.operand});
+        for (const auto& field : info.layout.fields) {
+            if (field.name == info.default_member) {
+                const auto place = field_place(value, field, at);
+                if (is_handle(place.type)) {
+                    const auto copy = builder_->new_temp();
+                    builder_->move_wide(copy, place.operand);
+                    return Value{copy, place.type};
+                }
+                return Value{place.operand, place.type};
+            }
+        }
+        if (const Signature* signature =
+                member_signature(info, info.default_member);
+            signature != nullptr && signature->is_function) {
+            return emit_call(*signature, info.default_member, {}, value.operand,
+                             nullptr, at);
+        }
+        return value;
+    }
+
     [[nodiscard]] Value lower_binary(const Expr& expression) {
         const std::string& op = expression.text;
-        const auto left = lower_expression(*expression.operands[0]);
-        const auto right = lower_expression(*expression.operands[1]);
+        auto left = lower_expression(*expression.operands[0]);
+        auto right = lower_expression(*expression.operands[1]);
+        if (op != "is") {
+            left = default_value(left, expression.at);
+            right = default_value(right, expression.at);
+        }
         const bool is_comparison = op == "=" || op == "<>" || op == "<" ||
                                    op == ">" || op == "<=" || op == ">=";
         if (op == "like") {
@@ -5509,8 +5698,10 @@ private:
     }
 
     // Converts a value for an assignment or a parameter.
-    [[nodiscard]] Value convert(const Value& value, const VbType to,
+    [[nodiscard]] Value convert(const Value& given, const VbType to,
                                 const Position at) {
+        const Value value =
+            to == VbType::object ? given : default_value(given, at);
         if (value.type == VbType::object || to == VbType::object) {
             fail("an object cannot be converted", at);
         }
@@ -5579,6 +5770,7 @@ private:
     }
 
     const Module& module_;
+    bool trace_calls_{};
     std::map<std::string, DeclareDecl> externals_;
     LowerOptions options_;
     std::vector<const Module*> class_modules_;

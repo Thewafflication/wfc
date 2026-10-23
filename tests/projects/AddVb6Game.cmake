@@ -41,28 +41,53 @@ endfunction()
 # sixth the screen size "WIDTHxHEIGHT" the program sees (WFC_SCREEN), so a
 # layout that follows the screen does not depend on the machine's display.
 function(add_vb6_play name vbp script expected)
+  add_vb6_play_with("" ${name} ${vbp} ${script} ${expected} ${ARGN})
+endfunction()
+
+# The same session with the program compiled to machine code (MP-0009).
+function(add_vb6_native_play name vbp script expected)
+  add_vb6_play_with("native" ${name} ${vbp} ${script} ${expected} ${ARGN})
+endfunction()
+
+function(
+  add_vb6_play_with
+  mode
+  name
+  vbp
+  script
+  expected
+)
+  set(native_argument "")
+  set(test_name TC-MP0008-vb6games-${name})
+  set(test_labels "integration;mp-0008;vb6games")
+  if(NOT "${mode}" STREQUAL "")
+    set(native_argument "-DNATIVE=1")
+    set(test_name TC-MP0009-native-vb6games-${name})
+    set(test_labels "integration;mp-0009;native;vb6games")
+  endif()
   if(EXISTS "${vb6games_dir}/${vbp}")
     set(seed_argument "")
-    if(ARGC GREATER 4 AND NOT "${ARGV4}" STREQUAL "")
-      set(seed_argument "-DSEED=${ARGV4}")
+    if(ARGC GREATER 5 AND NOT "${ARGV5}" STREQUAL "")
+      set(seed_argument "-DSEED=${ARGV5}")
     endif()
     set(screen_argument "")
-    if(ARGC GREATER 5)
-      set(screen_argument "-DSCREEN=${ARGV5}")
+    if(ARGC GREATER 6)
+      set(screen_argument "-DSCREEN=${ARGV6}")
     endif()
     add_test(
-      NAME TC-MP0008-vb6games-${name}
+      NAME ${test_name}
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
         "-DPROJECT=${vb6games_dir}/${vbp}"
         "-DSCRIPT=${project_checks}/${script}"
         "-DEXPECTED=${project_checks}/${expected}"
-        "-DWORK=${CMAKE_BINARY_DIR}/vb6games-${name}" ${seed_argument}
-        ${screen_argument} -P "${project_checks}/run_project_script.cmake"
+        "-DWORK=${CMAKE_BINARY_DIR}/vb6games-${mode}${name}" ${seed_argument}
+        ${screen_argument} ${native_argument} -P
+        "${project_checks}/run_project_script.cmake"
     )
     set_tests_properties(
-      TC-MP0008-vb6games-${name}
-      PROPERTIES LABELS "integration;mp-0008;vb6games" TIMEOUT 300
+      ${test_name}
+      PROPERTIES LABELS "${test_labels}" TIMEOUT 300
     )
   endif()
 endfunction()

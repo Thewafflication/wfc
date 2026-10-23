@@ -136,6 +136,7 @@ struct Declaration final {
     bool is_public{};                // `Public` (a field of a class)
     bool is_new{};                   // `As New Class`
     bool is_static{};                // `Static` inside a procedure
+    int fixed_length{};              // `As String * n`
     bool with_events{};              // `WithEvents`: the events of the object
                                      // it holds call this class
     std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
@@ -236,9 +237,10 @@ struct Module final {
     std::vector<DeclareDecl> declares;
     std::string name;
     std::vector<EnumDecl> enums;
-    std::string display_name;  // the name as written
-    bool is_class{};           // a class module: `globals` are its fields
-    bool predeclared{};        // `Attribute VB_PredeclaredId = True`
+    std::string display_name;    // the name as written
+    bool is_class{};             // a class module: `globals` are its fields
+    bool predeclared{};          // `Attribute VB_PredeclaredId = True`
+    std::string default_member;  // a field: `Attribute x.VB_VarUserMemId = 0`
     std::vector<std::string> implements;  // `Implements Interface` (lower case)
     bool is_form{};  // a form: names it does not declare are the
                      // form's own (controls, properties)
