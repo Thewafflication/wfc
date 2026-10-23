@@ -65,6 +65,7 @@ struct Expr final {
     bool parenthesized{};  // `(x)`: a value, never a variable passed ByRef
     char suffix{};         // '$' after the name of a call (`Date$`, `Left$`)
     std::string text;      // a literal's contents, a name, or an operator
+    std::string arg_name;  // `name := value` in a call
     std::vector<ExprPtr>
         operands;  // call arguments, or the operator's operands
 };

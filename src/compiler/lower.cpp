@@ -3242,6 +3242,11 @@ private:
         }
         if (found == signatures_.end()) {
             for (const auto& argument : arguments) {
+                if (argument && !argument->arg_name.empty()) {
+                    fail("a named argument is not compiled for '" + name +
+                             "' yet",
+                         at);
+                }
                 if (!argument &&
                     (find_builtin(name) != nullptr ||
                      is_special_builtin(name) || !is_library_function(name)) &&
@@ -3566,11 +3571,55 @@ private:
 
     // Calls a procedure: `me` is the object of a method, `trailing` an
     // already evaluated last argument (the value of a Property Let or Set).
+    // Arguments given by name (`times := 3`) are put in the order of the
+    // parameters; a name that no parameter has is a run-time error (448).
     [[nodiscard]] Value emit_call(const Signature& signature,
                                   const std::string& name,
                                   const std::vector<const Expr*>& arguments,
                                   const std::optional<Operand>& me,
                                   const Value* trailing, const Position at) {
+        bool named = false;
+        for (const auto* argument : arguments) {
+            named =
+                named || (argument != nullptr && !argument->arg_name.empty());
+        }
+        if (!named) {
+            return emit_call_ordered(signature, name, arguments, me, trailing,
+                                     at);
+        }
+        std::vector<const Expr*> ordered;
+        for (const auto* argument : arguments) {
+            if (argument == nullptr || argument->arg_name.empty()) {
+                ordered.push_back(argument);
+                continue;
+            }
+            std::size_t index = signature.parameters.size();
+            for (std::size_t i = 0; i < signature.parameters.size(); ++i) {
+                if (signature.parameters[i].name == argument->arg_name) {
+                    index = i;
+                }
+            }
+            if (index == signature.parameters.size() ||
+                signature.parameters[index].is_param_array) {
+                builder_->runtime(
+                    Service::error_raise,
+                    {ir::immediate(448), ir::immediate(0), ir::immediate(0)});
+                return Value{builder_->new_temp(), signature.return_type,
+                             signature.return_cls};
+            }
+            if (ordered.size() <= index) {
+                ordered.resize(index + 1U, nullptr);
+            }
+            ordered[index] = argument;
+        }
+        return emit_call_ordered(signature, name, ordered, me, trailing, at);
+    }
+
+    [[nodiscard]] Value emit_call_ordered(
+        const Signature& signature, const std::string& name,
+        const std::vector<const Expr*>& arguments,
+        const std::optional<Operand>& me, const Value* trailing,
+        const Position at) {
         const std::size_t given =
             arguments.size() + (trailing != nullptr ? 1U : 0U);
         const bool has_rest = !signature.parameters.empty() &&

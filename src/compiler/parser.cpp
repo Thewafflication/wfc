@@ -1681,7 +1681,7 @@ private:
                 if (is_symbol(",")) {
                     call->operands.push_back(nullptr);  // omitted
                 } else {
-                    call->operands.push_back(expression());
+                    call->operands.push_back(argument());
                 }
                 if (!accept_symbol(",")) {
                     break;
@@ -1743,8 +1743,7 @@ private:
             parenthesis_starts_expression()) {
             // `Name (a) + 1, b`: the arguments are not in parentheses.
             while (!at_end_of_statement() && !is_word("else")) {
-                result->items.push_back(is_symbol(",") ? nullptr
-                                                       : expression());
+                result->items.push_back(is_symbol(",") ? nullptr : argument());
                 if (!accept_symbol(",")) {
                     break;
                 }
@@ -1756,7 +1755,7 @@ private:
                 do {
                     // An omitted argument (`Err.Raise 5, , "text"`) is null.
                     result->items.push_back(is_symbol(",") ? nullptr
-                                                           : expression());
+                                                           : argument());
                 } while (accept_symbol(","));
                 expect_symbol(")");
             }
@@ -1767,8 +1766,7 @@ private:
         } else if (!with_call_keyword) {
             // `name arg, arg`: arguments without parentheses.
             while (!at_end_of_statement() && !is_word("else")) {
-                result->items.push_back(is_symbol(",") ? nullptr
-                                                       : expression());
+                result->items.push_back(is_symbol(",") ? nullptr : argument());
                 if (!accept_symbol(",")) {
                     break;
                 }
@@ -1943,6 +1941,23 @@ private:
     }
 
     [[nodiscard]] ExprPtr expression() { return xor_expression(); }
+
+    // A call argument: `value` or `name := value`.
+    [[nodiscard]] ExprPtr argument() {
+        if (current().kind == TokenKind::identifier &&
+            ahead(1).kind == TokenKind::end_of_statement &&
+            ahead(1).text == ":" && ahead(2).kind == TokenKind::symbol &&
+            ahead(2).text == "=" && ahead(2).column == ahead(1).column + 1U) {
+            const auto name = without_suffix(current().text);
+            advance();
+            advance();
+            advance();
+            auto value = expression();
+            value->arg_name = name;
+            return value;
+        }
+        return expression();
+    }
 
     [[nodiscard]] ExprPtr xor_expression() {
         auto left = or_expression();
@@ -2200,7 +2215,7 @@ private:
                     do {
                         // An omitted argument is null.
                         node->operands.push_back(is_symbol(",") ? nullptr
-                                                                : expression());
+                                                                : argument());
                     } while (accept_symbol(","));
                     expect_symbol(")");
                 }
@@ -2237,7 +2252,7 @@ private:
                         if (is_symbol(",")) {
                             field->operands.push_back(nullptr);  // omitted
                         } else {
-                            field->operands.push_back(expression());
+                            field->operands.push_back(argument());
                         }
                     } while (accept_symbol(","));
                     expect_symbol(")");
