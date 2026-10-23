@@ -236,6 +236,7 @@ struct Module final {
     std::vector<EnumDecl> enums;
     std::string display_name;  // the name as written
     bool is_class{};           // a class module: `globals` are its fields
+    bool predeclared{};        // `Attribute VB_PredeclaredId = True`
     bool is_form{};            // a form: names it does not declare are the
                                // form's own (controls, properties)
     std::vector<TypeDecl> types;

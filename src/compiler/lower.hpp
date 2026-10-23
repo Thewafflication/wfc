@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -20,6 +21,8 @@ struct LowerResult final {
 struct LowerOptions final {
     // Names of objects of the engine that code reaches by name (the forms).
     std::set<std::string> host_globals;
+    // The names of the controls of each form (lower case).
+    std::map<std::string, std::set<std::string>> form_controls;
     bool has_forms{};  // the program ends by running the forms
     std::string startup_form;
 };

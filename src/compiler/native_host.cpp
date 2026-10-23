@@ -595,6 +595,39 @@ struct RtObject;
 void variant_release(RtVariant* handle);
 void object_release(RtObject* object);
 
+RtVariant* variant_retain(RtVariant* handle);
+void object_addref(RtObject* object);
+
+// After a copy of the bytes of an array: its handles are shared.
+void array_retain_elements(RtArray* array) {
+    if (array->kind == 3 && array->strings != nullptr) {
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            char* base =
+                data_of(array) + static_cast<std::size_t>(i) *
+                                     static_cast<std::size_t>(array->size);
+            for (std::int32_t k = 0; k < array->strings[0]; ++k) {
+                auto** handle =
+                    reinterpret_cast<RtString**>(base + array->strings[1 + k]);
+                retain(*handle);
+            }
+        }
+    } else if (array->kind == 2) {
+        auto* cells = reinterpret_cast<HandleCell*>(data_of(array));
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            retain(cells[i].handle);
+        }
+    } else if (array->kind == 4 || array->kind == 5) {
+        auto* cells = reinterpret_cast<void**>(data_of(array));
+        for (std::int32_t i = 0; i < array->count; ++i) {
+            if (array->kind == 4) {
+                variant_retain(static_cast<RtVariant*>(cells[i]));
+            } else {
+                object_addref(static_cast<RtObject*>(cells[i]));
+            }
+        }
+    }
+}
+
 void release_elements(RtArray* array) {
     if (array->kind == 3 && array->strings != nullptr) {
         for (std::int32_t i = 0; i < array->count; ++i) {
@@ -625,6 +658,33 @@ void release_elements(RtArray* array) {
             cells[i] = nullptr;
         }
     }
+}
+
+void array_retain_elements(RtArray* array);
+void array_release(RtArray* array);
+
+// `target = source` for arrays: the target becomes a copy.
+void array_assign(RtArray** variable, RtArray* source) {
+    if (source == nullptr) {
+        array_release(*variable);
+        *variable = nullptr;
+        return;
+    }
+    if (*variable == source) {
+        return;
+    }
+    const std::size_t bytes =
+        sizeof(RtArray) + static_cast<std::size_t>(source->count) *
+                              static_cast<std::size_t>(source->size);
+    auto* copy = static_cast<RtArray*>(std::malloc(bytes));
+    if (copy == nullptr) {
+        raise_error(7);
+        return;
+    }
+    std::memcpy(copy, source, bytes);
+    array_retain_elements(copy);
+    array_release(*variable);
+    *variable = copy;
 }
 
 void array_release(RtArray* array) {
@@ -990,7 +1050,10 @@ RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
         "+", "-", "*",  "/",  "\\",  "mod", "&",   "^",   "=",  "<>",
         "<", ">", "<=", ">=", "and", "or",  "xor", "eqv", "imp"};
     wfc::detail::NativeError problem;
-    auto result = engine().binary(names[op], value_of(a), value_of(b), problem);
+    // Bits 8 and 9 say that an operand is a Variant of the program.
+    auto result =
+        engine().binary(names[op & 0xFF], value_of(a), value_of(b),
+                        (op & 0x100) != 0, (op & 0x200) != 0, problem);
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;
@@ -1979,6 +2042,7 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&thunk_arg),
         address_of(&thunk_store),
         address_of(&host_new),
+        address_of(&array_assign),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

@@ -17,6 +17,74 @@ namespace wfc::detail {
 // A friend of `Interpreter`: the operators and conversions are its private
 // members.
 struct NativeSupport {
+    // What a statement run for compiled code leaves behind: it can run while
+    // another one is still being parsed (a Timer event raised inside a
+    // property being set calls compiled code, which runs more statements), so
+    // the position of the first and its arguments are put back afterwards.
+    class Frame final {
+    public:
+        explicit Frame(Interpreter& in)
+            : in_(in),
+              source_(in.source_),
+              main_source_(in.main_source_),
+              data_(in.error_source_data_),
+              offset_(in.offset_),
+              execute_(in.execute_),
+              print_surface_(in.print_surface_),
+              error_(std::move(in.error_)) {
+            in.error_ = wfc::Evaluation{};
+        }
+        Frame(const Frame&) = delete;
+        Frame& operator=(const Frame&) = delete;
+        ~Frame() {
+            for (std::size_t i = 0; i < arguments_.size(); ++i) {
+                const std::string name = "wfcarg" + std::to_string(i);
+                auto& scope = in_.module_scope();
+                scope.variables.erase(name);
+                scope.variant_variables.erase(name);
+                if (arguments_[i].has_value()) {
+                    scope.variables[name] = std::move(*arguments_[i]);
+                    if (was_variant_[i]) {
+                        scope.variant_variables.insert(name);
+                    }
+                }
+            }
+            in_.source_ = source_;
+            in_.main_source_ = main_source_;
+            in_.error_source_data_ = data_;
+            in_.offset_ = offset_;
+            in_.execute_ = execute_;
+            in_.print_surface_ = print_surface_;
+            in_.error_ = std::move(error_);
+        }
+        // Remembers the arguments the statement is about to replace.
+        void keep_arguments(const std::size_t count) {
+            auto& scope = in_.module_scope();
+            for (std::size_t i = 0; i < count; ++i) {
+                const std::string name = "wfcarg" + std::to_string(i);
+                const auto found = scope.variables.find(name);
+                if (found != scope.variables.end()) {
+                    arguments_.emplace_back(found->second);
+                } else {
+                    arguments_.emplace_back(std::nullopt);
+                }
+                was_variant_.push_back(scope.variant_variables.contains(name));
+            }
+        }
+
+    private:
+        Interpreter& in_;
+        std::string_view source_;
+        std::string_view main_source_;
+        const char* data_;
+        std::size_t offset_;
+        bool execute_;
+        InstanceData* print_surface_;
+        wfc::Evaluation error_;
+        std::vector<std::optional<Value>> arguments_;
+        std::vector<bool> was_variant_;
+    };
+
     [[nodiscard]] static bool trace_enabled() {
         char* trace = nullptr;
         std::size_t trace_size = 0;
@@ -51,10 +119,21 @@ struct NativeSupport {
 
     static std::optional<Value> binary(Interpreter& in, std::string_view op,
                                        const Value& left, const Value& right,
+                                       const bool left_variant,
+                                       const bool right_variant,
                                        NativeError& error) {
         std::optional<Value> result;
         // An operand is a Variant: a result that overflows promotes instead.
         in.variant_operand_seen_ = true;
+        const auto holds_number = [](const Value& value) {
+            return is_number(value) &&
+                   !std::holds_alternative<DateValue>(value);
+        };
+        in.variant_string_seen_ =
+            (left_variant && std::holds_alternative<std::string>(left)) ||
+            (right_variant && std::holds_alternative<std::string>(right));
+        in.variant_number_seen_ = (left_variant && holds_number(left)) ||
+                                  (right_variant && holds_number(right));
         if (op == "+" || op == "-" || op == "*" || op == "/") {
             result = in.numeric_binary(left, right, op.front(), 0U);
         } else if (op == "\\") {
@@ -82,6 +161,8 @@ struct NativeSupport {
             in.set_error("WFC0010", "unknown operator", 0U);
         }
         in.variant_operand_seen_ = false;
+        in.variant_string_seen_ = false;
+        in.variant_number_seen_ = false;
         if (!result.has_value()) {
             take_error(in, error);
         }
@@ -380,6 +461,8 @@ struct NativeSupport {
     static auto with_arguments(Interpreter& in, std::vector<Value>& values,
                                Body&& body) {
         auto& scope = in.module_scope();
+        Frame frame(in);
+        frame.keep_arguments(values.size());
         for (std::size_t i = 0; i < values.size(); ++i) {
             const std::string name = "wfcarg" + std::to_string(i);
             scope.variables[name] = values[i];
@@ -453,6 +536,11 @@ struct NativeSupport {
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             arguments[i] = bound[i + 1];  // by reference: the call changed it
         }
+        if (trace_enabled()) {
+            std::fprintf(stderr, "    -> %s\n",
+                         result.has_value() ? type_name(in, *result).c_str()
+                                            : "(error)");
+        }
         return result;
     }
 
@@ -483,6 +571,10 @@ struct NativeSupport {
                                          const std::string& name,
                                          NativeError& error) {
         in.execute_ = true;
+        if (!in.class_definitions_.contains(lower(name))) {
+            // Not a class of the project: a COM class by its name.
+            return call_function(in, "createobject", {Value{name}}, error);
+        }
         auto made = in.instantiate_class(lower(name), 0);
         if (!made.has_value()) {
             take_error(in, error);
@@ -493,7 +585,22 @@ struct NativeSupport {
     static std::optional<std::vector<Value>> items(Interpreter& in,
                                                    const Value& object,
                                                    NativeError& error) {
+        if (const auto* array = std::get_if<ArrayValue>(&object)) {
+            return array->elements;  // a Variant that holds an array
+        }
         const auto* instance = std::get_if<ObjectInstance>(&object);
+        if (instance != nullptr && instance->data->native == nullptr) {
+            // A class written in Visual Basic lists its items itself (a
+            // Collection of the interpreter).
+            std::vector<Value> none;
+            auto listed = member_get(in, object, "wfcitems", none, error);
+            if (listed.has_value()) {
+                if (const auto* array = std::get_if<ArrayValue>(&*listed)) {
+                    return array->elements;
+                }
+            }
+            return std::nullopt;
+        }
         if (instance == nullptr || instance->data->native == nullptr) {
             fail(in, 438, error);
             return std::nullopt;
@@ -536,6 +643,8 @@ struct NativeSupport {
             }
         }
         auto& scope = in.module_scope();
+        Frame frame(in);
+        frame.keep_arguments(values.size());
         for (std::size_t i = 0; i < values.size(); ++i) {
             const std::string name = "wfcarg" + std::to_string(i);
             scope.variables[name] = values[i];
@@ -722,8 +831,11 @@ NativeEngine::~NativeEngine() = default;
 
 std::optional<Value> NativeEngine::binary(const std::string_view op,
                                           const Value& left, const Value& right,
+                                          const bool left_variant,
+                                          const bool right_variant,
                                           NativeError& error) {
-    return NativeSupport::binary(*interpreter_, op, left, right, error);
+    return NativeSupport::binary(*interpreter_, op, left, right, left_variant,
+                                 right_variant, error);
 }
 
 std::optional<Value> NativeEngine::negate(const Value& value,

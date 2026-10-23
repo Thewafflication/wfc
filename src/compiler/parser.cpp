@@ -9,6 +9,38 @@ namespace wfc::compiler {
 
 namespace {
 
+// The enumerations of the language (VbMsgBoxResult, ColorConstants, ...): they
+// are Long as types, and `Enumeration.member` names one of their constants.
+[[nodiscard]] bool is_library_enumeration(const std::string& name) {
+    static const std::set<std::string> names = {"colorconstants",
+                                                "vbmsgboxresult",
+                                                "vbmsgboxstyle",
+                                                "systemcolorconstants",
+                                                "vbcomparemethod",
+                                                "vbtristate",
+                                                "vbvartype",
+                                                "vbdayofweek",
+                                                "vbfirstweekofyear",
+                                                "vbdateformat",
+                                                "vbcalendar",
+                                                "vbstrconv",
+                                                "vbappwinstyle",
+                                                "vbfileattribute",
+                                                "vbqueryclose",
+                                                "keycodeconstants",
+                                                "shiftconstants",
+                                                "mousebuttonconstants",
+                                                "drawstyleconstants",
+                                                "fillstyleconstants",
+                                                "scalemodeconstants",
+                                                "alignmentconstants",
+                                                "borderstyleconstants",
+                                                "mousepointerconstants",
+                                                "windowstateconstants",
+                                                "formshowconstants"};
+    return names.contains(name);
+}
+
 // A syntax error or an unsupported construct unwinds to `parse_module`.
 struct ParseFailure final {
     std::string message;
@@ -30,6 +62,10 @@ public:
         while (!at_end_of_file()) {
             if (is_word("attribute")) {
                 // `Attribute Name = value`: a file-format line, no code.
+                if (ahead(1).text == "vb_predeclaredid" &&
+                    ahead(3).text == "true") {
+                    module.predeclared = true;
+                }
                 while (!at_end_of_statement()) {
                     advance();
                 }
@@ -208,7 +244,8 @@ private:
             type = VbType::byte;
         } else if (name == "variant") {
             type = VbType::variant;
-        } else if (options_.enum_names.contains(name)) {
+        } else if (options_.enum_names.contains(name) ||
+                   is_library_enumeration(name)) {
             type = VbType::long_integer;
         } else if (name == "object") {
             // A late-bound object is held like a Variant.
@@ -218,6 +255,9 @@ private:
                     !options_.type_names.contains(name))) {
             // A form or a control: an object of the engine, late bound.
             type = VbType::variant;
+            if (record_name != nullptr) {
+                *record_name = name;
+            }
         } else if (options_.class_names.contains(name)) {
             type = VbType::object;
             if (record_name != nullptr) {
@@ -228,9 +268,16 @@ private:
             if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "*") {
                 fail("fixed-length strings are not compiled yet");
             }
-        } else if (record_name != nullptr) {
-            // Any other name is a user-defined type; the compiler checks it.
+        } else if (record_name != nullptr &&
+                   options_.type_names.contains(name)) {
+            // A user-defined type; the compiler checks it.
             type = VbType::record;
+            *record_name = name;
+        } else if (record_name != nullptr && name != "date" &&
+                   name != "currency" && name != "decimal") {
+            // Any other name is a class the engine provides (a dialog, a
+            // Dictionary, a control): objects of it are late bound.
+            type = VbType::variant;
             *record_name = name;
         } else {
             fail("the type " + current().spelling + " is not compiled yet");
@@ -275,8 +322,9 @@ private:
         if (accept_word("as")) {
             declaration.is_new = accept_word("new");
             declaration.type = type_name(&declaration.type_name);
-            if (declaration.is_new && (declaration.type != VbType::object ||
-                                       declaration.type_name.empty())) {
+            if (declaration.is_new && !((declaration.type == VbType::object ||
+                                         declaration.type == VbType::variant) &&
+                                        !declaration.type_name.empty())) {
                 fail("New needs the name of a class");
             }
             declaration.type_given = true;
@@ -1624,14 +1672,23 @@ private:
         result->conditions.push_back(expression());
         expect_word("then");
         if (!at_end_of_statement()) {
-            // The single-line form: If c Then stmt [Else stmt]
-            std::vector<StmtPtr> then_part;
-            then_part.push_back(statement());
-            result->blocks.push_back(std::move(then_part));
+            // The single-line form: If c Then stmt [: stmt] [Else stmt ...]
+            const auto branch = [&]() {
+                std::vector<StmtPtr> list;
+                list.push_back(statement());
+                while (current().kind == TokenKind::end_of_statement &&
+                       current().text == ":") {
+                    advance();
+                    if (at_end_of_statement() || is_word("else")) {
+                        break;
+                    }
+                    list.push_back(statement());
+                }
+                return list;
+            };
+            result->blocks.push_back(branch());
             if (accept_word("else")) {
-                std::vector<StmtPtr> else_part;
-                else_part.push_back(statement());
-                result->blocks.push_back(std::move(else_part));
+                result->blocks.push_back(branch());
                 result->has_else = true;
             }
             return result;
@@ -1968,13 +2025,19 @@ private:
         }
         if (token.kind == TokenKind::identifier && token.text == "new") {
             advance();
-            if (current().kind != TokenKind::identifier ||
-                !options_.class_names.contains(current().text)) {
+            if (current().kind != TokenKind::identifier) {
                 fail("New needs the name of a class");
             }
             auto result = make_expr(ExprKind::new_object, at);
             result->text = current().text;
             advance();
+            // A class of the engine may be qualified (`Scripting.Dictionary`).
+            while (is_symbol(".") && ahead(1).kind == TokenKind::identifier &&
+                   !options_.class_names.contains(result->text)) {
+                advance();
+                result->text += "." + current().text;
+                advance();
+            }
             return result;
         }
         if (token.kind == TokenKind::identifier) {
@@ -2066,6 +2129,31 @@ ParseResult parse_module(const std::string_view source,
         result.error = lexed.error;
         result.error_at = Position{lexed.error_line, lexed.error_column};
         return result;
+    }
+    // `Module.name` is `name`: the modules of a project share one scope. So
+    // is `VbMsgBoxResult.vbOK`: a constant named through its enumeration.
+    {
+        std::vector<Token> kept;
+        kept.reserve(lexed.tokens.size());
+        for (std::size_t i = 0; i < lexed.tokens.size(); ++i) {
+            const Token& token = lexed.tokens[i];
+            const bool qualifier =
+                token.kind == TokenKind::identifier &&
+                (options.module_names.contains(token.text) ||
+                 is_library_enumeration(token.text)) &&
+                i + 2 < lexed.tokens.size() &&
+                lexed.tokens[i + 1].kind == TokenKind::symbol &&
+                lexed.tokens[i + 1].text == "." &&
+                lexed.tokens[i + 2].kind == TokenKind::identifier &&
+                !(i > 0 && lexed.tokens[i - 1].kind == TokenKind::symbol &&
+                  lexed.tokens[i - 1].text == ".");
+            if (qualifier) {
+                ++i;  // the module name and its dot
+                continue;
+            }
+            kept.push_back(token);
+        }
+        lexed.tokens = std::move(kept);
     }
     try {
         Parser parser(std::move(lexed.tokens), options);

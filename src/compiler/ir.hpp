@@ -230,11 +230,12 @@ enum class Service : int {
     // The arguments of a call made from the shared runtime into a member of a
     // compiled class (its thunk): how many, the i-th (new handle), and a
     // by-reference argument's new value.
-    thunk_count = 99,   // () -> count
-    thunk_arg = 100,    // (i) -> new handle
-    thunk_store = 101,  // (i, handle)
-    host_new = 102,     // (form name literal) -> new handle: a new form
-    count = 103,
+    thunk_count = 99,    // () -> count
+    thunk_arg = 100,     // (i) -> new handle
+    thunk_store = 101,   // (i, handle)
+    host_new = 102,      // (form name literal) -> new handle: a new form
+    array_assign = 103,  // (array* variable, array) copies the array
+    count = 104,
 };
 
 struct Instruction final {

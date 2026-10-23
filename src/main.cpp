@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 #include <string_view>
 #include <vector>
 #include "com_server.hpp"
@@ -231,6 +232,9 @@ int run_native(const int argument_count, const char* const arguments[]) {
         std::string_view(source).substr(source.size() - call.size()) == call) {
         source.resize(source.size() - call.size());
     }
+    if (!environment_text("WFC_DUMP_SOURCE").empty()) {
+        std::cerr << source << '\n';
+    }
     std::vector<wfc::compiler::ClassSource> classes;
     wfc::detail::EngineSetup setup;
     wfc::compiler::ProjectInfo info;
@@ -250,14 +254,49 @@ int run_native(const int argument_count, const char* const arguments[]) {
                 project.class_form_texts[i],
                 project.class_form_directories[i]});
             info.form_names.push_back(lower(project.class_names[i]));
-            classes.push_back(wfc::compiler::ClassSource{
-                project.class_names[i], project.class_sources[i], true});
+            wfc::compiler::ClassSource form{
+                project.class_names[i], project.class_sources[i], true, {}};
+            // Its controls: `Begin VB.TextBox Text1`.
+            const std::string& design = project.class_form_texts[i];
+            std::size_t at = 0;
+            while (at < design.size()) {
+                auto end = design.find('\n', at);
+                if (end == std::string::npos) {
+                    end = design.size();
+                }
+                std::istringstream words(design.substr(at, end - at));
+                std::string first;
+                std::string kind;
+                std::string name;
+                words >> first >> kind >> name;
+                if (lower(first) == "begin" && !name.empty()) {
+                    form.controls.push_back(lower(name));
+                }
+                at = end + 1U;
+            }
+            classes.push_back(std::move(form));
             continue;
         }
         classes.push_back(wfc::compiler::ClassSource{project.class_names[i],
                                                      project.class_sources[i]});
     }
     info.app_properties = project.app_properties;
+    {
+        // The modules: `Attribute VB_Name = "Helpers"`.
+        std::istringstream lines(source);
+        std::string line;
+        while (std::getline(lines, line)) {
+            const std::string text = lower(line);
+            const std::string head = "attribute vb_name = \"";
+            if (text.rfind(head, 0) == 0) {
+                const auto end = text.find('"', head.size());
+                if (end != std::string::npos) {
+                    info.module_names.push_back(
+                        text.substr(head.size(), end - head.size()));
+                }
+            }
+        }
+    }
     info.startup_form = lower(project.startup_form);
     options.vb6_print_spacing = true;
     options.app_properties = project.app_properties;
@@ -294,6 +333,32 @@ int run_native(const int argument_count, const char* const arguments[]) {
         if (compiled.error_at.line != 0) {
             std::cerr << " (line " << compiled.error_at.line << ", column "
                       << compiled.error_at.column << ")";
+            // The line of the text the module compiler read.
+            const std::string* text = &source;
+            if (compiled.error.rfind("class ", 0) == 0) {
+                const auto name_end = compiled.error.find(':');
+                const std::string name =
+                    lower(compiled.error.substr(6, name_end - 6));
+                for (std::size_t k = 0; k < project.class_names.size(); ++k) {
+                    if (name == lower(project.class_names[k])) {
+                        text = &project.class_sources[k];
+                    }
+                }
+            }
+            std::size_t line_start = 0;
+            for (std::size_t n = 1; n < compiled.error_at.line; ++n) {
+                const auto next = text->find('\n', line_start);
+                if (next == std::string::npos) {
+                    break;
+                }
+                line_start = next + 1U;
+            }
+            auto line_end = text->find('\n', line_start);
+            if (line_end == std::string::npos) {
+                line_end = text->size();
+            }
+            std::cerr << "\n    | "
+                      << text->substr(line_start, line_end - line_start);
         }
         std::cerr << ": " << compiled.error << '\n';
         return 3;

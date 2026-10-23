@@ -1,6 +1,7 @@
 #include "lower.hpp"
 
 #include "../interpreter/vb_text.hpp"
+#include "../ui/control_tables.hpp"
 
 #include "library.hpp"
 
@@ -390,6 +391,9 @@ public:
           class_modules_(std::move(class_modules)),
           options_(options) {}
 
+    // Where the code being lowered is, for an error message.
+    [[nodiscard]] std::string where() const { return context(); }
+
     ir::Program run() {
         register_externals();
         register_classes();
@@ -487,8 +491,27 @@ private:
     }
 
     void declare_types() {
+        std::vector<const TypeDecl*> declared;
         for (const auto& declaration : module_.types) {
+            declared.push_back(&declaration);
+        }
+        // Types declared in a class (a form) are used by that class; they
+        // share the namespace of the program, the first of a name wins.
+        for (const Module* module : class_modules_) {
+            for (const auto& declaration : module->types) {
+                declared.push_back(&declaration);
+            }
+        }
+        std::set<const TypeDecl*> in_module;
+        for (const auto& declaration : module_.types) {
+            in_module.insert(&declaration);
+        }
+        for (const TypeDecl* pointer : declared) {
+            const auto& declaration = *pointer;
             if (udt_index_.contains(declaration.name)) {
+                if (!in_module.contains(pointer)) {
+                    continue;  // another class declared the name first
+                }
                 fail("the type '" + declaration.name + "' is declared twice",
                      declaration.at);
             }
@@ -1536,6 +1559,15 @@ private:
             owned_slots_.push_back(Owned{slot, Service::string_release});
         } else if (declaration.type == VbType::variant) {
             owned_slots_.push_back(Owned{slot, Service::variant_release});
+            if (declaration.is_new && !declaration.type_name.empty()) {
+                // `Dim x As New EngineClass`: made now.
+                const auto made = new_owned_variant();
+                builder_->runtime(Service::host_new,
+                                  {name_literal(declaration.type_name)}, made,
+                                  true);
+                builder_->runtime(Service::variant_assign,
+                                  {address_of(slot), made});
+            }
         } else if (declaration.type == VbType::object) {
             owned_slots_.push_back(Owned{slot, Service::object_release});
         }
@@ -1649,6 +1681,13 @@ private:
         }
         if (const auto found = globals_.find(name); found != globals_.end()) {
             return found->second;
+        }
+        if (current_ != nullptr && !class_index_.contains(name)) {
+            if (name == "calendar" || name == "imestatus") {
+                fail(name + " is not compiled yet", at);
+            }
+            // Visual Basic declares a variable by its first use.
+            return declare_implicit(name);
         }
         fail("'" + name + "' is not declared", at);
     }
@@ -1824,7 +1863,7 @@ private:
             lower_mid_statement(statement);
             return;
         }
-        if (in_form() && !has_variable(statement.text)) {
+        if (is_host_member(statement.text) && !has_variable(statement.text)) {
             std::vector<const Expr*> indexes;
             for (const auto& item : statement.items) {
                 indexes.push_back(item.get());
@@ -1834,6 +1873,22 @@ private:
             return;
         }
         auto target = find_variable(statement.text, statement.at);
+        if (target.is_array && statement.items.empty()) {
+            // `copy = original`: the whole array.
+            if (statement.expr->kind != ExprKind::name) {
+                fail("an array can only be assigned an array", statement.at);
+            }
+            const auto original =
+                find_variable(statement.expr->text, statement.at);
+            if (!original.is_array || original.type != target.type) {
+                fail("the arrays are not of the same type", statement.at);
+            }
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, original.operand);
+            builder_->runtime(Service::array_assign,
+                              {address_of(target.operand), handle});
+            return;
+        }
         if (target.type == VbType::record) {
             const auto source = lower_place(*statement.expr);
             if (!statement.items.empty()) {
@@ -1906,12 +1961,7 @@ private:
             return;
         }
         if (target.type == VbType::string) {
-            const auto text = value.type == VbType::variant
-                                  ? from_variant(value, VbType::string, at)
-                                  : value;
-            if (text.type != VbType::string) {
-                fail("a number cannot be assigned to a String yet", at);
-            }
+            const auto text = to_string_value(value, at);
             builder_->runtime(Service::string_assign,
                               {address_of(target.operand), text.operand});
             return;
@@ -1928,7 +1978,10 @@ private:
     [[nodiscard]] VbType place_type_of(const Expr& expression) {
         switch (expression.kind) {
             case ExprKind::name:
-                return find_variable(expression.text, expression.at).type;
+                // Me, a constant or a function is not a place.
+                return has_variable(expression.text)
+                           ? find_variable(expression.text, expression.at).type
+                           : VbType::none;
             case ExprKind::call: {
                 const auto array = find_array(expression.text);
                 return array.has_value() ? array->type : VbType::none;
@@ -2160,11 +2213,18 @@ private:
 
     void lower_for(const Stmt& statement) {
         const auto variable = find_variable(statement.text, statement.at);
+        if (variable.is_array || variable.type == VbType::record ||
+            variable.type == VbType::string ||
+            variable.type == VbType::boolean ||
+            variable.type == VbType::object) {
+            fail("the loop variable '" + statement.text +
+                     "' must be a number or a Variant",
+                 statement.at);
+        }
         if (variable.type != VbType::integer &&
             variable.type != VbType::long_integer) {
-            fail("the loop variable '" + statement.text +
-                     "' must be an Integer or a Long",
-                 statement.at);
+            lower_for_general(statement, variable);
+            return;
         }
         const auto start = convert(lower_expression(*statement.expr),
                                    variable.type, statement.at);
@@ -2225,6 +2285,89 @@ private:
         loops_.pop_back();
     }
 
+    // A For loop whose variable is a Byte, a Single, a Double or a Variant: a
+    // hidden counter (a Long, or a Double when a bound is fractional) counts,
+    // and the variable gets its value at the top of each round and at the end.
+    void lower_for_general(const Stmt& statement, const Variable& variable) {
+        const Position at = statement.at;
+        const auto start = lower_expression(*statement.expr);
+        const auto limit_value = lower_expression(*statement.limit);
+        std::optional<Value> step_value;
+        if (statement.step) {
+            step_value = lower_expression(*statement.step);
+        }
+        const bool floating =
+            is_float(variable.type) || is_float(start.type) ||
+            is_float(limit_value.type) ||
+            (step_value.has_value() && is_float(step_value->type));
+        const VbType counter_type =
+            floating ? VbType::double_precision : VbType::long_integer;
+        const auto as_counter = [&](Value value) {
+            if (value.type == VbType::variant) {
+                value = from_variant(value, counter_type, at);
+            }
+            return convert(value, counter_type, at).operand;
+        };
+        const auto put = [&](const Operand& dst, const Operand& value) {
+            if (floating) {
+                builder_->move_wide(dst, value);
+            } else {
+                builder_->emit(Opcode::move, dst, value);
+            }
+        };
+        const auto counter = builder_->new_temp();
+        put(counter, as_counter(start));
+        const auto limit = builder_->new_temp();
+        put(limit, as_counter(limit_value));
+        const auto step = builder_->new_temp();
+        if (step_value.has_value()) {
+            put(step, as_counter(*step_value));
+        } else {
+            put(step, floating ? double_immediate(1.0) : ir::immediate(1));
+        }
+        flush_temps();
+        const int top = builder_->new_label();
+        const int done = builder_->new_label();
+        loops_.push_back(Loop{"for", done});
+        const int id = current_id_;
+        builder_->place(top);
+        touch_statement(id);
+        const auto up = builder_->new_temp();
+        const auto keep_going = builder_->new_temp();
+        const int negative = builder_->new_label();
+        const int test = builder_->new_label();
+        const auto compare_to = [&](const Operand& dst, const Operand& a,
+                                    const Operand& b,
+                                    const Condition condition) {
+            if (floating) {
+                builder_->fcompare(dst, a, b, condition);
+            } else {
+                builder_->compare(dst, a, b, condition);
+            }
+        };
+        compare_to(up, step,
+                   floating ? double_immediate(0.0) : ir::immediate(0),
+                   Condition::greater_equal);
+        builder_->branch(Opcode::branch_zero, up, negative);
+        compare_to(keep_going, counter, limit, Condition::less_equal);
+        builder_->jump(test);
+        builder_->place(negative);
+        compare_to(keep_going, counter, limit, Condition::greater_equal);
+        builder_->place(test);
+        builder_->branch(Opcode::branch_zero, keep_going, done);
+        const Value current{counter, counter_type};
+        store_value(variable, current, at);
+        lower_block(statement.body);
+        touch_statement(id);
+        builder_->emit(floating ? Opcode::fadd : Opcode::add, counter, counter,
+                       step, floating ? Check::none : Check::int32);
+        builder_->jump(top);
+        builder_->place(done);
+        // After the loop the variable holds the value that ended it.
+        store_value(variable, current, at);
+        loops_.pop_back();
+    }
+
     [[nodiscard]] int label_for(const std::string& name) {
         const auto found = labels_.find(name);
         if (found != labels_.end()) {
@@ -2248,7 +2391,10 @@ private:
         builder_->move_wide(handle, array.operand);
         arguments.push_back(handle);
         for (const auto& index : indices) {
-            const auto value = lower_expression(*index);
+            auto value = lower_expression(*index);
+            if (value.type == VbType::variant) {
+                value = from_variant(value, VbType::long_integer, index->at);
+            }
             if (!is_numeric(value.type)) {
                 fail("an array index must be a number", index->at);
             }
@@ -2370,6 +2516,13 @@ private:
         return slot;
     }
 
+    [[nodiscard]] Operand reserve_owned_variant_slot() {
+        const auto slot = builder_->new_temp();
+        late_zero_.push_back(slot);
+        owned_slots_.push_back(Owned{slot, Service::variant_release});
+        return slot;
+    }
+
     // One test of a Case against the subject; true when it matches.
     [[nodiscard]] Value case_test(const CaseClause& clause,
                                   const Value& subject, const Position at) {
@@ -2403,6 +2556,12 @@ private:
                 builder_->emit(Opcode::move, copy, subject.operand);
             }
             subject = Value{copy, subject.type};
+        } else if (subject.type == VbType::variant) {
+            // A Variant is kept in a slot of its own too.
+            const auto slot = reserve_owned_variant_slot();
+            builder_->runtime(Service::variant_assign,
+                              {address_of(slot), subject.operand});
+            subject = Value{slot, VbType::variant};
         } else {
             fail("Select Case needs a number or a String", statement.at);
         }
@@ -2830,7 +2989,7 @@ private:
                         : name;
                 return lower_library_call(spelled, arguments, at);
             }
-            if (in_form()) {
+            if (is_host_member(name)) {
                 std::vector<const Expr*> pointers;
                 for (const auto& argument : arguments) {
                     pointers.push_back(argument.get());
@@ -3152,7 +3311,27 @@ private:
         const bool record_member =
             argument.kind == ExprKind::member_call &&
             !object_class_of(*argument.operands[0], argument_cls);
-        if (!argument.parenthesized && !through_temporary &&
+        // `object.Name` is a place only when Name is a field of the class; a
+        // Property Get or a function gives a value.
+        bool member_is_value = false;
+        if (argument.kind == ExprKind::member &&
+            !is_record_place(*argument.operands[0])) {
+            int base_cls = -1;
+            if (object_class_of(*argument.operands[0], base_cls) &&
+                base_cls >= 0) {
+                member_is_value = true;
+                for (const auto& field :
+                     classes_[static_cast<std::size_t>(base_cls)]
+                         .layout.fields) {
+                    if (field.name == argument.text) {
+                        member_is_value = false;
+                    }
+                }
+            } else {
+                member_is_value = true;  // an object reached by name
+            }
+        }
+        if (!argument.parenthesized && !through_temporary && !member_is_value &&
             (argument.kind == ExprKind::member || record_member || is_element ||
              (type == VbType::record && argument.kind == ExprKind::name))) {
             const auto place = lower_place(argument);
@@ -3164,7 +3343,8 @@ private:
         }
         if (!argument.parenthesized && !through_temporary &&
             argument.kind == ExprKind::name &&
-            !signatures_.contains(argument.text)) {
+            !signatures_.contains(argument.text) &&
+            has_variable(argument.text)) {
             const auto variable = find_variable(argument.text, argument.at);
             if (variable.type != type) {
                 fail("ByRef argument type mismatch for '" + argument.text + "'",
@@ -3183,19 +3363,20 @@ private:
                                              const Position at) {
         const auto temp = builder_->new_temp();
         if (type == VbType::object) {
-            require_class(-1, value, at);
+            const auto object = value.type == VbType::variant
+                                    ? from_variant(value, VbType::object, at)
+                                    : value;
+            require_class(-1, object, at);
             builder_->move_wide(temp, ir::immediate(0));
             builder_->runtime(Service::object_assign,
-                              {address_of(temp), value.operand});
+                              {address_of(temp), object.operand});
             pending_.push_back(Owned{temp, Service::object_release});
         } else if (type == VbType::string) {
-            if (value.type != VbType::string) {
-                fail("a String argument is needed here", at);
-            }
+            const auto text = to_string_value(value, at);
             // The temporary holds its own reference until the call ends.
             builder_->move_wide(temp, ir::immediate(0));
             builder_->runtime(Service::string_assign,
-                              {address_of(temp), value.operand});
+                              {address_of(temp), text.operand});
             pending_.push_back(Owned{temp, Service::string_release});
         } else if (type == VbType::variant) {
             const auto boxed = to_variant(value, at);
@@ -3261,6 +3442,11 @@ private:
         builder_->runtime(Service::object_check, {base.operand});
         const auto items = emit_call(lister->second, "wfcitems", {},
                                      base.operand, nullptr, statement.at);
+        for_each_items(statement, items);
+    }
+
+    // The loop over a Variant array of items.
+    void for_each_items(const Stmt& statement, const Value& items) {
         const auto control = find_variable(statement.text, statement.at);
         if (control.is_array || control.type == VbType::record) {
             fail("this For Each variable is not compiled yet", statement.at);
@@ -3315,12 +3501,27 @@ private:
                                ? find_array(statement.expr->text)
                                : std::nullopt;
         if (!array.has_value() || array->type == VbType::record) {
-            fail("For Each is compiled over arrays of simple values so far",
-                 statement.at);
+            if (array.has_value()) {
+                fail("For Each over records is not compiled yet", statement.at);
+            }
+            // An object of the engine (the Controls of a form) or a Variant
+            // that holds an array: the runtime lists the items.
+            const auto base = lower_expression(*statement.expr);
+            if (base.type != VbType::variant && !late_bound(base)) {
+                fail("For Each needs a collection or an array here",
+                     statement.at);
+            }
+            const auto boxed = to_variant(base, statement.at);
+            Value items;
+            items.type = VbType::variant;
+            items.operand = new_owned_variant();
+            builder_->runtime(Service::variant_items, {boxed.operand},
+                              items.operand, true);
+            for_each_items(statement, items);
+            return;
         }
         const auto control = find_variable(statement.text, statement.at);
-        if (control.is_array || control.type == VbType::record ||
-            control.type == VbType::object) {
+        if (control.is_array || control.type == VbType::record) {
             fail("this For Each variable is not compiled yet", statement.at);
         }
         const auto handle = builder_->new_temp();
@@ -3346,8 +3547,15 @@ private:
             const auto copy = builder_->new_temp();
             builder_->move_wide(copy, element.operand);
             element.operand = copy;
+            if (array->type == VbType::object) {
+                element.cls = array->udt;
+            }
         }
-        store_loop_value(control, element, statement.at);
+        if (control.type == VbType::object) {
+            assign_object(control, element, statement.at);
+        } else {
+            store_loop_value(control, element, statement.at);
+        }
         flush_temps();
         lower_block(statement.body);
         touch_statement(id);
@@ -3650,9 +3858,46 @@ private:
 
     // Whether the code being lowered is a form's: a name it does not declare
     // belongs to the form of the engine (a control, a property, a method).
+    // Where the code being lowered is, for an error message.
+    [[nodiscard]] std::string context() const {
+        return current_class_ >= 0
+                   ? "class " +
+                         classes_[static_cast<std::size_t>(current_class_)]
+                             .name +
+                         ": "
+                   : std::string{};
+    }
+
     [[nodiscard]] bool in_form() const {
         return current_class_ >= 0 &&
                classes_[static_cast<std::size_t>(current_class_)].is_form;
+    }
+
+    // Whether a name the code does not declare belongs to the form: one of
+    // its controls, or a property or method every form has. Any other name is
+    // a variable declared by its first use.
+    [[nodiscard]] bool is_host_member(const std::string& name) const {
+        if (!in_form()) {
+            return false;
+        }
+        const auto& info = classes_[static_cast<std::size_t>(current_class_)];
+        if (const auto found = options_.form_controls.find(info.name);
+            found != options_.form_controls.end() &&
+            found->second.contains(name)) {
+            return true;
+        }
+        static const ui::ControlClass* form = ui::find_control_class("Form");
+        return form != nullptr && ui::find_member(*form, name, '*') != nullptr;
+    }
+
+    // `Dim name As Variant` where the name is first used.
+    Variable declare_implicit(const std::string& name) {
+        const auto slot = builder_->new_temp();
+        late_zero_.push_back(slot);
+        owned_slots_.push_back(Owned{slot, Service::variant_release});
+        const Variable variable{slot, VbType::variant};
+        locals_[name] = variable;
+        return variable;
     }
 
     // The form of the engine that a compiled form stands for.
@@ -4067,9 +4312,11 @@ private:
     }
 
     [[nodiscard]] Value lower_new(const Expr& expression) {
-        const int cls = find_class(expression.text, expression.at);
-        if (classes_[static_cast<std::size_t>(cls)].is_form) {
-            // A new instance of a form is made by the engine.
+        const auto known = class_index_.find(expression.text);
+        if (known == class_index_.end() ||
+            classes_[static_cast<std::size_t>(known->second)].is_form) {
+            // An instance of a form, or of a class of the engine, is made by
+            // the engine.
             Value host;
             host.type = VbType::variant;
             host.operand = new_owned_variant();
@@ -4078,6 +4325,7 @@ private:
                               true);
             return host;
         }
+        const int cls = known->second;
         Value result;
         result.type = VbType::object;
         result.cls = cls;
@@ -4365,11 +4613,12 @@ private:
         Value result;
         result.type = VbType::variant;
         result.operand = new_owned_variant();
-        builder_->runtime(
-            Service::variant_binary,
-            {ir::immediate(static_cast<std::int64_t>(found->second)), a.operand,
-             b.operand},
-            result.operand, true);
+        const auto flags = static_cast<std::int64_t>(found->second) |
+                           (left.type == VbType::variant ? 0x100 : 0) |
+                           (right.type == VbType::variant ? 0x200 : 0);
+        builder_->runtime(Service::variant_binary,
+                          {ir::immediate(flags), a.operand, b.operand},
+                          result.operand, true);
         return result;
     }
 
@@ -4579,8 +4828,23 @@ private:
             fail("Mid needs a String variable, a start and a length",
                  statement.at);
         }
-        const auto target =
-            find_variable(statement.items[0]->text, statement.at);
+        auto target = find_variable(statement.items[0]->text, statement.at);
+        std::optional<Variable> variant_target;
+        if (target.type == VbType::variant && !target.is_array) {
+            // A Variant: its text is changed and put back.
+            variant_target = target;
+            Value held{target.operand, VbType::variant};
+            if (target.operand.kind != OperandKind::slot) {
+                const auto copy = builder_->new_temp();
+                builder_->move_wide(copy, target.operand);
+                held.operand = copy;
+            }
+            const auto text = from_variant(held, VbType::string, statement.at);
+            const auto slot = reserve_owned_slot();
+            builder_->runtime(Service::string_assign,
+                              {address_of(slot), text.operand});
+            target = Variable{slot, VbType::string};
+        }
         if (target.type != VbType::string || target.is_array) {
             fail("Mid needs a String variable", statement.at);
         }
@@ -4597,6 +4861,13 @@ private:
         builder_->runtime(
             Service::string_mid_assign,
             {address_of(target.operand), start.operand, length, text.operand});
+        if (variant_target.has_value()) {
+            const auto changed =
+                to_variant(Value{target.operand, VbType::string}, statement.at);
+            builder_->runtime(
+                Service::variant_assign,
+                {address_of(variant_target->operand), changed.operand});
+        }
     }
 
     // TypeName, VarType, IsNull, IsEmpty, IsNumeric and CVar.
@@ -4708,7 +4979,8 @@ private:
                         return null;
                     }
                 }
-                if (in_form() && !has_variable(expression.text)) {
+                if (is_host_member(expression.text) &&
+                    !has_variable(expression.text)) {
                     return late_get(host_of_me(expression.at), expression.text,
                                     {}, expression.at);
                 }
@@ -4949,6 +5221,11 @@ private:
             builder_->compare(result, order, ir::immediate(0),
                               condition_of(op));
             return Value{result, VbType::boolean};
+        }
+        if (left.type == VbType::variant || right.type == VbType::variant ||
+            (left.type == VbType::string) != (right.type == VbType::string)) {
+            // A Variant, or a number against a String: the runtime compares.
+            return variant_operation(op, left, right, at);
         }
         if (!is_numeric(left.type) || !is_numeric(right.type)) {
             fail("the operator " + op + " needs two numbers or two Strings",
@@ -5214,11 +5491,11 @@ LowerResult lower_module(const Module& module,
                          const std::vector<const Module*>& classes,
                          const LowerOptions& options) {
     LowerResult result;
+    Lowerer lowerer(module, classes, options);
     try {
-        Lowerer lowerer(module, classes, options);
         result.program = lowerer.run();
     } catch (const LowerFailure& failure) {
-        result.error = failure.message;
+        result.error = lowerer.where() + failure.message;
         result.error_at = failure.at;
     }
     return result;

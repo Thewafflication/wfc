@@ -361,6 +361,8 @@ CompileResult compile_project(const std::string_view source,
         }
     }
     ParseOptions options;
+    options.module_names.insert(info.module_names.begin(),
+                                info.module_names.end());
     for (const auto& item : all) {
         options.class_names.insert(lower_case(item.name));
         if (item.is_form) {
@@ -413,6 +415,20 @@ CompileResult compile_project(const std::string_view source,
         result.error_at = parsed.error_at;
         return result;
     }
+    // A class with `VB_PredeclaredId` has an instance named like the class.
+    for (const auto& module : class_modules) {
+        if (module.predeclared && !module.is_form) {
+            Declaration declaration;
+            declaration.name = module.name;
+            declaration.type = VbType::object;
+            declaration.type_name = module.name;
+            declaration.type_given = true;
+            declaration.is_new = true;
+            declaration.is_public = true;
+            declaration.at = Position{1, 1};
+            parsed.module.globals.push_back(std::move(declaration));
+        }
+    }
     for (const auto& item : singletons) {
         Declaration declaration;
         declaration.name = item.global;
@@ -435,6 +451,13 @@ CompileResult compile_project(const std::string_view source,
     lower_options.host_globals.insert("forms");
     lower_options.host_globals.insert("printer");
     lower_options.has_forms = !info.form_names.empty();
+    for (const auto& item : all) {
+        if (item.is_form) {
+            lower_options.form_controls[lower_case(item.name)] =
+                std::set<std::string>(item.controls.begin(),
+                                      item.controls.end());
+        }
+    }
     lower_options.startup_form = info.startup_form;
     auto lowered = lower_module(parsed.module, class_pointers, lower_options);
     if (!lowered.error.empty()) {

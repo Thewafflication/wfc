@@ -43,10 +43,11 @@ public:
 
     // `left op right` for + - * / \ mod & ^ = <> < > <= >= and or xor eqv imp.
     // nullopt means an error (filled in).
-    [[nodiscard]] std::optional<Value> binary(std::string_view op,
-                                              const Value& left,
-                                              const Value& right,
-                                              NativeError& error);
+    // `left_variant` and `right_variant` say an operand is a Variant (a number
+    // or a string held in a Variant compares by other rules than a typed one).
+    [[nodiscard]] std::optional<Value> binary(
+        std::string_view op, const Value& left, const Value& right,
+        bool left_variant, bool right_variant, NativeError& error);
     [[nodiscard]] std::optional<Value> negate(const Value& value,
                                               NativeError& error);
     [[nodiscard]] std::optional<Value> logical_not(const Value& value,

@@ -24,6 +24,7 @@ struct ClassSource final {
     std::string name;
     std::string source;
     bool is_form{};  // the code of a form (its design lives in the engine)
+    std::vector<std::string> controls;  // lower-case names of its controls
 };
 
 // What a project says about itself that the built-in classes use.
@@ -32,6 +33,7 @@ struct ProjectInfo final {
     // The forms (lower case names) live in the engine; code reaches them by
     // name. A project with forms ends by running them.
     std::vector<std::string> form_names;
+    std::vector<std::string> module_names;  // lower case
     std::string startup_form;
 };
 
