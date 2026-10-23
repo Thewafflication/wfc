@@ -5,12 +5,14 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string_view>
 #include <vector>
 #include "com_server.hpp"
 #include "compiler/compile.hpp"
+#include "compiler/image_io.hpp"
 #include "compiler/native_host.hpp"
 #include "interpreter/native_engine.hpp"
 #include "package.hpp"
@@ -70,37 +72,6 @@ namespace {
 
 int run(int argument_count, const char* const arguments[]);
 
-// `wfc --build <project.vbp> -o <app.exe> [--gui]`: a packaged program.
-int build_package(const int argument_count, const char* const arguments[]) {
-    std::filesystem::path project;
-    std::filesystem::path output;
-    std::vector<std::string> options;
-    for (int i = 2; i < argument_count; ++i) {
-        const std::string_view argument = arguments[i];
-        if (argument == "-o" && i + 1 < argument_count) {
-            output = arguments[++i];
-        } else if (argument == "--gui") {
-            options.emplace_back("--gui");
-        } else if (project.empty() && argument.rfind("-", 0) != 0) {
-            project = arguments[i];
-        } else {
-            print_usage();
-            return 2;
-        }
-    }
-    if (project.empty() || output.empty()) {
-        std::cerr << "usage: wfc --build <project.vbp> -o <app.exe> [--gui]\n";
-        return 2;
-    }
-    std::string problem;
-    if (!wfc::package::build(wfc::package::running_image(), project, output,
-                             options, problem)) {
-        std::cerr << problem << '\n';
-        return 1;
-    }
-    return 0;
-}
-
 // The value of an environment variable, empty when it is not set.
 [[nodiscard]] std::string environment_text(const char* name) {
 #ifdef _WIN32
@@ -116,6 +87,42 @@ int build_package(const int argument_count, const char* const arguments[]) {
     const char* found = std::getenv(name);
     return found != nullptr ? found : "";
 #endif
+}
+
+// The `Type ... End Type` blocks of a source: the shared runtime builds the
+// records that are handed to the routines of DLLs.
+std::string types_of(const std::string& source) {
+    std::string found;
+    std::istringstream lines(source);
+    std::string line;
+    bool inside = false;
+    while (std::getline(lines, line)) {
+        std::string text;
+        for (const char c : line) {
+            text.push_back(
+                static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        const auto first = text.find_first_not_of(" \t");
+        std::string_view rest = first == std::string::npos
+                                    ? std::string_view{}
+                                    : std::string_view(text).substr(first);
+        for (const std::string_view scope : {"public ", "private "}) {
+            if (rest.substr(0, scope.size()) == scope) {
+                rest.remove_prefix(scope.size());
+                break;
+            }
+        }
+        if (!inside && rest.substr(0, 5) == "type ") {
+            inside = true;
+        }
+        if (inside) {
+            found += line + '\n';
+            if (rest.substr(0, 8) == "end type") {
+                inside = false;
+            }
+        }
+    }
+    return found;
 }
 
 // The `Declare` statements of a source (with their continuation lines): the
@@ -179,7 +186,17 @@ std::string declares_of(const std::string& source) {
 // `wfc --native <project.vbp | module.bas>`: compiles the project to machine
 // code in memory and runs it (ADR-0008). Exit code 77 means that this
 // architecture has no back end yet.
-int run_native(const int argument_count, const char* const arguments[]) {
+struct PreparedNative final {
+    wfc::LoadedProject project;
+    wfc::detail::EngineSetup setup;
+    wfc::compiler::NativeImage image;
+};
+
+// Loads the project and makes everything a native run needs: the compiled
+// image (read from `--native-image` when given) and the setup of the shared
+// runtime. Returns 0, or the exit code of the failure.
+int prepare_native(const int argument_count, const char* const arguments[],
+                   const int first, PreparedNative& prepared) {
     std::vector<std::filesystem::path> files;
     wfc::EvaluationOptions options;
     bool fit_screen = false;
@@ -187,9 +204,12 @@ int run_native(const int argument_count, const char* const arguments[]) {
         return text.empty() ? text : std::filesystem::absolute(text).string();
     };
     std::string ui_script_override;
-    for (int i = 2; i < argument_count; ++i) {
+    std::string image_file;
+    for (int i = first; i < argument_count; ++i) {
         const std::string_view argument = arguments[i];
-        if (argument == "--gui") {
+        if (argument == "--native-image" && i + 1 < argument_count) {
+            image_file = arguments[++i];
+        } else if (argument == "--gui") {
             options.ui_mode = "win32";
         } else if (argument == "--fullscreen") {
             options.ui_mode = "win32";
@@ -209,7 +229,8 @@ int run_native(const int argument_count, const char* const arguments[]) {
             file = std::filesystem::absolute(file);
         }
     }
-    const auto project = wfc::load_project(files);
+    prepared.project = wfc::load_project(files);
+    const auto& project = prepared.project;
     if (!project.ok) {
         std::cerr << project.error << '\n';
         return 2;
@@ -218,6 +239,7 @@ int run_native(const int argument_count, const char* const arguments[]) {
         std::error_code ignored;
         std::filesystem::current_path(files.front().parent_path(), ignored);
     }
+    auto& setup = prepared.setup;
     const auto architecture = wfc::compiler::host_architecture();
     if (!wfc::compiler::native_back_end_available()) {
         std::cerr << "native compilation is not available on this "
@@ -236,7 +258,6 @@ int run_native(const int argument_count, const char* const arguments[]) {
         std::cerr << source << '\n';
     }
     std::vector<wfc::compiler::ClassSource> classes;
-    wfc::detail::EngineSetup setup;
     wfc::compiler::ProjectInfo info;
     const auto lower = [](std::string text) {
         for (auto& c : text) {
@@ -265,11 +286,11 @@ int run_native(const int argument_count, const char* const arguments[]) {
                     end = design.size();
                 }
                 std::istringstream words(design.substr(at, end - at));
-                std::string first;
+                std::string keyword;
                 std::string kind;
                 std::string name;
-                words >> first >> kind >> name;
-                if (lower(first) == "begin" && !name.empty()) {
+                words >> keyword >> kind >> name;
+                if (lower(keyword) == "begin" && !name.empty()) {
                     form.controls.push_back(lower(name));
                 }
                 at = end + 1U;
@@ -317,14 +338,31 @@ int run_native(const int argument_count, const char* const arguments[]) {
     options.fit_height = project.largest_form_height;
     options.fit_screen_size = environment_text("WFC_SCREEN");
     setup.options = options;
-    setup.program = declares_of(project.module_source);
+    setup.program =
+        types_of(project.module_source) + declares_of(project.module_source);
     for (const auto& text : project.class_sources) {
-        setup.program += declares_of(text);
+        setup.program += types_of(text) + declares_of(text);
     }
     setup.scan_text = project.module_source;
     for (const auto& text : project.class_sources) {
         setup.scan_text += '\n';
         setup.scan_text += text;
+    }
+    if (!image_file.empty()) {
+        // A packaged program: it was compiled when it was built.
+        std::ifstream stream(image_file, std::ios::binary);
+        std::ostringstream text;
+        text << stream.rdbuf();
+        if (!stream.good() && !stream.eof()) {
+            std::cerr << "cannot read the program " << image_file << '\n';
+            return 2;
+        }
+        if (!wfc::compiler::deserialize_image(text.str(), prepared.image)) {
+            std::cerr << "the program " << image_file
+                      << " was not made by this version of WFC\n";
+            return 2;
+        }
+        return 0;
     }
     const auto compiled =
         wfc::compiler::compile_project(source, classes, architecture, info);
@@ -363,14 +401,79 @@ int run_native(const int argument_count, const char* const arguments[]) {
         std::cerr << ": " << compiled.error << '\n';
         return 3;
     }
+    prepared.image = compiled.image;
+    return 0;
+}
+
+// `wfc --native <project.vbp | module.bas>` and a packaged native program.
+int run_native(const int argument_count, const char* const arguments[],
+               const int first) {
+    auto prepared = std::make_unique<PreparedNative>();
+    if (const int failure =
+            prepare_native(argument_count, arguments, first, *prepared);
+        failure != 0) {
+        return failure;
+    }
     std::string problem;
-    const int code =
-        wfc::compiler::run_native_image(compiled.image, problem, &setup);
+    const int code = wfc::compiler::run_native_image(prepared->image, problem,
+                                                     &prepared->setup);
     if (!problem.empty()) {
         std::cerr << problem << '\n';
         return 2;
     }
     return code;
+}
+
+// `wfc --build <project.vbp> -o <app.exe> [--gui] [--native]`: a packaged
+// program. With --native the project is compiled now and the program carries
+// the machine code.
+int build_package(const int argument_count, const char* const arguments[]) {
+    std::filesystem::path project;
+    std::filesystem::path output;
+    std::vector<std::string> options;
+    bool native = false;
+    for (int i = 2; i < argument_count; ++i) {
+        const std::string_view argument = arguments[i];
+        if (argument == "-o" && i + 1 < argument_count) {
+            output = arguments[++i];
+        } else if (argument == "--gui") {
+            options.emplace_back("--gui");
+        } else if (argument == "--native") {
+            native = true;
+        } else if (project.empty() && argument.rfind("-", 0) != 0) {
+            project = arguments[i];
+        } else {
+            print_usage();
+            return 2;
+        }
+    }
+    if (project.empty() || output.empty()) {
+        std::cerr << "usage: wfc --build <project.vbp> -o <app.exe> [--gui]\n";
+        return 2;
+    }
+    std::string problem;
+    std::vector<std::pair<std::string, std::string>> extra;
+    if (native) {
+        // Compile now: an error in the program is an error of the build.
+        const std::string project_text = project.string();
+        const char* compile_arguments[] = {"wfc", project_text.c_str()};
+        auto prepared = std::make_unique<PreparedNative>();
+        if (const int failure =
+                prepare_native(2, compile_arguments, 1, *prepared);
+            failure != 0) {
+            return failure;
+        }
+        extra.emplace_back("__wfc_native.bin",
+                           wfc::compiler::serialize_image(prepared->image));
+        options.emplace_back("--native-image");
+        options.emplace_back("@__wfc_native.bin");
+    }
+    if (!wfc::package::build(wfc::package::running_image(), project, output,
+                             options, problem, extra)) {
+        std::cerr << problem << '\n';
+        return 1;
+    }
+    return 0;
 }
 
 }  // namespace
@@ -400,13 +503,19 @@ int main(const int argument_count, const char* const arguments[]) {
                 }
             }
         }
+        for (const char* item : forwarded) {
+            if (std::string_view(item) == "--native-image") {
+                return run_native(static_cast<int>(forwarded.size()),
+                                  forwarded.data(), 1);
+            }
+        }
         return run(static_cast<int>(forwarded.size()), forwarded.data());
     }
     if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {
         return build_package(argument_count, arguments);
     }
     if (argument_count >= 3 && std::string_view(arguments[1]) == "--native") {
-        return run_native(argument_count, arguments);
+        return run_native(argument_count, arguments, 2);
     }
     return run(argument_count, arguments);
 }

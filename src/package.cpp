@@ -525,7 +525,8 @@ fs::path running_image() {
 
 bool build(const fs::path& image, const fs::path& project,
            const fs::path& output, const std::vector<std::string>& options,
-           std::string& problem) {
+           std::string& problem,
+           const std::vector<std::pair<std::string, std::string>>& extra) {
     std::error_code error;
     if (!fs::is_regular_file(project, error)) {
         problem = "project file not found: " + project.string();
@@ -561,7 +562,12 @@ bool build(const fs::path& image, const fs::path& project,
         return false;
     }
     std::sort(files.begin(), files.end());
-    put32(payload, static_cast<std::uint32_t>(files.size()));
+    put32(payload, static_cast<std::uint32_t>(files.size() + extra.size()));
+    for (const auto& [name, content] : extra) {
+        put_text(payload, name);
+        put64(payload, content.size());
+        payload += content;
+    }
     for (const auto& relative : files) {
         bool ok = false;
         const std::string content = slurp(directory / relative, ok);
@@ -684,7 +690,15 @@ std::optional<std::vector<std::string>> unpack(const fs::path& image,
         return std::vector<std::string>{};
     }
     command.push_back((root / fs::path(project)).string());
-    command.insert(command.end(), options.begin(), options.end());
+    for (const auto& option : options) {
+        // `@name`: a file the program carries.
+        if (option.size() > 1U && option.front() == '@' &&
+            safe_relative(option.substr(1))) {
+            command.push_back((root / fs::path(option.substr(1))).string());
+        } else {
+            command.push_back(option);
+        }
+    }
     return command;
 }
 

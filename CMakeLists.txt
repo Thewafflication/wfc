@@ -32,6 +32,8 @@ target_sources(
     src/compiler/library.hpp
     src/compiler/native_host.cpp
     src/compiler/native_host.hpp
+    src/compiler/image_io.cpp
+    src/compiler/image_io.hpp
     src/compiler/native_image.hpp
     src/compiler/parser.cpp
     src/compiler/parser.hpp
@@ -517,12 +519,24 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     sumboku-solve.ui
     sumboku-solve.expected
   )
+  add_vb6_native_play(
+    captureking-script
+    captureking/CaptureKing.vbp
+    captureking.ui
+    captureking.expected
+  )
   add_vb6_game(restaum restaum/source/BrainVita.vbp "Form1" 5000)
   add_vb6_package(clix clix/src/Clix.vbp frmMain 3)
   add_vb6_package(connect4 connect4/PConnect4.vbp FMain)
   add_vb6_package(executioner executioner/Executioner.vbp frmGamescreen)
   add_vb6_package(pipes pipes/pipes.vbp Logo)
   add_vb6_package(restaum restaum/source/BrainVita.vbp Form1)
+  add_vb6_native_package(clix clix/src/Clix.vbp frmMain 3)
+  add_vb6_native_package(connect4 connect4/PConnect4.vbp FMain)
+  add_vb6_native_package(executioner executioner/Executioner.vbp frmGamescreen)
+  add_vb6_native_package(pipes pipes/pipes.vbp Logo)
+  add_vb6_native_package(restaum restaum/source/BrainVita.vbp Form1)
+  add_vb6_native_package(sumboku-current sumboku/PSuMBOku.vbp FrmSudoku)
   add_vb6_package(sumboku sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp FrmSudoku)
   add_vb6_game(sumboku sumboku/v1.4.2/SuMBOku_V_1_4/Sudoku.vbp "FrmSudoku" 5000)
   add_test(NAME TC-MP0004-win32-host COMMAND wfc_win32_host_tests)

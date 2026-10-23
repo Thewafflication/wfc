@@ -5,8 +5,13 @@
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(app "${WORK}/standalone.exe")
+# NATIVE builds the program as machine code (MP-0009).
+set(native_option "")
+if(DEFINED NATIVE)
+  set(native_option "--native")
+endif()
 execute_process(
-  COMMAND "${WFC}" --build "${PROJECT}" -o "${app}" --gui
+  COMMAND "${WFC}" --build "${PROJECT}" -o "${app}" --gui ${native_option}
   RESULT_VARIABLE built
   ERROR_VARIABLE build_errors
 )

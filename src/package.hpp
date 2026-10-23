@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace wfc::package {
@@ -17,11 +18,14 @@ namespace wfc::package {
 // carries), the files of the directory of `project`, and the trailer.
 // `options` are the command-line options the program starts with (`--gui`).
 // Returns false and sets `problem` on failure.
-[[nodiscard]] bool build(const std::filesystem::path& image,
-                         const std::filesystem::path& project,
-                         const std::filesystem::path& output,
-                         const std::vector<std::string>& options,
-                         std::string& problem);
+// `extra` are further files the program carries (name, content); an option
+// that starts with `@` names such a file and is replaced by its path when the
+// program starts.
+[[nodiscard]] bool build(
+    const std::filesystem::path& image, const std::filesystem::path& project,
+    const std::filesystem::path& output,
+    const std::vector<std::string>& options, std::string& problem,
+    const std::vector<std::pair<std::string, std::string>>& extra = {});
 
 // When `image` carries a payload, extracts it below the temporary directory and
 // returns the command line to run (the project file followed by the stored

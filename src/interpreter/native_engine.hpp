@@ -89,6 +89,12 @@ public:
                                   const std::vector<Value>& arguments,
                                   const Value& value, bool is_set,
                                   NativeError& error);
+    // A record (`Type`) of the project as a value, with fields set and read.
+    [[nodiscard]] std::optional<Value> new_record(const std::string& name,
+                                                  NativeError& error);
+    static void set_field(Value& record, const std::string& field, Value value);
+    [[nodiscard]] static Value field(const Value& record,
+                                     const std::string& name);
     // A new instance of a form of the project.
     [[nodiscard]] std::optional<Value> new_form(const std::string& name,
                                                 NativeError& error);

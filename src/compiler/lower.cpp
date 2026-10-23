@@ -3171,7 +3171,13 @@ private:
         std::string text = declared.is_function ? "wfcarg0 = " : "";
         text += declared.name;
         std::vector<EngineArgument> list;
-        list.push_back(EngineArgument{nullptr, 'i'});
+        list.push_back(EngineArgument{nullptr, 'i', std::nullopt});
+        struct RecordArgument final {
+            std::size_t index;
+            int descriptor;
+            Operand pointer;
+        };
+        std::vector<RecordArgument> records;
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             if (!arguments[i]) {
                 fail("an omitted argument is not compiled for '" +
@@ -3180,11 +3186,28 @@ private:
             }
             const Expr& argument = *arguments[i];
             char mode = 'i';
+            text += (i == 0 ? (declared.is_function ? "(" : " ") : ", ") +
+                    std::string("wfcarg") + std::to_string(i + 1);
             if (argument.kind == ExprKind::name && !argument.parenthesized &&
                 has_variable(argument.text)) {
                 const auto variable = find_variable(argument.text, at);
-                if (variable.type == VbType::record ||
-                    variable.type == VbType::object || variable.is_array) {
+                if (variable.type == VbType::record && !variable.is_array) {
+                    // A record: the runtime gets a value built from it and
+                    // the record gets the fields back.
+                    const auto descriptor = api_descriptor_of(variable.udt, at);
+                    const auto pointer = struct_pointer(variable);
+                    Value made;
+                    made.type = VbType::variant;
+                    made.operand = new_owned_variant();
+                    builder_->runtime(Service::udt_to_engine,
+                                      {ir::literal(descriptor), pointer},
+                                      made.operand, true);
+                    list.push_back(EngineArgument{nullptr, 'i', made});
+                    records.push_back(
+                        RecordArgument{i + 1, descriptor, pointer});
+                    continue;
+                }
+                if (variable.type == VbType::object || variable.is_array) {
                     fail(
                         "an argument of this type is not compiled for the "
                         "routine '" +
@@ -3193,9 +3216,7 @@ private:
                 }
                 mode = 'b';
             }
-            text += (i == 0 ? (declared.is_function ? "(" : " ") : ", ") +
-                    std::string("wfcarg") + std::to_string(i + 1);
-            list.push_back(EngineArgument{&argument, mode});
+            list.push_back(EngineArgument{&argument, mode, std::nullopt});
         }
         if (declared.is_function && arguments.empty()) {
             text += "()";
@@ -3203,6 +3224,11 @@ private:
             text += ")";
         }
         const auto outputs = emit_engine_statement(text, list, at);
+        for (const auto& record : records) {
+            builder_->runtime(Service::udt_from_engine,
+                              {ir::literal(record.descriptor), record.pointer,
+                               outputs[record.index]});
+        }
         if (!declared.is_function) {
             return Value{builder_->new_temp(), VbType::none};
         }
@@ -3214,6 +3240,41 @@ private:
             return result;
         }
         return from_variant(result, declared.return_type, at);
+    }
+
+    // How a record is handed over: its type name and the kind and offset of
+    // each field (see `shape_of` in the runtime).
+    [[nodiscard]] int api_descriptor_of(const int udt, const Position at) {
+        const auto& info = udts_[static_cast<std::size_t>(udt)];
+        std::string blob;
+        const auto put = [&blob](const std::int32_t value) {
+            blob.append(reinterpret_cast<const char*>(&value), sizeof(value));
+        };
+        const auto put_text = [&](const std::string& text) {
+            put(static_cast<std::int32_t>(text.size()));
+            blob += text;
+        };
+        put_text(info.name);
+        put(static_cast<std::int32_t>(info.fields.size()));
+        for (const auto& field : info.fields) {
+            if (field.is_array || field.udt >= 0) {
+                fail(
+                    "a record with an array or a record inside cannot be "
+                    "handed to a routine of a DLL yet",
+                    at);
+            }
+            put_text(field.name);
+            put(field.type == VbType::integer            ? 1
+                : field.type == VbType::long_integer     ? 2
+                : field.type == VbType::byte             ? 3
+                : field.type == VbType::boolean          ? 4
+                : field.type == VbType::single_precision ? 5
+                : field.type == VbType::double_precision ? 6
+                                                         : 7);
+            put(static_cast<std::int32_t>(field.offset));
+        }
+        program_.strings.push_back(std::move(blob));
+        return static_cast<int>(program_.strings.size() - 1U);
     }
 
     // WfcArgCount(), WfcArg(i) and WfcStoreArg i, value: how a thunk reaches
@@ -4976,6 +5037,7 @@ private:
     struct EngineArgument final {
         const Expr* expr{};
         char mode{'i'};
+        std::optional<Value> value;  // already lowered (a record's value)
     };
 
     void lower_engine_statement(const Stmt& statement) {
@@ -5008,7 +5070,10 @@ private:
         std::int64_t variant_mask = 0;
         for (std::size_t i = 0; i < count; ++i) {
             Value boxed;
-            if (list[i].expr == nullptr) {
+            if (list[i].value.has_value()) {
+                boxed = *list[i].value;
+                variant_mask |= std::int64_t{1} << i;
+            } else if (list[i].expr == nullptr) {
                 // An empty Variant: the statement fills it.
                 variant_mask |= std::int64_t{1} << i;
                 boxed.type = VbType::variant;
@@ -5521,7 +5586,8 @@ private:
         if (left.type == VbType::variant || right.type == VbType::variant ||
             (left.type == VbType::string) != (right.type == VbType::string)) {
             // A Variant, or a number against a String: the runtime compares.
-            return variant_operation(op, left, right, at);
+            return from_variant(variant_operation(op, left, right, at),
+                                VbType::boolean, at);
         }
         if (!is_numeric(left.type) || !is_numeric(right.type)) {
             fail("the operator " + op + " needs two numbers or two Strings",

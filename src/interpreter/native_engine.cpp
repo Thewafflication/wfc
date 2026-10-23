@@ -648,7 +648,11 @@ struct NativeSupport {
         if (tracing) {
             std::fprintf(stderr, "[engine statement] %s\n", text.c_str());
             for (const auto& value : values) {
-                std::fprintf(stderr, "    [%s]\n", render(value).c_str());
+                const std::string shown =
+                    std::holds_alternative<ObjectInstance>(value)
+                        ? "object " + type_name(in, value)
+                        : render(value);
+                std::fprintf(stderr, "    [%s]\n", shown.c_str());
             }
         }
         auto& scope = in.module_scope();
@@ -932,6 +936,36 @@ bool NativeEngine::member_put(const Value& object, const std::string& name,
                               NativeError& error) {
     return NativeSupport::member_put(*interpreter_, object, name, arguments,
                                      value, is_set, error);
+}
+
+std::optional<Value> NativeEngine::new_record(const std::string& name,
+                                              NativeError& error) {
+    return NativeSupport::new_form(*interpreter_, name, error);
+}
+
+void NativeEngine::set_field(Value& record, const std::string& field,
+                             Value value) {
+    if (auto* instance = std::get_if<ObjectInstance>(&record)) {
+        std::string key = field;
+        for (auto& c : key) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        instance->data->fields.variables[key] = std::move(value);
+    }
+}
+
+Value NativeEngine::field(const Value& record, const std::string& name) {
+    if (const auto* instance = std::get_if<ObjectInstance>(&record)) {
+        std::string key = name;
+        for (auto& c : key) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        const auto found = instance->data->fields.variables.find(key);
+        if (found != instance->data->fields.variables.end()) {
+            return found->second;
+        }
+    }
+    return Value{Empty{}};
 }
 
 std::optional<Value> NativeEngine::new_form(const std::string& name,

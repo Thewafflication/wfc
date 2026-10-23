@@ -243,7 +243,11 @@ enum class Service : int {
     string_fixed = 107,   // (text, length) -> new string: cut or padded
     trace_call = 108,     // (name literal) a procedure starts (a debugging aid)
     array_from_variant = 109,  // (array* variable, variant, element kind)
-    count = 110,
+    // A record handed to a routine of a DLL: made into a value of the shared
+    // runtime and read back (descriptor literal, record address[, value]).
+    udt_to_engine = 110,
+    udt_from_engine = 111,
+    count = 112,
 };
 
 struct Instruction final {

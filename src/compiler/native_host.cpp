@@ -1943,6 +1943,137 @@ void array_from_variant(RtArray** variable, const RtVariant* source,
     *variable = array;
 }
 
+// ----- Records handed to routines of DLLs ----------------------------------
+//
+// The descriptor: the lower-case name of the type, a count and for each field
+// its name, its kind (1 Integer, 2 Long, 3 Byte, 4 Boolean, 5 Single,
+// 6 Double, 7 String) and its offset in the record.
+
+struct RecordField final {
+    std::string name;
+    std::int32_t kind;
+    std::int32_t offset;
+};
+
+struct RecordShape final {
+    std::string type;
+    std::vector<RecordField> fields;
+};
+
+[[nodiscard]] RecordShape shape_of(const RtString* descriptor) {
+    RecordShape shape;
+    const char* at = descriptor->data;
+    const auto read_int = [&at]() {
+        std::int32_t value = 0;
+        std::memcpy(&value, at, sizeof(value));
+        at += sizeof(value);
+        return value;
+    };
+    const auto read_text = [&]() {
+        const auto length = read_int();
+        std::string text(at, static_cast<std::size_t>(length));
+        at += length;
+        return text;
+    };
+    shape.type = read_text();
+    const auto count = read_int();
+    for (std::int32_t i = 0; i < count; ++i) {
+        RecordField field;
+        field.name = read_text();
+        field.kind = read_int();
+        field.offset = read_int();
+        shape.fields.push_back(std::move(field));
+    }
+    return shape;
+}
+
+RtVariant* udt_to_engine(const RtString* descriptor, const char* record) {
+    const auto shape = shape_of(descriptor);
+    wfc::detail::NativeError problem;
+    auto made = engine().new_record(shape.type, problem);
+    if (!made.has_value()) {
+        raise_engine_error(problem);
+        return nullptr;
+    }
+    for (const auto& field : shape.fields) {
+        const char* where = record + field.offset;
+        wfc::detail::Value value{wfc::detail::Empty{}};
+        switch (field.kind) {
+            case 1: {
+                std::int32_t number = 0;
+                std::memcpy(&number, where, sizeof(number));
+                value =
+                    wfc::detail::Value{static_cast<wfc::detail::Int16>(number)};
+                break;
+            }
+            case 2: {
+                std::int32_t number = 0;
+                std::memcpy(&number, where, sizeof(number));
+                value = wfc::detail::Value{
+                    static_cast<wfc::detail::Integer>(number)};
+                break;
+            }
+            case 3: {
+                std::int32_t number = 0;
+                std::memcpy(&number, where, sizeof(number));
+                value =
+                    wfc::detail::Value{static_cast<wfc::detail::Byte>(number)};
+                break;
+            }
+            case 4: {
+                std::int32_t number = 0;
+                std::memcpy(&number, where, sizeof(number));
+                value = wfc::detail::Value{number != 0};
+                break;
+            }
+            case 5:
+            case 6: {
+                double number = 0;
+                std::memcpy(&number, where, sizeof(number));
+                value = field.kind == 5
+                            ? wfc::detail::Value{static_cast<float>(number)}
+                            : wfc::detail::Value{number};
+                break;
+            }
+            default: {
+                const RtString* text = nullptr;
+                std::memcpy(&text, where, sizeof(text));
+                value = wfc::detail::Value{std::string(view_of(text))};
+                break;
+            }
+        }
+        wfc::detail::NativeEngine::set_field(*made, field.name,
+                                             std::move(value));
+    }
+    return box(std::move(*made));
+}
+
+void udt_from_engine(const RtString* descriptor, char* record,
+                     const RtVariant* held) {
+    const auto shape = shape_of(descriptor);
+    for (const auto& field : shape.fields) {
+        char* where = record + field.offset;
+        const auto value =
+            wfc::detail::NativeEngine::field(value_of(held), field.name);
+        wfc::detail::NativeError problem;
+        if (field.kind == 7) {
+            RtString** cell = reinterpret_cast<RtString**>(where);
+            const auto text = engine().to_text(value, problem);
+            RtString* made = make_string(text.value_or(std::string{}));
+            release(*cell);
+            *cell = made;
+        } else if (field.kind == 5 || field.kind == 6) {
+            const double number =
+                engine().to_double(value, problem).value_or(0.0);
+            std::memcpy(where, &number, sizeof(number));
+        } else {
+            const std::int32_t number =
+                engine().to_long(value, problem).value_or(0);
+            std::memcpy(where, &number, sizeof(number));
+        }
+    }
+}
+
 // `RaiseEvent Name(args)`: every sink of the object runs its handler.
 void raise_event(RtObject* source, const RtString* name,
                  const std::int32_t count, const char* block) {
@@ -2356,6 +2487,8 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&string_fixed),
         address_of(&trace_call),
         address_of(&array_from_variant),
+        address_of(&udt_to_engine),
+        address_of(&udt_from_engine),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

@@ -89,6 +89,10 @@ function(
       ${test_name}
       PROPERTIES LABELS "${test_labels}" TIMEOUT 300
     )
+    # Capture King listens on a UDP port.
+    if("${name}" MATCHES "captureking")
+      set_tests_properties(${test_name} PROPERTIES RESOURCE_LOCK udp)
+    endif()
   endif()
 endfunction()
 
@@ -115,6 +119,33 @@ function(add_vb6_package name vbp form)
       PROPERTIES
         RESOURCE_LOCK "desktop"
         LABELS "integration;windows;mp-0008;package"
+        TIMEOUT 600
+    )
+  endif()
+endfunction()
+
+# The same packaged-program test with the program compiled to machine code
+# (MP-0009): the packaged program carries the code, not a program to read.
+function(add_vb6_native_package name vbp form)
+  if(EXISTS "${vb6games_dir}/${vbp}")
+    set(seed_argument "")
+    if(ARGC GREATER 3)
+      set(seed_argument "-DSEED=${ARGV3}")
+    endif()
+    add_test(
+      NAME TC-MP0009-native-package-${name}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${vb6games_dir}/${vbp}"
+        "-DWORK=${CMAKE_BINARY_DIR}/package-native-${name}" "-DFORM=${form}"
+        "-DNATIVE=1" ${seed_argument} -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_package_gui.cmake"
+    )
+    set_tests_properties(
+      TC-MP0009-native-package-${name}
+      PROPERTIES
+        RESOURCE_LOCK "desktop"
+        LABELS "integration;windows;mp-0009;native;package"
         TIMEOUT 600
     )
   endif()

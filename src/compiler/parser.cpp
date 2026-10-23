@@ -235,6 +235,12 @@ private:
         if (current().kind != TokenKind::identifier) {
             fail("expected a type name");
         }
+        // `VB.Image`, `Scripting.Dictionary`: the library only qualifies.
+        while (ahead(1).kind == TokenKind::symbol && ahead(1).text == "." &&
+               ahead(2).kind == TokenKind::identifier) {
+            advance();
+            advance();
+        }
         const std::string& name = current().text;
         VbType type = VbType::none;
         if (name == "integer") {
