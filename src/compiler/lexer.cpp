@@ -237,6 +237,7 @@ private:
     }
 
     void number() {
+        const bool starts_line = at_line_start_;
         at_line_start_ = false;
         const auto start = position_;
         const auto start_column = column();
@@ -263,6 +264,7 @@ private:
         Token token;
         token.line = line_;
         token.column = start_column;
+        token.line_start = starts_line;
         token.text = std::string(text_.substr(start, position_ - start));
         // `5!` and `5#` are floating-point literals too.
         if (!real && (peek() == '!' || peek() == '#')) {

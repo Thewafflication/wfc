@@ -370,6 +370,7 @@ private:
         bool is_public = true;
         bool saw_scope = false;
         bool saw_public = false;
+        bool saw_static = false;
         while (is_word("private") || is_word("public") || is_word("friend") ||
                is_word("static")) {
             if (is_word("private")) {
@@ -379,14 +380,20 @@ private:
                 saw_public = true;
             }
             if (is_word("static")) {
-                fail("Static is not compiled yet");
+                saw_static = true;
             }
             saw_scope = true;
             advance();
         }
         if (is_word("sub") || is_word("function") || is_word("property")) {
+            // `Static Sub`: every local keeps its value between calls.
+            procedure_static_ = saw_static;
             procedure(module, is_public);
+            procedure_static_ = false;
             return;
+        }
+        if (saw_static) {
+            fail("Static is not compiled yet");
         }
         if (is_word("enum")) {
             enum_block(module);
@@ -784,13 +791,20 @@ private:
         if (current().kind == TokenKind::symbol && current().text == ".") {
             return with_member_statement();
         }
+        if (current().kind == TokenKind::integer && current().line_start) {
+            // A line number is a label.
+            auto result = make(StmtKind::label);
+            result->text = "line" + std::to_string(current().number);
+            advance();
+            return result;
+        }
         if (current().kind != TokenKind::identifier) {
             fail("expected a statement");
         }
         const std::string word = current().text;
         if (current().line_start &&
             ahead(1).kind == TokenKind::end_of_statement &&
-            ahead(1).text == ":" && word != "else") {
+            ahead(1).text == ":" && word != "else" && word != "do") {
             auto result = make(StmtKind::label);
             result->text = without_suffix(word);
             result->maybe_call = result->at.column != 1;
@@ -810,6 +824,11 @@ private:
         if (word == "goto") {
             auto result = make(StmtKind::go_to);
             advance();
+            if (current().kind == TokenKind::integer) {
+                result->text = "line" + std::to_string(current().number);
+                advance();
+                return result;
+            }
             if (current().kind != TokenKind::identifier) {
                 fail("expected a label after GoTo");
             }
@@ -824,11 +843,33 @@ private:
             ahead(1).text == "error") {
             return on_error_statement();
         }
+        if (word == "on") {
+            auto result = make(StmtKind::on_goto);
+            advance();
+            result->expr = expression();
+            expect_word("goto");
+            do {
+                std::string name;
+                if (current().kind == TokenKind::integer) {
+                    name = "line" + std::to_string(current().number);
+                } else if (current().kind == TokenKind::identifier) {
+                    name = without_suffix(current().text);
+                } else {
+                    fail("expected a label after GoTo");
+                }
+                advance();
+                result->text += (result->text.empty() ? "" : ",") + name;
+            } while (accept_symbol(","));
+            return result;
+        }
         if (word == "resume") {
             auto result = make(StmtKind::resume);
             advance();
             if (accept_word("next")) {
                 result->text = "next";
+            } else if (current().kind == TokenKind::integer) {
+                result->text = "line" + std::to_string(current().number);
+                advance();
             } else if (current().kind == TokenKind::identifier &&
                        !is_word("else")) {
                 result->text = without_suffix(current().text);
@@ -1046,8 +1087,9 @@ private:
         expect_word("goto");
         if (current().kind == TokenKind::integer) {
             if (current().number != 0) {
-                fail("On Error GoTo " + std::to_string(current().number) +
-                     " is not compiled yet");
+                result->text = "line" + std::to_string(current().number);
+                advance();
+                return result;
             }
             result->text = "0";
             advance();
@@ -1135,7 +1177,7 @@ private:
 
     [[nodiscard]] StmtPtr dim_statement() {
         auto result = make(StmtKind::dim);
-        const bool is_static = is_word("static");
+        const bool is_static = is_word("static") || procedure_static_;
         advance();
         do {
             result->declarations.push_back(declarator());
@@ -2207,6 +2249,7 @@ private:
     }
 
     std::vector<Token> tokens_;
+    bool procedure_static_{};
     int closing_loops_{};  // loops still closed by an earlier `Next a, b`
     std::string default_member_;  // set by an Attribute line in a procedure
     const ParseOptions& options_;

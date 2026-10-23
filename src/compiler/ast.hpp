@@ -86,10 +86,11 @@ enum class StmtKind {
     const_decl,   // constants
     label,        // text = the label
     go_to,        // text = the label
-    redim,        // declarations (with bounds); preserve
-    on_error,     // text: a label, "0" or "resume next"
-    resume,       // text: "", "next" or a label
-    erase,        // items: the names (as name expressions)
+    on_goto,   // `On n GoTo a, b`: expr = n, text = the labels, comma-separated
+    redim,     // declarations (with bounds); preserve
+    on_error,  // text: a label, "0" or "resume next"
+    resume,    // text: "", "next" or a label
+    erase,     // items: the names (as name expressions)
     set_object,   // `Set target = expr`
     call_member,  // an object's member called as a statement: expr is a
                   // member or member_call

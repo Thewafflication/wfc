@@ -775,6 +775,13 @@ private:
     }
 
     void declare_globals() {
+        // The numbered line that ran last and the one an error happened on.
+        for (const char* hidden : {"wfcline", "wfcerl"}) {
+            globals_[hidden] = Variable{
+                ir::global(static_cast<std::int64_t>(program_.globals.size())),
+                VbType::long_integer, false, -1, false};
+            program_.globals.push_back(ir::Global{hidden});
+        }
         for (const auto& declaration : module_.globals) {
             if (declaration.fixed_length > 0) {
                 fail(
@@ -1435,6 +1442,8 @@ private:
         builder_->place(dispatch_label_);
         // The statement that failed: a Resume goes back to or past it.
         builder_->emit(Opcode::move, error_stmt_slot_, stmt_id_slot_);
+        builder_->emit(Opcode::move, globals_.at("wfcerl").operand,
+                       globals_.at("wfcline").operand);
         const auto none = builder_->new_temp();
         builder_->compare(none, handler_slot_, ir::immediate(0),
                           Condition::equal);
@@ -1960,11 +1969,37 @@ private:
                          statement.at);
                 }
                 builder_->place(label_for(statement.text));
+                if (statement.text.starts_with("line")) {
+                    builder_->emit(
+                        Opcode::move, globals_.at("wfcline").operand,
+                        ir::immediate(std::stoll(statement.text.substr(4))));
+                }
                 break;
             }
             case StmtKind::go_to:
                 builder_->jump(label_for(statement.text));
                 break;
+            case StmtKind::on_goto: {
+                const auto chosen =
+                    to_long(lower_expression(*statement.expr), statement.at);
+                std::size_t start = 0;
+                std::int64_t number = 1;
+                while (start <= statement.text.size()) {
+                    auto end = statement.text.find(',', start);
+                    if (end == std::string::npos) {
+                        end = statement.text.size();
+                    }
+                    const auto name = statement.text.substr(start, end - start);
+                    const auto same = builder_->new_temp();
+                    builder_->compare(same, chosen.operand,
+                                      ir::immediate(number), Condition::equal);
+                    builder_->branch(Opcode::branch_nonzero, same,
+                                     label_for(name));
+                    start = end + 1U;
+                    ++number;
+                }
+                break;
+            }
             case StmtKind::on_error:
                 lower_on_error(statement);
                 break;
@@ -5452,6 +5487,12 @@ private:
                                           host.operand, true);
                         return host;
                     }
+                    if (expression.text == "erl") {
+                        const auto copy = builder_->new_temp();
+                        builder_->emit(Opcode::move, copy,
+                                       globals_.at("wfcerl").operand);
+                        return Value{copy, VbType::long_integer};
+                    }
                     if (expression.text == "empty") {
                         return Value{ir::immediate(0), VbType::variant};
                     }
@@ -5472,8 +5513,21 @@ private:
                 const auto variable =
                     find_variable(expression.text, expression.at);
                 if (variable.is_array) {
-                    fail("the array '" + expression.text + "' needs an index",
-                         expression.at);
+                    if (variable.type == VbType::record ||
+                        variable.type == VbType::object) {
+                        fail("the array '" + expression.text +
+                                 "' needs an index",
+                             expression.at);
+                    }
+                    // The whole array as a value: the array a Variant holds.
+                    const auto handle = builder_->new_temp();
+                    builder_->move_wide(handle, variable.operand);
+                    Value whole;
+                    whole.type = VbType::variant;
+                    whole.operand = new_owned_variant();
+                    builder_->runtime(Service::array_to_variant, {handle},
+                                      whole.operand, true);
+                    return whole;
                 }
                 if (variable.type == VbType::object && variable.auto_new) {
                     ensure_object(variable);

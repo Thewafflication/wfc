@@ -1978,6 +1978,42 @@ void array_from_variant(RtArray** variable, const RtVariant* source,
     *variable = array;
 }
 
+// `Join(words, " ")`, `v = a`: a one-dimensional array as the array a Variant
+// holds (element kinds as for array_from_variant).
+RtVariant* array_to_variant(const RtArray* array) {
+    if (array == nullptr || array->dims != 1 || array->kind == 3) {
+        raise_error(13);
+        return nullptr;
+    }
+    wfc::detail::ArrayValue held{};
+    held.lower_bound = array->bounds[0].lower;
+    held.is_variant_element = true;
+    held.element_type_index = wfc::detail::Value{wfc::detail::Empty{}}.index();
+    const char* base = reinterpret_cast<const char*>(array) + sizeof(RtArray);
+    for (std::int32_t i = 0; i < array->count; ++i) {
+        const char* where = base + static_cast<std::size_t>(i) * array->size;
+        if (array->kind == 2) {
+            const RtString* text;
+            std::memcpy(&text, where, sizeof(text));
+            held.elements.emplace_back(std::string(view_of(text)));
+        } else if (array->kind == 4) {
+            const RtVariant* item;
+            std::memcpy(&item, where, sizeof(item));
+            held.elements.push_back(value_of(item));
+        } else if (array->kind == 1) {
+            double number;
+            std::memcpy(&number, where, sizeof(number));
+            held.elements.emplace_back(number);
+        } else {
+            std::int32_t number;
+            std::memcpy(&number, where, sizeof(number));
+            held.elements.emplace_back(
+                static_cast<wfc::detail::Integer>(number));
+        }
+    }
+    return box(wfc::detail::Value{std::move(held)});
+}
+
 // ----- Records handed to routines of DLLs ----------------------------------
 //
 // The descriptor: the lower-case name of the type, a count and for each field
@@ -2530,6 +2566,7 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&udt_from_engine),
         address_of(&print_tab),
         address_of(&print_spc),
+        address_of(&array_to_variant),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;
