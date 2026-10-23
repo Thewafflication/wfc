@@ -3,7 +3,8 @@
 First step of the commit gate: allows one gate at a time and shows progress.
 .DESCRIPTION
 Two commits that run their gates at once corrupt each other's build and test
-runs. This step takes out/commit-gate.lock, which names the git process that
+runs. This step takes wfc-commit-gate.lock in the temp folder, which names
+the git process that
 owns the gate; a second commit while that process is alive is refused. A lock
 whose owner has gone is taken over. It then opens the test progress window
 (scripts/Show-TestProgress.ps1), which keeps to one window by itself.
@@ -16,9 +17,9 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$root = Split-Path -Parent $PSScriptRoot
-$lock = Join-Path $root 'out/commit-gate.lock'
-New-Item -ItemType Directory -Force -Path (Split-Path $lock) | Out-Null
+# One lock for the machine: gates of different checkouts load the machine
+# just as much, and slow tests time out.
+$lock = Join-Path ([IO.Path]::GetTempPath()) 'wfc-commit-gate.lock'
 
 # The git process that started this hook is the owner of the gate.
 function Get-OwnerId {

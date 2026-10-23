@@ -68,7 +68,9 @@ $form.Size = New-Object Drawing.Size(520, 440)
 $form.StartPosition = 'Manual'
 $area = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $form.Location = New-Object Drawing.Point(($area.Right - 530), ($area.Top + 10))
-$form.FormBorderStyle = 'SizableToolWindow'
+# A normal window: a tool window is left out of Alt+Tab and the taskbar.
+$form.FormBorderStyle = 'Sizable'
+$form.ShowInTaskbar = $true
 
 $status = New-Object Windows.Forms.Label
 $status.Dock = 'Top'
@@ -225,6 +227,7 @@ $fallback.Interval = 60000
 $fallback.Add_Tick({ $fallback.Stop(); $form.Close() })
 $timer.Start()
 $form.Add_FormClosed({ $timer.Stop(); $close.Stop(); $fallback.Stop() })
+$form.Add_Shown({ $form.Activate() })
 [void]$form.ShowDialog()
 if ($process -and -not $process.HasExited) { $process.Kill() }
 $single.ReleaseMutex()

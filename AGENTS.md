@@ -22,7 +22,8 @@
   first step opens the always-on-top test progress window
   (`scripts/Show-TestProgress.ps1`), so the owner can watch the run; do not
   suppress or replace it.
-- Only one commit gate may run at a time (`out/commit-gate.lock`, taken by
+- Only one commit gate may run at a time, across all checkouts
+  (`wfc-commit-gate.lock` in the temp folder, taken by
   `scripts/Start-CommitGate.ps1`; the progress window is likewise a single
   instance). Do not start a second `git commit`, build or `ctest` run in the
   same checkout while a gate is running, and do not edit sources until it
