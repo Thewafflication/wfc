@@ -1860,6 +1860,20 @@ std::int32_t via_engine_long(std::string_view function,
     return values;
 }
 
+// Which of the arguments in the block were left out.
+[[nodiscard]] std::uint32_t omitted_in(const std::int32_t count,
+                                       const char* block) {
+    std::uint32_t mask = 0;
+    for (std::int32_t i = 0; i < count && i < 32; ++i) {
+        RtVariant* handle;
+        std::memcpy(&handle, block + 8 * i, sizeof(handle));
+        if (handle == &g_missing) {
+            mask |= std::uint32_t{1} << i;
+        }
+    }
+    return mask;
+}
+
 RtVariant* host_global(const RtString* name) {
     wfc::detail::NativeError problem;
     auto result = engine().global(std::string(view_of(name)), problem);
@@ -2137,6 +2151,7 @@ RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
                                                call, value, failure);
         if (!found) {
             // A form of compiled code: the rest is the form of the engine.
+            wfc::detail::NativeEngine::omit_arguments(omitted_in(count, block));
             result = engine().member_get(value_of(object), lower_text(names),
                                          arguments, problem);
         } else if (failure.number != 0) {
@@ -2146,6 +2161,7 @@ RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
             result = std::move(value);
         }
     } else {
+        wfc::detail::NativeEngine::omit_arguments(omitted_in(count, block));
         result = engine().member_get(
             value_of(object), std::string(view_of(name)), arguments, problem);
     }
@@ -2185,6 +2201,7 @@ void variant_member_put(const RtVariant* object, const RtString* name,
         const bool found = call_member_by_name(compiled, names, true, &assigned,
                                                call, ignored, failure);
         if (!found) {
+            wfc::detail::NativeEngine::omit_arguments(omitted_in(count, block));
             if (!engine().member_put(value_of(object), lower_text(names),
                                      arguments, assigned, is_set != 0,
                                      problem)) {
@@ -2196,6 +2213,7 @@ void variant_member_put(const RtVariant* object, const RtString* name,
         }
         return;
     }
+    wfc::detail::NativeEngine::omit_arguments(omitted_in(count, block));
     if (!engine().member_put(value_of(object), std::string(view_of(name)),
                              arguments, value_of(value), is_set != 0,
                              problem)) {

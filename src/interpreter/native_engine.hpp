@@ -41,6 +41,9 @@ public:
     NativeEngine(const NativeEngine&) = delete;
     NativeEngine& operator=(const NativeEngine&) = delete;
 
+    // The arguments of the next member call that are left out (bit i set).
+    static void omit_arguments(std::uint32_t mask);
+
     // `left op right` for + - * / \ mod & ^ = <> < > <= >= and or xor eqv imp.
     // nullopt means an error (filled in).
     // `left_variant` and `right_variant` say an operand is a Variant (a number

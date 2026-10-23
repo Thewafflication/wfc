@@ -486,6 +486,9 @@ struct NativeSupport {
         return result;
     }
 
+    // The arguments of the next member call that were left out (bit i).
+    static inline std::uint32_t omitted_ = 0;
+
     // `name(wfcarg1, wfcarg2, ...)`: the member and its arguments as source.
     static std::string member_text(const std::string& name,
                                    const std::size_t count,
@@ -494,11 +497,16 @@ struct NativeSupport {
         if (count > 0) {
             text += '(';
             for (std::size_t i = 0; i < count; ++i) {
-                text +=
-                    (i > 0 ? ", wfcarg" : "wfcarg") + std::to_string(first + i);
+                if (i > 0) {
+                    text += ", ";
+                }
+                if ((omitted_ >> i & 1U) == 0) {
+                    text += "wfcarg" + std::to_string(first + i);
+                }
             }
             text += ')';
         }
+        omitted_ = 0;
         return text;
     }
 
@@ -920,6 +928,10 @@ bool NativeEngine::start(EngineSetup setup, NativeError& error) {
 std::optional<Value> NativeEngine::global(const std::string& name,
                                           NativeError& error) {
     return NativeSupport::global(*interpreter_, name, error);
+}
+
+void NativeEngine::omit_arguments(const std::uint32_t mask) {
+    NativeSupport::omitted_ = mask;
 }
 
 std::optional<Value> NativeEngine::member_get(const Value& object,

@@ -709,11 +709,12 @@ private:
         const std::vector<std::string>& stoppers) {
         std::vector<StmtPtr> result;
         skip_ends();
-        while (!at_end_of_file() && !at_stopper(stoppers)) {
+        while (!at_end_of_file() && !at_stopper(stoppers) &&
+               closing_loops_ == 0) {
             result.push_back(statement());
             skip_ends();
         }
-        if (at_end_of_file()) {
+        if (at_end_of_file() && closing_loops_ == 0) {
             fail("the block is not closed");
         }
         return result;
@@ -1626,7 +1627,11 @@ private:
             call->text = chain->text;
             call->operands.push_back(std::move(chain->operands[0]));
             while (!at_end_of_statement() && !is_word("else")) {
-                call->operands.push_back(expression());
+                if (is_symbol(",")) {
+                    call->operands.push_back(nullptr);  // omitted
+                } else {
+                    call->operands.push_back(expression());
+                }
                 if (!accept_symbol(",")) {
                     break;
                 }
@@ -1766,6 +1771,26 @@ private:
         return result;
     }
 
+    // `Next`, its optional variable and, in `Next c, r`, the variables of the
+    // loops around it, which this Next closes as well.
+    void finish_next() {
+        if (closing_loops_ > 0) {
+            --closing_loops_;
+            return;
+        }
+        expect_word("next");
+        if (current().kind == TokenKind::identifier) {
+            advance();
+            while (accept_symbol(",")) {
+                if (current().kind != TokenKind::identifier) {
+                    fail("expected a loop variable");
+                }
+                advance();
+                ++closing_loops_;
+            }
+        }
+    }
+
     [[nodiscard]] StmtPtr for_statement() {
         auto result = make(StmtKind::for_loop);
         advance();
@@ -1779,10 +1804,7 @@ private:
             expect_word("in");
             result->expr = expression();
             result->body = block({"next"});
-            expect_word("next");
-            if (current().kind == TokenKind::identifier) {
-                advance();  // the optional variable after Next
-            }
+            finish_next();
             return result;
         }
         if (current().kind != TokenKind::identifier) {
@@ -1798,10 +1820,7 @@ private:
             result->step = expression();
         }
         result->body = block({"next"});
-        expect_word("next");
-        if (current().kind == TokenKind::identifier) {
-            advance();  // the optional variable after Next
-        }
+        finish_next();
         return result;
     }
 
@@ -2158,7 +2177,11 @@ private:
                 field->kind = ExprKind::member_call;
                 if (!accept_symbol(")")) {
                     do {
-                        field->operands.push_back(expression());
+                        if (is_symbol(",")) {
+                            field->operands.push_back(nullptr);  // omitted
+                        } else {
+                            field->operands.push_back(expression());
+                        }
                     } while (accept_symbol(","));
                     expect_symbol(")");
                 }
@@ -2169,6 +2192,7 @@ private:
     }
 
     std::vector<Token> tokens_;
+    int closing_loops_{};  // loops still closed by an earlier `Next a, b`
     std::string default_member_;  // set by an Attribute line in a procedure
     const ParseOptions& options_;
     std::size_t index_{};

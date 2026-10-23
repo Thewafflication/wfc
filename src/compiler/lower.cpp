@@ -1203,6 +1203,10 @@ private:
     // declared (and zeroed) when the procedure starts, as in VB6.
     void declare_locals_of(const std::vector<StmtPtr>& statements) {
         for (const auto& statement : statements) {
+            if (statement->kind == StmtKind::const_decl) {
+                // Array bounds may name it.
+                declare_constants(statement->constants, local_constants_);
+            }
             if (statement->kind == StmtKind::dim) {
                 for (const auto& declaration : statement->declarations) {
                     declare_local(declaration);
@@ -1576,8 +1580,9 @@ private:
             locals_[declaration.name] = variable;
             owned_slots_.push_back(Owned{handle, Service::array_release});
             if (!declaration.bounds.empty()) {
-                emit_array_allocation(variable, declaration.bounds, true, false,
-                                      true);
+                const bool constant = bounds_constant(declaration.bounds);
+                emit_array_allocation(variable, declaration.bounds, constant,
+                                      false, constant);
             }
             return;
         }
@@ -1611,8 +1616,9 @@ private:
             locals_[declaration.name] = variable;
             owned_slots_.push_back(Owned{slot, Service::array_release});
             if (!declaration.bounds.empty()) {
-                emit_array_allocation(variable, declaration.bounds, true, false,
-                                      true);
+                const bool constant = bounds_constant(declaration.bounds);
+                emit_array_allocation(variable, declaration.bounds, constant,
+                                      false, constant);
             }
             return;
         }
@@ -1675,6 +1681,24 @@ private:
         const int index = static_cast<int>(program_.strings.size() - 1U);
         descriptors_[udt] = index;
         return index;
+    }
+
+    // Whether every bound folds to a constant (otherwise the array is
+    // dimensioned from the values of the bounds at run time).
+    [[nodiscard]] bool bounds_constant(const std::vector<ArrayBound>& bounds) {
+        for (const auto& bound : bounds) {
+            for (const Expr* expression : {bound.low.get(), bound.high.get()}) {
+                if (expression == nullptr) {
+                    continue;
+                }
+                try {
+                    static_cast<void>(fold(*expression));
+                } catch (const LowerFailure&) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // Dimensions an array: the bounds are constants (`constant`) or
@@ -1866,8 +1890,7 @@ private:
                 lower_select(statement);
                 break;
             case StmtKind::const_decl:
-                declare_constants(statement.constants, local_constants_);
-                break;
+                break;  // declared with the locals of the procedure
             case StmtKind::label: {
                 if (statement.maybe_call &&
                     (signatures_.contains(statement.text) ||
@@ -2018,6 +2041,29 @@ private:
                      statement.at);
             }
             copy_record(target, source, statement.at);
+            return;
+        }
+        if (!statement.items.empty() && !target.is_array &&
+            target.type == VbType::variant) {
+            // `d(key) = value` on an object: its default member is set.
+            std::string text = "wfcarg1(";
+            std::vector<EngineArgument> list;
+            list.push_back(EngineArgument{nullptr, 'i', std::nullopt});
+            Expr self;
+            self.kind = ExprKind::name;
+            self.text = statement.text;
+            self.at = statement.at;
+            list.push_back(EngineArgument{&self, 'i', std::nullopt});
+            for (std::size_t i = 0; i < statement.items.size(); ++i) {
+                text += (i == 0 ? "" : ", ") + std::string("wfcarg") +
+                        std::to_string(i + 2);
+                list.push_back(EngineArgument{statement.items[i].get(), 'i',
+                                              std::nullopt});
+            }
+            text += ") = wfcarg" + std::to_string(statement.items.size() + 2);
+            list.push_back(
+                EngineArgument{statement.expr.get(), 'i', std::nullopt});
+            static_cast<void>(emit_engine_statement(text, list, statement.at));
             return;
         }
         const auto value = lower_expression(*statement.expr);
@@ -4187,8 +4233,14 @@ private:
         std::vector<Value> boxed;
         for (const Expr* argument : arguments) {
             if (argument == nullptr) {
-                fail("an omitted argument is not compiled for this call yet",
-                     at);
+                // The runtime sees the argument as left out.
+                Value missing;
+                missing.type = VbType::variant;
+                missing.operand = new_owned_variant();
+                builder_->runtime(Service::variant_missing, {}, missing.operand,
+                                  true);
+                boxed.push_back(missing);
+                continue;
             }
             boxed.push_back(to_variant(lower_expression(*argument), at));
         }
