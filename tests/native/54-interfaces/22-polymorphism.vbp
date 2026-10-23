@@ -1,0 +1,5 @@
+Module=Main; 22-polymorphism.bas
+Class=IShape; 22-polymorphism.cls.ishape
+Class=Square; 22-polymorphism.cls.square
+Class=Circle2; 22-polymorphism.cls.circle
+Startup="Sub Main"

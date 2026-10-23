@@ -1183,6 +1183,7 @@ static_assert(sizeof(RtObject) <= kObjectHeaderSize);
 std::uint8_t* g_image_base = nullptr;
 
 void object_release(RtObject* object);
+void events_forget(RtObject* object);
 
 // Releases the counted handle at `cell`, of the given kind.
 void release_cell(void* cell, const std::int32_t kind) {
@@ -1250,8 +1251,59 @@ void object_release(RtObject* object) {
                      object->record->handles[2 * i + 1]);
     }
     g_wrappers.erase(object);
+    events_forget(object);
     delete object->store;
     std::free(object);
+}
+
+// The objects that listen to the events of an object (WithEvents): the
+// handler of event E is the method prefix + E of the sink.
+struct EventSink final {
+    RtObject* sink;
+    std::string prefix;
+};
+
+std::unordered_map<RtObject*, std::vector<EventSink>> g_event_sinks;
+
+void events_attach(RtObject* source, RtObject* sink, const RtString* prefix) {
+    if (source == nullptr || sink == nullptr) {
+        return;
+    }
+    auto& list = g_event_sinks[source];
+    const std::string text(view_of(prefix));
+    for (const auto& item : list) {
+        if (item.sink == sink && item.prefix == text) {
+            return;
+        }
+    }
+    list.push_back(EventSink{sink, text});
+}
+
+void events_detach(RtObject* source, RtObject* sink, const RtString* prefix) {
+    const auto found = g_event_sinks.find(source);
+    if (source == nullptr || found == g_event_sinks.end()) {
+        return;
+    }
+    const std::string text(view_of(prefix));
+    auto& list = found->second;
+    list.erase(std::remove_if(list.begin(), list.end(),
+                              [&](const EventSink& item) {
+                                  return item.sink == sink &&
+                                         item.prefix == text;
+                              }),
+               list.end());
+}
+
+// An object that goes away: it has no sinks and is nobody's sink.
+void events_forget(RtObject* object) {
+    g_event_sinks.erase(object);
+    for (auto& [source, list] : g_event_sinks) {
+        list.erase(std::remove_if(list.begin(), list.end(),
+                                  [&](const EventSink& item) {
+                                      return item.sink == object;
+                                  }),
+                   list.end());
+    }
 }
 
 void object_assign(RtObject** variable, RtObject* value) {
@@ -1270,12 +1322,52 @@ std::int32_t object_is(const RtObject* a, const RtObject* b) {
     return a == b ? -1 : 0;
 }
 
+// Whether the class of the record implements the interface named `name`
+// (lower case): its member table has the marker "implements:name".
+[[nodiscard]] bool record_implements(const ClassRecord* record,
+                                     const std::string& name) {
+    const std::string key = "implements:" + name;
+    const char* at =
+        reinterpret_cast<const char*>(&record->handles[2 * record->count]) +
+        record->name_length;
+    std::int32_t count = 0;
+    std::memcpy(&count, at, sizeof(count));
+    at += sizeof(count);
+    for (std::int32_t i = 0; i < count; ++i) {
+        std::int32_t length = 0;
+        std::memcpy(&length, at, sizeof(length));
+        at += 8;
+        if (static_cast<std::size_t>(length) == key.size() &&
+            std::memcmp(at, key.data(), key.size()) == 0) {
+            return true;
+        }
+        at += length;
+    }
+    return false;
+}
+
+[[nodiscard]] bool object_is_a(const RtObject* object,
+                               const RtString* record_literal) {
+    if (object == nullptr) {
+        return false;
+    }
+    if (reinterpret_cast<const char*>(object->record) == record_literal->data) {
+        return true;
+    }
+    const auto* target =
+        reinterpret_cast<const ClassRecord*>(record_literal->data);
+    std::string name(
+        reinterpret_cast<const char*>(&target->handles[2 * target->count]),
+        static_cast<std::size_t>(target->name_length));
+    for (auto& c : name) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return record_implements(object->record, name);
+}
+
 std::int32_t object_is_class(const RtObject* object,
                              const RtString* record_literal) {
-    return object != nullptr && reinterpret_cast<const char*>(object->record) ==
-                                    record_literal->data
-               ? -1
-               : 0;
+    return object_is_a(object, record_literal) ? -1 : 0;
 }
 
 std::int32_t object_is_null(const RtObject* object) {
@@ -1386,6 +1478,52 @@ void call_thunk(RtObject* object, const std::int32_t offset,
         variant_release(handle);
     }
     object_release(object);
+}
+
+// Calls a member of a compiled object by name: `names` are alternatives
+// separated by '|' (an interface member, then the member of the class
+// itself). False when the object has none of them.
+[[nodiscard]] bool call_member_by_name(
+    RtObject* object, const std::string& names, const bool put,
+    const wfc::detail::Value* assigned,
+    std::vector<wfc::detail::CallArgument>& arguments,
+    wfc::detail::Value& result, wfc::detail::NativeFailure& failure) {
+    std::size_t begin = 0;
+    while (begin <= names.size()) {
+        auto end = names.find('|', begin);
+        if (end == std::string::npos) {
+            end = names.size();
+        }
+        const std::string name = lower_text(names.substr(begin, end - begin));
+        begin = end + 1U;
+        if (!put) {
+            for (const char* kind : {"call:", "get:"}) {
+                const auto offset = find_thunk(object->record, kind + name);
+                if (offset >= 0) {
+                    result = wfc::detail::Value{wfc::detail::Empty{}};
+                    call_thunk(object, offset, arguments, nullptr, result,
+                               failure);
+                    return true;
+                }
+            }
+        } else {
+            const bool is_object =
+                std::holds_alternative<wfc::detail::ObjectInstance>(
+                    *assigned) ||
+                std::holds_alternative<wfc::detail::Nothing>(*assigned);
+            for (const char* kind : is_object ? std::array{"set:", "let:"}
+                                              : std::array{"let:", "set:"}) {
+                const auto offset = find_thunk(object->record, kind + name);
+                if (offset >= 0) {
+                    wfc::detail::Value ignored;
+                    call_thunk(object, offset, arguments, assigned, ignored,
+                               failure);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 class CompiledObject final : public wfc::detail::NativeObject {
@@ -1730,12 +1868,81 @@ RtVariant* host_new(const RtString* name) {
     return box(std::move(*result));
 }
 
+// `RaiseEvent Name(args)`: every sink of the object runs its handler.
+void raise_event(RtObject* source, const RtString* name,
+                 const std::int32_t count, const char* block) {
+    const auto found = g_event_sinks.find(source);
+    if (found == g_event_sinks.end()) {
+        return;
+    }
+    const auto sinks = found->second;  // handlers may change the list
+    auto arguments = block_values(count, block);
+    // By-reference arguments (Cancel) are handed back through the block.
+    const auto hand_back = [&]() {
+        auto* slots = const_cast<char*>(block);
+        for (std::int32_t i = 0; i < count; ++i) {
+            RtVariant* old;
+            std::memcpy(&old, slots + 8 * i, sizeof(old));
+            RtVariant* now = box(arguments[static_cast<std::size_t>(i)]);
+            variant_release(old);
+            std::memcpy(slots + 8 * i, &now, sizeof(now));
+        }
+    };
+    for (const auto& item : sinks) {
+        std::vector<wfc::detail::CallArgument> call;
+        for (auto& argument : arguments) {
+            call.push_back(
+                wfc::detail::CallArgument{argument, &argument, false, {}});
+        }
+        wfc::detail::Value ignored{wfc::detail::Empty{}};
+        wfc::detail::NativeFailure failure;
+        object_addref(item.sink);
+        static_cast<void>(call_member_by_name(
+            item.sink, item.prefix + std::string(view_of(name)), false, nullptr,
+            call, ignored, failure));
+        object_release(item.sink);
+        if (failure.number != 0) {
+            raise_error(static_cast<std::int32_t>(failure.number));
+            g_error.description = failure.description;
+            return;
+        }
+    }
+    hand_back();
+}
+
 RtVariant* variant_member_get(const RtVariant* object, const RtString* name,
                               const std::int32_t count, const char* block) {
     wfc::detail::NativeError problem;
     auto arguments = block_values(count, block);
-    auto result = engine().member_get(
-        value_of(object), std::string(view_of(name)), arguments, problem);
+    std::optional<wfc::detail::Value> result;
+    bool valid = false;
+    if (RtObject* compiled = object_of(value_of(object), valid);
+        valid && compiled != nullptr) {
+        // An object of compiled code: its members are called directly.
+        std::vector<wfc::detail::CallArgument> call;
+        for (auto& argument : arguments) {
+            call.push_back(
+                wfc::detail::CallArgument{argument, &argument, false, {}});
+        }
+        wfc::detail::Value value{wfc::detail::Empty{}};
+        wfc::detail::NativeFailure failure;
+        const std::string names(view_of(name));
+        const bool found = call_member_by_name(compiled, names, false, nullptr,
+                                               call, value, failure);
+        if (!found) {
+            // A form of compiled code: the rest is the form of the engine.
+            result = engine().member_get(value_of(object), lower_text(names),
+                                         arguments, problem);
+        } else if (failure.number != 0) {
+            problem.number = static_cast<int>(failure.number);
+            problem.description = failure.description;
+        } else {
+            result = std::move(value);
+        }
+    } else {
+        result = engine().member_get(
+            value_of(object), std::string(view_of(name)), arguments, problem);
+    }
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;
@@ -1756,9 +1963,36 @@ void variant_member_put(const RtVariant* object, const RtString* name,
                         const std::int32_t count, const char* block,
                         const RtVariant* value, const std::int32_t is_set) {
     wfc::detail::NativeError problem;
+    auto arguments = block_values(count, block);
+    bool valid = false;
+    if (RtObject* compiled = object_of(value_of(object), valid);
+        valid && compiled != nullptr) {
+        std::vector<wfc::detail::CallArgument> call;
+        for (auto& argument : arguments) {
+            call.push_back(
+                wfc::detail::CallArgument{argument, &argument, false, {}});
+        }
+        wfc::detail::Value ignored;
+        wfc::detail::NativeFailure failure;
+        const std::string names(view_of(name));
+        const wfc::detail::Value assigned = value_of(value);
+        const bool found = call_member_by_name(compiled, names, true, &assigned,
+                                               call, ignored, failure);
+        if (!found) {
+            if (!engine().member_put(value_of(object), lower_text(names),
+                                     arguments, assigned, is_set != 0,
+                                     problem)) {
+                raise_engine_error(problem);
+            }
+        } else if (failure.number != 0) {
+            raise_error(static_cast<std::int32_t>(failure.number));
+            g_error.description = failure.description;
+        }
+        return;
+    }
     if (!engine().member_put(value_of(object), std::string(view_of(name)),
-                             block_values(count, block), value_of(value),
-                             is_set != 0, problem)) {
+                             arguments, value_of(value), is_set != 0,
+                             problem)) {
         raise_engine_error(problem);
     }
 }
@@ -1772,9 +2006,7 @@ std::int32_t variant_type_of(const RtVariant* object,
                              const RtString* record_literal) {
     bool valid = false;
     const RtObject* compiled = object_of(value_of(object), valid);
-    return valid && compiled != nullptr &&
-                   reinterpret_cast<const char*>(compiled->record) ==
-                       record_literal->data
+    return valid && compiled != nullptr && object_is_a(compiled, record_literal)
                ? -1
                : 0;
 }
@@ -2043,6 +2275,9 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&thunk_store),
         address_of(&host_new),
         address_of(&array_assign),
+        address_of(&events_attach),
+        address_of(&events_detach),
+        address_of(&raise_event),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

@@ -1,0 +1,18 @@
+Option Explicit
+Implements IShape
+Private side As Double
+Public Sub Init(ByVal s As Double)
+    side = s
+End Sub
+Private Property Get IShape_Name() As String
+    IShape_Name = "square"
+End Property
+Private Property Get IShape_Area() As Double
+    IShape_Area = side * side
+End Property
+Private Property Let IShape_Scale(ByVal f As Double)
+    side = side * f
+End Property
+Private Function IShape_Describe() As String
+    IShape_Describe = IShape_Name & " " & IShape_Area
+End Function

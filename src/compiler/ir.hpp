@@ -235,7 +235,12 @@ enum class Service : int {
     thunk_store = 101,   // (i, handle)
     host_new = 102,      // (form name literal) -> new handle: a new form
     array_assign = 103,  // (array* variable, array) copies the array
-    count = 104,
+    // Events (`RaiseEvent`, `WithEvents`): the sinks of an object are
+    // registered by the prefix of their handlers ("m_" for m_Event).
+    events_attach = 104,  // (source, sink, prefix literal)
+    events_detach = 105,  // (source, sink, prefix literal)
+    raise_event = 106,    // (source, event name literal, count, block)
+    count = 107,
 };
 
 struct Instruction final {

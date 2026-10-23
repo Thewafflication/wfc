@@ -1,0 +1,9 @@
+Option Explicit
+Public Property Get Name() As String
+End Property
+Public Property Get Area() As Double
+End Property
+Public Property Let Scale(ByVal f As Double)
+End Property
+Public Function Describe() As String
+End Function

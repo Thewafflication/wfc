@@ -1,0 +1,4 @@
+Module=Main; 23-events.bas
+Class=Button; 23-events.cls.button
+Class=Form1; 23-events.cls.form
+Startup="Sub Main"

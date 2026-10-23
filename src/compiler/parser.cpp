@@ -368,9 +368,22 @@ private:
             declare_statement(module);
             return;
         }
-        if (is_word("event") || is_word("implements") ||
-            is_word("withevents")) {
-            fail(current().spelling + " is not compiled yet");
+        if (accept_word("implements")) {
+            if (current().kind != TokenKind::identifier) {
+                fail("expected the name of an interface");
+            }
+            module.implements.push_back(current().text);
+            advance();
+            expect_end_of_statement();
+            return;
+        }
+        if (accept_word("event")) {
+            // `Event Name(args)`: raised by RaiseEvent; nothing to compile.
+            while (!at_end_of_statement()) {
+                advance();
+            }
+            expect_end_of_statement();
+            return;
         }
         if (is_word("type")) {
             type_declaration(module);
@@ -382,8 +395,10 @@ private:
             return;
         }
         if (accept_word("dim") || saw_scope) {
+            const bool with_events = accept_word("withevents");
             do {
                 auto declaration = declarator();
+                declaration.with_events = with_events;
                 declaration.is_public = saw_public;
                 module.globals.push_back(std::move(declaration));
             } while (accept_symbol(","));
@@ -960,8 +975,27 @@ private:
             return surface_statement(make_expr(ExprKind::name, here()),
                                      keyword);
         }
+        if (word == "raiseevent") {
+            // `RaiseEvent Name(args)`: the sinks of the object are called.
+            auto result = make(StmtKind::call);
+            advance();
+            if (current().kind != TokenKind::identifier) {
+                fail("expected the name of an event");
+            }
+            result->text = "wfcraise_" + without_suffix(current().text);
+            advance();
+            if (accept_symbol("(")) {
+                if (!accept_symbol(")")) {
+                    do {
+                        result->items.push_back(expression());
+                    } while (accept_symbol(","));
+                    expect_symbol(")");
+                }
+            }
+            return result;
+        }
         if (word == "gosub" || word == "on" || word == "static" ||
-            word == "line" || word == "raiseevent") {
+            word == "line") {
             fail("the statement " + current().spelling +
                  " is not compiled yet");
         }

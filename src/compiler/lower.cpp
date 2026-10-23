@@ -48,7 +48,8 @@ struct Variable final {
     // The index of the user-defined type when type is record, of the class
     // when type is object (-1: late bound).
     int udt{-1};
-    bool auto_new{};  // `Dim x As New Class`: created on first use
+    bool auto_new{};           // `Dim x As New Class`: created on first use
+    std::string event_prefix;  // a WithEvents variable: "name_"
 };
 
 // A field of a user-defined type or a class and where it lies.
@@ -60,6 +61,7 @@ struct FieldInfo final {
     bool is_array{};
     bool is_public{};
     bool auto_new{};
+    bool with_events{};
     std::int64_t lower{};         // an array inside a record: first index,
     std::int64_t count{1};        // number of elements,
     std::int64_t element_size{};  // and the size of an element
@@ -114,6 +116,8 @@ struct ClassInfo final {
     int terminate{-1};
     std::string default_member;  // the member `x(args)` calls
     bool is_form{};              // names it does not declare are the form's
+    bool is_interface{};         // another class `Implements` it
+    std::set<std::string> implements;  // the interfaces it implements
 };
 
 [[nodiscard]] bool is_integral(const VbType type) {
@@ -397,6 +401,7 @@ public:
     ir::Program run() {
         register_externals();
         register_classes();
+        mark_interfaces();
         declare_enums();
         declare_constants(module_.constants, constants_);
         declare_types();
@@ -889,8 +894,23 @@ private:
             info.name = module->name;
             info.module = module;
             info.is_form = module->is_form;
+            info.implements.insert(module->implements.begin(),
+                                   module->implements.end());
             class_index_[info.name] = static_cast<int>(classes_.size());
             classes_.push_back(std::move(info));
+        }
+    }
+
+    // Which classes are interfaces: some class implements them.
+    void mark_interfaces() {
+        for (const auto& info : classes_) {
+            for (const auto& name : info.implements) {
+                if (const auto found = class_index_.find(name);
+                    found != class_index_.end()) {
+                    classes_[static_cast<std::size_t>(found->second)]
+                        .is_interface = true;
+                }
+            }
         }
     }
 
@@ -920,6 +940,7 @@ private:
                 entry.is_array = declaration.is_array;
                 entry.is_public = declaration.is_public;
                 entry.auto_new = declaration.is_new;
+                entry.with_events = declaration.with_events;
                 std::int64_t size = 4;
                 int kind = -1;
                 std::vector<std::int64_t> inner_strings;
@@ -1063,6 +1084,12 @@ private:
             member.function = info.methods.at(procedure.name).index;
             members.push_back(std::move(member));
         }
+        // The interfaces the class implements are known by their markers.
+        for (const auto& name : info.implements) {
+            ir::ClassMember marker;
+            marker.key = "implements:" + name;
+            members.push_back(std::move(marker));
+        }
         // How the shared runtime makes an object of the class (a form).
         ir::ClassMember made;
         made.key = "new:";
@@ -1137,8 +1164,12 @@ private:
             const auto where =
                 pointer_plus(me_, ir::kObjectHeader + field.offset);
             fields_[field.name] =
-                Variable{ir::indirect(where.value), field.type, field.is_array,
-                         field.udt, field.auto_new};
+                Variable{ir::indirect(where.value),
+                         field.type,
+                         field.is_array,
+                         field.udt,
+                         field.auto_new,
+                         field.with_events ? field.name + "_" : std::string{}};
         }
     }
 
@@ -1544,7 +1575,11 @@ private:
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
             builder_->move_wide(slot, ir::immediate(0));
-            const auto variable = Variable{slot, declaration.type, true};
+            const auto variable =
+                Variable{slot, declaration.type, true,
+                         declaration.type == VbType::object
+                             ? class_of(declaration.type_name, declaration.at)
+                             : -1};
             locals_[declaration.name] = variable;
             owned_slots_.push_back(Owned{slot, Service::array_release});
             if (!declaration.bounds.empty()) {
@@ -2026,7 +2061,9 @@ private:
                 return true;
             case ExprKind::call: {
                 const auto array = find_array(expression.text);
-                udt = array.has_value() ? array->udt : -1;
+                udt = array.has_value() && array->type == VbType::record
+                          ? array->udt
+                          : -1;
                 return true;
             }
             case ExprKind::member:
@@ -2953,6 +2990,13 @@ private:
             return emit_call(*own, name, own_arguments, me_, nullptr, at);
         }
         const auto found = signatures_.find(name);
+        if (found == signatures_.end() && is_control(name)) {
+            std::vector<const Expr*> pointers;
+            for (const auto& argument : arguments) {
+                pointers.push_back(argument.get());
+            }
+            return late_get(host_of_me(at), name, pointers, at);
+        }
         if (found == signatures_.end()) {
             for (const auto& argument : arguments) {
                 if (!argument) {
@@ -2964,6 +3008,25 @@ private:
             if (const auto external = externals_.find(name);
                 external != externals_.end()) {
                 return lower_external_call(external->second, arguments, at);
+            }
+            if (name.rfind("wfcraise_", 0) == 0) {
+                if (current_class_ < 0) {
+                    fail("RaiseEvent belongs in a class", at);
+                }
+                std::vector<const Expr*> list;
+                for (const auto& argument : arguments) {
+                    list.push_back(argument.get());
+                }
+                const auto boxed = box_arguments(list, at);
+                std::vector<Operand> slots;
+                const Operand block = argument_block(boxed, &slots);
+                builder_->runtime(
+                    Service::raise_event,
+                    {me_, name_literal(name.substr(9)),
+                     ir::immediate(static_cast<std::int64_t>(boxed.size())),
+                     block});
+                write_back_arguments(boxed, slots, list, at);
+                return Value{builder_->new_temp(), VbType::none};
             }
             if (name == "wfcdebugprint") {
                 for (const auto& argument : arguments) {
@@ -3109,14 +3172,30 @@ private:
 
     // Checks that an object value fits an object parameter or variable of the
     // class `cls` (-1: any).
-    static void require_class(const int cls, const Value& value,
-                              const Position at) {
+    void require_class(const int cls, const Value& value,
+                       const Position at) const {
         if (value.type != VbType::object) {
             fail("an object is needed here", at);
         }
-        if (cls >= 0 && value.cls >= 0 && cls != value.cls) {
+        if (cls >= 0 && value.cls >= 0 && cls != value.cls &&
+            !classes_[static_cast<std::size_t>(value.cls)].implements.contains(
+                classes_[static_cast<std::size_t>(cls)].name)) {
             fail("the object is of another class", at);
         }
+    }
+
+    // A member of an interface is called by name on whatever object holds it:
+    // the object implements it as Interface_Member, or is of the interface
+    // class itself.
+    [[nodiscard]] bool by_interface(const Value& base) const {
+        return base.type == VbType::object && base.cls >= 0 &&
+               classes_[static_cast<std::size_t>(base.cls)].is_interface;
+    }
+
+    [[nodiscard]] std::string interface_member(const Value& base,
+                                               const std::string& name) const {
+        return classes_[static_cast<std::size_t>(base.cls)].name + "_" + name +
+               "|" + name;
     }
 
     // The operand a ByVal parameter receives.
@@ -3890,6 +3969,18 @@ private:
         return form != nullptr && ui::find_member(*form, name, '*') != nullptr;
     }
 
+    // Whether the name is a control of the form: it hides a function of the
+    // library of the same name (a Timer control called Timer).
+    [[nodiscard]] bool is_control(const std::string& name) const {
+        if (!in_form()) {
+            return false;
+        }
+        const auto& info = classes_[static_cast<std::size_t>(current_class_)];
+        const auto found = options_.form_controls.find(info.name);
+        return found != options_.form_controls.end() &&
+               found->second.contains(name);
+    }
+
     // `Dim name As Variant` where the name is first used.
     Variable declare_implicit(const std::string& name) {
         const auto slot = builder_->new_temp();
@@ -3950,6 +4041,27 @@ private:
             static_cast<std::int64_t>(program_.strings.size() - 1U));
     }
 
+    // The slots now hold the values after the call (the service released the
+    // old ones): the temporaries own them, and a variable that was passed gets
+    // its value back (by reference).
+    void write_back_arguments(const std::vector<Value>& boxed,
+                              const std::vector<Operand>& slots,
+                              const std::vector<const Expr*>& arguments,
+                              const Position at) {
+        for (std::size_t i = 0; i < boxed.size(); ++i) {
+            builder_->move_wide(boxed[i].operand, slots[boxed.size() - 1 - i]);
+            const Expr* argument = arguments[i];
+            if (argument != nullptr && argument->kind == ExprKind::name &&
+                !argument->parenthesized && has_variable(argument->text)) {
+                const auto variable = find_variable(argument->text, at);
+                if (!variable.is_array && variable.type != VbType::record &&
+                    variable.type != VbType::object) {
+                    store_value(variable, boxed[i], at);
+                }
+            }
+        }
+    }
+
     // `object.name(arguments)` read or called, found by name.
     [[nodiscard]] Value late_get(const Value& base, const std::string& name,
                                  const std::vector<const Expr*>& arguments,
@@ -3966,21 +4078,7 @@ private:
             {object.operand, name_literal(name),
              ir::immediate(static_cast<std::int64_t>(boxed.size())), block},
             result.operand, true);
-        // The slots now hold the values after the call (the service released
-        // the old ones): the temporaries own them, and a variable that was
-        // passed gets its value back (by reference).
-        for (std::size_t i = 0; i < boxed.size(); ++i) {
-            builder_->move_wide(boxed[i].operand, slots[boxed.size() - 1 - i]);
-            const Expr* argument = arguments[i];
-            if (argument != nullptr && argument->kind == ExprKind::name &&
-                !argument->parenthesized && has_variable(argument->text)) {
-                const auto variable = find_variable(argument->text, at);
-                if (!variable.is_array && variable.type != VbType::record &&
-                    variable.type != VbType::object) {
-                    store_value(variable, boxed[i], at);
-                }
-            }
-        }
+        write_back_arguments(boxed, slots, arguments, at);
         return result;
     }
 
@@ -4205,6 +4303,10 @@ private:
         if (late_bound(base)) {
             return late_get(base, expression.text, {}, expression.at);
         }
+        if (by_interface(base)) {
+            return late_get(base, interface_member(base, expression.text), {},
+                            expression.at);
+        }
         const auto& info = class_of_value(base, expression.at);
         builder_->runtime(Service::object_check, {base.operand});
         for (const auto& field : info.layout.fields) {
@@ -4256,6 +4358,9 @@ private:
                                     const Position at, const bool want_value) {
         if (late_bound(base)) {
             return late_get(base, name, arguments, at);
+        }
+        if (by_interface(base)) {
+            return late_get(base, interface_member(base, name), arguments, at);
         }
         const auto& info = class_of_value(base, at);
         builder_->runtime(Service::object_check, {base.operand});
@@ -4372,6 +4477,11 @@ private:
             late_put(base, target.text, arguments, value, false, statement.at);
             return;
         }
+        if (by_interface(base)) {
+            late_put(base, interface_member(base, target.text), arguments,
+                     value, false, statement.at);
+            return;
+        }
         const auto& info = class_of_value(base, statement.at);
         builder_->runtime(Service::object_check, {base.operand});
         if (const auto found = info.letters.find(target.text);
@@ -4410,13 +4520,16 @@ private:
             target.kind == ExprKind::member_call) {
             if (!is_record_place(*target.operands[0])) {
                 const auto base = lower_expression(*target.operands[0]);
-                if (late_bound(base)) {
+                if (late_bound(base) || by_interface(base)) {
                     std::vector<const Expr*> arguments;
                     for (std::size_t i = 1; i < target.operands.size(); ++i) {
                         arguments.push_back(target.operands[i].get());
                     }
-                    late_put(base, target.text, arguments, value, true,
-                             statement.at);
+                    late_put(base,
+                             by_interface(base)
+                                 ? interface_member(base, target.text)
+                                 : target.text,
+                             arguments, value, true, statement.at);
                     return;
                 }
                 const auto& info = class_of_value(base, statement.at);
@@ -4473,6 +4586,20 @@ private:
                                 ? from_variant(value, VbType::object, at)
                                 : value;
         require_class(place.udt, object, at);
+        if (!place.event_prefix.empty() && current_class_ >= 0) {
+            // WithEvents: this object stops listening to the one it held and
+            // listens to the new one.
+            const auto prefix = name_literal(place.event_prefix);
+            const auto old = builder_->new_temp();
+            builder_->move_wide(old, place.operand);
+            builder_->runtime(Service::events_detach, {old, me_, prefix});
+            builder_->runtime(Service::object_assign,
+                              {address_of(place.operand), object.operand});
+            const auto now = builder_->new_temp();
+            builder_->move_wide(now, place.operand);
+            builder_->runtime(Service::events_attach, {now, me_, prefix});
+            return;
+        }
         builder_->runtime(Service::object_assign,
                           {address_of(place.operand), object.operand});
     }
@@ -4699,6 +4826,17 @@ private:
             return result;
         }
         const int cls = find_class(expression.text, expression.at);
+        if (operand.cls >= 0 && operand.cls == cls) {
+            // An object of the class itself, or of a subtype in the interface
+            // sense: any object that is set.
+            if (classes_[static_cast<std::size_t>(cls)].is_interface) {
+                const auto empty = builder_->new_temp();
+                builder_->runtime(Service::object_is_null, {operand.operand},
+                                  empty);
+                builder_->emit(Opcode::bit_not, result.operand, empty);
+                return result;
+            }
+        }
         builder_->runtime(
             Service::object_is_class,
             {operand.operand,
@@ -4938,6 +5076,9 @@ private:
                     return lower_err_member(expression);
                 }
                 if (!has_variable(expression.text) &&
+                    !(is_control(expression.text) &&
+                      own_member(expression.text) == nullptr &&
+                      !signatures_.contains(expression.text)) &&
                     (own_member(expression.text) != nullptr ||
                      signatures_.contains(expression.text) ||
                      find_builtin(expression.text) != nullptr ||

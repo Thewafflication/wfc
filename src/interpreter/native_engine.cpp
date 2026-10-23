@@ -410,6 +410,9 @@ struct NativeSupport {
     }
 
     static void fail(Interpreter& in, const int number, NativeError& error) {
+        if (trace_enabled()) {
+            std::fprintf(stderr, "[engine fail] %d\n", number);
+        }
         error.number = number;
         error.description =
             Interpreter::vb_error_description(static_cast<Integer>(number));
@@ -549,6 +552,12 @@ struct NativeSupport {
                            const std::vector<Value>& arguments,
                            const Value& value, const bool is_set,
                            NativeError& error) {
+        if (!std::holds_alternative<ObjectInstance>(object) &&
+            trace_enabled()) {
+            std::fprintf(stderr, "[engine put] %s on a %s", name.c_str(),
+                         type_name(in, object).c_str());
+            std::fputc(10, stderr);
+        }
         if (!std::holds_alternative<ObjectInstance>(object)) {
             fail(in,
                  std::holds_alternative<Nothing>(object) ||

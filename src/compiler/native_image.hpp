@@ -78,6 +78,9 @@ inline std::vector<ImageClass> patch_class_records(
             std::memcpy(image.data() + base + 8U + 4U, &offset, sizeof(offset));
         }
         for (const auto& member : item.members) {
+            if (member.function < 0) {
+                continue;  // a marker ("implements:name"): no code
+            }
             const auto offset = static_cast<std::int32_t>(
                 function_starts[static_cast<std::size_t>(member.function)]);
             std::memcpy(image.data() + base + 8U + member.patch_at, &offset,
