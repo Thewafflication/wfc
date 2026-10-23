@@ -110,6 +110,9 @@ struct NativeSupport {
                 ? in.err_description_
                 : Interpreter::vb_error_description(
                       static_cast<Integer>(error.number));
+        if (in.err_number_ == error.number) {
+            error.source = in.err_source_;
+        }
         in.error_ = wfc::Evaluation{};
     }
 
@@ -606,6 +609,16 @@ struct NativeSupport {
             return array->elements;  // a Variant that holds an array
         }
         const auto* instance = std::get_if<ObjectInstance>(&object);
+        if (instance != nullptr && instance->data->com != nullptr) {
+            // An object of COM lists its items itself.
+            in.execute_ = true;
+            auto elements = in.com_enumerate(*instance->data, 0);
+            if (!elements.has_value()) {
+                take_error(in, error);
+                return std::nullopt;
+            }
+            return elements->elements;
+        }
         if (instance != nullptr && instance->data->native == nullptr) {
             // A class written in Visual Basic lists its items itself (a
             // Collection of the interpreter).

@@ -131,6 +131,11 @@ void Interpreter::com_default_value(Value&) {}
 
 void Interpreter::register_type_libraries() {}
 
+std::vector<std::pair<std::string, std::string>> type_library_constants(
+    const std::vector<std::string>&, const std::string&) {
+    return {};
+}
+
 bool Interpreter::com_connect_events(InstanceData&) {
     return false;
 }
@@ -1369,6 +1374,7 @@ void Interpreter::register_type_libraries() {
         }
     };
     collect(source_);
+    collect(native_scan_text_);  // the compiled program's own text
     std::set<std::string> user_classes;
     const auto lowered = [](std::string text) {
         for (auto& c : text) {
@@ -1503,6 +1509,117 @@ void Interpreter::register_type_libraries() {
         }
         library->Release();
     }
+}
+
+std::vector<std::pair<std::string, std::string>> type_library_constants(
+    const std::vector<std::string>& libraries, const std::string& text) {
+    std::set<std::string> mentioned;
+    std::string word;
+    for (const char c : text + " ") {
+        if (is_identifier_part(c)) {
+            word.push_back(ascii_lower(c));
+        } else if (!word.empty()) {
+            mentioned.insert(std::move(word));
+            word.clear();
+        }
+    }
+    std::vector<std::pair<std::string, std::string>> result;
+    std::set<std::string> seen;
+    if (!libraries.empty()) {
+        ensure_apartment();
+    }
+    for (const auto& spec : libraries) {
+        const auto first = spec.find('#');
+        const auto second =
+            first == std::string::npos ? first : spec.find('#', first + 1U);
+        if (second == std::string::npos) {
+            continue;
+        }
+        GUID library_id{};
+        const auto guid_text = widen(spec.substr(0, first));
+        if (FAILED(CLSIDFromString(guid_text.c_str(), &library_id))) {
+            continue;
+        }
+        const std::string version =
+            spec.substr(first + 1U, second - first - 1U);
+        const auto dot = version.find('.');
+        const WORD major = static_cast<WORD>(std::atoi(version.c_str()));
+        const WORD minor =
+            dot == std::string::npos
+                ? WORD{0}
+                : static_cast<WORD>(std::atoi(version.c_str() + dot + 1U));
+        const std::string path = spec.substr(second + 1U);
+        ITypeLib* library = nullptr;
+        if (FAILED(LoadRegTypeLib(library_id, major, minor, 0, &library)) &&
+            FAILED(LoadRegTypeLib(library_id, major, 0, 0, &library))) {
+            library = nullptr;
+            if (!path.empty()) {
+                const auto wide_path = widen(path);
+                if (FAILED(LoadTypeLibEx(wide_path.c_str(), REGKIND_NONE,
+                                         &library))) {
+                    library = nullptr;
+                }
+            }
+        }
+        if (library == nullptr) {
+            continue;
+        }
+        const UINT count = library->GetTypeInfoCount();
+        for (UINT index = 0; index < count; ++index) {
+            ITypeInfo* info = nullptr;
+            if (FAILED(library->GetTypeInfo(index, &info)) || info == nullptr) {
+                continue;
+            }
+            TYPEATTR* attributes = nullptr;
+            if (SUCCEEDED(info->GetTypeAttr(&attributes)) &&
+                attributes != nullptr) {
+                if (attributes->typekind == TKIND_ENUM ||
+                    attributes->typekind == TKIND_MODULE) {
+                    for (WORD v = 0; v < attributes->cVars; ++v) {
+                        VARDESC* variable = nullptr;
+                        if (FAILED(info->GetVarDesc(v, &variable)) ||
+                            variable == nullptr) {
+                            continue;
+                        }
+                        if (variable->varkind == VAR_CONST &&
+                            variable->lpvarValue != nullptr) {
+                            BSTR member_name = nullptr;
+                            UINT names = 0;
+                            info->GetNames(variable->memid, &member_name, 1,
+                                           &names);
+                            std::string key = narrow(member_name);
+                            SysFreeString(member_name);
+                            for (auto& c : key) {
+                                c = ascii_lower(c);
+                            }
+                            if (mentioned.contains(key) &&
+                                !seen.contains(key) &&
+                                !vba_constant_value(key).has_value()) {
+                                const Value constant =
+                                    variant_to_value(*variable->lpvarValue);
+                                if (const auto* number =
+                                        std::get_if<Integer>(&constant)) {
+                                    result.emplace_back(
+                                        key, std::to_string(*number));
+                                    seen.insert(key);
+                                } else if (const auto* short_number =
+                                               std::get_if<Int16>(&constant)) {
+                                    result.emplace_back(
+                                        key, std::to_string(*short_number));
+                                    seen.insert(key);
+                                }
+                            }
+                        }
+                        info->ReleaseVarDesc(variable);
+                    }
+                }
+                info->ReleaseTypeAttr(attributes);
+            }
+            info->Release();
+        }
+        library->Release();
+    }
+    return result;
 }
 
 namespace {

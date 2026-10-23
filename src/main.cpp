@@ -319,6 +319,14 @@ int prepare_native(const int argument_count, const char* const arguments[],
         }
     }
     info.startup_form = lower(project.startup_form);
+    {
+        std::string everything = source;
+        for (const auto& text : project.class_sources) {
+            everything += '\n' + text;
+        }
+        info.library_constants = wfc::detail::type_library_constants(
+            project.type_libraries, everything);
+    }
     options.vb6_print_spacing = true;
     options.app_properties = project.app_properties;
     options.per_module_option_explicit = project.per_module_option_explicit;

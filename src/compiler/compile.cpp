@@ -462,7 +462,18 @@ CompileResult compile_project(const std::string_view source,
             }
         }
     }
-    auto parsed = parse_module(source, options);
+    // The constants of the type libraries are constants of the module.
+    std::string extended(source);
+    if (!info.library_constants.empty()) {
+        const std::string declared = lower_case(extended);
+        extended += '\n';
+        for (const auto& [name, value] : info.library_constants) {
+            if (declared.find("const " + name) == std::string::npos) {
+                extended += "Const " + name + " = " + value + '\n';
+            }
+        }
+    }
+    auto parsed = parse_module(extended, options);
     if (!parsed.error.empty()) {
         result.error = parsed.error;
         result.error_at = parsed.error_at;

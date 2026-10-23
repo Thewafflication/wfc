@@ -1012,6 +1012,9 @@ void variant_release(RtVariant* handle) {
 void raise_engine_error(const wfc::detail::NativeError& problem) {
     raise_error(problem.number);
     g_error.description = problem.description;
+    if (!problem.source.empty()) {
+        g_error.source = problem.source;
+    }
 }
 
 RtVariant* variant_from_long(const std::int32_t value) {

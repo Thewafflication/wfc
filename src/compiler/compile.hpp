@@ -35,6 +35,8 @@ struct ProjectInfo final {
     std::vector<std::string> form_names;
     std::vector<std::string> module_names;  // lower case
     std::string startup_form;
+    // Constants of the type libraries the project refers to (name, value).
+    std::vector<std::pair<std::string, std::string>> library_constants;
 };
 
 // Parses, checks, lowers and generates code for a standard module and the

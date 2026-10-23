@@ -1945,6 +1945,7 @@ private:
     void lower_assignment(const Stmt& statement) {
         if (!locals_.contains(statement.text) &&
             !globals_.contains(statement.text) &&
+            !fields_.contains(statement.text) &&
             (local_constants_.contains(statement.text) ||
              constants_.contains(statement.text))) {
             fail("'" + statement.text + "' is a constant", statement.at);

@@ -20,9 +20,16 @@ namespace wfc::detail {
 class Interpreter;
 
 // A run-time error the engine reports: the Visual Basic number and text.
+// The constants (enumeration members, module constants) that the project's type
+// libraries give to the identifiers in `text`: name (lower case) and value.
+[[nodiscard]] std::vector<std::pair<std::string, std::string>>
+type_library_constants(const std::vector<std::string>& libraries,
+                       const std::string& text);
+
 struct NativeError final {
     int number{};
     std::string description;
+    std::string source;  // Err.Source, when the error names one
 };
 
 // What a project gives the engine: the forms it loads and the options of the
