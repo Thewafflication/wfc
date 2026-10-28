@@ -326,9 +326,12 @@ std::int32_t string_compare(const RtString* a, const RtString* b) {
     return order < 0 ? -1 : (order > 0 ? 1 : 0);
 }
 
+[[nodiscard]] wfc::detail::NativeEngine& engine();
+
 std::int32_t string_like(const RtString* text, const RtString* pattern) {
     return wfc::detail::NativeEngine::like(std::string(view_of(text)),
-                                           std::string(view_of(pattern)))
+                                           std::string(view_of(pattern)),
+                                           engine().text_compare())
                ? -1
                : 0;
 }
@@ -814,6 +817,8 @@ void array_assign(RtArray** variable, RtArray* source) {
         return;
     }
     std::memcpy(copy, source, bytes);
+    // The target keeps being fixed-size or dynamic.
+    copy->fixed = *variable != nullptr && (*variable)->fixed != 0 ? 1 : 0;
     array_retain_elements(copy);
     array_release(*variable);
     *variable = copy;
@@ -858,6 +863,16 @@ void array_redim(RtArray** variable, const std::int32_t flags,
         }
     }
     header.count = static_cast<std::int32_t>(count);
+    if (preserve != 0 && *variable != nullptr && (*variable)->dims == dims) {
+        // Only the last dimension of a preserved array may change.
+        for (std::int32_t k = 0; k + 1 < dims; ++k) {
+            if ((*variable)->bounds[k].lower != header.bounds[k].lower ||
+                (*variable)->bounds[k].upper != header.bounds[k].upper) {
+                raise_error(9);
+                return;
+            }
+        }
+    }
     auto* array = static_cast<RtArray*>(std::calloc(
         1, sizeof(RtArray) + static_cast<std::size_t>(count) *
                                  static_cast<std::size_t>(header.size)));
@@ -866,6 +881,14 @@ void array_redim(RtArray** variable, const std::int32_t flags,
         return;
     }
     *array = header;
+    if (kind == 2 && (flags >> 16) > 0) {
+        // Elements of fixed-length Strings begin as blanks.
+        const std::string blanks(static_cast<std::size_t>(flags >> 16), ' ');
+        auto* cells = reinterpret_cast<HandleCell*>(data_of(array));
+        for (std::int64_t i = 0; i < count; ++i) {
+            cells[i].handle = make_string(blanks);
+        }
+    }
     RtArray* old = *variable;
     if (preserve != 0 && old != nullptr && old->dims == dims &&
         old->kind == kind) {
@@ -1279,12 +1302,16 @@ void variant_print(const RtVariant* a) {
     if (std::holds_alternative<wfc::detail::ObjectInstance>(value_of(a))) {
         // An object prints its default member.
         wfc::detail::NativeError problem;
-        const auto text = engine().to_text(value_of(a), problem);
-        if (!text.has_value()) {
+        const auto resolved = engine().default_value(value_of(a), problem);
+        if (!resolved.has_value()) {
             raise_engine_error(problem);
             return;
         }
-        put(*text);
+        if (std::holds_alternative<wfc::detail::ObjectInstance>(*resolved)) {
+            raise_error(13);
+            return;
+        }
+        put(wfc::detail::NativeEngine::print_text(*resolved));
         return;
     }
     put(wfc::detail::NativeEngine::print_text(value_of(a)));

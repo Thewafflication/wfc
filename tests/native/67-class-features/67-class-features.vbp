@@ -1,0 +1,6 @@
+Type=Exe
+Class=Cfg; 67-class-features.cls.cfg
+Class=Util; 67-class-features.cls.util
+Class=D; 67-class-features.cls.d
+Module=Main; 67-class-features.bas
+Startup="Sub Main"

@@ -122,7 +122,13 @@ public:
     void close_output_line();
     // `text Like pattern`.
     [[nodiscard]] static bool like(const std::string& text,
-                                   const std::string& pattern);
+                                   const std::string& pattern,
+                                   bool fold = false);
+    // The default member of an object (the value itself for other values).
+    [[nodiscard]] std::optional<Value> default_value(const Value& value,
+                                                     NativeError& error);
+    // Whether `Option Compare Text` is on.
+    [[nodiscard]] bool text_compare() const;
     // `Randomize [seed]`.
     void randomize(bool has_seed, double seed, bool is_timer);
     // Whether the name is a function of the library.

@@ -384,6 +384,7 @@ struct NativeSupport {
             return std::nullopt;
         }
         if (is_object_reference(resolved) ||
+            std::holds_alternative<Nothing>(resolved) ||
             std::holds_alternative<ArrayValue>(resolved)) {
             in.set_error("WFC0007", "Type mismatch", 0U);
             take_error(in, error);
@@ -660,6 +661,10 @@ struct NativeSupport {
             in.option_base_one_ = true;
             return true;
         }
+        if (text == "wfcoptioncompare") {
+            in.option_compare_text_ = true;
+            return true;
+        }
         // The interpreter keeps pointers into the text it runs, so every
         // statement gets text of its own.
         static std::unordered_set<std::string> texts;
@@ -789,8 +794,21 @@ struct NativeSupport {
         in.output_line_open_ = false;
     }
 
-    static bool like(const std::string& text, const std::string& pattern) {
-        return Interpreter::like_match(text, pattern, false);
+    static bool like(const std::string& text, const std::string& pattern,
+                     const bool fold) {
+        return Interpreter::like_match(text, pattern, fold);
+    }
+
+    static bool resolve_default(Interpreter& in, Value& value) {
+        return in.resolve_default_value(value, 0U);
+    }
+
+    static void fetch_error(Interpreter& in, NativeError& error) {
+        take_error(in, error);
+    }
+
+    static bool text_compare(const Interpreter& in) {
+        return in.option_compare_text_;
     }
 
     static void randomize(Interpreter& in, const bool has_seed, double seed,
@@ -891,7 +909,8 @@ struct NativeSupport {
         if (std::holds_alternative<Nothing>(value)) {
             return "Nothing";
         }
-        if (std::holds_alternative<ObjectInstance>(value)) {
+        if (std::holds_alternative<ObjectInstance>(value) ||
+            std::holds_alternative<ArrayValue>(value)) {
             NativeError ignored;
             if (const auto name =
                     call_function(in, "typename", {value}, ignored)) {
@@ -953,8 +972,23 @@ void NativeEngine::randomize(const bool has_seed, const double seed,
     NativeSupport::randomize(*interpreter_, has_seed, seed, is_timer);
 }
 
-bool NativeEngine::like(const std::string& text, const std::string& pattern) {
-    return NativeSupport::like(text, pattern);
+bool NativeEngine::like(const std::string& text, const std::string& pattern,
+                        const bool fold) {
+    return NativeSupport::like(text, pattern, fold);
+}
+
+std::optional<Value> NativeEngine::default_value(const Value& value,
+                                                 NativeError& error) {
+    Value resolved = value;
+    if (!NativeSupport::resolve_default(*interpreter_, resolved)) {
+        NativeSupport::fetch_error(*interpreter_, error);
+        return std::nullopt;
+    }
+    return resolved;
+}
+
+bool NativeEngine::text_compare() const {
+    return NativeSupport::text_compare(*interpreter_);
 }
 
 bool NativeEngine::start(EngineSetup setup, NativeError& error) {

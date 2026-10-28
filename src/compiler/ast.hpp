@@ -246,6 +246,7 @@ struct Module final {
     std::string display_name;    // the name as written
     bool is_class{};             // a class module: `globals` are its fields
     bool predeclared{};          // `Attribute VB_PredeclaredId = True`
+    bool global_namespace{};     // `Attribute VB_GlobalNameSpace = True`
     std::string default_member;  // a field: `Attribute x.VB_VarUserMemId = 0`
     std::vector<std::string> implements;  // `Implements Interface` (lower case)
     bool is_form{};  // a form: names it does not declare are the
@@ -254,7 +255,8 @@ struct Module final {
     std::vector<ConstantDecl> constants;
     std::vector<Declaration> globals;
     std::vector<Procedure> procedures;
-    int option_base{0};  // the lower bound of an array that gives none
+    int option_base{0};          // the lower bound of an array that gives none
+    bool option_compare_text{};  // `Option Compare Text`
     // DefInt and the others: the type by first letter (none: Variant).
     std::pair<VbType, std::string> def_types[26];
     // The type suffix a name was first written with, for variables that are

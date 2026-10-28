@@ -76,6 +76,10 @@ public:
                     ahead(3).text == "true") {
                     module.predeclared = true;
                 }
+                if (ahead(1).text == "vb_globalnamespace" &&
+                    ahead(3).text == "true") {
+                    module.global_namespace = true;
+                }
                 if (ahead(1).kind == TokenKind::identifier &&
                     ahead(2).kind == TokenKind::symbol &&
                     ahead(2).text == "." &&
@@ -219,7 +223,12 @@ private:
             return;
         }
         if (accept_word("compare")) {
-            if (accept_word("binary")) {
+            if (accept_word("binary") || accept_word("database")) {
+                expect_end_of_statement();
+                return;
+            }
+            if (accept_word("text")) {
+                module.option_compare_text = true;
                 expect_end_of_statement();
                 return;
             }
@@ -1672,7 +1681,15 @@ private:
     [[nodiscard]] bool is_index_chain_assignment() const {
         std::size_t i = 1;
         int groups = 0;
-        while (ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") {
+        while ((ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") ||
+               (ahead(i).kind == TokenKind::symbol && ahead(i).text == "!" &&
+                ahead(i + 1).kind == TokenKind::identifier)) {
+            if (ahead(i).text == "!") {
+                // `rs!name`: counts as an index.
+                i += 2;
+                groups += groups == 0 ? 2 : 1;
+                continue;
+            }
             int depth = 0;
             while (true) {
                 const Token& token = ahead(i);
@@ -2448,6 +2465,22 @@ private:
                     } while (accept_symbol(","));
                     expect_symbol(")");
                 }
+                node = std::move(index);
+                continue;
+            }
+            if (is_symbol("!") && ahead(1).kind == TokenKind::identifier &&
+                (node->kind == ExprKind::name || node->kind == ExprKind::call ||
+                 node->kind == ExprKind::member ||
+                 node->kind == ExprKind::member_call ||
+                 node->kind == ExprKind::index_of)) {
+                // `rs!id`: the default member with the name as key.
+                advance();
+                auto index = make_expr(ExprKind::index_of, at);
+                index->operands.push_back(std::move(node));
+                auto key = make_expr(ExprKind::string_literal, at);
+                key->text = without_suffix(current().spelling);
+                advance();
+                index->operands.push_back(std::move(key));
                 node = std::move(index);
                 continue;
             }

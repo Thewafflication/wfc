@@ -460,7 +460,8 @@ public:
             program_.entry = main->second.index;
         }
         if (!global_arrays_.empty() || !global_objects_.empty() ||
-            options_.has_forms || !has_main || module_.option_base != 0) {
+            options_.has_forms || !has_main || module_.option_base != 0 ||
+            module_.option_compare_text) {
             make_start_function(has_main ? main->second.index : -1);
         }
         return std::move(program_);
@@ -496,6 +497,10 @@ private:
             // The runtime's Array() and ReDim follow Option Base.
             static_cast<void>(
                 emit_engine_statement("wfcoptionbase", {}, Position{1, 1}));
+        }
+        if (module_.option_compare_text) {
+            static_cast<void>(
+                emit_engine_statement("wfcoptioncompare", {}, Position{1, 1}));
         }
         for (const auto& array : global_arrays_) {
             emit_array_allocation(array.variable, array.declaration->bounds,
@@ -1011,17 +1016,35 @@ private:
         return type_name.empty() ? -1 : find_class(type_name, at);
     }
 
+    static void collect_statics(const std::vector<StmtPtr>& statements,
+                                std::vector<const Declaration*>& into) {
+        for (const auto& statement : statements) {
+            if (statement->kind == StmtKind::dim) {
+                for (const auto& declaration : statement->declarations) {
+                    if (declaration.is_static) {
+                        into.push_back(&declaration);
+                    }
+                }
+            }
+            for (const auto& block : statement->blocks) {
+                collect_statics(block, into);
+            }
+            collect_statics(statement->body, into);
+        }
+    }
+
     // The layout of the fields of every class and its record in the image.
     void declare_class_layouts() {
         for (auto& info : classes_) {
             std::int64_t offset = 0;
-            for (const auto& declaration : info.module->globals) {
+            const auto layout_field = [&](const Declaration& declaration,
+                                          const std::string& field_name) {
                 if (declaration.fixed_length > 0) {
                     fail("a fixed-length String in a class is not compiled yet",
                          declaration.at);
                 }
                 FieldInfo entry;
-                entry.name = declaration.name;
+                entry.name = field_name;
                 entry.type = declaration.type;
                 entry.is_array = declaration.is_array;
                 entry.is_public = declaration.is_public;
@@ -1035,11 +1058,6 @@ private:
                 int kind = -1;
                 std::vector<std::int64_t> inner_strings;
                 if (declaration.is_array) {
-                    if (declaration.type == VbType::variant ||
-                        declaration.type == VbType::object) {
-                        fail("this array in a class is not compiled yet",
-                             declaration.at);
-                    }
                     if (declaration.type == VbType::record) {
                         entry.udt =
                             find_udt(declaration.type_name, declaration.at);
@@ -1080,6 +1098,22 @@ private:
                 }
                 offset += size;
                 info.layout.fields.push_back(std::move(entry));
+            };
+            for (const auto& declaration : info.module->globals) {
+                layout_field(declaration, declaration.name);
+            }
+            // The Static variables of the methods live in the object: they
+            // belong to one instance, not to the class.
+            for (const auto& procedure : info.module->procedures) {
+                std::vector<const Declaration*> statics;
+                collect_statics(procedure.body, statics);
+                for (const auto* declaration : statics) {
+                    if (!declaration->is_array &&
+                        declaration->type != VbType::record) {
+                        layout_field(*declaration, "static:" + procedure.name +
+                                                       ":" + declaration->name);
+                    }
+                }
             }
             info.layout.size = std::max<std::int64_t>(8, (offset + 7) / 8 * 8);
             // The record: size, the offset of Terminate (filled in later), the
@@ -1654,6 +1688,24 @@ private:
             fail("a fixed-size Static array is not compiled yet",
                  declaration.at);
         }
+        if (current_class_ >= 0 && !declaration.is_array &&
+            declaration.type != VbType::record) {
+            // In a class the variable lives in the object.
+            const auto& info =
+                classes_[static_cast<std::size_t>(current_class_)];
+            const std::string key =
+                "static:" + current_->name + ":" + declaration.name;
+            for (const auto& field : info.layout.fields) {
+                if (field.name == key) {
+                    auto place =
+                        field_place(Value{me_, VbType::object, current_class_},
+                                    field, declaration.at);
+                    place.coerce = field.coerce;
+                    locals_[declaration.name] = place;
+                    return;
+                }
+            }
+        }
         int record = -1;
         std::int64_t cells = 1;
         if (declaration.type == VbType::record) {
@@ -1674,10 +1726,6 @@ private:
 
     void declare_local(const Declaration& declaration) {
         require_type(declaration);
-        if (declaration.is_array && declaration.fixed_length > 0) {
-            fail("an array of fixed-length Strings is not compiled yet",
-                 declaration.at);
-        }
         if (locals_.contains(declaration.name) ||
             (result_variable_.has_value() &&
              declaration.name == current_->name)) {
@@ -1736,11 +1784,12 @@ private:
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
             builder_->move_wide(slot, ir::immediate(0));
-            const auto variable =
+            auto variable =
                 Variable{slot, declaration.type, true,
                          declaration.type == VbType::object
                              ? class_of(declaration.type_name, declaration.at)
                              : -1};
+            variable.fixed = declaration.fixed_length;
             locals_[declaration.name] = variable;
             owned_slots_.push_back(Owned{slot, Service::array_release});
             if (!declaration.bounds.empty()) {
@@ -1898,7 +1947,8 @@ private:
         builder_->runtime(
             Service::array_redim,
             {address_of(variable.operand),
-             ir::immediate(element_kind(variable.type) | (fixed ? 0x100 : 0)),
+             ir::immediate(element_kind(variable.type) | (fixed ? 0x100 : 0) |
+                           (variable.fixed << 16)),
              ir::immediate(dims), block, ir::immediate(preserve ? 1 : 0),
              record_size, record_strings});
     }
@@ -2130,6 +2180,29 @@ private:
                      lower_expression(*statement.expr), false, statement.at);
             return;
         }
+        if (!statement.target && statement.items.empty() &&
+            own_member(statement.text) == nullptr) {
+            if (const int global = global_namespace_class(statement.text);
+                global >= 0) {
+                // `Level = 7` where Level belongs to a global name space.
+                Stmt moved;
+                moved.kind = StmtKind::assign;
+                moved.at = statement.at;
+                auto member = std::make_unique<Expr>();
+                member->kind = ExprKind::member;
+                member->text = statement.text;
+                member->at = statement.at;
+                auto holder = std::make_unique<Expr>();
+                holder->kind = ExprKind::name;
+                holder->text = classes_[static_cast<std::size_t>(global)].name;
+                holder->at = statement.at;
+                member->operands.push_back(std::move(holder));
+                moved.target = std::move(member);
+                moved.expr = clone_expression(statement.expr.get());
+                lower_assignment(moved);
+                return;
+            }
+        }
         if (current_class_ < 0 && !has_variable(statement.text) &&
             module_setters_.contains(statement.text)) {
             // A Property Let of the module.
@@ -2144,6 +2217,31 @@ private:
             return;
         }
         auto target = find_variable(statement.text, statement.at);
+        if (target.type == VbType::object && !target.is_array &&
+            target.udt >= 0 && !statement.items.empty() &&
+            !classes_[static_cast<std::size_t>(target.udt)]
+                 .default_member.empty()) {
+            // `obj(i) = value` sets the default member of the object.
+            const auto& info = classes_[static_cast<std::size_t>(target.udt)];
+            if (const auto found = info.letters.find(info.default_member);
+                found != info.letters.end()) {
+                const auto value = lower_expression(*statement.expr);
+                if (target.auto_new) {
+                    ensure_object(target);
+                }
+                const auto handle = builder_->new_temp();
+                builder_->move_wide(handle, target.operand);
+                builder_->runtime(Service::object_check, {handle});
+                std::vector<const Expr*> indexes;
+                for (const auto& item : statement.items) {
+                    indexes.push_back(item.get());
+                }
+                static_cast<void>(emit_call(found->second, info.default_member,
+                                            indexes, handle, &value,
+                                            statement.at));
+                return;
+            }
+        }
         if (target.type == VbType::object && !target.is_array &&
             target.udt >= 0 && statement.items.empty() &&
             !classes_[static_cast<std::size_t>(target.udt)]
@@ -2276,9 +2374,11 @@ private:
             if (!target.is_array) {
                 fail("'" + statement.text + "' is not an array", statement.at);
             }
+            const int element_fixed = target.fixed;
             target =
                 Variable{element_address(target, statement.items, statement.at),
                          target.type, false, target.udt};
+            target.fixed = element_fixed;
             if (target.type == VbType::record) {
                 copy_record(target, lower_place(*statement.expr), statement.at);
                 return;
@@ -3625,6 +3725,10 @@ private:
                 }
                 return late_get(host_of_me(at), name, pointers, at);
             }
+            if (const int global = global_namespace_class(name); global >= 0) {
+                return lower_global_member(global, name, arguments, at,
+                                           want_value);
+            }
             fail("'" + name + "' is not a Sub or Function of the project", at);
         }
         const auto& signature = found->second;
@@ -3838,6 +3942,8 @@ private:
         if (parameter.type == VbType::string) {
             const auto text = value.type == VbType::variant
                                   ? from_variant(value, VbType::string, at)
+                              : is_numeric(value.type)
+                                  ? to_string_value(value, at)
                                   : value;
             if (text.type != VbType::string) {
                 fail("a String argument is needed here", at);
@@ -4552,7 +4658,7 @@ private:
         std::vector<Operand> passed;
         std::size_t next = 0;
         std::vector<Value> lowered;
-        bool plain = true;
+        bool plain = !module_.option_compare_text;
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             lowered.push_back(lower_expression(*arguments[i]));
             const bool is_start = arguments.size() == 3U && i == 0;
@@ -5033,6 +5139,80 @@ private:
         }
     }
 
+    // A Const declared in a class, read from outside (`Rect.Tag`, `obj.Tag`).
+    [[nodiscard]] std::optional<Value> class_constant(const int cls,
+                                                      const std::string& name) {
+        const auto& info = classes_[static_cast<std::size_t>(cls)];
+        if (info.module == nullptr) {
+            return std::nullopt;
+        }
+        for (const auto& constant : info.module->constants) {
+            if (constant.name != name) {
+                continue;
+            }
+            const auto saved = local_constants_;
+            declare_constants(info.module->constants, local_constants_);
+            std::optional<Value> found;
+            if (const auto it = local_constants_.find(name);
+                it != local_constants_.end()) {
+                found = it->second;
+            }
+            local_constants_ = saved;
+            return found;
+        }
+        return std::nullopt;
+    }
+
+    // The class whose members are global (`VB_GlobalNameSpace`) and that has
+    // the name as a field, method or property; -1 for none.
+    [[nodiscard]] int global_namespace_class(const std::string& name) const {
+        if (current_ == nullptr || has_variable(name) ||
+            signatures_.contains(name)) {
+            return -1;
+        }
+        for (std::size_t i = 0; i < classes_.size(); ++i) {
+            const auto& info = classes_[i];
+            if (info.module == nullptr || !info.module->global_namespace) {
+                continue;
+            }
+            if (info.methods.contains(name) || info.getters.contains(name) ||
+                info.letters.contains(name) || info.setters.contains(name)) {
+                return static_cast<int>(i);
+            }
+            for (const auto& field : info.layout.fields) {
+                if (field.name == name && field.is_public) {
+                    return static_cast<int>(i);
+                }
+            }
+        }
+        return -1;
+    }
+
+    // `Twice(21)` where Twice belongs to a class with a global name space:
+    // the member of the class (its predeclared instance).
+    [[nodiscard]] Value lower_global_member(
+        const int cls, const std::string& name,
+        const std::vector<ExprPtr>& arguments, const Position at,
+        const bool want_value) {
+        Expr member;
+        member.kind =
+            arguments.empty() ? ExprKind::member : ExprKind::member_call;
+        member.text = name;
+        member.at = at;
+        auto holder = std::make_unique<Expr>();
+        holder->kind = ExprKind::name;
+        holder->text = classes_[static_cast<std::size_t>(cls)].name;
+        holder->at = at;
+        member.operands.push_back(std::move(holder));
+        for (const auto& argument : arguments) {
+            member.operands.push_back(clone_expression(argument.get()));
+        }
+        if (member.kind == ExprKind::member_call) {
+            return lower_object_call(member, want_value);
+        }
+        return lower_expression(member);
+    }
+
     // The class of an object value; a late-bound object is not compiled yet.
     [[nodiscard]] const ClassInfo& class_of_value(const Value& value,
                                                   const Position at) const {
@@ -5159,6 +5339,11 @@ private:
         if (signature == nullptr && info.is_form) {
             return late_get(form_host(base, info, expression.at),
                             expression.text, {}, expression.at);
+        }
+        if (signature == nullptr && base.cls >= 0) {
+            if (const auto found = class_constant(base.cls, expression.text)) {
+                return *found;
+            }
         }
         if (signature == nullptr && member_is_missing(info, expression.text)) {
             return unsupported_member();
@@ -6011,6 +6196,14 @@ private:
                 if (expression.text.rfind("err.", 0) == 0) {
                     return lower_err_member(expression);
                 }
+                if (own_member(expression.text) == nullptr) {
+                    if (const int global =
+                            global_namespace_class(expression.text);
+                        global >= 0) {
+                        return lower_global_member(global, expression.text, {},
+                                                   expression.at, true);
+                    }
+                }
                 if (!has_variable(expression.text) &&
                     !(is_control(expression.text) &&
                       own_member(expression.text) == nullptr &&
@@ -6188,6 +6381,19 @@ private:
                         expression.operands[0]->text + "." + expression.text);
                     if (qualified != constants_.end()) {
                         return qualified->second;
+                    }
+                    if (const auto cls =
+                            class_index_.find(expression.operands[0]->text);
+                        cls != class_index_.end()) {
+                        // `Cfg.ModeA`, `Rect.Tag`: a constant or enum member
+                        // of the class.
+                        if (const auto found = find_constant(expression.text)) {
+                            return *found;
+                        }
+                        if (const auto found =
+                                class_constant(cls->second, expression.text)) {
+                            return *found;
+                        }
                     }
                 }
                 if (!is_record_place(*expression.operands[0])) {
@@ -6376,6 +6582,12 @@ private:
     // `left op right` for the six comparison operators.
     [[nodiscard]] Value compare_values(const std::string& op, const Value& left,
                                        const Value& right, const Position at) {
+        if (left.type == VbType::string && right.type == VbType::string &&
+            module_.option_compare_text) {
+            // Option Compare Text: the runtime compares ignoring case.
+            return from_variant(variant_operation(op, left, right, at),
+                                VbType::boolean, at);
+        }
         if (left.type == VbType::string && right.type == VbType::string) {
             const auto order = builder_->new_temp();
             builder_->runtime(Service::string_compare,

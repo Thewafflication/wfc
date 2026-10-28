@@ -188,7 +188,8 @@ private:
         const char suffix = peek();
         if (suffix == '%' || suffix == '&' || suffix == '!' || suffix == '#' ||
             suffix == '@' || suffix == '$') {
-            if (!(suffix == '&' && peek(1) == '&')) {
+            if (!(suffix == '&' && peek(1) == '&') &&
+                !(suffix == '!' && is_letter(peek(1)))) {
                 token.text.push_back(suffix);
                 token.spelling.push_back(suffix);
                 ++position_;

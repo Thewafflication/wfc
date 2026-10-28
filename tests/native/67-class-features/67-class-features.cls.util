@@ -1,0 +1,9 @@
+Attribute VB_GlobalNameSpace = True
+Attribute VB_PredeclaredId = True
+Public Greeting As String
+Public Function Twice(ByVal n As Long) As Long
+    Twice = n * 2
+End Function
+Public Sub Say(ByVal s As String)
+    Print "say "; s
+End Sub
