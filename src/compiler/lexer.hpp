@@ -34,6 +34,8 @@ struct Token final {
     // A floating-point literal with the suffix `!` (a Single); `#` and no
     // suffix make a Double.
     bool single_literal{};
+    // The literal has the suffix `@`: a Currency.
+    bool currency_literal{};
     // The first token of a line (a label can only start a line).
     bool line_start{};
     std::size_t line{1};

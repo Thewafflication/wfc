@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -103,6 +104,12 @@ struct EvaluationOptions final {
     // type library a server publishes.
     std::string typelib_path;
 };
+
+// Conditional compilation (`#If`, `#Const`): the source with the directives
+// and the inactive branches blanked, line breaks kept. Empty on a malformed
+// directive, with `error` and `error_offset` set.
+[[nodiscard]] std::optional<std::string> preprocess_conditionals(
+    std::string_view source, std::string& error, std::size_t& error_offset);
 
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);
 

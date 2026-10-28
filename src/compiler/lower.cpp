@@ -257,6 +257,7 @@ public:
             case Service::array_element3:
             case Service::array_bound:
             case Service::error_raise:
+            case Service::error_raise_help:
                 return true;
             default:
                 return false;
@@ -1533,6 +1534,19 @@ private:
                               {}, result.operand, true);
             return result;
         }
+        if (member == "helpfile") {
+            result.type = VbType::string;
+            result.operand = new_owned_string();
+            builder_->runtime(Service::error_help_file, {}, result.operand,
+                              true);
+            return result;
+        }
+        if (member == "helpcontext") {
+            result.type = VbType::long_integer;
+            result.operand = builder_->new_temp();
+            builder_->runtime(Service::error_help_context, {}, result.operand);
+            return result;
+        }
         fail("Err." + member + " is not compiled yet", expression.at);
     }
 
@@ -1543,7 +1557,7 @@ private:
             return;
         }
         if (statement.text != "err.raise" || statement.items.empty() ||
-            statement.items.size() > 3U) {
+            statement.items.size() > 5U) {
             fail(statement.text + " is not compiled yet", statement.at);
         }
         std::vector<Operand> arguments;
@@ -1560,6 +1574,28 @@ private:
             } else {
                 arguments.push_back(ir::immediate(0));
             }
+        }
+        if (statement.items.size() > 3U) {
+            // The help file and the help context.
+            if (statement.items[3]) {
+                const auto file = lower_expression(*statement.items[3]);
+                if (file.type != VbType::string) {
+                    fail("Err.Raise needs String arguments here",
+                         statement.items[3]->at);
+                }
+                arguments.push_back(file.operand);
+            } else {
+                arguments.push_back(ir::immediate(0));
+            }
+            if (statement.items.size() > 4U && statement.items[4]) {
+                arguments.push_back(
+                    to_long(lower_expression(*statement.items[4]), statement.at)
+                        .operand);
+            } else {
+                arguments.push_back(ir::immediate(0));
+            }
+            builder_->runtime(Service::error_raise_help, std::move(arguments));
+            return;
         }
         builder_->runtime(Service::error_raise, std::move(arguments));
     }
@@ -1843,9 +1879,6 @@ private:
             return found->second;
         }
         if (current_ != nullptr && !class_index_.contains(name)) {
-            if (name == "calendar" || name == "imestatus") {
-                fail(name + " is not compiled yet", at);
-            }
             // Visual Basic declares a variable by its first use.
             return declare_implicit(name);
         }
@@ -3416,9 +3449,7 @@ private:
                              "' yet",
                          at);
                 }
-                if (!argument &&
-                    (find_builtin(name) != nullptr ||
-                     is_special_builtin(name) || !is_library_function(name)) &&
+                if (!argument && !is_library_function(name) &&
                     !externals_.contains(name)) {
                     fail("an omitted argument is not compiled for '" + name +
                              "' yet",
@@ -3448,6 +3479,17 @@ private:
                 write_back_arguments(boxed, slots, list, at);
                 return Value{builder_->new_temp(), VbType::none};
             }
+            if (name == "wfcliteral") {
+                // A literal the runtime reads itself (`1.5@`, a Currency).
+                std::vector<EngineArgument> list;
+                list.push_back(EngineArgument{nullptr, 'i'});
+                const auto outputs = emit_engine_statement(
+                    "wfcarg0 = " + arguments[0]->text, list, at);
+                Value literal;
+                literal.type = VbType::variant;
+                literal.operand = outputs[0];
+                return literal;
+            }
             if (name == "wfcdebugprint") {
                 for (const auto& argument : arguments) {
                     static_cast<void>(snapshot(lower_expression(*argument)));
@@ -3458,10 +3500,15 @@ private:
                 name == "wfcstorearg") {
                 return lower_thunk_intrinsic(name, arguments, at);
             }
-            if (const auto* builtin = find_builtin(name)) {
+            bool any_omitted = false;
+            for (const auto& argument : arguments) {
+                any_omitted = any_omitted || !argument;
+            }
+            if (const auto* builtin = find_builtin(name);
+                builtin != nullptr && !any_omitted) {
                 return lower_builtin(*builtin, arguments, at);
             }
-            if (is_special_builtin(name)) {
+            if (is_special_builtin(name) && !any_omitted) {
                 return lower_special_builtin(name, arguments, at);
             }
             if (is_library_function(name)) {
@@ -4519,10 +4566,57 @@ private:
 
     // `Dim name As Variant` where the name is first used.
     Variable declare_implicit(const std::string& name) {
+        // The type comes from a suffix (`n%`) or from DefInt and the others.
+        VbType type = VbType::variant;
+        std::string type_name;
+        char suffix_char = '\0';
+        for (const auto& entry : module_.name_suffixes) {
+            if (entry.first == name) {
+                suffix_char = entry.second;
+            }
+        }
+        if (suffix_char != '\0') {
+            switch (suffix_char) {
+                case '%':
+                    type = VbType::integer;
+                    break;
+                case '&':
+                    type = VbType::long_integer;
+                    break;
+                case '!':
+                    type = VbType::single_precision;
+                    break;
+                case '#':
+                    type = VbType::double_precision;
+                    break;
+                case '$':
+                    type = VbType::string;
+                    break;
+                case '@':
+                    type_name = "currency";
+                    break;
+                default:
+                    break;
+            }
+        } else if (!name.empty() && name.front() >= 'a' &&
+                   name.front() <= 'z') {
+            const auto& def = module_.def_types[name.front() - 'a'];
+            if (def.first != VbType::none) {
+                type = def.first;
+                type_name = def.second;
+            }
+        }
         const auto slot = builder_->new_temp();
         late_zero_.push_back(slot);
-        owned_slots_.push_back(Owned{slot, Service::variant_release});
-        const Variable variable{slot, VbType::variant};
+        if (type == VbType::string) {
+            owned_slots_.push_back(Owned{slot, Service::string_release});
+        } else if (type == VbType::variant) {
+            owned_slots_.push_back(Owned{slot, Service::variant_release});
+        }
+        Variable variable{slot, type};
+        if (type == VbType::variant) {
+            variable.coerce = coerce_kind(type_name);
+        }
         locals_[name] = variable;
         return variable;
     }
@@ -5908,6 +6002,25 @@ private:
                     result.type = VbType::variant;
                     result.operand = outputs[0];
                     return result;
+                }
+                if (options_.host_globals.contains(expression.text) &&
+                    !has_variable(expression.text) &&
+                    !signatures_.contains(expression.text)) {
+                    // `Forms(0)`, `Printers(0)`: an index on a global object
+                    // of the runtime.
+                    Expr whole;
+                    whole.kind = ExprKind::name;
+                    whole.text = expression.text;
+                    whole.at = expression.at;
+                    if (expression.operands.empty()) {
+                        return lower_expression(whole);
+                    }
+                    std::vector<const Expr*> indexes;
+                    for (const auto& operand : expression.operands) {
+                        indexes.push_back(operand.get());
+                    }
+                    return index_value(lower_expression(whole), indexes,
+                                       expression.at);
                 }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true, expression.suffix);

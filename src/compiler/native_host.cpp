@@ -225,6 +225,8 @@ struct ErrorState final {
     std::int32_t number{};
     std::string description;
     std::string source;
+    std::string help_file;
+    std::int32_t help_context{};
 };
 
 ErrorState g_error;
@@ -235,6 +237,8 @@ void raise_error(const std::int32_t number) {
     g_error.number = number;
     g_error.description = standard_error_text(number);
     g_error.source = "Project1";
+    g_error.help_file.clear();
+    g_error.help_context = 0;
     if (g_error.pending != nullptr) {
         *g_error.pending = 1;
     }
@@ -971,6 +975,16 @@ void error_clear() {
     g_error.number = 0;
     g_error.description.clear();
     g_error.source.clear();
+    g_error.help_file.clear();
+    g_error.help_context = 0;
+}
+
+RtString* error_help_file() {
+    return make_string(g_error.help_file);
+}
+
+std::int32_t error_help_context() {
+    return g_error.help_context;
 }
 
 // Err.Raise number[, source[, description]]
@@ -983,6 +997,14 @@ void error_raise(const std::int32_t number, const RtString* source,
     if (length_of(source) != 0) {
         g_error.source = std::string(view_of(source));
     }
+}
+
+void error_raise_help(const std::int32_t number, const RtString* source,
+                      const RtString* description, const RtString* help_file,
+                      const std::int32_t help_context) {
+    error_raise(number, source, description);
+    g_error.help_file = std::string(view_of(help_file));
+    g_error.help_context = help_context;
 }
 
 // A handler took over: the error is no longer pending.
@@ -2622,6 +2644,9 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&print_tab),
         address_of(&print_spc),
         address_of(&array_to_variant),
+        address_of(&error_raise_help),
+        address_of(&error_help_file),
+        address_of(&error_help_context),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

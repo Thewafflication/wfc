@@ -250,7 +250,11 @@ enum class Service : int {
     print_tab = 112,         // (column) Tab(n) in Print
     print_spc = 113,         // (count) Spc(n) in Print
     array_to_variant = 114,  // (array) -> new handle: the array as a Variant
-    count = 115,
+    // Err.Raise with a help file and context, and Err.HelpFile/HelpContext.
+    error_raise_help = 115,    // (number, source, description, file, context)
+    error_help_file = 116,     // () -> new handle
+    error_help_context = 117,  // () -> int32
+    count = 118,
 };
 
 struct Instruction final {

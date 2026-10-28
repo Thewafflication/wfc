@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "../interpreter/builtin_class_sources.hpp"
+#include "wfc/evaluator.hpp"
 
 #include "lower.hpp"
 #include "parser.hpp"
@@ -435,11 +436,36 @@ void collect_enum_names(const std::string& source,
     return out;
 }
 
-CompileResult compile_project(const std::string_view source,
-                              const std::vector<ClassSource>& classes,
+CompileResult compile_project(const std::string_view raw_source,
+                              const std::vector<ClassSource>& raw_classes,
                               const Architecture architecture,
                               const ProjectInfo& info) {
     CompileResult result;
+    // Conditional compilation: the directives and the inactive branches are
+    // blanked before anything reads the text.
+    std::string source_text;
+    std::vector<ClassSource> classes = raw_classes;
+    {
+        std::string problem;
+        std::size_t problem_at = 0;
+        auto processed =
+            wfc::preprocess_conditionals(raw_source, problem, problem_at);
+        if (!processed.has_value()) {
+            result.error = problem;
+            return result;
+        }
+        source_text = std::move(*processed);
+        for (auto& item : classes) {
+            auto text =
+                wfc::preprocess_conditionals(item.source, problem, problem_at);
+            if (!text.has_value()) {
+                result.error = problem;
+                return result;
+            }
+            item.source = std::move(*text);
+        }
+    }
+    const std::string_view source = source_text;
     // Built-in classes are compiled from their VB source when the program uses
     // them; Screen, App and Clipboard are single instances that exist by name.
     std::vector<ClassSource> all = classes;
@@ -605,6 +631,8 @@ CompileResult compile_project(const std::string_view source,
     lower_options.host_globals.insert("printer");
     lower_options.host_globals.insert("printers");
     lower_options.host_globals.insert("licenses");
+    lower_options.host_globals.insert("calendar");
+    lower_options.host_globals.insert("imestatus");
     lower_options.has_forms = !info.form_names.empty();
     for (const auto& item : all) {
         if (item.is_form) {

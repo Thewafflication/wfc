@@ -719,6 +719,12 @@ void run_large_stack_task(void* raw) {
 
 }  // namespace
 
+std::optional<std::string> preprocess_conditionals(
+    const std::string_view source, std::string& error,
+    std::size_t& error_offset) {
+    return ConditionalPreprocessor{}.run(source, error, error_offset);
+}
+
 // Fills in `error_line`/`error_column` from the failing module's processed text
 // (line breaks removed by continuation joining are counted back in).
 void attach_position(Evaluation& result, const std::string_view text,

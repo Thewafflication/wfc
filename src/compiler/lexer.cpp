@@ -252,10 +252,12 @@ private:
                 ++position_;
             }
         }
-        if (lower(peek()) == 'e' &&
+        bool double_exponent = false;
+        if ((lower(peek()) == 'e' || lower(peek()) == 'd') &&
             (is_digit(peek(1)) ||
              ((peek(1) == '+' || peek(1) == '-') && is_digit(peek(2))))) {
             real = true;
+            double_exponent = lower(peek()) == 'd';
             position_ += 2U;
             while (position_ < text_.size() && is_digit(text_[position_])) {
                 ++position_;
@@ -266,6 +268,17 @@ private:
         token.column = start_column;
         token.line_start = starts_line;
         token.text = std::string(text_.substr(start, position_ - start));
+        if (double_exponent) {
+            // `1D3`: the exponent of a Double, written for strtod.
+            for (auto& c : token.text) {
+                if (c == 'd' || c == 'D') {
+                    c = 'e';
+                }
+            }
+        }
+        if (peek() == '@') {
+            token.currency_literal = true;
+        }
         // `5!` and `5#` are floating-point literals too.
         if (!real && (peek() == '!' || peek() == '#')) {
             real = true;
@@ -298,6 +311,9 @@ private:
             if (value > 32767) {
                 token.long_literal = true;
             }
+        }
+        if (token.currency_literal) {
+            ++position_;  // the @
         }
         result_.tokens.push_back(std::move(token));
     }

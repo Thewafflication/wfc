@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -253,6 +254,11 @@ struct Module final {
     std::vector<Declaration> globals;
     std::vector<Procedure> procedures;
     int option_base{0};  // the lower bound of an array that gives none
+    // DefInt and the others: the type by first letter (none: Variant).
+    std::pair<VbType, std::string> def_types[26];
+    // The type suffix a name was first written with, for variables that are
+    // never declared.
+    std::vector<std::pair<std::string, char>> name_suffixes;
 };
 
 struct ParseResult final {

@@ -96,15 +96,43 @@ public:
                        is_word("event") || is_word("implements") ||
                        is_word("enum") || is_word("declare")) {
                 declaration_or_procedure(module);
-            } else {
+            } else if (!def_statement()) {
                 fail("expected a declaration, Sub or Function");
             }
             skip_ends();
+        }
+        for (std::size_t letter = 0; letter < 26U; ++letter) {
+            module.def_types[letter] = {def_types_[letter].type,
+                                        def_types_[letter].type_name};
+        }
+        // The type a name was first written with (`n%`).
+        for (const auto& token : tokens_) {
+            if (token.kind == TokenKind::identifier && token.text.size() > 1U) {
+                const char last = token.text.back();
+                if (last == '%' || last == '&' || last == '!' || last == '#' ||
+                    last == '@' || last == '$') {
+                    const auto base =
+                        token.text.substr(0, token.text.size() - 1U);
+                    bool known = false;
+                    for (const auto& entry : module.name_suffixes) {
+                        known = known || entry.first == base;
+                    }
+                    if (!known) {
+                        module.name_suffixes.emplace_back(base, last);
+                    }
+                }
+            }
         }
         return module;
     }
 
 private:
+    // DefInt A-C, DefStr S ...: the type by first letter (none: Variant).
+    struct DefType final {
+        VbType type{VbType::none};
+        std::string type_name;
+    };
+
     // ----- Token helpers ---------------------------------------------------
 
     [[nodiscard]] const Token& current() const { return tokens_[index_]; }
@@ -362,11 +390,79 @@ private:
         } else {
             declaration.type = VbType::variant;
             declaration.type_given = true;
+            if (const auto* def = def_type_of(declaration.name)) {
+                declaration.type = def->type;
+                declaration.type_name = def->type_name;
+            }
         }
         return declaration;
     }
 
+    [[nodiscard]] const DefType* def_type_of(const std::string& name) const {
+        if (name.empty() || name.front() < 'a' || name.front() > 'z') {
+            return nullptr;
+        }
+        const auto& found = def_types_[name.front() - 'a'];
+        return found.type == VbType::none ? nullptr : &found;
+    }
+
+    // `DefInt A-C, X`: true when the statement was one.
+    [[nodiscard]] bool def_statement() {
+        static const std::map<std::string, std::pair<VbType, std::string>>
+            kinds = {{"defbool", {VbType::boolean, ""}},
+                     {"defbyte", {VbType::byte, ""}},
+                     {"defint", {VbType::integer, ""}},
+                     {"deflng", {VbType::long_integer, ""}},
+                     {"defsng", {VbType::single_precision, ""}},
+                     {"defdbl", {VbType::double_precision, ""}},
+                     {"defstr", {VbType::string, ""}},
+                     {"defcur", {VbType::variant, "currency"}},
+                     {"defdate", {VbType::variant, "date"}},
+                     {"defdec", {VbType::variant, "decimal"}},
+                     {"defvar", {VbType::variant, ""}}};
+        if (current().kind != TokenKind::identifier) {
+            return false;
+        }
+        const auto found = kinds.find(current().text);
+        if (found == kinds.end()) {
+            return false;
+        }
+        advance();
+        do {
+            if (current().kind != TokenKind::identifier ||
+                current().text.size() != 1U) {
+                fail("expected a letter in the Def statement");
+            }
+            const char first = current().text.front();
+            char last = first;
+            advance();
+            if (accept_symbol("-")) {
+                if (current().kind != TokenKind::identifier ||
+                    current().text.size() != 1U) {
+                    fail("expected a letter in the Def statement");
+                }
+                last = current().text.front();
+                advance();
+            }
+            for (char c = first; c <= last; ++c) {
+                if (c >= 'a' && c <= 'z') {
+                    def_types_[c - 'a'] =
+                        DefType{found->second.first == VbType::variant &&
+                                        found->second.second.empty()
+                                    ? VbType::none
+                                    : found->second.first,
+                                found->second.second};
+                }
+            }
+        } while (accept_symbol(","));
+        expect_end_of_statement();
+        return true;
+    }
+
     void declaration_or_procedure(Module& module) {
+        if (def_statement()) {
+            return;
+        }
         bool is_public = true;
         bool saw_scope = false;
         bool saw_public = false;
@@ -642,6 +738,9 @@ private:
             }
             if (result.return_type == VbType::none) {
                 result.return_type = VbType::variant;
+                if (const auto* def = def_type_of(result.name)) {
+                    result.return_type = def->type;
+                }
             }
         }
         expect_end_of_statement();
@@ -709,6 +808,10 @@ private:
         }
         if (result.type == VbType::none) {
             result.type = VbType::variant;
+            if (const auto* def = def_type_of(result.name)) {
+                result.type = def->type;
+                result.type_name = def->type_name;
+            }
         }
         if (result.is_optional && accept_symbol("=")) {
             result.default_value =
@@ -779,15 +882,36 @@ private:
     [[nodiscard]] StmtPtr with_statement() {
         auto result = make(StmtKind::with_block);
         advance();
+        const bool on_err = current().text == "err" &&
+                            ahead(1).kind == TokenKind::end_of_statement;
         result->expr = expression();
         expect_end_of_statement();
+        with_err_.push_back(on_err);
         result->body = block({"end"});
+        with_err_.pop_back();
         expect_word("end");
         expect_word("with");
         return result;
     }
 
+    // Inside `With Err`, `.Member` is `Err.Member`: the name goes in front.
+    void insert_err_before_dot() {
+        if (!with_err_.empty() && with_err_.back() &&
+            current().kind == TokenKind::symbol && current().text == ".") {
+            Token err;
+            err.kind = TokenKind::identifier;
+            err.text = "err";
+            err.spelling = "Err";
+            err.line = current().line;
+            err.column = current().column;
+            err.line_start = current().line_start;
+            tokens_.insert(
+                tokens_.begin() + static_cast<std::ptrdiff_t>(index_), err);
+        }
+    }
+
     [[nodiscard]] StmtPtr statement() {
+        insert_err_before_dot();
         if (current().kind == TokenKind::symbol && current().text == ".") {
             return with_member_statement();
         }
@@ -932,6 +1056,14 @@ private:
         if (word == "seek" && ahead(1).kind == TokenKind::symbol &&
             ahead(1).text == "#") {
             return simple_engine_statement("Seek #");
+        }
+        if (word == "width" && ahead(1).kind == TokenKind::symbol &&
+            ahead(1).text == "#") {
+            return simple_engine_statement("Width #");
+        }
+        if ((word == "lock" || word == "unlock") &&
+            ahead(1).kind == TokenKind::symbol && ahead(1).text == "#") {
+            return simple_engine_statement(current().spelling + " #");
         }
         if (options_.is_form && (word == "load" || word == "unload") &&
             ahead(1).kind == TokenKind::identifier &&
@@ -1982,6 +2114,9 @@ private:
 
     // A call argument: `value` or `name := value`.
     [[nodiscard]] ExprPtr argument() {
+        if (is_symbol("#")) {
+            advance();  // `EOF(#1)`: the file number's hash is only a mark
+        }
         if (current().kind == TokenKind::identifier &&
             ahead(1).kind == TokenKind::end_of_statement &&
             ahead(1).text == ":" && ahead(2).kind == TokenKind::symbol &&
@@ -2162,6 +2297,18 @@ private:
     [[nodiscard]] ExprPtr primary() {
         const auto at = here();
         const Token token = current();
+        if ((token.kind == TokenKind::integer ||
+             token.kind == TokenKind::real) &&
+            token.currency_literal) {
+            // `922337203685477.5807@`: CCur of the digits as text.
+            advance();
+            auto call = make_expr(ExprKind::call, at);
+            call->text = "wfcliteral";
+            auto digits = make_expr(ExprKind::string_literal, at);
+            digits->text = token.text + "@";
+            call->operands.push_back(std::move(digits));
+            return call;
+        }
         if (token.kind == TokenKind::integer) {
             advance();
             auto result = make_expr(ExprKind::integer_literal, at);
@@ -2264,6 +2411,11 @@ private:
             }
             return member_chain(std::move(node), at);
         }
+        if (token.kind == TokenKind::symbol && token.text == "." &&
+            !with_err_.empty() && with_err_.back()) {
+            insert_err_before_dot();
+            return primary();
+        }
         if (token.kind == TokenKind::symbol && token.text == ".") {
             // `.member` inside a With block.
             return member_chain(make_expr(ExprKind::with_target, at), at);
@@ -2322,6 +2474,8 @@ private:
     }
 
     std::vector<Token> tokens_;
+    DefType def_types_[26];
+    std::vector<bool> with_err_;  // the With blocks that are on Err
     bool procedure_static_{};
     int closing_loops_{};  // loops still closed by an earlier `Next a, b`
     std::string default_member_;  // set by an Attribute line in a procedure
