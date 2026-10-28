@@ -657,9 +657,13 @@ private:
             if (is_symbol("(")) {
                 advance();
                 field.is_array = true;
-                array_bounds(field.bounds);
-                if (field.bounds.size() != 1U) {
-                    fail("an array in a type has one dimension here");
+                if (accept_symbol(")")) {
+                    field.dynamic = true;
+                } else {
+                    array_bounds(field.bounds);
+                    if (field.bounds.size() != 1U) {
+                        fail("an array in a type has one dimension here");
+                    }
                 }
             }
             if (accept_word("as")) {
@@ -752,6 +756,15 @@ private:
             result.return_type = by_suffix;
             if (accept_word("as")) {
                 result.return_type = type_name(&result.return_type_name);
+                if (is_symbol("(") && ahead(1).kind == TokenKind::symbol &&
+                    ahead(1).text == ")") {
+                    // `As Item()`: the result is an array, held as a Variant.
+                    advance();
+                    advance();
+                    result.return_type = VbType::variant;
+                    result.return_type_name.clear();
+                    result.returns_array = true;
+                }
             }
             if (result.return_type == VbType::none) {
                 result.return_type = VbType::variant;
@@ -1266,7 +1279,22 @@ private:
             declaration.at = here();
             declaration.name = without_suffix(current().text);
             declaration.is_array = true;
+            auto chain = make_expr(ExprKind::name, here());
+            chain->text = declaration.name;
             advance();
+            while (is_symbol(".") && ahead(1).kind == TokenKind::identifier) {
+                // `ReDim o.Items(1 To 2)`: an array in a record.
+                advance();
+                auto field = make_expr(ExprKind::member, here());
+                field->text = without_suffix(current().text);
+                advance();
+                field->operands.push_back(std::move(chain));
+                chain = std::move(field);
+                declaration.name = chain->text;
+            }
+            if (chain->kind == ExprKind::member) {
+                declaration.target = std::move(chain);
+            }
             expect_symbol("(");
             array_bounds(declaration.bounds);
             if (accept_word("as")) {

@@ -719,6 +719,8 @@ void object_release(RtObject* object);
 
 RtVariant* variant_retain(RtVariant* handle);
 void object_addref(RtObject* object);
+RtArray* array_clone(const RtArray* source);
+void array_release(RtArray* array);
 
 // After a copy of the bytes of an array: its handles are shared.
 void array_retain_elements(RtArray* array) {
@@ -731,8 +733,16 @@ void array_retain_elements(RtArray* array) {
                 const std::int32_t where = array->strings[1 + k];
                 if ((where & 0x40000000) != 0) {
                     auto** handle = reinterpret_cast<RtVariant**>(
-                        base + (where & ~0x40000000));
+                        base + (where & ~0x60000000));
                     variant_retain(*handle);
+                    continue;
+                }
+                if ((where & 0x20000000) != 0) {
+                    // An array inside a record: the copy has an array of its
+                    // own.
+                    auto** handle = reinterpret_cast<RtArray**>(
+                        base + (where & ~0x60000000));
+                    *handle = array_clone(*handle);
                     continue;
                 }
                 auto** handle = reinterpret_cast<RtString**>(base + where);
@@ -766,8 +776,15 @@ void release_elements(RtArray* array) {
                 const std::int32_t where = array->strings[1 + k];
                 if ((where & 0x40000000) != 0) {
                     auto** handle = reinterpret_cast<RtVariant**>(
-                        base + (where & ~0x40000000));
+                        base + (where & ~0x60000000));
                     variant_release(*handle);
+                    *handle = nullptr;
+                    continue;
+                }
+                if ((where & 0x20000000) != 0) {
+                    auto** handle = reinterpret_cast<RtArray**>(
+                        base + (where & ~0x60000000));
+                    array_release(*handle);
                     *handle = nullptr;
                     continue;
                 }
@@ -797,6 +814,24 @@ void release_elements(RtArray* array) {
 
 void array_retain_elements(RtArray* array);
 void array_release(RtArray* array);
+
+// A copy of an array (its handles are shared, arrays inside records copied).
+RtArray* array_clone(const RtArray* source) {
+    if (source == nullptr) {
+        return nullptr;
+    }
+    const std::size_t bytes =
+        sizeof(RtArray) + static_cast<std::size_t>(source->count) *
+                              static_cast<std::size_t>(source->size);
+    auto* copy = static_cast<RtArray*>(std::malloc(bytes));
+    if (copy == nullptr) {
+        raise_error(7);
+        return nullptr;
+    }
+    std::memcpy(copy, source, bytes);
+    array_retain_elements(copy);
+    return copy;
+}
 
 // `target = source` for arrays: the target becomes a copy.
 void array_assign(RtArray** variable, RtArray* source) {
@@ -926,7 +961,7 @@ void array_redim(RtArray** variable, const std::int32_t flags,
                     std::memset(from, 0, size);  // the handle moved
                 } else if (kind == 3 && old->strings != nullptr) {
                     for (std::int32_t k = 0; k < old->strings[0]; ++k) {
-                        std::memset(from + (old->strings[1 + k] & ~0x40000000),
+                        std::memset(from + (old->strings[1 + k] & ~0x60000000),
                                     0, 8U);
                     }
                 }
@@ -2136,6 +2171,16 @@ void array_from_variant(RtArray** variable, const RtVariant* source,
             *reinterpret_cast<RtString**>(where) = make_string(*text);
         } else if (kind == 4) {
             *reinterpret_cast<RtVariant**>(where) = box(item);
+        } else if (kind == 5) {
+            bool valid = false;
+            RtObject* object = object_of(item, valid);
+            if (!valid) {
+                array_release(array);
+                raise_error(13);
+                return;
+            }
+            object_addref(object);
+            *reinterpret_cast<RtObject**>(where) = object;
         } else if (kind == 1) {
             const auto number = engine().to_double(item, problem);
             if (!number.has_value()) {
@@ -2269,10 +2314,12 @@ RtVariant* array_to_variant(const RtArray* array, const std::int32_t type) {
         raise_error(13);
         return nullptr;
     }
+    // An array of objects stays an array of objects.
     wfc::detail::ArrayValue held{};
     held.lower_bound = array->bounds[0].lower;
     // The element type, so the runtime sees a Byte array as one.
     held.is_variant_element = array->kind == 4;
+    held.is_object_element = array->kind == 5;
     held.element_type_index =
         array->kind == 4   ? wfc::detail::Value{wfc::detail::Empty{}}.index()
         : array->kind == 2 ? wfc::detail::Value{std::string{}}.index()
@@ -2292,6 +2339,10 @@ RtVariant* array_to_variant(const RtArray* array, const std::int32_t type) {
             const RtVariant* item;
             std::memcpy(&item, where, sizeof(item));
             held.elements.push_back(value_of(item));
+        } else if (array->kind == 5) {
+            RtObject* item;
+            std::memcpy(&item, where, sizeof(item));
+            held.elements.push_back(wrap_object(item));
         } else if (array->kind == 1) {
             double number;
             std::memcpy(&number, where, sizeof(number));
@@ -2408,6 +2459,15 @@ RtVariant* udt_to_engine(const RtString* descriptor, const char* record) {
                             : wfc::detail::Value{number};
                 break;
             }
+            case 8: {
+                const RtVariant* held = nullptr;
+                std::memcpy(&held, where, sizeof(held));
+                if (held == nullptr) {
+                    continue;  // the type's own default stays
+                }
+                value = value_of(held);
+                break;
+            }
             default: {
                 const RtString* text = nullptr;
                 std::memcpy(&text, where, sizeof(text));
@@ -2429,7 +2489,12 @@ void udt_from_engine(const RtString* descriptor, char* record,
         const auto value =
             wfc::detail::NativeEngine::field(value_of(held), field.name);
         wfc::detail::NativeError problem;
-        if (field.kind == 7) {
+        if (field.kind == 8) {
+            RtVariant** cell = reinterpret_cast<RtVariant**>(where);
+            RtVariant* made = box(value);
+            variant_release(*cell);
+            *cell = made;
+        } else if (field.kind == 7) {
             RtString** cell = reinterpret_cast<RtString**>(where);
             const auto text = engine().to_text(value, problem);
             RtString* made = make_string(text.value_or(std::string{}));

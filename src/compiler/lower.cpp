@@ -74,6 +74,7 @@ struct Variable final {
 // The mark on the offset of a Variant handle among the offsets of the
 // Strings of a record.
 constexpr std::int64_t kVariantMark = 0x40000000;
+constexpr std::int64_t kArrayMark = 0x20000000;  // a dynamic array handle
 
 struct FieldInfo final {
     std::string name;
@@ -81,6 +82,7 @@ struct FieldInfo final {
     int udt{-1};
     std::int64_t offset{};
     bool is_array{};
+    bool dynamic{};  // an array dimensioned later: a handle
     bool is_public{};
     bool auto_new{};
     bool with_events{};
@@ -583,7 +585,16 @@ private:
                 }
                 entry.element_size = size;
                 entry.fixed = field.fixed_length;
-                if (field.is_array) {
+                if (field.is_array && field.dynamic) {
+                    // A handle to an array that ReDim makes.
+                    entry.is_array = true;
+                    entry.dynamic = true;
+                    if (field.type == VbType::record) {
+                        entry.udt = find_udt(field.type_name, field.at);
+                    }
+                    entry.element_size = 8;
+                    size = 8;
+                } else if (field.is_array) {
                     const auto& bound = field.bounds.front();
                     const std::int64_t low =
                         bound.low ? fold(*bound.low).operand.value
@@ -602,7 +613,11 @@ private:
                 const std::int64_t align = entry.element_size >= 8 ? 8 : 4;
                 offset = (offset + align - 1) / align * align;
                 entry.offset = offset;
-                for (std::int64_t i = 0; i < entry.count; ++i) {
+                if (entry.dynamic) {
+                    info.string_offsets.push_back(offset | kArrayMark);
+                }
+                for (std::int64_t i = 0; i < entry.count && !entry.dynamic;
+                     ++i) {
                     const std::int64_t at = offset + i * entry.element_size;
                     if (field.type == VbType::string) {
                         info.string_offsets.push_back(at);
@@ -633,7 +648,9 @@ private:
             for (std::int64_t i = 0; i < field.count; ++i) {
                 const std::int64_t at =
                     base + field.offset + i * field.element_size;
-                if (field.type == VbType::record) {
+                if (field.dynamic) {
+                    into.emplace_back(at, VbType::none);  // an array handle
+                } else if (field.type == VbType::record) {
                     leaves_of(field.udt, at, into);
                 } else {
                     into.emplace_back(at, field.type);
@@ -690,9 +707,6 @@ private:
             }
             case ExprKind::member_call: {
                 // `record.field(index)`: an element of an array in a record.
-                if (expression.operands.size() != 2U) {
-                    fail("an array in a record takes one index", expression.at);
-                }
                 const auto base = lower_place(*expression.operands[0]);
                 if (base.type != VbType::record || base.is_array) {
                     fail("'." + expression.text + "' needs a record before it",
@@ -705,6 +719,26 @@ private:
                     }
                     if (!field.is_array) {
                         fail("'" + expression.text + "' is not an array",
+                             expression.at);
+                    }
+                    if (field.dynamic) {
+                        // A dynamic array: its handle is in the record.
+                        const auto where =
+                            pointer_plus(struct_pointer(base), field.offset);
+                        Variable handle{ir::indirect(where.value), field.type,
+                                        true, field.udt};
+                        std::vector<ExprPtr> indexes;
+                        for (std::size_t i = 1; i < expression.operands.size();
+                             ++i) {
+                            indexes.push_back(
+                                clone_expression(expression.operands[i].get()));
+                        }
+                        return Variable{
+                            element_address(handle, indexes, expression.at),
+                            field.type, false, field.udt};
+                    }
+                    if (expression.operands.size() != 2U) {
+                        fail("an array in a record takes one index",
                              expression.at);
                     }
                     const auto first =
@@ -744,7 +778,8 @@ private:
                         const Operand place = where.kind == OperandKind::slot
                                                   ? ir::indirect(where.value)
                                                   : where;
-                        Variable member{place, field.type, false, field.udt};
+                        Variable member{place, field.type, field.dynamic,
+                                        field.udt};
                         member.fixed = field.fixed;
                         member.coerce = field.coerce;
                         return member;
@@ -778,6 +813,12 @@ private:
                 builder_->move_wide(handle, origin);
                 builder_->runtime(Service::string_assign,
                                   {ir::slot(target.value), handle});
+            } else if (type == VbType::none) {
+                // A dynamic array: a copy of it.
+                const auto handle = builder_->new_temp();
+                builder_->move_wide(handle, origin);
+                builder_->runtime(Service::array_assign,
+                                  {ir::slot(target.value), handle});
             } else if (type == VbType::variant) {
                 const auto handle = builder_->new_temp();
                 builder_->move_wide(handle, origin);
@@ -796,13 +837,15 @@ private:
         const auto base = struct_pointer(Variable{record.slot, VbType::record});
         for (const auto offset :
              udts_[static_cast<std::size_t>(record.udt)].string_offsets) {
-            const auto field = pointer_plus(base, offset & ~kVariantMark);
+            const auto field =
+                pointer_plus(base, offset & ~(kVariantMark | kArrayMark));
             const auto handle = builder_->new_temp();
             builder_->move_wide(handle, ir::indirect(field.value));
-            builder_->runtime((offset & kVariantMark) != 0
-                                  ? Service::variant_release
-                                  : Service::string_release,
-                              {handle});
+            builder_->runtime(
+                (offset & kVariantMark) != 0 ? Service::variant_release
+                : (offset & kArrayMark) != 0 ? Service::array_release
+                                             : Service::string_release,
+                {handle});
         }
     }
 
@@ -1091,9 +1134,11 @@ private:
                 }
                 for (const auto inner : inner_strings) {
                     info.handles.emplace_back(
-                        offset + (inner & ~kVariantMark),
+                        offset + (inner & ~(kVariantMark | kArrayMark)),
                         static_cast<int>((inner & kVariantMark) != 0
                                              ? ir::HandleKind::variant
+                                         : (inner & kArrayMark) != 0
+                                             ? ir::HandleKind::array
                                              : ir::HandleKind::string));
                 }
                 offset += size;
@@ -2278,6 +2323,27 @@ private:
             statement.expr->kind == ExprKind::name &&
             has_variable(statement.expr->text) &&
             find_variable(statement.expr->text, statement.at).is_array;
+        if (target.type == VbType::variant && !target.is_array &&
+            statement.items.empty() && statement.expr->kind == ExprKind::name &&
+            has_variable(statement.expr->text)) {
+            const auto original =
+                find_variable(statement.expr->text, statement.at);
+            if (original.type == VbType::record && !original.is_array) {
+                // `v = rec`: the runtime gets a value built from the record.
+                const auto descriptor =
+                    api_descriptor_of(original.udt, statement.at);
+                Value made;
+                made.type = VbType::variant;
+                made.operand = new_owned_variant();
+                builder_->runtime(
+                    Service::udt_to_engine,
+                    {ir::literal(descriptor), struct_pointer(original)},
+                    made.operand, true);
+                builder_->runtime(Service::variant_assign,
+                                  {address_of(target.operand), made.operand});
+                return;
+            }
+        }
         if (!target.is_array && target.type == VbType::string &&
             statement.items.empty() && source_is_array &&
             find_variable(statement.expr->text, statement.at).type ==
@@ -2296,7 +2362,7 @@ private:
             return;
         }
         if (target.is_array && statement.items.empty() && !source_is_array &&
-            target.type != VbType::record && target.type != VbType::object) {
+            target.type != VbType::record) {
             // `words = Split(text)`: the array a Variant holds.
             const auto source = lower_expression(*statement.expr);
             if (source.type == VbType::string && target.type == VbType::byte) {
@@ -3051,7 +3117,9 @@ private:
     void lower_redim(const Stmt& statement) {
         for (const auto& declaration : statement.declarations) {
             const auto variable =
-                find_variable(declaration.name, declaration.at);
+                declaration.target
+                    ? lower_place(*declaration.target)
+                    : find_variable(declaration.name, declaration.at);
             if (!variable.is_array && variable.type == VbType::variant &&
                 !declaration.bounds.empty()) {
                 // `ReDim v(1 To 3) As String` on a Variant: the runtime makes
@@ -3124,12 +3192,26 @@ private:
     // The argument of an array parameter: the address of the array variable.
     [[nodiscard]] Operand array_argument(const Expr& argument,
                                          const VbType type) {
+        if (argument.kind != ExprKind::name && type != VbType::record) {
+            // `Show inv.Items`: a Variant that holds an array (the result of
+            // a call), copied into an array for the call.
+            const auto held = lower_expression(argument);
+            if (held.type == VbType::variant) {
+                const auto slot = builder_->new_temp();
+                builder_->move_wide(slot, ir::immediate(0));
+                pending_.push_back(Owned{slot, Service::array_release});
+                builder_->runtime(Service::array_from_variant,
+                                  {address_of(slot), held.operand,
+                                   ir::immediate(element_kind(type))});
+                return address_of(slot);
+            }
+        }
         if (argument.kind != ExprKind::name) {
             fail("an array argument must be the name of an array", argument.at);
         }
         const auto variable = find_variable(argument.text, argument.at);
         if (!variable.is_array && variable.type == VbType::variant &&
-            type == VbType::variant) {
+            type != VbType::record) {
             // A Variant that holds an array, passed as `a() As Variant`: the
             // elements go to an array for the call and back afterwards.
             const auto slot = builder_->new_temp();
@@ -3138,7 +3220,7 @@ private:
             const auto held = lower_expression(argument);
             builder_->runtime(Service::array_from_variant,
                               {address_of(slot), held.operand,
-                               ir::immediate(element_kind(VbType::variant))});
+                               ir::immediate(element_kind(type))});
             array_backs_.push_back(ArrayBack{slot, variable});
             return address_of(slot);
         }
@@ -3699,6 +3781,17 @@ private:
                 name == "wfcstorearg") {
                 return lower_thunk_intrinsic(name, arguments, at);
             }
+            if (name == "len" && arguments.size() == 1U && arguments[0] &&
+                place_type_of(*arguments[0]) == VbType::record) {
+                // Len(record): the bytes of the fields as a file holds them.
+                int udt = -1;
+                if (base_udt_of(*arguments[0], udt) && udt < 0) {
+                    udt = -1;
+                }
+                const auto place = lower_place(*arguments[0]);
+                return Value{ir::immediate(record_byte_size(place.udt)),
+                             VbType::long_integer};
+            }
             bool any_omitted = false;
             for (const auto& argument : arguments) {
                 any_omitted = any_omitted || !argument;
@@ -3850,6 +3943,7 @@ private:
                 : field.type == VbType::boolean          ? 4
                 : field.type == VbType::single_precision ? 5
                 : field.type == VbType::double_precision ? 6
+                : field.type == VbType::variant          ? 8
                                                          : 7);
             put(static_cast<std::int32_t>(field.offset));
         }
@@ -5158,6 +5252,45 @@ private:
         }
     }
 
+    // Len(record): the size of the record in a file.
+    [[nodiscard]] std::int64_t record_byte_size(const int udt) const {
+        std::int64_t total = 0;
+        for (const auto& field : udts_[static_cast<std::size_t>(udt)].fields) {
+            std::int64_t size = 0;
+            switch (field.type) {
+                case VbType::byte:
+                    size = 1;
+                    break;
+                case VbType::integer:
+                case VbType::boolean:
+                    size = 2;
+                    break;
+                case VbType::long_integer:
+                case VbType::single_precision:
+                    size = 4;
+                    break;
+                case VbType::double_precision:
+                    size = 8;
+                    break;
+                case VbType::string:
+                    size = field.fixed > 0 ? field.fixed : 4;
+                    break;
+                case VbType::variant:
+                    size =
+                        field.coerce == 'm' ? 16 : (field.coerce != 0 ? 8 : 16);
+                    break;
+                case VbType::record:
+                    size = record_byte_size(field.udt);
+                    break;
+                default:
+                    size = 4;
+                    break;
+            }
+            total += size * field.count;
+        }
+        return total;
+    }
+
     // A Const declared in a class, read from outside (`Rect.Tag`, `obj.Tag`).
     [[nodiscard]] std::optional<Value> class_constant(const int cls,
                                                       const std::string& name) {
@@ -5342,6 +5475,19 @@ private:
                 continue;
             }
             const auto place = field_place(base, field, expression.at);
+            if (place.is_array && place.type != VbType::record) {
+                // The whole array as a value: the array a Variant holds.
+                const auto handle = builder_->new_temp();
+                builder_->move_wide(handle, place.operand);
+                Value whole;
+                whole.type = VbType::variant;
+                whole.operand = new_owned_variant();
+                builder_->runtime(
+                    Service::array_to_variant,
+                    {handle, ir::immediate(array_type_code(place.type))},
+                    whole.operand, true);
+                return whole;
+            }
             if (place.type == VbType::record || place.is_array) {
                 fail("this field cannot be used as a value here",
                      expression.at);
@@ -5412,6 +5558,15 @@ private:
                     continue;
                 }
                 const auto place = field_place(base, field, at);
+                if (place.is_array && !arguments.empty() &&
+                    place.type != VbType::record) {
+                    // `obj.Fixed(1)`: an element of an array field.
+                    std::vector<ExprPtr> indexes;
+                    for (const auto* argument : arguments) {
+                        indexes.push_back(clone_expression(argument));
+                    }
+                    return element_value(place, indexes, at);
+                }
                 if (place.type == VbType::object && place.udt >= 0 &&
                     !classes_[static_cast<std::size_t>(place.udt)]
                          .default_member.empty()) {
@@ -6029,8 +6184,38 @@ private:
         }
         std::vector<std::optional<Variable>> places(count);
         std::int64_t variant_mask = 0;
+        struct RecordBack final {
+            std::size_t index;
+            int descriptor;
+            Operand pointer;
+        };
+        std::vector<RecordBack> record_backs;
         for (std::size_t i = 0; i < count; ++i) {
             Value boxed;
+            if (!list[i].value.has_value() && list[i].expr != nullptr &&
+                (list[i].mode == 'b' || list[i].mode == 'i') &&
+                place_type_of(*list[i].expr) == VbType::record &&
+                !(list[i].expr->kind == ExprKind::name &&
+                  find_variable(list[i].expr->text, at).is_array)) {
+                // A record: the runtime gets a value built from it, and a
+                // record that is read gets its fields back.
+                const auto place = lower_place(*list[i].expr);
+                const auto descriptor = api_descriptor_of(place.udt, at);
+                const auto pointer = struct_pointer(place);
+                boxed.type = VbType::variant;
+                boxed.operand = new_owned_variant();
+                builder_->runtime(Service::udt_to_engine,
+                                  {ir::literal(descriptor), pointer},
+                                  boxed.operand, true);
+                if (list[i].mode == 'b') {
+                    record_backs.push_back(RecordBack{i, descriptor, pointer});
+                }
+                builder_->move_wide(inputs[count - 1 - i], boxed.operand);
+                builder_->move_wide(outputs[count - 1 - i], ir::immediate(0));
+                pending_.push_back(
+                    Owned{outputs[count - 1 - i], Service::variant_release});
+                continue;
+            }
             if (list[i].value.has_value()) {
                 boxed = *list[i].value;
                 variant_mask |= std::int64_t{1} << i;
@@ -6088,6 +6273,11 @@ private:
         std::vector<Operand> results;
         for (std::size_t i = 0; i < count; ++i) {
             results.push_back(outputs[count - 1 - i]);
+        }
+        for (const auto& back : record_backs) {
+            builder_->runtime(Service::udt_from_engine,
+                              {ir::literal(back.descriptor), back.pointer,
+                               outputs[count - 1 - back.index]});
         }
         for (std::size_t i = 0; i < count; ++i) {
             if (!places[i].has_value()) {
@@ -6297,8 +6487,7 @@ private:
                 const auto variable =
                     find_variable(expression.text, expression.at);
                 if (variable.is_array) {
-                    if (variable.type == VbType::record ||
-                        variable.type == VbType::object) {
+                    if (variable.type == VbType::record) {
                         fail("the array '" + expression.text +
                                  "' needs an index",
                              expression.at);

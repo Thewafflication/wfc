@@ -145,6 +145,7 @@ struct Declaration final {
     bool with_events{};              // `WithEvents`: the events of the object
                                      // it holds call this class
     std::vector<ArrayBound> bounds;  // empty for a dynamic array: `Dim a()`
+    ExprPtr target;  // ReDim of a field: `ReDim o.Items(1 To 2)`
     Position at;
 };
 
@@ -198,6 +199,7 @@ struct Procedure final {
     bool is_public{true};
     VbType return_type{VbType::none};
     std::string return_type_name;  // the class, when the type is an object
+    bool returns_array{};  // `As Item()`: a Variant that holds the array
     std::vector<Parameter> parameters;
     std::vector<StmtPtr> body;
 };
@@ -207,6 +209,7 @@ struct FieldDecl final {
     VbType type{VbType::none};
     std::string type_name;
     int fixed_length{};              // `String * n`
+    bool dynamic{};                  // `Items() As Inner`: dimensioned later
     bool is_array{};                 // a fixed array inside the type
     std::vector<ArrayBound> bounds;  // its one dimension
     Position at;

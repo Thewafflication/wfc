@@ -1,0 +1,36 @@
+Option Explicit
+Private mItems() As Item
+Private mN As Long
+Public Fixed(1 To 2) As Item
+Public Sub Add(n As String, q As Long)
+    mN = mN + 1
+    ReDim Preserve mItems(1 To mN)
+    Set mItems(mN) = New Item
+    mItems(mN).Name = n: mItems(mN).Qty = q
+End Sub
+Public Property Get Count() As Long
+    Count = mN
+End Property
+Public Property Get Item(i As Long) As Item
+    Set Item = mItems(i)
+End Property
+Public Property Get Items() As Item()
+    Items = mItems
+End Property
+Public Sub SortByQty()
+    Dim i As Long, j As Long, t As Item
+    For i = 1 To mN - 1
+        For j = i + 1 To mN
+            If mItems(j).Qty < mItems(i).Qty Then
+                Set t = mItems(i): Set mItems(i) = mItems(j): Set mItems(j) = t
+            End If
+        Next
+    Next
+End Sub
+Public Sub Fill()
+    Dim i As Long
+    For i = 1 To 2
+        Set Fixed(i) = New Item
+        Fixed(i).Name = "f" & i
+    Next
+End Sub

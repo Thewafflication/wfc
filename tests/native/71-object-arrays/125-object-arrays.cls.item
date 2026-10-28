@@ -1,0 +1,6 @@
+Option Explicit
+Public Name As String
+Public Qty As Long
+Public Function Total(price As Double) As Double
+    Total = Qty * price
+End Function
