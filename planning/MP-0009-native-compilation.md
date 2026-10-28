@@ -1,7 +1,7 @@
 # MP-0009 — Native Compilation
 
 **Content type:** Milestone work plan  
-**Status:** Planned  
+**Status:** Construction complete; closeout drafted (`MP-0009-closeout.md`), awaiting the owner  
 **Target baseline:** 0.9.0  
 **Planned period:** 2026-10-20 through milestone closeout  
 **Inherited baseline:** MP-0008 closeout (`MP-0008-closeout.md`), `master` at the `0.8.0` release  
@@ -129,14 +129,15 @@ option, and reverting an increment is a normal Git change.
 
 | Criterion | Required evidence | Gate | Status |
 | --- | --- | --- | --- |
-| Native applications pass the compiler/runtime corpus on x86, x64 and ARM64 | CI | Required | Not started |
-| The MP-0008 project corpus builds natively | Acceptance tests | Required | Not started |
+| Native applications pass the compiler/runtime corpus on x86, x64 and ARM64 | CI | Required | Pass |
+| The MP-0008 project corpus builds natively | Acceptance tests | Required | Pass |
 | Helper signatures and behavior of `REQ-0100`–`REQ-0104` | Tests | Required | Not started |
 | The approved legacy x86 binary corpus resolves its runtime imports on x86 | Tests | Roadmap gate | Not started (needs an approved corpus) |
 
 ## Deferred Objectives
 
-None yet.
+Proposed in the closeout record: `REQ-0100`�`REQ-0105` helper behavior and
+`wfcvbrun.dll` exports bound to helpers; the legacy x86 binary corpus.
 
 ## Change Control
 
