@@ -454,7 +454,7 @@ public:
             program_.entry = main->second.index;
         }
         if (!global_arrays_.empty() || !global_objects_.empty() ||
-            options_.has_forms || !has_main) {
+            options_.has_forms || !has_main || module_.option_base != 0) {
             make_start_function(has_main ? main->second.index : -1);
         }
         return std::move(program_);
@@ -486,6 +486,11 @@ private:
         builder_ = &builder;
         const int finish = builder.new_label();
         builder.set_error_label(finish);
+        if (module_.option_base != 0) {
+            // The runtime's Array() and ReDim follow Option Base.
+            static_cast<void>(
+                emit_engine_statement("wfcoptionbase", {}, Position{1, 1}));
+        }
         for (const auto& array : global_arrays_) {
             emit_array_allocation(array.variable, array.declaration->bounds,
                                   true, false, true);
@@ -1594,6 +1599,10 @@ private:
 
     void declare_local(const Declaration& declaration) {
         require_type(declaration);
+        if (declaration.is_array && declaration.fixed_length > 0) {
+            fail("an array of fixed-length Strings is not compiled yet",
+                 declaration.at);
+        }
         if (locals_.contains(declaration.name) ||
             (result_variable_.has_value() &&
              declaration.name == current_->name)) {
@@ -2727,6 +2736,61 @@ private:
         for (const auto& declaration : statement.declarations) {
             const auto variable =
                 find_variable(declaration.name, declaration.at);
+            if (!variable.is_array && variable.type == VbType::variant &&
+                !declaration.bounds.empty()) {
+                // `ReDim v(1 To 3) As String` on a Variant: the runtime makes
+                // the array the Variant holds.
+                std::string type_text = "Variant";
+                if (declaration.type_given) {
+                    static const std::map<VbType, std::string> names = {
+                        {VbType::boolean, "Boolean"},
+                        {VbType::byte, "Byte"},
+                        {VbType::integer, "Integer"},
+                        {VbType::long_integer, "Long"},
+                        {VbType::single_precision, "Single"},
+                        {VbType::double_precision, "Double"},
+                        {VbType::string, "String"},
+                        {VbType::variant, "Variant"}};
+                    const auto found = names.find(declaration.type);
+                    if (found == names.end()) {
+                        fail(
+                            "ReDim of a Variant to this type is not compiled "
+                            "yet",
+                            declaration.at);
+                    }
+                    type_text = found->second;
+                }
+                std::vector<EngineArgument> list;
+                list.push_back(EngineArgument{nullptr, 'i', std::nullopt});
+                Expr self;
+                self.kind = ExprKind::name;
+                self.text = declaration.name;
+                self.at = declaration.at;
+                list.push_back(EngineArgument{&self, 'b', std::nullopt});
+                std::string text = statement.preserve
+                                       ? "ReDim Preserve wfcarg1("
+                                       : "ReDim wfcarg1(";
+                for (std::size_t i = 0; i < declaration.bounds.size(); ++i) {
+                    const auto& bound = declaration.bounds[i];
+                    text += i == 0 ? "" : ", ";
+                    if (bound.low) {
+                        list.push_back(
+                            EngineArgument{bound.low.get(), 'i', std::nullopt});
+                        text += "wfcarg" + std::to_string(list.size() - 1U) +
+                                " To ";
+                    }
+                    list.push_back(
+                        EngineArgument{bound.high.get(), 'i', std::nullopt});
+                    text += "wfcarg" + std::to_string(list.size() - 1U);
+                }
+                text += ")";
+                if (declaration.type_given) {
+                    text += " As " + type_text;
+                }
+                static_cast<void>(
+                    emit_engine_statement(text, list, declaration.at));
+                continue;
+            }
             if (!variable.is_array) {
                 fail("'" + declaration.name + "' is not an array",
                      declaration.at);

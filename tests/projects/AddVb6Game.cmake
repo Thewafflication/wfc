@@ -41,12 +41,42 @@ endfunction()
 # sixth the screen size "WIDTHxHEIGHT" the program sees (WFC_SCREEN), so a
 # layout that follows the screen does not depend on the machine's display.
 function(add_vb6_play name vbp script expected)
-  add_vb6_play_with("" ${name} ${vbp} ${script} ${expected} ${ARGN})
+  # The optional seed may be empty, which an unquoted ${ARGN} would drop.
+  if(ARGC GREATER 5)
+    add_vb6_play_with(
+      ""
+      ${name}
+      ${vbp}
+      ${script}
+      ${expected}
+      "${ARGV4}"
+      "${ARGV5}"
+    )
+  elseif(ARGC GREATER 4)
+    add_vb6_play_with("" ${name} ${vbp} ${script} ${expected} "${ARGV4}")
+  else()
+    add_vb6_play_with("" ${name} ${vbp} ${script} ${expected})
+  endif()
 endfunction()
 
 # The same session with the program compiled to machine code (MP-0009).
 function(add_vb6_native_play name vbp script expected)
-  add_vb6_play_with("native" ${name} ${vbp} ${script} ${expected} ${ARGN})
+  # The optional seed may be empty, which an unquoted ${ARGN} would drop.
+  if(ARGC GREATER 5)
+    add_vb6_play_with(
+      "native"
+      ${name}
+      ${vbp}
+      ${script}
+      ${expected}
+      "${ARGV4}"
+      "${ARGV5}"
+    )
+  elseif(ARGC GREATER 4)
+    add_vb6_play_with("native" ${name} ${vbp} ${script} ${expected} "${ARGV4}")
+  else()
+    add_vb6_play_with("native" ${name} ${vbp} ${script} ${expected})
+  endif()
 endfunction()
 
 function(

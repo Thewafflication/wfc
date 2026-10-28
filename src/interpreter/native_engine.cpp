@@ -656,6 +656,10 @@ struct NativeSupport {
                               std::vector<Value>& values,
                               const std::uint32_t variant_mask,
                               NativeError& error) {
+        if (text == "wfcoptionbase") {
+            in.option_base_one_ = true;
+            return true;
+        }
         // The interpreter keeps pointers into the text it runs, so every
         // statement gets text of its own.
         static std::unordered_set<std::string> texts;
