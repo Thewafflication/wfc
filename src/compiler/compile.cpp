@@ -455,6 +455,7 @@ CompileResult compile_project(const std::string_view raw_source,
             return result;
         }
         source_text = std::move(*processed);
+        wfc::rewrite_source_forms(source_text);
         for (auto& item : classes) {
             auto text =
                 wfc::preprocess_conditionals(item.source, problem, problem_at);
@@ -463,6 +464,7 @@ CompileResult compile_project(const std::string_view raw_source,
                 return result;
             }
             item.source = std::move(*text);
+            wfc::rewrite_source_forms(item.source);
         }
     }
     const std::string_view source = source_text;

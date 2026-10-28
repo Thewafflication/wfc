@@ -3718,16 +3718,17 @@ private:
                         : name;
                 return lower_library_call(spelled, arguments, at);
             }
-            if (is_host_member(name)) {
+            if (const int global = global_namespace_class(name); global >= 0) {
+                return lower_global_member(global, name, arguments, at,
+                                           want_value);
+            }
+            if (is_host_member(name) || in_form()) {
+                // A method of the window: the runtime finds it.
                 std::vector<const Expr*> pointers;
                 for (const auto& argument : arguments) {
                     pointers.push_back(argument.get());
                 }
                 return late_get(host_of_me(at), name, pointers, at);
-            }
-            if (const int global = global_namespace_class(name); global >= 0) {
-                return lower_global_member(global, name, arguments, at,
-                                           want_value);
             }
             fail("'" + name + "' is not a Sub or Function of the project", at);
         }
@@ -4313,7 +4314,25 @@ private:
         const auto& info = classes_[static_cast<std::size_t>(cls)];
         const auto lister = info.methods.find("wfcitems");
         if (lister == info.methods.end()) {
-            fail("For Each needs a collection here", statement.at);
+            // A class with a NewEnum (VB_UserMemId = -4) lists its items
+            // through the enumerator it returns.
+            const auto enumerator = info.methods.find("newenum");
+            if (enumerator == info.methods.end() ||
+                !enumerator->second.is_function) {
+                fail("For Each needs a collection here", statement.at);
+            }
+            const auto owner = lower_expression(*statement.expr);
+            builder_->runtime(Service::object_check, {owner.operand});
+            const auto listed = emit_call(enumerator->second, "newenum", {},
+                                          owner.operand, nullptr, statement.at);
+            const auto boxed = to_variant(listed, statement.at);
+            Value items;
+            items.type = VbType::variant;
+            items.operand = new_owned_variant();
+            builder_->runtime(Service::variant_items, {boxed.operand},
+                              items.operand, true);
+            for_each_items(statement, items);
+            return;
         }
         const auto base = lower_expression(*statement.expr);
         builder_->runtime(Service::object_check, {base.operand});
@@ -5920,6 +5939,21 @@ private:
     // `TypeOf x Is Class`.
     [[nodiscard]] Value lower_type_of(const Expr& expression) {
         auto operand = lower_expression(*expression.operands[0]);
+        if (expression.text != "object" &&
+            !class_index_.contains(expression.text)) {
+            // A class of the runtime (`TypeOf c Is TextBox`): it answers.
+            std::vector<EngineArgument> list;
+            list.push_back(EngineArgument{nullptr, 'i'});
+            list.push_back(EngineArgument{nullptr, 'i',
+                                          to_variant(operand, expression.at)});
+            const auto outputs = emit_engine_statement(
+                "wfcarg0 = TypeOf wfcarg1 Is " + expression.text, list,
+                expression.at);
+            Value answer;
+            answer.type = VbType::variant;
+            answer.operand = outputs[0];
+            return from_variant(answer, VbType::boolean, expression.at);
+        }
         if (operand.type == VbType::variant) {
             operand = from_variant(operand, VbType::object, expression.at);
         }

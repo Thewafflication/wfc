@@ -1808,6 +1808,27 @@ public:
         }
         return true;
     }
+    // `For Each` over a compiled object that lists its items (a Collection).
+    [[nodiscard]] bool enumerate(
+        wfc::detail::Interpreter&,
+        std::vector<wfc::detail::Value>& items) override {
+        const auto offset = find_thunk(object_->record, "call:wfcitems");
+        if (offset < 0) {
+            return false;
+        }
+        std::vector<wfc::detail::CallArgument> none;
+        wfc::detail::Value listed{wfc::detail::Empty{}};
+        wfc::detail::NativeFailure failure;
+        call_thunk(object_, offset, none, nullptr, listed, failure);
+        if (failure.number != 0) {
+            return false;
+        }
+        if (const auto* array = std::get_if<wfc::detail::ArrayValue>(&listed)) {
+            items = array->elements;
+            return true;
+        }
+        return false;
+    }
     [[nodiscard]] RtObject* object() const { return object_; }
 
 private:

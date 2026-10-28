@@ -111,6 +111,10 @@ struct EvaluationOptions final {
 [[nodiscard]] std::optional<std::string> preprocess_conditionals(
     std::string_view source, std::string& error, std::size_t& error_offset);
 
+// `[bracketed names]` and `As IUnknown`: the source in the plain form the
+// interpreter and the compiler read.
+void rewrite_source_forms(std::string& text);
+
 [[nodiscard]] Evaluation evaluate_program(std::string_view source);
 
 [[nodiscard]] Evaluation evaluate_program(

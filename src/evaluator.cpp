@@ -719,6 +719,11 @@ void run_large_stack_task(void* raw) {
 
 }  // namespace
 
+void rewrite_source_forms(std::string& text) {
+    rewrite_object_aliases(text);
+    rewrite_bracketed_identifiers(text);
+}
+
 std::optional<std::string> preprocess_conditionals(
     const std::string_view source, std::string& error,
     std::size_t& error_offset) {
