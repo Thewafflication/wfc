@@ -655,6 +655,14 @@ private:
             }
             if (accept_word("as")) {
                 field.type = type_name(&field.type_name);
+                if (field.type == VbType::string && is_symbol("*")) {
+                    advance();
+                    if (current().kind != TokenKind::integer) {
+                        fail("expected the length of the String");
+                    }
+                    field.fixed_length = static_cast<int>(current().number);
+                    advance();
+                }
             } else if (by_suffix != VbType::none) {
                 field.type = by_suffix;
             } else {

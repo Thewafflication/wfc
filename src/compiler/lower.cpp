@@ -71,6 +71,10 @@ struct Variable final {
 }
 
 // A field of a user-defined type or a class and where it lies.
+// The mark on the offset of a Variant handle among the offsets of the
+// Strings of a record.
+constexpr std::int64_t kVariantMark = 0x40000000;
+
 struct FieldInfo final {
     std::string name;
     VbType type{VbType::none};
@@ -81,6 +85,7 @@ struct FieldInfo final {
     bool auto_new{};
     bool with_events{};
     char coerce{};                // see Variable
+    int fixed{};                  // `String * n`: the length
     std::int64_t lower{};         // an array inside a record: first index,
     std::int64_t count{1};        // number of elements,
     std::int64_t element_size{};  // and the size of an element
@@ -560,17 +565,19 @@ private:
                 entry.name = field.name;
                 entry.type = field.type;
                 if (field.type == VbType::variant) {
-                    fail("a Variant field is not compiled yet", field.at);
+                    entry.coerce = coerce_kind(field.type_name);
                 }
                 std::int64_t size = 4;
                 if (field.type == VbType::record) {
                     entry.udt = find_udt(field.type_name, field.at);
                     size = udts_[static_cast<std::size_t>(entry.udt)].size;
                 } else if (field.type == VbType::string ||
+                           field.type == VbType::variant ||
                            is_float(field.type)) {
                     size = 8;
                 }
                 entry.element_size = size;
+                entry.fixed = field.fixed_length;
                 if (field.is_array) {
                     const auto& bound = field.bounds.front();
                     const std::int64_t low =
@@ -594,6 +601,9 @@ private:
                     const std::int64_t at = offset + i * entry.element_size;
                     if (field.type == VbType::string) {
                         info.string_offsets.push_back(at);
+                    } else if (field.type == VbType::variant) {
+                        // A Variant handle: marked among the Strings.
+                        info.string_offsets.push_back(at | kVariantMark);
                     } else if (entry.udt >= 0) {
                         for (const auto inner :
                              udts_[static_cast<std::size_t>(entry.udt)]
@@ -729,7 +739,10 @@ private:
                         const Operand place = where.kind == OperandKind::slot
                                                   ? ir::indirect(where.value)
                                                   : where;
-                        return Variable{place, field.type, false, field.udt};
+                        Variable member{place, field.type, false, field.udt};
+                        member.fixed = field.fixed;
+                        member.coerce = field.coerce;
+                        return member;
                     }
                 }
                 fail("the type '" + info.name + "' has no field '" +
@@ -760,6 +773,11 @@ private:
                 builder_->move_wide(handle, origin);
                 builder_->runtime(Service::string_assign,
                                   {ir::slot(target.value), handle});
+            } else if (type == VbType::variant) {
+                const auto handle = builder_->new_temp();
+                builder_->move_wide(handle, origin);
+                builder_->runtime(Service::variant_assign,
+                                  {ir::slot(target.value), handle});
             } else if (is_float(type)) {
                 builder_->move_wide(target, origin);
             } else {
@@ -773,10 +791,13 @@ private:
         const auto base = struct_pointer(Variable{record.slot, VbType::record});
         for (const auto offset :
              udts_[static_cast<std::size_t>(record.udt)].string_offsets) {
-            const auto field = pointer_plus(base, offset);
+            const auto field = pointer_plus(base, offset & ~kVariantMark);
             const auto handle = builder_->new_temp();
             builder_->move_wide(handle, ir::indirect(field.value));
-            builder_->runtime(Service::string_release, {handle});
+            builder_->runtime((offset & kVariantMark) != 0
+                                  ? Service::variant_release
+                                  : Service::string_release,
+                              {handle});
         }
     }
 
@@ -832,6 +853,18 @@ private:
 
     void declare_procedures() {
         for (const auto& procedure : module_.procedures) {
+            if (procedure.property == PropertyKind::let ||
+                procedure.property == PropertyKind::set) {
+                // `Count = 5` calls the Property Let of the module.
+                if (module_setters_.contains(procedure.name) ||
+                    globals_.contains(procedure.name)) {
+                    fail("'" + procedure.spelling + "' is already declared",
+                         procedure.at);
+                }
+                module_setters_[procedure.name] =
+                    declare_function(procedure, "let_" + procedure.name, false);
+                continue;
+            }
             if (signatures_.contains(procedure.name) ||
                 globals_.contains(procedure.name)) {
                 fail("'" + procedure.spelling + "' is already declared",
@@ -1040,8 +1073,10 @@ private:
                 }
                 for (const auto inner : inner_strings) {
                     info.handles.emplace_back(
-                        offset + inner,
-                        static_cast<int>(ir::HandleKind::string));
+                        offset + (inner & ~kVariantMark),
+                        static_cast<int>((inner & kVariantMark) != 0
+                                             ? ir::HandleKind::variant
+                                             : ir::HandleKind::string));
                 }
                 offset += size;
                 info.layout.fields.push_back(std::move(entry));
@@ -1260,8 +1295,12 @@ private:
     }
 
     void lower_procedure(const Procedure& procedure, const int cls) {
-        const auto& signature = cls < 0 ? signatures_.at(procedure.name)
-                                        : class_signature(cls, procedure);
+        const auto& signature =
+            cls < 0 ? (procedure.property == PropertyKind::let ||
+                               procedure.property == PropertyKind::set
+                           ? module_setters_.at(procedure.name)
+                           : signatures_.at(procedure.name))
+                    : class_signature(cls, procedure);
         auto& function =
             program_.functions[static_cast<std::size_t>(signature.index)];
         FunctionBuilder builder(function);
@@ -2091,6 +2130,19 @@ private:
                      lower_expression(*statement.expr), false, statement.at);
             return;
         }
+        if (current_class_ < 0 && !has_variable(statement.text) &&
+            module_setters_.contains(statement.text)) {
+            // A Property Let of the module.
+            const auto value = lower_expression(*statement.expr);
+            std::vector<const Expr*> arguments;
+            for (const auto& item : statement.items) {
+                arguments.push_back(item.get());
+            }
+            static_cast<void>(emit_call(module_setters_.at(statement.text),
+                                        statement.text, arguments, std::nullopt,
+                                        &value, statement.at));
+            return;
+        }
         auto target = find_variable(statement.text, statement.at);
         if (target.type == VbType::object && !target.is_array &&
             target.udt >= 0 && statement.items.empty() &&
@@ -2124,11 +2176,37 @@ private:
             fail("the default member of '" + info.name + "' cannot be set",
                  statement.at);
         }
-        if (target.is_array && statement.items.empty() &&
-            statement.expr->kind != ExprKind::name &&
+        const bool source_is_array =
+            statement.expr->kind == ExprKind::name &&
+            has_variable(statement.expr->text) &&
+            find_variable(statement.expr->text, statement.at).is_array;
+        if (!target.is_array && target.type == VbType::string &&
+            statement.items.empty() && source_is_array &&
+            find_variable(statement.expr->text, statement.at).type ==
+                VbType::byte) {
+            // `text = bytes`: the bytes are UTF-16 units.
+            const auto original =
+                find_variable(statement.expr->text, statement.at);
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, original.operand);
+            Value text;
+            text.type = VbType::string;
+            text.operand = new_owned_string();
+            builder_->runtime(Service::string_from_array, {handle},
+                              text.operand, true);
+            store_value(target, text, statement.at);
+            return;
+        }
+        if (target.is_array && statement.items.empty() && !source_is_array &&
             target.type != VbType::record && target.type != VbType::object) {
             // `words = Split(text)`: the array a Variant holds.
             const auto source = lower_expression(*statement.expr);
+            if (source.type == VbType::string && target.type == VbType::byte) {
+                // `bytes = text`: the UTF-16 bytes of the text.
+                builder_->runtime(Service::array_from_string,
+                                  {address_of(target.operand), source.operand});
+                return;
+            }
             if (source.type != VbType::variant) {
                 fail("an array can only be assigned an array", statement.at);
             }
@@ -2950,12 +3028,33 @@ private:
             fail("an array argument must be the name of an array", argument.at);
         }
         const auto variable = find_variable(argument.text, argument.at);
+        if (!variable.is_array && variable.type == VbType::variant &&
+            type == VbType::variant) {
+            // A Variant that holds an array, passed as `a() As Variant`: the
+            // elements go to an array for the call and back afterwards.
+            const auto slot = builder_->new_temp();
+            builder_->move_wide(slot, ir::immediate(0));
+            pending_.push_back(Owned{slot, Service::array_release});
+            const auto held = lower_expression(argument);
+            builder_->runtime(Service::array_from_variant,
+                              {address_of(slot), held.operand,
+                               ir::immediate(element_kind(VbType::variant))});
+            array_backs_.push_back(ArrayBack{slot, variable});
+            return address_of(slot);
+        }
         if (!variable.is_array || variable.type != type) {
             fail("'" + argument.text + "' is not an array of the type needed",
                  argument.at);
         }
         return address_of(variable.operand);
     }
+
+    // The arrays made from Variants for a call, to be put back into them.
+    struct ArrayBack final {
+        Operand slot;
+        Variable variable;
+    };
+    std::vector<ArrayBack> array_backs_;
 
     // LBound(array [, dimension]) and UBound.
     [[nodiscard]] Value lower_bound(const bool upper,
@@ -3836,6 +3935,7 @@ private:
         const std::vector<const Expr*>& arguments,
         const std::optional<Operand>& me, const Value* trailing,
         const Position at) {
+        const std::size_t backs_before = array_backs_.size();
         const std::size_t given =
             arguments.size() + (trailing != nullptr ? 1U : 0U);
         const bool has_rest = !signature.parameters.empty() &&
@@ -3913,6 +4013,19 @@ private:
             wide ? new_owned(signature.return_type) : builder_->new_temp();
         builder_->call(result.operand, signature.index, std::move(passed), wide,
                        double_args, is_float(signature.return_type));
+        for (std::size_t k = backs_before; k < array_backs_.size(); ++k) {
+            const auto handle = builder_->new_temp();
+            builder_->move_wide(handle, array_backs_[k].slot);
+            const auto whole = new_owned_variant();
+            builder_->runtime(
+                Service::array_to_variant,
+                {handle, ir::immediate(array_type_code(VbType::variant))},
+                whole, true);
+            builder_->runtime(
+                Service::variant_assign,
+                {address_of(array_backs_[k].variable.operand), whole});
+        }
+        array_backs_.resize(backs_before);
         return result;
     }
 
@@ -4258,6 +4371,15 @@ private:
                           (lowered.back().type == VbType::object &&
                            lowered.back().cls < 0);
         }
+        for (int i = 0; i < count; ++i) {
+            // A number where text is wanted (`Left(12345, 2)`): the library
+            // converts it.
+            const auto given = lowered[static_cast<std::size_t>(i)].type;
+            any_variant =
+                any_variant ||
+                (builtin.parameters[i] == 's' && given != VbType::string) ||
+                (builtin.parameters[i] == 'n' && !is_numeric(given));
+        }
         if (any_variant) {
             // A Variant may hold Null (Len(Null) is Null) or text that is
             // not a number: the library works on Variants.
@@ -4330,6 +4452,12 @@ private:
             return result;
         }
         auto value = lower_expression(*arguments[0]);
+        if (value.type == VbType::variant && name != "cstr" && name != "clng" &&
+            name != "cint" && name != "csng" && name != "cdbl") {
+            // Abs, Int, Sqr... of a Variant: the library keeps its type
+            // (and Null).
+            return emit_library_call(name, {value});
+        }
         if (value.type == VbType::variant) {
             value = from_variant(value,
                                  name == "cstr"   ? VbType::string
@@ -4423,22 +4551,31 @@ private:
         }
         std::vector<Operand> passed;
         std::size_t next = 0;
-        if (arguments.size() == 3U) {
-            const auto start = lower_expression(*arguments[0]);
-            if (!is_numeric(start.type)) {
-                fail("InStr needs a numeric start", arguments[0]->at);
+        std::vector<Value> lowered;
+        bool plain = true;
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            lowered.push_back(lower_expression(*arguments[i]));
+            const bool is_start = arguments.size() == 3U && i == 0;
+            plain = plain && (is_start ? is_numeric(lowered.back().type)
+                                       : lowered.back().type == VbType::string);
+        }
+        if (!plain) {
+            // Numbers, Variants or objects: the library converts them.
+            std::vector<Value> boxed;
+            for (const auto& value : lowered) {
+                boxed.push_back(to_variant(default_value(value, at), at));
             }
-            passed.push_back(to_long(start, at).operand);
+            return from_variant(emit_library_call("instr", boxed),
+                                VbType::long_integer, at);
+        }
+        if (arguments.size() == 3U) {
+            passed.push_back(to_long(lowered[0], at).operand);
             next = 1;
         } else {
             passed.push_back(ir::immediate(1));
         }
         for (std::size_t i = next; i < arguments.size(); ++i) {
-            const auto value = lower_expression(*arguments[i]);
-            if (value.type != VbType::string) {
-                fail("InStr needs String arguments", arguments[i]->at);
-            }
-            passed.push_back(value.operand);
+            passed.push_back(lowered[i].operand);
         }
         Value result;
         result.type = VbType::long_integer;
@@ -4930,6 +5067,14 @@ private:
         fail("the class '" + info.name + "' has no field '" + expression.text +
                  "'",
              expression.at);
+    }
+
+    // The element type of an array handed to the runtime as a Variant.
+    [[nodiscard]] static int array_type_code(const VbType type) {
+        return type == VbType::byte      ? 2
+               : type == VbType::integer ? 1
+               : type == VbType::boolean ? 3
+                                         : 0;
     }
 
     // An index on a value: the runtime indexes the array or the default
@@ -5937,8 +6082,10 @@ private:
                     Value whole;
                     whole.type = VbType::variant;
                     whole.operand = new_owned_variant();
-                    builder_->runtime(Service::array_to_variant, {handle},
-                                      whole.operand, true);
+                    builder_->runtime(
+                        Service::array_to_variant,
+                        {handle, ir::immediate(array_type_code(variable.type))},
+                        whole.operand, true);
                     return whole;
                 }
                 if (variable.type == VbType::object && variable.auto_new) {
@@ -6508,6 +6655,8 @@ private:
     ir::Program program_;
     std::map<std::string, Variable> globals_;
     std::map<std::string, Signature> signatures_;
+    std::map<std::string, Signature>
+        module_setters_;  // Property Let of a module
     std::map<std::string, Variable> locals_;
     std::optional<Variable> result_variable_;
     std::vector<Loop> loops_;

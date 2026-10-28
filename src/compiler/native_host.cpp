@@ -269,11 +269,7 @@ RtString* string_concat(const RtString* a, const RtString* b) {
 }
 
 // A fixed-length String: the text cut or padded with blanks to its length.
-RtString* string_fixed(const RtString* text, const std::int32_t length) {
-    std::string result(view_of(text));
-    result.resize(static_cast<std::size_t>(length), ' ');
-    return make_string(result);
-}
+RtString* string_fixed(const RtString* text, const std::int32_t length);
 
 void trace_call(const RtString* name) {
     std::fputs(std::string(view_of(name)).c_str(), stderr);
@@ -337,11 +333,56 @@ std::int32_t string_like(const RtString* text, const RtString* pattern) {
                : 0;
 }
 
+// `String * n`: cut or padded to n UTF-16 units.
+RtString* string_fixed(const RtString* text, const std::int32_t length) {
+    if (all_ascii(view_of(text))) {
+        std::string result(view_of(text));
+        result.resize(static_cast<std::size_t>(length), ' ');
+        return make_string(result);
+    }
+    const auto units = string_length(text);
+    if (units >= length) {
+        RtString* cut =
+            via_engine_text("left", {text_value(text), long_value(length)});
+        return cut;
+    }
+    std::string result(view_of(text));
+    result.append(static_cast<std::size_t>(length - units), ' ');
+    return make_string(result);
+}
+
 // Mid(variable, start[, length]) = text
 void string_mid_assign(RtString** variable, const std::int32_t start,
                        const std::int32_t length, const RtString* text) {
     if (start < 1 || length < -1) {
         raise_error(5);
+        return;
+    }
+    if (!all_ascii(view_of(*variable)) || !all_ascii(view_of(text))) {
+        // UTF-16 units: the pieces are cut by the interpreter's functions.
+        const auto target_units = string_length(*variable);
+        if (start - 1 >= target_units) {
+            return;
+        }
+        auto count = std::min(string_length(text), target_units - (start - 1));
+        if (length >= 0) {
+            count = std::min(count, length);
+        }
+        RtString* head = via_engine_text(
+            "left", {text_value(*variable), long_value(start - 1)});
+        RtString* piece =
+            via_engine_text("left", {text_value(text), long_value(count)});
+        RtString* tail = via_engine_text(
+            "mid", {text_value(*variable), long_value(start + count)});
+        std::string joined(view_of(head));
+        joined.append(view_of(piece));
+        joined.append(view_of(tail));
+        release(head);
+        release(piece);
+        release(tail);
+        RtString* replaced = make_string(joined);
+        release(*variable);
+        *variable = replaced;
         return;
     }
     std::string target(view_of(*variable));
@@ -684,8 +725,14 @@ void array_retain_elements(RtArray* array) {
                 data_of(array) + static_cast<std::size_t>(i) *
                                      static_cast<std::size_t>(array->size);
             for (std::int32_t k = 0; k < array->strings[0]; ++k) {
-                auto** handle =
-                    reinterpret_cast<RtString**>(base + array->strings[1 + k]);
+                const std::int32_t where = array->strings[1 + k];
+                if ((where & 0x40000000) != 0) {
+                    auto** handle = reinterpret_cast<RtVariant**>(
+                        base + (where & ~0x40000000));
+                    variant_retain(*handle);
+                    continue;
+                }
+                auto** handle = reinterpret_cast<RtString**>(base + where);
                 retain(*handle);
             }
         }
@@ -713,8 +760,15 @@ void release_elements(RtArray* array) {
                 data_of(array) + static_cast<std::size_t>(i) *
                                      static_cast<std::size_t>(array->size);
             for (std::int32_t k = 0; k < array->strings[0]; ++k) {
-                auto** handle =
-                    reinterpret_cast<RtString**>(base + array->strings[1 + k]);
+                const std::int32_t where = array->strings[1 + k];
+                if ((where & 0x40000000) != 0) {
+                    auto** handle = reinterpret_cast<RtVariant**>(
+                        base + (where & ~0x40000000));
+                    variant_release(*handle);
+                    *handle = nullptr;
+                    continue;
+                }
+                auto** handle = reinterpret_cast<RtString**>(base + where);
                 release(*handle);
                 *handle = nullptr;
             }
@@ -849,7 +903,8 @@ void array_redim(RtArray** variable, const std::int32_t flags,
                     std::memset(from, 0, size);  // the handle moved
                 } else if (kind == 3 && old->strings != nullptr) {
                     for (std::int32_t k = 0; k < old->strings[0]; ++k) {
-                        std::memset(from + old->strings[1 + k], 0, 8U);
+                        std::memset(from + (old->strings[1 + k] & ~0x40000000),
+                                    0, 8U);
                     }
                 }
             }
@@ -2055,17 +2110,129 @@ void array_from_variant(RtArray** variable, const RtVariant* source,
     *variable = array;
 }
 
+// `bytes = text`: the UTF-16 bytes of the text, one per element.
+void array_from_string(RtArray** variable, const RtString* text) {
+    std::vector<std::uint8_t> bytes;
+    const auto view = view_of(text);
+    for (std::size_t i = 0; i < view.size();) {
+        const auto lead = static_cast<unsigned char>(view[i]);
+        std::uint32_t point = lead;
+        std::size_t extra = 0;
+        if (lead >= 0xF0U) {
+            point = lead & 0x07U;
+            extra = 3;
+        } else if (lead >= 0xE0U) {
+            point = lead & 0x0FU;
+            extra = 2;
+        } else if (lead >= 0xC0U) {
+            point = lead & 0x1FU;
+            extra = 1;
+        }
+        for (std::size_t k = 1; k <= extra && i + k < view.size(); ++k) {
+            point = (point << 6U) |
+                    (static_cast<unsigned char>(view[i + k]) & 0x3FU);
+        }
+        i += extra + 1U;
+        const auto put_unit = [&](const std::uint32_t unit) {
+            bytes.push_back(static_cast<std::uint8_t>(unit & 0xFFU));
+            bytes.push_back(static_cast<std::uint8_t>((unit >> 8U) & 0xFFU));
+        };
+        if (point >= 0x10000U) {
+            point -= 0x10000U;
+            put_unit(0xD800U + (point >> 10U));
+            put_unit(0xDC00U + (point & 0x3FFU));
+        } else {
+            put_unit(point);
+        }
+    }
+    const auto count = static_cast<std::int32_t>(bytes.size());
+    RtArray header{};
+    header.kind = 0;
+    header.dims = 1;
+    header.size = 4;
+    header.count = count;
+    header.bounds[0] = RtBound{0, count - 1};
+    auto* array = static_cast<RtArray*>(
+        std::calloc(1, sizeof(RtArray) + static_cast<std::size_t>(count) * 4U));
+    if (array == nullptr) {
+        raise_error(7);
+        return;
+    }
+    *array = header;
+    for (std::int32_t i = 0; i < count; ++i) {
+        const std::int32_t value = bytes[static_cast<std::size_t>(i)];
+        std::memcpy(data_of(array) + static_cast<std::size_t>(i) * 4U, &value,
+                    sizeof(value));
+    }
+    array_release(*variable);
+    *variable = array;
+}
+
+// `text = bytes`: the bytes are UTF-16 units.
+RtString* string_from_array(const RtArray* array) {
+    if (array == nullptr || array->dims != 1) {
+        return make_string(std::string());
+    }
+    std::vector<std::uint16_t> units;
+    const char* base = reinterpret_cast<const char*>(array) + sizeof(RtArray);
+    std::vector<std::uint8_t> bytes;
+    for (std::int32_t i = 0; i < array->count; ++i) {
+        std::int32_t value;
+        std::memcpy(&value, base + static_cast<std::size_t>(i) * 4U,
+                    sizeof(value));
+        bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+    }
+    for (std::size_t i = 0; i + 1U < bytes.size(); i += 2U) {
+        units.push_back(
+            static_cast<std::uint16_t>(bytes[i] | (bytes[i + 1U] << 8U)));
+    }
+    std::string text;
+    for (std::size_t i = 0; i < units.size(); ++i) {
+        std::uint32_t point = units[i];
+        if (point >= 0xD800U && point < 0xDC00U && i + 1U < units.size() &&
+            units[i + 1U] >= 0xDC00U && units[i + 1U] < 0xE000U) {
+            point = 0x10000U + ((point - 0xD800U) << 10U) +
+                    (units[i + 1U] - 0xDC00U);
+            ++i;
+        }
+        if (point < 0x80U) {
+            text.push_back(static_cast<char>(point));
+        } else if (point < 0x800U) {
+            text.push_back(static_cast<char>(0xC0U | (point >> 6U)));
+            text.push_back(static_cast<char>(0x80U | (point & 0x3FU)));
+        } else if (point < 0x10000U) {
+            text.push_back(static_cast<char>(0xE0U | (point >> 12U)));
+            text.push_back(static_cast<char>(0x80U | ((point >> 6U) & 0x3FU)));
+            text.push_back(static_cast<char>(0x80U | (point & 0x3FU)));
+        } else {
+            text.push_back(static_cast<char>(0xF0U | (point >> 18U)));
+            text.push_back(static_cast<char>(0x80U | ((point >> 12U) & 0x3FU)));
+            text.push_back(static_cast<char>(0x80U | ((point >> 6U) & 0x3FU)));
+            text.push_back(static_cast<char>(0x80U | (point & 0x3FU)));
+        }
+    }
+    return make_string(text);
+}
+
 // `Join(words, " ")`, `v = a`: a one-dimensional array as the array a Variant
 // holds (element kinds as for array_from_variant).
-RtVariant* array_to_variant(const RtArray* array) {
+RtVariant* array_to_variant(const RtArray* array, const std::int32_t type) {
     if (array == nullptr || array->dims != 1 || array->kind == 3) {
         raise_error(13);
         return nullptr;
     }
     wfc::detail::ArrayValue held{};
     held.lower_bound = array->bounds[0].lower;
-    held.is_variant_element = true;
-    held.element_type_index = wfc::detail::Value{wfc::detail::Empty{}}.index();
+    // The element type, so the runtime sees a Byte array as one.
+    held.is_variant_element = array->kind == 4;
+    held.element_type_index =
+        array->kind == 4   ? wfc::detail::Value{wfc::detail::Empty{}}.index()
+        : array->kind == 2 ? wfc::detail::Value{std::string{}}.index()
+        : array->kind == 1 ? wfc::detail::Value{0.0}.index()
+        : type == 2        ? wfc::detail::Value{wfc::detail::Byte{}}.index()
+        : type == 1        ? wfc::detail::Value{wfc::detail::Int16{}}.index()
+        : type == 3        ? wfc::detail::Value{false}.index()
+                           : wfc::detail::Value{wfc::detail::Integer{}}.index();
     const char* base = reinterpret_cast<const char*>(array) + sizeof(RtArray);
     for (std::int32_t i = 0; i < array->count; ++i) {
         const char* where = base + static_cast<std::size_t>(i) * array->size;
@@ -2084,8 +2251,18 @@ RtVariant* array_to_variant(const RtArray* array) {
         } else {
             std::int32_t number;
             std::memcpy(&number, where, sizeof(number));
-            held.elements.emplace_back(
-                static_cast<wfc::detail::Integer>(number));
+            if (type == 2) {
+                held.elements.emplace_back(
+                    static_cast<wfc::detail::Byte>(number));
+            } else if (type == 1) {
+                held.elements.emplace_back(
+                    static_cast<wfc::detail::Int16>(number));
+            } else if (type == 3) {
+                held.elements.emplace_back(number != 0);
+            } else {
+                held.elements.emplace_back(
+                    static_cast<wfc::detail::Integer>(number));
+            }
         }
     }
     return box(wfc::detail::Value{std::move(held)});
@@ -2647,6 +2824,8 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&error_raise_help),
         address_of(&error_help_file),
         address_of(&error_help_context),
+        address_of(&array_from_string),
+        address_of(&string_from_array),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

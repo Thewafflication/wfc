@@ -254,7 +254,9 @@ enum class Service : int {
     error_raise_help = 115,    // (number, source, description, file, context)
     error_help_file = 116,     // () -> new handle
     error_help_context = 117,  // () -> int32
-    count = 118,
+    array_from_string = 118,   // (array* byte array, string): its UTF-16 bytes
+    string_from_array = 119,   // (byte array) -> new string
+    count = 120,
 };
 
 struct Instruction final {

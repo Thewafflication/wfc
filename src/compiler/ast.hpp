@@ -206,6 +206,7 @@ struct FieldDecl final {
     std::string name;  // lower-case
     VbType type{VbType::none};
     std::string type_name;
+    int fixed_length{};              // `String * n`
     bool is_array{};                 // a fixed array inside the type
     std::vector<ArrayBound> bounds;  // its one dimension
     Position at;
