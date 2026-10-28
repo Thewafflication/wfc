@@ -256,7 +256,12 @@ enum class Service : int {
     error_help_context = 117,  // () -> int32
     array_from_string = 118,   // (array* byte array, string): its UTF-16 bytes
     string_from_array = 119,   // (byte array) -> new string
-    count = 120,
+    // The events of an object of the runtime reach the handlers of an
+    // object (`WithEvents` on a COM object).
+    engine_events_attach = 120,  // (variant source, sink, prefix literal)
+    engine_events_detach = 121,  // (variant source)
+    variant_nothing = 122,       // () -> new handle holding Nothing (an Object)
+    count = 123,
 };
 
 struct Instruction final {

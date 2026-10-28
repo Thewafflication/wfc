@@ -310,6 +310,9 @@ private:
         } else if (name == "object") {
             // A late-bound object is held like a Variant.
             type = VbType::variant;
+            if (record_name != nullptr) {
+                *record_name = name;
+            }
         } else if (options_.form_names.contains(name) ||
                    (is_engine_type(name) &&
                     !options_.type_names.contains(name))) {

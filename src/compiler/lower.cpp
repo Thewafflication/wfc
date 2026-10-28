@@ -1870,6 +1870,10 @@ private:
             }
         } else if (declaration.type == VbType::variant) {
             owned_slots_.push_back(Owned{slot, Service::variant_release});
+            if (declaration.type_name == "object" && !declaration.is_new) {
+                // An Object variable starts as Nothing.
+                builder_->runtime(Service::variant_nothing, {}, slot, true);
+            }
             if (declaration.is_new && !declaration.type_name.empty()) {
                 // `Dim x As New EngineClass`: made now.
                 const auto made = new_owned_variant();
@@ -4904,6 +4908,9 @@ private:
             found->second.contains(name)) {
             return true;
         }
+        if (name == "ambient") {
+            return true;  // a UserControl's environment
+        }
         static const ui::ControlClass* form = ui::find_control_class("Form");
         return form != nullptr && ui::find_member(*form, name, '*') != nullptr;
     }
@@ -5834,8 +5841,22 @@ private:
                        const Position at) {
         if (place.type == VbType::variant) {
             const auto boxed = to_variant(value, at);
+            const bool listening =
+                !place.event_prefix.empty() && current_class_ >= 0;
+            if (listening) {
+                // WithEvents on an object of the runtime (COM, controls).
+                const auto old = builder_->new_temp();
+                builder_->move_wide(old, place.operand);
+                builder_->runtime(Service::engine_events_detach, {old});
+            }
             builder_->runtime(Service::variant_assign,
                               {address_of(place.operand), boxed.operand});
+            if (listening) {
+                const auto now = builder_->new_temp();
+                builder_->move_wide(now, place.operand);
+                builder_->runtime(Service::engine_events_attach,
+                                  {now, me_, name_literal(place.event_prefix)});
+            }
             return;
         }
         if (place.type != VbType::object) {

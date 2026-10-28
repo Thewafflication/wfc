@@ -1506,6 +1506,54 @@ void events_attach(RtObject* source, RtObject* sink, const RtString* prefix) {
     list.push_back(EventSink{sink, text});
 }
 
+[[nodiscard]] bool call_member_by_name(
+    RtObject* object, const std::string& names, bool put,
+    const wfc::detail::Value* assigned,
+    std::vector<wfc::detail::CallArgument>& arguments,
+    wfc::detail::Value& result, wfc::detail::NativeFailure& failure);
+
+// The sinks that are still alive, for the events of objects of the runtime.
+std::unordered_map<RtObject*, std::shared_ptr<bool>> g_sink_alive;
+
+void engine_events_attach(const RtVariant* source, RtObject* sink,
+                          const RtString* prefix) {
+    if (source == nullptr || sink == nullptr) {
+        return;
+    }
+    auto& alive = g_sink_alive[sink];
+    if (!alive) {
+        alive = std::make_shared<bool>(true);
+    }
+    const std::weak_ptr<bool> still = alive;
+    const std::string text(view_of(prefix));
+    engine().attach_events(
+        value_of(source),
+        [sink, still, text](const std::string& name,
+                            std::vector<wfc::detail::Value>& arguments) {
+            const auto flag = still.lock();
+            if (!flag || !*flag) {
+                return;
+            }
+            std::vector<wfc::detail::CallArgument> call;
+            for (auto& argument : arguments) {
+                call.push_back(
+                    wfc::detail::CallArgument{argument, &argument, false, {}});
+            }
+            wfc::detail::Value ignored{wfc::detail::Empty{}};
+            wfc::detail::NativeFailure failure;
+            object_addref(sink);
+            static_cast<void>(call_member_by_name(
+                sink, text + name, false, nullptr, call, ignored, failure));
+            object_release(sink);
+        });
+}
+
+void engine_events_detach(const RtVariant* source) {
+    if (source != nullptr) {
+        engine().attach_events(value_of(source), {});
+    }
+}
+
 void events_detach(RtObject* source, RtObject* sink, const RtString* prefix) {
     const auto found = g_event_sinks.find(source);
     if (source == nullptr || found == g_event_sinks.end()) {
@@ -1523,6 +1571,11 @@ void events_detach(RtObject* source, RtObject* sink, const RtString* prefix) {
 
 // An object that goes away: it has no sinks and is nobody's sink.
 void events_forget(RtObject* object) {
+    if (const auto found = g_sink_alive.find(object);
+        found != g_sink_alive.end()) {
+        *found->second = false;
+        g_sink_alive.erase(found);
+    }
     g_event_sinks.erase(object);
     for (auto& [source, list] : g_event_sinks) {
         list.erase(std::remove_if(list.begin(), list.end(),
@@ -2044,6 +2097,14 @@ namespace {
 
 // The argument of an omitted Optional Variant: an Empty that IsMissing knows.
 RtVariant g_missing{1000000000, wfc::detail::Value{wfc::detail::Empty{}}};
+
+// The Nothing an unset `Object` variable holds.
+RtVariant g_nothing{1000000000, wfc::detail::Value{wfc::detail::Nothing{}}};
+
+RtVariant* variant_nothing() {
+    ++g_nothing.refs;
+    return &g_nothing;
+}
 
 RtVariant* variant_missing() {
     ++g_missing.refs;
@@ -2939,6 +3000,9 @@ int run_native_image(const NativeImage& image, std::string& error,
         address_of(&error_help_context),
         address_of(&array_from_string),
         address_of(&string_from_array),
+        address_of(&engine_events_attach),
+        address_of(&engine_events_detach),
+        address_of(&variant_nothing),
     };
     std::memcpy(memory, table, sizeof(table));
     DWORD previous = 0;

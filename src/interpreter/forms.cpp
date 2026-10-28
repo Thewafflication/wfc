@@ -616,6 +616,13 @@ struct FormSupport {
         }
         const auto keep = held->data;
         if (keep->com == nullptr) {
+            if (g_native_hooks != nullptr &&
+                g_native_hooks->has(
+                    *keep, member == "_default" ? std::string{} : member)) {
+                // A UserControl of a compiled program: its code answers.
+                return g_native_hooks->get(*keep, member, arguments, result,
+                                           failure);
+            }
             // An in-project UserControl: its public members by name.
             std::vector<Value> call{
                 self.inner,
@@ -657,6 +664,11 @@ struct FormSupport {
         }
         const auto keep = held->data;
         if (keep->com == nullptr) {
+            if (g_native_hooks != nullptr &&
+                g_native_hooks->has(*keep, member)) {
+                return g_native_hooks->put(*keep, member, arguments, value,
+                                           failure);
+            }
             const bool object = std::holds_alternative<ObjectInstance>(value);
             std::vector<Value> call{
                 self.inner,

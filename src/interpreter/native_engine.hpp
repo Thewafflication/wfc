@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -127,6 +128,11 @@ public:
     // The default member of an object (the value itself for other values).
     [[nodiscard]] std::optional<Value> default_value(const Value& value,
                                                      NativeError& error);
+    // The events an object of the runtime raises go to the handler (an
+    // empty handler stops them).
+    using EventHandler = std::function<void(const std::string& name,
+                                            std::vector<Value>& arguments)>;
+    void attach_events(const Value& source, EventHandler handler);
     // Whether `Option Compare Text` is on.
     [[nodiscard]] bool text_compare() const;
     // `Randomize [seed]`.

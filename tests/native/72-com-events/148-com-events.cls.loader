@@ -1,0 +1,17 @@
+Option Explicit
+Private WithEvents doc As MSXML2.DOMDocument60
+Public States As String
+Private Sub doc_onreadystatechange()
+    States = States & doc.readyState
+End Sub
+Public Sub Start(ByVal path As String)
+    Set doc = New MSXML2.DOMDocument60
+    doc.async = True
+    doc.Load path
+End Sub
+Public Function Done() As Boolean
+    Done = (doc.readyState = 4)
+End Function
+Public Function RootName() As String
+    RootName = doc.documentElement.nodeName
+End Function

@@ -807,6 +807,36 @@ struct NativeSupport {
         take_error(in, error);
     }
 
+    static void attach_events(Interpreter& in, const Value& source,
+                              NativeEngine::EventHandler handler) {
+        const auto* instance = std::get_if<ObjectInstance>(&source);
+        if (instance == nullptr || instance->data == nullptr) {
+            return;
+        }
+        auto data = instance->data;
+        if (!handler) {
+            data->external_sink = nullptr;
+            return;
+        }
+        data->external_sink = [handler](const std::string& name,
+                                        const std::vector<CallArgument>& list) {
+            std::vector<Value> values;
+            for (const auto& argument : list) {
+                values.push_back(argument.value);
+            }
+            handler(name, values);
+            for (std::size_t i = 0; i < list.size(); ++i) {
+                if (list[i].byref_target != nullptr) {
+                    *list[i].byref_target = values[i];
+                }
+            }
+        };
+        if (data->com != nullptr) {
+            in.execute_ = true;
+            static_cast<void>(in.com_connect_events(*data));
+        }
+    }
+
     static bool text_compare(const Interpreter& in) {
         return in.option_compare_text_;
     }
@@ -985,6 +1015,10 @@ std::optional<Value> NativeEngine::default_value(const Value& value,
         return std::nullopt;
     }
     return resolved;
+}
+
+void NativeEngine::attach_events(const Value& source, EventHandler handler) {
+    NativeSupport::attach_events(*interpreter_, source, std::move(handler));
 }
 
 bool NativeEngine::text_compare() const {

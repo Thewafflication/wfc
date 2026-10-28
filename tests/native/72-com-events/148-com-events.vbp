@@ -1,0 +1,5 @@
+Type=Exe
+Reference=*\G{F5078F18-C551-11D3-89B9-0000F81FE221}#6.0#0#C:\Windows\System32\msxml6.dll#Microsoft XML, v6.0
+Class=Loader; 148-com-events.cls.loader
+Module=Main; 148-com-events.bas
+Startup="Sub Main"
