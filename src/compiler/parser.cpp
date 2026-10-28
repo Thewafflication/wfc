@@ -1528,6 +1528,35 @@ private:
         }
     }
 
+    // Whether `name(...)(...)... =` starts here.
+    [[nodiscard]] bool is_index_chain_assignment() const {
+        std::size_t i = 1;
+        int groups = 0;
+        while (ahead(i).kind == TokenKind::symbol && ahead(i).text == "(") {
+            int depth = 0;
+            while (true) {
+                const Token& token = ahead(i);
+                if (token.kind == TokenKind::end_of_statement ||
+                    token.kind == TokenKind::end_of_file) {
+                    return false;
+                }
+                if (token.kind == TokenKind::symbol && token.text == "(") {
+                    ++depth;
+                } else if (token.kind == TokenKind::symbol &&
+                           token.text == ")") {
+                    if (--depth == 0) {
+                        break;
+                    }
+                }
+                ++i;
+            }
+            ++i;
+            ++groups;
+        }
+        return groups >= 2 && ahead(i).kind == TokenKind::symbol &&
+               ahead(i).text == "=";
+    }
+
     // Whether `name [(...)] . field ... =` starts here: an assignment to a
     // field of a record.
     [[nodiscard]] bool is_field_assignment() const {
@@ -1576,6 +1605,14 @@ private:
             result->expr = expression();
             return result;
         }
+        if (is_index_chain_assignment()) {
+            // `jag(2)(0) = x`: an element of the array an element holds.
+            auto result = make(StmtKind::assign);
+            result->target = primary();
+            expect_symbol("=");
+            result->expr = expression();
+            return result;
+        }
         if (is_element_assignment()) {
             auto result = make(StmtKind::assign);
             result->text = without_suffix(current().text);
@@ -1598,7 +1635,8 @@ private:
             return result;
         }
         if (current().text == "debug" && ahead(1).kind == TokenKind::symbol &&
-            ahead(1).text == "." && ahead(2).text == "print") {
+            ahead(1).text == "." &&
+            (ahead(2).text == "print" || ahead(2).text == "assert")) {
             return debug_print_statement();
         }
         if (auto drawn = member_surface_statement()) {
@@ -2184,7 +2222,7 @@ private:
                 result->text += "." + current().text;
                 advance();
             }
-            return result;
+            return member_chain(std::move(result), at);
         }
         if (token.kind == TokenKind::identifier) {
             if (token.text == "true" || token.text == "false") {
@@ -2235,7 +2273,27 @@ private:
 
     // `.member` chains: a.b.c, array(i).field, obj.Method(args)
     [[nodiscard]] ExprPtr member_chain(ExprPtr node, const Position at) {
-        while (is_symbol(".")) {
+        while (true) {
+            if (is_symbol("(") && (node->kind == ExprKind::call ||
+                                   node->kind == ExprKind::member_call ||
+                                   node->kind == ExprKind::index_of)) {
+                // `Array(1, 2)(0)`, `jag(2)(1)`: an index on a result.
+                advance();
+                auto index = make_expr(ExprKind::index_of, at);
+                index->operands.push_back(std::move(node));
+                if (!accept_symbol(")")) {
+                    do {
+                        index->operands.push_back(
+                            is_symbol(",") ? nullptr : expression());
+                    } while (accept_symbol(","));
+                    expect_symbol(")");
+                }
+                node = std::move(index);
+                continue;
+            }
+            if (!is_symbol(".")) {
+                break;
+            }
             advance();
             if (current().kind != TokenKind::identifier) {
                 fail("expected a member name after '.'");

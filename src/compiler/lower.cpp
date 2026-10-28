@@ -2065,7 +2065,11 @@ private:
                  .default_member.empty()) {
             // `obj = value` sets the default member of the object.
             const auto& info = classes_[static_cast<std::size_t>(target.udt)];
-            const auto value = lower_expression(*statement.expr);
+            const auto value =
+                default_value(lower_expression(*statement.expr), statement.at);
+            if (target.auto_new) {
+                ensure_object(target);
+            }
             const auto handle = builder_->new_temp();
             builder_->move_wide(handle, target.operand);
             const Value base{handle, VbType::object, target.udt};
@@ -2175,8 +2179,100 @@ private:
         store_value(target, value, statement.at);
     }
 
+    // `jag(2)(0) = x`, `v(1)(0) = x`: the array an element holds is changed
+    // by the runtime and put back into the element.
+    void lower_index_assignment(const Stmt& statement) {
+        const Expr& target = *statement.target;
+        const Expr& holder = *target.operands[0];
+        const auto value = lower_expression(*statement.expr);
+        const std::string temp = "wfctmp" + std::to_string(temp_counter_++);
+        Declaration declaration;
+        declaration.name = temp;
+        declaration.type = VbType::variant;
+        declaration.type_given = true;
+        declaration.at = statement.at;
+        declare_local(declaration);
+        // The holder's current value goes into the temporary variable.
+        Stmt load;
+        load.kind = StmtKind::assign;
+        load.at = statement.at;
+        load.text = temp;
+        auto copy = std::make_unique<Expr>();
+        copy->kind = holder.kind;
+        copy->at = holder.at;
+        copy->text = holder.text;
+        copy->suffix = holder.suffix;
+        for (const auto& operand : holder.operands) {
+            copy->operands.push_back(clone_expression(operand.get()));
+        }
+        load.expr = std::move(copy);
+        lower_assignment(load);
+        std::string text = "wfcarg1(";
+        std::vector<EngineArgument> list;
+        list.push_back(EngineArgument{nullptr, 'i'});
+        Expr name;
+        name.kind = ExprKind::name;
+        name.text = temp;
+        name.at = statement.at;
+        list.push_back(EngineArgument{&name, 'b'});
+        for (std::size_t i = 1; i < target.operands.size(); ++i) {
+            if (!target.operands[i]) {
+                fail("an index cannot be omitted", statement.at);
+            }
+            text += (i > 1 ? ", wfcarg" : "wfcarg") + std::to_string(i + 1);
+            list.push_back(EngineArgument{target.operands[i].get(), 'i'});
+        }
+        text += ") = wfcarg" + std::to_string(list.size());
+        list.push_back(
+            EngineArgument{nullptr, 'i', to_variant(value, statement.at)});
+        static_cast<void>(emit_engine_statement(text, list, statement.at));
+        if (holder.kind == ExprKind::name || holder.kind == ExprKind::call) {
+            // Back into the element (an object stays the same object).
+            Stmt store;
+            store.kind = StmtKind::assign;
+            store.at = statement.at;
+            store.text = holder.text;
+            if (holder.kind == ExprKind::call) {
+                for (const auto& operand : holder.operands) {
+                    store.items.push_back(clone_expression(operand.get()));
+                }
+            }
+            auto source = std::make_unique<Expr>();
+            source->kind = ExprKind::name;
+            source->text = temp;
+            source->at = statement.at;
+            store.expr = std::move(source);
+            lower_assignment(store);
+        }
+    }
+
+    [[nodiscard]] static ExprPtr clone_expression(const Expr* expression) {
+        if (expression == nullptr) {
+            return nullptr;
+        }
+        auto copy = std::make_unique<Expr>();
+        copy->kind = expression->kind;
+        copy->at = expression->at;
+        copy->number = expression->number;
+        copy->real = expression->real;
+        copy->long_literal = expression->long_literal;
+        copy->single_literal = expression->single_literal;
+        copy->parenthesized = expression->parenthesized;
+        copy->suffix = expression->suffix;
+        copy->text = expression->text;
+        copy->arg_name = expression->arg_name;
+        for (const auto& operand : expression->operands) {
+            copy->operands.push_back(clone_expression(operand.get()));
+        }
+        return copy;
+    }
+
     void lower_place_assignment(const Stmt& statement) {
         const Expr& target_expression = *statement.target;
+        if (target_expression.kind == ExprKind::index_of) {
+            lower_index_assignment(statement);
+            return;
+        }
         if (target_expression.kind == ExprKind::member ||
             target_expression.kind == ExprKind::member_call) {
             if (!is_record_place(*target_expression.operands[0])) {
@@ -2205,7 +2301,11 @@ private:
             fail("Set is needed to assign an object", at);
         }
         if (target.type == VbType::variant) {
-            auto boxed = to_variant(value, at);
+            auto boxed =
+                to_variant(value.type == VbType::object && value.cls >= 0
+                               ? default_value(value, at)
+                               : value,
+                           at);
             if (target.coerce != 0) {
                 boxed = emit_library_call(target.coerce == 'd'   ? "cdate"
                                           : target.coerce == 'c' ? "ccur"
@@ -2355,7 +2455,12 @@ private:
                 program_.strings.push_back(expression->text);
                 item.literal = static_cast<int>(program_.strings.size() - 1U);
             } else {
-                item.value = snapshot(lower_expression(*expression));
+                item.value = snapshot(default_value(
+                    lower_expression(*expression), expression->at));
+                if (item.value.type == VbType::object && item.value.cls < 0) {
+                    // An object of the runtime: its default member prints.
+                    item.value = to_variant(item.value, expression->at);
+                }
                 if (item.value.type == VbType::object) {
                     fail("an object cannot be printed", expression->at);
                 }
@@ -4099,9 +4204,12 @@ private:
         std::vector<Value> lowered;
         bool any_variant = false;
         for (int i = 0; i < count; ++i) {
-            lowered.push_back(
-                lower_expression(*arguments[static_cast<std::size_t>(i)]));
-            any_variant = any_variant || lowered.back().type == VbType::variant;
+            lowered.push_back(default_value(
+                lower_expression(*arguments[static_cast<std::size_t>(i)]), at));
+            any_variant = any_variant ||
+                          lowered.back().type == VbType::variant ||
+                          (lowered.back().type == VbType::object &&
+                           lowered.back().cls < 0);
         }
         if (any_variant) {
             // A Variant may hold Null (Len(Null) is Null) or text that is
@@ -4730,6 +4838,54 @@ private:
              expression.at);
     }
 
+    // An index on a value: the runtime indexes the array or the default
+    // member of the object the Variant holds.
+    [[nodiscard]] Value index_value(const Value& given,
+                                    const std::vector<const Expr*>& indexes,
+                                    const Position at) {
+        const auto base = to_variant(given, at);
+        std::string text = "?wfcarg0 = wfcarg1(";
+        std::vector<EngineArgument> list;
+        list.push_back(EngineArgument{nullptr, 'i'});
+        list.push_back(EngineArgument{nullptr, 'i', base});
+        for (std::size_t i = 0; i < indexes.size(); ++i) {
+            if (indexes[i] == nullptr) {
+                fail("an index cannot be omitted", at);
+            }
+            text += (i > 0 ? ", wfcarg" : "wfcarg") + std::to_string(i + 2);
+            list.push_back(EngineArgument{indexes[i], 'i'});
+        }
+        text += ")";
+        const auto outputs = emit_engine_statement(text, list, at);
+        Value result;
+        result.type = VbType::variant;
+        result.operand = outputs[0];
+        return result;
+    }
+
+    // A member the class does not have is an error of the program when it
+    // runs (438), as in the interpreter.
+    [[nodiscard]] static bool member_is_missing(const ClassInfo& info,
+                                                const std::string& name) {
+        if (info.is_form) {
+            return false;
+        }
+        for (const auto& field : info.layout.fields) {
+            if (field.name == name) {
+                return false;
+            }
+        }
+        return !info.methods.contains(name) && !info.getters.contains(name) &&
+               !info.letters.contains(name) && !info.setters.contains(name);
+    }
+
+    [[nodiscard]] Value unsupported_member() {
+        builder_->runtime(
+            Service::error_raise,
+            {ir::immediate(438), ir::immediate(0), ir::immediate(0)});
+        return Value{ir::immediate(0), VbType::variant};
+    }
+
     // `obj.Member` read as a value: a field, a Property Get or a Function
     // without arguments.
     [[nodiscard]] Value lower_object_member(const Expr& expression) {
@@ -4764,6 +4920,9 @@ private:
         if (signature == nullptr && info.is_form) {
             return late_get(form_host(base, info, expression.at),
                             expression.text, {}, expression.at);
+        }
+        if (signature == nullptr && member_is_missing(info, expression.text)) {
+            return unsupported_member();
         }
         if (signature == nullptr || !signature->is_function) {
             fail("the class '" + info.name + "' has no property or function '" +
@@ -4825,11 +4984,21 @@ private:
                     break;
                 }
             }
+            if (member_is_missing(info, name)) {
+                return unsupported_member();
+            }
             fail("the class '" + info.name + "' has no method '" + name + "'",
                  at);
         }
         if (want_value && !signature->is_function) {
             fail("'" + name + "' is a Sub and has no value", at);
+        }
+        if (signature->parameters.empty() && !arguments.empty() &&
+            signature->is_function) {
+            // `p.Kids(1)`: the member without parameters, then the index.
+            return index_value(
+                emit_call(*signature, name, {}, base.operand, nullptr, at),
+                arguments, at);
         }
         return emit_call(*signature, name, arguments, base.operand, nullptr,
                          at);
@@ -4960,6 +5129,11 @@ private:
                      arguments, value, false, statement.at);
             return;
         }
+        if (target.kind == ExprKind::member) {
+            // Not a field and no Property Let: an error when it runs (438).
+            static_cast<void>(unsupported_member());
+            return;
+        }
         fail("the class '" + info.name + "' has no field or Property Let '" +
                  target.text + "'",
              statement.at);
@@ -5022,6 +5196,37 @@ private:
                 fail("the class '" + info.name + "' has no object field or " +
                          "Property Set '" + target.text + "'",
                      statement.at);
+            }
+        }
+        if (target.kind == ExprKind::call && has_variable(target.text)) {
+            const auto holder = find_variable(target.text, target.at);
+            if (!holder.is_array &&
+                (holder.type == VbType::variant ||
+                 (holder.type == VbType::object && holder.udt < 0))) {
+                // `Set d("key") = obj` on an object of the runtime.
+                std::string text = "Set wfcarg1(";
+                std::vector<EngineArgument> list;
+                Expr self;
+                self.kind = ExprKind::name;
+                self.text = target.text;
+                self.at = target.at;
+                list.push_back(EngineArgument{nullptr, 'i'});
+                list.push_back(EngineArgument{&self, 'i'});
+                for (std::size_t i = 0; i < target.operands.size(); ++i) {
+                    if (!target.operands[i]) {
+                        fail("an index cannot be omitted", statement.at);
+                    }
+                    text +=
+                        (i > 0 ? ", wfcarg" : "wfcarg") + std::to_string(i + 2);
+                    list.push_back(
+                        EngineArgument{target.operands[i].get(), 'i'});
+                }
+                text += ") = wfcarg" + std::to_string(list.size());
+                list.push_back(EngineArgument{nullptr, 'i',
+                                              to_variant(value, statement.at)});
+                static_cast<void>(
+                    emit_engine_statement(text, list, statement.at));
+                return;
             }
         }
         assign_object(lower_place(target), value, statement.at);
@@ -5671,8 +5876,11 @@ private:
                                          expression.at);
                 }
                 if (has_variable(expression.text) &&
-                    find_variable(expression.text, expression.at).type ==
-                        VbType::variant) {
+                    (find_variable(expression.text, expression.at).type ==
+                         VbType::variant ||
+                     (find_variable(expression.text, expression.at).type ==
+                          VbType::object &&
+                      find_variable(expression.text, expression.at).udt < 0))) {
                     // `v(i)` on a Variant: an element of the array it holds,
                     // or the default member of the object it holds.
                     Expr name;
@@ -5703,6 +5911,14 @@ private:
                 }
                 return lower_call(expression.text, expression.operands,
                                   expression.at, true, expression.suffix);
+            case ExprKind::index_of: {
+                std::vector<const Expr*> indexes;
+                for (std::size_t i = 1; i < expression.operands.size(); ++i) {
+                    indexes.push_back(expression.operands[i].get());
+                }
+                return index_value(lower_expression(*expression.operands[0]),
+                                   indexes, expression.at);
+            }
             case ExprKind::type_of:
                 return lower_type_of(expression);
             case ExprKind::member: {
@@ -5777,6 +5993,9 @@ private:
                          VbType::integer};
         }
         auto operand = lower_expression(*expression.operands[0]);
+        if (operand.type == VbType::string) {
+            operand = to_variant(operand, expression.at);
+        }
         if (operand.type == VbType::variant) {
             Value result;
             result.type = VbType::variant;
@@ -6031,9 +6250,11 @@ private:
                 right.type == VbType::string) {
                 return concatenate(left, right, expression.at);
             }
-            fail("the operator " + op +
-                     " is not compiled for these String operands yet",
-                 expression.at);
+            // A String with an arithmetic or logical operator: the runtime
+            // converts the text as VB does.
+            return variant_operation(op, to_variant(left, expression.at),
+                                     to_variant(right, expression.at),
+                                     expression.at);
         }
         if (!is_numeric(left.type) || !is_numeric(right.type)) {
             fail("the operator " + op + " needs numeric values", expression.at);
@@ -6099,6 +6320,9 @@ private:
         }
         if (to == VbType::variant) {
             return to_variant(value, at);
+        }
+        if (value.type == VbType::string && to != VbType::string) {
+            return from_variant(to_variant(value, at), to, at);
         }
         if (!is_numeric(value.type)) {
             fail("this value cannot be converted yet", at);
@@ -6191,6 +6415,7 @@ private:
     std::size_t entry_index_{};
     const Procedure* current_{};
     int error_label_{-1};
+    int temp_counter_{0};
     bool uses_errors_{};
     Operand handler_slot_;
     Operand saved_handler_slot_;

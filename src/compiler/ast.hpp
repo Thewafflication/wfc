@@ -48,6 +48,7 @@ enum class ExprKind {
     member,       // text = the field; operands[0] = the record or object
     member_call,  // text = the member; operands[0] = the object; the rest
                   // are the arguments
+    index_of,     // `f(x)(i)`: operands[0] = the value, the rest the indexes
     new_object,   // `New Class`: text = the class name
     with_target,  // the object of the enclosing With: `.member` starts here
     type_of,      // `TypeOf operands[0] Is text`

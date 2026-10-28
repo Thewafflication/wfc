@@ -733,6 +733,25 @@ struct NativeSupport {
         } else {
             ok = attempt(code);
         }
+        if (!ok && values.size() > 1 &&
+            std::holds_alternative<ObjectInstance>(values[1])) {
+            // `obj(i)` on a class whose default member is Item (Collection).
+            const auto where = code.find("wfcarg1(");
+            if (where != std::string_view::npos) {
+                NativeError scratch;
+                take_error(in, scratch);
+                std::string rewritten(code);
+                rewritten.replace(where, 8, "wfcarg1.Item(");
+                const std::string& plain = *texts.insert(rewritten).first;
+                const std::string& as_object =
+                    *texts.insert("Set " + rewritten).first;
+                ok = attempt(as_object);
+                if (!ok) {
+                    take_error(in, scratch);
+                    ok = attempt(plain);
+                }
+            }
+        }
         if (self != nullptr) {
             in.instance_scopes_.pop_back();
         }

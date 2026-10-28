@@ -167,8 +167,52 @@ void print_zone() {
             return "Type mismatch";
         case 28:
             return "Out of stack space";
+        case 20:
+            return "Resume without error";
+        case 35:
+            return "Sub, Function, or Property not defined";
+        case 52:
+            return "Bad file name or number";
+        case 53:
+            return "File not found";
+        case 54:
+            return "Bad file mode";
+        case 55:
+            return "File already open";
+        case 58:
+            return "File already exists";
+        case 62:
+            return "Input past end of file";
+        case 70:
+            return "Permission denied";
+        case 75:
+            return "Path/File access error";
+        case 76:
+            return "Path not found";
         case 91:
             return "Object variable or With block variable not set";
+        case 92:
+            return "For loop not initialized";
+        case 94:
+            return "Invalid use of Null";
+        case 429:
+            return "ActiveX component can't create object";
+        case 438:
+            return "Object doesn't support this property or method";
+        case 445:
+            return "Object doesn't support this action";
+        case 448:
+            return "Named argument not found";
+        case 449:
+            return "Argument not optional";
+        case 450:
+            return "Wrong number of arguments or invalid property assignment";
+        case 451:
+            return "Property let procedure not defined and property get "
+                   "procedure did not return an object";
+        case 457:
+            return "This key is already associated with an element of this "
+                   "collection";
         default:
             return "Application-defined or object-defined error";
     }
@@ -1155,6 +1199,17 @@ std::int32_t variant_to_boolean(const RtVariant* a) {
 }
 
 void variant_print(const RtVariant* a) {
+    if (std::holds_alternative<wfc::detail::ObjectInstance>(value_of(a))) {
+        // An object prints its default member.
+        wfc::detail::NativeError problem;
+        const auto text = engine().to_text(value_of(a), problem);
+        if (!text.has_value()) {
+            raise_engine_error(problem);
+            return;
+        }
+        put(*text);
+        return;
+    }
     put(wfc::detail::NativeEngine::print_text(value_of(a)));
 }
 

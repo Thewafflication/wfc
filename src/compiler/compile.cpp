@@ -252,6 +252,67 @@ void collect_enum_names(const std::string& source,
                "wfcp0 = WfcArg(0)\n" + set + "Me." + field.name +
                " = wfcp0\nEnd Function\n";
     }
+    {
+        // The default member, for `Print obj` and `obj(i)` of the runtime.
+        std::string member = module.default_member;
+        VbType returns = VbType::variant;
+        std::size_t most = 0;
+        std::size_t fewest = 0;
+        bool found = false;
+        for (const auto& procedure : module.procedures) {
+            if (procedure.name.rfind("wfcthunk_", 0) == 0 ||
+                procedure.property == PropertyKind::let ||
+                procedure.property == PropertyKind::set) {
+                continue;
+            }
+            if (procedure.is_default ||
+                (!member.empty() && procedure.name == member)) {
+                member = procedure.spelling;
+                returns = procedure.return_type;
+                most = std::min<std::size_t>(procedure.parameters.size(), 3U);
+                for (const auto& parameter : procedure.parameters) {
+                    if (!parameter.is_optional && !parameter.is_param_array) {
+                        ++fewest;
+                    }
+                }
+                fewest = std::min(fewest, most);
+                found = procedure.is_function ||
+                        procedure.property == PropertyKind::get;
+                break;
+            }
+        }
+        if (!found && !member.empty()) {
+            for (const auto& field : module.globals) {
+                if (field.name == member && field.is_public &&
+                    !field.is_array && field.type != VbType::record) {
+                    returns = field.type;
+                    found = true;
+                }
+            }
+        }
+        if (found) {
+            const std::string set = returns == VbType::object ? "Set " : "";
+            out +=
+                "Public Function WfcThunk_get__default() As Variant\n"
+                "Dim wfcn As Long\nwfcn = WfcArgCount()\n"
+                "Select Case wfcn\n";
+            if (fewest == 0) {
+                out += "Case 0\n" + set + "WfcThunk_get__default = Me." +
+                       member + "\n";
+            }
+            for (std::size_t n = std::max<std::size_t>(fewest, 1U); n <= most;
+                 ++n) {
+                out += "Case " + std::to_string(n) + "\n" + set +
+                       "WfcThunk_get__default = Me." + member + "(";
+                for (std::size_t k = 0; k < n; ++k) {
+                    out += (k > 0 ? ", " : "") + std::string("WfcArg(") +
+                           std::to_string(k) + ")";
+                }
+                out += ")\n";
+            }
+            out += "End Select\nEnd Function\n";
+        }
+    }
     for (const auto& procedure : module.procedures) {
         if (procedure.name.rfind("wfcthunk_", 0) == 0) {
             continue;
@@ -331,7 +392,35 @@ void collect_enum_names(const std::string& source,
                 "Case Is < " + std::to_string(required) + "\nErr.Raise 450\n";
         }
         out += "Case Else\n";
-        if (total > 0 || !is_let) {
+        const bool indexable = !is_let &&
+                               (procedure.is_function ||
+                                procedure.property == PropertyKind::get) &&
+                               (procedure.return_type == VbType::object ||
+                                procedure.return_type == VbType::variant ||
+                                procedure.return_type == VbType::none);
+        if (indexable) {
+            // More arguments than parameters: the rest index the result
+            // (`obj.Kids(1)` where Kids is a property without parameters).
+            const bool object_result = procedure.return_type == VbType::object;
+            out += "Select Case wfcn - " + std::to_string(total) +
+                   "\nCase 0\n" + call_with(total);
+            for (std::size_t extra = 1; extra <= 3; ++extra) {
+                std::string list;
+                for (std::size_t i = 0; i < total; ++i) {
+                    list += (i > 0 ? ", " : "") + std::string("wfcp") +
+                            std::to_string(i);
+                }
+                std::string indexes;
+                for (std::size_t k = 0; k < extra; ++k) {
+                    indexes += (k > 0 ? ", " : "") + std::string("WfcArg(") +
+                               std::to_string(total + k) + ")";
+                }
+                out += "Case " + std::to_string(extra) + "\n" +
+                       (object_result ? "Set " : "") + name + " = Me." +
+                       procedure.spelling + "(" + list + ")(" + indexes + ")\n";
+            }
+            out += "End Select\n";
+        } else if (total > 0 || !is_let) {
             out += call_with(total);
         }
         out += "End Select\n";
