@@ -7,8 +7,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
+#include <mutex>
+#include <sstream>
 
 namespace wfc::ui {
 namespace {
@@ -330,12 +334,37 @@ std::string write_frm_header(const FrmFile& form) {
 
 bool read_frx_record(const std::string& path, const long offset,
                      std::string& bytes) {
-    std::ifstream stream(path, std::ios::binary);
-    if (!stream || offset < 0) {
+    if (offset < 0) {
         return false;
     }
-    const std::string all((std::istreambuf_iterator<char>(stream)),
-                          std::istreambuf_iterator<char>());
+    // A form asks for many records of one .frx: keep the last file read.
+    static std::mutex cache_lock;
+    static std::string cached_path;
+    static std::filesystem::file_time_type cached_time;
+    static std::shared_ptr<const std::string> cached;
+    std::shared_ptr<const std::string> contents;
+    {
+        std::error_code failure;
+        const auto stamp = std::filesystem::last_write_time(path, failure);
+        const std::lock_guard<std::mutex> guard(cache_lock);
+        if (!failure && cached && cached_path == path && cached_time == stamp) {
+            contents = cached;
+        } else {
+            std::ifstream stream(path, std::ios::binary);
+            if (!stream) {
+                return false;
+            }
+            std::ostringstream buffer;
+            buffer << stream.rdbuf();
+            contents = std::make_shared<const std::string>(buffer.str());
+            if (!failure) {
+                cached = contents;
+                cached_path = path;
+                cached_time = stamp;
+            }
+        }
+    }
+    const std::string& all = *contents;
     const auto start = static_cast<std::size_t>(offset);
     if (start + 4U > all.size()) {
         return false;
