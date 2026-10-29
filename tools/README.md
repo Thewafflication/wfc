@@ -15,6 +15,10 @@ requirement records (`REQ-0001`–`REQ-0131`) from it.
 | `Export-VbRuntime.ps1` | `msvbvm60-6.0-runtime.json` export inventory |
 | `New-*Requirements.ps1` | Initial requirement records and their indexes |
 
+`fuzz_native_vs_interpreter.py` is the exception: a live developer tool, not
+a provenance script. It writes random programs, runs each with `--interpret`
+and with `--native`, and keeps the ones that differ (see MP-0010).
+
 They are kept for provenance only and must not be re-run against the
 repository: the generated requirements have since been edited by hand (status
 changes, dispositions, tailoring), and a re-run would overwrite those
