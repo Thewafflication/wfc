@@ -514,6 +514,88 @@ struct NativeSupport {
         return text;
     }
 
+    // An intrinsic control (a native object that is not a form) answers a
+    // member itself: no statement is parsed for it.
+    [[nodiscard]] static NativeObject* intrinsic_of(const Value& object) {
+        const auto* holder = std::get_if<ObjectInstance>(&object);
+        if (holder == nullptr || holder->data == nullptr ||
+            holder->data->native == nullptr || holder->data->com != nullptr ||
+            holder->data->class_name != "wfcnative") {
+            return nullptr;
+        }
+        return holder->data->native.get();
+    }
+
+    static constexpr Integer kAlreadyReported = -1;  // as in forms.cpp
+
+    struct DirectGet final {
+        bool found{false};
+        Value value;
+    };
+
+    // The value of a member of an intrinsic control; empty when the member
+    // has to be found the long way. `found` is false when it failed.
+    [[nodiscard]] static std::optional<DirectGet> intrinsic_get(
+        Interpreter& in, const Value& object, const std::string& name,
+        std::vector<Value>& arguments, NativeError& error) {
+        NativeObject* native = intrinsic_of(object);
+        if (native == nullptr) {
+            return std::nullopt;
+        }
+        const auto keep = std::get<ObjectInstance>(object).data;
+        std::vector<CallArgument> call;
+        call.reserve(arguments.size());
+        for (auto& argument : arguments) {
+            call.push_back(CallArgument{argument, &argument, false, {}});
+        }
+        Value result{Empty{}};
+        NativeFailure failure;
+        in.execute_ = true;
+        in.offset_ = 0;
+        if (!native->get(in, lower(name), call, result, failure)) {
+            return std::nullopt;
+        }
+        if (failure.number == kAlreadyReported) {
+            take_error(in, error);
+            return DirectGet{false, {}};
+        }
+        if (failure.number != 0) {
+            error.number = failure.number;
+            error.description = failure.description;
+            return DirectGet{false, {}};
+        }
+        return DirectGet{true, std::move(result)};
+    }
+
+    // Let of a plain value into a member of an intrinsic control: true or
+    // false for done (false with `error` set), empty to use the long way.
+    [[nodiscard]] static std::optional<bool> intrinsic_put(
+        Interpreter& in, const Value& object, const std::string& name,
+        const Value& value, NativeError& error) {
+        NativeObject* native = intrinsic_of(object);
+        if (native == nullptr) {
+            return std::nullopt;
+        }
+        const auto keep = std::get<ObjectInstance>(object).data;
+        std::vector<CallArgument> none;
+        NativeFailure failure;
+        in.execute_ = true;
+        in.offset_ = 0;
+        if (!native->put(in, lower(name), none, value, failure)) {
+            return std::nullopt;
+        }
+        if (failure.number == kAlreadyReported) {
+            take_error(in, error);
+            return false;
+        }
+        if (failure.number != 0) {
+            error.number = failure.number;
+            error.description = failure.description;
+            return false;
+        }
+        return true;
+    }
+
     static std::optional<Value> member_get(Interpreter& in, const Value& object,
                                            const std::string& name,
                                            std::vector<Value>& arguments,
@@ -526,6 +608,13 @@ struct NativeSupport {
                      : 424,
                  error);
             return std::nullopt;
+        }
+        if (omitted_ == 0) {
+            if (const auto direct =
+                    intrinsic_get(in, object, name, arguments, error)) {
+                return direct->found ? std::optional<Value>(direct->value)
+                                     : std::nullopt;
+            }
         }
         static std::unordered_set<std::string> texts;
         const std::string& text =
@@ -578,6 +667,13 @@ struct NativeSupport {
                      : 424,
                  error);
             return false;
+        }
+        if (omitted_ == 0 && !is_set && arguments.empty() &&
+            !std::holds_alternative<ObjectInstance>(value)) {
+            if (const auto done = intrinsic_put(in, object, name, value, error);
+                done.has_value()) {
+                return *done;
+            }
         }
         std::vector<Value> bound{object, value};
         bound.insert(bound.end(), arguments.begin(), arguments.end());
