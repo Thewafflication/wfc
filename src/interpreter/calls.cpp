@@ -261,7 +261,13 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
         if (bare_candidate) {
             const auto variable = find_variable(*identifier);
             if (variable.value != nullptr) {
-                return CallArgument{*variable.value, variable.value};
+                CallArgument bare{*variable.value, variable.value};
+                bare.typed_target =
+                    variable.scope != nullptr &&
+                    !variable.scope->variant_variables.contains(*identifier) &&
+                    !std::holds_alternative<ObjectInstance>(*variable.value) &&
+                    !std::holds_alternative<ArrayValue>(*variable.value);
+                return bare;
             }
         } else if (type_character == '\0' && execute_ && !at_end() &&
                    (current() == '(' || current() == '.')) {
@@ -858,7 +864,8 @@ std::optional<Value> Interpreter::invoke_definition(
          index < std::min(arguments.size(), fixed_and_optional_count);
          ++index) {
         const auto& parameter = parameters[index];
-        if (!parameter.by_val && arguments[index].byref_target != nullptr) {
+        if (!parameter.by_val && arguments[index].byref_target != nullptr &&
+            !(parameter.is_variant && arguments[index].typed_target)) {
             // REQ-0228: an object-typed ByRef parameter makes this
             // write-back reachable for an ObjectInstance for the first
             // time -- terminate the caller's *old* value first (the

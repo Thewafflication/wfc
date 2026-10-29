@@ -2413,6 +2413,15 @@ bool Interpreter::parse_single_static_declaration(
             ? current_instance()->static_scopes[current_procedure_def_]
             : current_procedure_def_->statics;
     if (!statics.variables.contains(*identifier)) {
+        if (is_object && !is_array && is_udt_class(declared_class_name)) {
+            // A Static record keeps one instance between calls.
+            auto instance =
+                instantiate_class(declared_class_name, identifier_offset);
+            if (!instance.has_value()) {
+                return false;
+            }
+            initial_value = std::move(*instance);
+        }
         statics.variables.emplace(*identifier, std::move(initial_value));
         if (is_variant) {
             statics.variant_variables.insert(*identifier);

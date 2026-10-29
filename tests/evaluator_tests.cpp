@@ -3073,8 +3073,11 @@ int main() {
     expect_program_failure("Dim i As Long\nFor i = \"a\" To \"b\"\nNext",
                            "WFC0045");
     expect_program_failure("Dim i As Long\nFor i = 1 To 2\nPrint i", "WFC0046");
-    expect_program_failure("Dim i As Long\nFor i = 1 To 2 Step 0\nNext",
-                           "WFC0047");
+    // Step 0 is legal: the loop runs until the body leaves it.
+    expect_program_success(
+        "Dim i As Long\nFor i = 1 To 3 Step 0\nPrint i\nExit For\nNext\n"
+        "For i = 5 To 3 Step 0\nPrint 9\nNext\nPrint i",
+        "1\n5");
     expect_program_failure("Next", "WFC0048");
     expect_program_failure(
         "Dim i As Long\nDim j As Long\nFor i = 1 To 2\nNext j", "WFC0049");

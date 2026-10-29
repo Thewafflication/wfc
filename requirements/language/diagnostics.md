@@ -93,7 +93,7 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0044` | Expected To | — | `REQ-0151` |
 | `WFC0045` | For control variable must be numeric; For bounds and Step must be numeric | — | `REQ-0151` |
 | `WFC0046` | Expected Next | — | `REQ-0151`, `REQ-0209` |
-| `WFC0047` | For Step cannot be zero; For control variable overflow | — | `REQ-0151` |
+| `WFC0047` | For control variable overflow | — | `REQ-0151` |
 | `WFC0048` | Unexpected Next | — | `REQ-0151` |
 | `WFC0049` | Next variable does not match For | — | `REQ-0151`, `REQ-0209` |
 | `WFC0052` | Exit For is not inside a For loop | — | `REQ-0152` |

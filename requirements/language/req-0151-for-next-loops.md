@@ -9,7 +9,7 @@
 `wfc --eval` shall execute counter loops in this form:
 
 ```vb
-For <declared Long> = <Long start> To <Long end> [Step <nonzero Long>]
+For <declared Long> = <Long start> To <Long end> [Step <Long>]
     <statements>
 Next [<matching variable>]
 ```
@@ -33,7 +33,7 @@ the loop body.
 | `WFC0044` | The `To` keyword is missing. |
 | `WFC0045` | The control variable, bounds, or step is not `Long`. |
 | `WFC0046` | A `For` block reaches end of input without `Next`. |
-| `WFC0047` | `Step` is zero or the control variable increment overflows. |
+| `WFC0047` | The control variable increment overflows. (`Step 0` is legal and counts as positive.) |
 | `WFC0048` | `Next` appears outside a matching `For` block. |
 | `WFC0049` | An optional `Next` variable does not match its `For` variable. |
 | `WFC0050` | A `Dim` declaration appears inside a `For` block. |

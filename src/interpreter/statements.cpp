@@ -2370,10 +2370,6 @@ bool Interpreter::parse_for_statement() {
             std::holds_alternative<float>(step_value);
         slot = any_floating ? Slot::floating_double : Slot::integer;
     }
-    if (*step_number == 0.0) {
-        set_error("WFC0047", "For Step cannot be zero", variable_offset);
-        return false;
-    }
     if (!consume_loop_header_end()) {
         return false;
     }
@@ -2422,10 +2418,6 @@ bool Interpreter::parse_for_statement() {
         limit = static_cast<double>(round_whole(limit));
         step = static_cast<double>(round_whole(step));
         current_value = static_cast<double>(round_whole(current_value));
-        if (step == 0.0) {
-            set_error("WFC0047", "For Step cannot be zero", variable_offset);
-            return false;
-        }
         if (enclosing_execution &&
             (current_value < static_cast<double>(whole_min) ||
              current_value > static_cast<double>(whole_max))) {
@@ -2438,7 +2430,8 @@ bool Interpreter::parse_for_statement() {
         current_value = static_cast<float>(current_value);
     }
     const auto should_continue = [&](const double current) {
-        return step > 0.0 ? current <= limit : current >= limit;
+        // Step 0 counts as positive: it loops until the body leaves.
+        return step >= 0.0 ? current <= limit : current >= limit;
     };
 
     const auto body_offset = offset_;

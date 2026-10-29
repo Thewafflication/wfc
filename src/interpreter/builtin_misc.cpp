@@ -49,7 +49,10 @@ BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
 
 // Screen metrics for the built-in Screen class: 0/1 width and height in
 // pixels, 2/3 horizontal and vertical DPI, 4 the installed font count.
-[[nodiscard]] Integer system_metric(const Integer index) {
+// A scripted headless run has no display of its own: `virtual_display` gives
+// it a fixed 1920x1080 screen at 96 dpi so the run is the same everywhere.
+[[nodiscard]] Integer system_metric(const Integer index,
+                                    const bool virtual_display) {
 #ifdef _WIN32
     if (index == 0 || index == 1) {
         // WFC_SCREEN ("WIDTHxHEIGHT") pretends the screen has that size.
@@ -64,9 +67,15 @@ BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
                 }
             }
         }
+        if (virtual_display) {
+            return index == 0 ? 1920 : 1080;
+        }
         return GetSystemMetrics(index == 0 ? SM_CXSCREEN : SM_CYSCREEN);
     }
     if (index == 2 || index == 3) {
+        if (virtual_display) {
+            return 96;
+        }
         int dpi = 96;
         if (const HDC context = GetDC(nullptr)) {
             dpi = GetDeviceCaps(context, index == 2 ? LOGPIXELSX : LOGPIXELSY);
@@ -79,6 +88,7 @@ BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
     }
     return 0;
 #else
+    static_cast<void>(virtual_display);
     static constexpr Integer defaults[] = {1920, 1080, 96, 96, 0};
     return index >= 0 && index < 5 ? defaults[index] : 0;
 #endif
@@ -593,7 +603,7 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (long scaled = 0; form_screen_metric(index, scaled)) {
             return Value{static_cast<Integer>(scaled)};
         }
-        return Value{system_metric(index)};
+        return Value{system_metric(index, forms_ && forms_->headless)};
     }
     if (name == "wfcstore") {
         if (arguments.size() < 2U) {

@@ -2299,8 +2299,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         char fill{};
         std::string wide_fill;
         if (fill_is_code) {
-            const auto code = std::get<Integer>(arguments[1]);
-            if (code < 0 || code > 255) {
+            // A code above 255 is taken Mod 256 (the String documentation).
+            const auto given = std::get<Integer>(arguments[1]);
+            const auto code = given < 0 ? given : given % 256;
+            if (code < 0) {
                 set_error("WFC0079",
                           "String fill code must be in the character range",
                           identifier_offset);

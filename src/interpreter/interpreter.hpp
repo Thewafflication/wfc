@@ -455,6 +455,9 @@ struct CallArgument {
     bool omitted{};
     // `name:=value` (lowercased); empty for a positional argument.
     std::string name{};
+    // The target is a variable declared with a fixed scalar type: a Variant
+    // parameter does not write its value back to it.
+    bool typed_target{};
 };
 
 // What a native program gives the forms of the engine: the code of a form is
