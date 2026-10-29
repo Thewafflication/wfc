@@ -315,7 +315,8 @@ private:
             }
         } else if (options_.form_names.contains(name) ||
                    (is_engine_type(name) &&
-                    !options_.type_names.contains(name))) {
+                    !options_.type_names.contains(name) &&
+                    !options_.class_names.contains(name))) {
             // A form or a control: an object of the engine, late bound.
             type = VbType::variant;
             if (record_name != nullptr) {

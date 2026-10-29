@@ -197,8 +197,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-gui-form-timer
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-timer.vbp" --gui
-      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-timer.vbp"
+      --gui --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0004-gui-form-timer
@@ -213,7 +213,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0008-gui-gdi
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-gdi.vbp" --gui
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-gdi.vbp" --gui
       --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
@@ -229,8 +229,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-gui-showcase
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-showcase.vbp" --gui
-      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-showcase.vbp"
+      --gui --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0004-gui-showcase
@@ -243,7 +243,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-gui-mdi
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-mdi.vbp" --gui
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-mdi.vbp" --gui
       --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
@@ -258,7 +258,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-form-unsupported-control
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/bad-control.vbp"
+      wfc --interpret
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/bad-control.vbp"
   )
   set_tests_properties(
     TC-MP0004-form-unsupported-control
@@ -269,7 +270,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-form-missing-resource
     COMMAND
-      wfc
+      wfc --interpret
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/missing-resource.vbp"
   )
   set_tests_properties(
@@ -281,8 +282,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0005-gui-activex
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-activex.vbp" --gui
-      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-activex.vbp"
+      --gui --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0005-gui-activex
@@ -295,7 +296,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0005-gui-usercontrol
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-usercontrol.vbp" --gui
+      wfc --interpret
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-usercontrol.vbp" --gui
       --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
@@ -361,8 +363,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0006-gui-comctl
     COMMAND
-      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-comctl.vbp" --gui
-      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-comctl.vbp"
+      --gui --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0006-gui-comctl
@@ -2152,6 +2154,47 @@ Next j]=]
     PROPERTIES
       LABELS "integration;mp-0002;statements"
       PASS_REGULAR_EXPRESSION "^1.*3"
+  )
+
+  # A project runs as machine code by default (MP-0009): a compiled program
+  # shows nothing of Debug.Print. `--interpret` runs the interpreter, and a
+  # project the compiler rejects falls back to it.
+  add_test(
+    NAME TC-MP0009-default-native
+    COMMAND
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-default/Native.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-default-native
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "printed"
+      FAIL_REGULAR_EXPRESSION "immediate"
+  )
+  add_test(
+    NAME TC-MP0009-interpret-option
+    COMMAND
+      wfc --interpret
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-default/Native.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-interpret-option
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "immediate.*printed"
+  )
+  add_test(
+    NAME TC-MP0009-default-native-fallback
+    COMMAND
+      wfc
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-fallback/Fallback.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-default-native-fallback
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "interpreted.*ran"
+      FAIL_REGULAR_EXPRESSION "native compile error"
   )
 
   add_test(

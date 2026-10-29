@@ -1,0 +1,4 @@
+Type=Exe
+Module=Main; Main.bas
+Class=Box; Box.cls
+Startup="Sub Main"

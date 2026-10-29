@@ -77,7 +77,7 @@ try {
     $output = ''
     for ($attempt = 0; $attempt -lt 10; $attempt++) {
         Start-Sleep -Seconds 2
-        $output = & $Wfc $Client 2>&1 | Out-String
+        $output = & $Wfc --interpret $Client 2>&1 | Out-String
         if ($output -like "*$Expected*") {
             break
         }

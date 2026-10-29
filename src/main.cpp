@@ -190,6 +190,9 @@ struct PreparedNative final {
     wfc::LoadedProject project;
     wfc::detail::EngineSetup setup;
     wfc::compiler::NativeImage image;
+    // The caller falls back to the interpreter: a program that cannot be
+    // compiled is not reported.
+    bool quiet_compile{false};
 };
 
 // Loads the project and makes everything a native run needs: the compiled
@@ -374,6 +377,9 @@ int prepare_native(const int argument_count, const char* const arguments[],
     }
     const auto compiled =
         wfc::compiler::compile_project(source, classes, architecture, info);
+    if (!compiled.error.empty() && prepared.quiet_compile) {
+        return 3;
+    }
     if (!compiled.error.empty()) {
         std::cerr << "native compile error";
         if (compiled.error_at.line != 0) {
@@ -484,6 +490,48 @@ int build_package(const int argument_count, const char* const arguments[]) {
     return 0;
 }
 
+// `wfc <project.vbp> [options]` compiles the project to machine code and runs
+// it; `--interpret` runs the interpreter instead, and so does a project that
+// cannot be compiled. Returns true when the native run happened (its exit code
+// in `code`).
+bool run_project_native_by_default(const int argument_count,
+                                   const char* const arguments[], int& code) {
+    bool project = false;
+    for (int i = 1; i < argument_count; ++i) {
+        const std::string_view argument = arguments[i];
+        if (argument == "--interpret" || argument == "--serve" ||
+            argument == "--server" || argument == "--register" ||
+            argument == "--unregister" || argument == "--write-typelib" ||
+            argument == "--native-image" || argument == "-Embedding" ||
+            argument == "/Embedding") {
+            return false;
+        }
+        if (std::filesystem::path(argument).extension() == ".vbp") {
+            project = true;
+        }
+    }
+    if (!project || std::string_view(arguments[1]).rfind("--", 0) == 0) {
+        return false;
+    }
+    auto prepared = std::make_unique<PreparedNative>();
+    prepared->quiet_compile = true;
+    std::error_code ignored;
+    const auto directory = std::filesystem::current_path(ignored);
+    if (prepare_native(argument_count, arguments, 1, *prepared) != 0) {
+        // The interpreter reports whatever is wrong, from where it started.
+        std::filesystem::current_path(directory, ignored);
+        return false;
+    }
+    std::string problem;
+    code = wfc::compiler::run_native_image(prepared->image, problem,
+                                           &prepared->setup);
+    if (!problem.empty()) {
+        std::cerr << problem << '\n';
+        code = 2;
+    }
+    return true;
+}
+
 }  // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -525,7 +573,17 @@ int main(const int argument_count, const char* const arguments[]) {
     if (argument_count >= 3 && std::string_view(arguments[1]) == "--native") {
         return run_native(argument_count, arguments, 2);
     }
-    return run(argument_count, arguments);
+    int native_code = 0;
+    if (run_project_native_by_default(argument_count, arguments, native_code)) {
+        return native_code;
+    }
+    std::vector<const char*> interpreted;
+    for (int i = 0; i < argument_count; ++i) {
+        if (std::string_view(arguments[i]) != "--interpret") {
+            interpreted.push_back(arguments[i]);
+        }
+    }
+    return run(static_cast<int>(interpreted.size()), interpreted.data());
 }
 
 namespace {

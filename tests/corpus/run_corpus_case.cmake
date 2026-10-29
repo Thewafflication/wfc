@@ -1,11 +1,16 @@
 # Runs one corpus program through wfc and compares stdout with the expected
 # text.
+# The interpreter runs the program (a project is otherwise compiled).
 # Usage: cmake -DWFC=<wfc> -DINPUT=<.bas|.vbp> -DEXPECTED=<file>
 #   [-DDEBUG_EXPECTED=<file>] -P run_corpus_case.cmake
 # DEBUG_EXPECTED holds the Immediate-window output (Debug.Print) and load
 # warnings that wfc writes to stderr.
+set(interpret_option --interpret)
+if(PACKAGED)
+  set(interpret_option "")
+endif()
 execute_process(
-  COMMAND "${WFC}" "${INPUT}"
+  COMMAND "${WFC}" ${interpret_option} "${INPUT}"
   OUTPUT_VARIABLE actual
   ERROR_VARIABLE errors
   RESULT_VARIABLE result
