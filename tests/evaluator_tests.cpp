@@ -3032,7 +3032,8 @@ int main() {
     expect_program_failure("Print Exp(1000)", "WFC0009");
     expect_program_failure("Print Sqr(\"x\")", "WFC0073");
     expect_program_failure("Print 1 = \"1\"", "WFC0018");
-    expect_program_failure("Print True < False", "WFC0018");
+    // Booleans order as the numbers they are (False 0, True -1).
+    expect_program_success("Print True < False", "True");
     expect_program_failure("Print \"a\" And \"b\"", "WFC0019");
     expect_program_failure("Print Nothing & \" value\"", "WFC0020");
     expect_program_success("If 1 Then Print \"yes\"", "yes");
@@ -3094,16 +3095,18 @@ int main() {
     expect_program_failure("Select Case 1\nCase Else\nCase 1\nEnd Select",
                            "WFC0057");
     expect_program_failure("Case 1", "WFC0058");
-    expect_program_failure("Select Case 1\nCase \"1\"\nEnd Select", "WFC0053");
+    // A numeric String and a number compare as numbers.
+    expect_program_success(
+        "Select Case 1\nCase \"1\"\nPrint \"same\"\nEnd Select", "same");
     expect_program_failure("Select Case 1\nCase 1,\nEnd Select", "WFC0059");
     expect_program_failure("Select Case 1\nCase , 1\nEnd Select", "WFC0059");
-    expect_program_failure("Select Case True\nCase False To True\nEnd Select",
-                           "WFC0060");
+    expect_program_success(
+        "Select Case True\nCase False To True\nPrint 1\nEnd Select", "");
     expect_program_failure("Select Case 1\nCase 0 To \"2\"\nEnd Select",
                            "WFC0060");
     expect_program_failure("Select Case 1\nCase Is 1\nEnd Select", "WFC0061");
-    expect_program_failure("Select Case True\nCase Is < False\nEnd Select",
-                           "WFC0018");
+    expect_program_success(
+        "Select Case True\nCase Is < False\nPrint 1\nEnd Select", "1");
 
     // Decimal: CDec conversion, exact 96-bit-mantissa arithmetic, and type
     // preservation through the numeric functions.

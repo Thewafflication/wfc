@@ -2685,6 +2685,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     }
 
     if (is_str) {
+        if (const auto* flag = std::get_if<bool>(&arguments[0])) {
+            // A Boolean is the number it stands for: Str(True) is "-1".
+            arguments[0] = Value{static_cast<Int16>(*flag ? -1 : 0)};
+        }
         if (!is_number(arguments[0])) {
             set_error("WFC0073", "Str requires a numeric argument",
                       identifier_offset);

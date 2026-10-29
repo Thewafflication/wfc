@@ -24,7 +24,9 @@ first-match and skipped-runtime behavior.
 | --- | --- |
 | `WFC0061` | `Case Is` is not followed by a relational operator. |
 
-Existing `WFC0053` type and `WFC0018` Boolean-ordering diagnostics apply.
+Existing `WFC0053` type diagnostics apply. (Revised 2026-10-29, MP-0010: a
+Boolean compares as the number it is, so the Boolean-ordering `WFC0018` no
+longer applies.)
 
 ## Verification
 

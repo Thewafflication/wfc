@@ -19,6 +19,8 @@ Ranges whose lower bound exceeds their upper bound do not match. Range clauses
 participate in the existing ordered first-match and skipped-runtime behavior.
 
 This increment excludes Boolean ranges and `Case Is` relational clauses.
+(Revised 2026-10-29, MP-0010: a Boolean selector or value compares as the number
+it is, so Boolean ranges and `Case Is` are allowed.)
 
 ## Diagnostics
 

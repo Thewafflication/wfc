@@ -119,8 +119,10 @@ bool Interpreter::parse_statement_once() {
     if (!entry_execute || jump_pending_) {
         return false;
     }
-    // Block statements (If/For/While/Do/Select/With) are not recovered
-    // as a whole: their nested statements recover individually.
+    // The nested statements of a block (If/For/While/Do/Select/With) recover
+    // individually. An error that is still pending is one of the block's own
+    // (a condition, a bound): the block is skipped as a whole and the program
+    // goes on after it, as a program compiled to machine code does.
     {
         const auto saved = offset_;
         offset_ = start;
@@ -131,7 +133,22 @@ bool Interpreter::parse_statement_once() {
             consume_keyword("select") || consume_keyword("with");
         offset_ = saved;
         if (is_block) {
-            return false;
+            const auto pending = error_;
+            if (runtime_error_number() == 0 ||
+                scopes_.back().on_error_mode == 0 ||
+                scopes_.back().in_error_handler) {
+                return false;
+            }
+            offset_ = start;
+            execute_ = false;
+            const bool skipped = parse_statement_core();
+            execute_ = entry_execute;
+            error_ = pending;
+            if (!skipped) {
+                offset_ = saved;
+                return false;
+            }
+            return recover_runtime_error(start);
         }
     }
     execute_ = entry_execute;
@@ -2818,6 +2835,13 @@ bool Interpreter::parse_select_statement() {
     if (!consume_loop_header_end()) {
         return false;
     }
+    // A Boolean selector compares as the number it is.
+    const auto as_number = [](Value& value) {
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            value = Value{static_cast<Int16>(*flag ? -1 : 0)};
+        }
+    };
+    as_number(*selector);
 
     bool has_case{};
     bool has_else{};
@@ -2897,11 +2921,38 @@ bool Interpreter::parse_select_statement() {
                     execute_ = enclosing_execution;
                     return false;
                 }
+                as_number(*case_value);
+                // A numeric String and a number compare as numbers.
+                Value chosen = *selector;
+                if (evaluate_case) {
+                    const auto numeric_text = [&](const Value& text,
+                                                  Value& number) {
+                        const auto* string = std::get_if<std::string>(&text);
+                        if (string == nullptr) {
+                            return false;
+                        }
+                        const auto parsed = parse_numeric_string(*string);
+                        if (parsed.status != NumericStringStatus::valid) {
+                            return false;
+                        }
+                        number = Value{parsed.value};
+                        return true;
+                    };
+                    if (std::holds_alternative<std::string>(chosen) &&
+                        is_number(*case_value)) {
+                        static_cast<void>(numeric_text(*selector, chosen));
+                    } else if (std::holds_alternative<std::string>(
+                                   *case_value) &&
+                               is_number(chosen)) {
+                        static_cast<void>(
+                            numeric_text(Value{*case_value}, *case_value));
+                    }
+                }
                 const bool both_numeric =
-                    is_number(*case_value) && is_number(*selector);
-                if (case_value->index() != selector->index() && !both_numeric &&
+                    is_number(*case_value) && is_number(chosen);
+                if (case_value->index() != chosen.index() && !both_numeric &&
                     enclosing_execution &&
-                    !std::holds_alternative<Empty>(*selector) &&
+                    !std::holds_alternative<Empty>(chosen) &&
                     !std::holds_alternative<Empty>(*case_value)) {
                     execute_ = enclosing_execution;
                     set_error("WFC0053", "Case value must match selector type",
@@ -2911,9 +2962,8 @@ bool Interpreter::parse_select_statement() {
                 skip_horizontal_whitespace();
                 bool item_matches{};
                 if (!relational_operator.empty()) {
-                    auto comparison =
-                        compare(*selector, *case_value, relational_operator,
-                                value_offset);
+                    auto comparison = compare(
+                        chosen, *case_value, relational_operator, value_offset);
                     if (!comparison.has_value()) {
                         execute_ = enclosing_execution;
                         return false;
@@ -2934,11 +2984,13 @@ bool Interpreter::parse_select_statement() {
                         execute_ = enclosing_execution;
                         return false;
                     }
-                    if ((upper_value->index() != selector->index() &&
-                         !(is_number(*upper_value) && is_number(*selector))) ||
-                        std::holds_alternative<bool>(*selector) ||
-                        (!is_number(*selector) &&
-                         !std::holds_alternative<std::string>(*selector))) {
+                    as_number(*upper_value);
+                    if (evaluate_case &&
+                        ((upper_value->index() != chosen.index() &&
+                          !(is_number(*upper_value) && is_number(chosen))) ||
+                         std::holds_alternative<bool>(chosen) ||
+                         (!is_number(chosen) &&
+                          !std::holds_alternative<std::string>(chosen)))) {
                         execute_ = enclosing_execution;
                         set_error("WFC0060",
                                   "Case range requires same-type Long or "
@@ -2946,14 +2998,16 @@ bool Interpreter::parse_select_statement() {
                                   upper_offset);
                         return false;
                     }
-                    if (is_number(*selector)) {
-                        const double selected_number = as_double(*selector);
+                    if (!evaluate_case) {
+                        // Skipped: nothing to compare.
+                    } else if (is_number(chosen)) {
+                        const double selected_number = as_double(chosen);
                         item_matches =
                             as_double(*case_value) <= selected_number &&
                             selected_number <= as_double(*upper_value);
                     } else {
                         const auto& selected_string =
-                            std::get<std::string>(*selector);
+                            std::get<std::string>(chosen);
                         item_matches =
                             compare_strings(std::get<std::string>(*case_value),
                                             selected_string) <= 0 &&
@@ -2965,8 +3019,8 @@ bool Interpreter::parse_select_statement() {
                 } else {
                     item_matches =
                         both_numeric
-                            ? as_double(*case_value) == as_double(*selector)
-                            : values_equal(*case_value, *selector);
+                            ? as_double(*case_value) == as_double(chosen)
+                            : values_equal(*case_value, chosen);
                 }
                 case_matches = case_matches || item_matches;
                 if (!consume(',')) {

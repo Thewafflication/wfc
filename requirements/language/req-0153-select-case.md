@@ -32,7 +32,7 @@ declarations inside branch bodies.
 
 | Code | Condition |
 | --- | --- |
-| `WFC0053` | A case value does not match the selector type. |
+| `WFC0053` | A case value does not match the selector type. A String that reads as a number and a number match as numbers (revised 2026-10-29, MP-0010). |
 | `WFC0054` | `Select Case`, an initial `Case`, or `End Select` is incomplete. |
 | `WFC0055` | `End` is not followed by `Select`. |
 | `WFC0056` | A block contains more than one `Case Else`. |

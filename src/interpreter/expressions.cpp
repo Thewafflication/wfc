@@ -839,7 +839,7 @@ std::optional<Value> Interpreter::parse_unary() {
             !std::holds_alternative<float>(*value) &&
             !std::holds_alternative<Currency>(*value) &&
             !std::holds_alternative<Decimal>(*value) &&
-            !std::holds_alternative<Int16>(*value) &&
+            !std::holds_alternative<Int16>(*value) && execute_ &&
             require_integer(*value, operator_offset) == nullptr) {
             return std::nullopt;
         }
@@ -921,12 +921,12 @@ std::optional<Value> Interpreter::parse_unary() {
         if (const auto* byte = std::get_if<Byte>(&*value)) {
             return Value{static_cast<Integer>(-static_cast<Integer>(*byte))};
         }
+        if (!execute_) {
+            return Value{Integer{}};  // skipped code runs nothing
+        }
         const auto* integer = require_integer(*value, operator_offset);
         if (integer == nullptr) {
             return std::nullopt;
-        }
-        if (!execute_) {
-            return Value{Integer{}};
         }
         if (*integer == std::numeric_limits<Integer>::min()) {
             set_error("WFC0009", "integer overflow", operator_offset);
@@ -2643,9 +2643,23 @@ std::optional<Value> Interpreter::compare(const Value& left, const Value& right,
     if (operation == "<>") {
         return Value{!values_equal(left, right)};
     }
-    if (std::holds_alternative<bool>(left)) {
-        set_error("WFC0018", "Boolean ordering is not supported",
-                  operator_offset);
+    if (const auto* left_flag = std::get_if<bool>(&left)) {
+        // A Boolean orders as the number it is: False is 0, True is -1.
+        const int low = *left_flag ? -1 : 0;
+        const int high = std::get<bool>(right) ? -1 : 0;
+        if (operation == "<") {
+            return Value{low < high};
+        }
+        if (operation == "<=") {
+            return Value{low <= high};
+        }
+        if (operation == ">") {
+            return Value{low > high};
+        }
+        if (operation == ">=") {
+            return Value{low >= high};
+        }
+        set_error("WFC0004", "unsupported operator", operator_offset);
         return std::nullopt;
     }
     if (!std::holds_alternative<std::string>(left)) {
@@ -3206,6 +3220,10 @@ std::optional<Value> Interpreter::integer_binary(
         (std::holds_alternative<Byte>(right_in) ||
          std::holds_alternative<Int16>(right_in))) {
         return numeric_binary(left_in, right_in, operation, operator_offset);
+    }
+    if (!execute_) {
+        // Code that is skipped runs nothing: no overflow, no type error.
+        return Value{Integer{}};
     }
     const Value left = widen_byte(left_in);
     const Value right = widen_byte(right_in);
