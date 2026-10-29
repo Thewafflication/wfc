@@ -4,7 +4,7 @@
 
 #include "interpreter.hpp"
 
-#include <wfc/ocx/control_tables.hpp>
+#include "../ui/control_tables.hpp"
 
 namespace wfc::detail {
 

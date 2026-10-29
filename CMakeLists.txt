@@ -14,7 +14,12 @@ include(WfcWarnings)
 # WSP-SEC-0015: the pinned WSP build baseline supplies the hardening flags.
 include("${CMAKE_CURRENT_SOURCE_DIR}/wsp/tools/cmake/WspBuild.cmake")
 
-add_subdirectory(lib/wfc-ocx)
+# The control libraries; each is a static library or, with WFC_OCX_SHARED, a
+# DLL of its own (wfcmscomctl.dll, wfccomdlg32.dll, wfcmswinsck.dll).
+option(WFC_OCX_SHARED "Build the WFC control libraries as DLLs" OFF)
+add_subdirectory(lib/wfc-mscomctl)
+add_subdirectory(lib/wfc-comdlg32)
+add_subdirectory(lib/wfc-mswinsck)
 
 add_library(wfc_frontend STATIC)
 target_sources(
@@ -75,6 +80,9 @@ target_sources(
     src/large_stack.cpp
     src/module_linker.cpp
     src/project.cpp
+    src/ui/control_lookup.cpp
+    src/ui/control_tables.cpp
+    src/ui/control_tables.hpp
     src/ui/frm_parser.cpp
     src/ui/frm_parser.hpp
     src/ui/headless_host.cpp
@@ -83,6 +91,8 @@ target_sources(
     src/ui/win32_host.cpp
     src/ui/win32_host.hpp
     src/ui/win32_dialogs.inc
+    src/interpreter/ocx_dispatch.inc
+    src/interpreter/ocx_support.inc
   PUBLIC
     FILE_SET HEADERS
       BASE_DIRS include
@@ -97,7 +107,10 @@ target_include_directories(
   PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 find_package(Threads REQUIRED)
-target_link_libraries(wfc_frontend PUBLIC Threads::Threads wfc_ocx)
+target_link_libraries(
+  wfc_frontend
+  PUBLIC Threads::Threads wfc_mscomctl wfc_comdlg32 wfc_mswinsck
+)
 if(WIN32)
   target_link_libraries(
     wfc_frontend
@@ -148,7 +161,10 @@ wfc_enable_strict_warnings(wfc)
 wsp_enable_hardening(wfc)
 target_compile_definitions(
   wfc_frontend
-  PRIVATE WFC_OCX_VERSION_STRING="${WFC_OCX_VERSION}"
+  PRIVATE
+    WFC_MSCOMCTL_VERSION_STRING="${WFC_MSCOMCTL_VERSION}"
+    WFC_COMDLG32_VERSION_STRING="${WFC_COMDLG32_VERSION}"
+    WFC_MSWINSCK_VERSION_STRING="${WFC_MSWINSCK_VERSION}"
 )
 
 if(WIN32)
@@ -628,15 +644,16 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   )
   set(wfc_evidence "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference")
   set(
-    wfc_ui_check
-    "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/tests/check_ui_tables.cmake"
+    wfc_mscomctl_tables
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/src/mscomctl_tables.cpp"
   )
+  set(wfc_ui_check "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ui_tables.cmake")
   add_test(
     NAME TC-MP0004-ui-tables-current
     COMMAND
       "${CMAKE_COMMAND}" "-DEVIDENCE=${wfc_evidence}/vb-6.0-type-library.json"
-      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/src/control_tables.cpp"
-      -P "${wfc_ui_check}"
+      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/control_tables.cpp" -P
+      "${wfc_ui_check}"
   )
   set_tests_properties(
     TC-MP0004-ui-tables-current
@@ -648,12 +665,33 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     COMMAND
       "${CMAKE_COMMAND}"
       "-DEVIDENCE=${wfc_evidence}/mscomctl-2.0-type-library.json"
-      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/src/comctl_tables.cpp"
-      -P "${wfc_ui_check}"
+      "-DTABLES=${wfc_mscomctl_tables}" -P "${wfc_ui_check}"
   )
   set_tests_properties(
     TC-MP0006-comctl-tables-current
     PROPERTIES LABELS "unit;mp-0006;comctl"
+  )
+
+  # The table types are one header, copied into each control library.
+  set(wfc_class_header include/wfc/ocx/control_class.hpp)
+  add_test(
+    NAME TC-MP0010-control-class-headers
+    COMMAND
+      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-comdlg32/${wfc_class_header}"
+  )
+  add_test(
+    NAME TC-MP0010-control-class-headers-mswinsck
+    COMMAND
+      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mswinsck/${wfc_class_header}"
+  )
+  set_tests_properties(
+    TC-MP0010-control-class-headers
+    TC-MP0010-control-class-headers-mswinsck
+    PROPERTIES LABELS "unit;mp-0010"
   )
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
@@ -2670,7 +2708,7 @@ Print v.x & q.x]=]
     3
     "-DERR_MATCHES=expected a type name"
   )
-  add_cli_test(libs "libs" 0 "-DOUT_MATCHES=wfcocx.*wfcvbrun")
+  add_cli_test(libs "libs" 0 "-DOUT_MATCHES=wfcmswinsck.*wfcvbrun")
   if(WIN32)
     # A fault inside wfc says so (WFC_CRASH_TEST makes one on purpose).
     add_cli_test(

@@ -14,7 +14,9 @@ foreach(
   wfcl.exe
   wfcrt.dll
   wfcvbrun.dll
-  wfcocx.dll
+  wfcmscomctl.dll
+  wfccomdlg32.dll
+  wfcmswinsck.dll
 )
   if(EXISTS "${BIN}/${name}")
     file(COPY "${BIN}/${name}" DESTINATION "${WORK}/pkg/${ARCH}")

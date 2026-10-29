@@ -132,8 +132,8 @@ user into `C:\wfc\users\<name>`. Either way it:
 
 - puts `bin` on the PATH and sets `WFC_HOME`;
 - keeps each library in its own versioned folder,
-  `lib\<name>\<version>\<arch>` (`wfcrt`, `wfcvbrun`, `wfcocx` when built
-  shared), so versions sit side by side;
+  `lib\<name>\<version>\<arch>` (`wfcrt`, `wfcvbrun`, and `wfcmscomctl`,
+  `wfccomdlg32`, `wfcmswinsck` when built shared), so versions sit side by side;
 - adds a Start menu entry and a Windows Terminal profile, "WFC Command Prompt":
   a console with `wfc` on the PATH (`bin\wfc-prompt.cmd`);
 - adds an Apps & features entry; `Install-Wfc.ps1 -Uninstall` (or `wpm remove
@@ -160,14 +160,19 @@ default: the program is one file holding the whole runtime. `--link dynamic`
 writes a small launcher (`wfcl.exe`) that loads `wfcrt.dll` when it starts,
 from beside the program (`--bundle` copies it there), from `%WFC_HOME%`, or
 from the installation; it refuses a runtime of another major.minor version
-and says which file it found. The same holds for the libraries: `wfc-ocx`
-(the control tables) is linked statically unless CMake is configured with
-`-DWFC_OCX_SHARED=ON`, which builds `wfcocx.dll`; `wfc-vbrun` is built both as
+and says which file it found. The same holds for the libraries: the three
+control libraries (`wfc-mscomctl`, `wfc-comdlg32`, `wfc-mswinsck`) are linked
+statically unless CMake is configured with `-DWFC_OCX_SHARED=ON`, which builds
+`wfcmscomctl.dll`, `wfccomdlg32.dll` and `wfcmswinsck.dll`; `wfc-vbrun` is built both as
 `wfcvbrun.dll` and as the static library `wfcvbrun_static.lib`. The game
 packages carry every game both ways (`<game>-x64.exe`, `<game>-x64-dynamic.exe`).
 
-The libraries live in `lib/wfc-vbrun` and `lib/wfc-ocx`, each with its own
-sources, tests, `VERSION` and version resource, ready to become submodules.
+The libraries live in `lib/wfc-vbrun` (the `MSVBVM60` replacement),
+`lib/wfc-mscomctl` (`mscomctl.ocx`: TabStrip, Toolbar, StatusBar, ProgressBar,
+TreeView, ListView, ImageList, Slider, ImageCombo), `lib/wfc-comdlg32`
+(`comdlg32.ocx`: CommonDialog) and `lib/wfc-mswinsck` (`mswinsck.ocx`:
+Winsock), each with its own sources, `VERSION` and version resource, ready to
+become submodules (`scripts/Convert-LibrariesToSubmodules.ps1`).
 
 ## Build the Current Development Slice
 

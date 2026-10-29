@@ -3,7 +3,11 @@
 
 #include <cctype>
 
-#include <wfc/ocx/control_tables.hpp>
+#include "control_tables.hpp"
+
+#include <wfc/comdlg32/comdlg32.hpp>
+#include <wfc/mscomctl/mscomctl.hpp>
+#include <wfc/mswinsck/mswinsck.hpp>
 
 namespace wfc::ui {
 namespace {
@@ -33,6 +37,10 @@ const ControlClass* find_control_class(const std::string_view name) {
     return nullptr;
 }
 
+std::span<const ControlClass> comctl_classes() {
+    return mscomctl_classes();
+}
+
 const ControlClass* find_comctl_class(const std::string_view name) {
     for (const auto& control : comctl_classes()) {
         if (same_name(control.name, name)) {
@@ -40,6 +48,20 @@ const ControlClass* find_comctl_class(const std::string_view name) {
         }
     }
     return nullptr;
+}
+
+std::span<const ControlClass> ocx_classes() {
+    static const std::vector<ControlClass> all = [] {
+        std::vector<ControlClass> result;
+        for (const auto& control : comdlg32_classes()) {
+            result.push_back(control);
+        }
+        for (const auto& control : mswinsck_classes()) {
+            result.push_back(control);
+        }
+        return result;
+    }();
+    return all;
 }
 
 const ControlClass* find_ocx_class(const std::string_view name) {

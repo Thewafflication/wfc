@@ -6,7 +6,7 @@
 // `%WFC_HOME%\bin`, in `%WFC_HOME%\lib\wfcrt\<version>\<arch>`, and in the
 // installation roots (`C:\wfc` for all users, `C:\wfc\users\<name>` for one).
 // The library folders below `lib` of that root are added to the DLL search path
-// so wfcrt.dll finds the libraries it uses (wfcocx.dll, wfcvbrun.dll).
+// so wfcrt.dll finds the libraries it uses (wfcvbrun.dll and the OCX DLLs).
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX

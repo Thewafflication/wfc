@@ -1,4 +1,4 @@
-# Fails when src/ui/control_tables.cpp was generated from different evidence
+# Fails when a control table source was generated from different evidence
 # than the one now in the repository. Line endings are normalized first so a
 # checkout that converts them still matches.
 # Usage: cmake -DEVIDENCE=<json> -DTABLES=<cpp> -P check_ui_tables.cmake
@@ -15,6 +15,6 @@ string(STRIP "${recorded_hash}" recorded_hash)
 if(NOT recorded_hash STREQUAL actual_hash)
   message(
     FATAL_ERROR
-    "control tables are stale: regenerate with lib/wfc-ocx/scripts/New-UiControlTables.ps1"
+    "control tables are stale: regenerate with scripts/New-UiControlTables.ps1"
   )
 endif()

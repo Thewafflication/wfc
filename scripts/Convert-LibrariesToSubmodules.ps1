@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
-Turns lib/wfc-vbrun and lib/wfc-ocx into Git submodules.
+Turns the libraries below lib/ (wfc-vbrun, wfc-mscomctl, wfc-comdlg32,
+wfc-mswinsck) into Git submodules.
 
 .DESCRIPTION
 For each library: splits its history out of this repository (git subtree
 split), pushes it to the library's own repository, replaces the folder with a
 submodule of that repository and stages the result. Nothing is committed.
 
-Create the two repositories first (empty, under the same owner as this one);
+Create the repositories first (empty, under the same owner as this one);
 the script pushes to them. Run it from a clean checkout of the integration
 branch.
 
@@ -28,7 +29,9 @@ pwsh -NoProfile `
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)][string]$Owner,
-    [string[]]$Libraries = @('wfc-vbrun', 'wfc-ocx')
+    [string[]]$Libraries = @(
+        'wfc-vbrun', 'wfc-mscomctl', 'wfc-comdlg32', 'wfc-mswinsck'
+    )
 )
 
 $ErrorActionPreference = 'Stop'

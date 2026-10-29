@@ -13,7 +13,8 @@ Layout below the root:
                            architecture); bin\<arch>\ for every architecture
                            the package carries
   lib\<name>\<ver>\<arch>\ the libraries, each in its own versioned folder
-                           (wfcrt, wfcvbrun, wfcocx when present)
+                           (wfcrt, wfcvbrun, and wfcmscomctl, wfccomdlg32,
+                           wfcmswinsck when present)
   install.json             what is installed, with versions
   Install-Wfc.ps1          this script, for the uninstall
 
@@ -23,7 +24,8 @@ the PATH), a Windows Terminal profile, and an Apps & features entry.
 
 .PARAMETER Source
 The folder of the package: one folder per architecture (x64, x86, arm64)
-holding wfc.exe, wfcl.exe, wfcrt.dll, wfcvbrun.dll and optionally wfcocx.dll.
+holding wfc.exe, wfcl.exe, wfcrt.dll, wfcvbrun.dll and optionally
+wfcmscomctl.dll, wfccomdlg32.dll and wfcmswinsck.dll.
 
 .PARAMETER Scope
 Machine (all users, needs administrator rights), User, or Auto (default).
@@ -225,7 +227,8 @@ foreach ($architecture in $architectures) {
         Copy-Item -LiteralPath (Join-Path $from $name) -Destination $archBin `
             -Force
     }
-    foreach ($dll in 'wfcrt.dll', 'wfcvbrun.dll', 'wfcocx.dll') {
+    foreach ($dll in 'wfcrt.dll', 'wfcvbrun.dll', 'wfcmscomctl.dll',
+        'wfccomdlg32.dll', 'wfcmswinsck.dll') {
         $file = Join-Path $from $dll
         if (-not (Test-Path -LiteralPath $file)) { continue }
         $library = [IO.Path]::GetFileNameWithoutExtension($dll)

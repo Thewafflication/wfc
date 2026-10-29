@@ -35,7 +35,7 @@ struct LibraryInfo {
 // (`lib\<name>\<version>\<arch>`) of the installation. Empty when not found.
 [[nodiscard]] std::string find_runtime_file(std::string_view file);
 
-// Whether this wfc loaded the library (a DLL such as wfcocx.dll) instead of
+// Whether this wfc loaded the library (a DLL such as wfcvbrun.dll) instead of
 // carrying it inside itself.
 [[nodiscard]] bool library_is_loaded(const char* file);
 

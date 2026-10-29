@@ -15,8 +15,14 @@
 #pragma comment(lib, "version.lib")
 #endif
 
-#ifndef WFC_OCX_VERSION_STRING
-#define WFC_OCX_VERSION_STRING "unknown"
+#ifndef WFC_MSCOMCTL_VERSION_STRING
+#define WFC_MSCOMCTL_VERSION_STRING "unknown"
+#endif
+#ifndef WFC_COMDLG32_VERSION_STRING
+#define WFC_COMDLG32_VERSION_STRING "unknown"
+#endif
+#ifndef WFC_MSWINSCK_VERSION_STRING
+#define WFC_MSWINSCK_VERSION_STRING "unknown"
 #endif
 
 namespace fs = std::filesystem;
@@ -307,7 +313,7 @@ void print_libraries(const bool header) {
     }
     for (const auto& library : libraries()) {
         std::string name = library.name;
-        name.resize(std::max<std::size_t>(10U, name.size()), ' ');
+        name.resize(std::max<std::size_t>(12U, name.size() + 1U), ' ');
         std::cout << "  " << name << library.version << "  " << library.linking;
         if (!library.path.empty()) {
             std::cout << "  " << library.path;
@@ -426,7 +432,9 @@ std::vector<LibraryInfo> libraries() {
         const char* built_in;
     } entries[] = {
         {"wfcrt", "wfcrt.dll", nullptr},
-        {"wfcocx", "wfcocx.dll", WFC_OCX_VERSION_STRING},
+        {"wfcmscomctl", "wfcmscomctl.dll", WFC_MSCOMCTL_VERSION_STRING},
+        {"wfccomdlg32", "wfccomdlg32.dll", WFC_COMDLG32_VERSION_STRING},
+        {"wfcmswinsck", "wfcmswinsck.dll", WFC_MSWINSCK_VERSION_STRING},
         {"wfcvbrun", "wfcvbrun.dll", nullptr},
     };
     for (const auto& entry : entries) {
@@ -446,7 +454,12 @@ std::vector<LibraryInfo> libraries() {
         }
     }
 #else
-    result.push_back({"wfcocx", WFC_OCX_VERSION_STRING, "static", ""});
+    result.push_back(
+        {"wfcmscomctl", WFC_MSCOMCTL_VERSION_STRING, "static", ""});
+    result.push_back(
+        {"wfccomdlg32", WFC_COMDLG32_VERSION_STRING, "static", ""});
+    result.push_back(
+        {"wfcmswinsck", WFC_MSWINSCK_VERSION_STRING, "static", ""});
 #endif
     return result;
 }

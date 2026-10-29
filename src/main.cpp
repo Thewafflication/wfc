@@ -537,13 +537,17 @@ int build_package(const int argument_count, const char* const arguments[]) {
         return 1;
     }
     // The libraries the program needs beside it: with --bundle the runtime of
-    // a dynamic program, and always the control tables when this wfc loads
-    // them from wfcocx.dll (a static program is a copy of this wfc).
+    // a dynamic program, and always the control libraries this wfc loads as
+    // DLLs (a static program is a copy of this wfc).
     std::vector<const char*> bundled;
     if (dynamic && bundle) {
-        bundled = {"wfcrt.dll", "wfcocx.dll"};
-    } else if (wfc::cli::library_is_loaded("wfcocx.dll")) {
-        bundled = {"wfcocx.dll"};
+        bundled.push_back("wfcrt.dll");
+    }
+    for (const char* const dll :
+         {"wfcmscomctl.dll", "wfccomdlg32.dll", "wfcmswinsck.dll"}) {
+        if ((dynamic && bundle) || wfc::cli::library_is_loaded(dll)) {
+            bundled.push_back(dll);
+        }
     }
     if (!bundled.empty()) {
         std::error_code error;

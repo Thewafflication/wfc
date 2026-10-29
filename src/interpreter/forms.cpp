@@ -16,8 +16,8 @@
 #include <sstream>
 #include <thread>
 
-#include <wfc/ocx/control_tables.hpp>
-#include <wfc/ocx/winsock_io.hpp>
+#include <wfc/mswinsck/winsock_io.hpp>
+#include "../ui/control_tables.hpp"
 #include "pictures.hpp"
 #ifdef _WIN32
 #include "../ui/win32_host.hpp"
@@ -7085,7 +7085,14 @@ bool Interpreter::run_forms_at_exit() {
     return FormSupport::run_loop(*this);
 }
 
-#include <wfc/ocx/comctl.inc>
-#include <wfc/ocx/ocx.inc>
+// The order matters: the control libraries share ocx_support.inc, and the
+// dispatch comes last.
+// clang-format off
+#include <wfc/mscomctl/mscomctl.inc>
+#include "ocx_support.inc"
+#include <wfc/comdlg32/comdlg32.inc>
+#include <wfc/mswinsck/mswinsck.inc>
+#include "ocx_dispatch.inc"
+// clang-format on
 
 }  // namespace wfc::detail
