@@ -362,6 +362,15 @@ std::string install_root() {
     return {};
 }
 
+bool library_is_loaded(const char* const file) {
+#ifdef _WIN32
+    return GetModuleHandleA(file) != nullptr;
+#else
+    static_cast<void>(file);
+    return false;
+#endif
+}
+
 std::string find_runtime_file(const std::string_view file) {
 #ifdef _WIN32
     std::error_code error;
@@ -413,7 +422,11 @@ std::vector<LibraryInfo> libraries() {
         {"wfcvbrun", "wfcvbrun.dll", nullptr},
     };
     for (const auto& entry : entries) {
-        const auto file = find(entry.dll);
+        // A library this wfc carries inside itself is static, whether or not
+        // a copy of its DLL lies around.
+        const bool carried =
+            entry.built_in != nullptr && !library_is_loaded(entry.dll);
+        const auto file = carried ? fs::path{} : find(entry.dll);
         if (!file.empty()) {
             const auto found = file_version(file);
             result.push_back({entry.name, found.empty() ? "unknown" : found,

@@ -22,6 +22,8 @@ target_sources(
   PRIVATE
     src/cli.cpp
     src/cli.hpp
+    src/crash.cpp
+    src/crash.hpp
     src/com_server.cpp
     src/com_server.hpp
     src/evaluator.cpp
@@ -2669,6 +2671,16 @@ Print v.x & q.x]=]
     "-DERR_MATCHES=expected a type name"
   )
   add_cli_test(libs "libs" 0 "-DOUT_MATCHES=wfcocx.*wfcvbrun")
+  if(WIN32)
+    # A fault inside wfc says so (WFC_CRASH_TEST makes one on purpose).
+    add_cli_test(
+      crash-report
+      "--version"
+      any-failure
+      "-DERR_MATCHES=internal error: access violation"
+      "-DSET_ENV=WFC_CRASH_TEST=1"
+    )
+  endif()
   add_cli_test(
     completion
     "completion;powershell"

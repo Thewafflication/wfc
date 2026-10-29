@@ -15,6 +15,7 @@
 #include "compiler/compile.hpp"
 #include "compiler/image_io.hpp"
 #include "compiler/native_host.hpp"
+#include "crash.hpp"
 #include "interpreter/native_engine.hpp"
 #include "package.hpp"
 
@@ -535,9 +536,18 @@ int build_package(const int argument_count, const char* const arguments[]) {
         std::cerr << problem << '\n';
         return 1;
     }
+    // The libraries the program needs beside it: with --bundle the runtime of
+    // a dynamic program, and always the control tables when this wfc loads
+    // them from wfcocx.dll (a static program is a copy of this wfc).
+    std::vector<const char*> bundled;
     if (dynamic && bundle) {
+        bundled = {"wfcrt.dll", "wfcocx.dll"};
+    } else if (wfc::cli::library_is_loaded("wfcocx.dll")) {
+        bundled = {"wfcocx.dll"};
+    }
+    if (!bundled.empty()) {
         std::error_code error;
-        for (const char* name : {"wfcrt.dll", "wfcocx.dll"}) {
+        for (const char* name : bundled) {
             const auto library = runtime_file(name);
             if (library.empty()) {
                 continue;
@@ -646,6 +656,7 @@ extern "C" __declspec(dllexport) int wfc_entry(const int argument_count,
 #else
 int main(const int argument_count, const char* const arguments[]) {
 #endif
+    wfc::install_crash_report();
     // A packaged program carries its project after the image.
     std::string problem;
     if (const auto command =

@@ -1783,6 +1783,9 @@ private:
         }
         if (declaration.type == VbType::object && !declaration.is_array) {
             const auto slot = builder_->new_temp();
+            // Owned slots start as zero at entry: a pending error may jump
+            // past this declaration to the release of every owned slot.
+            late_zero_.push_back(slot);
             builder_->move_wide(slot, ir::immediate(0));
             locals_[declaration.name] =
                 Variable{slot, VbType::object, false,
@@ -1795,6 +1798,7 @@ private:
             // An array of records: a handle like any array.
             const int record = find_udt(declaration.type_name, declaration.at);
             const auto handle = builder_->new_temp();
+            late_zero_.push_back(handle);
             builder_->move_wide(handle, ir::immediate(0));
             const auto variable =
                 Variable{handle, VbType::record, true, record};
@@ -1813,8 +1817,13 @@ private:
             // The record lives in consecutive slots; its first byte is in the
             // last one (memory runs up while slot numbers run down).
             Operand last;
+            const bool owns =
+                !udts_[static_cast<std::size_t>(record)].string_offsets.empty();
             for (std::int64_t i = 0; i < slots; ++i) {
                 last = builder_->new_temp();
+                if (owns) {
+                    late_zero_.push_back(last);
+                }
                 builder_->move_wide(last, ir::immediate(0));
             }
             locals_[declaration.name] =
@@ -1826,6 +1835,10 @@ private:
             return;
         }
         const auto slot = builder_->new_temp();
+        if (declaration.is_array || declaration.type == VbType::string ||
+            declaration.type == VbType::variant) {
+            late_zero_.push_back(slot);  // see above
+        }
         if (declaration.is_array) {
             // An array is a handle; a fixed-size one is allocated now.
             builder_->move_wide(slot, ir::immediate(0));
