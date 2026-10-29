@@ -847,6 +847,23 @@ std::optional<Value> Interpreter::invoke_definition(
         }
     }
 
+    if (!ran_ok) {
+        // A ByRef variable is the caller's own: what the procedure did to it
+        // before the error stays (a handler of the caller may go on).
+        for (std::size_t index = 0U;
+             index < std::min(arguments.size(), fixed_and_optional_count);
+             ++index) {
+            const auto& parameter = parameters[index];
+            if (parameter.by_val || arguments[index].byref_target == nullptr ||
+                (parameter.is_variant && arguments[index].typed_target)) {
+                continue;
+            }
+            const auto found = scopes_.back().variables.find(parameter.name);
+            if (found != scopes_.back().variables.end()) {
+                *arguments[index].byref_target = found->second;
+            }
+        }
+    }
     if (!ran_ok || !statics_copy_back_ok) {
         scopes_.pop_back();
         return std::nullopt;
