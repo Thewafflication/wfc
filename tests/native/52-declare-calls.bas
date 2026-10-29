@@ -15,7 +15,7 @@ End Function
 
 Sub Main()
     Dim f As String, n As Long, buf As String
-    f = Environ("TEMP") & "\wfc_test.ini"
+    f = Environ("TEMP") & "\wfc_native_test.ini"
     On Error Resume Next: Kill f: On Error GoTo 0
     Print WritePrivateProfileString("Window", "Width", "800", f)
     WritePrivateProfileString "Window", "Height", "600", f

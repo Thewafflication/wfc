@@ -75,6 +75,10 @@ struct Win32Host::Entry {
     bool is_menu{false};
     bool lightweight{false};
     Rect bounds;
+    // The window rectangle last handed to SetWindowPos (pixels), so that an
+    // unchanged placement costs nothing.
+    int placed[4]{0, 0, 0, 0};
+    bool is_placed{false};
     bool visible{false};
     bool enabled{true};
     bool checked{false};
@@ -95,6 +99,8 @@ struct Win32Host::Entry {
     int off_y{0};
     bool screen_form{false};
     HFONT font{nullptr};    // set by set_font, owned by the entry
+    FontSpec font_spec;     // what `font` was made from
+    double font_dpi{0.0};   // and at which resolution
     void* images{nullptr};  // HIMAGELIST handed to the control
     void* small_images{nullptr};
 };
@@ -949,6 +955,16 @@ void Win32Host::set_bounds(const WindowId window, const Rect& bounds) {
         width = frame.right - frame.left;
         height = frame.bottom - frame.top;
     }
+    if (!entry->is_form && entry->is_placed && entry->placed[0] == left &&
+        entry->placed[1] == top && entry->placed[2] == width &&
+        entry->placed[3] == height) {
+        return;
+    }
+    entry->placed[0] = left;
+    entry->placed[1] = top;
+    entry->placed[2] = width;
+    entry->placed[3] = height;
+    entry->is_placed = true;
     SetWindowPos(entry->hwnd, nullptr, left, top, width, height,
                  SWP_NOZORDER | SWP_NOACTIVATE);
 }
@@ -1325,7 +1341,11 @@ void Win32Host::set_border(const WindowId window, const bool border) {
     }
     const HWND hwnd = it->second->hwnd;
     auto style = static_cast<LONG_PTR>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    const auto before = style;
     style = border ? (style | WS_EX_CLIENTEDGE) : (style & ~WS_EX_CLIENTEDGE);
+    if (style == before) {
+        return;
+    }
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
@@ -1449,6 +1469,15 @@ void Win32Host::set_font(const WindowId window, const FontSpec& font) {
     if (entry == nullptr || entry->hwnd == nullptr || entry->is_form) {
         return;
     }
+    if (entry->font != nullptr && entry->font_dpi == dpi_y_ &&
+        entry->font_spec.name == font.name &&
+        entry->font_spec.size == font.size &&
+        entry->font_spec.bold == font.bold &&
+        entry->font_spec.italic == font.italic &&
+        entry->font_spec.underline == font.underline &&
+        entry->font_spec.strikethrough == font.strikethrough) {
+        return;
+    }
     HFONT created = CreateFontW(
         -static_cast<int>(
             std::lround(font.size * static_cast<double>(dpi_y_) / 72.0)),
@@ -1465,6 +1494,8 @@ void Win32Host::set_font(const WindowId window, const FontSpec& font) {
         DeleteObject(entry->font);
     }
     entry->font = created;
+    entry->font_spec = font;
+    entry->font_dpi = dpi_y_;
     InvalidateRect(entry->hwnd, nullptr, TRUE);
 }
 
