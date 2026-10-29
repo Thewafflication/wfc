@@ -171,9 +171,13 @@ void print_help() {
            "build options:\n"
            "  -o <file>            the program to write (required)\n"
            "  --gui                the program shows its forms in windows\n"
-           "  --native             carry machine code instead of the "
-           "project\n"
-           "  --link static        one file with the whole runtime "
+           "  --native             machine code; a project that does not "
+           "compile is an error\n"
+           "  --interpret          carry the project for the interpreter\n"
+           "                       (default: machine code, or the interpreter "
+           "when the\n"
+           "                       project does not compile)\n"
+           "  --link static       one file with the whole runtime "
            "(default)\n"
            "  --link dynamic       a small program that loads wfcrt.dll\n"
            "  --bundle             with --link dynamic: copy the runtime "
@@ -319,24 +323,46 @@ std::string install_root() {
     return {};
 }
 
+std::string find_runtime_file(const std::string_view file) {
+#ifdef _WIN32
+    std::error_code error;
+    const auto beside = running_folder() / file;
+    if (fs::exists(beside, error)) {
+        return beside.string();
+    }
+    const auto root = install_root();
+    if (root.empty()) {
+        return {};
+    }
+    const auto in_bin = fs::path(root) / "bin" / file;
+    if (fs::exists(in_bin, error)) {
+        return in_bin.string();
+    }
+    // lib\<name>\<version>\<arch>\<file>, the highest version first.
+    const auto library = fs::path(root) / "lib" / fs::path(file).stem();
+    std::string best_version;
+    fs::path best;
+    for (const auto& entry : fs::directory_iterator(library, error)) {
+        const auto candidate = entry.path() / kArchitecture / file;
+        if (fs::exists(candidate, error) &&
+            entry.path().filename().string() > best_version) {
+            best_version = entry.path().filename().string();
+            best = candidate;
+        }
+    }
+    return best.string();
+#else
+    static_cast<void>(file);
+    return {};
+#endif
+}
+
 std::vector<LibraryInfo> libraries() {
     std::vector<LibraryInfo> result;
     result.push_back({"wfc", std::string(wfc::version), "program", ""});
 #ifdef _WIN32
-    const auto folder = running_folder();
-    const auto root = install_root();
-    const auto find = [&](const char* const dll) {
-        std::error_code error;
-        std::vector<fs::path> places{folder / dll};
-        if (!root.empty()) {
-            places.push_back(fs::path(root) / "bin" / dll);
-        }
-        for (const auto& place : places) {
-            if (fs::exists(place, error)) {
-                return place;
-            }
-        }
-        return fs::path{};
+    const auto find = [](const char* const dll) {
+        return fs::path(find_runtime_file(dll));
     };
     const struct {
         const char* name;

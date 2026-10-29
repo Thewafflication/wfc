@@ -579,6 +579,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_vb6_package(restaum restaum/source/BrainVita.vbp Form1)
   add_vb6_native_package(clix clix/src/Clix.vbp frmMain 3)
   add_vb6_native_package(connect4 connect4/PConnect4.vbp FMain)
+  add_vb6_dynamic_package(connect4 connect4/PConnect4.vbp FMain)
+  add_vb6_dynamic_package(pipes pipes/pipes.vbp Logo)
   add_vb6_native_package(executioner executioner/Executioner.vbp frmGamescreen)
   add_vb6_native_package(pipes pipes/pipes.vbp Logo)
   add_vb6_native_package(restaum restaum/source/BrainVita.vbp Form1)
@@ -2661,6 +2663,27 @@ Print v.x & q.x]=]
       PROPERTIES LABELS "integration;mp-0010;package"
     )
     add_dependencies(wfc wfc_runtime wfcl)
+
+    # The install script lays out the files and versioned libraries, and a
+    # dynamically linked program finds its runtime there.
+    find_program(WFC_POWERSHELL powershell)
+    if(WFC_POWERSHELL)
+      string(TOLOWER "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" wfc_architecture)
+      add_test(
+        NAME TC-MP0010-install
+        COMMAND
+          "${CMAKE_COMMAND}" "-DPOWERSHELL=${WFC_POWERSHELL}"
+          "-DINSTALLER=${CMAKE_CURRENT_SOURCE_DIR}/scripts/Install-Wfc.ps1"
+          "-DBIN=$<TARGET_FILE_DIR:wfc>" "-DARCH=${wfc_architecture}"
+          "-DPROJECT=${cli_fixtures}/native-default/Native.vbp"
+          "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/install-test" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/install/run_install_test.cmake"
+      )
+      set_tests_properties(
+        TC-MP0010-install
+        PROPERTIES LABELS "integration;mp-0010;package"
+      )
+    endif()
   endif()
 
   if(WIN32)

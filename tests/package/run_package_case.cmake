@@ -6,7 +6,7 @@ file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(app "${WORK}/app${CMAKE_EXECUTABLE_SUFFIX}")
 execute_process(
-  COMMAND "${WFC}" --build "${INPUT}" -o "${app}"
+  COMMAND "${WFC}" --build "${INPUT}" -o "${app}" --interpret
   RESULT_VARIABLE built
   ERROR_VARIABLE build_errors
 )

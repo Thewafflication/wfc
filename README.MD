@@ -123,6 +123,51 @@ font, picture, persistence-function, and constant contracts used by VB6 forms.
 The [VB6 runtime requirements](requirements/vbrun/README.md) capture the native
 runtime binary, export layout, compiler helpers, and language services.
 
+## Install and Use
+
+`wpm install wfc` runs the install script (`scripts/Install-Wfc.ps1`, also in
+the package as `Install-Wfc.ps1`). Run as an administrator it installs for every
+user into `C:\wfc`; run without administrator rights it installs for the current
+user into `C:\wfc\users\<name>`. Either way it:
+
+- puts `bin` on the PATH and sets `WFC_HOME`;
+- keeps each library in its own versioned folder,
+  `lib\<name>\<version>\<arch>` (`wfcrt`, `wfcvbrun`, `wfcocx` when built
+  shared), so versions sit side by side;
+- adds a Start menu entry and a Windows Terminal profile, "WFC Command Prompt":
+  a console with `wfc` on the PATH (`bin\wfc-prompt.cmd`);
+- adds an Apps & features entry; `Install-Wfc.ps1 -Uninstall` (or `wpm remove
+  wfc`) takes it all away.
+
+The command line:
+
+```text
+wfc <project.vbp>                  run a project (compiled to machine code)
+wfc check <project.vbp>            compile only, report the first error
+wfc build <project.vbp> -o app.exe [--gui] [--link static|dynamic] [--bundle]
+wfc libs                           the libraries and their versions
+wfc env                            where wfc is installed and what it finds
+wfc help [command]
+```
+
+A mistake in an option names it and suggests the nearest one (`unknown option
+'--natve' (did you mean '--native'?)`); a missing file says so; the exit codes
+are 0 done, 1 the program failed, 2 usage error, 3 compile error.
+
+**Static or dynamic libraries.** `wfc build` links the runtime statically by
+default: the program is one file holding the whole runtime. `--link dynamic`
+writes a small launcher (`wfcl.exe`) that loads `wfcrt.dll` when it starts,
+from beside the program (`--bundle` copies it there), from `%WFC_HOME%`, or
+from the installation; it refuses a runtime of another major.minor version
+and says which file it found. The same holds for the libraries: `wfc-ocx`
+(the control tables) is linked statically unless CMake is configured with
+`-DWFC_OCX_SHARED=ON`, which builds `wfcocx.dll`; `wfc-vbrun` is built both as
+`wfcvbrun.dll` and as the static library `wfcvbrun_static.lib`. The game
+packages carry every game both ways (`<game>-x64.exe`, `<game>-x64-dynamic.exe`).
+
+The libraries live in `lib/wfc-vbrun` and `lib/wfc-ocx`, each with its own
+sources, tests, `VERSION` and version resource, ready to become submodules.
+
 ## Build the Current Development Slice
 
 Prerequisites are Visual Studio 2022 (Visual Studio 2026 for the ARM64

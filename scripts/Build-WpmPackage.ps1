@@ -84,16 +84,28 @@ function Invoke-Collect([string]$Architecture) {
     $target = Get-InputDirectory $Architecture
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Copy-Item (Join-Path $build 'wfc.exe') $target
-    Copy-Item (Join-Path $build 'wfcvbrun.dll') $target
+    foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcrt.dll', 'wfcvbrun.dll',
+        'wfcocx.dll') {
+        if (Test-Path (Join-Path $build $name)) {
+            Copy-Item (Join-Path $build $name) $target
+        }
+    }
     foreach ($game in $games) {
         $source = Join-Path $root "tests/vb6games/$($game.Project)"
         $folder = Join-Path $target "games/$($game.Name)"
         New-Item -ItemType Directory -Force -Path $folder | Out-Null
-        $program = Join-Path $folder "$($game.Name)-$Architecture.exe"
-        & (Join-Path $build 'wfc.exe') --build $source -o $program --gui
-        if ($LASTEXITCODE -ne 0) {
-            throw "wfc --build failed for $($game.Name) ($Architecture)"
+        # Both ways: one file with the whole runtime (static), and a small
+        # program that loads wfcrt.dll from the installation (dynamic).
+        foreach ($link in 'static', 'dynamic') {
+            $suffix = if ($link -eq 'static') { '' } else { '-dynamic' }
+            $program = Join-Path $folder `
+                "$($game.Name)-$Architecture$suffix.exe"
+            & (Join-Path $build 'wfc.exe') --build $source -o $program --gui `
+                --link $link
+            if ($LASTEXITCODE -ne 0) {
+                throw "wfc --build ($link) failed for $($game.Name) " +
+                    "($Architecture)"
+            }
         }
     }
 }
@@ -154,10 +166,33 @@ try {
         }
         $target = Join-Path $tool $architecture
         New-Item -ItemType Directory -Force -Path $target | Out-Null
-        Copy-Item (Join-Path $collected 'wfc.exe') $target
-        Copy-Item (Join-Path $collected 'wfcvbrun.dll') $target
+        foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcrt.dll', 'wfcvbrun.dll',
+            'wfcocx.dll') {
+            if (Test-Path (Join-Path $collected $name)) {
+                Copy-Item (Join-Path $collected $name) $target
+            }
+        }
     }
     Copy-Item LICENSE $tool
+    # WPM runs .wpm/install.cmd and .wpm/remove.cmd: they hand over to the
+    # install script, which installs machine-wide as an administrator (C:\wfc)
+    # and for the current user otherwise.
+    Copy-Item scripts/Install-Wfc.ps1 $tool
+    New-Item -ItemType Directory -Force -Path (Join-Path $tool '.wpm') |
+        Out-Null
+    $script = '"%~dp0..\Install-Wfc.ps1"'
+    Set-Content (Join-Path $tool '.wpm/install.cmd') -Encoding ascii -Value @(
+        '@echo off'
+        "powershell -NoProfile -ExecutionPolicy Bypass -File $script " +
+            '-Source "%~dp0.." || exit /b 1'
+        'exit /b 0'
+    )
+    Set-Content (Join-Path $tool '.wpm/remove.cmd') -Encoding ascii -Value @(
+        '@echo off'
+        "powershell -NoProfile -ExecutionPolicy Bypass -File $script " +
+            '-Uninstall || exit /b 1'
+        'exit /b 0'
+    )
     Copy-Item README.MD $tool
     Copy-Item planning/compatibility-profile-1.0.md $tool
     Write-PackageInfo $tool 'wfc' 'Waughtal Form Compiler: a VB6 interpreter' `
@@ -177,13 +212,15 @@ try {
             if (Test-Path $path) { Copy-Item $path $folder }
         }
         foreach ($architecture in $Architectures) {
-            $name = "$($game.Name)-$architecture.exe"
-            $built = Join-Path (Get-InputDirectory $architecture) `
-                "games/$($game.Name)/$name"
-            Copy-Item $built $folder
-            $hash = (Get-FileHash (Join-Path $folder $name) `
-                -Algorithm SHA256).Hash.ToLower()
-            $sums.Add("$hash  $($game.Name)/$name")
+            foreach ($suffix in '', '-dynamic') {
+                $name = "$($game.Name)-$architecture$suffix.exe"
+                $built = Join-Path (Get-InputDirectory $architecture) `
+                    "games/$($game.Name)/$name"
+                Copy-Item $built $folder
+                $hash = (Get-FileHash (Join-Path $folder $name) `
+                    -Algorithm SHA256).Hash.ToLower()
+                $sums.Add("$hash  $($game.Name)/$name")
+            }
         }
     }
     $sums | Set-Content (Join-Path $gamesRoot 'SHA256SUMS') -Encoding ascii

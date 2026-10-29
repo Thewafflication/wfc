@@ -452,18 +452,7 @@ int check_project(const int argument_count, const char* const arguments[]) {
 // A file of the runtime (the launcher, the libraries): beside the running
 // wfc.exe, or in the bin folder of the installation. Empty when there is none.
 std::filesystem::path runtime_file(const char* const name) {
-    std::error_code ignored;
-    auto candidate = wfc::package::running_image().parent_path() / name;
-    if (std::filesystem::exists(candidate, ignored)) {
-        return candidate;
-    }
-    if (const auto root = wfc::cli::install_root(); !root.empty()) {
-        candidate = std::filesystem::path(root) / "bin" / name;
-        if (std::filesystem::exists(candidate, ignored)) {
-            return candidate;
-        }
-    }
-    return {};
+    return wfc::cli::find_runtime_file(name);
 }
 
 // `wfc --build <project.vbp> -o <app.exe> [--gui] [--native]`: a packaged
@@ -474,6 +463,7 @@ int build_package(const int argument_count, const char* const arguments[]) {
     std::filesystem::path output;
     std::vector<std::string> options;
     bool native = false;
+    bool interpret = false;
     bool dynamic = false;
     bool bundle = false;
     for (int i = 2; i < argument_count; ++i) {
@@ -484,6 +474,8 @@ int build_package(const int argument_count, const char* const arguments[]) {
             options.emplace_back("--gui");
         } else if (argument == "--native") {
             native = true;
+        } else if (argument == "--interpret") {
+            interpret = true;
         } else if (argument == "--link" && i + 1 < argument_count) {
             dynamic = std::string_view(arguments[++i]) == "dynamic";
         } else if (argument == "--bundle") {
@@ -504,20 +496,28 @@ int build_package(const int argument_count, const char* const arguments[]) {
     output = std::filesystem::absolute(output);
     std::string problem;
     std::vector<std::pair<std::string, std::string>> extra;
-    if (native) {
-        // Compile now: an error in the program is an error of the build.
+    // The program carries machine code unless --interpret asks for the
+    // interpreter. Without --native a project that cannot be compiled is
+    // packaged for the interpreter; with it the error is an error of the build.
+    if (native || !interpret) {
         const std::string project_text = project.string();
         const char* compile_arguments[] = {"wfc", project_text.c_str()};
         auto prepared = std::make_unique<PreparedNative>();
-        if (const int failure =
-                prepare_native(2, compile_arguments, 1, *prepared);
-            failure != 0) {
+        prepared->quiet_compile = !native;
+        std::error_code ignored;
+        const auto directory = std::filesystem::current_path(ignored);
+        const int failure = prepare_native(2, compile_arguments, 1, *prepared);
+        std::filesystem::current_path(directory, ignored);
+        if (failure != 0 && native) {
             return failure;
         }
-        extra.emplace_back("__wfc_native.bin",
-                           wfc::compiler::serialize_image(prepared->image));
-        options.emplace_back("--native-image");
-        options.emplace_back("@__wfc_native.bin");
+        native = failure == 0;
+        if (native) {
+            extra.emplace_back("__wfc_native.bin",
+                               wfc::compiler::serialize_image(prepared->image));
+            options.emplace_back("--native-image");
+            options.emplace_back("@__wfc_native.bin");
+        }
     }
     // Static: the program is a copy of this wfc. Dynamic: a copy of the small
     // launcher, which loads the runtime library when it starts.

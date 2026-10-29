@@ -186,3 +186,30 @@ function(add_vb6_native_package name vbp form)
     )
   endif()
 endfunction()
+
+# The same with the program linked dynamically (MP-0010): a small launcher
+# program that loads wfcrt.dll, bundled beside it.
+function(add_vb6_dynamic_package name vbp form)
+  if(EXISTS "${vb6games_dir}/${vbp}")
+    set(seed_argument "")
+    if(ARGC GREATER 3)
+      set(seed_argument "-DSEED=${ARGV3}")
+    endif()
+    add_test(
+      NAME TC-MP0010-dynamic-package-${name}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${vb6games_dir}/${vbp}"
+        "-DWORK=${CMAKE_BINARY_DIR}/package-dynamic-${name}" "-DFORM=${form}"
+        "-DNATIVE=1" "-DLINK=dynamic" ${seed_argument} -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_package_gui.cmake"
+    )
+    set_tests_properties(
+      TC-MP0010-dynamic-package-${name}
+      PROPERTIES
+        RESOURCE_LOCK "desktop"
+        LABELS "integration;windows;mp-0010;native;package"
+        TIMEOUT 600
+    )
+  endif()
+endfunction()

@@ -5,10 +5,15 @@
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(app "${WORK}/standalone.exe")
-# NATIVE builds the program as machine code (MP-0009).
-set(native_option "")
+# NATIVE builds the program as machine code (MP-0009), otherwise it is
+# packaged for the interpreter. LINK=dynamic makes the small launcher program
+# that loads wfcrt.dll, which BUNDLE copies next to it (MP-0010).
+set(native_option "--interpret")
 if(DEFINED NATIVE)
   set(native_option "--native")
+endif()
+if(DEFINED LINK)
+  list(APPEND native_option --link ${LINK} --bundle)
 endif()
 execute_process(
   COMMAND "${WFC}" --build "${PROJECT}" -o "${app}" --gui ${native_option}

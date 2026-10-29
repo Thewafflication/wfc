@@ -30,6 +30,11 @@ struct LibraryInfo {
 };
 [[nodiscard]] std::vector<LibraryInfo> libraries();
 
+// A file of the runtime (wfcl.exe, wfcrt.dll, ...): beside the running wfc, in
+// `bin` of the installation, or in the highest version of its library folder
+// (`lib\<name>\<version>\<arch>`) of the installation. Empty when not found.
+[[nodiscard]] std::string find_runtime_file(std::string_view file);
+
 // The folder wfc is installed in (WFC_HOME, C:\wfc\users\<name> or C:\wfc), or
 // empty when none of them holds an installation.
 [[nodiscard]] std::string install_root();
