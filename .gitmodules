@@ -7,3 +7,15 @@
 [submodule "tests/vb6games"]
 	path = tests/vb6games
 	url = https://github.com/Thewafflication/vb6games
+[submodule "lib/wfc-vbrun"]
+	path = lib/wfc-vbrun
+	url = https://github.com/Thewafflication/wfc-vbrun.git
+[submodule "lib/wfc-mscomctl"]
+	path = lib/wfc-mscomctl
+	url = https://github.com/Thewafflication/wfc-mscomctl.git
+[submodule "lib/wfc-comdlg32"]
+	path = lib/wfc-comdlg32
+	url = https://github.com/Thewafflication/wfc-comdlg32.git
+[submodule "lib/wfc-mswinsck"]
+	path = lib/wfc-mswinsck
+	url = https://github.com/Thewafflication/wfc-mswinsck.git
