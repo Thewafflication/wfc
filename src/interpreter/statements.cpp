@@ -2946,12 +2946,22 @@ bool Interpreter::parse_select_statement() {
                                is_number(chosen)) {
                         static_cast<void>(
                             numeric_text(Value{*case_value}, *case_value));
+                    } else if (std::holds_alternative<Empty>(chosen)) {
+                        // Empty is 0 beside a number and "" beside a String.
+                        if (is_number(*case_value)) {
+                            chosen = Value{Integer{0}};
+                        } else if (std::holds_alternative<std::string>(
+                                       *case_value)) {
+                            chosen = Value{std::string{}};
+                        }
                     }
                 }
+                // Null selects no Case, and is no error.
+                const bool null_selector = std::holds_alternative<Null>(chosen);
                 const bool both_numeric =
                     is_number(*case_value) && is_number(chosen);
                 if (case_value->index() != chosen.index() && !both_numeric &&
-                    enclosing_execution &&
+                    enclosing_execution && !null_selector &&
                     !std::holds_alternative<Empty>(chosen) &&
                     !std::holds_alternative<Empty>(*case_value)) {
                     execute_ = enclosing_execution;
@@ -2985,7 +2995,7 @@ bool Interpreter::parse_select_statement() {
                         return false;
                     }
                     as_number(*upper_value);
-                    if (evaluate_case &&
+                    if (evaluate_case && !null_selector &&
                         ((upper_value->index() != chosen.index() &&
                           !(is_number(*upper_value) && is_number(chosen))) ||
                          std::holds_alternative<bool>(chosen) ||
@@ -2998,8 +3008,8 @@ bool Interpreter::parse_select_statement() {
                                   upper_offset);
                         return false;
                     }
-                    if (!evaluate_case) {
-                        // Skipped: nothing to compare.
+                    if (!evaluate_case || null_selector) {
+                        // Skipped, or Null: nothing to compare.
                     } else if (is_number(chosen)) {
                         const double selected_number = as_double(chosen);
                         item_matches =

@@ -989,6 +989,9 @@ std::optional<Value> Interpreter::parse_power() {
         };
         const auto base = operand(*left);
         auto exponent = operand(*right);
+        if (!execute_ && (!base.has_value() || !exponent.has_value())) {
+            return Value{0.0};  // skipped code runs nothing
+        }
         if (!base.has_value() || !exponent.has_value()) {
             set_error("WFC0007", "operator requires numeric operands",
                       operator_offset);
@@ -2243,6 +2246,9 @@ std::optional<bool> Interpreter::coerce_condition_boolean(
             if (parsed.status == NumericStringStatus::valid) {
                 return parsed.value != 0.0;
             }
+        }
+        if (!execute_) {
+            return false;  // skipped code runs nothing
         }
         set_error(error_code, error_message, offset);
         return std::nullopt;

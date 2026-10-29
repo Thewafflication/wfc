@@ -4748,6 +4748,9 @@ private:
             return convert(value, VbType::single_precision, at);
         }
         if (name == "int" || name == "fix") {
+            if (value.type == VbType::boolean) {
+                return convert(value, VbType::integer, at);  // -1 or 0
+            }
             if (!is_float(value.type)) {
                 return value;
             }

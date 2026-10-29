@@ -1100,7 +1100,8 @@ Integer Interpreter::runtime_error_number() const {
         code == "WFC0019" || code == "WFC0020" || code == "WFC0073" ||
         code == "WFC0086" || code == "WFC0087" || code == "WFC0088" ||
         code == "WFC0095" || code == "WFC0098" || code == "WFC0103" ||
-        code == "WFC0105" || code == "WFC0060" || code == "WFC0053") {
+        code == "WFC0105" || code == "WFC0060" || code == "WFC0053" ||
+        code == "WFC0021") {
         return 13;  // Type mismatch
     }
     if (code == "WFC0136" || code == "WFC0107") {
