@@ -502,6 +502,14 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_vb6_play(pipes-play pipes/pipes.vbp pipes-play.ui pipes-play.expected 1)
   # The same sessions with the programs compiled to machine code (MP-0009).
   add_vb6_native_play(
+    connect4-play
+    connect4/PConnect4.vbp
+    connect4-play.ui
+    connect4-play.expected
+    ""
+    2560x1440
+  )
+  add_vb6_native_play(
     restaum-solve
     restaum/source/BrainVita.vbp
     restaum-solve.ui

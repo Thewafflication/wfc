@@ -23,10 +23,15 @@ set(script_arguments "")
 if(DEFINED SCRIPT)
   set(script_arguments --ui-script "${SCRIPT}")
 endif()
+# Games run as machine code (MP-0009) unless NATIVE is OFF.
+set(native_option "")
+if(NOT DEFINED NATIVE OR NATIVE)
+  set(native_option --native)
+endif()
 execute_process(
   COMMAND
-    "${WFC}" "${copy}/${project_file}" --gui --exit-after ${MILLISECONDS}
-    --screenshots "${SHOTS}" ${script_arguments}
+    "${WFC}" ${native_option} "${copy}/${project_file}" --gui --exit-after
+    ${MILLISECONDS} --screenshots "${SHOTS}" ${script_arguments}
   RESULT_VARIABLE result
   ERROR_VARIABLE errors
   OUTPUT_VARIABLE output

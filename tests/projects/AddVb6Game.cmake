@@ -16,14 +16,20 @@ function(add_vb6_game name vbp forms milliseconds)
     if(ARGC GREATER 6)
       list(APPEND script_arguments "-DSEED=${ARGV6}")
     endif()
+    # Games run as machine code (MP-0009). SuMBOku 1.4.2 assigns an object
+    # without Set (`Dest = Me.Value`), which only the interpreter accepts.
+    set(native_argument "-DNATIVE=1")
+    if("${name}" STREQUAL "sumboku")
+      set(native_argument "-DNATIVE=0")
+    endif()
     add_test(
       NAME TC-MP0008-vb6games-${name}
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
         "-DPROJECT=${vb6games_dir}/${vbp}"
         "-DSHOTS=${CMAKE_BINARY_DIR}/screenshots/${name}" "-DFORMS=${forms}"
-        "-DMILLISECONDS=${milliseconds}" ${script_arguments} -P
-        "${project_checks}/run_project_screenshots.cmake"
+        "-DMILLISECONDS=${milliseconds}" ${native_argument} ${script_arguments}
+        -P "${project_checks}/run_project_screenshots.cmake"
     )
     set_tests_properties(
       TC-MP0008-vb6games-${name}
