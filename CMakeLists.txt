@@ -20,6 +20,8 @@ add_library(wfc_frontend STATIC)
 target_sources(
   wfc_frontend
   PRIVATE
+    src/cli.cpp
+    src/cli.hpp
     src/com_server.cpp
     src/com_server.hpp
     src/evaluator.cpp
@@ -108,6 +110,56 @@ target_compile_features(wfc PRIVATE cxx_std_20)
 target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
 wsp_enable_hardening(wfc)
+target_compile_definitions(
+  wfc_frontend
+  PRIVATE WFC_OCX_VERSION_STRING="${WFC_OCX_VERSION}"
+)
+
+if(WIN32)
+  # The runtime library and its launcher: a program linked dynamically is the
+  # small launcher (wfcl.exe) that loads wfcrt.dll, the same code wfc.exe
+  # carries inside itself.
+  enable_language(RC)
+  string(REPLACE "." ";" version_parts "${PROJECT_VERSION}")
+  list(GET version_parts 0 WFC_LIB_VERSION_MAJOR)
+  list(GET version_parts 1 WFC_LIB_VERSION_MINOR)
+  list(GET version_parts 2 WFC_LIB_VERSION_PATCH)
+  set(WFC_LIB_VERSION "${PROJECT_VERSION}")
+  set(WFC_LIB_NAME wfcrt)
+  set(WFC_LIB_DESCRIPTION "WFC runtime library")
+  configure_file(
+    cmake/version.rc.in
+    "${CMAKE_CURRENT_BINARY_DIR}/wfcrt.rc"
+    @ONLY
+  )
+  add_library(
+    wfc_runtime
+    SHARED
+    src/main.cpp
+    src/package.cpp
+    src/package.hpp
+    "${CMAKE_CURRENT_BINARY_DIR}/wfcrt.rc"
+  )
+  target_compile_definitions(wfc_runtime PRIVATE WFC_RUNTIME_DLL)
+  target_compile_features(wfc_runtime PRIVATE cxx_std_20)
+  target_link_libraries(wfc_runtime PRIVATE wfc_frontend)
+  set_target_properties(
+    wfc_runtime
+    PROPERTIES
+      OUTPUT_NAME wfcrt
+      VERSION "${PROJECT_VERSION}"
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  )
+  wfc_enable_strict_warnings(wfc_runtime)
+  wsp_enable_hardening(wfc_runtime)
+
+  add_executable(wfcl src/launcher.cpp)
+  target_compile_features(wfcl PRIVATE cxx_std_20)
+  target_include_directories(wfcl PRIVATE include)
+  add_dependencies(wfcl wfc_runtime)
+  wfc_enable_strict_warnings(wfcl)
+  wsp_enable_hardening(wfcl)
+endif()
 
 include(CTest)
 
@@ -2557,6 +2609,59 @@ Print v.x & q.x]=]
       PROPERTIES LABELS "integration;mp-0002;corpus"
     )
   endforeach()
+
+  # The command line (MP-0010): help, mistakes, check, libraries.
+  include(tests/cli/AddCliTest.cmake)
+  set(cli_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
+  add_cli_test(help "--help" 0 "-DOUT_MATCHES=usage:.*wfc build")
+  add_cli_test(command-help "help;build" 0 "-DOUT_MATCHES=--link")
+  add_cli_test(
+    unknown-option
+    "--natve;${cli_fixtures}/cli/Bad.bas"
+    2
+    "-DERR_MATCHES=did you mean '--native'"
+  )
+  add_cli_test(
+    missing-file
+    "no-such-project.vbp"
+    2
+    "-DERR_MATCHES=cannot open 'no-such-project.vbp'"
+  )
+  add_cli_test(
+    bad-link
+    "build;${cli_fixtures}/native-default/Native.vbp;-o;x.exe;--link;sideways"
+    2
+    "-DERR_MATCHES=--link takes"
+  )
+  add_cli_test(
+    check
+    "check;${cli_fixtures}/native-default/Native.vbp"
+    0
+    "-DOUT_MATCHES=ok"
+  )
+  add_cli_test(
+    check-error
+    "check;${cli_fixtures}/cli/Bad.bas"
+    3
+    "-DERR_MATCHES=expected a type name"
+  )
+  add_cli_test(libs "libs" 0 "-DOUT_MATCHES=wfcocx.*wfcvbrun")
+
+  if(WIN32)
+    add_test(
+      NAME TC-MP0010-link-dynamic
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${cli_fixtures}/native-default/Native.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/link-dynamic" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_link_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0010-link-dynamic
+      PROPERTIES LABELS "integration;mp-0010;package"
+    )
+    add_dependencies(wfc wfc_runtime wfcl)
+  endif()
 
   if(WIN32)
     set(package_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/package")

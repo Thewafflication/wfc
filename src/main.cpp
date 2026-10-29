@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string_view>
 #include <vector>
+#include "cli.hpp"
 #include "com_server.hpp"
 #include "compiler/compile.hpp"
 #include "compiler/image_io.hpp"
@@ -438,6 +439,33 @@ int run_native(const int argument_count, const char* const arguments[],
     return code;
 }
 
+// `wfc check <project>`: compiles without running.
+int check_project(const int argument_count, const char* const arguments[]) {
+    auto prepared = std::make_unique<PreparedNative>();
+    const int failure = prepare_native(argument_count, arguments, 2, *prepared);
+    if (failure == 0) {
+        std::cout << "ok\n";
+    }
+    return failure;
+}
+
+// A file of the runtime (the launcher, the libraries): beside the running
+// wfc.exe, or in the bin folder of the installation. Empty when there is none.
+std::filesystem::path runtime_file(const char* const name) {
+    std::error_code ignored;
+    auto candidate = wfc::package::running_image().parent_path() / name;
+    if (std::filesystem::exists(candidate, ignored)) {
+        return candidate;
+    }
+    if (const auto root = wfc::cli::install_root(); !root.empty()) {
+        candidate = std::filesystem::path(root) / "bin" / name;
+        if (std::filesystem::exists(candidate, ignored)) {
+            return candidate;
+        }
+    }
+    return {};
+}
+
 // `wfc --build <project.vbp> -o <app.exe> [--gui] [--native]`: a packaged
 // program. With --native the project is compiled now and the program carries
 // the machine code.
@@ -446,6 +474,8 @@ int build_package(const int argument_count, const char* const arguments[]) {
     std::filesystem::path output;
     std::vector<std::string> options;
     bool native = false;
+    bool dynamic = false;
+    bool bundle = false;
     for (int i = 2; i < argument_count; ++i) {
         const std::string_view argument = arguments[i];
         if (argument == "-o" && i + 1 < argument_count) {
@@ -454,6 +484,10 @@ int build_package(const int argument_count, const char* const arguments[]) {
             options.emplace_back("--gui");
         } else if (argument == "--native") {
             native = true;
+        } else if (argument == "--link" && i + 1 < argument_count) {
+            dynamic = std::string_view(arguments[++i]) == "dynamic";
+        } else if (argument == "--bundle") {
+            bundle = true;
         } else if (project.empty() && argument.rfind("-", 0) != 0) {
             project = arguments[i];
         } else {
@@ -465,6 +499,9 @@ int build_package(const int argument_count, const char* const arguments[]) {
         std::cerr << "usage: wfc --build <project.vbp> -o <app.exe> [--gui]\n";
         return 2;
     }
+    // Compiling changes the directory to the project's: keep the paths valid.
+    project = std::filesystem::absolute(project);
+    output = std::filesystem::absolute(output);
     std::string problem;
     std::vector<std::pair<std::string, std::string>> extra;
     if (native) {
@@ -482,10 +519,38 @@ int build_package(const int argument_count, const char* const arguments[]) {
         options.emplace_back("--native-image");
         options.emplace_back("@__wfc_native.bin");
     }
-    if (!wfc::package::build(wfc::package::running_image(), project, output,
-                             options, problem, extra)) {
+    // Static: the program is a copy of this wfc. Dynamic: a copy of the small
+    // launcher, which loads the runtime library when it starts.
+    auto image = wfc::package::running_image();
+    if (dynamic) {
+        image = runtime_file("wfcl.exe");
+        if (image.empty() || runtime_file("wfcrt.dll").empty()) {
+            std::cerr << "wfc: error: --link dynamic needs wfcl.exe and "
+                         "wfcrt.dll beside wfc.exe or in the bin folder of "
+                         "the installation\n";
+            return 1;
+        }
+    }
+    if (!wfc::package::build(image, project, output, options, problem, extra)) {
         std::cerr << problem << '\n';
         return 1;
+    }
+    if (dynamic && bundle) {
+        std::error_code error;
+        for (const char* name : {"wfcrt.dll", "wfcocx.dll"}) {
+            const auto library = runtime_file(name);
+            if (library.empty()) {
+                continue;
+            }
+            std::filesystem::copy_file(
+                library, output.parent_path() / name,
+                std::filesystem::copy_options::overwrite_existing, error);
+            if (error) {
+                std::cerr << "wfc: error: cannot copy " << name << ": "
+                          << error.message() << '\n';
+                return 1;
+            }
+        }
     }
     return 0;
 }
@@ -540,7 +605,47 @@ bool run_project_native_by_default(const int argument_count,
 
 }  // namespace
 
+namespace {
+
+// The command line after the checks of the cli: build, native run, check,
+// project run (compiled when it can be) or the interpreter.
+int run_command(const int argument_count, const char* const arguments[]) {
+    if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {
+        return build_package(argument_count, arguments);
+    }
+    if (argument_count >= 3 && std::string_view(arguments[1]) == "--check") {
+        return check_project(argument_count, arguments);
+    }
+    if (argument_count >= 3 && std::string_view(arguments[1]) == "--native") {
+        return run_native(argument_count, arguments, 2);
+    }
+    int native_code = 0;
+    if (run_project_native_by_default(argument_count, arguments, native_code)) {
+        return native_code;
+    }
+    std::vector<const char*> interpreted;
+    for (int i = 0; i < argument_count; ++i) {
+        if (std::string_view(arguments[i]) != "--interpret") {
+            interpreted.push_back(arguments[i]);
+        }
+    }
+    return run(static_cast<int>(interpreted.size()), interpreted.data());
+}
+
+}  // namespace
+
+#ifdef WFC_RUNTIME_DLL
+// The runtime library (wfcrt.dll) of programs linked dynamically: the
+// launcher checks the version, then calls the entry point.
+extern "C" __declspec(dllexport) const char* wfc_runtime_version() {
+    return wfc::version.data();
+}
+
+extern "C" __declspec(dllexport) int wfc_entry(const int argument_count,
+                                               const char* const arguments[]) {
+#else
 int main(const int argument_count, const char* const arguments[]) {
+#endif
     // A packaged program carries its project after the image.
     std::string problem;
     if (const auto command =
@@ -573,23 +678,16 @@ int main(const int argument_count, const char* const arguments[]) {
         }
         return run(static_cast<int>(forwarded.size()), forwarded.data());
     }
-    if (argument_count >= 2 && std::string_view(arguments[1]) == "--build") {
-        return build_package(argument_count, arguments);
+    std::vector<std::string> command_line(arguments,
+                                          arguments + argument_count);
+    if (const auto handled = wfc::cli::dispatch(command_line)) {
+        return *handled;
     }
-    if (argument_count >= 3 && std::string_view(arguments[1]) == "--native") {
-        return run_native(argument_count, arguments, 2);
+    std::vector<const char*> pointers;
+    for (const auto& item : command_line) {
+        pointers.push_back(item.c_str());
     }
-    int native_code = 0;
-    if (run_project_native_by_default(argument_count, arguments, native_code)) {
-        return native_code;
-    }
-    std::vector<const char*> interpreted;
-    for (int i = 0; i < argument_count; ++i) {
-        if (std::string_view(arguments[i]) != "--interpret") {
-            interpreted.push_back(arguments[i]);
-        }
-    }
-    return run(static_cast<int>(interpreted.size()), interpreted.data());
+    return run_command(static_cast<int>(pointers.size()), pointers.data());
 }
 
 namespace {
