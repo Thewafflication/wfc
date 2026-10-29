@@ -165,7 +165,7 @@ EXPORTS
     __vbaI2Cy=vbrun_stub_259 @259
     __vbaI2ErrVar=vbrun_stub_260 @260
     __vbaI2ForNextCheck=vbrun_stub_261 @261
-    __vbaI2Str=vbrun_stub_262 @262
+    __vbaI2Str @262
     __vbaI2Var=vbrun_stub_263 @263
     __vbaI4Cy=vbrun_stub_264 @264
     EbResetProjectNormal=vbrun_stub_265 @265
@@ -175,7 +175,7 @@ EXPORTS
     EbLibraryUnload=vbrun_stub_269 @269
     __vbaI4ForNextCheck=vbrun_stub_270 @270
     EbLoadRunTime=vbrun_stub_271 @271
-    __vbaI4Str=vbrun_stub_272 @272
+    __vbaI4Str @272
     __vbaI4Var=vbrun_stub_273 @273
     EbCreateContext=vbrun_stub_274 @274
     EbDestroyContext=vbrun_stub_275 @275
@@ -230,8 +230,8 @@ EXPORTS
     __vbaLateMemStAd=vbrun_stub_324 @324
     __vbaLbound=vbrun_stub_325 @325
     __vbaLdZeroAry=vbrun_stub_326 @326
-    __vbaLenBstr=vbrun_stub_327 @327
-    __vbaLenBstrB=vbrun_stub_328 @328
+    __vbaLenBstr @327
+    __vbaLenBstrB @328
     __vbaLenVar=vbrun_stub_329 @329
     __vbaLenVarB=vbrun_stub_330 @330
     __vbaLineInputStr=vbrun_stub_331 @331
@@ -321,7 +321,7 @@ EXPORTS
     __vbaStrDate=vbrun_stub_415 @415
     __vbaStrFixstr=vbrun_stub_416 @416
     __vbaStrI2=vbrun_stub_417 @417
-    __vbaStrI4=vbrun_stub_418 @418
+    __vbaStrI4 @418
     __vbaStrLike=vbrun_stub_419 @419
     BASIC_DISPINTERFACE_GetTICount=vbrun_stub_420 @420
     BASIC_DISPINTERFACE_GetTypeInfo=vbrun_stub_421 @421
@@ -331,7 +331,7 @@ EXPORTS
     __vbaStrTextLike=vbrun_stub_425 @425
     __vbaStrToAnsi=vbrun_stub_426 @426
     __vbaStrToUnicode=vbrun_stub_427 @427
-    __vbaStrUI1=vbrun_stub_428 @428
+    __vbaStrUI1 @428
     __vbaStrVarCopy=vbrun_stub_429 @429
     Zombie_QueryInterface=vbrun_stub_430 @430
     Zombie_AddRef=vbrun_stub_431 @431
@@ -346,7 +346,7 @@ EXPORTS
     EVENT_SINK2_AddRef=vbrun_stub_440 @440
     EVENT_SINK2_Release=vbrun_stub_441 @441
     __vbaUI1ErrVar=vbrun_stub_442 @442
-    __vbaUI1Str=vbrun_stub_443 @443
+    __vbaUI1Str @443
     __vbaUI1Var=vbrun_stub_444 @444
     __vbaUbound=vbrun_stub_445 @445
     __vbaUdtVar=vbrun_stub_446 @446
@@ -415,22 +415,22 @@ EXPORTS
     __vbaVarXor=vbrun_stub_509 @509
     __vbaVargObj=vbrun_stub_510 @510
     __vbaVargObjAddref=vbrun_stub_511 @511
-    rtcLeftBstr=vbrun_stub_512 @512
+    rtcLeftBstr @512
     rtcLeftVar=vbrun_stub_513 @513
-    rtcRightBstr=vbrun_stub_514 @514
+    rtcRightBstr @514
     rtcRightVar=vbrun_stub_515 @515
-    rtcAnsiValueBstr=vbrun_stub_516 @516
-    rtcLowerCaseBstr=vbrun_stub_517 @517
+    rtcAnsiValueBstr @516
+    rtcLowerCaseBstr @517
     rtcLowerCaseVar=vbrun_stub_518 @518
-    rtcTrimBstr=vbrun_stub_519 @519
+    rtcTrimBstr @519
     rtcTrimVar=vbrun_stub_520 @520
-    rtcLeftTrimBstr=vbrun_stub_521 @521
+    rtcLeftTrimBstr @521
     rtcLeftTrimVar=vbrun_stub_522 @522
-    rtcRightTrimBstr=vbrun_stub_523 @523
+    rtcRightTrimBstr @523
     rtcRightTrimVar=vbrun_stub_524 @524
-    rtcSpaceBstr=vbrun_stub_525 @525
+    rtcSpaceBstr @525
     rtcSpaceVar=vbrun_stub_526 @526
-    rtcUpperCaseBstr=vbrun_stub_527 @527
+    rtcUpperCaseBstr @527
     rtcUpperCaseVar=vbrun_stub_528 @528
     rtcKillFiles=vbrun_stub_529 @529
     rtcChangeDir=vbrun_stub_530 @530
@@ -459,14 +459,14 @@ EXPORTS
     rtcGetYear=vbrun_stub_553 @553
     rtcFileReset=vbrun_stub_554 @554
     rtcFileAttributes=vbrun_stub_555 @555
-    rtcIsArray=vbrun_stub_556 @556
+    rtcIsArray @556
     rtcIsDate=vbrun_stub_557 @557
-    rtcIsEmpty=vbrun_stub_558 @558
-    rtcIsError=vbrun_stub_559 @559
-    rtcIsNull=vbrun_stub_560 @560
+    rtcIsEmpty @558
+    rtcIsError @559
+    rtcIsNull @560
     rtcIsNumeric=vbrun_stub_561 @561
-    rtcIsObject=vbrun_stub_562 @562
-    rtcVarType=vbrun_stub_563 @563
+    rtcIsObject @562
+    rtcVarType @563
     rtDecFromVar=vbrun_stub_564 @564
     rtcFileWidth=vbrun_stub_565 @565
     rtcInputCount=vbrun_stub_566 @566
@@ -519,9 +519,9 @@ EXPORTS
     rtcVarStrFromVar=vbrun_stub_613 @613
     rtcSqr=vbrun_stub_614 @614
     rtcIMEStatus=vbrun_stub_615 @615
-    rtcLeftCharBstr=vbrun_stub_616 @616
+    rtcLeftCharBstr @616
     rtcLeftCharVar=vbrun_stub_617 @617
-    rtcRightCharBstr=vbrun_stub_618 @618
+    rtcRightCharBstr @618
     rtcRightCharVar=vbrun_stub_619 @619
     rtcInputCharCount=vbrun_stub_620 @620
     rtcInputCharCountVar=vbrun_stub_621 @621
@@ -596,11 +596,11 @@ EXPORTS
     rtcSaveSetting=vbrun_stub_690 @690
     rtcDeleteSetting=vbrun_stub_691 @691
     rtcGetAllSettings=vbrun_stub_692 @692
-    rtcByteValueBstr=vbrun_stub_693 @693
-    rtcBstrFromByte=vbrun_stub_694 @694
+    rtcByteValueBstr @693
+    rtcBstrFromByte @694
     rtcVarBstrFromByte=vbrun_stub_695 @695
-    rtcCharValueBstr=vbrun_stub_696 @696
-    rtcBstrFromChar=vbrun_stub_697 @697
+    rtcCharValueBstr @696
+    rtcBstrFromChar @697
     rtcVarBstrFromChar=vbrun_stub_698 @698
     rtcSetCurrentCalendar=vbrun_stub_699 @699
     rtcGetCurrentCalendar=vbrun_stub_700 @700
@@ -616,7 +616,7 @@ EXPORTS
     rtcJoin=vbrun_stub_710 @710
     rtcSplit=vbrun_stub_711 @711
     rtcReplace=vbrun_stub_712 @712
-    rtcStrReverse=vbrun_stub_713 @713
+    rtcStrReverse @713
     rtcRound=vbrun_stub_714 @714
     rtcCallByName=vbrun_stub_715 @715
     rtcCreateObject2=vbrun_stub_716 @716

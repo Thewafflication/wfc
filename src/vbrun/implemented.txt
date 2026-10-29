@@ -18,3 +18,35 @@ PutMemStr
 GetMemObj
 SetMemObj
 GetMemVar
+# REQ-0102 string functions on Strings
+rtcLeftBstr
+rtcRightBstr
+rtcLeftCharBstr
+rtcRightCharBstr
+rtcUpperCaseBstr
+rtcLowerCaseBstr
+rtcTrimBstr
+rtcLeftTrimBstr
+rtcRightTrimBstr
+rtcSpaceBstr
+rtcAnsiValueBstr
+rtcCharValueBstr
+rtcByteValueBstr
+rtcBstrFromChar
+rtcBstrFromByte
+rtcStrReverse
+# REQ-0102 type tests on Variants
+rtcVarType
+rtcIsEmpty
+rtcIsNull
+rtcIsArray
+rtcIsObject
+rtcIsError
+# REQ-0101 String and number conversions, Len
+__vbaLenBstr
+__vbaLenBstrB
+__vbaI4Str
+__vbaI2Str
+__vbaUI1Str
+__vbaStrI4
+__vbaStrUI1

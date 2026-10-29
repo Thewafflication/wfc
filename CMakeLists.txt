@@ -125,6 +125,9 @@ if(WIN32)
     src/vbrun/vbrun_helpers.hpp
     src/vbrun/vbrun_state.cpp
     src/vbrun/helpers_memory.cpp
+    src/vbrun/helpers_strings.cpp
+    src/vbrun/helpers_variant.cpp
+    src/vbrun/helpers_convert.cpp
     src/vbrun/wfcvbrun.def
   )
   target_link_libraries(wfc_vbrun PRIVATE oleaut32)
@@ -2527,6 +2530,22 @@ Print v.x & q.x]=]
       )
       set_tests_properties(
         TC-MP0009-vbrun-helpers-${vbrun_family}
+        PROPERTIES LABELS "unit;mp-0009;vbrun"
+      )
+    endforeach()
+    # Call cases: the results of the reference runtime are in
+    # tests/vbrun/cases/<family>.expected.
+    set(vbrun_case_files "${CMAKE_CURRENT_SOURCE_DIR}/tests/vbrun/cases")
+    foreach(vbrun_cases strings variants convert)
+      add_test(
+        NAME TC-MP0009-vbrun-cases-${vbrun_cases}
+        COMMAND
+          vbrun_helper_tests "$<TARGET_FILE:wfc_vbrun>" cases
+          "${vbrun_case_files}/${vbrun_cases}.cases"
+          "${vbrun_case_files}/${vbrun_cases}.expected"
+      )
+      set_tests_properties(
+        TC-MP0009-vbrun-cases-${vbrun_cases}
         PROPERTIES LABELS "unit;mp-0009;vbrun"
       )
     endforeach()

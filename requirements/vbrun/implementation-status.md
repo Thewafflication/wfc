@@ -33,4 +33,17 @@ naming it.
 | --- | --- | ---: | ---: | --- |
 | Member and memory helpers | `REQ-0103` | 24 | 14 | `GetMem1/2/4/8`, `PutMem1/2/4/8`, `VarPtr`, `GetMemStr`, `PutMemStr`, `GetMemObj`, `SetMemObj`, `GetMemVar`. Not yet: `PutMemVar`, `PutMemObj`, `SetMemVar` (default-property calls through `IDispatch`), the `*NewObj` and `*Event` helpers (they call into the engine's object creation), `CopyRecord` (reads private record descriptors) |
 
+| String functions on Strings | `REQ-0102` | (part of 198) | 16 | `Left`, `LeftB`, `Right`, `RightB`, `UCase`, `LCase`, `Trim`, `LTrim`, `RTrim`, `Space`, `Asc`, `AscB`, `AscW`, `ChrB`, `ChrW`, `StrReverse` (`rtcLeftBstr` is `LeftB`: the names with `Char` count characters). Call cases `strings` |
+| Type tests on Variants | `REQ-0102` | (part of 198) | 6 | `VarType`, `IsEmpty`, `IsNull`, `IsArray`, `IsObject`, `IsError`. Call cases `variants`. `IsNumeric` and `IsDate` (they parse Strings with the locale) are not yet written |
+| String and number conversions | `REQ-0101` | (part of 334) | 7 | `__vbaLenBstr`, `__vbaLenBstrB`, `__vbaI4Str`, `__vbaI2Str`, `__vbaUI1Str`, `__vbaStrI4`, `__vbaStrUI1`. Call cases `convert` |
+
 (Updated with each batch.)
+
+## What cannot be probed
+
+Some reference exports crash when called from a process that did not run the
+runtime's initialization (the Variant operators `__vbaVarAdd` and its family,
+`__vbaStrCat`, `__vbaStrCmp`, `__vbaStrBool`, `__vbaBoolStr`): they call
+Automation functions through pointers that the initialization binds. Those are
+written from the disassembly alone and are marked so in the table when they
+are added.

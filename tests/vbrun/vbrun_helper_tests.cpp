@@ -13,7 +13,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -190,11 +192,336 @@ void memory_family() {
     }
 }
 
+// ----- Call cases ----------------------------------------------------------
+//
+// tests/vbrun/cases/<family>.cases lists calls (`export arg... => result`);
+// <family>.expected holds what the reference runtime answered, one line per
+// case (scripts/Probe-VbrunCases.ps1). Arguments: s"text" (a String), s0
+// (Nothing), i123, x7F. Results: s (a String), i (a Long), h (an HRESULT).
+
+std::wstring read_case_text(const std::string& text) {
+    std::wstring result;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const char c = text[i];
+        if (c != '\\') {
+            result.push_back(
+                static_cast<wchar_t>(static_cast<unsigned char>(c)));
+            continue;
+        }
+        ++i;
+        switch (text[i]) {
+            case 'n':
+                result.push_back(L'\n');
+                break;
+            case 'r':
+                result.push_back(L'\r');
+                break;
+            case 't':
+                result.push_back(L'\t');
+                break;
+            case 'u':
+                result.push_back(static_cast<wchar_t>(
+                    std::stoul(text.substr(i + 1U, 4U), nullptr, 16)));
+                i += 4U;
+                break;
+            default:
+                result.push_back(static_cast<wchar_t>(text[i]));
+                break;
+        }
+    }
+    return result;
+}
+
+std::string write_case_text(const wchar_t* const text,
+                            const std::size_t length) {
+    std::string result;
+    for (std::size_t i = 0; i < length; ++i) {
+        const auto code = static_cast<unsigned>(text[i]);
+        if (text[i] == L'\\') {
+            result += "\\\\";
+        } else if (text[i] == L'"') {
+            result += "\\\"";
+        } else if (code < 32U || code > 126U) {
+            char buffer[8];
+            std::snprintf(buffer, sizeof(buffer), "\\u%04X", code);
+            result += buffer;
+        } else {
+            result.push_back(static_cast<char>(code));
+        }
+    }
+    return result;
+}
+
+using Word = std::uintptr_t;
+
+// A Variant of the case grammar (see Probe-VbrunCases.ps1).
+VARIANT* make_variant(const int vt, const std::string& number,
+                      const std::wstring& text) {
+    auto* v = static_cast<VARIANT*>(CoTaskMemAlloc(sizeof(VARIANT)));
+    std::memset(v, 0, sizeof(VARIANT));
+    v->vt = static_cast<VARTYPE>(vt);
+    switch (vt) {
+        case 2:
+        case 11:
+            v->iVal = static_cast<SHORT>(std::stol(number));
+            break;
+        case 3:
+        case 10:
+            v->lVal = number.rfind('x', 0) == 0
+                          ? static_cast<LONG>(
+                                std::stoul(number.substr(1), nullptr, 16))
+                          : static_cast<LONG>(std::stol(number));
+            break;
+        case 17:
+            v->bVal = static_cast<BYTE>(std::stoul(number));
+            break;
+        case 4:
+            v->fltVal = std::stof(number);
+            break;
+        case 5:
+        case 7:
+            v->dblVal = std::stod(number);
+            break;
+        case 6:
+            v->cyVal.int64 = std::stoll(number);
+            break;
+        case 8:
+            v->bstrVal =
+                SysAllocStringLen(text.data(), static_cast<UINT>(text.size()));
+            break;
+        default:
+            break;
+    }
+    return v;
+}
+
+std::string format_variant(const VARIANT* const v);
+
+std::string hex_text(const char* const format, const unsigned long long value) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), format, value);
+    return buffer;
+}
+
+std::string format_variant(const VARIANT* const v) {
+    const int vt = v->vt;
+    switch (vt) {
+        case 0:
+        case 1:
+            return "v" + std::to_string(vt);
+        case 2:
+        case 11:
+            return "v" + std::to_string(vt) + ":" + std::to_string(v->iVal);
+        case 3:
+            return "v3:" + std::to_string(v->lVal);
+        case 10:
+            return "v10:" +
+                   hex_text("x%08llX", static_cast<unsigned long>(v->lVal));
+        case 17:
+            return "v17:" + std::to_string(v->bVal);
+        case 4: {
+            std::uint32_t bits = 0;
+            std::memcpy(&bits, &v->fltVal, sizeof(bits));
+            return "v4:" + hex_text("x%08llX", bits);
+        }
+        case 5:
+        case 7: {
+            std::uint64_t bits = 0;
+            std::memcpy(&bits, &v->dblVal, sizeof(bits));
+            return "v" + std::to_string(vt) + ":" + hex_text("x%016llX", bits);
+        }
+        case 6:
+            return "v6:" + std::to_string(v->cyVal.int64);
+        case 8:
+            if (v->bstrVal == nullptr) {
+                return "v8:0";
+            }
+            return "v8\"" +
+                   write_case_text(v->bstrVal,
+                                   SysStringByteLen(v->bstrVal) / 2U) +
+                   "\"";
+        default:
+            return "v" + std::to_string(vt) + ":?";
+    }
+}
+
+Word call_with(const FARPROC proc, const std::vector<Word>& a) {
+    switch (a.size()) {
+        case 0:
+            return reinterpret_cast<Word(WINAPI*)()>(proc)();
+        case 1:
+            return reinterpret_cast<Word(WINAPI*)(Word)>(proc)(a[0]);
+        case 2:
+            return reinterpret_cast<Word(WINAPI*)(Word, Word)>(proc)(a[0],
+                                                                     a[1]);
+        case 3:
+            return reinterpret_cast<Word(WINAPI*)(Word, Word, Word)>(proc)(
+                a[0], a[1], a[2]);
+        case 4:
+            return reinterpret_cast<Word(WINAPI*)(Word, Word, Word, Word)>(
+                proc)(a[0], a[1], a[2], a[3]);
+        default:
+            return reinterpret_cast<Word(WINAPI*)(
+                Word, Word, Word, Word, Word)>(proc)(a[0], a[1], a[2], a[3],
+                                                     a[4]);
+    }
+}
+
+// Runs one case line and returns the result text.
+std::string run_case(const std::string& line) {
+    const auto arrow = line.find(" => ");
+    const std::string head = line.substr(0, arrow);
+    const std::string kind = line.substr(arrow + 4U);
+    const auto space = head.find(' ');
+    const std::string name = head.substr(0, space);
+    std::string rest =
+        space == std::string::npos ? std::string() : head.substr(space + 1U);
+    std::vector<Word> arguments;
+    std::vector<BSTR> allocated;
+    std::vector<VARIANT*> variants;
+    std::vector<VARIANT*> outputs;
+    while (!rest.empty()) {
+        while (!rest.empty() && rest.front() == ' ') {
+            rest.erase(0, 1);
+        }
+        if (rest.empty()) {
+            break;
+        }
+        if (rest.rfind("s0", 0) == 0) {
+            arguments.push_back(0);
+            rest.erase(0, 2);
+        } else if (rest.rfind("s\"", 0) == 0) {
+            std::size_t end = 2;
+            while (end < rest.size() && rest[end] != '"') {
+                end += rest[end] == '\\' ? 2U : 1U;
+            }
+            const std::wstring text = read_case_text(rest.substr(2, end - 2));
+            BSTR b =
+                SysAllocStringLen(text.data(), static_cast<UINT>(text.size()));
+            allocated.push_back(b);
+            arguments.push_back(reinterpret_cast<Word>(b));
+            rest.erase(0, end + 1U);
+        } else if (rest.front() == 'o') {
+            VARIANT* v = make_variant(0, "", L"");
+            variants.push_back(v);
+            outputs.push_back(v);
+            arguments.push_back(reinterpret_cast<Word>(v));
+            rest.erase(0, 1);
+        } else if (rest.front() == 'v') {
+            std::size_t used = 0;
+            const int vt = std::stoi(rest.substr(1), &used);
+            std::size_t at = 1U + used;
+            std::string number;
+            std::wstring text;
+            if (at < rest.size() && rest[at] == ':') {
+                const auto end = rest.find(' ', at);
+                number = rest.substr(at + 1U, end - at - 1U);
+                at = end == std::string::npos ? rest.size() : end;
+            } else if (at < rest.size() && rest[at] == '"') {
+                std::size_t end = at + 1U;
+                while (end < rest.size() && rest[end] != '"') {
+                    end += rest[end] == '\\' ? 2U : 1U;
+                }
+                text = read_case_text(rest.substr(at + 1U, end - at - 1U));
+                at = end + 1U;
+            }
+            VARIANT* v = make_variant(vt, number, text);
+            variants.push_back(v);
+            arguments.push_back(reinterpret_cast<Word>(v));
+            rest.erase(0, at);
+        } else if (rest.front() == 'i') {
+            std::size_t used = 0;
+            const long value = std::stol(rest.substr(1), &used);
+            arguments.push_back(
+                static_cast<Word>(static_cast<std::intptr_t>(value)));
+            rest.erase(0, used + 1U);
+        } else if (rest.front() == 'x') {
+            std::size_t used = 0;
+            const unsigned long value = std::stoul(rest.substr(1), &used, 16);
+            arguments.push_back(static_cast<Word>(
+                static_cast<std::intptr_t>(static_cast<long>(value))));
+            rest.erase(0, used + 1U);
+        } else {
+            return "bad case";
+        }
+    }
+    const FARPROC proc = GetProcAddress(g_library, name.c_str());
+    if (proc == nullptr) {
+        return "not exported";
+    }
+    const Word raw = call_with(proc, arguments);
+    std::string result;
+    if (kind == "s") {
+        const auto text = reinterpret_cast<BSTR>(raw);
+        if (text == nullptr) {
+            result = "s0";
+        } else {
+            const UINT bytes = SysStringByteLen(text);
+            result = "s\"" + write_case_text(text, bytes / 2U) + "\"" +
+                     ((bytes % 2U) != 0U ? "+1" : "");
+            SysFreeString(text);
+        }
+    } else if (kind == "i") {
+        result = "i" + std::to_string(static_cast<std::int32_t>(raw));
+    } else if (kind == "w") {
+        result = "w" + std::to_string(static_cast<std::int16_t>(raw));
+    } else if (kind == "V") {
+        result = format_variant(reinterpret_cast<const VARIANT*>(raw));
+    } else if (kind == "O") {
+        result = format_variant(outputs.front());
+    } else {
+        char buffer[16];
+        std::snprintf(buffer, sizeof(buffer), "x%08X",
+                      static_cast<unsigned>(raw));
+        result = buffer;
+    }
+    for (BSTR b : allocated) {
+        SysFreeString(b);
+    }
+    for (VARIANT* v : variants) {
+        VariantClear(v);
+        CoTaskMemFree(v);
+    }
+    return result;
+}
+
+void cases_family(const char* const cases, const char* const expected) {
+    std::ifstream case_stream(cases);
+    std::ifstream expected_stream(expected);
+    std::string line;
+    std::string want;
+    int number = 0;
+    while (std::getline(case_stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.empty() || line.front() == '#') {
+            continue;
+        }
+        ++number;
+        if (!std::getline(expected_stream, want)) {
+            check(false, "the expected file is shorter than the cases");
+            return;
+        }
+        if (!want.empty() && want.back() == '\r') {
+            want.pop_back();
+        }
+        const std::string got = run_case(line);
+        if (got != want) {
+            std::fprintf(stderr, "case %d: %s\n  expected %s\n  got      %s\n",
+                         number, line.c_str(), want.c_str(), got.c_str());
+        }
+        check(got == want, line.c_str());
+    }
+}
+
 }  // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
-    if (argument_count != 3) {
-        std::fprintf(stderr, "usage: vbrun_helper_tests <dll> <family>\n");
+    if (argument_count != 3 && argument_count != 5) {
+        std::fprintf(stderr,
+                     "usage: vbrun_helper_tests <dll> <family> "
+                     "[<cases> <expected>]\n");
         return 2;
     }
     g_library = LoadLibraryA(arguments[1]);
@@ -205,6 +532,8 @@ int main(const int argument_count, const char* const arguments[]) {
     const std::string family = arguments[2];
     if (family == "memory") {
         memory_family();
+    } else if (family == "cases" && argument_count == 5) {
+        cases_family(arguments[3], arguments[4]);
     } else {
         std::fprintf(stderr, "unknown family %s\n", arguments[2]);
         return 2;
