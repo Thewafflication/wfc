@@ -161,8 +161,8 @@ function Register-Integration([string]$Version) {
             }
         )
     } | ConvertTo-Json -Depth 4
-    Set-Content -LiteralPath (Join-Path $fragments 'wfc.json') `
-        -Value $profileJson -Encoding utf8
+    [IO.File]::WriteAllText((Join-Path $fragments 'wfc.json'), $profileJson,
+        (New-Object Text.UTF8Encoding $false))
 
     $script = Join-Path $Root 'Install-Wfc.ps1'
     New-Item -Path $uninstallKey -Force | Out-Null
@@ -269,6 +269,7 @@ $record = [ordered]@{
     architectures = $architectures
     libraries = $libraries
 }
-$record | ConvertTo-Json -Depth 4 |
-    Set-Content -LiteralPath (Join-Path $Root 'install.json') -Encoding utf8
+# UTF-8 without a byte order mark, whatever the PowerShell edition.
+[IO.File]::WriteAllText((Join-Path $Root 'install.json'),
+    ($record | ConvertTo-Json -Depth 4), (New-Object Text.UTF8Encoding $false))
 Write-Output "Installed WFC $version for $Scope at $Root"

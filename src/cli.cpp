@@ -348,6 +348,14 @@ std::string install_root() {
     if (const auto home = environment("WFC_HOME"); !home.empty()) {
         candidates.emplace_back(home);  // names the installation; no other
     } else {
+        // The installation this wfc.exe lies in (<root>in\wfc.exe).
+#ifdef _WIN32
+        const auto parent = running_folder().parent_path();
+        std::error_code ignored;
+        if (fs::exists(parent / "install.json", ignored)) {
+            candidates.push_back(parent);
+        }
+#endif
         if (const auto user = environment("USERNAME"); !user.empty()) {
             candidates.push_back(fs::path("C:\\wfc\\users") / user);
         }

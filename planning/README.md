@@ -26,6 +26,10 @@ MP-0009 — Native Compilation (`0.9.0`), per the
 [MP-0009 plan](MP-0009-native-compilation.md) and the
 [roadmap](roadmap-1.0.md). The plan awaits approval; no code has started.
 
+Distribution and libraries (started 2026-10-29, owner request): see the
+[MP-0010 plan](MP-0010-distribution-and-libraries.md): the installer under
+`C:\wfc`, versioned libraries, static or dynamic linking, the command line.
+
 Closed milestones:
 
 - MP-0002 — Core VB/VBA Language Execution (`0.2.0`), closed 2026-10-10; see
