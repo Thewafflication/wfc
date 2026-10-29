@@ -27,9 +27,28 @@ either way, with a command line that explains itself.
 installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 `TC-MP0010-vbrun-static`.
 
+## Work log
+
+| Date | Entry |
+| --- | --- |
+| 2026-10-29 #1 | Issues 1 to 5 fixed and closed (Static records, `For ... Step 0`, `String` codes above 255, ByRef Variant write-back, a virtual 1920x1080 headless screen); corpus 200. |
+| 2026-10-29 #2 | `lib/wfc-vbrun` and `lib/wfc-ocx` made self-contained (own CMake, `VERSION` 0.9.0, version resource); `wfc_vbrun_static`, `WFC_OCX_SHARED`. |
+| 2026-10-29 #3 | CLI (`src/cli.cpp`), `wfcrt.dll` + `wfcl.exe`, `--link`/`--bundle`, `completion powershell`, version resources of the programs. |
+| 2026-10-29 #4 | `scripts/Install-Wfc.ps1`, `.wpm/install.cmd` and `remove.cmd`, the WFC command prompt and terminal profiles; `wfc build` carries machine code by default; games packaged static and dynamic. |
+| 2026-10-29 #5 | Performance: closing a form no longer repaints it or rebuilds its menu bar per child (Clix closes 0.15 s faster, load 0.78 s to 0.62 s); labels keep an unchanged alignment. |
+| 2026-10-29 #6 | A crash in wfc reports itself (`src/crash.cpp`, `WFC_CRASH_STACK`); native code zeroes owned local slots at entry (a pending error freed garbage); GoTo onto a `Next`/`Loop`/`Wend` line. |
+| 2026-10-29 #7 | Differential fuzzing of the interpreter against native code (a random-program generator; about 600 programs): block-header errors are trappable, skipped code raises nothing, Booleans order and select as numbers, `Str` of a Boolean, numeric strings, Empty and Null in `Select Case`; native `Int`/`Fix` of a Boolean. Corpus 201 to 204, native 74 and 75. |
+
 ## Open
 
 - Submodule conversion of `lib/wfc-vbrun` and `lib/wfc-ocx` (needs the two
-  repositories).
+  repositories; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>`
+  splits the history out, pushes it and adds the submodules).
+- Requirements 0142, 0153, 0155 and 0156 were revised for Boolean ordering and
+  numeric strings in `Select Case` (they now follow Visual Basic); the owner
+  should confirm.
+- Left as they are because the Visual Basic answer is not known: `Select Case`
+  of a number against `"x" To "z"` (the interpreter raises 13, native code goes
+  to `Case Else`) and some Variant error numbers (13 against 11).
 - The install script is tested for the file layout only (`-FilesOnly`); the PATH,
   Start menu and registry parts were not run on a real machine.
