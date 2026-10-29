@@ -1,0 +1,20 @@
+# The exports that have a real implementation (one name per line). Every other
+# export of the reference directory is a stub that stops the process with a
+# diagnostic. scripts/New-VbrunExports.ps1 reads this list; add a name here
+# when its helper is written, and regenerate wfcvbrun.def.
+#
+# REQ-0103 member and memory helpers
+GetMem1
+GetMem2
+GetMem4
+GetMem8
+PutMem1
+PutMem2
+PutMem4
+PutMem8
+VarPtr
+GetMemStr
+PutMemStr
+GetMemObj
+SetMemObj
+GetMemVar

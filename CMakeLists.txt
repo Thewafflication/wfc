@@ -122,8 +122,12 @@ if(WIN32)
     SHARED
     src/vbrun/vbrun_stubs.cpp
     src/vbrun/vbrun_exports.inc
+    src/vbrun/vbrun_helpers.hpp
+    src/vbrun/vbrun_state.cpp
+    src/vbrun/helpers_memory.cpp
     src/vbrun/wfcvbrun.def
   )
+  target_link_libraries(wfc_vbrun PRIVATE oleaut32)
   set_target_properties(wfc_vbrun PROPERTIES OUTPUT_NAME wfcvbrun)
   # The reference assigns ordinals to the COM entry points; keep them.
   target_link_options(wfc_vbrun PRIVATE /IGNORE:4104 /IGNORE:4222)
@@ -2509,6 +2513,23 @@ Print v.x & q.x]=]
       TC-MP0007-vbrun-library
       PROPERTIES LABELS "unit;mp-0007;vbrun"
     )
+    # The helpers (REQ-0100 to REQ-0104): behavior of the implemented exports.
+    add_executable(vbrun_helper_tests tests/vbrun/vbrun_helper_tests.cpp)
+    target_compile_features(vbrun_helper_tests PRIVATE cxx_std_20)
+    target_link_libraries(vbrun_helper_tests PRIVATE oleaut32)
+    wfc_enable_strict_warnings(vbrun_helper_tests)
+    wsp_enable_hardening(vbrun_helper_tests)
+    add_dependencies(vbrun_helper_tests wfc_vbrun)
+    foreach(vbrun_family memory)
+      add_test(
+        NAME TC-MP0009-vbrun-helpers-${vbrun_family}
+        COMMAND vbrun_helper_tests "$<TARGET_FILE:wfc_vbrun>" ${vbrun_family}
+      )
+      set_tests_properties(
+        TC-MP0009-vbrun-helpers-${vbrun_family}
+        PROPERTIES LABELS "unit;mp-0009;vbrun"
+      )
+    endforeach()
   endif()
 
   if(WIN32)

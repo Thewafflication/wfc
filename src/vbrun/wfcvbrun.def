@@ -203,25 +203,25 @@ EXPORTS
     __vbaLateMemNamedCallSt=vbrun_stub_297 @297
     EbIsProjectOnStack=vbrun_stub_298 @298
     TipCreateInstanceEx=vbrun_stub_299 @299
-    GetMem2=vbrun_stub_300 @300
-    GetMem4=vbrun_stub_301 @301
-    GetMem8=vbrun_stub_302 @302
-    GetMemStr=vbrun_stub_303 @303
-    GetMemVar=vbrun_stub_304 @304
-    GetMemObj=vbrun_stub_305 @305
-    PutMem2=vbrun_stub_306 @306
-    PutMem4=vbrun_stub_307 @307
-    PutMem8=vbrun_stub_308 @308
-    PutMemStr=vbrun_stub_309 @309
+    GetMem2 @300
+    GetMem4 @301
+    GetMem8 @302
+    GetMemStr @303
+    GetMemVar @304
+    GetMemObj @305
+    PutMem2 @306
+    PutMem4 @307
+    PutMem8 @308
+    PutMemStr @309
     PutMemVar=vbrun_stub_310 @310
     PutMemObj=vbrun_stub_311 @311
     SetMemVar=vbrun_stub_312 @312
-    SetMemObj=vbrun_stub_313 @313
+    SetMemObj @313
     GetMemNewObj=vbrun_stub_314 @314
     PutMemNewObj=vbrun_stub_315 @315
     SetMemNewObj=vbrun_stub_316 @316
-    GetMem1=vbrun_stub_317 @317
-    PutMem1=vbrun_stub_318 @318
+    GetMem1 @317
+    PutMem1 @318
     GetMemEvent=vbrun_stub_319 @319
     PutMemEvent=vbrun_stub_320 @320
     SetMemEvent=vbrun_stub_321 @321
@@ -547,7 +547,7 @@ EXPORTS
     rtcDateFromVar=vbrun_stub_641 @641
     rtcVarFromVar=vbrun_stub_642 @642
     rtcCVErrFromVar=vbrun_stub_643 @643
-    VarPtr=vbrun_stub_644 @644
+    VarPtr @644
     rtcDir=vbrun_stub_645 @645
     rtcCurrentDirBstr=vbrun_stub_646 @646
     rtcCurrentDir=vbrun_stub_647 @647
