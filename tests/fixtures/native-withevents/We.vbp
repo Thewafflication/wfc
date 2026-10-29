@@ -1,0 +1,5 @@
+Type=Exe
+Module=Main; Main.bas
+Class=Src; Src.cls
+Class=Hnd; Hnd.cls
+Startup="Sub Main"

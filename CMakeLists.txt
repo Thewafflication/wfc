@@ -2200,6 +2200,19 @@ Next j]=]
       LABELS "integration;mp-0009;native"
       PASS_REGULAR_EXPRESSION "Command1.3..caption = b"
   )
+  # A WithEvents field set from outside its class starts listening.
+  add_test(
+    NAME TC-MP0009-native-withevents-outside
+    COMMAND
+      wfc --native
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-withevents/We.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-native-withevents-outside
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "hits 1.*hits 2 +1"
+  )
   add_test(
     NAME TC-MP0009-default-native-fallback
     COMMAND

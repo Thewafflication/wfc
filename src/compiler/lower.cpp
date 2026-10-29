@@ -5783,9 +5783,14 @@ private:
                 for (const auto& field : info.layout.fields) {
                     if (field.name == target.text &&
                         target.kind == ExprKind::member) {
-                        const auto place =
-                            field_place(base, field, statement.at);
-                        assign_object(place, value, statement.at);
+                        auto place = field_place(base, field, statement.at);
+                        if (field.with_events) {
+                            // Set from outside: the owner of the field
+                            // listens to the new object.
+                            place.event_prefix = field.name + "_";
+                        }
+                        assign_object(place, value, statement.at,
+                                      &base.operand);
                         return;
                     }
                 }
@@ -5837,12 +5842,15 @@ private:
         assign_object(lower_place(target), value, statement.at);
     }
 
+    // `owner`: the object whose field `place` is when that is not Me (a field
+    // set from outside the class).
     void assign_object(const Variable& place, const Value& value,
-                       const Position at) {
+                       const Position at, const Operand* owner = nullptr) {
+        const Operand listener = owner != nullptr ? *owner : me_;
+        const bool can_listen = owner != nullptr || current_class_ >= 0;
         if (place.type == VbType::variant) {
             const auto boxed = to_variant(value, at);
-            const bool listening =
-                !place.event_prefix.empty() && current_class_ >= 0;
+            const bool listening = !place.event_prefix.empty() && can_listen;
             if (listening) {
                 // WithEvents on an object of the runtime (COM, controls).
                 const auto old = builder_->new_temp();
@@ -5854,8 +5862,9 @@ private:
             if (listening) {
                 const auto now = builder_->new_temp();
                 builder_->move_wide(now, place.operand);
-                builder_->runtime(Service::engine_events_attach,
-                                  {now, me_, name_literal(place.event_prefix)});
+                builder_->runtime(
+                    Service::engine_events_attach,
+                    {now, listener, name_literal(place.event_prefix)});
             }
             return;
         }
@@ -5866,18 +5875,18 @@ private:
                                 ? from_variant(value, VbType::object, at)
                                 : value;
         require_class(place.udt, object, at);
-        if (!place.event_prefix.empty() && current_class_ >= 0) {
+        if (!place.event_prefix.empty() && can_listen) {
             // WithEvents: this object stops listening to the one it held and
             // listens to the new one.
             const auto prefix = name_literal(place.event_prefix);
             const auto old = builder_->new_temp();
             builder_->move_wide(old, place.operand);
-            builder_->runtime(Service::events_detach, {old, me_, prefix});
+            builder_->runtime(Service::events_detach, {old, listener, prefix});
             builder_->runtime(Service::object_assign,
                               {address_of(place.operand), object.operand});
             const auto now = builder_->new_temp();
             builder_->move_wide(now, place.operand);
-            builder_->runtime(Service::events_attach, {now, me_, prefix});
+            builder_->runtime(Service::events_attach, {now, listener, prefix});
             return;
         }
         builder_->runtime(Service::object_assign,
