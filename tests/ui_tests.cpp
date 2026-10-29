@@ -8,7 +8,7 @@
 #include <iterator>
 #include <string>
 
-#include "control_tables.hpp"
+#include <wfc/ocx/control_tables.hpp>
 #include "frm_parser.hpp"
 #include "headless_host.hpp"
 

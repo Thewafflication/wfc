@@ -15,6 +15,6 @@ string(STRIP "${recorded_hash}" recorded_hash)
 if(NOT recorded_hash STREQUAL actual_hash)
   message(
     FATAL_ERROR
-    "control tables are stale: regenerate with scripts/New-UiControlTables.ps1"
+    "control tables are stale: regenerate with lib/wfc-ocx/scripts/New-UiControlTables.ps1"
   )
 endif()

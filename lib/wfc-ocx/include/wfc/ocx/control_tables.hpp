@@ -1,6 +1,10 @@
 // Form and control member tables generated from the VB6 type-library
 // evidence (scripts/New-UiControlTables.ps1). Internal to the WFC runtime;
 // not part of the public API.
+//
+// The tables are plain data. They are linked statically into the program or,
+// when the library is built shared (WFC_OCX_SHARED), loaded from wfcocx.dll;
+// only the three table accessors cross the library boundary.
 
 #ifndef WFC_UI_CONTROL_TABLES_HPP
 #define WFC_UI_CONTROL_TABLES_HPP
@@ -10,6 +14,16 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#if defined(_WIN32) && defined(WFC_OCX_SHARED)
+#if defined(WFC_OCX_BUILD_DLL)
+#define WFC_OCX_API __declspec(dllexport)
+#else
+#define WFC_OCX_API __declspec(dllimport)
+#endif
+#else
+#define WFC_OCX_API
+#endif
 
 namespace wfc::ui {
 
@@ -39,14 +53,14 @@ struct ParameterInfo {
     bool optional{};
 };
 
-[[nodiscard]] std::span<const ControlClass> control_classes();
+[[nodiscard]] WFC_OCX_API std::span<const ControlClass> control_classes();
 // The MSComctlLib controls (generated from the mscomctl type-library evidence).
-[[nodiscard]] std::span<const ControlClass> comctl_classes();
+[[nodiscard]] WFC_OCX_API std::span<const ControlClass> comctl_classes();
 // The MSComctlLib class named `name` (case-insensitive), or nullptr.
 [[nodiscard]] const ControlClass* find_comctl_class(std::string_view name);
 
 // The Common Dialog and Winsock controls (ocx_tables.cpp).
-[[nodiscard]] std::span<const ControlClass> ocx_classes();
+[[nodiscard]] WFC_OCX_API std::span<const ControlClass> ocx_classes();
 // The Common Dialog or Winsock class named `name`, or nullptr.
 [[nodiscard]] const ControlClass* find_ocx_class(std::string_view name);
 

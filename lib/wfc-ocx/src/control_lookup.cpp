@@ -3,7 +3,7 @@
 
 #include <cctype>
 
-#include "control_tables.hpp"
+#include <wfc/ocx/control_tables.hpp>
 
 namespace wfc::ui {
 namespace {

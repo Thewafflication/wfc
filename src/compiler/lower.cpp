@@ -1,7 +1,7 @@
 #include "lower.hpp"
 
+#include <wfc/ocx/control_tables.hpp>
 #include "../interpreter/vb_text.hpp"
-#include "../ui/control_tables.hpp"
 
 #include "library.hpp"
 

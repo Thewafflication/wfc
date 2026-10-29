@@ -4,17 +4,17 @@
     Generates the export list of the VBRUN compatibility library from the
     retained MSVBVM60 inventory (REQ-0105).
 .DESCRIPTION
-    Writes src/vbrun/wfcvbrun.def (ordinals and names) and
-    src/vbrun/vbrun_exports.inc (one VBRUN_EXPORT(ordinal, name) per named
+    Writes src/wfcvbrun.def (ordinals and names) and
+    src/vbrun_exports.inc (one VBRUN_EXPORT(ordinal, name) per named
     export). Slots that are empty in the reference stay empty.
 #>
 [CmdletBinding()]
 param(
     [string]$Evidence = (Join-Path $PSScriptRoot `
-        '..\evidence\reference\msvbvm60-6.0-runtime.json'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\src\vbrun'),
+        '..\..\..\evidence\reference\msvbvm60-6.0-runtime.json'),
+    [string]$Output = (Join-Path $PSScriptRoot '..\src'),
     [string]$Implemented = (Join-Path $PSScriptRoot `
-        '..\src\vbrun\implemented.txt')
+        '..\src\implemented.txt')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +26,7 @@ if ($directory.ordinalBase -ne 100 -or
     throw 'The inventory does not have the expected shape.'
 }
 
-# The exports that have a real implementation (src/vbrun/implemented.txt) are
+# The exports that have a real implementation (src/implemented.txt) are
 # exported under their own names; the others alias a stub.
 $real = @{}
 if (Test-Path -LiteralPath $Implemented) {

@@ -16,9 +16,9 @@
 #include <sstream>
 #include <thread>
 
-#include "../ui/control_tables.hpp"
+#include <wfc/ocx/control_tables.hpp>
+#include <wfc/ocx/winsock_io.hpp>
 #include "pictures.hpp"
-#include "winsock_io.hpp"
 #ifdef _WIN32
 #include "../ui/win32_host.hpp"
 #endif
@@ -7085,7 +7085,7 @@ bool Interpreter::run_forms_at_exit() {
     return FormSupport::run_loop(*this);
 }
 
-#include "comctl.inc"
-#include "ocx.inc"
+#include <wfc/ocx/comctl.inc>
+#include <wfc/ocx/ocx.inc>
 
 }  // namespace wfc::detail

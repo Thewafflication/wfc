@@ -3,7 +3,7 @@
 // (`mswinsck.ocx`, library MSWinsockLib). Written by hand from the documented
 // members of the two controls; there is no type-library evidence for them.
 
-#include "control_tables.hpp"
+#include <wfc/ocx/control_tables.hpp>
 
 namespace wfc::ui {
 namespace {

@@ -194,7 +194,7 @@ void memory_family() {
 
 // ----- Call cases ----------------------------------------------------------
 //
-// tests/vbrun/cases/<family>.cases lists calls (`export arg... => result`);
+// tests/cases/<family>.cases lists calls (`export arg... => result`);
 // <family>.expected holds what the reference runtime answered, one line per
 // case (scripts/Probe-VbrunCases.ps1). Arguments: s"text" (a String), s0
 // (Nothing), i123, x7F. Results: s (a String), i (a Long), h (an HRESULT).

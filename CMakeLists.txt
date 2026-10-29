@@ -14,6 +14,8 @@ include(WfcWarnings)
 # WSP-SEC-0015: the pinned WSP build baseline supplies the hardening flags.
 include("${CMAKE_CURRENT_SOURCE_DIR}/wsp/tools/cmake/WspBuild.cmake")
 
+add_subdirectory(lib/wfc-ocx)
+
 add_library(wfc_frontend STATIC)
 target_sources(
   wfc_frontend
@@ -54,9 +56,6 @@ target_sources(
     src/interpreter/forms.hpp
     src/interpreter/winapi.cpp
     src/interpreter/dllcall.cpp
-    src/interpreter/winsock_io.cpp
-    src/interpreter/winsock_io.hpp
-    src/interpreter/ocx.inc
     src/interpreter/resources.cpp
     src/interpreter/com_automation.cpp
     src/interpreter/format.cpp
@@ -72,11 +71,6 @@ target_sources(
     src/large_stack.cpp
     src/module_linker.cpp
     src/project.cpp
-    src/ui/control_lookup.cpp
-    src/ui/comctl_tables.cpp
-    src/ui/ocx_tables.cpp
-    src/ui/control_tables.cpp
-    src/ui/control_tables.hpp
     src/ui/frm_parser.cpp
     src/ui/frm_parser.hpp
     src/ui/headless_host.cpp
@@ -99,7 +93,7 @@ target_include_directories(
   PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 find_package(Threads REQUIRED)
-target_link_libraries(wfc_frontend PUBLIC Threads::Threads)
+target_link_libraries(wfc_frontend PUBLIC Threads::Threads wfc_ocx)
 if(WIN32)
   target_link_libraries(
     wfc_frontend
@@ -115,32 +109,15 @@ target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
 wsp_enable_hardening(wfc)
 
-if(WIN32)
-  # The VBRUN compatibility library (ADR-0007): the MSVBVM60 export directory.
-  add_library(
-    wfc_vbrun
-    SHARED
-    src/vbrun/vbrun_stubs.cpp
-    src/vbrun/vbrun_exports.inc
-    src/vbrun/vbrun_helpers.hpp
-    src/vbrun/vbrun_state.cpp
-    src/vbrun/helpers_memory.cpp
-    src/vbrun/helpers_strings.cpp
-    src/vbrun/helpers_variant.cpp
-    src/vbrun/helpers_convert.cpp
-    src/vbrun/helpers_varops.cpp
-    src/vbrun/wfcvbrun.def
-  )
-  target_link_libraries(wfc_vbrun PRIVATE oleaut32)
-  set_target_properties(wfc_vbrun PROPERTIES OUTPUT_NAME wfcvbrun)
-  # The reference assigns ordinals to the COM entry points; keep them.
-  target_link_options(wfc_vbrun PRIVATE /IGNORE:4104 /IGNORE:4222)
-  target_compile_features(wfc_vbrun PRIVATE cxx_std_20)
-  wfc_enable_strict_warnings(wfc_vbrun)
-  wsp_enable_hardening(wfc_vbrun)
-endif()
-
 include(CTest)
+
+# Libraries of WFC, each with its own sources, tests, version and CMake.
+set(
+  WFC_VBRUN_EVIDENCE
+  "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/msvbvm60-6.0-runtime.json"
+)
+add_subdirectory(lib/wfc-vbrun)
+
 if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_executable(wfc_frontend_tests tests/evaluator_tests.cpp)
   target_compile_features(wfc_frontend_tests PRIVATE cxx_std_20)
@@ -573,13 +550,16 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     PROPERTIES LABELS "unit;mp-0004;forms"
   )
   set(wfc_evidence "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference")
-  set(wfc_ui_check "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ui_tables.cmake")
+  set(
+    wfc_ui_check
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/tests/check_ui_tables.cmake"
+  )
   add_test(
     NAME TC-MP0004-ui-tables-current
     COMMAND
       "${CMAKE_COMMAND}" "-DEVIDENCE=${wfc_evidence}/vb-6.0-type-library.json"
-      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/control_tables.cpp" -P
-      "${wfc_ui_check}"
+      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/src/control_tables.cpp"
+      -P "${wfc_ui_check}"
   )
   set_tests_properties(
     TC-MP0004-ui-tables-current
@@ -591,8 +571,8 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     COMMAND
       "${CMAKE_COMMAND}"
       "-DEVIDENCE=${wfc_evidence}/mscomctl-2.0-type-library.json"
-      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/comctl_tables.cpp" -P
-      "${wfc_ui_check}"
+      "-DTABLES=${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-ocx/src/comctl_tables.cpp"
+      -P "${wfc_ui_check}"
   )
   set_tests_properties(
     TC-MP0006-comctl-tables-current
@@ -2577,60 +2557,6 @@ Print v.x & q.x]=]
       PROPERTIES LABELS "integration;mp-0002;corpus"
     )
   endforeach()
-
-  if(WIN32)
-    set(vbrun_evidence "${wfc_evidence}/msvbvm60-6.0-runtime.json")
-    add_executable(vbrun_tests tests/vbrun/vbrun_tests.cpp)
-    target_compile_features(vbrun_tests PRIVATE cxx_std_20)
-    wfc_enable_strict_warnings(vbrun_tests)
-    wsp_enable_hardening(vbrun_tests)
-    add_dependencies(vbrun_tests wfc_vbrun)
-    add_test(
-      NAME TC-MP0007-vbrun-library
-      COMMAND
-        "${CMAKE_COMMAND}" "-DTESTER=$<TARGET_FILE:vbrun_tests>"
-        "-DDLL=$<TARGET_FILE:wfc_vbrun>" "-DEVIDENCE=${vbrun_evidence}"
-        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/vbrun-test" -P
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/vbrun/run_vbrun_tests.cmake"
-    )
-    set_tests_properties(
-      TC-MP0007-vbrun-library
-      PROPERTIES LABELS "unit;mp-0007;vbrun"
-    )
-    # The helpers (REQ-0100 to REQ-0104): behavior of the implemented exports.
-    add_executable(vbrun_helper_tests tests/vbrun/vbrun_helper_tests.cpp)
-    target_compile_features(vbrun_helper_tests PRIVATE cxx_std_20)
-    target_link_libraries(vbrun_helper_tests PRIVATE oleaut32)
-    wfc_enable_strict_warnings(vbrun_helper_tests)
-    wsp_enable_hardening(vbrun_helper_tests)
-    add_dependencies(vbrun_helper_tests wfc_vbrun)
-    foreach(vbrun_family memory)
-      add_test(
-        NAME TC-MP0009-vbrun-helpers-${vbrun_family}
-        COMMAND vbrun_helper_tests "$<TARGET_FILE:wfc_vbrun>" ${vbrun_family}
-      )
-      set_tests_properties(
-        TC-MP0009-vbrun-helpers-${vbrun_family}
-        PROPERTIES LABELS "unit;mp-0009;vbrun"
-      )
-    endforeach()
-    # Call cases: the results of the reference runtime are in
-    # tests/vbrun/cases/<family>.expected.
-    set(vbrun_case_files "${CMAKE_CURRENT_SOURCE_DIR}/tests/vbrun/cases")
-    foreach(vbrun_cases strings variants convert varops)
-      add_test(
-        NAME TC-MP0009-vbrun-cases-${vbrun_cases}
-        COMMAND
-          vbrun_helper_tests "$<TARGET_FILE:wfc_vbrun>" cases
-          "${vbrun_case_files}/${vbrun_cases}.cases"
-          "${vbrun_case_files}/${vbrun_cases}.expected"
-      )
-      set_tests_properties(
-        TC-MP0009-vbrun-cases-${vbrun_cases}
-        PROPERTIES LABELS "unit;mp-0009;vbrun"
-      )
-    endforeach()
-  endif()
 
   if(WIN32)
     set(package_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/package")

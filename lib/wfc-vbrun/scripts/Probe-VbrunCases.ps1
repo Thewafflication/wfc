@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Runs the call cases of tests/vbrun/cases against a VBRUN runtime and
+    Runs the call cases of tests/cases against a VBRUN runtime and
     writes the results (REQ-0100 to REQ-0105).
 .DESCRIPTION
-    Each case line is `export arg... => result` (see tests/vbrun/cases/
+    Each case line is `export arg... => result` (see tests/cases/
     README.md). The script runs in a 32-bit PowerShell, calls the export of
     the DLL with the arguments as stdcall pointer-sized values and writes one
     line per case. With the default runtime (msvbvm60.dll) it produces the

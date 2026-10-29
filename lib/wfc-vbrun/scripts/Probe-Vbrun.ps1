@@ -7,7 +7,7 @@
     Runs in a 32-bit PowerShell (the runtime is an x86 DLL; on a 64-bit
     Windows the script starts the SysWOW64 PowerShell itself). Each family
     prints one line per probe. The expected values in
-    tests/vbrun/vbrun_helper_tests.cpp were taken from this output.
+    tests/vbrun_helper_tests.cpp were taken from this output.
 .PARAMETER Family
     memory, or another family name defined below.
 #>
