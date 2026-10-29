@@ -464,7 +464,7 @@ EXPORTS
     rtcIsEmpty @558
     rtcIsError @559
     rtcIsNull @560
-    rtcIsNumeric=vbrun_stub_561 @561
+    rtcIsNumeric @561
     rtcIsObject @562
     rtcVarType @563
     rtDecFromVar=vbrun_stub_564 @564
@@ -494,7 +494,7 @@ EXPORTS
     rtcRgb=vbrun_stub_588 @588
     rtcQBColor=vbrun_stub_589 @589
     rtcMacId=vbrun_stub_590 @590
-    rtcTypeName=vbrun_stub_591 @591
+    rtcTypeName @591
     rtcIsMissing=vbrun_stub_592 @592
     rtcRandomNext=vbrun_stub_593 @593
     rtcRandomize=vbrun_stub_594 @594

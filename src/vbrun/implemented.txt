@@ -92,3 +92,5 @@ __vbaVarTextCmpLt
 __vbaVarTextCmpLe
 __vbaVarTextCmpGt
 __vbaVarTextCmpGe
+rtcTypeName
+rtcIsNumeric
