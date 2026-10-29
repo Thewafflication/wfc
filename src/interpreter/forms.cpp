@@ -1972,6 +1972,43 @@ struct FormSupport {
         }
     }
 
+    // Queues `surface` for one repaint at the next flush_repaints.
+    static void mark_dirty(Interpreter& in,
+                           const std::shared_ptr<InstanceData>& form,
+                           const ControlObject& surface) {
+        auto& dirty = runtime(in).dirty;
+        for (const auto& entry : dirty) {
+            if (entry.second == surface.window && entry.first.lock() == form) {
+                return;
+            }
+        }
+        dirty.emplace_back(form, surface.window);
+    }
+
+    // Performs the repaints queued by mark_dirty.
+    static void flush_repaints(Interpreter& in) {
+        auto& state = runtime(in);
+        while (!state.dirty.empty()) {
+            auto pending = std::move(state.dirty);
+            state.dirty.clear();
+            for (const auto& entry : pending) {
+                const auto form = entry.first.lock();
+                if (!form) {
+                    continue;
+                }
+                ControlObject* found = nullptr;
+                for_each_control(*form, [&](ControlObject& object) {
+                    if (object.window == entry.second) {
+                        found = &object;
+                    }
+                });
+                if (found != nullptr) {
+                    repaint_surface(in, *form, *found);
+                }
+            }
+        }
+    }
+
     // Repaints every surface that holds a lightweight control.
     static void repaint_lightweight_surfaces(Interpreter& in,
                                              InstanceData& form) {
@@ -3688,7 +3725,11 @@ struct FormSupport {
                 double dy = 0.0;
                 if (ControlObject* surface =
                         surface_for(*owner, self, dx, dy)) {
-                    repaint_surface(in, *owner, *surface);
+                    if (runtime(in).headless != nullptr) {
+                        repaint_surface(in, *owner, *surface);
+                    } else {
+                        mark_dirty(in, owner, *surface);
+                    }
                 }
             }
             return true;
@@ -4664,6 +4705,7 @@ struct FormSupport {
     // when there was nothing to do; the result is false on a handler error.
     [[nodiscard]] static bool step(Interpreter& in, bool& progressed) {
         auto& state = runtime(in);
+        flush_repaints(in);
         load_script(in);
         progressed = true;
         if (state.ended) {
@@ -6995,6 +7037,7 @@ bool Interpreter::pump_forms() {
         return false;
     }
     for (;;) {
+        FormSupport::flush_repaints(*this);
         if (const auto event = forms_->host->next_event(false)) {
             if (!FormSupport::dispatch(*this, *event)) {
                 return false;

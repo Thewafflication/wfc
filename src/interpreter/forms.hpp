@@ -54,6 +54,9 @@ struct FormRuntime {
     // The control being dragged with `Drag vbBeginDrag`, if any.
     ui::WindowId drag_source{ui::kNoWindow};
     std::deque<PendingKey> keys;
+    // Surfaces whose lightweight controls changed: repainted once, when the
+    // program next returns to the event loop, instead of per assignment.
+    std::vector<std::pair<std::weak_ptr<InstanceData>, ui::WindowId>> dirty;
     // Answers the script queued for MsgBox / InputBox: (kind, text).
     std::deque<std::pair<std::string, std::string>> answers;
 };
