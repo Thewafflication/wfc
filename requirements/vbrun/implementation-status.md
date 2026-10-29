@@ -37,13 +37,16 @@ naming it.
 | Type tests on Variants | `REQ-0102` | (part of 198) | 6 | `VarType`, `IsEmpty`, `IsNull`, `IsArray`, `IsObject`, `IsError`. Call cases `variants`. `IsNumeric` and `IsDate` (they parse Strings with the locale) are not yet written |
 | String and number conversions | `REQ-0101` | (part of 334) | 7 | `__vbaLenBstr`, `__vbaLenBstrB`, `__vbaI4Str`, `__vbaI2Str`, `__vbaUI1Str`, `__vbaStrI4`, `__vbaStrUI1`. Call cases `convert` |
 
+| Operators and comparisons on Variants | `REQ-0101` | (part of 334) | 41 | `__vbaVarAdd`, `Sub`, `Mul`, `Div`, `Idiv`, `Mod`, `Pow`, `And`, `Or`, `Xor`, `Eqv`, `Imp`, `Not`, `Neg`, `Abs`, `Fix`, `Int`; the tests `__vbaVarTst*`, `__vbaVarTextTst*` and the Variant results `__vbaVarCmp*`, `__vbaVarTextCmp*`. A compiled program passes the operands right first (`__vbaVarSub(result, right, left)`). Call cases `varops`, taken with `Probe-VbrunCases.ps1 -Initialize` |
+
 (Updated with each batch.)
 
-## What cannot be probed
+## Probing the reference
 
-Some reference exports crash when called from a process that did not run the
-runtime's initialization (the Variant operators `__vbaVarAdd` and its family,
-`__vbaStrCat`, `__vbaStrCmp`, `__vbaStrBool`, `__vbaBoolStr`): they call
-Automation functions through pointers that the initialization binds. Those are
-written from the disassembly alone and are marked so in the table when they
-are added.
+The reference binds its Automation entry points (`VarAdd`, ...) in a routine
+that a Visual Basic program runs at start-up; calling the Variant operators
+without it crashes. `Probe-VbrunCases.ps1 -Initialize` runs that routine
+(MSVBVM60 6.00.9848, RVA 0x2CE61) first, so those exports can be probed too.
+Some exports still cannot be called from outside a program because they use the
+frames of the running program (error raising, `On Error`, `Gosub`) or the
+runtime's thread state.

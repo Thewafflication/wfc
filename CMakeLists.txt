@@ -128,6 +128,7 @@ if(WIN32)
     src/vbrun/helpers_strings.cpp
     src/vbrun/helpers_variant.cpp
     src/vbrun/helpers_convert.cpp
+    src/vbrun/helpers_varops.cpp
     src/vbrun/wfcvbrun.def
   )
   target_link_libraries(wfc_vbrun PRIVATE oleaut32)
@@ -2536,7 +2537,7 @@ Print v.x & q.x]=]
     # Call cases: the results of the reference runtime are in
     # tests/vbrun/cases/<family>.expected.
     set(vbrun_case_files "${CMAKE_CURRENT_SOURCE_DIR}/tests/vbrun/cases")
-    foreach(vbrun_cases strings variants convert)
+    foreach(vbrun_cases strings variants convert varops)
       add_test(
         NAME TC-MP0009-vbrun-cases-${vbrun_cases}
         COMMAND

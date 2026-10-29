@@ -352,67 +352,67 @@ EXPORTS
     __vbaUdtVar=vbrun_stub_446 @446
     __vbaUnkVar=vbrun_stub_447 @447
     __vbaVar2Vec=vbrun_stub_448 @448
-    __vbaVarAbs=vbrun_stub_449 @449
-    __vbaVarAdd=vbrun_stub_450 @450
-    __vbaVarAnd=vbrun_stub_451 @451
+    __vbaVarAbs @449
+    __vbaVarAdd @450
+    __vbaVarAnd @451
     __vbaVarCat=vbrun_stub_452 @452
-    __vbaVarCmpEq=vbrun_stub_453 @453
-    __vbaVarCmpGe=vbrun_stub_454 @454
-    __vbaVarCmpGt=vbrun_stub_455 @455
-    __vbaVarCmpLe=vbrun_stub_456 @456
-    __vbaVarCmpLt=vbrun_stub_457 @457
-    __vbaVarCmpNe=vbrun_stub_458 @458
+    __vbaVarCmpEq @453
+    __vbaVarCmpGe @454
+    __vbaVarCmpGt @455
+    __vbaVarCmpLe @456
+    __vbaVarCmpLt @457
+    __vbaVarCmpNe @458
     __vbaVarDateVar=vbrun_stub_459 @459
-    __vbaVarDiv=vbrun_stub_460 @460
-    __vbaVarEqv=vbrun_stub_461 @461
+    __vbaVarDiv @460
+    __vbaVarEqv @461
     __vbaVarErrI4=vbrun_stub_462 @462
-    __vbaVarFix=vbrun_stub_463 @463
+    __vbaVarFix @463
     __vbaVarForInit=vbrun_stub_464 @464
     __vbaVarForNext=vbrun_stub_465 @465
-    __vbaVarIdiv=vbrun_stub_466 @466
-    __vbaVarImp=vbrun_stub_467 @467
+    __vbaVarIdiv @466
+    __vbaVarImp @467
     __vbaVarIndexLoad=vbrun_stub_468 @468
     __vbaVarIndexLoadRef=vbrun_stub_469 @469
     __vbaVarIndexLoadRefLock=vbrun_stub_470 @470
     __vbaVarIndexStore=vbrun_stub_471 @471
     __vbaVarIndexStoreObj=vbrun_stub_472 @472
-    __vbaVarInt=vbrun_stub_473 @473
+    __vbaVarInt @473
     __vbaVarLike=vbrun_stub_474 @474
     __vbaVarLikeVar=vbrun_stub_475 @475
-    __vbaVarMod=vbrun_stub_476 @476
-    __vbaVarMul=vbrun_stub_477 @477
-    __vbaVarNeg=vbrun_stub_478 @478
-    __vbaVarNot=vbrun_stub_479 @479
-    __vbaVarOr=vbrun_stub_480 @480
-    __vbaVarPow=vbrun_stub_481 @481
+    __vbaVarMod @476
+    __vbaVarMul @477
+    __vbaVarNeg @478
+    __vbaVarNot @479
+    __vbaVarOr @480
+    __vbaVarPow @481
     __vbaVarSetObj=vbrun_stub_482 @482
     __vbaVarSetObjAddref=vbrun_stub_483 @483
     __vbaVarSetUnk=vbrun_stub_484 @484
     __vbaVarSetUnkAddref=vbrun_stub_485 @485
     __vbaVarSetVar=vbrun_stub_486 @486
     __vbaVarSetVarAddref=vbrun_stub_487 @487
-    __vbaVarSub=vbrun_stub_488 @488
-    __vbaVarTextCmpEq=vbrun_stub_489 @489
-    __vbaVarTextCmpGe=vbrun_stub_490 @490
-    __vbaVarTextCmpGt=vbrun_stub_491 @491
-    __vbaVarTextCmpLe=vbrun_stub_492 @492
-    __vbaVarTextCmpLt=vbrun_stub_493 @493
-    __vbaVarTextCmpNe=vbrun_stub_494 @494
+    __vbaVarSub @488
+    __vbaVarTextCmpEq @489
+    __vbaVarTextCmpGe @490
+    __vbaVarTextCmpGt @491
+    __vbaVarTextCmpLe @492
+    __vbaVarTextCmpLt @493
+    __vbaVarTextCmpNe @494
     __vbaVarTextLike=vbrun_stub_495 @495
     __vbaVarTextLikeVar=vbrun_stub_496 @496
-    __vbaVarTextTstEq=vbrun_stub_497 @497
-    __vbaVarTextTstGe=vbrun_stub_498 @498
-    __vbaVarTextTstGt=vbrun_stub_499 @499
-    __vbaVarTextTstLe=vbrun_stub_500 @500
-    __vbaVarTextTstLt=vbrun_stub_501 @501
-    __vbaVarTextTstNe=vbrun_stub_502 @502
-    __vbaVarTstEq=vbrun_stub_503 @503
-    __vbaVarTstGe=vbrun_stub_504 @504
-    __vbaVarTstGt=vbrun_stub_505 @505
-    __vbaVarTstLe=vbrun_stub_506 @506
-    __vbaVarTstLt=vbrun_stub_507 @507
-    __vbaVarTstNe=vbrun_stub_508 @508
-    __vbaVarXor=vbrun_stub_509 @509
+    __vbaVarTextTstEq @497
+    __vbaVarTextTstGe @498
+    __vbaVarTextTstGt @499
+    __vbaVarTextTstLe @500
+    __vbaVarTextTstLt @501
+    __vbaVarTextTstNe @502
+    __vbaVarTstEq @503
+    __vbaVarTstGe @504
+    __vbaVarTstGt @505
+    __vbaVarTstLe @506
+    __vbaVarTstLt @507
+    __vbaVarTstNe @508
+    __vbaVarXor @509
     __vbaVargObj=vbrun_stub_510 @510
     __vbaVargObjAddref=vbrun_stub_511 @511
     rtcLeftBstr @512

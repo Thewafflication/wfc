@@ -15,12 +15,16 @@
     The result file (one line per case); written to the console when empty.
 .PARAMETER Runtime
     The DLL to call (default: the installed msvbvm60.dll).
+.PARAMETER Initialize
+    Bind the Automation entry points of the reference runtime first (needed
+    for the Variant operators).
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Cases,
     [string]$Output = '',
-    [string]$Runtime = 'msvbvm60.dll'
+    [string]$Runtime = 'msvbvm60.dll',
+    [switch]$Initialize
 )
 
 if ([Environment]::Is64BitProcess) {
@@ -28,6 +32,7 @@ if ([Environment]::Is64BitProcess) {
         'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
     $arguments = @('-NoProfile', '-File', $PSCommandPath, '-Cases', $Cases,
         '-Runtime', $Runtime)
+    if ($Initialize) { $arguments += '-Initialize' }
     if ($Output -ne '') { $arguments += @('-Output', $Output) }
     & $ps32 @arguments
     exit $LASTEXITCODE
@@ -180,6 +185,13 @@ function Format-CaseVariant($v) {
 
 $module = [Native]::LoadLibrary($Runtime)
 if ($module -eq [IntPtr]::Zero) { throw "Cannot load $Runtime." }
+if ($Initialize) {
+    # The Automation entry points of the runtime are bound by a routine that
+    # a Visual Basic program runs at start-up (MSVBVM60 6.00.9848, RVA
+    # 0x2CE61); run it so that the exports that call them can be probed.
+    $bind = [IntPtr]($module.ToInt64() + 0x2CE61)
+    [void][Native]::Call($bind, @())
+}
 
 $results = New-Object System.Collections.Generic.List[string]
 $echo = ($Output -eq '')
