@@ -17,6 +17,9 @@ Option Explicit
 
 Private Sub Form_Load()
     Generate Command1, 3
+    On Error Resume Next
+    Unload Command1(0)
+    Caption = "e" & Err.Number
 End Sub
 
 Private Sub Generate(arr As Variant, ByVal count As Integer)

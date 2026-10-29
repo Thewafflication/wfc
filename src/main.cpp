@@ -525,6 +525,12 @@ bool run_project_native_by_default(const int argument_count,
     std::string problem;
     code = wfc::compiler::run_native_image(prepared->image, problem,
                                            &prepared->setup);
+    if (code == -1 && !problem.empty()) {
+        // The program did not start (a form the runtime cannot load, ...):
+        // the interpreter says what is wrong, from where it started.
+        std::filesystem::current_path(directory, ignored);
+        return false;
+    }
     if (!problem.empty()) {
         std::cerr << problem << '\n';
         code = 2;

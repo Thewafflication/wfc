@@ -258,8 +258,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-form-unsupported-control
     COMMAND
-      wfc --interpret
-      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/bad-control.vbp"
+      wfc "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/bad-control.vbp"
   )
   set_tests_properties(
     TC-MP0004-form-unsupported-control
@@ -270,7 +269,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0004-form-missing-resource
     COMMAND
-      wfc --interpret
+      wfc
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/forms/missing-resource.vbp"
   )
   set_tests_properties(
@@ -2198,7 +2197,7 @@ Next j]=]
     TC-MP0009-native-load-control-array
     PROPERTIES
       LABELS "integration;mp-0009;native"
-      PASS_REGULAR_EXPRESSION "Command1.3..caption = b"
+      PASS_REGULAR_EXPRESSION "Command1.3..caption = b.*Form1.caption = e361"
   )
   # A WithEvents field set from outside its class starts listening.
   add_test(

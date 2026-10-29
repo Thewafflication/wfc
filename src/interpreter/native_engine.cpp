@@ -834,7 +834,9 @@ struct NativeSupport {
         } else {
             ok = attempt(code);
         }
-        if (!ok && values.size() > 1 &&
+        const bool loading =
+            code.rfind("Load ", 0) == 0 || code.rfind("Unload ", 0) == 0;
+        if (!ok && !loading && values.size() > 1 &&
             std::holds_alternative<ObjectInstance>(values[1])) {
             // `obj(i)` on a class whose default member is Item (Collection).
             const auto where = code.find("wfcarg1(");

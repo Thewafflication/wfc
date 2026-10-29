@@ -1,3 +1,4 @@
 wait 100
 get Form1.Command1(3) caption
 get Form1.Command1(2) left
+get Form1 caption
