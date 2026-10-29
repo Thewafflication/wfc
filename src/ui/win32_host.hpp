@@ -139,6 +139,9 @@ private:
     Entry* ensure_surface(WindowId window);
 
     std::map<WindowId, std::unique_ptr<Entry>> windows_;
+    // How many destroy_window calls are running (a form destroys its children
+    // through the same call).
+    int teardown_{0};
     std::deque<UiEvent> queue_;
     WindowId next_id_{1};
     int next_command_{1000};

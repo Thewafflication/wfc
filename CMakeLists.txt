@@ -105,7 +105,41 @@ endif()
 wfc_enable_strict_warnings(wfc_frontend)
 wsp_enable_hardening(wfc_frontend)
 
-add_executable(wfc src/main.cpp src/package.cpp src/package.hpp)
+# Version resources of the programs and the runtime library (Explorer and the
+# install script read them).
+set(wfc_resources "")
+if(WIN32)
+  enable_language(RC)
+  string(REPLACE "." ";" version_parts "${PROJECT_VERSION}")
+  list(GET version_parts 0 WFC_LIB_VERSION_MAJOR)
+  list(GET version_parts 1 WFC_LIB_VERSION_MINOR)
+  list(GET version_parts 2 WFC_LIB_VERSION_PATCH)
+  set(WFC_LIB_VERSION "${PROJECT_VERSION}")
+  foreach(
+    wfc_binary
+    wfc:VFT_APP:WFC\ command\ line
+    wfcl:VFT_APP:WFC\ launcher
+    wfcrt:VFT_DLL:WFC\ runtime\ library
+  )
+    string(REPLACE ":" ";" wfc_binary "${wfc_binary}")
+    list(GET wfc_binary 0 WFC_LIB_NAME)
+    list(GET wfc_binary 1 WFC_LIB_FILETYPE)
+    list(GET wfc_binary 2 WFC_LIB_DESCRIPTION)
+    configure_file(
+      cmake/version.rc.in
+      "${CMAKE_CURRENT_BINARY_DIR}/${WFC_LIB_NAME}.rc"
+      @ONLY
+    )
+  endforeach()
+  set(wfc_resources "${CMAKE_CURRENT_BINARY_DIR}/wfc.rc")
+endif()
+add_executable(
+  wfc
+  src/main.cpp
+  src/package.cpp
+  src/package.hpp
+  ${wfc_resources}
+)
 target_compile_features(wfc PRIVATE cxx_std_20)
 target_link_libraries(wfc PRIVATE wfc_frontend)
 wfc_enable_strict_warnings(wfc)
@@ -119,19 +153,6 @@ if(WIN32)
   # The runtime library and its launcher: a program linked dynamically is the
   # small launcher (wfcl.exe) that loads wfcrt.dll, the same code wfc.exe
   # carries inside itself.
-  enable_language(RC)
-  string(REPLACE "." ";" version_parts "${PROJECT_VERSION}")
-  list(GET version_parts 0 WFC_LIB_VERSION_MAJOR)
-  list(GET version_parts 1 WFC_LIB_VERSION_MINOR)
-  list(GET version_parts 2 WFC_LIB_VERSION_PATCH)
-  set(WFC_LIB_VERSION "${PROJECT_VERSION}")
-  set(WFC_LIB_NAME wfcrt)
-  set(WFC_LIB_DESCRIPTION "WFC runtime library")
-  configure_file(
-    cmake/version.rc.in
-    "${CMAKE_CURRENT_BINARY_DIR}/wfcrt.rc"
-    @ONLY
-  )
   add_library(
     wfc_runtime
     SHARED
@@ -153,7 +174,7 @@ if(WIN32)
   wfc_enable_strict_warnings(wfc_runtime)
   wsp_enable_hardening(wfc_runtime)
 
-  add_executable(wfcl src/launcher.cpp)
+  add_executable(wfcl src/launcher.cpp "${CMAKE_CURRENT_BINARY_DIR}/wfcl.rc")
   target_compile_features(wfcl PRIVATE cxx_std_20)
   target_include_directories(wfcl PRIVATE include)
   add_dependencies(wfcl wfc_runtime)

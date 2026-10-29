@@ -871,6 +871,16 @@ void Win32Host::destroy_window(const WindowId window) {
     if (entry == nullptr) {
         return;
     }
+    // A form that goes away is not repainted for each child that leaves it,
+    // and its menu bar is not rebuilt for each menu item.
+    if (teardown_ == 0 && entry->is_form && entry->hwnd != nullptr) {
+        SendMessageW(entry->hwnd, WM_SETREDRAW, FALSE, 0);
+    }
+    struct Depth {
+        int& value;
+        explicit Depth(int& counter) : value(counter) { ++value; }
+        ~Depth() { --value; }
+    } depth{teardown_};
     std::vector<WindowId> children;
     for (const auto& [id, child] : windows_) {
         if (child->parent == window) {
@@ -902,7 +912,7 @@ void Win32Host::destroy_window(const WindowId window) {
     if (own_font != nullptr) {
         DeleteObject(own_font);
     }
-    if (menu) {
+    if (menu && teardown_ == 1) {
         while (const auto* up = find(form)) {
             if (up->is_form) {
                 break;
@@ -1459,8 +1469,11 @@ void Win32Host::set_alignment(const WindowId window, const int alignment) {
     const LONG_PTR mode = alignment == 2   ? SS_CENTER
                           : alignment == 1 ? SS_RIGHT
                                            : SS_LEFT;
-    style = (style & ~static_cast<LONG_PTR>(SS_TYPEMASK)) | mode;
-    SetWindowLongPtrW(entry->hwnd, GWL_STYLE, style);
+    const auto changed = (style & ~static_cast<LONG_PTR>(SS_TYPEMASK)) | mode;
+    if (changed == style) {
+        return;
+    }
+    SetWindowLongPtrW(entry->hwnd, GWL_STYLE, changed);
     InvalidateRect(entry->hwnd, nullptr, TRUE);
 }
 
