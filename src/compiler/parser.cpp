@@ -1108,12 +1108,19 @@ private:
             const std::string keyword = current().spelling;
             advance();
             const std::string name = current().spelling;
+            const std::string lower_array = current().text;
             advance();
             advance();  // (
             const auto me = engine_argument(
                 *result, make_expr(ExprKind::name, here()), 'i');
             result->items.back()->text = "me";
-            result->text = "@" + keyword + " " + name + "(" +
+            // The array is a name of the form or a variable that holds it
+            // (`Load kontrola(i)` with kontrola a Variant parameter).
+            auto array_name = make_expr(ExprKind::name, here());
+            array_name->text = lower_array;
+            const auto array =
+                engine_argument(*result, std::move(array_name), 'i');
+            result->text = "@" + keyword + " " + array + "(" +
                            engine_argument(*result, expression(), 'i') + ")";
             expect_symbol(")");
             return result;

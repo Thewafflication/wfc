@@ -2183,6 +2183,23 @@ Next j]=]
       LABELS "integration;mp-0009;native"
       PASS_REGULAR_EXPRESSION "immediate.*printed"
   )
+  # `Load arr(i)` where arr is a Variant that holds a control array.
+  set(
+    loadarray_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-loadarray"
+  )
+  add_test(
+    NAME TC-MP0009-native-load-control-array
+    COMMAND
+      wfc "${loadarray_dir}/LoadArray.vbp" --ui-script
+      "${loadarray_dir}/check.ui"
+  )
+  set_tests_properties(
+    TC-MP0009-native-load-control-array
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "Command1.3..caption = b"
+  )
   add_test(
     NAME TC-MP0009-default-native-fallback
     COMMAND

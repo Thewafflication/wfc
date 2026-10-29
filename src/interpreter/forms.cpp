@@ -1996,7 +1996,10 @@ struct FormSupport {
                 if (!form) {
                     continue;
                 }
-                ControlObject* found = nullptr;
+                ControlObject* found = control_of(*form);
+                if (found != nullptr && found->window != entry.second) {
+                    found = nullptr;
+                }
                 for_each_control(*form, [&](ControlObject& object) {
                     if (object.window == entry.second) {
                         found = &object;
@@ -2564,11 +2567,23 @@ struct FormSupport {
     }
 
     // Raises `event` of `control` ("" for the form) by running its handler.
+    // Raises an event; the surfaces its handler changed are repainted once
+    // the handler is done.
     [[nodiscard]] static bool raise(Interpreter& in, InstanceData& form,
                                     const std::string& control,
                                     const long index, const std::string& event,
                                     std::vector<Value>& arguments,
                                     const std::size_t offset) {
+        const bool ok =
+            raise_unflushed(in, form, control, index, event, arguments, offset);
+        flush_repaints(in);
+        return ok;
+    }
+
+    [[nodiscard]] static bool raise_unflushed(
+        Interpreter& in, InstanceData& form, const std::string& control,
+        const long index, const std::string& event,
+        std::vector<Value>& arguments, const std::size_t offset) {
         const auto class_iterator = in.class_definitions_.find(form.class_name);
         if (class_iterator == in.class_definitions_.end() || !in.execute_) {
             return true;
