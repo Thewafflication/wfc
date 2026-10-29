@@ -2669,6 +2669,12 @@ Print v.x & q.x]=]
     "-DERR_MATCHES=expected a type name"
   )
   add_cli_test(libs "libs" 0 "-DOUT_MATCHES=wfcocx.*wfcvbrun")
+  add_cli_test(
+    completion
+    "completion;powershell"
+    0
+    "-DOUT_MATCHES=Register-ArgumentCompleter.*'--link'"
+  )
 
   if(WIN32)
     add_test(

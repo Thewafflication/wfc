@@ -62,8 +62,47 @@ constexpr Option kOptions[] = {
     {"/Embedding", 0},
 };
 
-constexpr const char* kSubcommands[] = {"run", "build", "check",  "libs",
-                                        "env", "help",  "version"};
+constexpr const char* kSubcommands[] = {
+    "run", "build", "check", "libs", "env", "help", "version", "completion"};
+
+// The PowerShell completer of the commands and options (`wfc completion
+// powershell | Out-String | Invoke-Expression`).
+void print_powershell_completion() {
+    std::cout << R"ps(Register-ArgumentCompleter -Native )ps"
+                 R"ps(-CommandName wfc, wfc.exe -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $elements = $commandAst.CommandElements
+    $previous = ''
+    if ($elements.Count -gt 1) {
+        $previous = $elements[$elements.Count - 1].ToString()
+    }
+    if ($wordToComplete -eq '' -and $previous -eq '--link') {
+        $words = 'static', 'dynamic'
+    } else {
+        $words = @()ps";
+    bool first = true;
+    const auto item = [&](const std::string_view name) {
+        std::cout << (first ? "" : ", ") << "'" << name << "'";
+        first = false;
+    };
+    for (const char* const name : kSubcommands) {
+        item(name);
+    }
+    for (const auto& option : kOptions) {
+        const std::string_view name = option.name;
+        if (name.rfind("--", 0) == 0) {
+            item(name);
+        }
+    }
+    std::cout << R"ps()
+    }
+    $words | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new(
+            $_, $_, 'ParameterValue', $_)
+    }
+}
+)ps";
+}
 
 #if defined(_M_ARM64)
 constexpr const char* kArchitecture = "arm64";
@@ -412,6 +451,14 @@ std::optional<int> dispatch(std::vector<std::string>& arguments) {
     }
     if (first == "libs") {
         print_libraries(true);
+        return 0;
+    }
+    if (first == "completion") {
+        if (arguments.size() < 3U || arguments[2] != "powershell") {
+            complain("usage: wfc completion powershell");
+            return 2;
+        }
+        print_powershell_completion();
         return 0;
     }
     if (first == "env") {

@@ -147,6 +147,7 @@ wfc check <project.vbp>            compile only, report the first error
 wfc build <project.vbp> -o app.exe [--gui] [--link static|dynamic] [--bundle]
 wfc libs                           the libraries and their versions
 wfc env                            where wfc is installed and what it finds
+wfc completion powershell          tab completion (| Out-String | Invoke-Expression)
 wfc help [command]
 ```
 

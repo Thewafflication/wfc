@@ -142,11 +142,21 @@ function Register-Integration([string]$Version) {
     $link.Save()
 
     New-Item -ItemType Directory -Force -Path $fragments | Out-Null
+    # The PowerShell profile has wfc on the PATH and tab completion for it.
+    $session = "`$env:WFC_HOME='$Root'; `$env:Path='$bin;'+`$env:Path; " +
+        'wfc completion powershell | Out-String | Invoke-Expression; ' +
+        'wfc version'
     $profileJson = [ordered]@{
         profiles = @(
             [ordered]@{
                 name = 'WFC'
                 commandline = "cmd.exe /k `"$prompt`""
+                startingDirectory = '%USERPROFILE%'
+            }
+            [ordered]@{
+                name = 'WFC PowerShell'
+                commandline = 'powershell.exe -NoLogo -NoExit -Command ' +
+                    "`"$session`""
                 startingDirectory = '%USERPROFILE%'
             }
         )

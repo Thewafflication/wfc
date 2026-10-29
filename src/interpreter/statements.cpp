@@ -1935,6 +1935,30 @@ std::size_t Interpreter::find_loop_end(const std::size_t from) const {
         while (i < line_end && (source_[i] == ' ' || source_[i] == '\t')) {
             ++i;
         }
+        // A label ahead of the statement (`skip: Next i`) does not hide it.
+        std::size_t label_end = i;
+        while (label_end < line_end && is_identifier_part(source_[label_end])) {
+            ++label_end;
+        }
+        if (label_end > i && label_end < line_end &&
+            source_[label_end] == ':' &&
+            (label_end + 1U >= line_end || source_[label_end + 1U] != '=')) {
+            std::string word(source_.substr(i, label_end - i));
+            for (auto& ch : word) {
+                ch = ascii_lower(ch);
+            }
+            const bool keyword = word == "do" || word == "while" ||
+                                 word == "for" || word == "loop" ||
+                                 word == "wend" || word == "next" ||
+                                 word == "else";
+            if (!keyword) {
+                i = label_end + 1U;
+                while (i < line_end &&
+                       (source_[i] == ' ' || source_[i] == '\t')) {
+                    ++i;
+                }
+            }
+        }
         const auto word_is = [&](const std::string_view w) {
             if (line_end - i < w.size()) {
                 return false;
@@ -1980,7 +2004,15 @@ bool Interpreter::take_local_jump(const std::size_t body_start,
         local = true;
     } else if (target > statement_start) {
         const auto end = find_loop_end(statement_start);
-        local = end != std::string_view::npos && target < end;
+        // The label may sit on the closing line (`skip: Next i`).
+        auto closing_line_end = std::string_view::npos;
+        if (end != std::string_view::npos) {
+            closing_line_end = source_.find('\n', end);
+            if (closing_line_end == std::string_view::npos) {
+                closing_line_end = source_.size();
+            }
+        }
+        local = end != std::string_view::npos && target < closing_line_end;
     }
     if (!local) {
         return false;
