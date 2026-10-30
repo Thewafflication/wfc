@@ -1,4 +1,0 @@
-Type=Exe
-Form=188-comctl-basic.frm
-Startup="Form1"
-WfcUiScript=188-comctl-basic.ui

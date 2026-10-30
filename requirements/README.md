@@ -19,7 +19,8 @@ not an implicit scope decision.
 - [0.1.0 foundation](foundation/README.md) contains the controlled dependency,
   build, architecture, vertical-slice, test-evidence, and reference-probe
   requirements that gate MP-0001.
-- [Visual Basic 6.0 runtime](vbrun/README.md) contains the binary loader,
+- [Visual Basic 6.0 runtime](../lib/wfc-vbrun/requirements/README.md) (in the
+  `wfc-vbrun` library repository) contains the binary loader,
   execution-engine, compiler-helper, language-service, member-access, numeric,
   and export-layout contracts derived from the installed `MSVBVM60.DLL`.
 - [Standard OLE 2.0](stdole/README.md) contains the font, picture, persistence
@@ -31,11 +32,14 @@ not an implicit scope decision.
 - [Visual Basic 6.0 classes](vb/README.md) contains the run-time form,
   intrinsic-control, and service-class API contracts derived from `VB6.OLB`,
   plus form and intrinsic-control behavioral requirements.
-- [MSComctlLib controls](controls/README.md) contains the Automation API
-  contract requirements derived from the installed Microsoft Windows Common
-  Controls 6.0 reference component.
+- [MSComctlLib controls](../lib/wfc-mscomctl/requirements/README.md) (in the
+  `wfc-mscomctl` library repository) contains the Automation API contract
+  requirements derived from the installed Microsoft Windows Common Controls
+  6.0 reference component. The [Common Dialog](../lib/wfc-comdlg32/requirements/README.md)
+  and [Winsock](../lib/wfc-mswinsck/requirements/README.md) requirements are in
+  `wfc-comdlg32` and `wfc-mswinsck`.
 
-The initial [control behavioral requirements](controls/behavior/README.md) are
+The initial [control behavioral requirements](../lib/wfc-mscomctl/requirements/behavior/README.md) are
 derived from the installed Microsoft Common Controls help. Executable VB6
 probes will confirm these requirements and establish additional defaults,
 results, errors, persistence details, and undocumented interaction semantics.

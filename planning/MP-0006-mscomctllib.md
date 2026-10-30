@@ -170,4 +170,4 @@ the persisted stream become available.
 - [Roadmap to 1.0.0](roadmap-1.0.md)
 - [MP-0005 closeout record](MP-0005-closeout.md)
 - [ADR-0006](../architecture/adr-0006-activex-hosting.md)
-- [MSComctlLib requirements](../requirements/controls/README.md)
+- [MSComctlLib requirements](../lib/wfc-mscomctl/requirements/README.md)

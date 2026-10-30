@@ -427,11 +427,13 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         RESOURCE_LOCK com-registration
     )
   endif()
+  set(wfc_comctl_example "lib/wfc-mscomctl/examples/common-controls")
   add_test(
     NAME TC-MP0006-gui-comctl
     COMMAND
-      wfc --interpret "${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-comctl.vbp"
-      --gui --screenshots "${CMAKE_BINARY_DIR}/screenshots"
+      wfc --interpret
+      "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_comctl_example}/gui-comctl.vbp" --gui
+      --screenshots "${CMAKE_BINARY_DIR}/screenshots"
   )
   set_tests_properties(
     TC-MP0006-gui-comctl
@@ -2669,30 +2671,24 @@ Print v.x & q.x]=]
       LABELS "integration;mp-0008;migration"
   )
 
-  # Self-checking VB program corpus: each tests/corpus/NN-name.bas (or .vbp
-  # when present) must print exactly the matching .expected text.
+  # Self-checking VB program corpus: each NN-name.bas (or .vbp when present)
+  # must print exactly the matching .expected text. The cases of the control
+  # libraries are kept with their requirements in the library repositories.
   file(
     GLOB wfc_corpus_expected
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/*.expected"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/*/tests/corpus/*.expected"
   )
   foreach(expected_file IN LISTS wfc_corpus_expected)
     get_filename_component(corpus_name "${expected_file}" NAME_WE)
-    set(
-      corpus_input
-      "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.bas"
-    )
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp")
-      set(
-        corpus_input
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.vbp"
-      )
+    get_filename_component(corpus_dir "${expected_file}" DIRECTORY)
+    set(corpus_input "${corpus_dir}/${corpus_name}.bas")
+    if(EXISTS "${corpus_dir}/${corpus_name}.vbp")
+      set(corpus_input "${corpus_dir}/${corpus_name}.vbp")
     endif()
     set(corpus_debug "")
-    set(
-      corpus_debug_file
-      "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/${corpus_name}.debug"
-    )
+    set(corpus_debug_file "${corpus_dir}/${corpus_name}.debug")
     if(EXISTS "${corpus_debug_file}")
       set(corpus_debug "-DDEBUG_EXPECTED=${corpus_debug_file}")
     endif()
@@ -2873,7 +2869,7 @@ Print v.x & q.x]=]
   endif()
 
   foreach(package_case 194-comctl-persisted 195-comctl-refine)
-    set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus")
+    set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/tests/corpus")
     add_test(
       NAME TC-MP0007-package-${package_case}
       COMMAND

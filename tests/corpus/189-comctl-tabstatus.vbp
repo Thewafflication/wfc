@@ -1,4 +1,0 @@
-Type=Exe
-Form=189-comctl-tabstatus.frm
-Startup="Form1"
-WfcUiScript=189-comctl-tabstatus.ui

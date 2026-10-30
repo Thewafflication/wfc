@@ -88,7 +88,7 @@ It does not attempt broad VB6 compatibility or a usable compiler release.
 The [0.1.0 foundation requirement set](../requirements/foundation/README.md)
 replaces these objective-level allocations with `REQ-0132` through `REQ-0139`.
 
-The first allocation is the [MSComctlLib control requirement set](../requirements/controls/README.md),
+The first allocation is the [MSComctlLib control requirement set](../lib/wfc-mscomctl/requirements/README.md),
 which captures the statically observable Automation contracts. Behavioral
 requirements remain planned until reference probes provide objective results.
 

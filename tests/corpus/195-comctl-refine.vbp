@@ -1,4 +1,0 @@
-Type=Exe
-Form=195-comctl-refine.frm
-Startup="Form1"
-WfcUiScript=195-comctl-refine.ui

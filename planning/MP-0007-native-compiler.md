@@ -134,4 +134,4 @@ approved, or machine-code generation is scheduled.
 - [Roadmap to 1.0.0](roadmap-1.0.md)
 - [MP-0006 closeout record](MP-0006-closeout.md)
 - [ADR-0007](../architecture/adr-0007-native-packaging-and-vbrun.md)
-- [VBRUN requirements](../requirements/vbrun/README.md)
+- [VBRUN requirements](../lib/wfc-vbrun/requirements/README.md)

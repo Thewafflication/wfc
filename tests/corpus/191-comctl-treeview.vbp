@@ -1,4 +1,0 @@
-Type=Exe
-Form=191-comctl-treeview.frm
-Startup="Form1"
-WfcUiScript=191-comctl-treeview.ui
