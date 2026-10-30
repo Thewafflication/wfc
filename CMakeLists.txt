@@ -693,6 +693,27 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     TC-MP0010-control-class-headers-mswinsck
     PROPERTIES LABELS "unit;mp-0010"
   )
+  # The registration code is one header too, copied into all four libraries.
+  set(wfc_registration lib/wfc-mscomctl/include/wfc/ocx/registration.hpp)
+  foreach(
+    wfc_copy
+    lib/wfc-comdlg32/include/wfc/ocx/registration.hpp
+    lib/wfc-mswinsck/include/wfc/ocx/registration.hpp
+    lib/wfc-vbrun/src/wfc_registration.hpp
+  )
+    string(MAKE_C_IDENTIFIER "${wfc_copy}" wfc_copy_id)
+    add_test(
+      NAME TC-MP0010-registration-header-${wfc_copy_id}
+      COMMAND
+        "${CMAKE_COMMAND}" -E compare_files
+        "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_registration}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_copy}"
+    )
+    set_tests_properties(
+      TC-MP0010-registration-header-${wfc_copy_id}
+      PROPERTIES LABELS "unit;mp-0010"
+    )
+  endforeach()
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
   set_tests_properties(
@@ -2760,7 +2781,54 @@ Print v.x & q.x]=]
         TC-MP0010-install
         PROPERTIES LABELS "integration;mp-0010;package"
       )
+      set(wfc_scripts "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+      set(wfc_install_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/install")
+      # One library on its own: the versioned folder, install.json and the
+      # registration with Windows (the registry of the current user).
+      add_test(
+        NAME TC-MP0010-library-install
+        COMMAND
+          "${CMAKE_COMMAND}" "-DPOWERSHELL=${WFC_POWERSHELL}"
+          "-DINSTALLER=${wfc_scripts}/Install-WfcLibrary.ps1"
+          "-DDLL=$<TARGET_FILE:wfc_vbrun>" -DLIBRARY=wfcvbrun
+          "-DVERSION=${WFC_VBRUN_VERSION}" "-DARCH=${wfc_architecture}"
+          "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/library-install-test" -P
+          "${wfc_install_tests}/run_library_install_test.cmake"
+      )
+      set_tests_properties(
+        TC-MP0010-library-install
+        PROPERTIES LABELS "integration;mp-0010;package" RESOURCE_LOCK registry
+      )
     endif()
+
+    # DllRegisterServer of every library DLL that is built (the control
+    # libraries only as DLLs, WFC_OCX_SHARED=ON), in the registry of the
+    # current user.
+    set(wfc_regsvr32 "$ENV{SystemRoot}/System32/regsvr32.exe")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 4 AND EXISTS "$ENV{SystemRoot}/SysWOW64")
+      set(wfc_regsvr32 "$ENV{SystemRoot}/SysWOW64/regsvr32.exe")
+    endif()
+    math(EXPR wfc_bits "${CMAKE_SIZEOF_VOID_P} * 8")
+    set(wfc_registered "vbrun=${WFC_VBRUN_VERSION}")
+    set(wfc_registered_targets wfc_vbrun)
+    if(WFC_OCX_SHARED)
+      foreach(wfc_ocx mscomctl comdlg32 mswinsck)
+        string(TOUPPER "${wfc_ocx}" wfc_upper)
+        string(APPEND wfc_registered "|${wfc_ocx}=${WFC_${wfc_upper}_VERSION}")
+      endforeach()
+    endif()
+    add_test(
+      NAME TC-MP0010-registration
+      COMMAND
+        "${CMAKE_COMMAND}" "-DREGSVR32=${wfc_regsvr32}"
+        "-DLIBRARIES=${wfc_registered}" "-DDLL_DIR=$<TARGET_FILE_DIR:wfc_vbrun>"
+        "-DBITS=${wfc_bits}" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/install/run_register_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0010-registration
+      PROPERTIES LABELS "integration;mp-0010;package" RESOURCE_LOCK registry
+    )
   endif()
 
   if(WIN32)

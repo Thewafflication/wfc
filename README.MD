@@ -138,6 +138,22 @@ user into `C:\wfc\users\<name>`. Either way it:
   a console with `wfc` on the PATH (`bin\wfc-prompt.cmd`);
 - adds an Apps & features entry; `Install-Wfc.ps1 -Uninstall` (or `wpm remove
   wfc`) takes it all away.
+- registers the libraries with Windows (`regsvr32`): `HKLM` for a machine
+  install, `HKCU` for a user install. The registration records the version and
+  the path under `Software\WFC\Libraries\<name>` and gives every control a
+  ProgID and class id of WFC's own (`WFC.MSComctlLib.ListView`). Add
+  `-RegisterMicrosoftIds` to serve the Microsoft ProgIDs and class ids
+  (`MSComctlLib.ListView.2`) as well; the entries that were there are kept and
+  come back with the uninstall. `-NoRegister` skips all of it.
+
+The libraries are versioned for the Microsoft component they replace and stay
+`0.x` until they match it: `wfcvbrun` 0.6.0 (`MSVBVM60.DLL` 6.0), and
+`wfcmscomctl`, `wfccomdlg32`, `wfcmswinsck` 0.6.1 (the 6.1 OCXs of Visual Basic
+6.0 SP6). Each library is also a WPM package of its own (`wfc-vbrun`,
+`wfc-mscomctl`, `wfc-comdlg32`, `wfc-mswinsck`); installing one copies the DLL
+to `lib\<name>\<version>\<arch>` of the installation and registers it, so a
+dynamically linked program gets the update without a new wfc
+(`scripts/Install-WfcLibrary.ps1`).
 
 The command line:
 

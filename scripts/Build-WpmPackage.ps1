@@ -111,12 +111,13 @@ function Invoke-Collect([string]$Architecture) {
 }
 
 function Write-PackageInfo([string]$Directory, [string]$Name,
-                           [string]$Description, [string]$Revision) {
+                           [string]$Description, [string]$Revision,
+                           [string]$PackageVersion = $Version) {
     New-Item -ItemType Directory -Force `
         -Path (Join-Path $Directory '.wpm') | Out-Null
     @(
         "name=$Name"
-        "version=$Version"
+        "version=$PackageVersion"
         'arch=any'
         'debug=false'
         "description=$Description"
@@ -124,19 +125,20 @@ function Write-PackageInfo([string]$Directory, [string]$Name,
         'homepage=https://github.com/Thewafflication/wfc'
         'repository=https://github.com/Thewafflication/wfc'
         'license=GPL-3.0-or-later'
-        "source-version=$Version"
+        "source-version=$PackageVersion"
         "source-revision=$Revision"
     ) | Set-Content (Join-Path $Directory '.wpm/package.txt') -Encoding ascii
 }
 
-function Build-Package([string]$Directory, [string]$Name, [string]$Packages) {
+function Build-Package([string]$Directory, [string]$Name, [string]$Packages,
+                       [string]$PackageVersion = $Version) {
     $arguments = @('build', $Directory, $Packages)
     if ($SigningKey) {
         $arguments += @('--sign', (Resolve-Path $SigningKey).Path)
     }
     & $Wpm @arguments
     if ($LASTEXITCODE -ne 0) { throw "wpm build failed for $Name" }
-    $package = Join-Path $Packages "$Name-any-$Version.zip"
+    $package = Join-Path $Packages "$Name-any-$PackageVersion.zip"
     if (-not (Test-Path $package)) { throw "Missing package: $package" }
     return $package
 }
@@ -177,7 +179,7 @@ try {
     # WPM runs .wpm/install.cmd and .wpm/remove.cmd: they hand over to the
     # install script, which installs machine-wide as an administrator (C:\wfc)
     # and for the current user otherwise.
-    Copy-Item scripts/Install-Wfc.ps1 $tool
+    Copy-Item scripts/Install-Wfc.ps1, scripts/WfcInstallCommon.ps1 $tool
     New-Item -ItemType Directory -Force -Path (Join-Path $tool '.wpm') |
         Out-Null
     $script = '"%~dp0..\Install-Wfc.ps1"'
@@ -229,8 +231,59 @@ try {
         'VB6 games from the vb6games corpus, packaged with WFC' $revision
     $gamesPackage = Build-Package $gamesRoot 'wfc-games' $packages
 
+    # --- one package per library ---------------------------------------
+    # Each library has its own version (lib/<name>/VERSION) and package, so a
+    # dynamically linked program gets an update by installing that package
+    # alone. The install script copies the DLL to lib\<name>\<version>\<arch>
+    # of the installation and registers it with Windows.
+    $libraryPackages = @()
+    foreach ($library in 'vbrun', 'mscomctl', 'comdlg32', 'mswinsck') {
+        $dll = "wfc$library.dll"
+        $present = @($Architectures | Where-Object {
+                Test-Path (Join-Path (Get-InputDirectory $_) $dll)
+            })
+        if ($present.Count -eq 0) { continue }
+        $versionFile = "lib/wfc-$library/VERSION"
+        $libraryVersion = (Get-Content $versionFile -TotalCount 1).Trim()
+        $folder = Join-Path $staging "wfc-$library-any"
+        foreach ($architecture in $present) {
+            $target = Join-Path $folder $architecture
+            New-Item -ItemType Directory -Force -Path $target | Out-Null
+            $built = Join-Path (Get-InputDirectory $architecture) $dll
+            Copy-Item $built $target
+        }
+        Copy-Item LICENSE $folder
+        Copy-Item "lib/wfc-$library/README.md" $folder
+        Copy-Item scripts/Install-WfcLibrary.ps1, scripts/WfcInstallCommon.ps1 `
+            $folder
+        New-Item -ItemType Directory -Force -Path (Join-Path $folder '.wpm') |
+            Out-Null
+        $script = '"%~dp0..\Install-WfcLibrary.ps1"'
+        $install = Join-Path $folder '.wpm/install.cmd'
+        Set-Content $install -Encoding ascii -Value @(
+            '@echo off'
+            "powershell -NoProfile -ExecutionPolicy Bypass -File $script " +
+                "-Source `"%~dp0..`" -Library wfc$library || exit /b 1"
+            'exit /b 0'
+        )
+        $remove = Join-Path $folder '.wpm/remove.cmd'
+        Set-Content $remove -Encoding ascii -Value @(
+            '@echo off'
+            "powershell -NoProfile -ExecutionPolicy Bypass -File $script " +
+                "-Source `"%~dp0..`" -Library wfc$library -Uninstall " +
+                '|| exit /b 1'
+            'exit /b 0'
+        )
+        Write-PackageInfo $folder "wfc-$library" `
+            "WFC $library library $libraryVersion (registered with Windows)" `
+            $revision $libraryVersion
+        $libraryPackages += Build-Package $folder "wfc-$library" $packages `
+            $libraryVersion
+    }
+
     $toolPackage
     $gamesPackage
+    $libraryPackages
 }
 finally {
     Pop-Location

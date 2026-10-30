@@ -36,9 +36,21 @@ Overrides the install folder.
 .PARAMETER Uninstall
 Removes what the install put there.
 
+.PARAMETER RegisterMicrosoftIds
+Also registers the controls under the Microsoft ProgIDs and class ids
+(MSComctlLib.ListView and so on), so programs that ask for the Microsoft
+control get the WFC library. What was registered before is kept and comes back
+with the uninstall. Without it only WFC's own ProgIDs (WFC.MSComctlLib.*) are
+registered.
+
+.PARAMETER NoRegister
+Leaves the libraries unregistered (they are registered with Windows by
+default: HKLM for a machine install, HKCU for a user install).
+
 .PARAMETER FilesOnly
 Copies the files and writes install.json, but leaves the PATH, WFC_HOME, the
-Start menu, Windows Terminal and Apps & features alone (for tests).
+Start menu, Windows Terminal, Apps & features and the registration of the
+libraries alone (for tests).
 
 .EXAMPLE
 powershell -NoProfile -File Install-Wfc.ps1 -Source .
@@ -50,34 +62,15 @@ param(
     [string]$Scope = 'Auto',
     [string]$Root,
     [switch]$Uninstall,
+    [switch]$RegisterMicrosoftIds,
+    [switch]$NoRegister,
     [switch]$FilesOnly
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-function Test-Administrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    return $principal.IsInRole(
-        [Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Get-NativeArchitecture {
-    $machine = $env:PROCESSOR_ARCHITEW6432
-    if (-not $machine) { $machine = $env:PROCESSOR_ARCHITECTURE }
-    switch ($machine) {
-        'ARM64' { return 'arm64' }
-        'AMD64' { return 'x64' }
-        default { return 'x86' }
-    }
-}
-
-function Get-LibraryVersion([string]$Path) {
-    $info = (Get-Item -LiteralPath $Path).VersionInfo
-    return "$($info.FileMajorPart).$($info.FileMinorPart)." +
-        "$($info.FileBuildPart)"
-}
+. (Join-Path $PSScriptRoot 'WfcInstallCommon.ps1')
 
 function Add-PathEntry([string]$Entry, [string]$Target) {
     $current = [Environment]::GetEnvironmentVariable('Path', $Target)
@@ -184,8 +177,43 @@ function Register-Integration([string]$Version) {
     }
 }
 
+# The DLLs of the libraries that register with Windows, from entries of
+# "<library> <architecture>" names and version values (install.json).
+function Get-RegisteredFile([object[]]$Entries) {
+    $files = @()
+    foreach ($entry in $Entries) {
+        $library, $architecture = $entry.Name -split ' '
+        if ($script:RegisteredLibraries -notcontains $library) { continue }
+        $folder = "lib\$library\$($entry.Value)\$architecture"
+        $files += [pscustomobject]@{
+            Path = Join-Path $Root "$folder\$library.dll"
+            Architecture = $architecture
+        }
+    }
+    return $files
+}
+
+function Unregister-InstalledLibrary {
+    $record = Join-Path $Root 'install.json'
+    if (-not (Test-Path -LiteralPath $record)) { return }
+    $data = Get-Content -Raw -LiteralPath $record | ConvertFrom-Json
+    $entries = @($data.libraries.PSObject.Properties)
+    foreach ($file in Get-RegisteredFile $entries) {
+        if (Test-Path -LiteralPath $file.Path) {
+            Invoke-LibraryRegistration -Dll $file.Path `
+                -Architecture $file.Architecture -Scope $Scope -Unregister
+        }
+    }
+}
+
 if ($Uninstall) {
     if (-not $PSCmdlet.ShouldProcess($Root, 'Remove WFC')) { return }
+    if (-not $FilesOnly -and -not $NoRegister) {
+        Unregister-InstalledLibrary
+    }
+    if (-not $FilesOnly -and -not $NoRegister) {
+        Unregister-InstalledLibrary
+    }
     if (-not $FilesOnly) {
         Remove-PathEntry $bin $target
         [Environment]::SetEnvironmentVariable('WFC_HOME', $null, $target)
@@ -258,11 +286,24 @@ $promptText = @(
 )
 Set-Content -LiteralPath $prompt -Value $promptText -Encoding ascii
 if ($PSCommandPath -ne (Join-Path $Root 'Install-Wfc.ps1')) {
-    Copy-Item -LiteralPath $PSCommandPath `
-        -Destination (Join-Path $Root 'Install-Wfc.ps1') -Force
+    # The uninstall runs from the root: it needs the shared helpers too.
+    foreach ($name in 'Install-Wfc.ps1', 'WfcInstallCommon.ps1') {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) `
+            -Destination (Join-Path $Root $name) -Force
+    }
 }
 if (-not $FilesOnly) {
     Register-Integration $version
+    if (-not $NoRegister) {
+        $entries = @($libraries.GetEnumerator() | ForEach-Object {
+                [pscustomobject]@{ Name = $_.Key; Value = $_.Value }
+            })
+        foreach ($file in Get-RegisteredFile $entries) {
+            Invoke-LibraryRegistration -Dll $file.Path `
+                -Architecture $file.Architecture -Scope $Scope `
+                -MicrosoftIds:$RegisterMicrosoftIds
+        }
+    }
 }
 
 $record = [ordered]@{
