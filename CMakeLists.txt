@@ -555,6 +555,24 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     )
   endforeach()
 
+  # The screenshot scripts of the libraries are copies too.
+  set(wfc_scripts_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+  foreach(wfc_script render_terminal capture_web)
+    foreach(wfc_ocx wfc-comdlg32 wfc-mswinsck wfc-vbrun)
+      add_test(
+        NAME TC-MP0010-${wfc_script}-${wfc_ocx}
+        COMMAND
+          "${CMAKE_COMMAND}" -E compare_files
+          "${wfc_scripts_dir}/wfc-mscomctl/scripts/${wfc_script}.py"
+          "${wfc_scripts_dir}/${wfc_ocx}/scripts/${wfc_script}.py"
+      )
+      set_tests_properties(
+        TC-MP0010-${wfc_script}-${wfc_ocx}
+        PROPERTIES LABELS "unit;mp-0010"
+      )
+    endforeach()
+  endforeach()
+
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
   set_tests_properties(
     TC-MP0001-evaluator
