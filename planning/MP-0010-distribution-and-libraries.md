@@ -9,6 +9,17 @@
 Make WFC installable and its libraries independent, versioned and linkable
 either way, with a command line that explains itself.
 
+**Windows 2000 and later is a goal of this milestone.** The programs WFC
+writes should run on Windows 2000 and later without the Microsoft C++
+runtime. Done so far: console programs of x86 machine code run on `wfcw2k.exe`,
+a small runtime in C built with TinyCC and WCRT (`wfc build --target win2000`,
+the default of an x86 wfc). Still to do, in this order: Variants and the rest of
+the services in the C runtime (the interpreter's Variant rules ported to C),
+then classes, files, dates and the other library statements, and last forms,
+the controls and `wfc.exe` itself, which need a C++ compiler and library that
+target Windows 2000 (the toolchain track of the libraries). Every step is
+checked against the 64-bit native run and by WCRT's Windows 2000 import gate.
+
 ## Scope and decisions
 
 | Item | Decision |
