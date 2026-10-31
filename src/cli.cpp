@@ -85,6 +85,8 @@ void print_powershell_completion() {
     }
     if ($wordToComplete -eq '' -and $previous -eq '--link') {
         $words = 'static', 'dynamic'
+    } elseif ($wordToComplete -eq '' -and $previous -eq '--target') {
+        $words = 'win2000', 'host'
     } else {
         $words = @()ps";
     bool first = true;
@@ -232,8 +234,13 @@ void print_help() {
            "  --target win2000     a console program of x86 machine code that "
            "runs on\n"
            "                       Windows 2000 and later (small runtime, "
-           "no forms)\n\n"
+           "no forms); the\n"
+           "                       default of an x86 wfc, which falls back "
+           "to the full runtime\n"
+           "  --target host        always the runtime of this wfc\n\n"
            "environment:\n"
+           "  WFC_TARGET           win2000: the default target of "
+           "`build` on any wfc\n"
            "  WFC_HOME             installation folder (default C:\\wfc)\n"
            "  WFC_SCREEN           pretend the screen is WIDTHxHEIGHT\n"
            "  NO_COLOR             no colors in messages\n\n"
@@ -260,7 +267,7 @@ void print_command_help(const std::string& command) {
     } else if (command == "build") {
         std::cout << "wfc build <project.vbp> -o <app.exe> [--gui] "
                      "[--native] [--link static|dynamic]\n          "
-                     "[--bundle] [--target win2000]\n\n"
+                     "[--bundle] [--target win2000|host]\n\n"
                      "Writes a program of the architecture of this wfc. "
                      "Static (default) copies\nthe whole runtime into the "
                      "program; dynamic writes a small launcher that\nloads "
@@ -272,7 +279,11 @@ void print_command_help(const std::string& command) {
                      "Windows 2000 and later without the\nC++ runtime. The "
                      "program may not use Variants, classes, forms, files or "
                      "other\nlibrary statements yet; the build says which "
-                     "feature is missing.\n";
+                     "feature is missing.\nThis is the default of an x86 wfc "
+                     "(or with WFC_TARGET=win2000): a program that\ncannot "
+                     "use it gets the full runtime with a note. --target "
+                     "win2000 makes that\nan error; --target host always "
+                     "takes the full runtime.\n";
     } else if (command == "libs") {
         std::cout << "wfc libs\n\nLists wfc, the runtime and the libraries "
                      "with their versions, and whether\neach is linked into "

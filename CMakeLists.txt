@@ -660,6 +660,13 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
         "${wfc_win2000_tests}/run_imports_test.cmake"
     )
     add_test(
+      NAME TC-MP0010-win2000-default
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-default" -P
+        "${wfc_win2000_tests}/run_default_test.cmake"
+    )
+    add_test(
       NAME TC-MP0010-win2000-refusal
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
@@ -669,6 +676,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     set_tests_properties(
       TC-MP0010-win2000-programs
       TC-MP0010-win2000-imports
+      TC-MP0010-win2000-default
       TC-MP0010-win2000-refusal
       PROPERTIES LABELS "integration;mp-0010;win2000" TIMEOUT 600
     )

@@ -472,7 +472,10 @@ int build_package(const int argument_count, const char* const arguments[]) {
     bool interpret = false;
     bool dynamic = false;
     bool bundle = false;
-    bool win2000 = false;
+    // --target: win2000 (the small runtime, or an error), host (the runtime of
+    // this wfc), or by default the small runtime when it can be used.
+    enum class Target { automatic, win2000, host };
+    Target target = Target::automatic;
     for (int i = 2; i < argument_count; ++i) {
         const std::string_view argument = arguments[i];
         if (argument == "-o" && i + 1 < argument_count) {
@@ -488,12 +491,17 @@ int build_package(const int argument_count, const char* const arguments[]) {
         } else if (argument == "--bundle") {
             bundle = true;
         } else if (argument == "--target" && i + 1 < argument_count) {
-            if (std::string_view(arguments[++i]) != "win2000") {
-                std::cerr << "wfc: error: --target takes 'win2000', not '"
-                          << arguments[i] << "'\n";
+            const std::string_view value = arguments[++i];
+            if (value == "win2000") {
+                target = Target::win2000;
+            } else if (value == "host") {
+                target = Target::host;
+            } else {
+                std::cerr << "wfc: error: --target takes 'win2000' or 'host', "
+                             "not '"
+                          << value << "'\n";
                 return 2;
             }
-            win2000 = true;
         } else if (project.empty() && argument.rfind("-", 0) != 0) {
             project = arguments[i];
         } else {
@@ -511,50 +519,75 @@ int build_package(const int argument_count, const char* const arguments[]) {
     std::string problem;
     std::vector<std::pair<std::string, std::string>> extra;
     // Windows 2000 and later: x86 machine code with the small runtime, written
-    // in C (wfcw2k.exe), which needs no C++ runtime. Console programs only.
-    if (win2000) {
-        if (interpret || dynamic || bundle || !options.empty()) {
-            std::cerr << "wfc: error: --target win2000 makes a console "
-                         "program of machine code; it cannot be combined "
-                         "with --interpret, --link, --bundle or --gui\n";
-            return 2;
-        }
+    // in C (wfcw2k.exe), which needs no C++ runtime. Console programs only. It
+    // is the default of an x86 wfc (and of any wfc with WFC_TARGET=win2000):
+    // a program that cannot use it gets the runtime of this wfc, with a note.
+    // `--target win2000` asks for it and reports why it cannot be had.
+    const bool strict = target == Target::win2000;
+    const bool compatible =
+        !interpret && !dynamic && !bundle && options.empty();
+    const bool preferred = target == Target::automatic &&
+                           (wfc::compiler::host_architecture() ==
+                                wfc::compiler::Architecture::x86 ||
+                            environment_text("WFC_TARGET") == "win2000");
+    if (strict && !compatible) {
+        std::cerr << "wfc: error: --target win2000 makes a console "
+                     "program of machine code; it cannot be combined "
+                     "with --interpret, --link, --bundle or --gui\n";
+        return 2;
+    }
+    if (strict || (preferred && compatible)) {
         const auto stub = runtime_file("wfcw2k.exe");
-        if (stub.empty()) {
-            std::cerr << "wfc: error: --target win2000 needs wfcw2k.exe "
-                         "beside wfc.exe or in the bin folder of the "
-                         "installation\n";
-            return 1;
-        }
         const std::string project_text = project.string();
         const char* compile_arguments[] = {"wfc", project_text.c_str()};
         auto prepared = std::make_unique<PreparedNative>();
         prepared->target = wfc::compiler::Architecture::x86;
-        std::error_code ignored;
-        const auto directory = std::filesystem::current_path(ignored);
-        const int failure = prepare_native(2, compile_arguments, 1, *prepared);
-        std::filesystem::current_path(directory, ignored);
-        if (failure != 0) {
+        prepared->quiet_compile = !strict;
+        int failure = 0;
+        if (stub.empty()) {
+            if (strict) {
+                std::cerr << "wfc: error: --target win2000 needs wfcw2k.exe "
+                             "beside wfc.exe or in the bin folder of the "
+                             "installation\n";
+                return 1;
+            }
+            failure = -1;  // by default: the runtime of this wfc
+        } else {
+            std::error_code ignored;
+            const auto directory = std::filesystem::current_path(ignored);
+            failure = prepare_native(2, compile_arguments, 1, *prepared);
+            std::filesystem::current_path(directory, ignored);
+        }
+        if (failure != 0 && strict) {
             return failure;
         }
-        const int missing =
-            wfc::compiler::small_runtime_missing(prepared->image.services_used);
-        if (missing >= 0) {
-            std::cerr << "wfc: error: the program uses "
+        const int missing = failure == 0 ? wfc::compiler::small_runtime_missing(
+                                               prepared->image.services_used)
+                                         : -1;
+        if (failure == 0 && missing >= 0) {
+            if (strict) {
+                std::cerr << "wfc: error: the program uses "
+                          << wfc::compiler::small_runtime_feature(missing)
+                          << " (runtime service " << missing
+                          << "), which the runtime for Windows 2000 does not "
+                             "have yet\n";
+                return 3;
+            }
+            std::cerr << "wfc: note: the program uses "
                       << wfc::compiler::small_runtime_feature(missing)
-                      << " (runtime service " << missing
-                      << "), which the runtime for Windows 2000 does not "
-                         "have yet\n";
-            return 3;
+                      << ", which the runtime for Windows 2000 does not have "
+                         "yet; it gets the full runtime (use --target host "
+                         "to hide this note)\n";
+        } else if (failure == 0) {
+            extra.emplace_back("__wfc_native.bin",
+                               wfc::compiler::serialize_image(prepared->image));
+            if (!wfc::package::build(stub, project, output, options, problem,
+                                     extra)) {
+                std::cerr << problem << '\n';
+                return 1;
+            }
+            return 0;
         }
-        extra.emplace_back("__wfc_native.bin",
-                           wfc::compiler::serialize_image(prepared->image));
-        if (!wfc::package::build(stub, project, output, options, problem,
-                                 extra)) {
-            std::cerr << problem << '\n';
-            return 1;
-        }
-        return 0;
     }
     // The program carries machine code unless --interpret asks for the
     // interpreter. Without --native a project that cannot be compiled is

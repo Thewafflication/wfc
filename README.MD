@@ -183,6 +183,13 @@ forms, files or other library statements is refused at build time with the
 name of the missing feature. `wfcw2k.exe` is built when TinyCC is installed
 (`-DWFC_BUILD_WIN2000=OFF` turns it off).
 
+This is the default build of an x86 wfc (and of any wfc with
+`WFC_TARGET=win2000` set): `wfc build` writes a program on `wfcw2k.exe`
+whenever the program can run on it, and otherwise falls back to the full
+runtime of that wfc with a note that names the missing feature.
+`--target win2000` insists (an error instead of the fallback) and
+`--target host` always takes the full runtime.
+
 **Static or dynamic libraries.** `wfc build` links the runtime statically by
 default: the program is one file holding the whole runtime. `--link dynamic`
 writes a small launcher (`wfcl.exe`) that loads `wfcrt.dll` when it starts,
