@@ -635,8 +635,8 @@ int build_package(const int argument_count, const char* const arguments[]) {
     if (dynamic && bundle) {
         bundled.push_back("wfcrt.dll");
     }
-    for (const char* const dll :
-         {"wfcmscomctl.dll", "wfccomdlg32.dll", "wfcmswinsck.dll"}) {
+    for (const char* const dll : {"wfcmscomctl.dll", "wfcmscomctl2.dll",
+                                  "wfccomdlg32.dll", "wfcmswinsck.dll"}) {
         if ((dynamic && bundle) || wfc::cli::library_is_loaded(dll)) {
             bundled.push_back(dll);
         }

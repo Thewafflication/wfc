@@ -26,7 +26,7 @@ function Get-LibraryVersion([string]$Path) {
 
 # The libraries that register with Windows (they export DllRegisterServer).
 $script:RegisteredLibraries = @(
-    'wfcvbrun', 'wfcmscomctl', 'wfccomdlg32', 'wfcmswinsck'
+    'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2', 'wfccomdlg32', 'wfcmswinsck'
 )
 
 # The regsvr32 that loads a library of the given architecture, or $null when

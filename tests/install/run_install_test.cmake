@@ -15,6 +15,7 @@ foreach(
   wfcrt.dll
   wfcvbrun.dll
   wfcmscomctl.dll
+  wfcmscomctl2.dll
   wfccomdlg32.dll
   wfcmswinsck.dll
 )

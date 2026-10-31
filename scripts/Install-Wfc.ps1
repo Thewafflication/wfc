@@ -262,7 +262,7 @@ foreach ($architecture in $architectures) {
             -Destination $archBin -Force
     }
     foreach ($dll in 'wfcrt.dll', 'wfcvbrun.dll', 'wfcmscomctl.dll',
-        'wfccomdlg32.dll', 'wfcmswinsck.dll') {
+        'wfcmscomctl2.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll') {
         $file = Join-Path $from $dll
         if (-not (Test-Path -LiteralPath $file)) { continue }
         $library = [IO.Path]::GetFileNameWithoutExtension($dll)

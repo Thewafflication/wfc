@@ -1,0 +1,3746 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-10-31T21:22:04.2345436Z",
+  "source": {
+    "path": "C:\\Windows\\SysWOW64\\MSCOMCT2.OCX",
+    "sha256": "8204B2913504C9C921B551D2B028C0171FE11C3EE38DB788517830987BA5B126",
+    "fileVersion": "6.00.8177",
+    "productVersion": "6.00.8177"
+  },
+  "library": {
+    "name": "MSComCtl2",
+    "guid": "{86CF1D34-0C5F-11D2-A9FC-0000F8754DA1}",
+    "majorVersion": 2,
+    "minorVersion": 0,
+    "lcid": 0,
+    "sysKind": 1,
+    "typeInfoCount": 36
+  },
+  "controls": [
+    {
+      "name": "Animation",
+      "guid": "{B09DE715-87C1-11D1-8BE3-0000F8754DA1}",
+      "progId": "MSComCtl2.Animation.2",
+      "flags": 38,
+      "defaultInterface": {
+        "name": "IAnimation",
+        "guid": "{B09DE713-87C1-11D1-8BE3-0000F8754DA1}",
+        "flags": 1,
+        "members": [
+          {
+            "name": "AutoPlay",
+            "kind": "PropertyLet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "AutoPlay",
+            "kind": "PropertyGet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "BackStyle",
+            "kind": "PropertyLet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "BackStyleConstants",
+            "parameters": []
+          },
+          {
+            "name": "BackStyle",
+            "kind": "PropertyGet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "BackStyleConstants",
+            "parameters": []
+          },
+          {
+            "name": "Center",
+            "kind": "PropertyLet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Center",
+            "kind": "PropertyGet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyLet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyGet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyGet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "BackColor",
+            "kind": "PropertyLet",
+            "memberId": -501,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "BackColor",
+            "kind": "PropertyGet",
+            "memberId": -501,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyGet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyLet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "Close",
+            "kind": "Method",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Open",
+            "kind": "Method",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "bstrFilename",
+                "type": "String",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Play",
+            "kind": "Method",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "varRepeatCount",
+                "type": "Variant",
+                "flags": 17,
+                "optional": true,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "varStartFrame",
+                "type": "Variant",
+                "flags": 17,
+                "optional": true,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "varEndFrame",
+                "type": "Variant",
+                "flags": 17,
+                "optional": true,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Stop",
+            "kind": "Method",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "AboutBox",
+            "kind": "Method",
+            "memberId": -552,
+            "flags": 64,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "OLEDrag",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      },
+      "defaultEventInterface": {
+        "name": "DAnimationEvents",
+        "guid": "{B09DE714-87C1-11D1-8BE3-0000F8754DA1}",
+        "flags": 3,
+        "members": [
+          {
+            "name": "Click",
+            "kind": "Method",
+            "memberId": -600,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "DblClick",
+            "kind": "Method",
+            "memberId": -601,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "MouseDown",
+            "kind": "Method",
+            "memberId": -605,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseMove",
+            "kind": "Method",
+            "memberId": -606,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseUp",
+            "kind": "Method",
+            "memberId": -607,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEStartDrag",
+            "kind": "Method",
+            "memberId": 1550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "AllowedEffects",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEGiveFeedback",
+            "kind": "Method",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DefaultCursors",
+                "type": "Boolean",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLESetData",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DataFormat",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLECompleteDrag",
+            "kind": "Method",
+            "memberId": 1553,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragOver",
+            "kind": "Method",
+            "memberId": 1554,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "State",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragDrop",
+            "kind": "Method",
+            "memberId": 1555,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpDown",
+      "guid": "{603C7E80-87C2-11D1-8BE3-0000F8754DA1}",
+      "progId": "MSComCtl2.UpDown.2",
+      "flags": 38,
+      "defaultInterface": {
+        "name": "IUpDown",
+        "guid": "{603C7E7E-87C2-11D1-8BE3-0000F8754DA1}",
+        "flags": 1,
+        "members": [
+          {
+            "name": "Value",
+            "kind": "PropertyLet",
+            "memberId": 0,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyGet",
+            "memberId": 0,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Acceleration",
+            "kind": "PropertyLet",
+            "memberId": 1,
+            "flags": 64,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Acceleration",
+            "kind": "PropertyGet",
+            "memberId": 1,
+            "flags": 64,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Alignment",
+            "kind": "PropertyLet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "AlignmentConstants",
+            "parameters": []
+          },
+          {
+            "name": "Alignment",
+            "kind": "PropertyGet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "AlignmentConstants",
+            "parameters": []
+          },
+          {
+            "name": "AutoBuddy",
+            "kind": "PropertyLet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "AutoBuddy",
+            "kind": "PropertyGet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "BuddyControl",
+            "kind": "PropertyLet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "BuddyControl",
+            "kind": "PropertySet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "BuddyControl",
+            "kind": "PropertyGet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Increment",
+            "kind": "PropertyLet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Increment",
+            "kind": "PropertyGet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Max",
+            "kind": "PropertyLet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Max",
+            "kind": "PropertyGet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Min",
+            "kind": "PropertyLet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Min",
+            "kind": "PropertyGet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "Long",
+            "parameters": []
+          },
+          {
+            "name": "Orientation",
+            "kind": "PropertyLet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "OrientationConstants",
+            "parameters": []
+          },
+          {
+            "name": "Orientation",
+            "kind": "PropertyGet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "OrientationConstants",
+            "parameters": []
+          },
+          {
+            "name": "SyncBuddy",
+            "kind": "PropertyLet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "SyncBuddy",
+            "kind": "PropertyGet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Wrap",
+            "kind": "PropertyLet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Wrap",
+            "kind": "PropertyGet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "BuddyProperty",
+            "kind": "PropertyLet",
+            "memberId": 11,
+            "flags": 0,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "BuddyProperty",
+            "kind": "PropertyGet",
+            "memberId": 11,
+            "flags": 0,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyLet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyGet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyGet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyGet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyLet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "AboutBox",
+            "kind": "Method",
+            "memberId": -552,
+            "flags": 64,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "OLEDrag",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      },
+      "defaultEventInterface": {
+        "name": "DUpDownEvents",
+        "guid": "{603C7E7F-87C2-11D1-8BE3-0000F8754DA1}",
+        "flags": 3,
+        "members": [
+          {
+            "name": "Change",
+            "kind": "Method",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "DownClick",
+            "kind": "Method",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "UpClick",
+            "kind": "Method",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "MouseDown",
+            "kind": "Method",
+            "memberId": -605,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseMove",
+            "kind": "Method",
+            "memberId": -606,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseUp",
+            "kind": "Method",
+            "memberId": -607,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEStartDrag",
+            "kind": "Method",
+            "memberId": 1550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "AllowedEffects",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEGiveFeedback",
+            "kind": "Method",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DefaultCursors",
+                "type": "Boolean",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLESetData",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DataFormat",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLECompleteDrag",
+            "kind": "Method",
+            "memberId": 1553,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragOver",
+            "kind": "Method",
+            "memberId": 1554,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "State",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragDrop",
+            "kind": "Method",
+            "memberId": 1555,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "MonthView",
+      "guid": "{232E456A-87C3-11D1-8BE3-0000F8754DA1}",
+      "progId": "MSComCtl2.MonthView.2",
+      "flags": 38,
+      "defaultInterface": {
+        "name": "IMonthView",
+        "guid": "{232E4565-87C3-11D1-8BE3-0000F8754DA1}",
+        "flags": 1,
+        "members": [
+          {
+            "name": "Appearance",
+            "kind": "PropertyGet",
+            "memberId": -520,
+            "flags": 0,
+            "returnType": "AppearanceConstants",
+            "parameters": []
+          },
+          {
+            "name": "Appearance",
+            "kind": "PropertyLet",
+            "memberId": -520,
+            "flags": 0,
+            "returnType": "AppearanceConstants",
+            "parameters": []
+          },
+          {
+            "name": "BackColor",
+            "kind": "PropertyGet",
+            "memberId": -501,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "BackColor",
+            "kind": "PropertyLet",
+            "memberId": -501,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "BorderStyle",
+            "kind": "PropertyGet",
+            "memberId": -504,
+            "flags": 0,
+            "returnType": "BorderStyleConstants",
+            "parameters": []
+          },
+          {
+            "name": "BorderStyle",
+            "kind": "PropertyLet",
+            "memberId": -504,
+            "flags": 0,
+            "returnType": "BorderStyleConstants",
+            "parameters": []
+          },
+          {
+            "name": "Day",
+            "kind": "PropertyGet",
+            "memberId": 1,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Day",
+            "kind": "PropertyLet",
+            "memberId": 1,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "DayBold",
+            "kind": "PropertyGet",
+            "memberId": 2,
+            "flags": 1024,
+            "returnType": "Boolean",
+            "parameters": [
+              {
+                "name": "dateIndex",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "DayBold",
+            "kind": "PropertyLet",
+            "memberId": 2,
+            "flags": 1024,
+            "returnType": "Boolean",
+            "parameters": [
+              {
+                "name": "dateIndex",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "DayOfWeek",
+            "kind": "PropertyGet",
+            "memberId": 3,
+            "flags": 1024,
+            "returnType": "DayConstants",
+            "parameters": []
+          },
+          {
+            "name": "DayOfWeek",
+            "kind": "PropertyLet",
+            "memberId": 3,
+            "flags": 1024,
+            "returnType": "DayConstants",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyGet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyLet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertyGet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertyLet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertySet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "ForeColor",
+            "kind": "PropertyGet",
+            "memberId": -513,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "ForeColor",
+            "kind": "PropertyLet",
+            "memberId": -513,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyGet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyLet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MaxDate",
+            "kind": "PropertyGet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MaxDate",
+            "kind": "PropertyLet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MaxSelCount",
+            "kind": "PropertyGet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MaxSelCount",
+            "kind": "PropertyLet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MinDate",
+            "kind": "PropertyGet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MinDate",
+            "kind": "PropertyLet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "Month",
+            "kind": "PropertyGet",
+            "memberId": 7,
+            "flags": 1024,
+            "returnType": "MonthConstants",
+            "parameters": []
+          },
+          {
+            "name": "Month",
+            "kind": "PropertyLet",
+            "memberId": 7,
+            "flags": 1024,
+            "returnType": "MonthConstants",
+            "parameters": []
+          },
+          {
+            "name": "MonthBackColor",
+            "kind": "PropertyGet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "MonthBackColor",
+            "kind": "PropertyLet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "MonthColumns",
+            "kind": "PropertyGet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MonthColumns",
+            "kind": "PropertyLet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MonthRows",
+            "kind": "PropertyGet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MonthRows",
+            "kind": "PropertyLet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyGet",
+            "memberId": 11,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyLet",
+            "memberId": 11,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertySet",
+            "memberId": 11,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyGet",
+            "memberId": 12,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyLet",
+            "memberId": 12,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "MultiSelect",
+            "kind": "PropertyGet",
+            "memberId": 13,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "MultiSelect",
+            "kind": "PropertyLet",
+            "memberId": 13,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyGet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyLet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "ScrollRate",
+            "kind": "PropertyGet",
+            "memberId": 14,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "ScrollRate",
+            "kind": "PropertyLet",
+            "memberId": 14,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "SelEnd",
+            "kind": "PropertyGet",
+            "memberId": 15,
+            "flags": 1024,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "SelEnd",
+            "kind": "PropertyLet",
+            "memberId": 15,
+            "flags": 1024,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "SelStart",
+            "kind": "PropertyGet",
+            "memberId": 16,
+            "flags": 1024,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "SelStart",
+            "kind": "PropertyLet",
+            "memberId": 16,
+            "flags": 1024,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "ShowToday",
+            "kind": "PropertyGet",
+            "memberId": 17,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "ShowToday",
+            "kind": "PropertyLet",
+            "memberId": 17,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "ShowWeekNumbers",
+            "kind": "PropertyGet",
+            "memberId": 18,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "ShowWeekNumbers",
+            "kind": "PropertyLet",
+            "memberId": 18,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "StartOfWeek",
+            "kind": "PropertyGet",
+            "memberId": 19,
+            "flags": 0,
+            "returnType": "DayConstants",
+            "parameters": []
+          },
+          {
+            "name": "StartOfWeek",
+            "kind": "PropertyLet",
+            "memberId": 19,
+            "flags": 0,
+            "returnType": "DayConstants",
+            "parameters": []
+          },
+          {
+            "name": "TitleBackColor",
+            "kind": "PropertyGet",
+            "memberId": 20,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "TitleBackColor",
+            "kind": "PropertyLet",
+            "memberId": 20,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "TitleForeColor",
+            "kind": "PropertyGet",
+            "memberId": 21,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "TitleForeColor",
+            "kind": "PropertyLet",
+            "memberId": 21,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "TrailingForeColor",
+            "kind": "PropertyGet",
+            "memberId": 22,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "TrailingForeColor",
+            "kind": "PropertyLet",
+            "memberId": 22,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyGet",
+            "memberId": 23,
+            "flags": 60,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyLet",
+            "memberId": 23,
+            "flags": 60,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyGet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyLet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "VisibleDays",
+            "kind": "PropertyGet",
+            "memberId": 24,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": [
+              {
+                "name": "sIndex",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "VisibleDays",
+            "kind": "PropertyLet",
+            "memberId": 24,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": [
+              {
+                "name": "sIndex",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Week",
+            "kind": "PropertyGet",
+            "memberId": 25,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Week",
+            "kind": "PropertyLet",
+            "memberId": 25,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Year",
+            "kind": "PropertyGet",
+            "memberId": 26,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Year",
+            "kind": "PropertyLet",
+            "memberId": 26,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "AboutBox",
+            "kind": "Method",
+            "memberId": -552,
+            "flags": 64,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "ComputeControlSize",
+            "kind": "Method",
+            "memberId": 28,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Rows",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Columns",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Width",
+                "type": "Single",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Height",
+                "type": "Single",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "HitTest",
+            "kind": "Method",
+            "memberId": 27,
+            "flags": 0,
+            "returnType": "MonthViewHitTestAreas",
+            "parameters": [
+              {
+                "name": "x",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Date",
+                "type": "Date",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDrag",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Refresh",
+            "kind": "Method",
+            "memberId": -550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      },
+      "defaultEventInterface": {
+        "name": "DMonthViewEvents",
+        "guid": "{232E4569-87C3-11D1-8BE3-0000F8754DA1}",
+        "flags": 3,
+        "members": [
+          {
+            "name": "DateClick",
+            "kind": "Method",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "DateClicked",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "DateDblClick",
+            "kind": "Method",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "DateDblClicked",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "GetDayBold",
+            "kind": "Method",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "StartDate",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Count",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "State",
+                "type": "Boolean()",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "SelChange",
+            "kind": "Method",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "StartDate",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "EndDate",
+                "type": "Date",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Cancel",
+                "type": "Boolean",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Click",
+            "kind": "Method",
+            "memberId": -600,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "DblClick",
+            "kind": "Method",
+            "memberId": -601,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "KeyDown",
+            "kind": "Method",
+            "memberId": -602,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyCode",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "KeyUp",
+            "kind": "Method",
+            "memberId": -604,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyCode",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "KeyPress",
+            "kind": "Method",
+            "memberId": -603,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyAscii",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseDown",
+            "kind": "Method",
+            "memberId": -605,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseMove",
+            "kind": "Method",
+            "memberId": -606,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseUp",
+            "kind": "Method",
+            "memberId": -607,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEStartDrag",
+            "kind": "Method",
+            "memberId": 1550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "AllowedEffects",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEGiveFeedback",
+            "kind": "Method",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DefaultCursors",
+                "type": "Boolean",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLESetData",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DataFormat",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLECompleteDrag",
+            "kind": "Method",
+            "memberId": 1553,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragOver",
+            "kind": "Method",
+            "memberId": 1554,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "State",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragDrop",
+            "kind": "Method",
+            "memberId": 1555,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "DTPicker",
+      "guid": "{20DD1B9E-87C4-11D1-8BE3-0000F8754DA1}",
+      "progId": "MSComCtl2.DTPicker.2",
+      "flags": 38,
+      "defaultInterface": {
+        "name": "IDTPicker",
+        "guid": "{20DD1B9B-87C4-11D1-8BE3-0000F8754DA1}",
+        "flags": 1,
+        "members": [
+          {
+            "name": "Format",
+            "kind": "PropertyGet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "FormatConstants",
+            "parameters": []
+          },
+          {
+            "name": "Format",
+            "kind": "PropertyLet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "FormatConstants",
+            "parameters": []
+          },
+          {
+            "name": "CalendarBackColor",
+            "kind": "PropertyGet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarBackColor",
+            "kind": "PropertyLet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarForeColor",
+            "kind": "PropertyGet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarForeColor",
+            "kind": "PropertyLet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTitleBackColor",
+            "kind": "PropertyGet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTitleBackColor",
+            "kind": "PropertyLet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTitleForeColor",
+            "kind": "PropertyGet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTitleForeColor",
+            "kind": "PropertyLet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTrailingForeColor",
+            "kind": "PropertyGet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CalendarTrailingForeColor",
+            "kind": "PropertyLet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "ULong",
+            "parameters": []
+          },
+          {
+            "name": "CheckBox",
+            "kind": "PropertyGet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "CheckBox",
+            "kind": "PropertyLet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "CustomFormat",
+            "kind": "PropertyGet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "String",
+            "parameters": []
+          },
+          {
+            "name": "CustomFormat",
+            "kind": "PropertyLet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "String",
+            "parameters": []
+          },
+          {
+            "name": "Day",
+            "kind": "PropertyGet",
+            "memberId": 8,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Day",
+            "kind": "PropertyLet",
+            "memberId": 8,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "DayOfWeek",
+            "kind": "PropertyGet",
+            "memberId": 9,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "DayOfWeek",
+            "kind": "PropertyLet",
+            "memberId": 9,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyGet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyLet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertyGet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertyLet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "Font",
+            "kind": "PropertySet",
+            "memberId": -512,
+            "flags": 0,
+            "returnType": "Font",
+            "parameters": []
+          },
+          {
+            "name": "Hour",
+            "kind": "PropertyGet",
+            "memberId": 11,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Hour",
+            "kind": "PropertyLet",
+            "memberId": 11,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyGet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyLet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MaxDate",
+            "kind": "PropertyGet",
+            "memberId": 12,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MaxDate",
+            "kind": "PropertyLet",
+            "memberId": 12,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MinDate",
+            "kind": "PropertyGet",
+            "memberId": 13,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "MinDate",
+            "kind": "PropertyLet",
+            "memberId": 13,
+            "flags": 0,
+            "returnType": "Date",
+            "parameters": []
+          },
+          {
+            "name": "Minute",
+            "kind": "PropertyGet",
+            "memberId": 14,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Minute",
+            "kind": "PropertyLet",
+            "memberId": 14,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Month",
+            "kind": "PropertyGet",
+            "memberId": 15,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Month",
+            "kind": "PropertyLet",
+            "memberId": 15,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyGet",
+            "memberId": 16,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyLet",
+            "memberId": 16,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertySet",
+            "memberId": 16,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyGet",
+            "memberId": 17,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyLet",
+            "memberId": 17,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyGet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "OLEDropMode",
+            "kind": "PropertyLet",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "OLEDropConstants",
+            "parameters": []
+          },
+          {
+            "name": "Second",
+            "kind": "PropertyGet",
+            "memberId": 18,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Second",
+            "kind": "PropertyLet",
+            "memberId": 18,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "UpDown",
+            "kind": "PropertyGet",
+            "memberId": 19,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "UpDown",
+            "kind": "PropertyLet",
+            "memberId": 19,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyGet",
+            "memberId": 20,
+            "flags": 60,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyLet",
+            "memberId": 20,
+            "flags": 60,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyGet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyLet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Year",
+            "kind": "PropertyGet",
+            "memberId": 21,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "Year",
+            "kind": "PropertyLet",
+            "memberId": 21,
+            "flags": 1024,
+            "returnType": "Variant",
+            "parameters": []
+          },
+          {
+            "name": "AboutBox",
+            "kind": "Method",
+            "memberId": -552,
+            "flags": 64,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "OLEDrag",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Refresh",
+            "kind": "Method",
+            "memberId": -550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      },
+      "defaultEventInterface": {
+        "name": "DDTPickerEvents",
+        "guid": "{20DD1B9D-87C4-11D1-8BE3-0000F8754DA1}",
+        "flags": 3,
+        "members": [
+          {
+            "name": "CallbackKeyDown",
+            "kind": "Method",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyCode",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "CallbackField",
+                "type": "String",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "CallbackDate",
+                "type": "Date",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Change",
+            "kind": "Method",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "CloseUp",
+            "kind": "Method",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "DropDown",
+            "kind": "Method",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Format",
+            "kind": "Method",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "CallbackField",
+                "type": "String",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "FormattedString",
+                "type": "String",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "FormatSize",
+            "kind": "Method",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "CallbackField",
+                "type": "String",
+                "flags": 1,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Size",
+                "type": "Integer",
+                "flags": 2,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "Click",
+            "kind": "Method",
+            "memberId": -600,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "DblClick",
+            "kind": "Method",
+            "memberId": -601,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "KeyDown",
+            "kind": "Method",
+            "memberId": -602,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyCode",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "KeyUp",
+            "kind": "Method",
+            "memberId": -604,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyCode",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "KeyPress",
+            "kind": "Method",
+            "memberId": -603,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "KeyAscii",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseDown",
+            "kind": "Method",
+            "memberId": -605,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseMove",
+            "kind": "Method",
+            "memberId": -606,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "MouseUp",
+            "kind": "Method",
+            "memberId": -607,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Long",
+                "flags": 0,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEStartDrag",
+            "kind": "Method",
+            "memberId": 1550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "AllowedEffects",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEGiveFeedback",
+            "kind": "Method",
+            "memberId": 1551,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DefaultCursors",
+                "type": "Boolean",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLESetData",
+            "kind": "Method",
+            "memberId": 1552,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "DataFormat",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLECompleteDrag",
+            "kind": "Method",
+            "memberId": 1553,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragOver",
+            "kind": "Method",
+            "memberId": 1554,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "State",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          },
+          {
+            "name": "OLEDragDrop",
+            "kind": "Method",
+            "memberId": 1555,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": [
+              {
+                "name": "Data",
+                "type": "DataObject",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Effect",
+                "type": "Long",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Button",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "Shift",
+                "type": "Integer",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "x",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              },
+              {
+                "name": "y",
+                "type": "Single",
+                "flags": 3,
+                "optional": false,
+                "hasDefault": false,
+                "defaultValue": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "FlatScrollBar",
+      "guid": "{FE38753A-44A3-11D1-B5B7-0000C09000C4}",
+      "progId": "MSComCtl2.FlatScrollBar.2",
+      "flags": 38,
+      "defaultInterface": {
+        "name": "IFlatSB",
+        "guid": "{FE387538-44A3-11D1-B5B7-0000C09000C4}",
+        "flags": 1,
+        "members": [
+          {
+            "name": "Appearance",
+            "kind": "PropertyGet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "FlatScrollBarAppearanceConstants",
+            "parameters": []
+          },
+          {
+            "name": "Appearance",
+            "kind": "PropertyLet",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "FlatScrollBarAppearanceConstants",
+            "parameters": []
+          },
+          {
+            "name": "Arrows",
+            "kind": "PropertyGet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "ArrowsConstants",
+            "parameters": []
+          },
+          {
+            "name": "Arrows",
+            "kind": "PropertyLet",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "ArrowsConstants",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyGet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "Enabled",
+            "kind": "PropertyLet",
+            "memberId": -514,
+            "flags": 0,
+            "returnType": "Boolean",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyGet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "hWnd",
+            "kind": "PropertyLet",
+            "memberId": -515,
+            "flags": 1024,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "LargeChange",
+            "kind": "PropertyGet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "LargeChange",
+            "kind": "PropertyLet",
+            "memberId": 3,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Min",
+            "kind": "PropertyGet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Min",
+            "kind": "PropertyLet",
+            "memberId": 4,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Max",
+            "kind": "PropertyGet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Max",
+            "kind": "PropertyLet",
+            "memberId": 5,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyGet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertyLet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MouseIcon",
+            "kind": "PropertySet",
+            "memberId": 6,
+            "flags": 0,
+            "returnType": "Picture",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyGet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "MousePointer",
+            "kind": "PropertyLet",
+            "memberId": 7,
+            "flags": 0,
+            "returnType": "MousePointerConstants",
+            "parameters": []
+          },
+          {
+            "name": "Orientation",
+            "kind": "PropertyGet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "OrientationConstants",
+            "parameters": []
+          },
+          {
+            "name": "Orientation",
+            "kind": "PropertyLet",
+            "memberId": 8,
+            "flags": 0,
+            "returnType": "OrientationConstants",
+            "parameters": []
+          },
+          {
+            "name": "SmallChange",
+            "kind": "PropertyGet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "SmallChange",
+            "kind": "PropertyLet",
+            "memberId": 9,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyGet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "Value",
+            "kind": "PropertyLet",
+            "memberId": 10,
+            "flags": 0,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyGet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "_Value",
+            "kind": "PropertyLet",
+            "memberId": 0,
+            "flags": 64,
+            "returnType": "Integer",
+            "parameters": []
+          },
+          {
+            "name": "AboutBox",
+            "kind": "Method",
+            "memberId": -552,
+            "flags": 64,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Refresh",
+            "kind": "Method",
+            "memberId": -550,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      },
+      "defaultEventInterface": {
+        "name": "DFlatSBEvents",
+        "guid": "{FE387539-44A3-11D1-B5B7-0000C09000C4}",
+        "flags": 3,
+        "members": [
+          {
+            "name": "Change",
+            "kind": "Method",
+            "memberId": 1,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          },
+          {
+            "name": "Scroll",
+            "kind": "Method",
+            "memberId": 2,
+            "flags": 0,
+            "returnType": "Void",
+            "parameters": []
+          }
+        ]
+      }
+    }
+  ]
+}

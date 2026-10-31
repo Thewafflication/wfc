@@ -455,6 +455,7 @@ std::vector<LibraryInfo> libraries() {
     } entries[] = {
         {"wfcrt", "wfcrt.dll", nullptr},
         {"wfcmscomctl", "wfcmscomctl.dll", WFC_MSCOMCTL_VERSION_STRING},
+        {"wfcmscomctl2", "wfcmscomctl2.dll", WFC_MSCOMCTL2_VERSION_STRING},
         {"wfccomdlg32", "wfccomdlg32.dll", WFC_COMDLG32_VERSION_STRING},
         {"wfcmswinsck", "wfcmswinsck.dll", WFC_MSWINSCK_VERSION_STRING},
         {"wfcvbrun", "wfcvbrun.dll", nullptr},
@@ -478,6 +479,8 @@ std::vector<LibraryInfo> libraries() {
 #else
     result.push_back(
         {"wfcmscomctl", WFC_MSCOMCTL_VERSION_STRING, "static", ""});
+    result.push_back(
+        {"wfcmscomctl2", WFC_MSCOMCTL2_VERSION_STRING, "static", ""});
     result.push_back(
         {"wfccomdlg32", WFC_COMDLG32_VERSION_STRING, "static", ""});
     result.push_back(

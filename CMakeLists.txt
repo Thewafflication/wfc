@@ -20,6 +20,7 @@ include(CTest)
 # DLL of its own (wfcmscomctl.dll, wfccomdlg32.dll, wfcmswinsck.dll).
 option(WFC_OCX_SHARED "Build the WFC control libraries as DLLs" OFF)
 add_subdirectory(lib/wfc-mscomctl)
+add_subdirectory(lib/wfc-mscomctl2)
 add_subdirectory(lib/wfc-comdlg32)
 add_subdirectory(lib/wfc-mswinsck)
 
@@ -111,7 +112,7 @@ target_include_directories(
 find_package(Threads REQUIRED)
 target_link_libraries(
   wfc_frontend
-  PUBLIC Threads::Threads wfc_mscomctl wfc_comdlg32 wfc_mswinsck
+  PUBLIC Threads::Threads wfc_mscomctl wfc_mscomctl2 wfc_comdlg32 wfc_mswinsck
 )
 if(WIN32)
   target_link_libraries(
@@ -165,6 +166,7 @@ target_compile_definitions(
   wfc_frontend
   PRIVATE
     WFC_MSCOMCTL_VERSION_STRING="${WFC_MSCOMCTL_VERSION}"
+    WFC_MSCOMCTL2_VERSION_STRING="${WFC_MSCOMCTL2_VERSION}"
     WFC_COMDLG32_VERSION_STRING="${WFC_COMDLG32_VERSION}"
     WFC_MSWINSCK_VERSION_STRING="${WFC_MSWINSCK_VERSION}"
 )
@@ -534,6 +536,10 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     wfc_mscomctl_tables
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/src/mscomctl_tables.cpp"
   )
+  set(
+    wfc_mscomctl2_tables
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl2/src/mscomctl2_tables.cpp"
+  )
   set(wfc_ui_check "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ui_tables.cmake")
   add_test(
     NAME TC-MP0004-ui-tables-current
@@ -558,6 +564,17 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     TC-MP0006-comctl-tables-current
     PROPERTIES LABELS "unit;mp-0006;comctl"
   )
+  add_test(
+    NAME TC-MP0010-mscomctl2-tables-current
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DEVIDENCE=${wfc_evidence}/mscomct2-2.0-type-library.json"
+      "-DTABLES=${wfc_mscomctl2_tables}" -P "${wfc_ui_check}"
+  )
+  set_tests_properties(
+    TC-MP0010-mscomctl2-tables-current
+    PROPERTIES LABELS "unit;mp-0010;comctl"
+  )
 
   # The table types are one header, copied into each control library.
   set(wfc_class_header include/wfc/ocx/control_class.hpp)
@@ -567,6 +584,17 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       "${CMAKE_COMMAND}" -E compare_files
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-comdlg32/${wfc_class_header}"
+  )
+  add_test(
+    NAME TC-MP0010-control-class-headers-mscomctl2
+    COMMAND
+      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl2/${wfc_class_header}"
+  )
+  set_tests_properties(
+    TC-MP0010-control-class-headers-mscomctl2
+    PROPERTIES LABELS "unit;mp-0010"
   )
   add_test(
     NAME TC-MP0010-control-class-headers-mswinsck
@@ -584,6 +612,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   set(wfc_registration lib/wfc-mscomctl/include/wfc/ocx/registration.hpp)
   foreach(
     wfc_copy
+    lib/wfc-mscomctl2/include/wfc/ocx/registration.hpp
     lib/wfc-comdlg32/include/wfc/ocx/registration.hpp
     lib/wfc-mswinsck/include/wfc/ocx/registration.hpp
     lib/wfc-vbrun/src/wfc_registration.hpp
@@ -603,7 +632,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   endforeach()
 
   # The black-box DLL check is one header too, copied into all four libraries.
-  foreach(wfc_ocx wfc-comdlg32 wfc-mswinsck wfc-vbrun)
+  foreach(wfc_ocx wfc-mscomctl2 wfc-comdlg32 wfc-mswinsck wfc-vbrun)
     add_test(
       NAME TC-MP0010-dll-check-header-${wfc_ocx}
       COMMAND
@@ -620,7 +649,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   # The screenshot scripts of the libraries are copies too.
   set(wfc_scripts_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib")
   foreach(wfc_script render_terminal capture_web)
-    foreach(wfc_ocx wfc-comdlg32 wfc-mswinsck wfc-vbrun)
+    foreach(wfc_ocx wfc-mscomctl2 wfc-comdlg32 wfc-mswinsck wfc-vbrun)
       add_test(
         NAME TC-MP0010-${wfc_script}-${wfc_ocx}
         COMMAND
@@ -2749,7 +2778,7 @@ Print v.x & q.x]=]
       # regsvr32. The control libraries are DLLs only with WFC_OCX_SHARED.
       set(wfc_installable vbrun)
       if(WFC_OCX_SHARED)
-        list(APPEND wfc_installable mscomctl comdlg32 mswinsck)
+        list(APPEND wfc_installable mscomctl mscomctl2 comdlg32 mswinsck)
       endif()
       foreach(wfc_lib IN LISTS wfc_installable)
         string(TOUPPER "${wfc_lib}" wfc_upper)

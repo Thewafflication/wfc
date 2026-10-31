@@ -208,6 +208,10 @@ TreeView, ListView, ImageList, Slider, ImageCombo), `lib/wfc-comdlg32`
 (`comdlg32.ocx`: CommonDialog) and `lib/wfc-mswinsck` (`mswinsck.ocx`:
 Winsock), each with its own sources, `VERSION` and version resource, ready to
 become submodules (`scripts/Convert-LibrariesToSubmodules.ps1`).
+`lib/wfc-mscomctl2` (`mscomct2.ocx`: Animation, UpDown, MonthView, DTPicker,
+FlatScrollBar) is a folder of this repository for now and becomes a submodule
+later; it has the member tables and the registration, and the controls
+themselves are not implemented yet.
 
 ## Build the Current Development Slice
 
