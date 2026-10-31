@@ -84,8 +84,9 @@ function Invoke-Collect([string]$Architecture) {
     $target = Get-InputDirectory $Architecture
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcrt.dll', 'wfcvbrun.dll',
-        'wfcmscomctl.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll') {
+    foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcw2k.exe', 'wfcrt.dll',
+        'wfcvbrun.dll', 'wfcmscomctl.dll', 'wfccomdlg32.dll',
+        'wfcmswinsck.dll') {
         if (Test-Path (Join-Path $build $name)) {
             Copy-Item (Join-Path $build $name) $target
         }
@@ -168,8 +169,9 @@ try {
         }
         $target = Join-Path $tool $architecture
         New-Item -ItemType Directory -Force -Path $target | Out-Null
-        foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcrt.dll', 'wfcvbrun.dll',
-            'wfcmscomctl.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll') {
+        foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcw2k.exe', 'wfcrt.dll',
+            'wfcvbrun.dll', 'wfcmscomctl.dll', 'wfccomdlg32.dll',
+            'wfcmswinsck.dll') {
             if (Test-Path (Join-Path $collected $name)) {
                 Copy-Item (Join-Path $collected $name) $target
             }

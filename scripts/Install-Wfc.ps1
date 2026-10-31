@@ -255,6 +255,12 @@ foreach ($architecture in $architectures) {
         Copy-Item -LiteralPath (Join-Path $from $name) -Destination $archBin `
             -Force
     }
+    # The small runtime for programs for Windows 2000 (x86, whatever the
+    # architecture of this wfc).
+    if (Test-Path -LiteralPath (Join-Path $from 'wfcw2k.exe')) {
+        Copy-Item -LiteralPath (Join-Path $from 'wfcw2k.exe') `
+            -Destination $archBin -Force
+    }
     foreach ($dll in 'wfcrt.dll', 'wfcvbrun.dll', 'wfcmscomctl.dll',
         'wfccomdlg32.dll', 'wfcmswinsck.dll') {
         $file = Join-Path $from $dll
@@ -267,7 +273,10 @@ foreach ($architecture in $architectures) {
         $libraries["$library $architecture"] = $libraryVersion
     }
 }
-foreach ($name in 'wfc.exe', 'wfcl.exe') {
+foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcw2k.exe') {
+    if (-not (Test-Path -LiteralPath (Join-Path $bin "$native\$name"))) {
+        continue
+    }
     Copy-Item -LiteralPath (Join-Path $bin "$native\$name") `
         -Destination $bin -Force
 }

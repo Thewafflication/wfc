@@ -17,13 +17,24 @@ namespace wfc::compiler {
 
 BackEndResult generate_code(const ir::Program& program,
                             const Architecture architecture) {
-    if (architecture == Architecture::x64) {
-        return generate_x64(program);
+    BackEndResult result =
+        architecture == Architecture::x64   ? generate_x64(program)
+        : architecture == Architecture::x86 ? generate_x86(program)
+                                            : generate_arm64(program);
+    for (const auto& function : program.functions) {
+        for (const auto& instruction : function.code) {
+            if (instruction.op == ir::Opcode::runtime) {
+                result.image.services_used.push_back(instruction.target);
+            }
+        }
     }
-    if (architecture == Architecture::x86) {
-        return generate_x86(program);
-    }
-    return generate_arm64(program);
+    std::sort(result.image.services_used.begin(),
+              result.image.services_used.end());
+    result.image.services_used.erase(
+        std::unique(result.image.services_used.begin(),
+                    result.image.services_used.end()),
+        result.image.services_used.end());
+    return result;
 }
 
 bool native_back_end_available() {

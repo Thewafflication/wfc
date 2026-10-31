@@ -40,6 +40,10 @@ struct NativeImage final {
     // follows it eight bytes later: the lowest stack address a call may
     // reach, set by the loader (error 28 below it).
     std::size_t error_flag{};
+    // The runtime services the code calls (`ir::Service` numbers, sorted). Not
+    // part of the file: the build reads it to see whether a smaller runtime
+    // can run the program.
+    std::vector<int> services_used;
 };
 
 // Version of the entry table layout (the order of `ir::Service`). The loader

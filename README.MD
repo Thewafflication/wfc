@@ -171,6 +171,18 @@ A mistake in an option names it and suggests the nearest one (`unknown option
 '--natve' (did you mean '--native'?)`); a missing file says so; the exit codes
 are 0 done, 1 the program failed, 2 usage error, 3 compile error.
 
+**Windows 2000 and later.** `wfc build <project.vbp> -o app.exe --target
+win2000` writes a console program of x86 machine code that runs on Windows
+2000 and later: it is a copy of `wfcw2k.exe`, a small runtime written in C
+(`src/win2000/wfcw2k.c`, built with TinyCC against
+[WCRT](https://github.com/Thewafflication/wcrt) and WCRT's startup object),
+followed by the compiled program. It needs no C++ runtime and imports only
+`KERNEL32` functions that Windows 2000 has. The program may use Print, strings,
+arrays, numbers, math and error handling; one that uses Variants, classes,
+forms, files or other library statements is refused at build time with the
+name of the missing feature. `wfcw2k.exe` is built when TinyCC is installed
+(`-DWFC_BUILD_WIN2000=OFF` turns it off).
+
 **Static or dynamic libraries.** `wfc build` links the runtime statically by
 default: the program is one file holding the whole runtime. `--link dynamic`
 writes a small launcher (`wfcl.exe`) that loads `wfcrt.dll` when it starts,

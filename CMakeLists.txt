@@ -209,6 +209,68 @@ set(
 )
 add_subdirectory(lib/wfc-vbrun)
 
+# The small runtime of console programs for Windows 2000 and later
+# (wfc build --target win2000): C code (src/win2000/wfcw2k.c) built with TinyCC
+# against WCRT and WCRT's console startup object, so it needs no C++ runtime.
+# It is built when TinyCC (the x86 compiler of a WPM installation) and
+# PowerShell are found; WFC_TINYCC_X86 names another i386-win32-tcc.exe.
+option(
+  WFC_BUILD_WIN2000
+  "Build wfcw2k.exe, the small runtime for Windows 2000 (needs TinyCC)"
+  ON
+)
+set(WFC_WIN2000_RUNTIME OFF)
+if(WIN32 AND WFC_BUILD_WIN2000)
+  find_program(WFC_POWERSHELL NAMES pwsh powershell)
+  if(NOT WFC_TINYCC_X86)
+    file(GLOB wfc_tcc_candidates "C:/Program Files/TinyCC/*/i386-win32-tcc.exe")
+    list(SORT wfc_tcc_candidates)
+    if(wfc_tcc_candidates)
+      list(POP_BACK wfc_tcc_candidates wfc_tcc_newest)
+      set(WFC_TINYCC_X86 "${wfc_tcc_newest}" CACHE FILEPATH "TinyCC for x86")
+    endif()
+  endif()
+  if(
+    WFC_POWERSHELL
+    AND WFC_TINYCC_X86
+    AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/tools/build-wcrt.ps1"
+  )
+    set(WFC_WIN2000_RUNTIME ON)
+    file(
+      GLOB_RECURSE wfc_wcrt_sources
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/src/*.c"
+      "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/src/*.h"
+      "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/src/*.S"
+      "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/include/*.h"
+    )
+    set(wfc_w2k_stamp "${CMAKE_BINARY_DIR}/wfcw2k.stamp")
+    add_custom_command(
+      OUTPUT "${wfc_w2k_stamp}"
+      COMMAND
+        "${WFC_POWERSHELL}" -NoProfile -File
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-Wfcw2k.ps1" -TinyCc
+        "${WFC_TINYCC_X86}" -Output "${CMAKE_BINARY_DIR}/wfcw2k.exe" -Work
+        "${CMAKE_BINARY_DIR}/wcrt-w2k"
+      COMMAND "${CMAKE_COMMAND}" -E touch "${wfc_w2k_stamp}"
+      DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/win2000/wfcw2k.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-Wfcw2k.ps1"
+        ${wfc_wcrt_sources}
+      COMMENT "Building wfcw2k.exe (TinyCC, WCRT)"
+      VERBATIM
+    )
+    add_custom_target(
+      wfcw2k
+      ALL
+      COMMAND
+        "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_BINARY_DIR}/wfcw2k.exe"
+        "$<TARGET_FILE_DIR:wfc>/wfcw2k.exe"
+      DEPENDS "${wfc_w2k_stamp}"
+    )
+  endif()
+endif()
+
 if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_executable(wfc_frontend_tests tests/evaluator_tests.cpp)
   target_compile_features(wfc_frontend_tests PRIVATE cxx_std_20)
@@ -572,6 +634,45 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       )
     endforeach()
   endforeach()
+
+  # Programs for Windows 2000 (wfc build --target win2000, the small runtime
+  # in C): each runs like the native one, and imports nothing newer than
+  # Windows 2000.
+  if(WFC_WIN2000_RUNTIME)
+    set(wfc_win2000_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/win2000")
+    set(wfc_wcrt_tools "${CMAKE_CURRENT_SOURCE_DIR}/wcrt/tools")
+    add_test(
+      NAME TC-MP0010-win2000-programs
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROGRAMS=${CMAKE_CURRENT_SOURCE_DIR}/tests/native"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-programs" -DMINIMUM=25 -P
+        "${wfc_win2000_tests}/run_win2000_test.cmake"
+    )
+    add_test(
+      NAME TC-MP0010-win2000-imports
+      COMMAND
+        "${CMAKE_COMMAND}" "-DPOWERSHELL=${WFC_POWERSHELL}"
+        "-DGATE=${wfc_wcrt_tools}/test-windows-2000-imports.ps1"
+        "-DALLOWLIST=${wfc_win2000_tests}/windows-2000-x86-imports.json"
+        "-DBINARIES=${CMAKE_BINARY_DIR}/wfcw2k.exe"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-imports" -P
+        "${wfc_win2000_tests}/run_imports_test.cmake"
+    )
+    add_test(
+      NAME TC-MP0010-win2000-refusal
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-refusal" -P
+        "${wfc_win2000_tests}/run_refusal_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0010-win2000-programs
+      TC-MP0010-win2000-imports
+      TC-MP0010-win2000-refusal
+      PROPERTIES LABELS "integration;mp-0010;win2000" TIMEOUT 600
+    )
+  endif()
 
   add_test(NAME TC-MP0001-evaluator COMMAND wfc_frontend_tests)
   set_tests_properties(

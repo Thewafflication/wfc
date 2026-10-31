@@ -54,6 +54,7 @@ constexpr Option kOptions[] = {
     {"--check", 0},
     {"-o", 1},
     {"--link", 1},
+    {"--target", 1},
     {"--bundle", 0},
     {"--serve", 0},
     {"--server", 0},
@@ -227,7 +228,11 @@ void print_help() {
            "  --link dynamic       a small program that loads wfcrt.dll\n"
            "  --bundle             with --link dynamic: copy the runtime "
            "libraries\n"
-           "                       next to the program\n\n"
+           "                       next to the program\n"
+           "  --target win2000     a console program of x86 machine code that "
+           "runs on\n"
+           "                       Windows 2000 and later (small runtime, "
+           "no forms)\n\n"
            "environment:\n"
            "  WFC_HOME             installation folder (default C:\\wfc)\n"
            "  WFC_SCREEN           pretend the screen is WIDTHxHEIGHT\n"
@@ -255,13 +260,19 @@ void print_command_help(const std::string& command) {
     } else if (command == "build") {
         std::cout << "wfc build <project.vbp> -o <app.exe> [--gui] "
                      "[--native] [--link static|dynamic]\n          "
-                     "[--bundle]\n\n"
+                     "[--bundle] [--target win2000]\n\n"
                      "Writes a program of the architecture of this wfc. "
                      "Static (default) copies\nthe whole runtime into the "
                      "program; dynamic writes a small launcher that\nloads "
                      "wfcrt.dll from beside it or from the installation, and "
                      "--bundle copies\nthe runtime libraries next to the "
-                     "program.\n";
+                     "program.\n\n"
+                     "--target win2000 writes a console program of x86 machine "
+                     "code with a small\nruntime written in C, which runs on "
+                     "Windows 2000 and later without the\nC++ runtime. The "
+                     "program may not use Variants, classes, forms, files or "
+                     "other\nlibrary statements yet; the build says which "
+                     "feature is missing.\n";
     } else if (command == "libs") {
         std::cout << "wfc libs\n\nLists wfc, the runtime and the libraries "
                      "with their versions, and whether\neach is linked into "
