@@ -80,6 +80,24 @@ static void month_day_states(const std::vector<double>& bold,
                              const SYSTEMTIME& first, int months,
                              MONTHDAYSTATE* states);
 static std::string month_range_text(const SYSTEMTIME& first, int months);
+static void set_calendar_colors(
+    HWND hwnd, UINT message, const std::vector<std::pair<int, long>>& colors);
+
+// Sets the colours of a calendar (MCM_SETCOLOR and DTM_SETMCCOLOR share the
+// MCSC_* indexes); an OLE colour with the high bit is a system colour.
+static void set_calendar_colors(
+    HWND const hwnd, const UINT message,
+    const std::vector<std::pair<int, long>>& colors) {
+    for (const auto& [index, color] : colors) {
+        const auto value = static_cast<unsigned long>(color);
+        const COLORREF reference =
+            (value & 0x80000000UL) != 0
+                ? GetSysColor(static_cast<int>(value & 0xFFUL))
+                : static_cast<COLORREF>(value & 0xFFFFFFUL);
+        SendMessageW(hwnd, message, static_cast<WPARAM>(index),
+                     static_cast<LPARAM>(reference));
+    }
+}
 
 bool Win32Host::month_hit(const WindowId window, const long x, const long y,
                           long& area, double& date) {
@@ -307,6 +325,7 @@ void Win32Host::sync_common(const WindowId window,
                                 to_system(snapshot.date_max)};
         SendMessageW(hwnd, DTM_SETRANGE, GDTR_MIN | GDTR_MAX,
                      reinterpret_cast<LPARAM>(limits));
+        set_calendar_colors(hwnd, DTM_SETMCCOLOR, snapshot.calendar_colors);
         if (snapshot.select_range) {
             SendMessageW(hwnd, DTM_SETSYSTEMTIME, GDT_NONE, 0);
         } else {
@@ -344,6 +363,7 @@ void Win32Host::sync_common(const WindowId window,
         // MCM_SETFIRSTDAYOFWEEK counts from Monday (0) to Sunday (6).
         SendMessageW(hwnd, MCM_SETFIRSTDAYOFWEEK, 0,
                      (snapshot.first_day + 5) % 7);
+        set_calendar_colors(hwnd, MCM_SETCOLOR, snapshot.calendar_colors);
         SYSTEMTIME selection[2] = {to_system(snapshot.date_start),
                                    to_system(snapshot.date_end)};
         SendMessageW(hwnd, MCM_SETSELRANGE, 0,

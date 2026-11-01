@@ -170,6 +170,8 @@ struct CommonSnapshot {
     bool show_today{true};
     bool week_numbers{false};
     bool multi_select{false};
+    // A calendar's colours: (MCSC_* index, OLE colour) of those set.
+    std::vector<std::pair<int, long>> calendar_colors;
     std::vector<double> bold_days;  // MonthView: whole date serials in bold
     bool center{false};             // Animation: the clip is centred
     bool transparent{false};        // Animation: the background shows through
