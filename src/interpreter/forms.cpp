@@ -541,6 +541,9 @@ constexpr const char* kUnreadableStateCode = "WFC0293";
 
 // Reads the BeginProperty groups a form file holds for a common control
 // (comctl.inc).
+// The common controls that need the whole form once it has loaded (an UpDown
+// writes its Value to its buddy), before Form_Load runs.
+void comctl_form_loaded(Interpreter& in, InstanceData& form);
 void comctl_load_persisted(Interpreter& in, ControlObject& control,
                            const ui::FrmObject& source,
                            const std::string& frx_directory);
@@ -2994,6 +2997,7 @@ struct FormSupport {
         }
         repaint_lightweight_surfaces(in, form);
         runtime(in).loaded.push_back(form.weak_from_this());
+        comctl_form_loaded(in, form);
         std::vector<Value> none;
         return raise(in, form, "", -1, "load", none, offset);
     }

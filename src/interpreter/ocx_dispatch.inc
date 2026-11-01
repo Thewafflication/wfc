@@ -15,6 +15,9 @@ bool ocx_get(Interpreter& in, ControlObject& self, const std::string& member,
     if (self.class_key == "winsock") {
         return winsock_get(in, self, member, arguments, result, failure);
     }
+    if (self.class_key == "updown") {
+        return updown_get(in, self, member);
+    }
     return false;
 }
 
@@ -33,6 +36,9 @@ bool ocx_put(Interpreter& in, ControlObject& self, const std::string& member,
     }
     if (self.class_key == "winsock") {
         return winsock_put(in, self, member, value, failure);
+    }
+    if (self.class_key == "updown") {
+        return updown_put(in, self, member, value);
     }
     return false;
 }
