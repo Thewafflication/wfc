@@ -631,6 +631,29 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     )
   endforeach()
 
+  # The class factory is one header too, copied into the four control
+  # libraries.
+  set(wfc_factory lib/wfc-mscomctl/include/wfc/ocx/class_factory.hpp)
+  foreach(
+    wfc_copy
+    lib/wfc-mscomctl2/include/wfc/ocx/class_factory.hpp
+    lib/wfc-comdlg32/include/wfc/ocx/class_factory.hpp
+    lib/wfc-mswinsck/include/wfc/ocx/class_factory.hpp
+  )
+    string(MAKE_C_IDENTIFIER "${wfc_copy}" wfc_copy_id)
+    add_test(
+      NAME TC-MP0010-class-factory-header-${wfc_copy_id}
+      COMMAND
+        "${CMAKE_COMMAND}" -E compare_files --ignore-eol
+        "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_factory}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_copy}"
+    )
+    set_tests_properties(
+      TC-MP0010-class-factory-header-${wfc_copy_id}
+      PROPERTIES LABELS "unit;mp-0010"
+    )
+  endforeach()
+
   # The black-box DLL check is one header too, copied into all four libraries.
   foreach(wfc_ocx wfc-mscomctl2 wfc-comdlg32 wfc-mswinsck wfc-vbrun)
     add_test(
