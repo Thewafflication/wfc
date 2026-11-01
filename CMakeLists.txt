@@ -581,14 +581,14 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0010-control-class-headers
     COMMAND
-      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_COMMAND}" -E compare_files --ignore-eol
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-comdlg32/${wfc_class_header}"
   )
   add_test(
     NAME TC-MP0010-control-class-headers-mscomctl2
     COMMAND
-      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_COMMAND}" -E compare_files --ignore-eol
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl2/${wfc_class_header}"
   )
@@ -599,7 +599,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
   add_test(
     NAME TC-MP0010-control-class-headers-mswinsck
     COMMAND
-      "${CMAKE_COMMAND}" -E compare_files
+      "${CMAKE_COMMAND}" -E compare_files --ignore-eol
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/${wfc_class_header}"
       "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mswinsck/${wfc_class_header}"
   )
@@ -621,7 +621,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     add_test(
       NAME TC-MP0010-registration-header-${wfc_copy_id}
       COMMAND
-        "${CMAKE_COMMAND}" -E compare_files
+        "${CMAKE_COMMAND}" -E compare_files --ignore-eol
         "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_registration}"
         "${CMAKE_CURRENT_SOURCE_DIR}/${wfc_copy}"
     )
@@ -636,7 +636,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     add_test(
       NAME TC-MP0010-dll-check-header-${wfc_ocx}
       COMMAND
-        "${CMAKE_COMMAND}" -E compare_files
+        "${CMAKE_COMMAND}" -E compare_files --ignore-eol
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/tests/dll_check.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/${wfc_ocx}/tests/dll_check.h"
     )
@@ -653,7 +653,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       add_test(
         NAME TC-MP0010-${wfc_script}-${wfc_ocx}
         COMMAND
-          "${CMAKE_COMMAND}" -E compare_files
+          "${CMAKE_COMMAND}" -E compare_files --ignore-eol
           "${wfc_scripts_dir}/wfc-mscomctl/scripts/${wfc_script}.py"
           "${wfc_scripts_dir}/${wfc_ocx}/scripts/${wfc_script}.py"
       )

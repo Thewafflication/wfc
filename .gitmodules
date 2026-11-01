@@ -19,3 +19,6 @@
 [submodule "lib/wfc-mswinsck"]
 	path = lib/wfc-mswinsck
 	url = https://github.com/Thewafflication/wfc-mswinsck.git
+[submodule "lib/wfc-mscomctl2"]
+	path = lib/wfc-mscomctl2
+	url = https://github.com/Thewafflication/wfc-mscomctl2.git
