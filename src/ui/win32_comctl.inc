@@ -164,6 +164,19 @@ void Win32Host::sync_common(const WindowId window,
         }
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);
     } else if (kind == "dtpicker") {
+        // A changed callback answer needs the control to format again.
+        bool answers_changed = entry->callbacks.size() != snapshot.items.size();
+        for (std::size_t at = 0; !answers_changed && at < snapshot.items.size();
+             ++at) {
+            answers_changed =
+                entry->callbacks[at].key != snapshot.items[at].key ||
+                entry->callbacks[at].width != snapshot.items[at].width;
+        }
+        entry->callbacks = snapshot.items;
+        if (answers_changed) {
+            SendMessageW(hwnd, DTM_SETFORMATW, 0,
+                         reinterpret_cast<LPARAM>(L" "));
+        }
         const auto to_system = [](const double serial) {
             SYSTEMTIME time{};
             VariantTimeToSystemTime(serial, &time);
@@ -178,6 +191,32 @@ void Win32Host::sync_common(const WindowId window,
                                        : DTS_LONGDATEFORMAT;
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);
         if (snapshot.style == 3) {
+            // Each run of X is a callback field: ask the program (once)
+            // how wide it is.
+            for (std::size_t at = 0; at < snapshot.text.size();) {
+                if (snapshot.text[at] != 'X') {
+                    ++at;
+                    continue;
+                }
+                const std::size_t end =
+                    snapshot.text.find_first_not_of('X', at);
+                const std::string run = snapshot.text.substr(at, end - at);
+                if (entry->callback_sized.insert(run).second) {
+                    queue(UiEvent{window, "ComctlInput", {"formatsize", run}});
+                }
+                SYSTEMTIME now = to_system(snapshot.date_value);
+                char when[32];
+                std::snprintf(when, sizeof(when),
+                              "%04d-%02d-%02d %02d:%02d:%02d", now.wYear,
+                              now.wMonth, now.wDay, now.wHour, now.wMinute,
+                              now.wSecond);
+                const std::string asked = run + " " + when;
+                if (asked != entry->callback_asked) {
+                    entry->callback_asked = asked;
+                    queue(UiEvent{window, "ComctlInput", {"format", asked}});
+                }
+                at = end == std::string::npos ? snapshot.text.size() : end;
+            }
             std::wstring format = wide_text(snapshot.text);
             SendMessageW(hwnd, DTM_SETFORMATW, 0,
                          reinterpret_cast<LPARAM>(format.c_str()));
@@ -194,6 +233,10 @@ void Win32Host::sync_common(const WindowId window,
             SYSTEMTIME current = to_system(snapshot.date_value);
             SendMessageW(hwnd, DTM_SETSYSTEMTIME, GDT_VALID,
                          reinterpret_cast<LPARAM>(&current));
+        }
+        if (answers_changed) {
+            InvalidateRect(hwnd, nullptr, TRUE);
+            UpdateWindow(hwnd);
         }
     } else if (kind == "monthview") {
         const auto to_system = [](const double serial) {
@@ -583,10 +626,17 @@ bool Win32Host::common_notify(const void* raw_header,
     const NMHDR& header = *static_cast<const NMHDR*>(raw_header);
     const WindowId control = Win32Support::id_of(header.hwndFrom);
     auto* entry = find(control);
-    if (entry == nullptr || entry->applying) {
+    // The callback fields of a date picker are answered while a snapshot is
+    // applied too: the control formats then.
+    const bool callback_code =
+        header.code == DTN_FORMATW || header.code == DTN_FORMATQUERYW;
+    if (entry == nullptr || (entry->applying && !callback_code)) {
         return false;
     }
     const auto post = [&](const std::string& action, const std::string& rest) {
+        if (entry->applying) {
+            return;
+        }
         queue(UiEvent{control, "ComctlInput", {action, rest}});
     };
     const std::string& kind = entry->kind;
@@ -599,6 +649,49 @@ bool Win32Host::common_notify(const void* raw_header,
                           time.wSecond);
             return std::string(buffer);
         };
+        const auto callback = [&](const std::wstring& field) {
+            for (const auto& item : entry->callbacks) {
+                if (item.text == narrow(field)) {
+                    return &item;
+                }
+            }
+            return static_cast<const CommonItem*>(nullptr);
+        };
+        if (header.code == DTN_FORMATW) {
+            // A callback field (a run of X in the custom format): the
+            // program's Format event gives its text.
+            auto* format = reinterpret_cast<NMDATETIMEFORMATW*>(lparam);
+            const std::string field = narrow(format->pszFormat);
+            const std::string asked = field + " " + text(format->st);
+            if (const auto* item = callback(format->pszFormat)) {
+                const std::wstring shown = wide_text(item->key);
+                wcsncpy_s(format->szDisplay, shown.c_str(), _TRUNCATE);
+            }
+            format->pszDisplay = format->szDisplay;
+            if (!entry->applying && asked != entry->callback_asked) {
+                entry->callback_asked = asked;
+                post("format", asked);
+            }
+            return true;
+        }
+        if (header.code == DTN_FORMATQUERYW) {
+            auto* query = reinterpret_cast<NMDATETIMEFORMATQUERYW*>(lparam);
+            if (const auto* item = callback(query->pszFormat)) {
+                query->szMax.cx = item->width;
+            }
+            post("formatsize", narrow(query->pszFormat));
+            return true;
+        }
+        if (header.code == DTN_WMKEYDOWNW) {
+            auto* key = reinterpret_cast<NMDATETIMEWMKEYDOWNW*>(lparam);
+            const int shift = (GetKeyState(VK_SHIFT) < 0 ? 1 : 0) |
+                              (GetKeyState(VK_CONTROL) < 0 ? 2 : 0) |
+                              (GetKeyState(VK_MENU) < 0 ? 4 : 0);
+            post("keydown", narrow(key->pszFormat) + " " +
+                                std::to_string(key->nVirtKey) + " " +
+                                std::to_string(shift) + " " + text(key->st));
+            return true;
+        }
         if (header.code == DTN_DATETIMECHANGE) {
             const auto* change =
                 reinterpret_cast<const NMDATETIMECHANGE*>(lparam);

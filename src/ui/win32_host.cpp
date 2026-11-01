@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <set>
 #include <string_view>
 
 namespace wfc::ui {
@@ -98,11 +99,14 @@ struct Win32Host::Entry {
     int off_x{0};
     int off_y{0};
     bool screen_form{false};
-    HFONT font{nullptr};            // set by set_font, owned by the entry
-    FontSpec font_spec;             // what `font` was made from
-    double font_dpi{0.0};           // and at which resolution
-    void* images{nullptr};          // HIMAGELIST handed to the control
-    std::vector<double> bold_days;  // MonthView days drawn in bold
+    HFONT font{nullptr};                // set by set_font, owned by the entry
+    FontSpec font_spec;                 // what `font` was made from
+    double font_dpi{0.0};               // and at which resolution
+    void* images{nullptr};              // HIMAGELIST handed to the control
+    std::vector<double> bold_days;      // MonthView days drawn in bold
+    std::vector<CommonItem> callbacks;  // DTPicker: callback fields
+    std::set<std::string> callback_sized;  // DTPicker: fields asked a size
+    std::string callback_asked;            // DTPicker: the last field asked for
     std::string bold_asked;  // MonthView range GetDayBold was last asked for
     void* small_images{nullptr};
 };
