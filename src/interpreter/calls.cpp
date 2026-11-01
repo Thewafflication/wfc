@@ -277,7 +277,7 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
             if (variable.value != nullptr &&
                 (std::holds_alternative<ArrayValue>(*variable.value) ||
                  std::holds_alternative<ObjectInstance>(*variable.value))) {
-                const auto saved_error = error_;
+                auto saved_error = snapshot_error();
                 offset_ = saved_offset;
                 LValue target;
                 if (parse_lvalue_path(target)) {
@@ -289,7 +289,7 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
                         return CallArgument{*target.ptr, target.ptr};
                     }
                 }
-                error_ = saved_error;
+                restore_error(std::move(saved_error));
             }
         }
         offset_ = saved_offset;

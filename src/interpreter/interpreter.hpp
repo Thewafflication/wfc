@@ -1830,6 +1830,33 @@ private:
     [[nodiscard]] bool pump_forms();
     // Forgets the error an optional operation raised.
     void clear_error_for_retry() { error_ = wfc::Evaluation{}; }
+    // The pending diagnostic plus the Err object, for speculative parses that
+    // may fail and then fall back (a failed attempt must not leave Err set).
+    struct ErrorSnapshot {
+        wfc::Evaluation error;
+        const char* source_data;
+        Integer number;
+        Integer erl;
+        std::string description;
+        std::string source;
+        std::string help_file;
+        Integer help_context;
+    };
+    [[nodiscard]] ErrorSnapshot snapshot_error() const {
+        return {error_,         error_source_data_, err_number_,
+                err_erl_,       err_description_,   err_source_,
+                err_help_file_, err_help_context_};
+    }
+    void restore_error(ErrorSnapshot snapshot) {
+        error_ = std::move(snapshot.error);
+        error_source_data_ = snapshot.source_data;
+        err_number_ = snapshot.number;
+        err_erl_ = snapshot.erl;
+        err_description_ = std::move(snapshot.description);
+        err_source_ = std::move(snapshot.source);
+        err_help_file_ = std::move(snapshot.help_file);
+        err_help_context_ = snapshot.help_context;
+    }
     [[nodiscard]] bool has_pending_error() const {
         return !error_.diagnostic.empty();
     }
