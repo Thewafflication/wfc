@@ -4,13 +4,13 @@
 # `--target host` always takes the runtime of this wfc.
 # Usage: cmake -DWFC=<wfc.exe> -DWORK=<folder> -P run_default_test.cmake
 file(REMOVE_RECURSE "${WORK}")
-file(MAKE_DIRECTORY "${WORK}/simple" "${WORK}/variant")
+file(MAKE_DIRECTORY "${WORK}/simple" "${WORK}/library")
 file(WRITE "${WORK}/simple/Main.bas" "Sub Main()\n    Print \"hi\"\nEnd Sub\n")
 file(
-  WRITE "${WORK}/variant/Main.bas"
-  "Sub Main()\n    Dim v\n    v = 5\n    Print v\nEnd Sub\n"
+  WRITE "${WORK}/library/Main.bas"
+  "Sub Main()\n    Print Format(5, \"00\")\nEnd Sub\n"
 )
-foreach(name simple variant)
+foreach(name simple library)
   file(
     WRITE "${WORK}/${name}/T.vbp"
     "Type=Exe\nModule=Main; Main.bas\nStartup=\"Sub Main\"\n"
@@ -48,13 +48,14 @@ if(NOT ran EQUAL 0 OR NOT printed MATCHES "^hi")
   message(FATAL_ERROR "the small program printed '${printed}' (${ran})")
 endif()
 
-# A program with a Variant: the runtime of this wfc, with a note.
-build(variant full.exe)
-if(NOT build_error MATCHES "note: the program uses Variants")
-  message(FATAL_ERROR "no note about the Variant: '${build_error}'")
+# A program with a library function on Variants: the runtime of this wfc,
+# with a note.
+build(library full.exe)
+if(NOT build_error MATCHES "note: the program uses Variant arrays and")
+  message(FATAL_ERROR "no note about the function: '${build_error}'")
 endif()
 if(build_size LESS 1000000)
-  message(FATAL_ERROR "the Variant program is ${build_size} bytes, not full")
+  message(FATAL_ERROR "the library program is ${build_size} bytes, not full")
 endif()
 
 # --target host: the runtime of this wfc, without a note.

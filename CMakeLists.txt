@@ -675,7 +675,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
         "-DPROGRAMS=${CMAKE_CURRENT_SOURCE_DIR}/tests/native"
-        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-programs" -DMINIMUM=25 -P
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/win2000-programs" -DMINIMUM=32 -P
         "${wfc_win2000_tests}/run_win2000_test.cmake"
     )
     add_test(

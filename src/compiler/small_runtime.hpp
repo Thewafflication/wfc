@@ -13,17 +13,15 @@
 namespace wfc::compiler {
 
 [[nodiscard]] constexpr bool small_runtime_supports(const int service) {
-    return (service >= 0 && service <= 47) || service == 80 || service == 81 ||
-           service == 89 || service == 103 || service == 107 ||
-           service == 108 || service == 112 || service == 113 ||
+    return (service >= 0 && service <= 68) || service == 78 || service == 79 ||
+           service == 90 || service == 80 || service == 81 || service == 89 ||
+           service == 103 || service == 107 || service == 108 ||
+           service == 112 || service == 113 ||
            (service >= 115 && service <= 117);
 }
 
 // A word for what a service without the small runtime belongs to.
 [[nodiscard]] constexpr const char* small_runtime_feature(const int service) {
-    if (service >= 48 && service <= 68) {
-        return "Variants";
-    }
     if ((service >= 69 && service <= 76) || service == 88) {
         return "classes";
     }

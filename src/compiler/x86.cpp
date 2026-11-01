@@ -480,6 +480,13 @@ private:
         // prologue
         byte(0x55);           // push ebp
         bytes({0x8B, 0xEC});  // mov ebp, esp
+        // A large frame touches each page below the stack in turn: Windows
+        // grows the stack one page at a time (a guard page), and a single
+        // `sub esp` past it would fault.
+        for (std::int32_t below = 4096; below < frame; below += 4096) {
+            bytes({0x85, 0x84, 0x24});  // test [esp - below], eax
+            dword(static_cast<std::uint32_t>(-below));
+        }
         bytes({0x81, 0xEC});  // sub esp, frame
         dword(static_cast<std::uint32_t>(frame));
         bytes({0x89, 0x5D, 0xFC});  // mov [ebp - 4], ebx

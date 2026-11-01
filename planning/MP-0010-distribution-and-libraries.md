@@ -13,9 +13,10 @@ either way, with a command line that explains itself.
 writes should run on Windows 2000 and later without the Microsoft C++
 runtime. Done so far: console programs of x86 machine code run on `wfcw2k.exe`,
 a small runtime in C built with TinyCC and WCRT (`wfc build --target win2000`,
-the default of an x86 wfc). Still to do, in this order: Variants and the rest of
-the services in the C runtime (the interpreter's Variant rules ported to C),
-then classes, files, dates and the other library statements, and last forms,
+the default of an x86 wfc), with Variants (the operators and conversions of
+the interpreter ported to C, and arrays of Variants). Still to do, in this
+order: the library functions on Variants (`Format`, `Split`, `CDate` and the
+rest of service 77) and Variant arrays in the C runtime, then classes, files, dates and the other library statements, and last forms,
 the controls and `wfc.exe` itself, which need a C++ compiler and library that
 target Windows 2000 (the toolchain track of the libraries). Every step is
 checked against the 64-bit native run and by WCRT's Windows 2000 import gate.
@@ -54,6 +55,7 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-10-31 #10 | Programs for Windows 2000 and later (`wfc build --target win2000`): the x86 back end's image runs on `wfcw2k.exe` (`src/win2000/wfcw2k.c`), a small runtime in C built with TinyCC against WCRT and WCRT's console startup object (`scripts/Build-Wfcw2k.ps1`), so there is no C++ runtime and it imports only KERNEL32 functions of Windows 2000 (checked with WCRT's import gate). Services 0 to 47 and a few more are in C (Print, strings, arrays, Double, math, errors); a program that needs another (Variants, classes, forms, files) is refused at build time and says which. 29 programs of `tests/native` run like the x64 ones; Exp, Sqr and `^` are corrected in the stub (WCRT's are a unit off). Tests `TC-MP0010-win2000-programs`, `-imports`, `-refusal`. Also: the game tests moved to the vb6games repository (the gate keeps a smoke pair). It is the default build of an x86 wfc (or with `WFC_TARGET=win2000`): the full runtime is the fallback with a note; `--target host` takes it directly (`TC-MP0010-win2000-default`). |
 | 2026-10-31 #11 | `lib/wfc-mscomctl2` (MSComCtl2: Animation, UpDown, MonthView, DTPicker, FlatScrollBar), a folder of WFC for now and a submodule later. The tables come from the installed `MSCOMCT2.OCX` (`evidence/reference/mscomct2-2.0-type-library.json`, 214 members and 63 events); version 0.6.0 targets `MSCOMCT2.OCX 6.00.8177`; registration with WFC and Microsoft ids (the Microsoft class ids come from the type library); tests as in the other libraries (`TC-MP0010-mscomctl2-*`). The evaluator creates all five controls (see #12). |
 | 2026-10-31 #12 | MSComCtl2 completed: UpDown (with its buddy), FlatScrollBar, MonthView (`GetDayBold` with the `State()` array, `HitTest`, `ComputeControlSize`, colours), DTPicker (callback fields, colours) and Animation (AVI through the system animation control). Corpus 211 to 221, requirements REQ-0308 to REQ-0312, an example and a screenshot per control; behaviour follows the documentation (no VB6 probe). The libraries were wrapped to 80 columns for the WSP style check (the four `dll_check.h` copies stay identical). Open for the library: the flat drawing of FlatScrollBar, several months, `DllGetClassObject`. |
+| 2026-10-31 #13 | Variants in the small runtime for Windows 2000: services 48 to 68, 78, 79 and 90 in C (Integer, Long, Single, Double, String, Boolean, Byte, Null and Empty; the operators, comparisons, `And`/`Or`/`Xor`, `Not`, negation, conversions, `Print`, `TypeName`, `VarType`, `IsNumeric`), arrays of Variants and Variant fields of records. `tests/native/76-variant-operators.bas` runs every operator over 15 values (4,000 results) and matches the 64-bit native run exactly. Found on the way: the x86 back end did not probe the stack for a frame larger than a page (a program with 200 calls crashed); the C runtime printed some Doubles one unit wrong in the 15th digit (the library printf), so the digits are now made exactly; `^` with a fraction was a unit off (double-double exp and log), and an overflowing `^` is error 6. 32 of the 53 `tests/native` programs run; a program that needs a library function on Variants (85 of the corpus programs stop at service 77: `Format`, `CDate`, `Split` and others) is still refused. |
 
 ## Open
 
@@ -66,9 +68,10 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 - Left as they are because the Visual Basic answer is not known: `Select Case`
   of a number against `"x" To "z"` (the interpreter raises 13, native code goes
   to `Case Else`) and some Variant error numbers (13 against 11).
-- Windows 2000: Variants first (83 of the 143 corpus programs the small runtime
-  refuses stop at the first Variant service), then classes, `Like`, `Rnd`, the
-  library statements (files, dates), and forms with the full runtime on a C++
+- Windows 2000: the library functions on Variants (service 77; 85 of the 143
+  corpus programs the small runtime refuses stop there, `Format` being the
+  most used) and Variant arrays (`Array`, `Split`), then classes, `Like`,
+  `Rnd`, the library statements (files, dates), and forms with the full runtime on a C++
   toolchain that targets Windows 2000. WCRT's `exp`, `pow` and `sqrt` are a unit
   in the last place off for some arguments (the stub corrects them itself).
 - The install script is tested for the file layout only (`-FilesOnly`); the PATH,
