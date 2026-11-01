@@ -24,7 +24,7 @@ library repository itself carries.
 
 | Profile | Selected | Scope or rationale |
 | --- | --- | --- |
-| Security/DFS | Yes | Hardening flags (WSP-SEC-0015) from WFC's WSP baseline; the standalone build takes them from a `wsp` submodule once the library has a repository of its own |
+| Security/DFS | Yes | Hardening flags (WSP-SEC-0015) from `wsp/tools/cmake/WspBuild.cmake` in the standalone build |
 | C source style | No | The sources are C++; the C test programs follow the same layout |
 | CMake style | Yes | `CMakeLists.txt` |
 | Windows version resources | Yes | `version.rc.in`, one version resource per DLL |

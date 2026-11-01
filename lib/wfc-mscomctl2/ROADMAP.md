@@ -17,8 +17,8 @@ an unchecked one is planned.
       request).
 - [x] A C program tests the DLL; a table test checks the classes.
 - [x] Standalone build; CI workflow for Windows, Winelib and WebAssembly.
-- [ ] The library moves to a repository of its own (`wfc-mscomctl2`) and
-      becomes a submodule of WFC.
+- [x] The library has a repository of its own (`wfc-mscomctl2`) and is a
+      submodule of WFC.
 
 ## 0.7: the controls in the evaluator
 
@@ -63,7 +63,7 @@ requirement:
 ## WSP track
 
 - [x] WSP baseline (see [docs/WSP-ADOPTION.md](docs/WSP-ADOPTION.md)).
-- [ ] The `wsp` submodule when the library has a repository of its own.
+- [x] The `wsp` submodule (pinned like the other libraries).
 - [ ] 80-column source style for the library sources (the generated tables are
       exempt).
 - [ ] Requirements and traceability (`requirements/`).

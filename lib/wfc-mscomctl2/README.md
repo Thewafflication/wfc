@@ -4,9 +4,9 @@ Windows Common Controls-2 for WFC: the native replacement for `mscomct2.ocx`
 (library MSComCtl2): **Animation**, **UpDown**, **MonthView**, **DTPicker** and
 **FlatScrollBar**.
 
-This library lives in the `lib/` folder of
-[WFC](https://github.com/Thewafflication/wfc) for now and moves to a repository
-of its own (`wfc-mscomctl2`, a submodule like the other libraries) later.
+Part of [WFC](https://github.com/Thewafflication/wfc), where it is mounted at
+`lib/wfc-mscomctl2` (a submodule, like the other libraries). Licence:
+GPL-3.0-or-later (see the WFC `LICENSE`).
 
 What is here:
 
