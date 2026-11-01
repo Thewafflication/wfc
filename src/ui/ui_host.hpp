@@ -263,6 +263,27 @@ public:
         static_cast<void>(window);
         static_cast<void>(value);
     }
+    // The MonthView: what is at a pixel (an MCHT_* area mapped to the
+    // MonthViewHitTestAreas values) and the date there, and the size in twips
+    // of `rows` by `columns` months.
+    virtual bool month_hit(WindowId window, long x, long y, long& area,
+                           double& date) {
+        static_cast<void>(window);
+        static_cast<void>(x);
+        static_cast<void>(y);
+        static_cast<void>(area);
+        static_cast<void>(date);
+        return false;
+    }
+    virtual bool month_size(WindowId window, long rows, long columns,
+                            double& width, double& height) {
+        static_cast<void>(window);
+        static_cast<void>(rows);
+        static_cast<void>(columns);
+        static_cast<void>(width);
+        static_cast<void>(height);
+        return false;
+    }
     // The Animation control: "open" (a file path), "play" (repeat count, first
     // and last frame), "stop" and "close".
     virtual void animate(WindowId window, const std::string& action,

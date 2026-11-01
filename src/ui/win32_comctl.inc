@@ -81,6 +81,86 @@ static void month_day_states(const std::vector<double>& bold,
                              MONTHDAYSTATE* states);
 static std::string month_range_text(const SYSTEMTIME& first, int months);
 
+bool Win32Host::month_hit(const WindowId window, const long x, const long y,
+                          long& area, double& date) {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr) {
+        return false;
+    }
+    MCHITTESTINFO info{};
+    // The first four members: the version of the control may predate rc.
+    info.cbSize = offsetof(MCHITTESTINFO, rc);
+    info.pt = POINT{static_cast<LONG>(x), static_cast<LONG>(y)};
+    SendMessageW(entry->hwnd, MCM_HITTEST, 0, reinterpret_cast<LPARAM>(&info));
+    // The values of MonthViewHitTestAreas (mvwCalendarBack is 0).
+    switch (info.uHit) {
+        case MCHT_CALENDARBK:
+            area = 0;
+            break;
+        case MCHT_CALENDARDATE:
+            area = 1;
+            break;
+        case MCHT_CALENDARDATENEXT:
+            area = 2;
+            break;
+        case MCHT_CALENDARDATEPREV:
+            area = 3;
+            break;
+        case MCHT_CALENDARDAY:
+            area = 4;
+            break;
+        case MCHT_CALENDARWEEKNUM:
+            area = 5;
+            break;
+        case MCHT_TITLEBK:
+            area = 7;
+            break;
+        case MCHT_TITLEBTNNEXT:
+            area = 8;
+            break;
+        case MCHT_TITLEBTNPREV:
+            area = 9;
+            break;
+        case MCHT_TITLEMONTH:
+            area = 10;
+            break;
+        case MCHT_TITLEYEAR:
+            area = 11;
+            break;
+        case MCHT_TODAYLINK:
+            area = 12;
+            break;
+        default:
+            area = 6;  // mvwNoWhere
+            break;
+    }
+    double serial = 0;
+    if (SystemTimeToVariantTime(&info.st, &serial) != 0) {
+        date = serial;
+    }
+    return true;
+}
+
+bool Win32Host::month_size(const WindowId window, const long rows,
+                           const long columns, double& width, double& height) {
+    const auto* entry = find(window);
+    if (entry == nullptr || entry->hwnd == nullptr) {
+        return false;
+    }
+    RECT one{};
+    if (SendMessageW(entry->hwnd, MCM_GETMINREQRECT, 0,
+                     reinterpret_cast<LPARAM>(&one)) == 0) {
+        return false;
+    }
+    width = static_cast<double>(one.right - one.left) *
+            static_cast<double>(std::max(1L, columns)) * 1440.0 /
+            static_cast<double>(dpi_x_);
+    height = static_cast<double>(one.bottom - one.top) *
+             static_cast<double>(std::max(1L, rows)) * 1440.0 /
+             static_cast<double>(dpi_y_);
+    return true;
+}
+
 void Win32Host::animate(const WindowId window, const std::string& action,
                         const std::string& path, const long repeat,
                         const long first, const long last) {

@@ -94,6 +94,10 @@ public:
     void set_button_image(WindowId window, long picture) override;
     void begin_drag(WindowId window) override;
     void sync_common(WindowId window, const CommonSnapshot& snapshot) override;
+    bool month_hit(WindowId window, long x, long y, long& area,
+                   double& date) override;
+    bool month_size(WindowId window, long rows, long columns, double& width,
+                    double& height) override;
     void animate(WindowId window, const std::string& action,
                  const std::string& path, long repeat, long first,
                  long last) override;
