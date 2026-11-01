@@ -170,7 +170,9 @@ struct CommonSnapshot {
     bool show_today{true};
     bool week_numbers{false};
     bool multi_select{false};
-    long first_day{1};  // 1 is Sunday
+    bool center{false};       // Animation: the clip is centred
+    bool transparent{false};  // Animation: the background shows through
+    long first_day{1};        // 1 is Sunday
     long max_select{7};
     std::string text;
     std::string simple_text;
@@ -259,6 +261,18 @@ public:
     virtual void set_value(WindowId window, long value) {
         static_cast<void>(window);
         static_cast<void>(value);
+    }
+    // The Animation control: "open" (a file path), "play" (repeat count, first
+    // and last frame), "stop" and "close".
+    virtual void animate(WindowId window, const std::string& action,
+                         const std::string& path, long repeat, long first,
+                         long last) {
+        static_cast<void>(window);
+        static_cast<void>(action);
+        static_cast<void>(path);
+        static_cast<void>(repeat);
+        static_cast<void>(first);
+        static_cast<void>(last);
     }
     // A scroll bar's range, position and step sizes.
     virtual void set_scroll(WindowId window, long minimum, long maximum,

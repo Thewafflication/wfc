@@ -94,6 +94,9 @@ public:
     void set_button_image(WindowId window, long picture) override;
     void begin_drag(WindowId window) override;
     void sync_common(WindowId window, const CommonSnapshot& snapshot) override;
+    void animate(WindowId window, const std::string& action,
+                 const std::string& path, long repeat, long first,
+                 long last) override;
     // A WM_NOTIFY of a common control (true when it was handled).
     bool common_notify(const void* header, std::intptr_t lparam);
     // An image list (HIMAGELIST) of the pictures `ids`, each scaled to the

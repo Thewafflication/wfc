@@ -795,6 +795,8 @@ WindowId Win32Host::create_window(const std::string& kind,
             style |= DTS_UPDOWN;
         }
         make_child(L"SysDateTimePick32", style);
+    } else if (kind == "Animation") {
+        make_child(L"SysAnimate32", 0);
     } else if (kind == "MonthView") {
         // Always able to select a range: the model keeps one date when
         // MultiSelect is False.

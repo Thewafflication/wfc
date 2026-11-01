@@ -24,6 +24,9 @@ bool ocx_get(Interpreter& in, ControlObject& self, const std::string& member,
     if (self.class_key == "dtpicker") {
         return dtpicker_get(in, self, member, result);
     }
+    if (self.class_key == "animation") {
+        return animation_get(in, self, member, arguments, result, failure);
+    }
     return false;
 }
 
