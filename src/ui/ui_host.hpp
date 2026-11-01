@@ -161,6 +161,17 @@ struct CommonSnapshot {
     bool select_range{false};
     bool locked{false};
     bool wrap{false};
+    // A calendar (MonthView): date serials, and how it is shown.
+    double date_value{0};
+    double date_start{0};
+    double date_end{0};
+    double date_min{0};
+    double date_max{0};
+    bool show_today{true};
+    bool week_numbers{false};
+    bool multi_select{false};
+    long first_day{1};  // 1 is Sunday
+    long max_select{7};
     std::string text;
     std::string simple_text;
     // Host picture ids of the images of the control's ImageList (and of the

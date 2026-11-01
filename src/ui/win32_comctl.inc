@@ -114,6 +114,36 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
                          MAKELPARAM(snapshot.sel_start,
                                     snapshot.sel_start + snapshot.sel_length));
         }
+    } else if (kind == "monthview") {
+        const auto to_system = [](const double serial) {
+            SYSTEMTIME time{};
+            VariantTimeToSystemTime(serial, &time);
+            return time;
+        };
+        LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        style &= ~static_cast<LONG_PTR>(MCS_NOTODAY | MCS_NOTODAYCIRCLE |
+                                        MCS_WEEKNUMBERS);
+        if (!snapshot.show_today) {
+            style |= MCS_NOTODAY | MCS_NOTODAYCIRCLE;
+        }
+        if (snapshot.week_numbers) {
+            style |= MCS_WEEKNUMBERS;
+        }
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+        SYSTEMTIME limits[2] = {to_system(snapshot.date_min),
+                                to_system(snapshot.date_max)};
+        SendMessageW(hwnd, MCM_SETRANGE, GDTR_MIN | GDTR_MAX,
+                     reinterpret_cast<LPARAM>(limits));
+        SendMessageW(hwnd, MCM_SETMAXSELCOUNT,
+                     static_cast<WPARAM>(std::max<long>(1, snapshot.max_select)),
+                     0);
+        // MCM_SETFIRSTDAYOFWEEK counts from Monday (0) to Sunday (6).
+        SendMessageW(hwnd, MCM_SETFIRSTDAYOFWEEK, 0,
+                     (snapshot.first_day + 5) % 7);
+        SYSTEMTIME selection[2] = {to_system(snapshot.date_start),
+                                   to_system(snapshot.date_end)};
+        SendMessageW(hwnd, MCM_SETSELRANGE, 0,
+                     reinterpret_cast<LPARAM>(selection));
     } else if (kind == "updown") {
         LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
         style &= ~static_cast<LONG_PTR>(UDS_HORZ | UDS_WRAP);
@@ -376,6 +406,18 @@ bool Win32Host::common_notify(const void* raw_header,
         queue(UiEvent{control, "ComctlInput", {action, rest}});
     };
     const std::string& kind = entry->kind;
+    if (kind == "MonthView" && header.code == MCN_SELECT) {
+        // The user chose a date or a range: `start end` as yyyy-mm-dd.
+        const auto* chosen = reinterpret_cast<const NMSELCHANGE*>(lparam);
+        const auto text = [](const SYSTEMTIME& time) {
+            char buffer[32];
+            std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", time.wYear,
+                          time.wMonth, time.wDay);
+            return std::string(buffer);
+        };
+        post("select", text(chosen->stSelStart) + " " + text(chosen->stSelEnd));
+        return true;
+    }
     if (kind == "TabStrip" && header.code == TCN_SELCHANGE) {
         post("select", std::to_string(SendMessageW(header.hwndFrom, TCM_GETCURSEL, 0, 0) + 1));
         return true;

@@ -218,7 +218,7 @@ namespace {
         class_name == "optionbutton" || class_name == "hscrollbar" ||
         class_name == "vscrollbar" || class_name == "progressbar" ||
         class_name == "slider" || class_name == "updown" ||
-        class_name == "flatscrollbar") {
+        class_name == "flatscrollbar" || class_name == "monthview") {
         return "value";
     }
     if (class_name == "imagecombo") {

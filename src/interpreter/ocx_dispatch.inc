@@ -18,11 +18,15 @@ bool ocx_get(Interpreter& in, ControlObject& self, const std::string& member,
     if (self.class_key == "updown") {
         return updown_get(in, self, member);
     }
+    if (self.class_key == "monthview") {
+        return monthview_get(in, self, member, arguments, result, failure);
+    }
     return false;
 }
 
 bool ocx_put(Interpreter& in, ControlObject& self, const std::string& member,
-             const Value& value, NativeFailure& failure) {
+             std::vector<CallArgument>& arguments, const Value& value,
+             NativeFailure& failure) {
     if (self.class_key == "commondialog" && member == "action") {
         static const char* const kActions[] = {"",          "showopen",
                                                "showsave",  "showcolor",
@@ -39,6 +43,9 @@ bool ocx_put(Interpreter& in, ControlObject& self, const std::string& member,
     }
     if (self.class_key == "updown") {
         return updown_put(in, self, member, value);
+    }
+    if (self.class_key == "monthview") {
+        return monthview_put(in, self, member, arguments, value, failure);
     }
     return false;
 }
