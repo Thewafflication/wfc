@@ -160,6 +160,7 @@ struct CommonSnapshot {
     long sel_length{0};
     bool select_range{false};
     bool locked{false};
+    bool wrap{false};
     std::string text;
     std::string simple_text;
     // Host picture ids of the images of the control's ImageList (and of the

@@ -114,6 +114,22 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
                          MAKELPARAM(snapshot.sel_start,
                                     snapshot.sel_start + snapshot.sel_length));
         }
+    } else if (kind == "updown") {
+        LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        style &= ~static_cast<LONG_PTR>(UDS_HORZ | UDS_WRAP);
+        if (!snapshot.vertical) {
+            style |= UDS_HORZ;
+        }
+        if (snapshot.wrap) {
+            style |= UDS_WRAP;
+        }
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+        SendMessageW(hwnd, UDM_SETRANGE32, snapshot.min, snapshot.max);
+        SendMessageW(hwnd, UDM_SETPOS32, 0, snapshot.value);
+        UDACCEL step{};
+        step.nSec = 0;
+        step.nInc = static_cast<UINT>(std::max<long>(1, snapshot.small_change));
+        SendMessageW(hwnd, UDM_SETACCEL, 1, reinterpret_cast<LPARAM>(&step));
     } else if (kind == "tabstrip") {
         SendMessageW(hwnd, TCM_DELETEALLITEMS, 0, 0);
         entry->images = replace_images(hwnd, TCM_SETIMAGELIST, 0, entry->images,

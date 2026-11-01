@@ -217,7 +217,7 @@ namespace {
     if (class_name == "commandbutton" || class_name == "checkbox" ||
         class_name == "optionbutton" || class_name == "hscrollbar" ||
         class_name == "vscrollbar" || class_name == "progressbar" ||
-        class_name == "slider") {
+        class_name == "slider" || class_name == "updown") {
         return "value";
     }
     if (class_name == "imagecombo") {
@@ -6537,10 +6537,14 @@ void Interpreter::register_native_types() {
         proxy.display_name = name;
         proxy.native_type = common_types.contains(name) ? "control" : name;
         if (common_types.contains(name)) {
-            const std::string library = name == "winsock" ? "mswinsocklib."
-                                        : name == "commondialog"
-                                            ? "mscomdlg."
-                                            : "mscomctllib.";
+            const std::string library =
+                name == "winsock"        ? "mswinsocklib."
+                : name == "commondialog" ? "mscomdlg."
+                : name == "updown" || name == "animation" ||
+                        name == "monthview" || name == "dtpicker" ||
+                        name == "flatscrollbar"
+                    ? "mscomctl2."
+                    : "mscomctllib.";
             class_definitions_.emplace(library + name, proxy);
         }
         class_definitions_.emplace(name, std::move(proxy));
@@ -7092,6 +7096,7 @@ bool Interpreter::run_forms_at_exit() {
 #include "ocx_support.inc"
 #include <wfc/comdlg32/comdlg32.inc>
 #include <wfc/mswinsck/mswinsck.inc>
+#include <wfc/mscomctl2/mscomctl2.inc>
 #include "ocx_dispatch.inc"
 // clang-format on
 

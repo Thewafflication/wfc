@@ -7,6 +7,7 @@
 
 #include <wfc/comdlg32/comdlg32.hpp>
 #include <wfc/mscomctl/mscomctl.hpp>
+#include <wfc/mscomctl2/mscomctl2.hpp>
 #include <wfc/mswinsck/mswinsck.hpp>
 
 namespace wfc::ui {
@@ -57,6 +58,9 @@ std::span<const ControlClass> ocx_classes() {
             result.push_back(control);
         }
         for (const auto& control : mswinsck_classes()) {
+            result.push_back(control);
+        }
+        for (const auto& control : mscomctl2_classes()) {
             result.push_back(control);
         }
         return result;

@@ -484,6 +484,20 @@ struct Win32Support {
                 if (control == kNoWindow) {
                     break;
                 }
+                if (const auto* spin = host->find(control);
+                    spin != nullptr && spin->kind == "UpDown") {
+                    // The arrows moved: the new position, for the interpreter
+                    // to raise UpClick, DownClick and Change.
+                    if (LOWORD(wparam) == SB_THUMBPOSITION) {
+                        host->queue(UiEvent{
+                            control,
+                            "ComctlInput",
+                            {std::string{"position"},
+                             std::to_string(static_cast<long>(
+                                 SendMessageW(bar, UDM_GETPOS32, 0, 0)))}});
+                    }
+                    return 0;
+                }
                 if (const auto* slider = host->find(control);
                     slider != nullptr && slider->kind == "Slider") {
                     host->queue(UiEvent{
@@ -770,6 +784,8 @@ WindowId Win32Host::create_window(const std::string& kind,
         make_child(L"msctls_progress32", 0);
     } else if (kind == "Slider") {
         make_child(L"msctls_trackbar32", TBS_AUTOTICKS | WS_TABSTOP);
+    } else if (kind == "UpDown") {
+        make_child(L"msctls_updown32", UDS_ARROWKEYS | UDS_NOTHOUSANDS);
     } else if (kind == "TreeView") {
         make_child(L"SysTreeView32",
                    TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
