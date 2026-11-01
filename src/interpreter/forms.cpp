@@ -217,7 +217,8 @@ namespace {
     if (class_name == "commandbutton" || class_name == "checkbox" ||
         class_name == "optionbutton" || class_name == "hscrollbar" ||
         class_name == "vscrollbar" || class_name == "progressbar" ||
-        class_name == "slider" || class_name == "updown") {
+        class_name == "slider" || class_name == "updown" ||
+        class_name == "flatscrollbar") {
         return "value";
     }
     if (class_name == "imagecombo") {
@@ -394,7 +395,8 @@ public:
                class_key != "menu";
     }
     [[nodiscard]] bool is_scroll() const {
-        return class_key == "hscrollbar" || class_key == "vscrollbar";
+        return class_key == "hscrollbar" || class_key == "vscrollbar" ||
+               class_key == "flatscrollbar";
     }
 };
 
@@ -2721,6 +2723,12 @@ struct FormSupport {
             flag_of(object, "multiline")) {
             return "TextBox:" + std::to_string(static_cast<int>(
                                     number_of(object, "scrollbars")));
+        }
+        if (object.class_key == "flatscrollbar") {
+            // One class for both directions: the window is the scroll bar of
+            // the Orientation at creation (cc2OrientationVertical is 0).
+            return number_of(object, "orientation") == 1.0 ? "HScrollBar"
+                                                           : "VScrollBar";
         }
         return object.cls->name;
     }
