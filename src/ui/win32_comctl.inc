@@ -76,6 +76,11 @@ void* Win32Host::build_image_list(const std::vector<long>& ids,
     return list;
 }
 
+static void month_day_states(const std::vector<double>& bold,
+                             const SYSTEMTIME& first, int months,
+                             MONTHDAYSTATE* states);
+static std::string month_range_text(const SYSTEMTIME& first, int months);
+
 void Win32Host::animate(const WindowId window, const std::string& action,
                         const std::string& path, const long repeat,
                         const long first, const long last) {
@@ -220,6 +225,23 @@ void Win32Host::sync_common(const WindowId window,
                                    to_system(snapshot.date_end)};
         SendMessageW(hwnd, MCM_SETSELRANGE, 0,
                      reinterpret_cast<LPARAM>(selection));
+        entry->bold_days = snapshot.bold_days;
+        SYSTEMTIME shown[2] = {};
+        const int months =
+            static_cast<int>(SendMessageW(hwnd, MCM_GETMONTHRANGE, GMR_DAYSTATE,
+                                          reinterpret_cast<LPARAM>(shown)));
+        if (months > 0 && months <= 12) {
+            MONTHDAYSTATE states[12] = {};
+            month_day_states(entry->bold_days, shown[0], months, states);
+            SendMessageW(hwnd, MCM_SETDAYSTATE, static_cast<WPARAM>(months),
+                         reinterpret_cast<LPARAM>(states));
+            // Ask the program (GetDayBold) once for each stretch shown.
+            const std::string asked = month_range_text(shown[0], months);
+            if (asked != entry->bold_asked) {
+                entry->bold_asked = asked;
+                queue(UiEvent{window, "ComctlInput", {"getdaybold", asked}});
+            }
+        }
     } else if (kind == "updown") {
         LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
         style &= ~static_cast<LONG_PTR>(UDS_HORZ | UDS_WRAP);
@@ -513,6 +535,49 @@ void Win32Host::sync_common(const WindowId window,
 }
 
 // A notification of a common control: becomes a ComctlInput event.
+// Bit n of a month's state is day n + 1 of it; `first` is the month the
+// calendar starts at (any day of it).
+static void month_day_states(const std::vector<double>& bold,
+                             const SYSTEMTIME& first, const int months,
+                             MONTHDAYSTATE* states) {
+    for (int at = 0; at < months; ++at) {
+        states[at] = 0;
+        SYSTEMTIME month = first;
+        const int index = month.wMonth - 1 + at;
+        month.wYear = static_cast<WORD>(month.wYear + index / 12);
+        month.wMonth = static_cast<WORD>(index % 12 + 1);
+        for (int day = 1; day <= 31; ++day) {
+            month.wDay = static_cast<WORD>(day);
+            double serial = 0;
+            if (SystemTimeToVariantTime(&month, &serial) == 0) {
+                break;
+            }
+            if (std::find(bold.begin(), bold.end(), std::floor(serial)) !=
+                bold.end()) {
+                states[at] |= 1U << (day - 1);
+            }
+        }
+    }
+}
+
+// `yyyy-mm-dd days`: the first day of the month `first` is in and the days of
+// the `months` months from it.
+static std::string month_range_text(const SYSTEMTIME& first, const int months) {
+    static const int lengths[12] = {31, 28, 31, 30, 31, 30,
+                                    31, 31, 30, 31, 30, 31};
+    long days = 0;
+    for (int at = 0; at < months; ++at) {
+        const int index = first.wMonth - 1 + at;
+        const int year = first.wYear + index / 12;
+        const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+        days += lengths[index % 12] + (index % 12 == 1 && leap ? 1 : 0);
+    }
+    char buffer[48];
+    std::snprintf(buffer, sizeof(buffer), "%04d-%02d-01 %ld", first.wYear,
+                  first.wMonth, days);
+    return buffer;
+}
+
 bool Win32Host::common_notify(const void* raw_header,
                               const std::intptr_t lparam) {
     const NMHDR& header = *static_cast<const NMHDR*>(raw_header);
@@ -552,6 +617,16 @@ bool Win32Host::common_notify(const void* raw_header,
             post("closeup", "");
             return true;
         }
+    }
+    if (kind == "MonthView" && header.code == MCN_GETDAYSTATE) {
+        // The calendar asks which days are bold: answer from the last
+        // snapshot, and let the program's GetDayBold event refresh it.
+        auto* request = reinterpret_cast<NMDAYSTATE*>(lparam);
+        month_day_states(entry->bold_days, request->stStart, request->cDayState,
+                         request->prgDayState);
+        post("getdaybold",
+             month_range_text(request->stStart, request->cDayState));
+        return true;
     }
     if (kind == "MonthView" && header.code == MCN_SELECT) {
         // The user chose a date or a range: `start end` as yyyy-mm-dd.

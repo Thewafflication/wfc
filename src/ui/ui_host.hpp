@@ -170,9 +170,10 @@ struct CommonSnapshot {
     bool show_today{true};
     bool week_numbers{false};
     bool multi_select{false};
-    bool center{false};       // Animation: the clip is centred
-    bool transparent{false};  // Animation: the background shows through
-    long first_day{1};        // 1 is Sunday
+    std::vector<double> bold_days;  // MonthView: whole date serials in bold
+    bool center{false};             // Animation: the clip is centred
+    bool transparent{false};        // Animation: the background shows through
+    long first_day{1};              // 1 is Sunday
     long max_select{7};
     std::string text;
     std::string simple_text;

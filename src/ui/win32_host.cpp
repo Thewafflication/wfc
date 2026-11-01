@@ -98,10 +98,12 @@ struct Win32Host::Entry {
     int off_x{0};
     int off_y{0};
     bool screen_form{false};
-    HFONT font{nullptr};    // set by set_font, owned by the entry
-    FontSpec font_spec;     // what `font` was made from
-    double font_dpi{0.0};   // and at which resolution
-    void* images{nullptr};  // HIMAGELIST handed to the control
+    HFONT font{nullptr};            // set by set_font, owned by the entry
+    FontSpec font_spec;             // what `font` was made from
+    double font_dpi{0.0};           // and at which resolution
+    void* images{nullptr};          // HIMAGELIST handed to the control
+    std::vector<double> bold_days;  // MonthView days drawn in bold
+    std::string bold_asked;  // MonthView range GetDayBold was last asked for
     void* small_images{nullptr};
 };
 
@@ -800,7 +802,8 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "MonthView") {
         // Always able to select a range: the model keeps one date when
         // MultiSelect is False.
-        make_child(L"SysMonthCal32", MCS_MULTISELECT | WS_TABSTOP);
+        make_child(L"SysMonthCal32",
+                   MCS_MULTISELECT | MCS_DAYSTATE | WS_TABSTOP);
     } else if (kind == "TreeView") {
         make_child(L"SysTreeView32",
                    TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
