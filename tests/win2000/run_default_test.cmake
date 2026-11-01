@@ -51,7 +51,7 @@ endif()
 # A program with a library function on Variants: the runtime of this wfc,
 # with a note.
 build(library full.exe)
-if(NOT build_error MATCHES "note: the program uses Variant arrays and")
+if(NOT build_error MATCHES "note: the program uses the library function")
   message(FATAL_ERROR "no note about the function: '${build_error}'")
 endif()
 if(build_size LESS 1000000)

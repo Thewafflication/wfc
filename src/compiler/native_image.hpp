@@ -44,6 +44,9 @@ struct NativeImage final {
     // part of the file: the build reads it to see whether a smaller runtime
     // can run the program.
     std::vector<int> services_used;
+    // The library functions of the `variant_call` service (lower case, as
+    // the program names them).
+    std::vector<std::string> library_calls;
 };
 
 // Version of the entry table layout (the order of `ir::Service`). The loader

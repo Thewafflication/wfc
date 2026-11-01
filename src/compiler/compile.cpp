@@ -25,6 +25,19 @@ BackEndResult generate_code(const ir::Program& program,
         for (const auto& instruction : function.code) {
             if (instruction.op == ir::Opcode::runtime) {
                 result.image.services_used.push_back(instruction.target);
+                if (instruction.target ==
+                        static_cast<int>(ir::Service::variant_call) &&
+                    !instruction.args.empty() &&
+                    instruction.args[0].kind == ir::OperandKind::literal) {
+                    const auto at =
+                        static_cast<std::size_t>(instruction.args[0].value);
+                    if (at < program.strings.size() &&
+                        instruction.args.size() > 1) {
+                        result.image.library_calls.push_back(
+                            program.strings[at] + "/" +
+                            std::to_string(instruction.args[1].value));
+                    }
+                }
             }
         }
     }
@@ -34,6 +47,12 @@ BackEndResult generate_code(const ir::Program& program,
         std::unique(result.image.services_used.begin(),
                     result.image.services_used.end()),
         result.image.services_used.end());
+    std::sort(result.image.library_calls.begin(),
+              result.image.library_calls.end());
+    result.image.library_calls.erase(
+        std::unique(result.image.library_calls.begin(),
+                    result.image.library_calls.end()),
+        result.image.library_calls.end());
     return result;
 }
 

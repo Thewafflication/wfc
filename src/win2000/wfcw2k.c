@@ -2888,6 +2888,612 @@ static int32_t variant_is_numeric(const RtVariant* handle) {
     return is_number_type(type) || type == VT_BOOL ? -1 : 0;
 }
 
+/* ----- Library functions on Variants (service 77)
+ * ---------------------------------------
+ *
+ * (name, count, block): the function of the VBA library by name (lower case,
+ * without a `$`), its arguments the handles of eight-byte cells read upward
+ * from `block`. The names the runtime knows are listed in
+ * src/compiler/small_runtime.hpp; the results are those of the interpreter. */
+
+static RtVariant* argument_at(const char* block, int32_t index) {
+    RtVariant* handle;
+    memcpy(&handle, block + 8 * (size_t)index, sizeof(handle));
+    return handle;
+}
+
+static RtVariant* variant_from_text(RtString* text) {
+    RtVariant* handle = new_variant(VT_BSTR);
+    handle->u.s = text; /* the new string's own count */
+    return handle;
+}
+
+/* The operand of Abs, Int and Fix: its value, and the type of the result. */
+static int math_operand(const RtVariant* handle, double* value, int* type) {
+    switch (vtype(handle)) {
+        case VT_EMPTY:
+            *value = 0.0;
+            *type = VT_I2;
+            return 1;
+        case VT_BOOL:
+            *value = handle->u.l != 0 ? -1.0 : 0.0;
+            *type = VT_I2;
+            return 1;
+        case VT_I2:
+            *value = (double)handle->u.l;
+            *type = VT_I2;
+            return 1;
+        case VT_I4:
+        case VT_UI1:
+            *value = (double)handle->u.l;
+            *type = VT_I4;
+            return 1;
+        case VT_R4:
+            *value = (double)handle->u.f;
+            *type = VT_R4;
+            return 1;
+        case VT_R8:
+            *value = handle->u.d;
+            *type = VT_R8;
+            return 1;
+        case VT_BSTR:
+            *type = VT_R8;
+            if (!parse_numeric(handle->u.s == NULL ? "" : handle->u.s->data,
+                               (size_t)length_of(handle->u.s), value)) {
+                raise_error(13);
+                return 0;
+            }
+            return 1;
+        default:
+            raise_error(13);
+            return 0;
+    }
+}
+
+static RtVariant* number_of_type(double value, int type) {
+    RtVariant* handle;
+    switch (type) {
+        case VT_I2:
+            return variant_whole_result(VT_I2, (int64_t)value);
+        case VT_I4:
+            return variant_whole_result(VT_I4, (int64_t)value);
+        case VT_R4:
+            handle = new_variant(VT_R4);
+            handle->u.f = (float)value;
+            return handle;
+        default:
+            return variant_from_double(value);
+    }
+}
+
+/* Abs, Int, Fix: which = 0, 1, 2. */
+static RtVariant* library_round(const RtVariant* argument, int which) {
+    double value;
+    int type;
+    if (vtype(argument) == VT_NULL) {
+        return variant_null();
+    }
+    if (!math_operand(argument, &value, &type)) {
+        return NULL;
+    }
+    if (which == 0) {
+        if (type == VT_I2 && value == -32768.0) {
+            return variant_fail(6);
+        }
+        value = fabs(value);
+    } else if (type == VT_R4 || type == VT_R8) {
+        value = which == 1 ? floor(value) : trunc(value);
+    }
+    return number_of_type(value, type);
+}
+
+static RtVariant* library_sgn(const RtVariant* argument) {
+    double value;
+    int type;
+    if (vtype(argument) == VT_NULL) {
+        return variant_null();
+    }
+    if (!math_operand(argument, &value, &type)) {
+        return NULL;
+    }
+    return variant_from_long(value > 0.0 ? 1 : (value < 0.0 ? -1 : 0));
+}
+
+static RtVariant* library_sqr(const RtVariant* argument) {
+    double value;
+    if (vtype(argument) == VT_NULL) {
+        return variant_fail(94);
+    }
+    if (!number_of(argument, &value)) {
+        return variant_fail(13);
+    }
+    if (value < 0.0) {
+        return variant_fail(5);
+    }
+    return variant_from_double(accurate_sqrt(value));
+}
+
+/* CInt, CLng, CByte: which = 0, 1, 2. */
+static RtVariant* library_convert_whole(const RtVariant* argument, int which) {
+    double value;
+    double rounded;
+    if (vtype(argument) == VT_NULL) {
+        return variant_fail(94);
+    }
+    if (which == 2 && vtype(argument) == VT_BOOL) {
+        return variant_whole_result(VT_UI1, argument->u.l != 0 ? 255 : 0);
+    }
+    if (!number_of(argument, &value)) {
+        return variant_fail(13);
+    }
+    rounded = nearbyint(value);
+    if (which == 0) {
+        if (!(rounded >= -32768.0 && rounded <= 32767.0)) {
+            return variant_fail(6);
+        }
+        return variant_whole_result(VT_I2, (int64_t)rounded);
+    }
+    if (which == 1) {
+        if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+            return variant_fail(6);
+        }
+        return variant_whole_result(VT_I4, (int64_t)rounded);
+    }
+    if (!(rounded >= 0.0 && rounded <= 255.0)) {
+        return variant_fail(6);
+    }
+    return variant_whole_result(VT_UI1, (int64_t)rounded);
+}
+
+static RtVariant* library_cdbl(const RtVariant* argument, int single) {
+    double value;
+    RtVariant* handle;
+    if (vtype(argument) == VT_NULL) {
+        return variant_fail(94);
+    }
+    if (!number_of(argument, &value)) {
+        return variant_fail(13);
+    }
+    if (!single) {
+        return variant_from_double(value);
+    }
+    if (fabs(value) > 3.4028234663852886e38) {
+        return variant_fail(6);
+    }
+    handle = new_variant(VT_R4);
+    handle->u.f = (float)value;
+    return handle;
+}
+
+/* Len, UCase, LCase, Trim, LTrim, RTrim and CStr: the text of the value. */
+static RtVariant* library_text(const RtVariant* argument, int which) {
+    RtString* text;
+    RtString* result;
+    if (vtype(argument) == VT_NULL) {
+        return which == 7 ? variant_fail(94) : variant_null();
+    }
+    text = variant_render(argument);
+    switch (which) {
+        case 0:
+            result = NULL;
+            {
+                RtVariant* handle = variant_from_long(length_of(text));
+                release(text);
+                return handle;
+            }
+        case 1:
+            result = string_upper(text);
+            break;
+        case 2:
+            result = string_lower(text);
+            break;
+        case 3:
+            result = string_trim(text);
+            break;
+        case 4:
+            result = string_ltrim(text);
+            break;
+        case 5:
+            result = string_rtrim(text);
+            break;
+        default:
+            result = retain(text);
+            break;
+    }
+    release(text);
+    return variant_from_text(result);
+}
+
+/* ----- Library functions with more than one argument */
+
+/* A count or position argument (Left, Mid, Space, String, Choose): Null and
+ * text that is not a number are a type mismatch, a fraction rounds to even. */
+static int count_argument(const RtVariant* handle, int32_t* into) {
+    double parsed;
+    switch (vtype(handle)) {
+        case VT_NULL:
+            raise_error(13);
+            return 0;
+        case VT_EMPTY:
+            *into = 0;
+            return 1;
+        case VT_BOOL:
+            *into = handle->u.l != 0 ? -1 : 0;
+            return 1;
+        case VT_I2:
+        case VT_I4:
+        case VT_UI1:
+            *into = handle->u.l;
+            return 1;
+        case VT_R4:
+        case VT_R8:
+            return round_to_long(number_value(handle), into);
+        case VT_BSTR:
+            if (parse_numeric(handle->u.s == NULL ? "" : handle->u.s->data,
+                              (size_t)length_of(handle->u.s), &parsed)) {
+                return round_to_long(parsed, into);
+            }
+            raise_error(13);
+            return 0;
+        default:
+            raise_error(13);
+            return 0;
+    }
+}
+
+/* Left, Right: which = 0, 1. */
+static RtVariant* library_edge(const RtVariant* text_argument,
+                               const RtVariant* count_value, int which) {
+    int32_t count;
+    RtString* text;
+    RtString* result;
+    if (vtype(text_argument) == VT_NULL && vtype(count_value) == VT_NULL) {
+        return variant_null();
+    }
+    if (!count_argument(count_value, &count)) {
+        return NULL;
+    }
+    if (vtype(text_argument) == VT_NULL) {
+        return variant_null();
+    }
+    if (count < 0) {
+        return variant_fail(5);
+    }
+    text = variant_render(text_argument);
+    result = which == 0 ? string_left(text, count) : string_right(text, count);
+    release(text);
+    return variant_from_text(result);
+}
+
+/* Mid(text, start[, length]). */
+static RtVariant* library_mid(const RtVariant* text_argument,
+                              const RtVariant* start_value,
+                              const RtVariant* length_value, int has_length) {
+    int32_t start;
+    int32_t length = OMITTED;
+    RtString* text;
+    RtString* result;
+    if (vtype(text_argument) == VT_NULL && vtype(start_value) == VT_NULL) {
+        return variant_null();
+    }
+    if (!count_argument(start_value, &start)) {
+        return NULL;
+    }
+    if (has_length && !count_argument(length_value, &length)) {
+        return NULL;
+    }
+    if (vtype(text_argument) == VT_NULL) {
+        return variant_null();
+    }
+    if (start < 1 || (has_length && length < 0)) {
+        return variant_fail(5);
+    }
+    text = variant_render(text_argument);
+    result = string_mid(text, start, length);
+    release(text);
+    return variant_from_text(result);
+}
+
+static RtVariant* library_instr(const RtVariant* haystack,
+                                const RtVariant* needle) {
+    RtString* text;
+    RtString* pattern;
+    int32_t found = 0;
+    if (vtype(haystack) == VT_NULL || vtype(needle) == VT_NULL) {
+        return variant_fail(13);
+    }
+    text = variant_render(haystack);
+    pattern = variant_render(needle);
+    if (length_of(text) == 0) {
+        found = 0;
+    } else if (length_of(pattern) == 0) {
+        found = 1;
+    } else {
+        found = string_instr(1, text, pattern);
+    }
+    release(text);
+    release(pattern);
+    return variant_from_long(found);
+}
+
+static RtVariant* library_strcomp(const RtVariant* left,
+                                  const RtVariant* right) {
+    RtString* a;
+    RtString* b;
+    int32_t order;
+    if (vtype(left) == VT_NULL || vtype(right) == VT_NULL) {
+        return variant_null();
+    }
+    a = variant_render(left);
+    b = variant_render(right);
+    order = string_compare(a, b);
+    release(a);
+    release(b);
+    return variant_from_long(order);
+}
+
+static RtVariant* library_replace(const RtVariant* source,
+                                  const RtVariant* find,
+                                  const RtVariant* with) {
+    RtString* text;
+    RtString* pattern;
+    RtString* replacement;
+    RtString* result;
+    char* buffer;
+    int32_t length;
+    int32_t want;
+    int32_t with_length;
+    int32_t at = 0;
+    size_t used = 0;
+    size_t capacity;
+    if (vtype(source) == VT_NULL || vtype(find) == VT_NULL ||
+        vtype(with) == VT_NULL) {
+        return variant_fail(13);
+    }
+    text = variant_render(source);
+    pattern = variant_render(find);
+    replacement = variant_render(with);
+    length = length_of(text);
+    want = length_of(pattern);
+    with_length = length_of(replacement);
+    if (want == 0 || length == 0) {
+        release(pattern);
+        release(replacement);
+        return variant_from_text(text);
+    }
+    capacity = (size_t)length + 1U;
+    buffer = (char*)malloc(capacity);
+    if (buffer == NULL) {
+        die("out of memory");
+    }
+    while (at < length) {
+        if (at + want <= length &&
+            memcmp(text->data + at, pattern->data, (size_t)want) == 0) {
+            if (used + (size_t)with_length + 1U > capacity) {
+                capacity = (used + (size_t)with_length + 1U) * 2U;
+                buffer = (char*)realloc(buffer, capacity);
+                if (buffer == NULL) {
+                    die("out of memory");
+                }
+            }
+            if (with_length > 0) {
+                memcpy(buffer + used, replacement->data, (size_t)with_length);
+            }
+            used += (size_t)with_length;
+            at += want;
+        } else {
+            if (used + 2U > capacity) {
+                capacity = (used + 2U) * 2U;
+                buffer = (char*)realloc(buffer, capacity);
+                if (buffer == NULL) {
+                    die("out of memory");
+                }
+            }
+            buffer[used++] = text->data[at++];
+        }
+    }
+    result = make_string(buffer, used);
+    free(buffer);
+    release(text);
+    release(pattern);
+    release(replacement);
+    return variant_from_text(result);
+}
+
+static RtVariant* library_space(const RtVariant* count_value) {
+    int32_t count;
+    if (!count_argument(count_value, &count)) {
+        return NULL;
+    }
+    if (count < 0) {
+        return variant_fail(5);
+    }
+    return variant_from_text(string_space(count));
+}
+
+/* String(count, character): a text gives its first character, a whole number
+ * its code. */
+static RtVariant* library_string(const RtVariant* count_value,
+                                 const RtVariant* character) {
+    int32_t count;
+    int32_t code;
+    char one;
+    RtString* result;
+    int32_t i;
+    if (!count_argument(count_value, &count)) {
+        return NULL;
+    }
+    if (vtype(character) == VT_BSTR) {
+        if (length_of(character->u.s) == 0) {
+            return variant_fail(5);
+        }
+        one = character->u.s->data[0];
+    } else if (vtype(character) == VT_I2 || vtype(character) == VT_I4 ||
+               vtype(character) == VT_UI1) {
+        code = character->u.l;
+        one = (char)(code & 0xFF);
+    } else {
+        return variant_fail(13);
+    }
+    if (count < 0) {
+        return variant_fail(5);
+    }
+    if (count == 0) {
+        return variant_from_text(NULL);
+    }
+    {
+        RtString* filled = string_space(count);
+        for (i = 0; i < count; ++i) {
+            filled->data[i] = one;
+        }
+        result = filled;
+    }
+    return variant_from_text(result);
+}
+
+static RtVariant* library_iif(const RtVariant* condition,
+                              const RtVariant* when_true,
+                              const RtVariant* when_false) {
+    int32_t answer = variant_to_boolean(condition);
+    if (*g_pending != 0) {
+        return NULL;
+    }
+    return variant_retain((RtVariant*)(answer != 0 ? when_true : when_false));
+}
+
+static RtVariant* library_choose(const RtVariant* index, int32_t count,
+                                 const char* block) {
+    int32_t chosen;
+    if (!count_argument(index, &chosen)) {
+        return NULL;
+    }
+    if (chosen < 1 || chosen >= count) {
+        return variant_null();
+    }
+    return variant_retain(argument_at(block, chosen));
+}
+
+static int name_is(const RtString* name, const char* wanted) {
+    size_t size = strlen(wanted);
+    size_t have = (size_t)length_of(name);
+    if (have > 0U && name->data[have - 1U] == '$') {
+        --have; /* Left$ is Left */
+    }
+    return have == size && memcmp(name->data, wanted, size) == 0;
+}
+
+static RtVariant* variant_call(const RtString* name, int32_t count,
+                               const char* block) {
+    RtVariant* first = count > 0 ? argument_at(block, 0) : NULL;
+    if (count == 1) {
+        if (name_is(name, "abs")) {
+            return library_round(first, 0);
+        }
+        if (name_is(name, "int")) {
+            return library_round(first, 1);
+        }
+        if (name_is(name, "fix")) {
+            return library_round(first, 2);
+        }
+        if (name_is(name, "sgn")) {
+            return library_sgn(first);
+        }
+        if (name_is(name, "sqr")) {
+            return library_sqr(first);
+        }
+        if (name_is(name, "cint")) {
+            return library_convert_whole(first, 0);
+        }
+        if (name_is(name, "clng")) {
+            return library_convert_whole(first, 1);
+        }
+        if (name_is(name, "cbyte")) {
+            return library_convert_whole(first, 2);
+        }
+        if (name_is(name, "cdbl")) {
+            return library_cdbl(first, 0);
+        }
+        if (name_is(name, "csng")) {
+            return library_cdbl(first, 1);
+        }
+        if (name_is(name, "cstr")) {
+            return library_text(first, 7);
+        }
+        if (name_is(name, "cbool")) {
+            if (vtype(first) == VT_NULL) {
+                return variant_fail(94);
+            }
+            {
+                int32_t answer = variant_to_boolean(first);
+                if (*g_pending != 0) {
+                    return NULL;
+                }
+                return variant_from_boolean(answer);
+            }
+        }
+        if (name_is(name, "len")) {
+            return library_text(first, 0);
+        }
+        if (name_is(name, "ucase")) {
+            return library_text(first, 1);
+        }
+        if (name_is(name, "lcase")) {
+            return library_text(first, 2);
+        }
+        if (name_is(name, "trim")) {
+            return library_text(first, 3);
+        }
+        if (name_is(name, "ltrim")) {
+            return library_text(first, 4);
+        }
+        if (name_is(name, "rtrim")) {
+            return library_text(first, 5);
+        }
+    }
+    if (count == 2) {
+        if (name_is(name, "left")) {
+            return library_edge(first, argument_at(block, 1), 0);
+        }
+        if (name_is(name, "right")) {
+            return library_edge(first, argument_at(block, 1), 1);
+        }
+        if (name_is(name, "mid")) {
+            return library_mid(first, argument_at(block, 1), NULL, 0);
+        }
+        if (name_is(name, "instr")) {
+            return library_instr(first, argument_at(block, 1));
+        }
+        if (name_is(name, "strcomp")) {
+            return library_strcomp(first, argument_at(block, 1));
+        }
+        if (name_is(name, "string")) {
+            return library_string(first, argument_at(block, 1));
+        }
+    }
+    if (count == 3) {
+        if (name_is(name, "mid")) {
+            return library_mid(first, argument_at(block, 1),
+                               argument_at(block, 2), 1);
+        }
+        if (name_is(name, "replace")) {
+            return library_replace(first, argument_at(block, 1),
+                                   argument_at(block, 2));
+        }
+        if (name_is(name, "iif")) {
+            return library_iif(first, argument_at(block, 1),
+                               argument_at(block, 2));
+        }
+    }
+    if (count >= 2 && name_is(name, "choose")) {
+        return library_choose(first, count, block);
+    }
+    if (count == 1 && name_is(name, "space")) {
+        return library_space(first);
+    }
+    die("wfc: a library function of the program is not in this runtime");
+    return NULL;
+}
+
 static void fill_table(void) {
     int i;
     for (i = 0; i < SERVICE_COUNT; ++i) {
@@ -2962,6 +3568,7 @@ static void fill_table(void) {
     g_table[66] = (void*)variant_type_name;
     g_table[67] = (void*)variant_var_type;
     g_table[68] = (void*)variant_is_numeric;
+    g_table[77] = (void*)variant_call;
     g_table[78] = (void*)variant_missing;
     g_table[79] = (void*)variant_is_missing;
     g_table[90] = (void*)variant_from_byte;

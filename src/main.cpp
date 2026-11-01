@@ -561,20 +561,31 @@ int build_package(const int argument_count, const char* const arguments[]) {
         if (failure != 0 && strict) {
             return failure;
         }
-        const int missing = failure == 0 ? wfc::compiler::small_runtime_missing(
-                                               prepared->image.services_used)
-                                         : -1;
+        int missing = failure == 0 ? wfc::compiler::small_runtime_missing(
+                                         prepared->image.services_used)
+                                   : -1;
+        std::string missing_feature =
+            missing >= 0 ? wfc::compiler::small_runtime_feature(missing) : "";
+        if (failure == 0 && missing < 0) {
+            const std::string function =
+                wfc::compiler::small_runtime_missing_function(
+                    prepared->image.library_calls);
+            if (!function.empty()) {
+                missing =
+                    static_cast<int>(wfc::compiler::ir::Service::variant_call);
+                missing_feature =
+                    "the library function " + function + " on Variants";
+            }
+        }
         if (failure == 0 && missing >= 0) {
             if (strict) {
-                std::cerr << "wfc: error: the program uses "
-                          << wfc::compiler::small_runtime_feature(missing)
+                std::cerr << "wfc: error: the program uses " << missing_feature
                           << " (runtime service " << missing
                           << "), which the runtime for Windows 2000 does not "
                              "have yet\n";
                 return 3;
             }
-            std::cerr << "wfc: note: the program uses "
-                      << wfc::compiler::small_runtime_feature(missing)
+            std::cerr << "wfc: note: the program uses " << missing_feature
                       << ", which the runtime for Windows 2000 does not have "
                          "yet; it gets the full runtime (use --target host "
                          "to hide this note)\n";

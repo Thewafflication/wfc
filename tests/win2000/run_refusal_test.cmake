@@ -17,10 +17,7 @@ execute_process(
   ERROR_VARIABLE error
   OUTPUT_QUIET
 )
-if(
-  NOT result EQUAL 3
-  OR NOT error MATCHES "uses Variant arrays and library functions"
-)
+if(NOT result EQUAL 3 OR NOT error MATCHES "uses the library function format")
   message(FATAL_ERROR "expected a refusal (exit 3): ${result} ${error}")
 endif()
 if(EXISTS "${WORK}/p.exe")
