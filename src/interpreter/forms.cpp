@@ -218,7 +218,8 @@ namespace {
         class_name == "optionbutton" || class_name == "hscrollbar" ||
         class_name == "vscrollbar" || class_name == "progressbar" ||
         class_name == "slider" || class_name == "updown" ||
-        class_name == "flatscrollbar" || class_name == "monthview") {
+        class_name == "flatscrollbar" || class_name == "monthview" ||
+        class_name == "dtpicker") {
         return "value";
     }
     if (class_name == "imagecombo") {
@@ -2726,6 +2727,12 @@ struct FormSupport {
             flag_of(object, "multiline")) {
             return "TextBox:" + std::to_string(static_cast<int>(
                                     number_of(object, "scrollbars")));
+        }
+        if (object.class_key == "dtpicker") {
+            // The check box and the arrows are fixed when the window is made.
+            return std::string("DTPicker:") +
+                   (flag_of(object, "checkbox") ? "1" : "0") +
+                   (flag_of(object, "updown") ? "1" : "0");
         }
         if (object.class_key == "flatscrollbar") {
             // One class for both directions: the window is the scroll bar of

@@ -114,6 +114,38 @@ void Win32Host::sync_common(const WindowId window, const CommonSnapshot& snapsho
                          MAKELPARAM(snapshot.sel_start,
                                     snapshot.sel_start + snapshot.sel_length));
         }
+    } else if (kind == "dtpicker") {
+        const auto to_system = [](const double serial) {
+            SYSTEMTIME time{};
+            VariantTimeToSystemTime(serial, &time);
+            return time;
+        };
+        LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        style &= ~static_cast<LONG_PTR>(DTS_LONGDATEFORMAT | DTS_SHORTDATEFORMAT |
+                                        DTS_TIMEFORMAT);
+        // DTS_LONGDATEFORMAT and DTS_SHORTDATEFORMAT are separate bits.
+        style |= snapshot.style == 1   ? DTS_SHORTDATEFORMAT
+                 : snapshot.style == 2 ? DTS_TIMEFORMAT
+                                       : DTS_LONGDATEFORMAT;
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+        if (snapshot.style == 3) {
+            std::wstring format = wide_text(snapshot.text);
+            SendMessageW(hwnd, DTM_SETFORMATW, 0,
+                         reinterpret_cast<LPARAM>(format.c_str()));
+        } else {
+            SendMessageW(hwnd, DTM_SETFORMATW, 0, 0);
+        }
+        SYSTEMTIME limits[2] = {to_system(snapshot.date_min),
+                                to_system(snapshot.date_max)};
+        SendMessageW(hwnd, DTM_SETRANGE, GDTR_MIN | GDTR_MAX,
+                     reinterpret_cast<LPARAM>(limits));
+        if (snapshot.select_range) {
+            SendMessageW(hwnd, DTM_SETSYSTEMTIME, GDT_NONE, 0);
+        } else {
+            SYSTEMTIME current = to_system(snapshot.date_value);
+            SendMessageW(hwnd, DTM_SETSYSTEMTIME, GDT_VALID,
+                         reinterpret_cast<LPARAM>(&current));
+        }
     } else if (kind == "monthview") {
         const auto to_system = [](const double serial) {
             SYSTEMTIME time{};
@@ -406,6 +438,32 @@ bool Win32Host::common_notify(const void* raw_header,
         queue(UiEvent{control, "ComctlInput", {action, rest}});
     };
     const std::string& kind = entry->kind;
+    if (kind.rfind("DTPicker", 0) == 0) {
+        const auto text = [](const SYSTEMTIME& time) {
+            char buffer[48];
+            std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+                          time.wYear, time.wMonth, time.wDay, time.wHour,
+                          time.wMinute, time.wSecond);
+            return std::string(buffer);
+        };
+        if (header.code == DTN_DATETIMECHANGE) {
+            const auto* change = reinterpret_cast<const NMDATETIMECHANGE*>(lparam);
+            if (change->dwFlags == GDT_NONE) {
+                post("check", "off");
+            } else {
+                post("value", text(change->st));
+            }
+            return true;
+        }
+        if (header.code == DTN_DROPDOWN) {
+            post("dropdown", "");
+            return true;
+        }
+        if (header.code == DTN_CLOSEUP) {
+            post("closeup", "");
+            return true;
+        }
+    }
     if (kind == "MonthView" && header.code == MCN_SELECT) {
         // The user chose a date or a range: `start end` as yyyy-mm-dd.
         const auto* chosen = reinterpret_cast<const NMSELCHANGE*>(lparam);

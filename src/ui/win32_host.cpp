@@ -786,6 +786,15 @@ WindowId Win32Host::create_window(const std::string& kind,
         make_child(L"msctls_trackbar32", TBS_AUTOTICKS | WS_TABSTOP);
     } else if (kind == "UpDown") {
         make_child(L"msctls_updown32", UDS_ARROWKEYS | UDS_NOTHOUSANDS);
+    } else if (kind.rfind("DTPicker:", 0) == 0) {
+        DWORD style = WS_TABSTOP;
+        if (kind.size() > 9 && kind[9] == '1') {
+            style |= DTS_SHOWNONE;
+        }
+        if (kind.size() > 10 && kind[10] == '1') {
+            style |= DTS_UPDOWN;
+        }
+        make_child(L"SysDateTimePick32", style);
     } else if (kind == "MonthView") {
         // Always able to select a range: the model keeps one date when
         // MultiSelect is False.

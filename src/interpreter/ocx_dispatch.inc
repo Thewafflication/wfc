@@ -21,6 +21,9 @@ bool ocx_get(Interpreter& in, ControlObject& self, const std::string& member,
     if (self.class_key == "monthview") {
         return monthview_get(in, self, member, arguments, result, failure);
     }
+    if (self.class_key == "dtpicker") {
+        return dtpicker_get(in, self, member, result);
+    }
     return false;
 }
 
@@ -46,6 +49,9 @@ bool ocx_put(Interpreter& in, ControlObject& self, const std::string& member,
     }
     if (self.class_key == "monthview") {
         return monthview_put(in, self, member, arguments, value, failure);
+    }
+    if (self.class_key == "dtpicker") {
+        return dtpicker_put(in, self, member, value, failure);
     }
     return false;
 }
