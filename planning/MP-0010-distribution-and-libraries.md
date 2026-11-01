@@ -9,7 +9,10 @@
 Make WFC installable and its libraries independent, versioned and linkable
 either way, with a command line that explains itself.
 
-**Windows 2000 and later is a goal of this milestone.** The programs WFC
+**Windows 2000 and later is deferred (owner, 2026-11-01): WFC builds with
+the current MSVC and the full runtime is the default; the work below stays in
+the tree as an opt-in (`--target win2000`, `WFC_TARGET=win2000`).** It was a
+goal of this milestone. The programs WFC
 writes should run on Windows 2000 and later without the Microsoft C++
 runtime. Done so far: console programs of x86 machine code run on `wfcw2k.exe`,
 a small runtime in C built with TinyCC and WCRT (`wfc build --target win2000`,
@@ -56,6 +59,7 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-10-31 #11 | `lib/wfc-mscomctl2` (MSComCtl2: Animation, UpDown, MonthView, DTPicker, FlatScrollBar), a folder of WFC for now and a submodule later. The tables come from the installed `MSCOMCT2.OCX` (`evidence/reference/mscomct2-2.0-type-library.json`, 214 members and 63 events); version 0.6.0 targets `MSCOMCT2.OCX 6.00.8177`; registration with WFC and Microsoft ids (the Microsoft class ids come from the type library); tests as in the other libraries (`TC-MP0010-mscomctl2-*`). The evaluator creates all five controls (see #12). |
 | 2026-10-31 #12 | MSComCtl2 completed: UpDown (with its buddy), FlatScrollBar, MonthView (`GetDayBold` with the `State()` array, `HitTest`, `ComputeControlSize`, colours), DTPicker (callback fields, colours) and Animation (AVI through the system animation control). Corpus 211 to 221, requirements REQ-0308 to REQ-0312, an example and a screenshot per control; behaviour follows the documentation (no VB6 probe). The libraries were wrapped to 80 columns for the WSP style check (the four `dll_check.h` copies stay identical). Open for the library: the flat drawing of FlatScrollBar, several months, `DllGetClassObject`. |
 | 2026-10-31 #13 | Variants in the small runtime for Windows 2000: services 48 to 68, 78, 79 and 90 in C (Integer, Long, Single, Double, String, Boolean, Byte, Null and Empty; the operators, comparisons, `And`/`Or`/`Xor`, `Not`, negation, conversions, `Print`, `TypeName`, `VarType`, `IsNumeric`), arrays of Variants and Variant fields of records. `tests/native/76-variant-operators.bas` runs every operator over 15 values (4,000 results) and matches the 64-bit native run exactly. Found on the way: the x86 back end did not probe the stack for a frame larger than a page (a program with 200 calls crashed); the C runtime printed some Doubles one unit wrong in the 15th digit (the library printf), so the digits are now made exactly; `^` with a fraction was a unit off (double-double exp and log), and an overflowing `^` is error 6. 32 of the 53 `tests/native` programs run; a program that needs a library function on Variants (85 of the corpus programs stop at service 77: `Format`, `CDate`, `Split` and others) is still refused. |
+| 2026-11-01 #14 | Windows 2000 support deferred on the owner's instruction: wfc builds with the current MSVC and takes the full runtime by default (an x86 wfc no longer defaults to the small runtime); `--target win2000` and `WFC_TARGET=win2000` remain as opt-ins. Library functions on Variants (math, conversions, text, `Left`/`Mid`, `InStr`, `Replace`, `IIf`, `Choose`) were added to the small runtime before the pause. |
 
 ## Open
 

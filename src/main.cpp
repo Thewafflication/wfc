@@ -520,16 +520,15 @@ int build_package(const int argument_count, const char* const arguments[]) {
     std::vector<std::pair<std::string, std::string>> extra;
     // Windows 2000 and later: x86 machine code with the small runtime, written
     // in C (wfcw2k.exe), which needs no C++ runtime. Console programs only. It
-    // is the default of an x86 wfc (and of any wfc with WFC_TARGET=win2000):
-    // a program that cannot use it gets the runtime of this wfc, with a note.
-    // `--target win2000` asks for it and reports why it cannot be had.
+    // is not the default (Windows 2000 support is deferred; wfc builds with
+    // the current MSVC): `--target win2000` asks for it and reports why it
+    // cannot be had, and WFC_TARGET=win2000 prefers it with the runtime of
+    // this wfc as the fallback, with a note.
     const bool strict = target == Target::win2000;
     const bool compatible =
         !interpret && !dynamic && !bundle && options.empty();
     const bool preferred = target == Target::automatic &&
-                           (wfc::compiler::host_architecture() ==
-                                wfc::compiler::Architecture::x86 ||
-                            environment_text("WFC_TARGET") == "win2000");
+                           environment_text("WFC_TARGET") == "win2000";
     if (strict && !compatible) {
         std::cerr << "wfc: error: --target win2000 makes a console "
                      "program of machine code; it cannot be combined "
