@@ -16,6 +16,8 @@
 #include <sstream>
 #include <thread>
 
+#include <wfc/mscomctl2/calendar.hpp>
+#include <wfc/mscomctl2/dtpicker.hpp>
 #include <wfc/mscomctl2/monthview.hpp>
 #include <wfc/mscomctl2/updown.hpp>
 #include <wfc/mswinsck/winsock_io.hpp>
