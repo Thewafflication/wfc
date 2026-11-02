@@ -16,6 +16,7 @@
 #include <sstream>
 #include <thread>
 
+#include <wfc/mscomctl2/updown.hpp>
 #include <wfc/mswinsck/winsock_io.hpp>
 #include "../ui/control_tables.hpp"
 #include "pictures.hpp"
