@@ -19,6 +19,7 @@
 #include <wfc/mscomctl2/calendar.hpp>
 #include <wfc/mscomctl2/dtpicker.hpp>
 #include <wfc/mscomctl2/monthview.hpp>
+#include <wfc/mscomctl2/scrollbar.hpp>
 #include <wfc/mscomctl2/updown.hpp>
 #include <wfc/mswinsck/winsock_io.hpp>
 #include "../ui/control_tables.hpp"
@@ -1271,22 +1272,31 @@ struct FormSupport {
         return 0.0;
     }
 
+    // The properties of a scroll bar as the library's model of its behaviour
+    // (wfc/mscomctl2/scrollbar.hpp).
+    [[nodiscard]] static wfc::mscomctl2::ScrollBarModel scroll_model(
+        const ControlObject& bar) {
+        return wfc::mscomctl2::ScrollBarModel{
+            static_cast<long>(number_of(bar, "min")),
+            static_cast<long>(number_of(bar, "max")),
+            static_cast<long>(number_of(bar, "value")),
+            static_cast<long>(number_of(bar, "smallchange")),
+            static_cast<long>(number_of(bar, "largechange"))};
+    }
+
     // Moves a scroll bar to `target` (clamped), raising Scroll when
     // `dragging` and Change when the value changed.
     [[nodiscard]] static bool scroll_to(Interpreter& in, ControlObject& bar,
-                                        double target, const bool dragging) {
-        const double low =
-            std::min(number_of(bar, "min"), number_of(bar, "max"));
-        const double high =
-            std::max(number_of(bar, "min"), number_of(bar, "max"));
-        target = std::clamp(target, low, high);
-        const double previous = number_of(bar, "value");
-        bar.values["value"] = Value{static_cast<Int16>(target)};
-        if (dragging && target != previous &&
+                                        const double target,
+                                        const bool dragging) {
+        wfc::mscomctl2::ScrollBarModel model = scroll_model(bar);
+        const auto outcome = model.move_to(static_cast<long>(target));
+        bar.values["value"] = Value{static_cast<Int16>(model.value())};
+        if (dragging && outcome.changed &&
             !raise_table_event(in, bar, "Scroll", {}, in.offset_)) {
             return false;
         }
-        return target == previous ||
+        return !outcome.changed ||
                raise_table_event(in, bar, "Change", {}, in.offset_);
     }
 
@@ -5429,12 +5439,8 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
         }
     }
     if (is_scroll() && wanted == "value") {
-        const double low = std::min(FormSupport::number_of(*this, "min"),
-                                    FormSupport::number_of(*this, "max"));
-        const double high = std::max(FormSupport::number_of(*this, "min"),
-                                     FormSupport::number_of(*this, "max"));
-        const double wanted_value = as_double(converted);
-        if (wanted_value < low || wanted_value > high) {
+        wfc::mscomctl2::ScrollBarModel model = FormSupport::scroll_model(*this);
+        if (!model.set_value(static_cast<long>(as_double(converted))).valid) {
             failure = NativeFailure{380, "Invalid property value"};
             return true;
         }
