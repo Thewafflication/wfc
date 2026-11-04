@@ -17,6 +17,14 @@
       }
     },
     {
+      "name": "windows-x64-debug-shared",
+      "displayName": "Windows x64 Debug, control libraries as DLLs",
+      "inherits": "windows-x64-debug",
+      "cacheVariables": {
+        "WFC_OCX_SHARED": "ON"
+      }
+    },
+    {
       "name": "windows-x86-debug",
       "displayName": "Windows x86 Debug",
       "generator": "Visual Studio 17 2022",
@@ -74,6 +82,11 @@
       "configuration": "Debug"
     },
     {
+      "name": "windows-x64-debug-shared",
+      "configurePreset": "windows-x64-debug-shared",
+      "configuration": "Debug"
+    },
+    {
       "name": "windows-x86-debug",
       "configurePreset": "windows-x86-debug",
       "configuration": "Debug"
@@ -103,6 +116,17 @@
     {
       "name": "windows-x64-debug",
       "configurePreset": "windows-x64-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 8
+      }
+    },
+    {
+      "name": "windows-x64-debug-shared",
+      "configurePreset": "windows-x64-debug-shared",
       "configuration": "Debug",
       "output": {
         "outputOnFailure": true

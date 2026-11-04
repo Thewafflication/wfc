@@ -43,6 +43,37 @@ jobs:
         shell: pwsh
         run: ./scripts/Invoke-Lint.ps1
 
+  shared-libraries:
+    name: Control libraries as DLLs
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: true
+
+      # The COM behaviour of the libraries (com_behaviour.hpp, the class
+      # factories) and the black-box DLL tests build only with
+      # WFC_OCX_SHARED=ON, which the Debug presets leave off.
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset windows-x64-debug-shared
+
+      - name: Build the DLLs and their tests
+        shell: pwsh
+        run: >
+          cmake --build --preset windows-x64-debug-shared --target
+          wfc_mscomctl wfc_mscomctl2 wfc_comdlg32 wfc_mswinsck wfc_vbrun
+          mscomctl_dll_test mscomctl2_dll_test comdlg32_dll_test
+          mswinsck_dll_test vbrun_dll_test
+
+      - name: Test the DLLs
+        shell: pwsh
+        run: >
+          ctest --preset windows-x64-debug-shared
+          --tests-regex 'TC-MP0010-.*dll' --no-tests=error
+
   build:
     name: Debug ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
