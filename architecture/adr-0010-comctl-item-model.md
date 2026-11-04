@@ -3,8 +3,8 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
-steps 1 to 4 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`), steps 5
-to 7 not started
+steps 1 to 5 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
+`list.hpp`, `labeledit.hpp`), steps 6 and 7 not started
 
 **Date:** 2026-11-04
 
@@ -131,8 +131,13 @@ below).
    objects stay with it. The tree as a container (`ItemTree`) and the
    two-step label edit as a type are left to step 7, when the COM
    collections need an item container of their own.
-5. **ListView** (473 lines): items with sub items, column headers, selection,
-   sort, `FindItem`, label editing.
+5. **ListView**: done in `list.hpp` and `labeledit.hpp`, pinned first by
+   corpus `225-comctl-list-rules`: the valid views, the position of each
+   item in each view, hit testing, sorting by a sub item (case folded, bytes
+   compared as unsigned, which also fixes the order of non-ASCII text in the
+   TreeView), `FindItem`, the bounds of `SubItems`, the selection rules, and
+   the rules of label editing shared with the TreeView. Items and sub items
+   stay `CItem`s of the evaluator until step 7.
 6. **ImageList and ImageCombo**: images by key, `Overlay`-style lookups, the
    combo's indented items.
 7. **COM collections** (Decision 6) for TabStrip, StatusBar and Toolbar first

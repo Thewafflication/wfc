@@ -70,13 +70,14 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-11-04 #22 | ADR-0010 step 2: the rules for tabs and panels moved into wfc-mscomctl (`items.hpp`): the first tab added is selected, removing the selected tab selects the previous one (the second when the first goes), a status bar holds sixteen panels (error 35609), an ImageList bound to a control only grows at the end (35615). The behaviour was pinned first by the new corpus program `222-comctl-selection`, recorded from the evaluator before the change. The remaining literal collection errors of `mscomctl.inc` now come from the library too. | `TC-MP0010-mscomctl-items`, `TC-MP0002-corpus-222-comctl-selection`, corpus 188 to 193 |
 | 2026-11-04 #23 | ADR-0010 step 3: the rules for toolbar buttons moved into wfc-mscomctl (`toolbar.hpp`): the valid Style (0 to 5) and Value (0 and 1), what a press does (a disabled button, a separator and a placeholder ignore it; a check button toggles; a group button presses itself and releases its neighbours), when a drop-down answers, and the text SaveToolbar keeps and RestoreToolbar reads. The behaviour was pinned first by corpus 223; the evaluator calls the library. | `TC-MP0010-mscomctl-toolbar`, `TC-MP0002-corpus-223-comctl-toolbar-rules`, comctl corpus and GUI tests |
 | 2026-11-04 #24 | ADR-0010 step 4: the rules of the TreeView moved into wfc-mscomctl (`tree.hpp`): where `Nodes.Add` places a node for each relationship (and error 35607 for a bad one), the case-folded stable sort of siblings, `FullPath`, `GetVisibleCount`, `HitTest`, what each key does (arrows with wrap, Home, End, type-ahead, Left, Right, Space), SingleSel collapsing and when a click starts a label edit. Pinned first by corpus 224 (relationships, errors, paths, sorting, hit test, keys, events, SingleSel, manual LabelEdit); the evaluator calls the library. | `TC-MP0010-mscomctl-tree`, `TC-MP0002-corpus-224-comctl-tree-rules`, comctl corpus and GUI tests |
+| 2026-11-04 #25 | ADR-0010 step 5: the rules of the ListView moved into wfc-mscomctl (`list.hpp`, `labeledit.hpp`): the valid View, the position of each item in the four views, HitTest, sorting by the item or a sub item in either order, FindItem (text, sub item, tag, partial), the bounds of SubItems and how writing grows them, the selection with and without MultiSelect and Ctrl, and the label-edit rules shared with the TreeView. Pinned first by corpus 225. Step 4 had compared the bytes of a TreeView sort as signed, which differs from the evaluator's string comparison for non-ASCII text; both controls now compare them as unsigned. | `TC-MP0010-mscomctl-list`, `TC-MP0002-corpus-225-comctl-list-rules`, comctl corpus and GUI tests |
 
 ## Open
 
 - The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
   ListView, ImageList, ImageCombo) move out of the evaluator as designed in
-  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 to 4
-  done, steps 5 to 7 open).
+  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 to 5
+  done, steps 6 and 7 open).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).

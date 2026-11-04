@@ -17,7 +17,9 @@
 #include <thread>
 
 #include <wfc/mscomctl/items.hpp>
+#include <wfc/mscomctl/labeledit.hpp>
 #include <wfc/mscomctl/layout.hpp>
+#include <wfc/mscomctl/list.hpp>
 #include <wfc/mscomctl/range.hpp>
 #include <wfc/mscomctl/toolbar.hpp>
 #include <wfc/mscomctl/tree.hpp>
