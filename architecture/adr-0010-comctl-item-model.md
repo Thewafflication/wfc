@@ -3,8 +3,8 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
-steps 1 to 3 implemented (`items.hpp`, `toolbar.hpp`), steps 4 to 7 not
-started
+steps 1 to 4 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`), steps 5
+to 7 not started
 
 **Date:** 2026-11-04
 
@@ -121,8 +121,16 @@ below).
    `layout.hpp`. Button menus stay sub items of the evaluator's `CItem` until
    the item container changes in step 4; their only rule (a disabled entry
    does not answer) is one test of a flag.
-4. **TreeView** (`ItemTree`, 590 lines today): relationships, `Path`, expand and
-   collapse, `Sort`, label editing as a two-step operation, `MultiSelect`.
+4. **TreeView**: done in `tree.hpp`, pinned first by corpus
+   `224-comctl-tree-rules`, as functions on counts, positions, depths and
+   texts rather than as the `ItemTree` template: where `Nodes.Add` puts a
+   node for each relationship and the error for a bad one (35607), the sort
+   order of siblings, `FullPath`, `GetVisibleCount`, `HitTest`, what each key
+   does, and the small rules of `SingleSel` and of label editing. The links
+   (`kids`, `parent`, ids) stay in the evaluator's `CItem` and the wrapper
+   objects stay with it. The tree as a container (`ItemTree`) and the
+   two-step label edit as a type are left to step 7, when the COM
+   collections need an item container of their own.
 5. **ListView** (473 lines): items with sub items, column headers, selection,
    sort, `FindItem`, label editing.
 6. **ImageList and ImageCombo**: images by key, `Overlay`-style lookups, the
