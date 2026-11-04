@@ -2,8 +2,8 @@
 
 **Content type:** Architecture decision record
 
-**Status:** Proposed (written on the owner's instruction, 2026-11-04; nothing is
-implemented)
+**Status:** Accepted by the owner, COM collections included (2026-11-04);
+step 1 implemented (`items.hpp`), steps 2 to 7 not started
 
 **Date:** 2026-11-04
 
@@ -102,8 +102,12 @@ they apply. Where a rule has no corpus coverage, the step first adds a program
 that records the present behaviour (the Microsoft behaviour is not probed; see
 below).
 
-1. **Keys and indexes** (`ItemList`): `find_item`, `key_in_use`, position rules
-   of `Add`, the error numbers. Used by all eight kinds. Unit test `items_test`.
+1. **Keys and indexes**: `find_item`, `key_in_use`, position rules of `Add`,
+   the error numbers. Used by all eight kinds. Done as free functions over any
+   sequence (`items.hpp`: `find`, `key_in_use`, `insert_position`, `Selector`,
+   `Status`), not yet as the `ItemList` template, because the evaluator's lists
+   are `std::vector<ItemPtr>` and the container changes with step 2. Unit test
+   `items_test`.
 2. **Tabs and panels**: `SingleSelection`, the sixteen-panel limit, the bound
    ImageList rule, removal selecting the neighbour.
 3. **Toolbar**: the button groups (`press_group` already uses `layout.hpp`),
@@ -172,7 +176,5 @@ to the COM objects only.
   Today `CItem` carries the weak pointer; the model must keep item identity
   stable (an `ItemId`), so the adapter can keep the same wrapper without the
   model knowing it exists.
-- **Decision for the owner.** Is `Tabs.Add` and the rest through COM in scope for
-  MP-0010? If not, Decision 6 and step 7 drop out, and the model still pays for
-  itself only through the shared rules. The design works either way; the
-  recommendation is to keep step 7, since it is what the COM objects lack.
+- **Decision of the owner (2026-11-04).** `Tabs.Add` and the other collections
+  through COM are in scope: Decision 6 and step 7 stay.

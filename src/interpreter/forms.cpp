@@ -16,6 +16,7 @@
 #include <sstream>
 #include <thread>
 
+#include <wfc/mscomctl/items.hpp>
 #include <wfc/mscomctl/layout.hpp>
 #include <wfc/mscomctl/range.hpp>
 #include <wfc/mscomctl2/calendar.hpp>

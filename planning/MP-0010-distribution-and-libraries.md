@@ -66,13 +66,14 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-11-03 #18 | FlatScrollBar behaviour moved into wfc-mscomctl2 (`scrollbar.hpp`): Min above Max, Value inside the range or error 380, the position the user moves to, SmallChange and LargeChange steps. The evaluator uses it for the intrinsic HScrollBar and VScrollBar too, and a COM FlatScrollBar enforces the range and raises `Change`. Animation has no behaviour to move. | `TC-MP0010-mscomctl2-scrollbar`, `mscomctl2_dll_test` (FlatScrollBar through COM), corpus 154 and 212 |
 | 2026-11-03 #19 | ProgressBar and Slider behaviour moved into wfc-mscomctl (`range.hpp`): ordered Min and Max, Value inside the range or error 380, the position the user moves to; the evaluator and the COM objects share it (`com_behaviour.hpp`, a COM Slider raises `Change`). Correction to #18: the COM checks of the DLL tests build only with `WFC_OCX_SHARED=ON`, so the FlatScrollBar check pushed with #18 had never been compiled and did not compile; fixed in wfc-mscomctl2 and both COM checks now pass in a shared build (`out/build/ocx-shared`). | `TC-MP0010-mscomctl-range`, `TC-MP0010-mscomctl-dll` (Slider, ProgressBar) and `TC-MP0010-mscomctl2-dll` (FlatScrollBar) in the shared build |
 | 2026-11-04 #20 | TabStrip and Toolbar layout moved into wfc-mscomctl (`layout.hpp`: tab and button sizes, rows, hidden items, the run of group buttons); the evaluator builds the item specs and calls it. The rest of the extraction (item collections with keys, indexes and selection; StatusBar, TreeView, ListView, ImageList, ImageCombo) stays in the evaluator for now: it raises events and holds `Value`s, so it needs a design of its own, not a move. | `TC-MP0010-mscomctl-layout`, comctl GUI and corpus tests |
+| 2026-11-04 #21 | ADR-0010 accepted by the owner, COM collections included. Step 1 done: the rules for finding items in a collection (a key without regard to case, an index rounded to the nearest whole number, where `Add` inserts, key uniqueness, the error numbers 35600 to 35602 and 13) moved into wfc-mscomctl (`items.hpp`); `find_item`, `key_in_use` and the position rules of `Add` in the evaluator call it. | `TC-MP0010-mscomctl-items`, comctl GUI and corpus tests |
 
 ## Open
 
 - The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
   ListView, ImageList, ImageCombo) move out of the evaluator as designed in
-  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (proposed; waits for
-  the owner's decision on COM collections).
+  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; step 1
+  done, steps 2 to 7 open).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).
