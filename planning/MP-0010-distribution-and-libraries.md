@@ -68,13 +68,14 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-11-04 #20 | TabStrip and Toolbar layout moved into wfc-mscomctl (`layout.hpp`: tab and button sizes, rows, hidden items, the run of group buttons); the evaluator builds the item specs and calls it. The rest of the extraction (item collections with keys, indexes and selection; StatusBar, TreeView, ListView, ImageList, ImageCombo) stays in the evaluator for now: it raises events and holds `Value`s, so it needs a design of its own, not a move. | `TC-MP0010-mscomctl-layout`, comctl GUI and corpus tests |
 | 2026-11-04 #21 | ADR-0010 accepted by the owner, COM collections included. Step 1 done: the rules for finding items in a collection (a key without regard to case, an index rounded to the nearest whole number, where `Add` inserts, key uniqueness, the error numbers 35600 to 35602 and 13) moved into wfc-mscomctl (`items.hpp`); `find_item`, `key_in_use` and the position rules of `Add` in the evaluator call it. | `TC-MP0010-mscomctl-items`, comctl GUI and corpus tests |
 | 2026-11-04 #22 | ADR-0010 step 2: the rules for tabs and panels moved into wfc-mscomctl (`items.hpp`): the first tab added is selected, removing the selected tab selects the previous one (the second when the first goes), a status bar holds sixteen panels (error 35609), an ImageList bound to a control only grows at the end (35615). The behaviour was pinned first by the new corpus program `222-comctl-selection`, recorded from the evaluator before the change. The remaining literal collection errors of `mscomctl.inc` now come from the library too. | `TC-MP0010-mscomctl-items`, `TC-MP0002-corpus-222-comctl-selection`, corpus 188 to 193 |
+| 2026-11-04 #23 | ADR-0010 step 3: the rules for toolbar buttons moved into wfc-mscomctl (`toolbar.hpp`): the valid Style (0 to 5) and Value (0 and 1), what a press does (a disabled button, a separator and a placeholder ignore it; a check button toggles; a group button presses itself and releases its neighbours), when a drop-down answers, and the text SaveToolbar keeps and RestoreToolbar reads. The behaviour was pinned first by corpus 223; the evaluator calls the library. | `TC-MP0010-mscomctl-toolbar`, `TC-MP0002-corpus-223-comctl-toolbar-rules`, comctl corpus and GUI tests |
 
 ## Open
 
 - The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
   ListView, ImageList, ImageCombo) move out of the evaluator as designed in
-  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 and 2
-  done, steps 3 to 7 open).
+  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 to 3
+  done, steps 4 to 7 open).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).

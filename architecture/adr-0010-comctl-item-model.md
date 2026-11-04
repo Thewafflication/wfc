@@ -3,7 +3,8 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
-steps 1 and 2 implemented (`items.hpp`), steps 3 to 7 not started
+steps 1 to 3 implemented (`items.hpp`, `toolbar.hpp`), steps 4 to 7 not
+started
 
 **Date:** 2026-11-04
 
@@ -113,8 +114,13 @@ below).
    functions on positions and counts, pinned first by corpus
    `222-comctl-selection`; `SingleSelection` as a type waits for step 4, where
    the tree and list selections are the same kind of rule.
-3. **Toolbar**: the button groups (`press_group` already uses `layout.hpp`),
-   button menus as sub items, check and dropdown styles.
+3. **Toolbar**: done in `toolbar.hpp`, pinned first by corpus
+   `223-comctl-toolbar-rules`: the valid Style and Value, what a press does
+   (ignored, plain, check toggle, group), when a drop-down answers, and the
+   text of SaveToolbar and RestoreToolbar. The button groups were already in
+   `layout.hpp`. Button menus stay sub items of the evaluator's `CItem` until
+   the item container changes in step 4; their only rule (a disabled entry
+   does not answer) is one test of a flag.
 4. **TreeView** (`ItemTree`, 590 lines today): relationships, `Path`, expand and
    collapse, `Sort`, label editing as a two-step operation, `MultiSelect`.
 5. **ListView** (473 lines): items with sub items, column headers, selection,
