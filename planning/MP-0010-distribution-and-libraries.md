@@ -69,6 +69,10 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 
 ## Open
 
+- The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
+  ListView, ImageList, ImageCombo) move out of the evaluator as designed in
+  [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (proposed; waits for
+  the owner's decision on COM collections).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).
