@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
-step 1 implemented (`items.hpp`), steps 2 to 7 not started
+steps 1 and 2 implemented (`items.hpp`), steps 3 to 7 not started
 
 **Date:** 2026-11-04
 
@@ -108,8 +108,11 @@ below).
    `Status`), not yet as the `ItemList` template, because the evaluator's lists
    are `std::vector<ItemPtr>` and the container changes with step 2. Unit test
    `items_test`.
-2. **Tabs and panels**: `SingleSelection`, the sixteen-panel limit, the bound
-   ImageList rule, removal selecting the neighbour.
+2. **Tabs and panels**: the sixteen-panel limit, the bound ImageList rule, the
+   first tab selected, removal selecting the neighbour. Done in `items.hpp` as
+   functions on positions and counts, pinned first by corpus
+   `222-comctl-selection`; `SingleSelection` as a type waits for step 4, where
+   the tree and list selections are the same kind of rule.
 3. **Toolbar**: the button groups (`press_group` already uses `layout.hpp`),
    button menus as sub items, check and dropdown styles.
 4. **TreeView** (`ItemTree`, 590 lines today): relationships, `Path`, expand and
