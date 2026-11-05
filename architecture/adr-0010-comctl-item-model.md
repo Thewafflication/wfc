@@ -4,7 +4,9 @@
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
 steps 1 to 6 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
-`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 not started
+`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 started (the
+collections of TabStrip, StatusBar and Toolbar through COM; Nodes, ListItems,
+ColumnHeaders, ListImages and ComboItems open)
 
 **Date:** 2026-11-04
 
@@ -149,7 +151,21 @@ below).
    a negative `Indentation` and an `Image` beyond the list are accepted;
    `Overlay` returns the first picture.
 7. **COM collections** (Decision 6) for TabStrip, StatusBar and Toolbar first
-   (they have the fewest members), then the rest.
+   (they have the fewest members), then the rest. First part done:
+   `Tabs`, `Panels` and `Buttons` are late-bound collection objects
+   (`src/com_collections.hpp`: `Add`, `Remove`, `Clear`, `Count`, `Item`,
+   `_NewEnum`; the items are late-bound objects over a property bag) that
+   use `items.hpp` for the lookup, the position of an insert, the limit of
+   sixteen panels, the first tab selected and the neighbour selected when
+   the selected tab goes. `TabStrip.SelectedItem` reads and sets the
+   selection. Deviation from Decision 6: the collection is the value that a
+   `Behaviour` returns for the `Tabs`, `Panels` or `Buttons` property, so
+   `class_factory.hpp` needed no `Collection` hook and the four copies of
+   that file stay identical. Tested by a C program that creates the three
+   controls through COM (`mscomctl_dll_test`, built by the shared-libraries
+   job). Not yet: the events (`BeforeClick`, `Click`; they are the two-step
+   operations of Decision 4), the other collections, and the members of
+   the items that need a window (`Tab.Image` by key, `Button.ButtonMenus`).
 
 Steps 1 to 6 change no behaviour that a program can see. Step 7 adds behaviour
 to the COM objects only.
