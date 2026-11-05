@@ -1473,7 +1473,18 @@ std::optional<Value> Interpreter::evaluate_date_function(
         if (is_number(v) && !std::holds_alternative<Decimal>(v)) {
             return as_double(v);
         }
+        if (const auto* flag = std::get_if<bool>(&v)) {
+            return *flag ? -1.0 : 0.0;
+        }
+        if (std::holds_alternative<Empty>(v)) {
+            return 0.0;
+        }
         if (const auto* t = std::get_if<std::string>(&v)) {
+            // A String that is a number is that number of days.
+            const auto number = parse_numeric_string(*t);
+            if (number.status == NumericStringStatus::valid) {
+                return number.value;
+            }
             return parse_date_text(*t);
         }
         return std::nullopt;
@@ -1489,6 +1500,21 @@ std::optional<Value> Interpreter::evaluate_date_function(
         }
         if (is_number(v) && !std::holds_alternative<Decimal>(v)) {
             return static_cast<std::int64_t>(std::nearbyint(as_double(v)));
+        }
+        if (const auto* flag = std::get_if<bool>(&v)) {
+            return *flag ? -1 : 0;
+        }
+        if (std::holds_alternative<Empty>(v)) {
+            return 0;
+        }
+        if (const auto* t = std::get_if<std::string>(&v)) {
+            const auto number = parse_numeric_string(*t);
+            if (number.status == NumericStringStatus::valid) {
+                return static_cast<std::int64_t>(std::nearbyint(number.value));
+            }
+        }
+        if (const auto* d = std::get_if<DateValue>(&v)) {
+            return static_cast<std::int64_t>(std::nearbyint(d->serial));
         }
         return std::nullopt;
     };
@@ -1591,6 +1617,12 @@ std::optional<Value> Interpreter::evaluate_date_function(
         std::int64_t year = *y;
         if (year >= 0 && year <= 99) {
             year += year < 30 ? 2000 : 1900;
+        } else if (year < 0 && year >= -99) {
+            year += 2000;
+        }
+        if (year < 0 || year > 9999) {
+            set_error("WFC0009", "numeric overflow", offset);
+            return std::nullopt;
         }
         return Value{DateValue{date_serial(year, *m, *d)}};
     }
@@ -1646,7 +1678,7 @@ std::optional<Value> Interpreter::evaluate_date_function(
         const auto& v = arguments[0];
         return Value{std::holds_alternative<DateValue>(v) ||
                      (std::holds_alternative<std::string>(v) &&
-                      serial_at(0).has_value())};
+                      parse_date_text(std::get<std::string>(v)).has_value())};
     }
     if (name == "monthname") {
         if (!arity(1, 2)) {

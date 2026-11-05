@@ -1995,6 +1995,15 @@ private:
     [[nodiscard]] std::optional<Value> parse_function_call_impl(
         const std::string_view identifier, const std::size_t identifier_offset);
 
+    // Rules of the library measured under Visual Basic 6 (library_rules.cpp):
+    // true when `result` is the answer; `variant` tells which arguments are
+    // Variants of the program.
+    [[nodiscard]] bool measured_library_call(std::string_view identifier,
+                                             std::vector<Value>& arguments,
+                                             const std::vector<bool>& variant,
+                                             std::size_t offset,
+                                             std::optional<Value>& result);
+
     [[nodiscard]] std::optional<Value> parse_string();
 
     // Consume `digits[.digits][(e|E)[+|-]digits]` from the current position,

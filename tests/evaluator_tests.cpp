@@ -246,7 +246,7 @@ int main() {
     expect_success("Print Abs(-2.5) & \" \" & Sgn(-0.25) & \" \" & Sgn(0.0)",
                    "2.5 -1 0");
     expect_success("Print TypeName(Abs(-2.5)) & \" \" & TypeName(Sgn(-2.5))",
-                   "Double Long");
+                   "Double Integer");
     expect_success("Print \"[\" & CStr(42) & \"]\"", "[42]");
     expect_success("Print CStr(True) & \" \" & CStr(False)", "True False");
     expect_success("Print CStr(\"already text\")", "already text");
@@ -2806,7 +2806,7 @@ int main() {
     expect_program_success("Print StrReverse(False)", "eslaF");
     expect_program_success("Print Space(\"3\")", "   ");
     expect_program_success("Print String(\"3\", \"*\")", "***");
-    expect_program_failure("Print String(3, True)", "WFC0073");
+    expect_program_success("Print Len(String(3, True))", "3");
     expect_program_success("Print InStr(\"a\", 1)", "0");
     expect_program_failure("Print InStr(\"1\", \"a\", \"b\")", "WFC0073");
     expect_program_failure("Print InStr(1, \"a\", \"b\", \"1\")", "WFC0073");
@@ -2966,7 +2966,7 @@ int main() {
     expect_program_success("Print IsNull(Choose(0, \"a\", \"b\"))", "True");
     expect_program_success("Print IsNull(Choose(3, \"a\", \"b\"))", "True");
     expect_program_success("Print IsNull(Switch(False, 1, False, 2))", "True");
-    expect_program_failure("Print Switch(42, \"a\")", "WFC0021");
+    expect_program_success("Print Switch(42, \"a\")", "a");
     expect_program_failure("Print Int(\"x\")", "WFC0073");
     expect_program_failure("Print RGB(1, 2)", "WFC0072");
     expect_program_failure("Print RGB(\"1\", 2, 3)", "WFC0073");

@@ -556,8 +556,14 @@ std::int32_t string_instr(const std::int32_t start, const RtString* text,
         return 0;
     }
     if (!all_ascii(view_of(text)) || !all_ascii(view_of(pattern))) {
-        return via_engine_long("instr", {long_value(start), text_value(text),
-                                         text_value(pattern)});
+        // The plain call is the one of a module that compares as Binary.
+        const bool program_mode = engine().text_compare();
+        engine().set_text_compare(false);
+        const auto found = via_engine_long(
+            "instr",
+            {long_value(start), text_value(text), text_value(pattern)});
+        engine().set_text_compare(program_mode);
+        return found;
     }
     const auto content = view_of(text);
     if (static_cast<std::size_t>(start) > content.size()) {
@@ -2816,7 +2822,18 @@ RtVariant* variant_call(const RtString* name, const std::int32_t count,
         }
     }
     wfc::detail::NativeError problem;
-    auto result = engine().call_function(view_of(name), arguments, problem);
+    // A mark before the name tells the Option Compare of the calling module.
+    std::string_view function = view_of(name);
+    const bool marked = function.size() > 2U && function[0] == '\001';
+    const bool program_mode = engine().text_compare();
+    if (marked) {
+        engine().set_text_compare(function[1] == 'T');
+        function.remove_prefix(2U);
+    }
+    auto result = engine().call_function(function, arguments, problem);
+    if (marked) {
+        engine().set_text_compare(program_mode);
+    }
     if (lender != nullptr) {
         lender->store = lent->store.release();
     }

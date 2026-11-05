@@ -75,6 +75,7 @@ target_sources(
     src/interpreter/native_engine.hpp
     src/interpreter/select_case.cpp
     src/interpreter/arithmetic.cpp
+    src/interpreter/library_rules.cpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
     src/interpreter/interpreter.hpp
@@ -2805,6 +2806,39 @@ Print v.x & q.x]=]
       set_tests_properties(
         TC-MP0002-arithmetic-probe-${probe_mode}
         PROPERTIES LABELS "integration;mp-0002;operators" TIMEOUT 1500
+      )
+    endforeach()
+  endif()
+
+  # The functions of the VBA library answer as in Visual Basic 6 for operands of
+  # every kind (Null, Empty, Boolean, Date, a String that is a number), and the
+  # functions that compare Strings follow the Option Compare of the module that
+  # calls them: a probe of 5,933 calls (evidence/reference/library-probe).
+  set(
+    library_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-LibraryProbe.ps1"
+  )
+  set(
+    library_reference
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/library-probe"
+    "/vb6-reference.txt"
+  )
+  string(CONCAT library_reference ${library_reference})
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      add_test(
+        NAME TC-MP0002-library-probe-${probe_mode}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+          "-DGENERATOR=${library_generator}" "-DREFERENCE=${library_reference}"
+          "-DWORK=${CMAKE_BINARY_DIR}/library-probe-${probe_mode}"
+          "-DPROJECT=LibraryProbe.vbp" "-DOUTPUT=library-probe.txt"
+          "-DMODE=${probe_mode}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-library-probe-${probe_mode}
+        PROPERTIES LABELS "integration;mp-0002;library" TIMEOUT 1500
       )
     endforeach()
   endif()

@@ -2194,6 +2194,9 @@ std::optional<bool> Interpreter::coerce_condition_boolean(
         if (is_number(value)) {
             return as_double(value) != 0.0;
         }
+        if (const auto* date = std::get_if<DateValue>(&value)) {
+            return date->serial != 0.0;
+        }
         if (const auto* text = std::get_if<std::string>(&value)) {
             std::string lowered;
             for (const char c : *text) {

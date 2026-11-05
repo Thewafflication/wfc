@@ -4704,7 +4704,7 @@ private:
             for (const auto& value : lowered) {
                 boxed.push_back(to_variant(value, at));
             }
-            return emit_library_call(builtin.name, boxed);
+            return emit_library_call(builtin.name, boxed, at);
         }
         for (int i = 0; i < count; ++i) {
             const auto& argument = *arguments[static_cast<std::size_t>(i)];
@@ -4885,7 +4885,7 @@ private:
             for (const auto& value : lowered) {
                 boxed.push_back(to_variant(default_value(value, at), at));
             }
-            return from_variant(emit_library_call("instr", boxed),
+            return from_variant(emit_library_call("instr", boxed, at),
                                 VbType::long_integer, at);
         }
         if (arguments.size() == 3U) {
@@ -6184,7 +6184,7 @@ private:
         for (const auto& argument : arguments) {
             boxed.push_back(to_variant(lower_expression(*argument), at));
         }
-        return emit_library_call(name, boxed);
+        return emit_library_call(name, boxed, at);
     }
 
     // The handles of boxed arguments in consecutive slots, as the services
@@ -6212,11 +6212,21 @@ private:
         return block;
     }
 
+    // `at` (when given) is the place of the call: the functions that compare
+    // Strings follow the Option Compare of the module that calls them, which
+    // the runtime is told in a mark before the name ("\001T" or "\001B").
     [[nodiscard]] Value emit_library_call(const std::string& name,
-                                          const std::vector<Value>& boxed) {
+                                          const std::vector<Value>& boxed,
+                                          const Position at = Position{}) {
         const std::size_t count = boxed.size();
         const Operand block = argument_block(boxed);
-        program_.strings.push_back(name);
+        static const std::set<std::string> comparing = {
+            "instr", "instrrev", "strcomp", "replace", "split", "filter"};
+        std::string mark;
+        if (at.line > 0 && comparing.contains(name)) {
+            mark = text_compare_at(at) ? "\001T" : "\001B";
+        }
+        program_.strings.push_back(mark + name);
         const auto literal = ir::literal(
             static_cast<std::int64_t>(program_.strings.size() - 1U));
         Value result;

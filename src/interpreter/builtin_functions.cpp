@@ -61,6 +61,23 @@ std::optional<Value> Interpreter::parse_function_call(
             return Value{static_cast<Byte>(*number)};
         }
     }
+    // These functions give an Integer, not a Long (measured under Visual
+    // Basic 6, REQ-0316).
+    if (result.has_value() && execute_) {
+        static const std::set<std::string, std::less<>> integer_results = {
+            "asc", "ascw", "ascb",   "sgn",    "year",    "month",
+            "day", "hour", "minute", "second", "weekday", "strcomp"};
+        if (identifier == "val") {
+            if (const auto* number = std::get_if<Integer>(&*result)) {
+                return Value{static_cast<double>(*number)};
+            }
+        }
+        if (integer_results.contains(std::string(identifier))) {
+            if (const auto* number = std::get_if<Integer>(&*result)) {
+                return Value{static_cast<Int16>(*number)};
+            }
+        }
+    }
     return result;
 }
 
@@ -251,6 +268,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     // function's own arity check below rejects this with `WFC0072` if
     // it actually requires one or more arguments.
     std::vector<Value> arguments;
+    std::vector<bool> argument_variant;
     if (preset_arguments_ != nullptr) {
         arguments = *preset_arguments_;
     } else if (consume('(')) {
@@ -379,7 +397,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     skip_horizontal_whitespace();
                     continue;
                 }
+                const bool enclosing_variant = take_variant_scope();
                 auto argument = parse_expression();
+                argument_variant.push_back(variant_operand_seen_);
+                variant_operand_seen_ =
+                    enclosing_variant || variant_operand_seen_;
                 if (!argument.has_value()) {
                     return std::nullopt;
                 }
@@ -403,6 +425,13 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
     }
 
+    {
+        std::optional<Value> measured;
+        if (measured_library_call(identifier, arguments, argument_variant,
+                                  identifier_offset, measured)) {
+            return measured;
+        }
+    }
     {
         // Numeric strings are accepted where a math routine wants a number.
         static const std::set<std::string, std::less<>> math_functions = {
@@ -479,7 +508,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     // REQ-0247: functions other than the type probes see a Byte as a Long.
     if (!is_typename && !is_vartype && !is_cvar && !is_iif && !is_choose &&
         !is_switch && !is_isnumeric && !is_isarray && !is_isobject &&
-        !is_isnull && !is_isempty) {
+        !is_isnull && !is_isempty && !is_array_fn) {
         for (auto& argument : arguments) {
             if (const auto* byte = std::get_if<Byte>(&argument)) {
                 argument = Value{static_cast<Integer>(*byte)};
@@ -676,7 +705,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                           identifier_offset);
                 return std::nullopt;
             }
-            if (text->empty() || limit == 0) {
+            if ((text->empty() && !delimiter.empty()) || limit == 0) {
                 return make_string_array({});
             }
             bool text_compare = text_compare_here();
@@ -1766,13 +1795,16 @@ std::optional<Value> Interpreter::parse_function_call_impl(
 
     if (is_switch) {
         for (std::size_t pair = 0U; pair < arguments.size(); pair += 2U) {
-            const auto* condition = std::get_if<bool>(&arguments[pair]);
-            if (condition == nullptr && execute_) {
-                set_error("WFC0021", "Switch expressions must be Boolean",
-                          identifier_offset);
+            if (!execute_) {
+                continue;
+            }
+            const auto condition = coerce_condition_boolean(
+                arguments[pair], identifier_offset, "WFC0021",
+                "Switch expressions must be Boolean");
+            if (!condition.has_value()) {
                 return std::nullopt;
             }
-            if (execute_ && *condition) {
+            if (*condition) {
                 return arguments[pair + 1U];
             }
         }
@@ -1797,6 +1829,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (std::holds_alternative<Integer>(arguments[0]) ||
             std::holds_alternative<Int16>(arguments[0]) ||
             std::holds_alternative<bool>(arguments[0]) ||
+            std::holds_alternative<Byte>(arguments[0]) ||
             std::holds_alternative<float>(arguments[0]) ||
             std::holds_alternative<double>(arguments[0]) ||
             std::holds_alternative<Currency>(arguments[0]) ||
@@ -2418,9 +2451,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 return Value{Integer{0}};
             }
             if (needle_units.empty()) {
-                return Value{unit_begin < hay_units.size()
-                                 ? static_cast<Integer>(start)
-                                 : Integer{0}};
+                return Value{static_cast<Integer>(start)};
             }
             const auto unit_found = hay_units.find(needle_units, unit_begin);
             return Value{unit_found == std::u16string::npos
@@ -2432,8 +2463,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return Value{Integer{0}};
         }
         if (needle->empty()) {
-            return Value{begin < haystack->size() ? static_cast<Integer>(start)
-                                                  : Integer{0}};
+            return Value{haystack->empty() ? Integer{0}
+                                           : static_cast<Integer>(start)};
         }
         std::size_t found{};
         if (text_compare) {
@@ -2699,6 +2730,12 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         std::string digits = render(arguments[0]);
         if (as_double(arguments[0]) == 0.0) {
             digits = "0";
+        }
+        // A number below 1 has no zero before the point (" .1").
+        if (digits.starts_with("0.")) {
+            digits.erase(0U, 1U);
+        } else if (digits.starts_with("-0.")) {
+            digits.erase(1U, 1U);
         }
         if (as_double(arguments[0]) >= 0.0) {
             digits.insert(digits.begin(), ' ');
