@@ -556,10 +556,15 @@ bool Interpreter::like_match(const std::string& text,
 }
 
 std::optional<Value> Interpreter::parse_comparison() {
+    // Whether each operand holds a Variant matters to how it compares.
+    const bool enclosing_variant = variant_operand_seen_;
+    variant_operand_seen_ = false;
     auto left = parse_concatenation();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_is_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_is_variant;
 
     while (true) {
         skip_horizontal_whitespace();
@@ -631,14 +636,21 @@ std::optional<Value> Interpreter::parse_comparison() {
         }
 
         skip_horizontal_whitespace();
+        const bool left_variant = left_is_variant;
+        const bool outer_variant = variant_operand_seen_;
+        variant_operand_seen_ = false;
         auto right = parse_concatenation();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = compare(*left, *right, operation, operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        variant_operand_seen_ = outer_variant || left_variant || right_variant;
+        left = compare_operands(*left, left_variant, *right, right_variant,
+                                operation, operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_is_variant = false;  // a comparison gives a Boolean (or Null)
     }
 }
 

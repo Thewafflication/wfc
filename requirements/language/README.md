@@ -66,6 +66,9 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0313 — Select Case compares as Visual Basic 6 does](req-0313-select-case-comparison.md)
   defines how a selector is compared with a Case value, measured under Visual
   Basic 6 (it revises REQ-0153 to REQ-0156).
+- [REQ-0314 — The comparison operators compare as Visual Basic 6 does](req-0314-comparison-operators.md)
+  defines how `=`, `<` and `>` compare two operands of any kinds, measured
+  under Visual Basic 6 (it revises REQ-0142).
 - [REQ-0157 — Typed constant subset](req-0157-typed-constants.md) defines
   immutable `Long`, `String`, and `Boolean` values for the eighteenth MP-0002
   increment.

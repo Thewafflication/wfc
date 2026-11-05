@@ -3011,7 +3011,8 @@ int main() {
     expect_program_failure("Print CInt(\"abc\")", "WFC0088");
     expect_program_failure("Print CInt(40000)", "WFC0009");
     expect_program_failure("Print CInt(Null)", "WFC0104");
-    expect_program_failure("Print 5@ = \"text\"", "WFC0018");
+    // A String that is not a number beside a number is error 13 at run time.
+    expect_program_failure("Print 5@ = \"text\"", "WFC0300");
     expect_program_failure("Print 5 / 0", "WFC0008");
     expect_program_failure("Print 1e308 + 1e308", "WFC0009");
     expect_program_failure("Print -1e308 - 1e308", "WFC0009");
@@ -3031,7 +3032,9 @@ int main() {
     expect_program_failure("Print Log(0)", "WFC0096");
     expect_program_failure("Print Exp(1000)", "WFC0009");
     expect_program_failure("Print Sqr(\"x\")", "WFC0073");
-    expect_program_failure("Print 1 = \"1\"", "WFC0018");
+    // A typed String beside a typed number is read as a number
+    // (operator-probe).
+    expect_program_success("Print 1 = \"1\"", "True");
     // Booleans order as the numbers they are (False 0, True -1).
     expect_program_success("Print True < False", "True");
     expect_program_failure("Print \"a\" And \"b\"", "WFC0019");

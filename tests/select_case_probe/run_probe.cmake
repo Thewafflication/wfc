@@ -3,11 +3,13 @@
 #
 # Usage: cmake -DWFC=<wfc> -DPWSH=<pwsh> -DGENERATOR=<New-SelectCaseProbe.ps1>
 #   -DREFERENCE=<vb6-reference.txt> -DWORK=<folder> -DMODE=interpret|native
+#   -DPROJECT=<the .vbp the generator writes> -DOUTPUT=<the file it writes>
 #   -P run_probe.cmake
 #
 # Every line of the reference must be reproduced, including those of the module
 # that has `Option Compare Text` (the option belongs to one module) and the one
-# where `On Error Resume Next` goes on in the Case body after an error.
+# where `On Error Resume Next` goes on in the Case body after an error. The same
+# script runs the Select Case probe and the operator probe.
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 execute_process(
@@ -23,7 +25,7 @@ if(MODE STREQUAL "interpret")
   set(interpret_option --interpret)
 endif()
 execute_process(
-  COMMAND "${WFC}" ${interpret_option} "${WORK}/SelectCaseProbe.vbp"
+  COMMAND "${WFC}" ${interpret_option} "${WORK}/${PROJECT}"
   RESULT_VARIABLE ran
   OUTPUT_VARIABLE output
   ERROR_VARIABLE errors
@@ -31,7 +33,7 @@ execute_process(
 if(NOT ran EQUAL 0)
   message(FATAL_ERROR "wfc exited with ${ran}: ${errors}${output}")
 endif()
-file(STRINGS "${WORK}/select-case-probe.txt" measured)
+file(STRINGS "${WORK}/${OUTPUT}" measured)
 file(STRINGS "${REFERENCE}" wanted)
 list(LENGTH wanted wanted_count)
 list(LENGTH measured measured_count)

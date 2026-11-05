@@ -31,7 +31,9 @@ increment. Comparisons shall bind less tightly than arithmetic and `&` but more
 tightly than logical operations. From highest to lowest, logical precedence
 shall be `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`.
 
-Mixed-type comparisons shall produce diagnostic `WFC0018`. (Revised
+Mixed-type comparisons shall produce diagnostic `WFC0018` (revised
+2026-11-05: no longer; the comparison operators compare as Visual Basic 6 does,
+REQ-0314). (Revised
 2026-10-29, MP-0010: Boolean ordering is no longer a diagnostic; as in Visual
 Basic, `False` orders as 0 and `True` as -1.) A logical operator with a non-Boolean operand shall produce
 diagnostic `WFC0019`. Boolean concatenation shall remain outside the REQ-0140

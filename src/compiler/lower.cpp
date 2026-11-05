@@ -6131,12 +6131,17 @@ private:
         Value result;
         result.type = VbType::variant;
         result.operand = new_owned_variant();
+        // A comparison follows the Option Compare of the module (bits 11
+        // and 12: given, and Text).
+        const bool comparison = found->second >= ir::VariantOp::equal &&
+                                found->second <= ir::VariantOp::greater_equal;
         const auto flags =
             static_cast<std::int64_t>(found->second) |
             (left.type == VbType::variant && !left_typed ? 0x100 : 0) |
             (right.type == VbType::variant && !right_typed ? 0x200 : 0) |
-            (select_case ? 0x400 | 0x1000 : 0) |
-            (select_case && text_compare_at(at) ? 0x800 : 0);
+            (select_case ? 0x400 : 0) |
+            (select_case || comparison ? 0x1000 : 0) |
+            ((select_case || comparison) && text_compare_at(at) ? 0x800 : 0);
         builder_->runtime(Service::variant_binary,
                           {ir::immediate(flags), a.operand, b.operand},
                           result.operand, true);
@@ -6965,6 +6970,18 @@ private:
             fail("the operator " + op + " needs two numbers or two Strings",
                  at);
         }
+        // Two numbers of one type, or two whole numbers, compare directly;
+        // any other pair (a Single beside a Double, a Boolean beside a
+        // Byte) has Visual Basic's rules, which the runtime knows.
+        const auto whole = [](const Value& value) {
+            return value.type == VbType::byte ||
+                   value.type == VbType::integer ||
+                   value.type == VbType::long_integer;
+        };
+        if (left.type != right.type && !(whole(left) && whole(right))) {
+            return from_variant(variant_operation(op, left, right, at),
+                                VbType::boolean, at);
+        }
         const auto result = builder_->new_temp();
         if (is_float(left.type) || is_float(right.type)) {
             builder_->fcompare(result, to_double(left).operand,
@@ -7067,7 +7084,11 @@ private:
                  expression.at);
         }
         if (left.type == VbType::variant || right.type == VbType::variant) {
-            return variant_operation(op, left, right, expression.at);
+            // A Date or Currency is held as a Variant but compares as typed.
+            return variant_operation(
+                op, left, right, expression.at, false,
+                is_comparison && is_typed_variant(*expression.operands[0]),
+                is_comparison && is_typed_variant(*expression.operands[1]));
         }
         if (op == "&") {
             return concatenate(left, right, expression.at);

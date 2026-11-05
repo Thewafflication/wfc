@@ -141,6 +141,7 @@ public:
     void attach_events(const Value& source, EventHandler handler);
     // Whether `Option Compare Text` is on.
     [[nodiscard]] bool text_compare() const;
+    void set_text_compare(bool on);
     // `Randomize [seed]`.
     void randomize(bool has_seed, double seed, bool is_timer);
     // Whether the name is a function of the library.

@@ -2409,111 +2409,167 @@ static RtVariant* compare_result(int ordering, int op) {
     return variant_from_boolean(answer);
 }
 
-static RtVariant* variant_compare(const RtVariant* left, const RtVariant* right,
-                                  int op, int string_seen, int number_seen) {
-    RtVariant scratch_left;
-    RtVariant scratch_right;
-    int left_type = vtype(left);
-    int right_type = vtype(right);
-    if (left_type == VT_NULL || right_type == VT_NULL) {
+/* ----- Comparisons as Visual Basic 6 makes them
+ *
+ * The same rules as Interpreter::operator_order (src/interpreter/
+ * select_case.cpp), which were measured under Visual Basic 6, for the types
+ * this runtime has: Null gives Null; Empty is 0 beside a number and "" beside a
+ * String; two typed operands convert a String to the type of the other
+ * (error 13 when it is not a number); a typed String beside a Variant compares
+ * as text; a Variant String beside a typed number or Boolean is converted when
+ * it can be and is the greater when it cannot; two Variants put every number
+ * before every String. A Boolean is 255 beside a Byte. */
+
+static int order_doubles(double a, double b) {
+    return a < b ? -1 : (a > b ? 1 : 0);
+}
+
+static int order_numbers_vb(const RtVariant* a, const RtVariant* b) {
+    int at = vtype(a);
+    int bt = vtype(b);
+    if (at == VT_UI1 && bt == VT_BOOL) {
+        return order_doubles(number_value(a), b->u.l != 0 ? 255.0 : 0.0);
+    }
+    if (at == VT_BOOL && bt == VT_UI1) {
+        return order_doubles(a->u.l != 0 ? 255.0 : 0.0, number_value(b));
+    }
+    if ((at == VT_R4 || bt == VT_R4) && at != VT_BOOL && bt != VT_BOOL) {
+        return order_doubles((double)(float)number_value(a),
+                             (double)(float)number_value(b));
+    }
+    return order_doubles(number_value(a), number_value(b));
+}
+
+/* A String as a Boolean: True, False or a number; 0 when it is none. */
+static int text_to_boolean(const RtString* text, int* answer) {
+    char body[16];
+    size_t first = 0;
+    size_t last = (size_t)length_of(text);
+    size_t i;
+    double parsed;
+    while (first < last && text->data[first] == ' ') {
+        ++first;
+    }
+    while (last > first && text->data[last - 1U] == ' ') {
+        --last;
+    }
+    if (last - first == 4U || last - first == 5U) {
+        for (i = 0; i < last - first; ++i) {
+            char c = text->data[first + i];
+            body[i] = (char)(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+        }
+        body[last - first] = '\0';
+        if (strcmp(body, "true") == 0) {
+            *answer = -1;
+            return 1;
+        }
+        if (strcmp(body, "false") == 0) {
+            *answer = 0;
+            return 1;
+        }
+    }
+    if (!parse_numeric(text == NULL ? "" : text->data,
+                       (size_t)length_of(text), &parsed)) {
+        return 0;
+    }
+    *answer = parsed != 0.0 ? -1 : 0;
+    return 1;
+}
+
+static RtVariant* variant_compare_vb(const RtVariant* a, const RtVariant* b,
+                                     int op, int a_variant, int b_variant) {
+    int at = vtype(a);
+    int bt = vtype(b);
+    int a_typed = !a_variant && at != VT_EMPTY && at != VT_NULL;
+    int b_typed = !b_variant && bt != VT_EMPTY && bt != VT_NULL;
+    int ordering;
+    if (at == VT_NULL || bt == VT_NULL) {
         return variant_null();
     }
-    if (left_type == VT_EMPTY || right_type == VT_EMPTY) {
-        memset(&scratch_left, 0, sizeof(scratch_left));
-        memset(&scratch_right, 0, sizeof(scratch_right));
-        scratch_left.refs = scratch_right.refs = 1000000000;
-        scratch_left.type = left_type == VT_EMPTY
-                                ? (right_type == VT_BSTR ? VT_BSTR : VT_I4)
-                                : left_type;
-        scratch_right.type = right_type == VT_EMPTY
-                                 ? (left_type == VT_BSTR ? VT_BSTR : VT_I4)
-                                 : right_type;
-        if (left_type != VT_EMPTY) {
-            scratch_left = *left;
-            scratch_left.refs = 1000000000;
-        }
-        if (right_type != VT_EMPTY) {
-            scratch_right = *right;
-            scratch_right.refs = 1000000000;
-        }
-        return variant_compare(&scratch_left, &scratch_right, op, string_seen,
-                               number_seen);
+    if (at == VT_EMPTY && bt == VT_EMPTY) {
+        return compare_result(0, op);
     }
-    if ((left_type == VT_BOOL) != (right_type == VT_BOOL)) {
-        const RtVariant* other = left_type == VT_BOOL ? right : left;
-        if (is_number_type(vtype(other))) {
-            scratch_left = *left;
-            scratch_right = *right;
-            scratch_left.refs = scratch_right.refs = 1000000000;
-            if (left_type == VT_BOOL) {
-                scratch_left.type = VT_I2;
-            }
-            if (right_type == VT_BOOL) {
-                scratch_right.type = VT_I2;
-            }
-            return variant_compare(&scratch_left, &scratch_right, op,
-                                   string_seen, number_seen);
-        }
+    if (at == VT_EMPTY || bt == VT_EMPTY) {
+        int first = at == VT_EMPTY;
+        const RtVariant* other = first ? b : a;
+        ordering = vtype(other) == VT_BSTR
+                       ? string_compare(NULL, other->u.s)
+                       : order_doubles(0.0, number_value(other));
+        return compare_result(first ? ordering : -ordering, op);
     }
-    if ((left_type == VT_BSTR && is_number_type(right_type)) ||
-        (right_type == VT_BSTR && is_number_type(left_type))) {
-        if (string_seen || number_seen) {
-            int string_left = left_type == VT_BSTR;
-            const RtString* text = (string_left ? left : right)->u.s;
-            const RtVariant* number = string_left ? right : left;
-            int ordering;
-            if (string_seen && number_seen) {
-                ordering = string_left ? 1 : -1; /* a numeric Variant sorts */
-            } else if (string_seen) {
-                double parsed;
-                double l;
-                double r;
-                if (!parse_numeric(text == NULL ? "" : text->data,
-                                   (size_t)length_of(text), &parsed)) {
+    if (a_typed && b_typed) {
+        if (at == VT_BSTR && bt == VT_BSTR) {
+            return compare_result(string_compare(a->u.s, b->u.s), op);
+        }
+        if (at == VT_BSTR || bt == VT_BSTR) {
+            int first = at == VT_BSTR;
+            const RtVariant* text = first ? a : b;
+            const RtVariant* other = first ? b : a;
+            if (vtype(other) == VT_BOOL) {
+                int truth;
+                if (!text_to_boolean(text->u.s, &truth)) {
                     return variant_fail(13);
                 }
-                l = string_left ? parsed : number_value(number);
-                r = string_left ? number_value(number) : parsed;
-                ordering = l < r ? -1 : (l > r ? 1 : 0);
+                ordering = order_doubles((double)truth, number_value(other));
             } else {
-                RtString* rendered = variant_render(number);
-                ordering = string_left ? string_compare(text, rendered)
-                                       : string_compare(rendered, text);
-                release(rendered);
+                double parsed;
+                RtVariant number;
+                if (!parse_numeric(text->u.s == NULL ? "" : text->u.s->data,
+                                   (size_t)length_of(text->u.s), &parsed)) {
+                    return variant_fail(13);
+                }
+                memset(&number, 0, sizeof(number));
+                number.refs = 1000000000;
+                number.type = VT_R8;
+                number.u.d = parsed;
+                ordering = order_numbers_vb(&number, other);
             }
-            return compare_result(ordering, op);
+            return compare_result(first ? ordering : -ordering, op);
         }
+        return compare_result(order_numbers_vb(a, b), op);
     }
-    if (is_number_type(left_type) && is_number_type(right_type)) {
-        double l = number_value(left);
-        double r = number_value(right);
-        switch (op) {
-            case 8:
-                return variant_from_boolean(l == r);
-            case 9:
-                return variant_from_boolean(l != r);
-            case 10:
-                return variant_from_boolean(l < r);
-            case 11:
-                return variant_from_boolean(l > r);
-            case 12:
-                return variant_from_boolean(l <= r);
-            default:
-                return variant_from_boolean(l >= r);
+    /* A Variant is involved. */
+    if (at == VT_BSTR && bt == VT_BSTR) {
+        return compare_result(string_compare(a->u.s, b->u.s), op);
+    }
+    if (at == VT_BSTR || bt == VT_BSTR) {
+        int first = at == VT_BSTR;
+        const RtVariant* text = first ? a : b;
+        const RtVariant* other = first ? b : a;
+        int text_typed = first ? a_typed : b_typed;
+        int other_typed = first ? b_typed : a_typed;
+        int sign = first ? 1 : -1;
+        if (text_typed) {
+            RtString* rendered = variant_render(other);
+            ordering = string_compare(text->u.s, rendered);
+            release(rendered);
+            return compare_result(sign * ordering, op);
         }
+        if (other_typed) {
+            double parsed;
+            RtVariant number;
+            if (vtype(other) == VT_BOOL) {
+                int truth;
+                if (!text_to_boolean(text->u.s, &truth)) {
+                    return compare_result(sign, op);
+                }
+                return compare_result(
+                    sign * order_doubles((double)truth, number_value(other)),
+                    op);
+            }
+            if (!parse_numeric(text->u.s == NULL ? "" : text->u.s->data,
+                               (size_t)length_of(text->u.s), &parsed)) {
+                return compare_result(sign, op);
+            }
+            memset(&number, 0, sizeof(number));
+            number.refs = 1000000000;
+            number.type = VT_R8;
+            number.u.d = parsed;
+            return compare_result(sign * order_numbers_vb(&number, other), op);
+        }
+        return compare_result(sign, op); /* every String is the greater */
     }
-    if (left_type != right_type) {
-        return variant_fail(13);
-    }
-    if (left_type == VT_BOOL) {
-        int l = left->u.l != 0 ? -1 : 0;
-        int r = right->u.l != 0 ? -1 : 0;
-        return compare_result(l < r ? -1 : (l > r ? 1 : 0), op);
-    }
-    if (left_type != VT_BSTR) {
-        return variant_fail(13);
-    }
-    return compare_result(string_compare(left->u.s, right->u.s), op);
+    return compare_result(order_numbers_vb(a, b), op);
 }
 
 /* ----- Logical operators */
@@ -2732,10 +2788,6 @@ static RtVariant* variant_binary(int32_t op, const RtVariant* a,
     int left_variant = (op & 0x100) != 0;
     int right_variant = (op & 0x200) != 0;
     int code = op & 0xFF;
-    int string_seen = (left_variant && vtype(a) == VT_BSTR) ||
-                      (right_variant && vtype(b) == VT_BSTR);
-    int number_seen = (left_variant && is_number_type(vtype(a))) ||
-                      (right_variant && is_number_type(vtype(b)));
     switch (code) {
         case 0:
             return numeric_binary(a, b, '+');
@@ -2759,7 +2811,7 @@ static RtVariant* variant_binary(int32_t op, const RtVariant* a,
         case 11:
         case 12:
         case 13:
-            return variant_compare(a, b, code, string_seen, number_seen);
+            return variant_compare_vb(a, b, code, left_variant, right_variant);
         default:
             return variant_logical(a, b, code);
     }

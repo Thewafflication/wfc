@@ -431,4 +431,185 @@ std::optional<int> Interpreter::select_case_order(const Value& selector,
     }
 }
 
+namespace {
+
+// Two numbers, typed or held in Variants, by the wider type of the two (a
+// Currency beside any number compares as Currency, a Single beside a Double or
+// an integer as Single); True is 255 beside a Byte.
+[[nodiscard]] int order_numbers(const Operand& a, const Operand& b) {
+    if (a.kind == Kind::byte && b.kind == Kind::boolean) {
+        return order(a.number, b.number != 0.0 ? 255.0 : 0.0);
+    }
+    if (a.kind == Kind::boolean && b.kind == Kind::byte) {
+        return order(a.number != 0.0 ? 255.0 : 0.0, b.number);
+    }
+    if (a.kind == Kind::currency || b.kind == Kind::currency) {
+        const auto left = currency_units(a);
+        const auto right = currency_units(b);
+        return left < right ? -1 : (left > right ? 1 : 0);
+    }
+    const auto single_family = [](const Kind k) {
+        return k == Kind::single || k == Kind::floating || k == Kind::integer ||
+               k == Kind::long_integer || k == Kind::byte;
+    };
+    if ((a.kind == Kind::single || b.kind == Kind::single) &&
+        single_family(a.kind) && single_family(b.kind)) {
+        return order(float32(a.number), float32(b.number));
+    }
+    return order(a.number, b.number);
+}
+
+}  // namespace
+
+std::optional<int> Interpreter::operator_order(const Value& left,
+                                               const bool left_variant,
+                                               const Value& right,
+                                               const bool right_variant,
+                                               int& error) {
+    error = 0;
+    Operand a = operand_of(left, left_variant);
+    Operand b = operand_of(right, right_variant);
+    if (a.kind != Kind::string && a.kind != Kind::other) {
+        a.rendered = render(left);
+    }
+    if (b.kind != Kind::string && b.kind != Kind::other) {
+        b.rendered = render(right);
+    }
+    const auto text_order = [&](const std::string& x, const std::string& y) {
+        const int result = compare_strings(x, y);
+        return result < 0 ? -1 : (result > 0 ? 1 : 0);
+    };
+    try {
+        if (a.kind == Kind::other || b.kind == Kind::other) {
+            throw Failure{13};
+        }
+        // Null in either operand: the result is Null.
+        if (a.kind == Kind::null || b.kind == Kind::null) {
+            return std::nullopt;
+        }
+        // Empty is 0 beside a number and "" beside a String.
+        if (a.kind == Kind::empty && b.kind == Kind::empty) {
+            return 0;
+        }
+        if (a.kind == Kind::empty || b.kind == Kind::empty) {
+            const bool first = a.kind == Kind::empty;
+            const Operand& other = first ? b : a;
+            const int result = other.kind == Kind::string
+                                   ? text_order({}, other.text)
+                                   : order(0.0, other.number);
+            return first ? result : -result;
+        }
+        if (a.typed && b.typed) {
+            if (a.kind == Kind::string && b.kind == Kind::string) {
+                return text_order(a.text, b.text);
+            }
+            if (a.kind == Kind::string || b.kind == Kind::string) {
+                // A typed String beside a typed number, Boolean or Date: the
+                // String is converted to that type (error 13 when it cannot).
+                const bool first = a.kind == Kind::string;
+                const Operand& text = first ? a : b;
+                const Operand& other = first ? b : a;
+                int result = 0;
+                if (other.kind == Kind::boolean) {
+                    result = order(to_boolean(text), other.number);
+                } else if (other.kind == Kind::date) {
+                    result = order(to_date(text), other.number);
+                } else {
+                    const auto parsed = number_of_text(text.text);
+                    if (!parsed.has_value()) {
+                        throw Failure{13};
+                    }
+                    Operand converted;
+                    converted.kind = Kind::floating;
+                    converted.typed = true;
+                    converted.number = *parsed;
+                    result = order_numbers(converted, other);
+                }
+                return first ? result : -result;
+            }
+            return order_numbers(a, b);
+        }
+        // A Variant is involved.
+        if (a.kind == Kind::string && b.kind == Kind::string) {
+            return text_order(a.text, b.text);
+        }
+        if (a.kind == Kind::string || b.kind == Kind::string) {
+            const bool first = a.kind == Kind::string;
+            const Operand& text = first ? a : b;
+            const Operand& other = first ? b : a;
+            const int sign = first ? 1 : -1;
+            if (text.typed) {
+                // A typed String against a Variant: the Variant as text.
+                return sign * text_order(text.text, to_text(other));
+            }
+            if (other.typed) {
+                // A Variant String against a typed number, Boolean or Date:
+                // converted to that type when it can be, otherwise greater.
+                try {
+                    if (other.kind == Kind::boolean) {
+                        return sign * order(to_boolean(text), other.number);
+                    }
+                    if (other.kind == Kind::date) {
+                        return sign * order(to_date(text), other.number);
+                    }
+                    const auto parsed = number_of_text(text.text);
+                    if (!parsed.has_value()) {
+                        return sign;
+                    }
+                    Operand converted;
+                    converted.kind = Kind::floating;
+                    converted.typed = true;
+                    converted.number = *parsed;
+                    return sign * order_numbers(converted, other);
+                } catch (const Failure&) {
+                    return sign;
+                }
+            }
+            // Against a Variant number: every String is the greater.
+            return sign;
+        }
+        return order_numbers(a, b);
+    } catch (const Failure& failure) {
+        error = failure.number;
+        return std::nullopt;
+    }
+}
+
+std::optional<Value> Interpreter::compare_operands(
+    const Value& left, const bool left_variant, const Value& right,
+    const bool right_variant, const std::string_view operation,
+    const std::size_t operator_offset) {
+    // Objects, arrays and error values keep the older rules.
+    const auto plain = [](const Value& value) {
+        return !std::holds_alternative<ObjectInstance>(value) &&
+               !std::holds_alternative<ArrayValue>(value) &&
+               !std::holds_alternative<Nothing>(value) &&
+               !std::holds_alternative<ErrorValue>(value);
+    };
+    if (!plain(left) || !plain(right)) {
+        return compare(left, right, operation, operator_offset);
+    }
+    if (!execute_) {
+        return Value{false};  // a branch that is not taken
+    }
+    int error = 0;
+    const auto order =
+        operator_order(left, left_variant, right, right_variant, error);
+    if (error != 0) {
+        static_cast<void>(raise_runtime(
+            error, vb_error_description(static_cast<Integer>(error)),
+            operator_offset));
+        return std::nullopt;
+    }
+    if (!order.has_value()) {
+        return Value{Null{}};
+    }
+    return Value{operation == "="    ? *order == 0
+                 : operation == "<>" ? *order != 0
+                 : operation == "<"  ? *order < 0
+                 : operation == "<=" ? *order <= 0
+                 : operation == ">"  ? *order > 0
+                                     : *order >= 0};
+}
+
 }  // namespace wfc::detail

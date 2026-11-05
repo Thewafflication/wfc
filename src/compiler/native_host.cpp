@@ -1265,6 +1265,12 @@ RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
     // Bits 8 and 9 say that an operand is a Variant of the program; bit 10
     // that the comparison is a Select Case's (its own rules, see
     // select_case.cpp).
+    // Bit 12 says that the option of the module is given (bit 11: Text).
+    const bool mode_given = (op & 0x1000) != 0 && (op & 0x400) == 0;
+    const bool program_mode = engine().text_compare();
+    if (mode_given) {
+        engine().set_text_compare((op & 0x800) != 0);
+    }
     auto result =
         (op & 0x400) != 0
             ? engine().select_case_test(
@@ -1272,6 +1278,9 @@ RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
                   (op & 0x200) != 0, (op & 0x800) != 0, problem)
             : engine().binary(names[op & 0xFF], value_of(a), value_of(b),
                               (op & 0x100) != 0, (op & 0x200) != 0, problem);
+    if (mode_given) {
+        engine().set_text_compare(program_mode);
+    }
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;

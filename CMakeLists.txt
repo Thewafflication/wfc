@@ -2731,12 +2731,45 @@ Print v.x & q.x]=]
           "-DGENERATOR=${select_case_generator}"
           "-DREFERENCE=${select_case_reference}"
           "-DWORK=${CMAKE_BINARY_DIR}/select-case-probe-${probe_mode}"
+          "-DPROJECT=SelectCaseProbe.vbp" "-DOUTPUT=select-case-probe.txt"
           "-DMODE=${probe_mode}" -P
           "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
       )
       set_tests_properties(
         TC-MP0002-select-case-probe-${probe_mode}
         PROPERTIES LABELS "integration;mp-0002;select-case" TIMEOUT 600
+      )
+    endforeach()
+  endif()
+
+  # The comparison operators (= < >) compare as Visual Basic 6 does: a probe of
+  # 4,695 comparisons, run the same way (evidence/reference/operator-probe).
+  set(
+    operator_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-OperatorProbe.ps1"
+  )
+  set(
+    operator_reference
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/operator-probe"
+    "/vb6-reference.txt"
+  )
+  string(CONCAT operator_reference ${operator_reference})
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      add_test(
+        NAME TC-MP0002-operator-probe-${probe_mode}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+          "-DGENERATOR=${operator_generator}"
+          "-DREFERENCE=${operator_reference}"
+          "-DWORK=${CMAKE_BINARY_DIR}/operator-probe-${probe_mode}"
+          "-DPROJECT=OperatorProbe.vbp" "-DOUTPUT=operator-probe.txt"
+          "-DMODE=${probe_mode}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-operator-probe-${probe_mode}
+        PROPERTIES LABELS "integration;mp-0002;operators" TIMEOUT 600
       )
     endforeach()
   endif()

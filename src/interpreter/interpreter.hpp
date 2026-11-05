@@ -2221,6 +2221,18 @@ private:
     // makes them unordered (no Case matches) and `error` set to the number of
     // the Visual Basic error when a conversion fails. `*_variant` say an
     // operand is a Variant.
+    // How the operators = <> < <= > >= order two operands (select_case.cpp):
+    // like select_case_order, but nullopt with `error` 0 is a Null result.
+    [[nodiscard]] std::optional<int> operator_order(const Value& left,
+                                                    bool left_variant,
+                                                    const Value& right,
+                                                    bool right_variant,
+                                                    int& error);
+    // `left op right` as Visual Basic compares: a Boolean or Null Value.
+    [[nodiscard]] std::optional<Value> compare_operands(
+        const Value& left, bool left_variant, const Value& right,
+        bool right_variant, std::string_view operation,
+        std::size_t operator_offset);
     [[nodiscard]] std::optional<int> select_case_order(const Value& selector,
                                                        bool selector_variant,
                                                        const Value& value,

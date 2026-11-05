@@ -145,7 +145,8 @@ struct NativeSupport {
             result = in.integer_binary(left, right, '%', 0U);
         } else if (op == "=" || op == "<>" || op == "<" || op == ">" ||
                    op == "<=" || op == ">=") {
-            result = in.compare(left, right, op, 0U);
+            result = in.compare_operands(left, left_variant, right,
+                                         right_variant, op, 0U);
         } else if (op == "and") {
             result = in.logical_binary(left, right, 'A', 0U);
         } else if (op == "or") {
@@ -964,6 +965,10 @@ struct NativeSupport {
         }
     }
 
+    static void set_text_compare(Interpreter& in, const bool on) {
+        in.option_compare_text_ = on;
+    }
+
     static bool text_compare(const Interpreter& in) {
         return in.option_compare_text_;
     }
@@ -1159,6 +1164,10 @@ void NativeEngine::attach_events(const Value& source, EventHandler handler) {
 
 bool NativeEngine::text_compare() const {
     return NativeSupport::text_compare(*interpreter_);
+}
+
+void NativeEngine::set_text_compare(const bool on) {
+    NativeSupport::set_text_compare(*interpreter_, on);
 }
 
 bool NativeEngine::start(EngineSetup setup, NativeError& error) {
