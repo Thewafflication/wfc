@@ -16,6 +16,7 @@
 #include <sstream>
 #include <thread>
 
+#include <wfc/comdlg32/dialogs.hpp>
 #include <wfc/mscomctl/images.hpp>
 #include <wfc/mscomctl/items.hpp>
 #include <wfc/mscomctl/labeledit.hpp>
@@ -29,6 +30,7 @@
 #include <wfc/mscomctl2/monthview.hpp>
 #include <wfc/mscomctl2/scrollbar.hpp>
 #include <wfc/mscomctl2/updown.hpp>
+#include <wfc/mswinsck/states.hpp>
 #include <wfc/mswinsck/winsock_io.hpp>
 #include "../ui/control_tables.hpp"
 #include "pictures.hpp"

@@ -6,10 +6,6 @@
 
 namespace {
 
-constexpr Integer kCancelled = 32755;        // "Cancel was selected"
-constexpr Integer kNoFonts = 24574;          // "No fonts exist"
-constexpr Integer kInvalidState = 40006;     // wrong protocol or state
-constexpr Integer kInvalidOperation = 40020;  // invalid operation at this state
 
 [[nodiscard]] std::string property_text(ControlObject& control,
                                         const char* name) {
