@@ -5,8 +5,7 @@
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
 steps 1 to 6 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
 `list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 started (the
-collections of TabStrip, StatusBar and Toolbar through COM; Nodes, ListItems,
-ColumnHeaders, ListImages and ComboItems open)
+collections of every control but the TreeView through COM; `Nodes` open)
 
 **Date:** 2026-11-04
 
@@ -163,9 +162,16 @@ below).
    `class_factory.hpp` needed no `Collection` hook and the four copies of
    that file stay identical. Tested by a C program that creates the three
    controls through COM (`mscomctl_dll_test`, built by the shared-libraries
-   job). Not yet: the events (`BeforeClick`, `Click`; they are the two-step
-   operations of Decision 4), the other collections, and the members of
-   the items that need a window (`Tab.Image` by key, `Button.ButtonMenus`).
+   job). Second part: `ListItems` and `ColumnHeaders` (ListView),
+   `ListImages` (an image without a picture is error 481) and `ComboItems`
+   (ImageCombo, with `SelectedItem`; nothing is selected at first) use the
+   same objects. Not yet: `Nodes` (it needs the tree: `Relative`,
+   `Relationship` through `place_node`, `Parent`, `Children`), the events
+   (`BeforeClick`, `Click`; they are the two-step operations of Decision
+   4), the binding of an ImageList to a control (so the bound-list rules
+   do not apply through COM), `ImageCombo.Text` following the selection,
+   and the members of the items that need a window (`Tab.Image` by key,
+   `Button.ButtonMenus`, `ListItem.ListSubItems`).
 
 Steps 1 to 6 change no behaviour that a program can see. Step 7 adds behaviour
 to the COM objects only.

@@ -73,14 +73,15 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-11-04 #25 | ADR-0010 step 5: the rules of the ListView moved into wfc-mscomctl (`list.hpp`, `labeledit.hpp`): the valid View, the position of each item in the four views, HitTest, sorting by the item or a sub item in either order, FindItem (text, sub item, tag, partial), the bounds of SubItems and how writing grows them, the selection with and without MultiSelect and Ctrl, and the label-edit rules shared with the TreeView. Pinned first by corpus 225. Step 4 had compared the bytes of a TreeView sort as signed, which differs from the evaluator's string comparison for non-ASCII text; both controls now compare them as unsigned. | `TC-MP0010-mscomctl-list`, `TC-MP0002-corpus-225-comctl-list-rules`, comctl corpus and GUI tests |
 | 2026-11-04 #26 | ADR-0010 step 6: the rules of the ImageList and ImageCombo moved into wfc-mscomctl (`images.hpp`): Remove and Clear refused on a bound list (new status `image_list_remove_bound`, number 35615, which replaces the evaluator's local message and constant), the size the first image gives the list, when ImageWidth and ImageHeight can be set, Overlay taking two images, and the combo's Text matching an item and SelStart, SelLength and SelText. Pinned first by corpus 226, which records the quirks (negative SelStart and SelLength, negative Indentation, Image beyond the list). | `TC-MP0010-mscomctl-images`, `TC-MP0002-corpus-226-comctl-image-rules`, comctl corpus and GUI tests |
 | 2026-11-04 #27 | ADR-0010 step 7, first part: a TabStrip, a StatusBar and a Toolbar made through COM have `Tabs`, `Panels` and `Buttons` collections (`com_collections.hpp`): Add with its arguments in the evaluator's order, Remove, Clear, Count, Item by index or key, For Each, the item's properties and Index, the errors 35600, 35602, 35609 and 13, the first tab selected, the neighbour selected when the selected tab goes, and `TabStrip.SelectedItem`. The rules are those of `items.hpp`. The collection is returned by the control's Behaviour, so `class_factory.hpp` (identical in four libraries) is unchanged. No events yet. | `TC-MP0010-mscomctl-dll` (shared-libraries job; also run locally with `windows-x64-debug-shared`) |
+| 2026-11-04 #28 | ADR-0010 step 7, second part: `ListItems` and `ColumnHeaders` of a ListView, `ListImages` of an ImageList (error 481 without a picture) and `ComboItems` of an ImageCombo with `SelectedItem` are COM collections too; a control with several collections keeps one list for each. `Nodes` (hierarchy), `ListSubItems`, ImageList binding and the events remain. | `TC-MP0010-mscomctl-dll` (run locally with `windows-x64-debug-shared`) |
 
 ## Open
 
 - The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
   ListView, ImageList, ImageCombo) move out of the evaluator as designed in
   [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 to 6
-  done, step 7 started: TabStrip, StatusBar and Toolbar collections through
-  COM done, the other collections and the events open).
+  done, step 7 started: the collections of every control but the TreeView
+  through COM done; `Nodes`, `ListSubItems` and the events open).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).
