@@ -261,8 +261,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     // An omitted optional slot of Replace/InStr/InStrRev
                     // takes that parameter's default.
                     const auto slot = arguments.size();
-                    const Integer compare_default =
-                        option_compare_text_ ? 1 : 0;
+                    const Integer compare_default = text_compare_here() ? 1 : 0;
                     std::optional<Integer> default_value;
                     std::optional<std::string> text_default;
                     std::optional<bool> bool_default;
@@ -680,15 +679,15 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             if (text->empty() || limit == 0) {
                 return make_string_array({});
             }
-            bool text_compare = option_compare_text_;
+            bool text_compare = text_compare_here();
             if (arguments.size() >= 4U) {
                 if (const auto* mode = std::get_if<Integer>(&arguments[3])) {
                     text_compare =
-                        *mode == 1 || (*mode == -1 && option_compare_text_);
+                        *mode == 1 || (*mode == -1 && text_compare_here());
                 } else if (const auto* mode16 =
                                std::get_if<Int16>(&arguments[3])) {
                     text_compare =
-                        *mode16 == 1 || (*mode16 == -1 && option_compare_text_);
+                        *mode16 == 1 || (*mode16 == -1 && text_compare_here());
                 }
             }
             std::string search_text = *text;
@@ -766,7 +765,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             include = *include_argument;
         }
-        bool text_compare = option_compare_text_;
+        bool text_compare = text_compare_here();
         if (arguments.size() == 4U) {
             const auto* compare_argument = std::get_if<Integer>(&arguments[3]);
             if (compare_argument == nullptr) {
@@ -2371,14 +2370,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!execute_) {
             return Value{Integer{}};
         }
-        bool text_compare = option_compare_text_;
+        bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
                 set_error("WFC0081", "unsupported comparison method",
                           identifier_offset);
                 return std::nullopt;
             }
-            text_compare = *compare_method == -1 ? option_compare_text_
+            text_compare = *compare_method == -1 ? text_compare_here()
                                                  : *compare_method >= 1;
         }
         if (start < 1) {
@@ -2487,14 +2486,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                       identifier_offset);
             return std::nullopt;
         }
-        bool text_compare = option_compare_text_;
+        bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
                 set_error("WFC0081", "unsupported comparison method",
                           identifier_offset);
                 return std::nullopt;
             }
-            text_compare = *compare_method == -1 ? option_compare_text_
+            text_compare = *compare_method == -1 ? text_compare_here()
                                                  : *compare_method >= 1;
         }
         if (!is_ascii_text(*haystack) || !is_ascii_text(*needle)) {
@@ -2581,14 +2580,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!execute_) {
             return Value{Integer{}};
         }
-        bool text_compare = option_compare_text_;
+        bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
                 set_error("WFC0081", "unsupported comparison method",
                           identifier_offset);
                 return std::nullopt;
             }
-            text_compare = *compare_method == -1 ? option_compare_text_
+            text_compare = *compare_method == -1 ? text_compare_here()
                                                  : *compare_method >= 1;
         }
         int comparison{};
@@ -2645,14 +2644,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                       identifier_offset);
             return std::nullopt;
         }
-        bool text_compare = option_compare_text_;
+        bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
                 set_error("WFC0081", "unsupported comparison method",
                           identifier_offset);
                 return std::nullopt;
             }
-            text_compare = *compare_method == -1 ? option_compare_text_
+            text_compare = *compare_method == -1 ? text_compare_here()
                                                  : *compare_method >= 1;
         }
 

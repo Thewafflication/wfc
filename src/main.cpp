@@ -337,6 +337,7 @@ int prepare_native(const int argument_count, const char* const arguments[],
         info.library_constants = wfc::detail::type_library_constants(
             project.type_libraries, everything);
     }
+    info.text_compare_lines = project.option_compare_text_lines;
     options.vb6_print_spacing = true;
     options.app_properties = project.app_properties;
     options.per_module_option_explicit = project.per_module_option_explicit;
@@ -930,6 +931,8 @@ int run(const int argument_count, const char* const arguments[]) {
         options.app_properties = project.app_properties;
         options.per_module_option_explicit = project.per_module_option_explicit;
         options.option_explicit_ranges = project.option_explicit_ranges;
+        options.per_module_option_compare = project.per_module_option_compare;
+        options.option_compare_text_ranges = project.option_compare_text_ranges;
         options.resource_file = project.resource_file;
         options.type_libraries = project.type_libraries;
         options.startup_form = project.startup_form;

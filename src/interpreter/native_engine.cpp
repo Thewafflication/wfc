@@ -175,10 +175,14 @@ struct NativeSupport {
     static std::optional<Value> select_case_test(
         Interpreter& in, const std::string_view op, const Value& selector,
         const Value& value, const bool selector_variant,
-        const bool value_variant, NativeError& error) {
+        const bool value_variant, const bool text_compare, NativeError& error) {
         int number = 0;
+        // The option of the module of the code that is compiled.
+        const bool program_option = in.option_compare_text_;
+        in.option_compare_text_ = text_compare;
         const auto order = in.select_case_order(selector, selector_variant,
                                                 value, value_variant, number);
+        in.option_compare_text_ = program_option;
         if (number != 0) {
             static_cast<void>(in.raise_runtime(
                 number, Interpreter::vb_error_description(number), 0U));
@@ -1117,10 +1121,11 @@ std::optional<std::string> NativeEngine::to_text(const Value& value,
 
 std::optional<Value> NativeEngine::select_case_test(
     const std::string_view op, const Value& selector, const Value& value,
-    const bool selector_variant, const bool value_variant, NativeError& error) {
+    const bool selector_variant, const bool value_variant,
+    const bool text_compare, NativeError& error) {
     return NativeSupport::select_case_test(*interpreter_, op, selector, value,
                                            selector_variant, value_variant,
-                                           error);
+                                           text_compare, error);
 }
 
 std::optional<bool> NativeEngine::to_boolean(const Value& value,

@@ -63,6 +63,18 @@ bool Interpreter::strict_here() const {
     return false;
 }
 
+bool Interpreter::text_compare_here() const {
+    if (!per_module_compare_ || source_.data() != main_source_.data()) {
+        return option_compare_text_;
+    }
+    for (const auto& [begin, end] : compare_text_ranges_) {
+        if (offset_ >= begin && offset_ < end) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::optional<std::size_t> Interpreter::default_type_for(
     const std::string& name) const {
     if (name.empty()) {

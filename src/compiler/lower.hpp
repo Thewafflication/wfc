@@ -24,6 +24,8 @@ struct LowerOptions final {
     // The names of the controls of each form (lower case).
     std::map<std::string, std::set<std::string>> form_controls;
     bool has_forms{};  // the program ends by running the forms
+    // Lines (1-based, inclusive) of the modules with `Option Compare Text`.
+    std::vector<std::pair<std::size_t, std::size_t>> text_compare_lines;
     std::string startup_form;
 };
 

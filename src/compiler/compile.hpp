@@ -34,6 +34,9 @@ struct ProjectInfo final {
     // name. A project with forms ends by running them.
     std::vector<std::string> form_names;
     std::vector<std::string> module_names;  // lower case
+    // 1-based inclusive line ranges of the modules that have
+    // `Option Compare Text` (the option belongs to one module).
+    std::vector<std::pair<std::size_t, std::size_t>> text_compare_lines;
     std::string startup_form;
     // Constants of the type libraries the project refers to (name, value).
     std::vector<std::pair<std::string, std::string>> library_constants;

@@ -666,6 +666,7 @@ CompileResult compile_project(const std::string_view raw_source,
     lower_options.host_globals.insert("calendar");
     lower_options.host_globals.insert("imestatus");
     lower_options.has_forms = !info.form_names.empty();
+    lower_options.text_compare_lines = info.text_compare_lines;
     for (const auto& item : all) {
         if (item.is_form) {
             lower_options.form_controls[lower_case(item.name)] =

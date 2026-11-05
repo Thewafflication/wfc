@@ -609,7 +609,7 @@ std::optional<Value> Interpreter::parse_comparison() {
                 return std::nullopt;
             }
             left =
-                Value{execute_ ? like_match(*text, *mask, option_compare_text_)
+                Value{execute_ ? like_match(*text, *mask, text_compare_here())
                                : false};
             continue;
         }
@@ -2421,7 +2421,7 @@ int Interpreter::compare_strings(const std::string_view left_in,
     std::string folded_right;
     std::string_view left = left_in;
     std::string_view right = right_in;
-    if (option_compare_text_ &&
+    if (text_compare_here() &&
         (!is_ascii_text(left) || !is_ascii_text(right))) {
         folded_left = fold_case(std::string(left));
         folded_right = fold_case(std::string(right));
@@ -2431,9 +2431,9 @@ int Interpreter::compare_strings(const std::string_view left_in,
     const auto common_size = std::min(left.size(), right.size());
     for (std::size_t index = 0; index < common_size; ++index) {
         const auto left_character = static_cast<unsigned char>(
-            option_compare_text_ ? ascii_lower(left[index]) : left[index]);
+            text_compare_here() ? ascii_lower(left[index]) : left[index]);
         const auto right_character = static_cast<unsigned char>(
-            option_compare_text_ ? ascii_lower(right[index]) : right[index]);
+            text_compare_here() ? ascii_lower(right[index]) : right[index]);
         if (left_character < right_character) {
             return -1;
         }

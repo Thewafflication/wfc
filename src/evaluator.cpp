@@ -842,6 +842,10 @@ Evaluation evaluate_program(const std::string_view source,
             interpreter.set_option_explicit_ranges(
                 options.option_explicit_ranges);
         }
+        if (options.per_module_option_compare) {
+            interpreter.set_option_compare_text_ranges(
+                options.option_compare_text_ranges);
+        }
         interpreter.set_max_procedure_depth(depth);
         interpreter.set_stack_budget(base, budget);
         auto result = interpreter.evaluate();

@@ -1267,9 +1267,9 @@ RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
     // select_case.cpp).
     auto result =
         (op & 0x400) != 0
-            ? engine().select_case_test(names[op & 0xFF], value_of(a),
-                                        value_of(b), (op & 0x100) != 0,
-                                        (op & 0x200) != 0, problem)
+            ? engine().select_case_test(
+                  names[op & 0xFF], value_of(a), value_of(b), (op & 0x100) != 0,
+                  (op & 0x200) != 0, (op & 0x800) != 0, problem)
             : engine().binary(names[op & 0xFF], value_of(a), value_of(b),
                               (op & 0x100) != 0, (op & 0x200) != 0, problem);
     if (!result.has_value()) {

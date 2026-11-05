@@ -56,26 +56,18 @@ compares as Variants do:
   beside a Double as Single).
 
 The Boolean `True` is -1 and `False` is 0 for ordering. A text comparison
-follows `Option Compare`; the comparison of a `To` range is the lower bound
+follows the `Option Compare` of the module of the code (Visual Basic applies
+the option to one module); the comparison of a `To` range is the lower bound
 with `>=` and then the upper with `<=`.
 
 The first matching `Case` runs. A value list stops at the first match; the
 selector is evaluated once; a Case value after a match, and the values of
 later Case clauses, are not evaluated. Code that is skipped raises nothing.
 
-An error found while comparing is a run-time error of the statement
-(trappable with `On Error`); there is no diagnostic for the type of a Case
-value. `WFC0053` and `WFC0060` are no longer produced by `Select Case`.
-
-## Known differences
-
-- WFC applies `Option Compare Text` to the whole program; Visual Basic applies
-  it to the module.
-- After an error in a Case value, `On Error Resume Next` continues in the Case
-  body in Visual Basic and after the `End Select` in WFC.
-- A typed Currency or Date is, in compiled code, told from a Variant by the way
-  it was declared; an expression that merely yields one (a function result) is
-  treated as typed in the interpreter only when it reads no Variant.
+An error found while comparing, or in evaluating a Case value, is a
+run-time error of the statement (trappable with `On Error`); with `On Error
+Resume Next` execution goes on in the body of the Case whose value failed. There
+is no diagnostic for the type of a Case value. `WFC0053` and `WFC0060` are no longer produced by `Select Case`.
 
 ## Verification
 
@@ -83,9 +75,8 @@ value. `WFC0053` and `WFC0060` are no longer produced by `Select Case`.
 
 - `TC-MP0002-select-case-probe-interpret` and
   `TC-MP0002-select-case-probe-native` generate the probe
-  (`scripts/New-SelectCaseProbe.ps1`), run it under WFC and compare 6,672
-  lines with `vb6-reference.txt` (the lines of the `Option Compare Text`
-  module and the `Resume Next` line are left out for the reasons above).
+  (`scripts/New-SelectCaseProbe.ps1`), run it under WFC and compare 6,767
+  lines with `vb6-reference.txt`, every one of them.
 - `tests/evaluator_tests.cpp` and corpus `203-skipped-code-and-booleans` cover
   the cases of the earlier requirements that changed (`Case 0 To "2"` is a
   match; `Select Case c > 1` with `Case 0, 1` matches `True`).

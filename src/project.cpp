@@ -473,8 +473,11 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
     }
     // Modules keep separate namespaces and one merged Option header.
     std::vector<bool> explicit_modules;
-    project.module_source = detail::link_modules(module_texts, module_names,
-                                                 class_texts, explicit_modules);
+    std::vector<bool> text_modules;
+    project.module_source =
+        detail::link_modules(module_texts, module_names, class_texts,
+                             explicit_modules, text_modules);
+    project.per_module_option_compare = modules.size() >= 2U;
     project.per_module_option_explicit = modules.size() >= 2U;
     for (std::size_t index = 0; index < modules.size(); ++index) {
         project.module_spans.push_back(LoadedProject::ModuleSpan{
@@ -487,6 +490,20 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
         if (explicit_modules[index]) {
             project.option_explicit_ranges.emplace_back(
                 range_begin, project.module_source.size());
+        }
+        if (text_modules[index]) {
+            const auto lines_before = static_cast<std::size_t>(
+                std::count(project.module_source.begin(),
+                           project.module_source.begin() +
+                               static_cast<std::ptrdiff_t>(range_begin),
+                           '\n'));
+            const auto lines_after = static_cast<std::size_t>(
+                std::count(project.module_source.begin(),
+                           project.module_source.end(), '\n'));
+            project.option_compare_text_ranges.emplace_back(
+                range_begin, project.module_source.size());
+            project.option_compare_text_lines.emplace_back(lines_before + 1U,
+                                                           lines_after + 1U);
         }
         project.module_source += "\n";
     }

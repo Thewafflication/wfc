@@ -50,9 +50,8 @@ Case values, and Variants that hold Currency and fractions. The rules that came
 out of it are REQ-0313.
 
 WFC reproduces the reference line for line, in the interpreter and in native
-code, except for the two known differences of REQ-0313. The tests
-`TC-MP0002-select-case-probe-interpret` and `...-native` run the probe (without
-the module that has `Option Compare Text`) and compare it with this file.
+code. The tests `TC-MP0002-select-case-probe-interpret` and `...-native` run the
+probe and compare it with this file.
 
 To measure again, generate the project, open `SelectCaseProbe.vbp` in Visual
 Basic 6, choose Run > Start With Full Compile, and keep the

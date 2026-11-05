@@ -17,7 +17,8 @@ namespace wfc::detail {
 [[nodiscard]] std::string link_modules(std::vector<std::string>& modules,
                                        const std::vector<std::string>& names,
                                        std::vector<std::string>& classes,
-                                       std::vector<bool>& explicit_modules);
+                                       std::vector<bool>& explicit_modules,
+                                       std::vector<bool>& text_modules);
 
 }  // namespace wfc::detail
 

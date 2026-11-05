@@ -5,17 +5,13 @@
 #   -DREFERENCE=<vb6-reference.txt> -DWORK=<folder> -DMODE=interpret|native
 #   -P run_probe.cmake
 #
-# The generator writes the project without the module that has
-# `Option Compare Text`, which WFC applies to the whole program (Visual Basic
-# to one module), so the reference lines of that module are left out. One
-# more line is left out: after an error in a Case value, `On Error Resume
-# Next` continues in the Case body in Visual Basic and after the Select Case in
-# WFC (the line "an error in a value that is reached").
+# Every line of the reference must be reproduced, including those of the module
+# that has `Option Compare Text` (the option belongs to one module) and the one
+# where `On Error Resume Next` goes on in the Case body after an error.
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 execute_process(
-  COMMAND
-    "${PWSH}" -NoProfile -File "${GENERATOR}" -Output "${WORK}" -WithoutText
+  COMMAND "${PWSH}" -NoProfile -File "${GENERATOR}" -Output "${WORK}"
   RESULT_VARIABLE generated
   OUTPUT_QUIET
 )
@@ -35,23 +31,8 @@ execute_process(
 if(NOT ran EQUAL 0)
   message(FATAL_ERROR "wfc exited with ${ran}: ${errors}${output}")
 endif()
-file(STRINGS "${WORK}/select-case-probe.txt" got)
-file(STRINGS "${REFERENCE}" reference)
-set(wanted "")
-foreach(line IN LISTS reference)
-  if(
-    NOT line MATCHES "^Option Compare Text"
-    AND NOT line MATCHES "^flow \| an error in a value that is reached"
-  )
-    list(APPEND wanted "${line}")
-  endif()
-endforeach()
-set(measured "")
-foreach(line IN LISTS got)
-  if(NOT line MATCHES "^flow \| an error in a value that is reached")
-    list(APPEND measured "${line}")
-  endif()
-endforeach()
+file(STRINGS "${WORK}/select-case-probe.txt" measured)
+file(STRINGS "${REFERENCE}" wanted)
 list(LENGTH wanted wanted_count)
 list(LENGTH measured measured_count)
 if(NOT wanted_count EQUAL measured_count)

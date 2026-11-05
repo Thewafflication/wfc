@@ -480,8 +480,10 @@ struct OptionLines {
 std::string link_modules(std::vector<std::string>& modules,
                          const std::vector<std::string>& names,
                          std::vector<std::string>& classes,
-                         std::vector<bool>& explicit_modules) {
+                         std::vector<bool>& explicit_modules,
+                         std::vector<bool>& text_modules) {
     explicit_modules.assign(modules.size(), false);
+    text_modules.assign(modules.size(), false);
     if (modules.size() < 2U) {
         return {};
     }
@@ -514,6 +516,7 @@ std::string link_modules(std::vector<std::string>& modules,
     for (std::size_t index = 0; index < modules.size(); ++index) {
         const auto options = strip_options(modules[index]);
         explicit_modules[index] = options.explicit_on;
+        text_modules[index] = options.compare_text;
         any_base = any_base || options.base_one;
         any_text = any_text || options.compare_text;
         any_binary = any_binary || options.compare_binary;
@@ -522,9 +525,9 @@ std::string link_modules(std::vector<std::string>& modules,
     if (any_base) {
         header += "Option Base 1\n";
     }
-    if (any_text) {
-        header += "Option Compare Text\n";
-    } else if (any_binary) {
+    // Option Compare Text belongs to its module (text_modules); the program
+    // compares as Binary elsewhere.
+    if (any_binary || any_text) {
         header += "Option Compare Binary\n";
     }
     return header;

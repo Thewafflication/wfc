@@ -63,6 +63,8 @@ struct EvaluationOptions final {
     // ranges of `source` listed here (the modules that declare it), instead
     // of to the whole text. Class modules always use their own text.
     bool per_module_option_explicit{};
+    bool per_module_option_compare{};
+    std::vector<std::pair<std::size_t, std::size_t>> option_compare_text_ranges;
     std::vector<std::pair<std::size_t, std::size_t>> option_explicit_ranges;
     // Path of a compiled `.res` file that `LoadResString` and `LoadResData`
     // read; empty when the project has none.

@@ -2924,6 +2924,12 @@ bool Interpreter::parse_select_statement() {
                 variant_operand_seen_ = false;
                 auto case_value = parse_expression();
                 if (!case_value.has_value()) {
+                    // An error in the value itself: with `On Error Resume
+                    // Next` Visual Basic goes on in the body of the Case.
+                    if (evaluate_case && recover_runtime_error(value_offset)) {
+                        case_matches = true;
+                        break;
+                    }
                     execute_ = enclosing_execution;
                     return false;
                 }
@@ -2947,6 +2953,16 @@ bool Interpreter::parse_select_statement() {
                             error,
                             vb_error_description(static_cast<Integer>(error)),
                             at));
+                        const Scope& frame = scopes_.back();
+                        if (frame.on_error_mode == 1 &&
+                            !frame.in_error_handler) {
+                            // On Error Resume Next: Visual Basic goes on with
+                            // the statement after the one that failed, which
+                            // is the body of the Case.
+                            error_ = wfc::Evaluation{};
+                            matched = true;
+                            return true;
+                        }
                         return false;
                     }
                     if (!order.has_value()) {
@@ -2972,6 +2988,11 @@ bool Interpreter::parse_select_statement() {
                     variant_operand_seen_ = false;
                     auto upper_value = parse_expression();
                     if (!upper_value.has_value()) {
+                        if (evaluate_case &&
+                            recover_runtime_error(upper_offset)) {
+                            case_matches = true;
+                            break;
+                        }
                         execute_ = enclosing_execution;
                         return false;
                     }

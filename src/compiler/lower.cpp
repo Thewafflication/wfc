@@ -463,7 +463,8 @@ public:
         }
         if (!global_arrays_.empty() || !global_objects_.empty() ||
             options_.has_forms || !has_main || module_.option_base != 0 ||
-            module_.option_compare_text) {
+            module_.option_compare_text ||
+            !options_.text_compare_lines.empty()) {
             make_start_function(has_main ? main->second.index : -1);
         }
         return std::move(program_);
@@ -500,7 +501,8 @@ private:
             static_cast<void>(
                 emit_engine_statement("wfcoptionbase", {}, Position{1, 1}));
         }
-        if (module_.option_compare_text) {
+        if (module_.option_compare_text ||
+            !options_.text_compare_lines.empty()) {
             static_cast<void>(
                 emit_engine_statement("wfcoptioncompare", {}, Position{1, 1}));
         }
@@ -3303,6 +3305,20 @@ private:
         return slot;
     }
 
+    // Whether the code at `at` compares Strings as `Option Compare Text`:
+    // the option belongs to one module of the program.
+    [[nodiscard]] bool text_compare_at(const Position at) const {
+        if (module_.option_compare_text) {
+            return true;
+        }
+        for (const auto& [first, last] : options_.text_compare_lines) {
+            if (at.line >= first && at.line <= last) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // The subject of a Select Case against a Case value. Two operands of one
     // type compare as the operator does; any other pair has Visual Basic's
     // rules for Select Case (the Case value is converted to the type of the
@@ -3406,6 +3422,16 @@ private:
         for (const auto& block : statement.cases) {
             const int body = builder_->new_label();
             const int next = builder_->new_label();
+            if (uses_errors_) {
+                // The tests of a Case are a statement of their own for
+                // `On Error`: after an error `Resume Next` goes on in the body
+                // of the Case, as in Visual Basic.
+                const int id = static_cast<int>(start_labels_.size());
+                start_labels_.push_back(builder_->new_label());
+                end_labels_.push_back(body);
+                builder_->place(start_labels_.back());
+                touch_statement(id);
+            }
             for (const auto& clause : block.clauses) {
                 const auto test =
                     case_test(clause, subject, subject_typed, statement.at);
@@ -4848,7 +4874,7 @@ private:
         std::vector<Operand> passed;
         std::size_t next = 0;
         std::vector<Value> lowered;
-        bool plain = !module_.option_compare_text;
+        bool plain = !text_compare_at(at);
         for (std::size_t i = 0; i < arguments.size(); ++i) {
             lowered.push_back(lower_expression(*arguments[i]));
             const bool is_start = arguments.size() == 3U && i == 0;
@@ -6109,7 +6135,8 @@ private:
             static_cast<std::int64_t>(found->second) |
             (left.type == VbType::variant && !left_typed ? 0x100 : 0) |
             (right.type == VbType::variant && !right_typed ? 0x200 : 0) |
-            (select_case ? 0x400 : 0);
+            (select_case ? 0x400 | 0x1000 : 0) |
+            (select_case && text_compare_at(at) ? 0x800 : 0);
         builder_->runtime(Service::variant_binary,
                           {ir::immediate(flags), a.operand, b.operand},
                           result.operand, true);
@@ -6914,7 +6941,7 @@ private:
     [[nodiscard]] Value compare_values(const std::string& op, const Value& left,
                                        const Value& right, const Position at) {
         if (left.type == VbType::string && right.type == VbType::string &&
-            module_.option_compare_text) {
+            text_compare_at(at)) {
             // Option Compare Text: the runtime compares ignoring case.
             return from_variant(variant_operation(op, left, right, at),
                                 VbType::boolean, at);

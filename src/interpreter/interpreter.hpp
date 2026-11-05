@@ -594,6 +594,13 @@ public:
         per_module_explicit_ = true;
         explicit_ranges_ = std::move(ranges);
     }
+    // `Option Compare Text` of single modules (byte ranges of the module
+    // source); without it the option is the program's.
+    void set_option_compare_text_ranges(
+        std::vector<std::pair<std::size_t, std::size_t>> ranges) {
+        per_module_compare_ = true;
+        compare_text_ranges_ = std::move(ranges);
+    }
     void set_app_properties(std::map<std::string, std::string> properties);
     // Delivers an event raised by a COM object to its WithEvents handlers.
     void deliver_com_event(InstanceData& source, const std::string& event_name,
@@ -2195,6 +2202,10 @@ private:
         const Value& left, const Value& right, const char operation,
         const std::size_t operator_offset);
 
+    // Whether strings compare as `Option Compare Text` says for the code
+    // that is running (its module's option, or the program's).
+    [[nodiscard]] bool text_compare_here() const;
+
     [[nodiscard]] int compare_strings(const std::string_view left_in,
                                       const std::string_view right_in) const;
 
@@ -2382,6 +2393,8 @@ private:
     // Project mode: Option Explicit holds only inside these ranges of the
     // main source (REQ-0283); a class module uses its own text.
     bool per_module_explicit_{};
+    bool per_module_compare_{};
+    std::vector<std::pair<std::size_t, std::size_t>> compare_text_ranges_;
     std::vector<std::pair<std::size_t, std::size_t>> explicit_ranges_;
     std::map<std::string, std::string> settings_;
     std::unordered_set<std::string> module_names_;

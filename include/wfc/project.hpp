@@ -34,6 +34,12 @@ struct LoadedProject final {
     // True when the ranges above are authoritative (a linked multi-module
     // project); false for a single module, which carries its own Option line.
     bool per_module_option_explicit{};
+    // `Option Compare Text` belongs to one module (as in Visual Basic): the
+    // byte ranges of module_source of the modules that have it, and the
+    // same as 1-based inclusive line ranges for the compiler.
+    bool per_module_option_compare{};
+    std::vector<std::pair<std::size_t, std::size_t>> option_compare_text_ranges;
+    std::vector<std::pair<std::size_t, std::size_t>> option_compare_text_lines;
     // The project's `ResFile32` resource file (REQ-0287), resolved against the
     // project directory; empty when none.
     std::string resource_file;
