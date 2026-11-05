@@ -3,8 +3,8 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
-steps 1 to 5 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
-`list.hpp`, `labeledit.hpp`), steps 6 and 7 not started
+steps 1 to 6 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
+`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 not started
 
 **Date:** 2026-11-04
 
@@ -138,8 +138,16 @@ below).
    TreeView), `FindItem`, the bounds of `SubItems`, the selection rules, and
    the rules of label editing shared with the TreeView. Items and sub items
    stay `CItem`s of the evaluator until step 7.
-6. **ImageList and ImageCombo**: images by key, `Overlay`-style lookups, the
-   combo's indented items.
+6. **ImageList and ImageCombo**: done in `images.hpp`, pinned first by corpus
+   `226-comctl-image-rules`: removing from a bound list (a new status,
+   `image_list_remove_bound`, same number 35615 as the insert rule but its
+   own message), the size the first image gives the list (himetric to
+   pixels), when the size can be set, `Overlay` taking two images, and the
+   combo's text matching an item without regard to case and its
+   `SelStart`/`SelLength`/`SelText` handling. Recorded as they are: a
+   negative `SelStart` or `SelLength` is stored as given and read as zero;
+   a negative `Indentation` and an `Image` beyond the list are accepted;
+   `Overlay` returns the first picture.
 7. **COM collections** (Decision 6) for TabStrip, StatusBar and Toolbar first
    (they have the fewest members), then the rest.
 

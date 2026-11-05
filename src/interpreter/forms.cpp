@@ -16,6 +16,7 @@
 #include <sstream>
 #include <thread>
 
+#include <wfc/mscomctl/images.hpp>
 #include <wfc/mscomctl/items.hpp>
 #include <wfc/mscomctl/labeledit.hpp>
 #include <wfc/mscomctl/layout.hpp>
