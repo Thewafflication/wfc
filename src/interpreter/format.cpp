@@ -563,17 +563,7 @@ std::string Interpreter::render_custom_numeric_picture_section(
 
 std::string Interpreter::render_floating(const double number,
                                          const int digits) {
-    if (std::isnan(number) || std::isinf(number)) {
-        return std::to_string(number);
-    }
-    char buffer[48];
-    std::snprintf(buffer, sizeof(buffer), "%.*G", digits, number);
-    std::string text = buffer;
-    // VB writes 1E+15 / 1E-05 exactly like C; but negative zero is "0".
-    if (text == "-0") {
-        return "0";
-    }
-    return text;
+    return float_text(number, digits);
 }
 
 std::string Interpreter::render(const Value& value) {

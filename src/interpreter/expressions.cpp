@@ -393,10 +393,13 @@ std::optional<Value> Interpreter::parse_expression() {
 }
 
 std::optional<Value> Interpreter::parse_implication() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_equivalence();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -404,22 +407,30 @@ std::optional<Value> Interpreter::parse_implication() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_equivalence();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = logical_binary(*left, *right, 'I', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, 'I',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_equivalence() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_exclusive_or();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -427,22 +438,30 @@ std::optional<Value> Interpreter::parse_equivalence() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_exclusive_or();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = logical_binary(*left, *right, 'E', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, 'E',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_exclusive_or() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_or();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -450,22 +469,30 @@ std::optional<Value> Interpreter::parse_exclusive_or() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_or();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = logical_binary(*left, *right, 'X', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, 'X',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_or() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_and();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -473,22 +500,30 @@ std::optional<Value> Interpreter::parse_or() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_and();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = logical_binary(*left, *right, 'O', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, 'O',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_and() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_not();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -496,14 +531,19 @@ std::optional<Value> Interpreter::parse_and() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_not();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = logical_binary(*left, *right, 'A', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, 'A',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
@@ -514,36 +554,14 @@ std::optional<Value> Interpreter::parse_not() {
         return parse_comparison();
     }
     skip_horizontal_whitespace();
+    const bool enclosing_variant = take_variant_scope();
     auto value = parse_not();
     if (!value.has_value()) {
         return std::nullopt;
     }
-    if (const auto* integer = std::get_if<Integer>(&*value)) {
-        return Value{static_cast<Integer>(~*integer)};
-    }
-    if (const auto* short_integer = std::get_if<Int16>(&*value)) {
-        return Value{static_cast<Int16>(~*short_integer)};
-    }
-    if (const auto* byte = std::get_if<Byte>(&*value)) {
-        return Value{static_cast<Byte>(~*byte)};
-    }
-    if (execute_ && !std::holds_alternative<bool>(*value)) {
-        Value widened = *value;
-        if (!widen_bitwise_operand(widened, operator_offset)) {
-            return std::nullopt;
-        }
-        if (const auto* integer = std::get_if<Integer>(&widened)) {
-            return Value{static_cast<Integer>(~*integer)};
-        }
-    }
-    const auto operand = coerce_ternary_operand(*value, operator_offset);
-    if (!operand.has_value()) {
-        return std::nullopt;
-    }
-    if (operand->is_null) {
-        return Value{Null{}};
-    }
-    return Value{!operand->value};
+    const bool operand_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || operand_variant;
+    return unary_operation(*value, operand_variant, false, operator_offset);
 }
 
 bool Interpreter::like_match(const std::string& text,
@@ -678,15 +696,13 @@ std::optional<Value> Interpreter::parse_concatenation() {
             left = Value{std::string{}};
             continue;
         }
-        // Concatenating two Nulls raises "Invalid use of Null" (verified
-        // against the local VB6 6.00.8176 reference); a single Null
-        // operand instead concatenates as an empty string (also
-        // verified: Null & "x" = "x", with no error).
+        // Two Nulls give Null; a single Null operand concatenates as an
+        // empty string (measured under VB6 6.00.8176: Null & "x" = "x").
         const bool left_null = std::holds_alternative<Null>(*left);
         const bool right_null = std::holds_alternative<Null>(*right);
         if (left_null && right_null) {
-            set_error("WFC0104", "Invalid use of Null", operator_offset);
-            return std::nullopt;
+            left = Value{Null{}};
+            continue;
         }
         if (left_null || right_null) {
             left = Value{(left_null ? std::string{} : render(*left)) +
@@ -719,10 +735,13 @@ std::optional<Value> Interpreter::parse_concatenation() {
 }
 
 std::optional<Value> Interpreter::parse_additive() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_multiplicative();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
 
     while (true) {
         skip_horizontal_whitespace();
@@ -737,28 +756,35 @@ std::optional<Value> Interpreter::parse_additive() {
         }
 
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_multiplicative();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = numeric_binary(*left, *right, operation, operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, operation,
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_star_slash() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_unary();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
 
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
         char operation = '\0';
-        bool integer_only = false;
         if (consume('*')) {
             operation = '*';
         } else if (consume('/')) {
@@ -768,24 +794,30 @@ std::optional<Value> Interpreter::parse_star_slash() {
         }
 
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_unary();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = integer_only
-                   ? integer_binary(*left, *right, operation, operator_offset)
-                   : numeric_binary(*left, *right, operation, operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, operation,
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_integer_division() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_star_slash();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -793,22 +825,30 @@ std::optional<Value> Interpreter::parse_integer_division() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_star_slash();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = integer_binary(*left, *right, '\\', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, '\\',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
 std::optional<Value> Interpreter::parse_multiplicative() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_integer_division();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -816,14 +856,19 @@ std::optional<Value> Interpreter::parse_multiplicative() {
             return left;
         }
         skip_horizontal_whitespace();
+        static_cast<void>(take_variant_scope());
         auto right = parse_integer_division();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        left = integer_binary(*left, *right, '%', operator_offset);
+        const bool right_variant = variant_operand_seen_;
+        left = arithmetic(*left, left_variant, *right, right_variant, '%',
+                          operator_offset);
         if (!left.has_value()) {
             return std::nullopt;
         }
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 
@@ -877,83 +922,26 @@ std::optional<Value> Interpreter::parse_unary() {
             }
         }
 
+        const bool enclosing_variant = take_variant_scope();
         auto value = parse_unary();
         if (!value.has_value()) {
             return std::nullopt;
         }
-        if (const auto* flag = std::get_if<bool>(&*value)) {
-            value = Value{static_cast<Int16>(*flag ? -1 : 0)};
-        }
-        if (const auto* byte = std::get_if<Byte>(&*value)) {
-            value = Value{
-                static_cast<Int16>(*byte)};  // negated below as an Integer
-        }
-        if (std::holds_alternative<Null>(*value)) {
-            return value;
-        }
-        if (std::holds_alternative<Empty>(*value)) {
-            return execute_ ? Value{Integer{0}} : Value{Integer{}};
-        }
-        if (const auto* number = std::get_if<double>(&*value)) {
-            return execute_ ? Value{-*number} : Value{0.0};
-        }
-        if (const auto* single = std::get_if<float>(&*value)) {
-            return execute_ ? Value{-*single} : Value{0.0f};
-        }
-        if (const auto* decimal = std::get_if<Decimal>(&*value)) {
-            if (!execute_) {
-                return Value{Decimal{}};
-            }
-            Decimal negated = *decimal;
-            if (!is_zero_big(negated.mantissa)) {
-                negated.negative = !negated.negative;
-            }
-            return Value{negated};
-        }
-        if (const auto* currency = std::get_if<Currency>(&*value)) {
-            if (!execute_) {
-                return Value{Currency{}};
-            }
-            if (currency->scaled == std::numeric_limits<std::int64_t>::min()) {
-                set_error("WFC0009", "numeric overflow", operator_offset);
-                return std::nullopt;
-            }
-            return Value{Currency{-currency->scaled}};
-        }
-        if (const auto* short_integer = std::get_if<Int16>(&*value)) {
-            if (!execute_) {
-                return Value{Int16{}};
-            }
-            if (*short_integer == std::numeric_limits<Int16>::min()) {
-                set_error("WFC0009", "integer overflow", operator_offset);
-                return std::nullopt;
-            }
-            return Value{static_cast<Int16>(-*short_integer)};
-        }
-        if (const auto* byte = std::get_if<Byte>(&*value)) {
-            return Value{static_cast<Integer>(-static_cast<Integer>(*byte))};
-        }
-        if (!execute_) {
-            return Value{Integer{}};  // skipped code runs nothing
-        }
-        const auto* integer = require_integer(*value, operator_offset);
-        if (integer == nullptr) {
-            return std::nullopt;
-        }
-        if (*integer == std::numeric_limits<Integer>::min()) {
-            set_error("WFC0009", "integer overflow", operator_offset);
-            return std::nullopt;
-        }
-        return Value{static_cast<Integer>(-*integer)};
+        const bool operand_variant = variant_operand_seen_;
+        variant_operand_seen_ = enclosing_variant || operand_variant;
+        return unary_operation(*value, operand_variant, true, operator_offset);
     }
     return parse_power();
 }
 
 std::optional<Value> Interpreter::parse_power() {
+    const bool enclosing_variant = take_variant_scope();
     auto left = parse_primary();
     if (!left.has_value()) {
         return std::nullopt;
     }
+    bool left_variant = variant_operand_seen_;
+    variant_operand_seen_ = enclosing_variant || left_variant;
     while (true) {
         skip_horizontal_whitespace();
         const auto operator_offset = offset_;
@@ -969,63 +957,26 @@ std::optional<Value> Interpreter::parse_power() {
             static_cast<void>(consume('+'));
             skip_horizontal_whitespace();
         }
+        static_cast<void>(take_variant_scope());
         auto right = parse_primary();
         if (!right.has_value()) {
             return std::nullopt;
         }
-        if (std::holds_alternative<Null>(*left) ||
-            std::holds_alternative<Null>(*right)) {
-            left = Value{Null{}};
-            continue;
-        }
-        const auto operand = [](const Value& v) -> std::optional<double> {
-            if (std::holds_alternative<Empty>(v)) {
-                return 0.0;
-            }
-            if (is_number(v)) {
-                return as_double(v);
-            }
-            if (const auto* d = std::get_if<DateValue>(&v)) {
-                return d->serial;
-            }
-            if (const auto* flag = std::get_if<bool>(&v)) {
-                return *flag ? -1.0 : 0.0;
-            }
-            if (const auto* text = std::get_if<std::string>(&v)) {
-                const auto parsed = parse_numeric_string(*text);
-                if (parsed.status == NumericStringStatus::valid) {
-                    return parsed.value;
-                }
-            }
-            return std::nullopt;
-        };
-        const auto base = operand(*left);
-        auto exponent = operand(*right);
-        if (!execute_ && (!base.has_value() || !exponent.has_value())) {
-            return Value{0.0};  // skipped code runs nothing
-        }
-        if (!base.has_value() || !exponent.has_value()) {
-            set_error("WFC0007", "operator requires numeric operands",
-                      operator_offset);
-            return std::nullopt;
-        }
+        const bool right_variant = variant_operand_seen_;
         if (negate) {
-            exponent = -*exponent;
+            right =
+                unary_operation(*right, right_variant, true, operator_offset);
+            if (!right.has_value()) {
+                return std::nullopt;
+            }
         }
-        if (!execute_) {
-            left = Value{0.0};
-            continue;
-        }
-        if (*base == 0.0 && *exponent < 0.0) {
-            set_error("WFC0008", "division by zero", operator_offset);
+        left = arithmetic(*left, left_variant, *right, right_variant, '^',
+                          operator_offset);
+        if (!left.has_value()) {
             return std::nullopt;
         }
-        const double result = std::pow(*base, *exponent);
-        if (!std::isfinite(result)) {
-            set_error("WFC0009", "numeric overflow", operator_offset);
-            return std::nullopt;
-        }
-        left = Value{result};
+        left_variant = left_variant || right_variant;
+        variant_operand_seen_ = enclosing_variant || left_variant;
     }
 }
 

@@ -3540,10 +3540,8 @@ private:
             return value.operand.value != 0 ? "True" : "False";
         }
         if (is_float(value.type)) {
-            char buffer[48];
-            std::snprintf(buffer, sizeof(buffer), "%.*G", digits_of(value.type),
-                          double_of(value));
-            return buffer;
+            return wfc::detail::float_text(double_of(value),
+                                           digits_of(value.type));
         }
         return std::to_string(value.operand.value);
     }

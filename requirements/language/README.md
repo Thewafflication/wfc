@@ -69,6 +69,10 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0314 — The comparison operators compare as Visual Basic 6 does](req-0314-comparison-operators.md)
   defines how `=`, `<` and `>` compare two operands of any kinds, measured
   under Visual Basic 6 (it revises REQ-0142).
+- [REQ-0315 — The arithmetic and logical operators work as Visual Basic 6 does](req-0315-arithmetic-and-logical-operators.md)
+  defines the type, value or error of `+ - * / \ Mod ^ & And Or Xor Eqv Imp`,
+  measured under Visual Basic 6 (it revises how REQ-0268 writes a small
+  number).
 - [REQ-0157 — Typed constant subset](req-0157-typed-constants.md) defines
   immutable `Long`, `String`, and `Boolean` values for the eighteenth MP-0002
   increment.

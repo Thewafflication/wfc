@@ -700,8 +700,10 @@ static int exact_digits(double value, int count, char* digits) {
     return first_digit_exponent;
 }
 
-/* VB6 writes a Double with 15 significant digits and a Single with 7 (C's %G
- * rules); negative zero is "0". */
+/* VB6 writes a Double with 15 significant digits and a Single with 7: the
+ * exponent form from 1E15 up, and a number below 1 in full while the zeros
+ * after the point and the significant digits fit the digits of the type;
+ * negative zero is "0". */
 static void format_float(char* buffer, size_t size, double value, int digits) {
     char significant[24];
     char text[48];
@@ -733,7 +735,8 @@ static void format_float(char* buffer, size_t size, double value, int digits) {
     while (last > 0 && significant[last] == '0') {
         --last; /* %G drops trailing zeros */
     }
-    if (exponent < -4 || exponent >= digits) {
+    if (exponent >= digits ||
+        (exponent < 0 && -exponent - 1 + last + 1 > digits)) {
         text[at++] = significant[0];
         if (last > 0) {
             text[at++] = '.';
@@ -1052,8 +1055,11 @@ static double math_function(int32_t which, double value) {
 
 static double double_power(double base, double exponent) {
     double result;
-    if (base == 0.0 && exponent < 0.0) {
-        raise_error(11);
+    /* Measured under VB6: zero to a negative power and a negative number to a
+     * fraction are error 5, an overflow is error 6. */
+    if ((base == 0.0 && exponent < 0.0) ||
+        (base < 0.0 && exponent != floor(exponent))) {
+        raise_error(5);
         return 0.0;
     }
     result = accurate_pow(base, exponent);
@@ -2094,293 +2100,6 @@ static RtVariant* variant_whole_result(int type, int64_t value) {
     return handle;
 }
 
-static RtVariant* numeric_binary(const RtVariant* left, const RtVariant* right,
-                                 char operation);
-static RtVariant* integer_binary(const RtVariant* left, const RtVariant* right,
-                                 char operation);
-
-/* Booleans widen to Integers, Bytes to Longs. */
-static RtVariant* widened(const RtVariant* handle, RtVariant* scratch) {
-    if (vtype(handle) == VT_BOOL) {
-        scratch->refs = 1000000000;
-        scratch->type = VT_I2;
-        scratch->u.l = handle->u.l != 0 ? -1 : 0;
-        return scratch;
-    }
-    if (vtype(handle) == VT_UI1) {
-        scratch->refs = 1000000000;
-        scratch->type = VT_I4;
-        scratch->u.l = handle->u.l;
-        return scratch;
-    }
-    return (RtVariant*)handle;
-}
-
-static int is_small_type(int type) {
-    return type == VT_I2 || type == VT_UI1;
-}
-
-static RtVariant* short_binary(const RtVariant* left, const RtVariant* right,
-                               char operation) {
-    int32_t a = left->u.l;
-    int32_t b = right->u.l;
-    int32_t result;
-    switch (operation) {
-        case '+':
-            result = a + b;
-            break;
-        case '-':
-            result = a - b;
-            break;
-        default:
-            result = a * b;
-            break;
-    }
-    if (result < -32768 || result > 32767) {
-        return variant_whole_result(VT_I4, result);
-    }
-    return variant_whole_result(VT_I2, result);
-}
-
-static RtVariant* numeric_binary(const RtVariant* left_in,
-                                 const RtVariant* right_in, char operation) {
-    RtVariant left_scratch;
-    RtVariant right_scratch;
-    const RtVariant* left;
-    const RtVariant* right;
-    int left_type = vtype(left_in);
-    int right_type = vtype(right_in);
-    int category_left;
-    int category_right;
-    int category;
-    if ((operation == '+' || operation == '-' || operation == '*' ||
-         operation == '\\' || operation == '%') &&
-        is_small_type(left_type) && is_small_type(right_type)) {
-        int both_bytes = left_type == VT_UI1 && right_type == VT_UI1;
-        int64_t a = left_in->u.l;
-        int64_t b = right_in->u.l;
-        int64_t result;
-        if ((operation == '\\' || operation == '%') && b == 0) {
-            return variant_fail(11);
-        }
-        switch (operation) {
-            case '+':
-                result = a + b;
-                break;
-            case '-':
-                result = a - b;
-                break;
-            case '*':
-                result = a * b;
-                break;
-            case '\\':
-                result = a / b;
-                break;
-            default:
-                result = a % b;
-                break;
-        }
-        if (both_bytes && result >= 0 && result <= 255) {
-            return variant_whole_result(VT_UI1, result);
-        }
-        if (!both_bytes && result >= -32768 && result <= 32767) {
-            return variant_whole_result(VT_I2, result);
-        }
-        if (both_bytes && result >= -32768 && result <= 32767) {
-            return variant_whole_result(VT_I2, result);
-        }
-        return variant_whole_result(VT_I4, result);
-    }
-    left = widened(left_in, &left_scratch);
-    right = widened(right_in, &right_scratch);
-    left_type = vtype(left);
-    right_type = vtype(right);
-    if (operation == '+' && left_type == VT_BSTR && right_type == VT_BSTR) {
-        RtVariant* handle = new_variant(VT_BSTR);
-        handle->u.s = string_concat(left->u.s, right->u.s);
-        return handle;
-    }
-    if (left_type == VT_NULL || right_type == VT_NULL) {
-        return variant_null();
-    }
-    if (left_type == VT_EMPTY || right_type == VT_EMPTY) {
-        RtVariant zero_left;
-        RtVariant zero_right;
-        const RtVariant* coerced_left = left;
-        const RtVariant* coerced_right = right;
-        memset(&zero_left, 0, sizeof(zero_left));
-        memset(&zero_right, 0, sizeof(zero_right));
-        zero_left.refs = zero_right.refs = 1000000000;
-        zero_left.type = zero_right.type = VT_I4;
-        if (left_type == VT_EMPTY) {
-            coerced_left = &zero_left;
-        }
-        if (right_type == VT_EMPTY) {
-            coerced_right = &zero_right;
-        }
-        return numeric_binary(coerced_left, coerced_right, operation);
-    }
-    if ((left_type == VT_BSTR || right_type == VT_BSTR) &&
-        !(left_type == VT_BSTR && right_type == VT_BSTR && operation == '+')) {
-        RtVariant converted_left;
-        RtVariant converted_right;
-        const RtVariant* sides[2];
-        RtVariant* targets[2];
-        double parsed;
-        int k;
-        sides[0] = left;
-        sides[1] = right;
-        targets[0] = &converted_left;
-        targets[1] = &converted_right;
-        for (k = 0; k < 2; ++k) {
-            memset(targets[k], 0, sizeof(RtVariant));
-            targets[k]->refs = 1000000000;
-            if (vtype(sides[k]) == VT_BSTR) {
-                if (!parse_numeric(
-                        sides[k]->u.s == NULL ? "" : sides[k]->u.s->data,
-                        (size_t)length_of(sides[k]->u.s), &parsed)) {
-                    return variant_fail(13);
-                }
-                targets[k]->type = VT_R8;
-                targets[k]->u.d = parsed;
-            } else if (is_number_type(vtype(sides[k]))) {
-                *targets[k] = *sides[k];
-                targets[k]->refs = 1000000000;
-            } else {
-                return variant_fail(13);
-            }
-        }
-        return numeric_binary(&converted_left, &converted_right, operation);
-    }
-    if (operation != '/' && left_type == VT_I4 && right_type == VT_I4) {
-        return integer_binary(left, right, operation);
-    }
-    if (operation != '/' && left_type == VT_I2 && right_type == VT_I2) {
-        return short_binary(left, right, operation);
-    }
-    if (!is_number_type(left_type) || !is_number_type(right_type)) {
-        return variant_fail(13);
-    }
-    category_left = left_type == VT_R8 ? 3 : (left_type == VT_R4 ? 2 : 0);
-    category_right = right_type == VT_R8 ? 3 : (right_type == VT_R4 ? 2 : 0);
-    category = category_left > category_right ? category_left : category_right;
-    if (operation != '/' && category == 0) {
-        /* an Integer beside a Long: both are Longs */
-        RtVariant long_left = *left;
-        RtVariant long_right = *right;
-        long_left.type = VT_I4;
-        long_right.type = VT_I4;
-        long_left.refs = long_right.refs = 1000000000;
-        return integer_binary(&long_left, &long_right, operation);
-    }
-    if (category == 0) {
-        category = 3; /* `/` of whole numbers is a Double */
-    }
-    if (category == 2) {
-        float a = (float)number_value(left);
-        float b = (float)number_value(right);
-        volatile float result;
-        RtVariant* handle;
-        switch (operation) {
-            case '+':
-                result = a + b;
-                break;
-            case '-':
-                result = a - b;
-                break;
-            case '*':
-                result = a * b;
-                break;
-            default:
-                if (b == 0.0f) {
-                    return variant_fail(11);
-                }
-                result = a / b;
-                break;
-        }
-        if (!((double)result - (double)result == 0.0)) {
-            return variant_fail(6);
-        }
-        handle = new_variant(VT_R4);
-        handle->u.f = result;
-        return handle;
-    }
-    {
-        double a = number_value(left);
-        double b = number_value(right);
-        double result;
-        switch (operation) {
-            case '+':
-                result = a + b;
-                break;
-            case '-':
-                result = a - b;
-                break;
-            case '*':
-                result = a * b;
-                break;
-            default:
-                if (b == 0.0) {
-                    return variant_fail(11);
-                }
-                result = a / b;
-                break;
-        }
-        return variant_double_result(result);
-    }
-}
-
-static RtVariant* integer_binary(const RtVariant* left_in,
-                                 const RtVariant* right_in, char operation) {
-    RtVariant left_scratch;
-    RtVariant right_scratch;
-    const RtVariant* left;
-    const RtVariant* right;
-    int32_t a;
-    int32_t b;
-    int64_t result;
-    if (is_small_type(vtype(left_in)) && is_small_type(vtype(right_in))) {
-        return numeric_binary(left_in, right_in, operation);
-    }
-    left = widened(left_in, &left_scratch);
-    right = widened(right_in, &right_scratch);
-    if (!coerce_long(left, &a, 13)) {
-        return NULL;
-    }
-    if (!coerce_long(right, &b, 13)) {
-        return NULL;
-    }
-    if ((operation == '\\' || operation == '%') && b == 0) {
-        return variant_fail(11);
-    }
-    if ((operation == '\\' || operation == '%') && a == INT32_MIN && b == -1) {
-        return variant_fail(6);
-    }
-    switch (operation) {
-        case '+':
-            result = (int64_t)a + b;
-            break;
-        case '-':
-            result = (int64_t)a - b;
-            break;
-        case '*':
-            result = (int64_t)a * b;
-            break;
-        case '\\':
-            result = a / b;
-            break;
-        default:
-            result = a % b;
-            break;
-    }
-    if (result < INT32_MIN || result > INT32_MAX) {
-        if (operation == '+' || operation == '-' || operation == '*') {
-            return variant_from_double((double)result);
-        }
-        return variant_fail(6);
-    }
-    return variant_whole_result(VT_I4, result);
-}
 
 /* ----- Comparisons */
 
@@ -2468,8 +2187,8 @@ static int text_to_boolean(const RtString* text, int* answer) {
             return 1;
         }
     }
-    if (!parse_numeric(text == NULL ? "" : text->data,
-                       (size_t)length_of(text), &parsed)) {
+    if (!parse_numeric(text == NULL ? "" : text->data, (size_t)length_of(text),
+                       &parsed)) {
         return 0;
     }
     *answer = parsed != 0.0 ? -1 : 0;
@@ -2572,177 +2291,6 @@ static RtVariant* variant_compare_vb(const RtVariant* a, const RtVariant* b,
     return compare_result(order_numbers_vb(a, b), op);
 }
 
-/* ----- Logical operators */
-
-static int widens_type(int type) {
-    return type == VT_R4 || type == VT_R8 || type == VT_BSTR;
-}
-
-static int integral_type(int type) {
-    return type == VT_I4 || type == VT_I2 || type == VT_UI1 || type == VT_BOOL;
-}
-
-/* widen_bitwise_operand: a numeric String or a fraction becomes a Long. */
-static int widen_bitwise(RtVariant* into, const RtVariant* source) {
-    double parsed;
-    if (source == NULL) {
-        memset(into, 0, sizeof(*into));
-        into->refs = 1000000000;
-        return 1; /* Empty stays Empty */
-    }
-    *into = *source;
-    into->refs = 1000000000;
-    if (source->type == VT_BSTR) {
-        if (!parse_numeric(source->u.s == NULL ? "" : source->u.s->data,
-                           (size_t)length_of(source->u.s), &parsed)) {
-            return 1; /* stays a String */
-        }
-    } else if (source->type == VT_R4) {
-        parsed = (double)source->u.f;
-    } else if (source->type == VT_R8) {
-        parsed = source->u.d;
-    } else {
-        return 1;
-    }
-    {
-        int32_t whole;
-        if (!round_to_long(parsed, &whole)) {
-            return 0;
-        }
-        into->type = VT_I4;
-        into->u.l = whole;
-    }
-    return 1;
-}
-
-/* A Boolean of a ternary operand: 0 false, 1 true, -1 Null; 13 for others. */
-static int ternary_of(const RtVariant* handle, int* failed) {
-    switch (vtype(handle)) {
-        case VT_NULL:
-            return -1;
-        case VT_EMPTY:
-            return 0;
-        case VT_BOOL:
-            return handle->u.l != 0 ? 1 : 0;
-        default:
-            raise_error(13);
-            *failed = 1;
-            return 0;
-    }
-}
-
-static RtVariant* variant_logical(const RtVariant* left_in,
-                                  const RtVariant* right_in, int op) {
-    RtVariant widened_left;
-    RtVariant widened_right;
-    const RtVariant* left = left_in;
-    const RtVariant* right = right_in;
-    int left_type = vtype(left);
-    int right_type = vtype(right);
-    if ((widens_type(left_type) || widens_type(right_type)) &&
-        (widens_type(left_type) || integral_type(left_type)) &&
-        (widens_type(right_type) || integral_type(right_type)) &&
-        !(left_type == VT_BOOL && right_type == VT_BOOL)) {
-        if (!widen_bitwise(&widened_left, left) ||
-            !widen_bitwise(&widened_right, right)) {
-            return NULL;
-        }
-        if (integral_type(widened_left.type) &&
-            integral_type(widened_right.type)) {
-            return variant_logical(&widened_left, &widened_right, op);
-        }
-    }
-    {
-        int li =
-            left_type == VT_I4 || left_type == VT_I2 || left_type == VT_UI1;
-        int ri =
-            right_type == VT_I4 || right_type == VT_I2 || right_type == VT_UI1;
-        int lb = left_type == VT_BOOL;
-        int rb = right_type == VT_BOOL;
-        if ((li || ri) && (li || lb) && (ri || rb)) {
-            int32_t a = li ? left->u.l : (left->u.l != 0 ? -1 : 0);
-            int32_t b = ri ? right->u.l : (right->u.l != 0 ? -1 : 0);
-            int32_t r;
-            switch (op) {
-                case 14:
-                    r = a & b;
-                    break;
-                case 15:
-                    r = a | b;
-                    break;
-                case 16:
-                    r = a ^ b;
-                    break;
-                case 17:
-                    r = ~(a ^ b);
-                    break;
-                default:
-                    r = ~a | b;
-                    break;
-            }
-            if (left_type == VT_UI1 && right_type == VT_UI1) {
-                return variant_whole_result(VT_UI1, r & 0xFF);
-            }
-            if (left_type != VT_I4 && right_type != VT_I4) {
-                return variant_whole_result(VT_I2, (int16_t)r);
-            }
-            return variant_whole_result(VT_I4, r);
-        }
-    }
-    {
-        int failed = 0;
-        int a = ternary_of(left, &failed);
-        int b;
-        int result;
-        if (failed) {
-            return NULL;
-        }
-        b = ternary_of(right, &failed);
-        if (failed) {
-            return NULL;
-        }
-        switch (op) {
-            case 14: /* And */
-                if (a == 0 || b == 0) {
-                    result = 0;
-                } else if (a < 0 || b < 0) {
-                    result = -1;
-                } else {
-                    result = 1;
-                }
-                break;
-            case 15: /* Or */
-                if (a == 1 || b == 1) {
-                    result = 1;
-                } else if (a < 0 || b < 0) {
-                    result = -1;
-                } else {
-                    result = 0;
-                }
-                break;
-            case 16: /* Xor */
-                result = (a < 0 || b < 0) ? -1 : (a != b);
-                break;
-            case 17: /* Eqv */
-                result = (a < 0 || b < 0) ? -1 : (a == b);
-                break;
-            default: /* Imp */
-                if (a == 0 || b == 1) {
-                    result = 1;
-                } else if (a < 0 || b < 0) {
-                    result = -1;
-                } else {
-                    result = 0;
-                }
-                break;
-        }
-        if (result < 0) {
-            return variant_null();
-        }
-        return variant_from_boolean(result);
-    }
-}
-
 /* ----- Concatenation and power */
 
 static RtVariant* variant_concatenate(const RtVariant* left,
@@ -2753,7 +2301,7 @@ static RtVariant* variant_concatenate(const RtVariant* left,
     int left_null = vtype(left) == VT_NULL;
     int right_null = vtype(right) == VT_NULL;
     if (left_null && right_null) {
-        return variant_fail(94);
+        return variant_null();
     }
     if (!left_null) {
         a = variant_render(left);
@@ -2768,19 +2316,432 @@ static RtVariant* variant_concatenate(const RtVariant* left,
     return handle;
 }
 
-static RtVariant* variant_power(const RtVariant* left, const RtVariant* right) {
-    double base;
-    double exponent;
-    if (vtype(left) == VT_NULL || vtype(right) == VT_NULL) {
-        return variant_null();
+/* ----- The arithmetic and logical operators of Visual Basic 6
+ *
+ * The rules were measured under Visual Basic 6 (src/interpreter/arithmetic.cpp
+ * has them in full); this is the same for the types this runtime has. */
+
+enum { NUM_NONE = -1, NUM_BYTE, NUM_INT, NUM_LONG, NUM_SINGLE, NUM_DOUBLE };
+
+/* An operand as a number: its type (NUM_NONE for Empty, which adopts the
+ * other's), its value, and whether a String was read. 0 when a String is not a
+ * number. */
+static int ar_operand(const RtVariant* handle, int* type, double* value) {
+    switch (vtype(handle)) {
+        case VT_EMPTY:
+            *type = NUM_NONE;
+            *value = 0.0;
+            return 1;
+        case VT_BOOL:
+            *type = NUM_INT;
+            *value = handle->u.l != 0 ? -1.0 : 0.0;
+            return 1;
+        case VT_UI1:
+            *type = NUM_BYTE;
+            *value = (double)handle->u.l;
+            return 1;
+        case VT_I2:
+            *type = NUM_INT;
+            *value = (double)handle->u.l;
+            return 1;
+        case VT_I4:
+            *type = NUM_LONG;
+            *value = (double)handle->u.l;
+            return 1;
+        case VT_R4:
+            *type = NUM_SINGLE;
+            *value = (double)handle->u.f;
+            return 1;
+        case VT_R8:
+            *type = NUM_DOUBLE;
+            *value = handle->u.d;
+            return 1;
+        case VT_BSTR:
+            *type = NUM_DOUBLE;
+            return parse_numeric(handle->u.s == NULL ? "" : handle->u.s->data,
+                                 (size_t)length_of(handle->u.s), value);
+        default:
+            return 0;
     }
-    if (!number_of(left, &base) || !number_of(right, &exponent)) {
+}
+
+static int ar_numeric_text(const RtVariant* handle) {
+    double value;
+    return vtype(handle) == VT_BSTR &&
+           parse_numeric(handle->u.s == NULL ? "" : handle->u.s->data,
+                         (size_t)length_of(handle->u.s), &value);
+}
+
+static int ar_is_true_text(const RtVariant* handle) {
+    return vtype(handle) == VT_BSTR && handle->u.s != NULL &&
+           handle->u.s->length == 4 &&
+           memcmp(handle->u.s->data, "True", 4) == 0;
+}
+
+/* The Null case of an operator that reads its operands as numbers: a String
+ * that is not a number is still error 13. Returns 0 when neither is Null, 1
+ * with `*result` set otherwise. */
+static int ar_null_case(const RtVariant* a, const RtVariant* b, int allow_true,
+                        RtVariant** result) {
+    const RtVariant* other;
+    if (vtype(a) != VT_NULL && vtype(b) != VT_NULL) {
+        return 0;
+    }
+    other = vtype(a) == VT_NULL ? b : a;
+    if (vtype(other) == VT_BSTR && !ar_numeric_text(other) &&
+        !(allow_true && ar_is_true_text(other))) {
+        *result = variant_fail(13);
+    } else {
+        *result = variant_null();
+    }
+    return 1;
+}
+
+static int ar_fits(int type, int64_t value) {
+    switch (type) {
+        case NUM_BYTE:
+            return value >= 0 && value <= 255;
+        case NUM_INT:
+            return value >= -32768 && value <= 32767;
+        default:
+            return value >= INT32_MIN && value <= INT32_MAX;
+    }
+}
+
+static RtVariant* ar_whole(int type, int64_t value) {
+    return variant_whole_result(
+        type == NUM_BYTE ? VT_UI1 : (type == NUM_INT ? VT_I2 : VT_I4), value);
+}
+
+static RtVariant* ar_add(int op, const RtVariant* a, const RtVariant* b,
+                         int typed) {
+    int at = vtype(a);
+    int bt = vtype(b);
+    int ta;
+    int tb;
+    int type;
+    double x;
+    double y;
+    RtVariant* result;
+    if (op == '+' && (at == VT_NULL || bt == VT_NULL)) {
+        return variant_null(); /* a String joins under +, so it never fails */
+    }
+    if (ar_null_case(a, b, 0, &result)) {
+        return result;
+    }
+    if (op == '+' && at == VT_BSTR && bt == VT_BSTR) {
+        result = new_variant(VT_BSTR);
+        result->u.s = string_concat(a->u.s, b->u.s);
+        return result;
+    }
+    if (op == '+' && ((at == VT_BSTR && bt == VT_EMPTY) ||
+                      (at == VT_EMPTY && bt == VT_BSTR))) {
+        return variant_from_string((at == VT_BSTR ? a : b)->u.s);
+    }
+    if (!ar_operand(a, &ta, &x) || !ar_operand(b, &tb, &y)) {
         return variant_fail(13);
     }
-    if (base == 0.0 && exponent < 0.0) {
+    if (ta == NUM_NONE && tb == NUM_NONE) {
+        ta = tb = NUM_INT;
+    } else if (ta == NUM_NONE) {
+        ta = tb;
+    } else if (tb == NUM_NONE) {
+        tb = ta;
+    }
+    if (ta == NUM_DOUBLE || tb == NUM_DOUBLE) {
+        type = NUM_DOUBLE;
+    } else if (ta == NUM_SINGLE || tb == NUM_SINGLE) {
+        type = ta == NUM_LONG || tb == NUM_LONG ? NUM_DOUBLE : NUM_SINGLE;
+    } else if (ta == NUM_LONG || tb == NUM_LONG) {
+        type = NUM_LONG;
+    } else if (ta == NUM_BYTE && tb == NUM_BYTE) {
+        type = NUM_BYTE;
+    } else {
+        type = NUM_INT;
+    }
+    if (type <= NUM_LONG) {
+        int64_t l = (int64_t)x;
+        int64_t r = (int64_t)y;
+        int64_t z = op == '+' ? l + r : (op == '-' ? l - r : l * r);
+        while (!ar_fits(type, z)) {
+            if (typed) {
+                return variant_fail(6);
+            }
+            if (type == NUM_LONG) {
+                return variant_from_double((double)z);
+            }
+            type = type == NUM_BYTE ? NUM_INT : NUM_LONG;
+        }
+        return ar_whole(type, z);
+    }
+    if (type == NUM_SINGLE) {
+        float l = (float)x;
+        float r = (float)y;
+        float z = op == '+' ? l + r : (op == '-' ? l - r : l * r);
+        if (!((double)z - (double)z == 0.0)) {
+            return variant_fail(6);
+        }
+        return variant_from_single((double)z);
+    }
+    return variant_double_result(op == '+' ? x + y
+                                           : (op == '-' ? x - y : x * y));
+}
+
+static RtVariant* ar_divide(const RtVariant* a, const RtVariant* b, int typed) {
+    int ta;
+    int tb;
+    double x;
+    double y;
+    RtVariant* result;
+    int small_a;
+    int small_b;
+    if (ar_null_case(a, b, 0, &result)) {
+        return result;
+    }
+    if (!ar_operand(a, &ta, &x) || !ar_operand(b, &tb, &y)) {
+        return variant_fail(13);
+    }
+    if (y == 0.0) {
+        return variant_fail(x != 0.0 && typed ? 11 : 6);
+    }
+    small_a = vtype(a) == VT_R4 || vtype(a) == VT_I2 || vtype(a) == VT_UI1 ||
+              vtype(a) == VT_BOOL || vtype(a) == VT_EMPTY;
+    small_b = vtype(b) == VT_R4 || vtype(b) == VT_I2 || vtype(b) == VT_UI1 ||
+              vtype(b) == VT_BOOL || vtype(b) == VT_EMPTY;
+    if (small_a && small_b && (vtype(a) == VT_R4 || vtype(b) == VT_R4)) {
+        float z = (float)x / (float)y;
+        if (!((double)z - (double)z == 0.0)) {
+            return variant_fail(6);
+        }
+        return variant_from_single((double)z);
+    }
+    return variant_double_result(x / y);
+}
+
+/* An operand read as a whole number. */
+typedef struct ArWhole {
+    int type; /* NUM_ type; NUM_DOUBLE for what was rounded */
+    int boolean;
+    int64_t value;
+    int error;
+} ArWhole;
+
+static int64_t ar_round_long(double value, int* error) {
+    double rounded = nearbyint(value);
+    if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+        *error = 6;
+        return 0;
+    }
+    return (int64_t)rounded;
+}
+
+static ArWhole ar_whole_of(const RtVariant* handle, int other_typed) {
+    ArWhole whole;
+    double number;
+    whole.type = NUM_DOUBLE;
+    whole.boolean = 0;
+    whole.value = 0;
+    whole.error = 0;
+    switch (vtype(handle)) {
+        case VT_EMPTY:
+            whole.type = NUM_INT;
+            return whole;
+        case VT_BSTR:
+            if (ar_numeric_text(handle)) {
+                ar_operand(handle, &whole.type, &number);
+                whole.type = NUM_DOUBLE;
+                whole.value = ar_round_long(number, &whole.error);
+                return whole;
+            }
+            if (ar_is_true_text(handle) && !other_typed) {
+                whole.type = NUM_INT;
+                whole.boolean = 1;
+                whole.value = -1;
+                return whole;
+            }
+            whole.error = 13;
+            return whole;
+        case VT_BOOL:
+            whole.type = NUM_INT;
+            whole.boolean = 1;
+            whole.value = handle->u.l != 0 ? -1 : 0;
+            return whole;
+        case VT_UI1:
+            whole.type = NUM_BYTE;
+            whole.value = handle->u.l;
+            return whole;
+        case VT_I2:
+            whole.type = NUM_INT;
+            whole.value = handle->u.l;
+            return whole;
+        case VT_I4:
+            whole.type = NUM_LONG;
+            whole.value = handle->u.l;
+            return whole;
+        default:
+            ar_operand(handle, &whole.type, &number);
+            whole.type = NUM_DOUBLE;
+            whole.value = ar_round_long(number, &whole.error);
+            return whole;
+    }
+}
+
+static int ar_small_whole(const ArWhole* whole) {
+    return whole->boolean || whole->type == NUM_INT || whole->type == NUM_BYTE;
+}
+
+static RtVariant* ar_whole_division(char op, const RtVariant* a,
+                                    const RtVariant* b, int a_typed,
+                                    int b_typed) {
+    ArWhole x;
+    ArWhole y;
+    int64_t z;
+    int type;
+    RtVariant* result;
+    if (ar_null_case(a, b, 1, &result)) {
+        return result;
+    }
+    if (vtype(a) == VT_BOOL && a_typed && vtype(b) == VT_BSTR && b_typed &&
+        (ar_numeric_text(b) || ar_is_true_text(b))) {
+        return variant_from_boolean(op == '\\' && a->u.l != 0);
+    }
+    x = ar_whole_of(a, b_typed);
+    if (x.error != 0) {
+        return variant_fail(x.error);
+    }
+    y = ar_whole_of(b, a_typed);
+    if (y.error != 0) {
+        return variant_fail(y.error);
+    }
+    if (y.value == 0) {
         return variant_fail(11);
     }
-    return variant_double_result(accurate_pow(base, exponent));
+    if (x.value == INT32_MIN && y.value == -1) {
+        return variant_fail(6);
+    }
+    z = op == '\\' ? x.value / y.value : x.value % y.value;
+    type = NUM_LONG;
+    if (ar_small_whole(&x) && ar_small_whole(&y)) {
+        type =
+            x.type == NUM_BYTE && y.type == NUM_BYTE && !x.boolean && !y.boolean
+                ? NUM_BYTE
+                : NUM_INT;
+    }
+    if (!ar_fits(type, z)) {
+        return variant_fail(6);
+    }
+    return ar_whole(type, z);
+}
+
+static RtVariant* ar_power(const RtVariant* a, const RtVariant* b) {
+    int ta;
+    int tb;
+    double x;
+    double y;
+    RtVariant* result;
+    if (ar_null_case(a, b, 0, &result)) {
+        return result;
+    }
+    if (!ar_operand(a, &ta, &x) || !ar_operand(b, &tb, &y)) {
+        return variant_fail(13);
+    }
+    if ((x == 0.0 && y < 0.0) || (x < 0.0 && y != (double)(int64_t)y)) {
+        return variant_fail(5);
+    }
+    return variant_double_result(accurate_pow(x, y));
+}
+
+/* A value of the type of a whole operand. */
+static RtVariant* ar_of_type(const ArWhole* whole, int64_t value) {
+    if (whole->boolean) {
+        return variant_from_boolean(value != 0);
+    }
+    return ar_whole(whole->type == NUM_DOUBLE ? NUM_LONG : whole->type,
+                    whole->type == NUM_BYTE ? (value & 0xFF) : value);
+}
+
+static RtVariant* ar_logical(int code, const RtVariant* a, const RtVariant* b,
+                             int a_typed, int b_typed) {
+    ArWhole x;
+    ArWhole y;
+    int64_t r;
+    x.value = 0;
+    y.value = 0;
+    x.type = y.type = NUM_LONG;
+    x.boolean = y.boolean = 0;
+    x.error = y.error = 0;
+    if (vtype(a) != VT_NULL) {
+        x = ar_whole_of(a, b_typed);
+        if (x.error != 0) {
+            return variant_fail(x.error);
+        }
+    }
+    if (vtype(b) != VT_NULL) {
+        y = ar_whole_of(b, a_typed);
+        if (y.error != 0) {
+            return variant_fail(y.error);
+        }
+    }
+    if (vtype(a) == VT_NULL && vtype(b) == VT_NULL) {
+        return variant_null();
+    }
+    if (vtype(a) == VT_NULL || vtype(b) == VT_NULL) {
+        int null_left = vtype(a) == VT_NULL;
+        const ArWhole* w = null_left ? &y : &x;
+        int64_t v = w->value;
+        switch (code) {
+            case 14:
+                return v == 0 ? ar_of_type(w, 0) : variant_null();
+            case 15:
+                return v != 0 ? ar_of_type(w, v) : variant_null();
+            case 18: {
+                int64_t n;
+                if (null_left) {
+                    return v != 0 ? ar_of_type(w, v) : variant_null();
+                }
+                n = ~v;
+                if (w->boolean) {
+                    n = v != 0 ? 0 : -1;
+                } else if (w->type == NUM_BYTE) {
+                    n &= 0xFF;
+                }
+                return n != 0 ? ar_of_type(w, n) : variant_null();
+            }
+            default:
+                return variant_null();
+        }
+    }
+    switch (code) {
+        case 14:
+            r = x.value & y.value;
+            break;
+        case 15:
+            r = x.value | y.value;
+            break;
+        case 16:
+            r = x.value ^ y.value;
+            break;
+        case 17:
+            r = ~(x.value ^ y.value);
+            break;
+        default:
+            r = ~x.value | y.value;
+            break;
+    }
+    if (x.boolean && y.boolean) {
+        return variant_from_boolean(r != 0);
+    }
+    if (x.type == NUM_BYTE && y.type == NUM_BYTE && !x.boolean && !y.boolean) {
+        return ar_whole(NUM_BYTE, r & 0xFF);
+    }
+    if (ar_small_whole(&x) && ar_small_whole(&y)) {
+        return ar_whole(NUM_INT, (int16_t)r);
+    }
+    return ar_whole(NUM_LONG, (int32_t)r);
+}
+
+static int ar_typed(const RtVariant* handle, int variant) {
+    return !variant && vtype(handle) != VT_EMPTY && vtype(handle) != VT_NULL;
 }
 
 static RtVariant* variant_binary(int32_t op, const RtVariant* a,
@@ -2788,23 +2749,25 @@ static RtVariant* variant_binary(int32_t op, const RtVariant* a,
     int left_variant = (op & 0x100) != 0;
     int right_variant = (op & 0x200) != 0;
     int code = op & 0xFF;
+    int a_typed = ar_typed(a, left_variant);
+    int b_typed = ar_typed(b, right_variant);
     switch (code) {
         case 0:
-            return numeric_binary(a, b, '+');
+            return ar_add('+', a, b, a_typed && b_typed);
         case 1:
-            return numeric_binary(a, b, '-');
+            return ar_add('-', a, b, a_typed && b_typed);
         case 2:
-            return numeric_binary(a, b, '*');
+            return ar_add('*', a, b, a_typed && b_typed);
         case 3:
-            return numeric_binary(a, b, '/');
+            return ar_divide(a, b, a_typed && b_typed);
         case 4:
-            return integer_binary(a, b, '\\');
+            return ar_whole_division('\\', a, b, a_typed, b_typed);
         case 5:
-            return integer_binary(a, b, '%');
+            return ar_whole_division('%', a, b, a_typed, b_typed);
         case 6:
             return variant_concatenate(a, b);
         case 7:
-            return variant_power(a, b);
+            return ar_power(a, b);
         case 8:
         case 9:
         case 10:
@@ -2813,70 +2776,70 @@ static RtVariant* variant_binary(int32_t op, const RtVariant* a,
         case 13:
             return variant_compare_vb(a, b, code, left_variant, right_variant);
         default:
-            return variant_logical(a, b, code);
+            return ar_logical(code, a, b, a_typed, b_typed);
     }
 }
 
 static RtVariant* variant_negate(const RtVariant* handle) {
-    RtVariant scratch;
-    const RtVariant* value = widened(handle, &scratch);
-    switch (vtype(value)) {
+    double number;
+    int type;
+    switch (vtype(handle)) {
         case VT_NULL:
             return variant_null();
         case VT_EMPTY:
-            return variant_from_long(0);
-        case VT_R8:
-            return variant_from_double(-value->u.d);
-        case VT_R4: {
-            RtVariant* result = new_variant(VT_R4);
-            result->u.f = -value->u.f;
-            return result;
-        }
+            return variant_from_integer(0);
+        case VT_BOOL:
+            return ar_whole(NUM_INT, handle->u.l != 0 ? 1 : 0);
+        case VT_UI1:
+            return ar_whole(NUM_INT, -(int64_t)handle->u.l);
         case VT_I2:
-            if (value->u.l == -32768) {
-                return variant_fail(6);
+            if (handle->u.l == -32768) {
+                return variant_from_long(32768);
             }
-            return variant_whole_result(VT_I2, -value->u.l);
+            return ar_whole(NUM_INT, -(int64_t)handle->u.l);
         case VT_I4:
-            if (value->u.l == INT32_MIN) {
-                return variant_fail(6);
+            if (handle->u.l == INT32_MIN) {
+                return variant_from_double(2147483648.0);
             }
-            return variant_whole_result(VT_I4, -(int64_t)value->u.l);
+            return ar_whole(NUM_LONG, -(int64_t)handle->u.l);
+        case VT_R4:
+            return variant_from_single(-(double)handle->u.f);
+        case VT_R8:
+            return variant_from_double(-handle->u.d);
+        case VT_BSTR:
+            if (!ar_operand(handle, &type, &number)) {
+                return variant_fail(13);
+            }
+            return variant_from_double(-number);
         default:
             return variant_fail(13);
     }
 }
 
 static RtVariant* variant_not(const RtVariant* handle) {
-    int type = vtype(handle);
-    int failed = 0;
-    int answer;
-    if (type == VT_I4) {
-        return variant_whole_result(VT_I4, ~handle->u.l);
+    ArWhole whole;
+    RtVariant* result;
+    switch (vtype(handle)) {
+        case VT_NULL:
+            return variant_null();
+        case VT_EMPTY:
+            return ar_whole(NUM_INT, -1);
+        case VT_BOOL:
+            return variant_from_boolean(handle->u.l == 0);
+        case VT_UI1:
+            return ar_whole(NUM_BYTE, (~(int64_t)handle->u.l) & 0xFF);
+        case VT_I2:
+            return ar_whole(NUM_INT, ~(int64_t)handle->u.l);
+        case VT_I4:
+            return ar_whole(NUM_LONG, ~(int64_t)handle->u.l);
+        default:
+            whole = ar_whole_of(handle, 1);
+            if (whole.error != 0) {
+                return variant_fail(whole.error);
+            }
+            result = ar_whole(NUM_LONG, ~whole.value);
+            return result;
     }
-    if (type == VT_I2) {
-        return variant_whole_result(VT_I2, (int16_t)~handle->u.l);
-    }
-    if (type == VT_UI1) {
-        return variant_whole_result(VT_UI1, (~handle->u.l) & 0xFF);
-    }
-    if (type != VT_BOOL) {
-        RtVariant widened_value;
-        if (!widen_bitwise(&widened_value, handle)) {
-            return NULL;
-        }
-        if (widened_value.type == VT_I4) {
-            return variant_whole_result(VT_I4, ~widened_value.u.l);
-        }
-    }
-    answer = ternary_of(handle, &failed);
-    if (failed) {
-        return NULL;
-    }
-    if (answer < 0) {
-        return variant_null();
-    }
-    return variant_from_boolean(answer == 0);
 }
 
 /* ----- Printing and type information */

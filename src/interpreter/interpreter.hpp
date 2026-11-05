@@ -2239,6 +2239,20 @@ private:
                                                        bool value_variant,
                                                        int& error);
 
+    // `left op right` for the arithmetic and logical operators, as Visual
+    // Basic 6 evaluates them (arithmetic.cpp): `+ - * /` as themselves,
+    // `\` and `%` (Mod), `^`, and `A`nd, `O`r, `X`or, `E`qv, `I`mp. The
+    // `*_variant` flags say an operand is a Variant. An error of Visual Basic
+    // is raised as a run-time error.
+    [[nodiscard]] std::optional<Value> arithmetic(
+        const Value& left, bool left_variant, const Value& right,
+        bool right_variant, char operation, std::size_t operator_offset);
+    // Unary minus (`negate`) or `Not` of one operand.
+    [[nodiscard]] std::optional<Value> unary_operation(const Value& value,
+                                                       bool variant,
+                                                       bool negate,
+                                                       std::size_t offset);
+
     // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
     // the exact integer path (including overflow); every other combination
     // computes in the wider of the two operand categories, in VB6's
@@ -2339,6 +2353,13 @@ private:
     std::string err_help_file_;
     Integer err_help_context_{};
     bool variant_operand_seen_{};
+    // Starts a new operand: the flag of what was seen so far is returned and
+    // cleared, so that the operand's own Variants can be told apart.
+    [[nodiscard]] bool take_variant_scope() noexcept {
+        const bool saved = variant_operand_seen_;
+        variant_operand_seen_ = false;
+        return saved;
+    }
     // Arguments already evaluated for the next library function call (native
     // programs call the library with values instead of source text).
     std::vector<Value>* preset_arguments_{};

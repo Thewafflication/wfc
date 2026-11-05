@@ -5,9 +5,66 @@
 #ifndef WFC_INTERPRETER_VB_TEXT_HPP
 #define WFC_INTERPRETER_VB_TEXT_HPP
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <string_view>
+
 #include "vb_date.hpp"
 
 namespace wfc::detail {
+
+// A Double or Single as Visual Basic 6 writes it: `digits` significant digits
+// (15 and 7), the exponent form from 1E15 up, and a number below 1 in full
+// while the zeros after the point and the significant digits together fit the
+// digits of the type (measured under VB6: 0.00001, 0.0000000001, but
+// 1.23456789012345E-02, which needs 16 places); C's %G decides by the exponent
+// alone. Negative zero is "0".
+[[nodiscard]] inline std::string float_text(const double number,
+                                            const int digits) {
+    if (std::isnan(number) || std::isinf(number)) {
+        return std::to_string(number);
+    }
+    char buffer[48];
+    std::snprintf(buffer, sizeof(buffer), "%.*G", digits, number);
+    std::string text = buffer;
+    if (text == "-0") {
+        return "0";
+    }
+    if (std::fabs(number) >= 1.0 || number == 0.0) {
+        return text;
+    }
+    std::snprintf(buffer, sizeof(buffer), "%.*E", digits - 1, number);
+    const std::string_view scientific = buffer;
+    const auto mark = scientific.find('E');
+    const bool negative = scientific.front() == '-';
+    std::string significant;
+    for (std::size_t index = negative ? 1U : 0U; index < mark; ++index) {
+        if (scientific[index] != '.') {
+            significant.push_back(scientific[index]);
+        }
+    }
+    while (significant.size() > 1 && significant.back() == '0') {
+        significant.pop_back();
+    }
+    const int exponent =
+        std::atoi(std::string(scientific.substr(mark + 1)).c_str());
+    const int zeros = -exponent - 1;
+    std::string result = negative ? "-" : "";
+    if (zeros + static_cast<int>(significant.size()) <= digits) {
+        result += "0." + std::string(static_cast<std::size_t>(zeros), '0') +
+                  significant;
+        return result;
+    }
+    result += significant.substr(0, 1);
+    if (significant.size() > 1) {
+        result += "." + significant.substr(1);
+    }
+    result += "E-";
+    result += (-exponent < 10 ? "0" : "") + std::to_string(-exponent);
+    return result;
+}
 
 // Kleene three-valued logic for the logical operators: nullopt represents
 // Null (unknown); a definite Boolean is represented as its own value. These

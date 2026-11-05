@@ -73,12 +73,15 @@ struct DateParts {
 };
 
 [[nodiscard]] inline DateParts split_date(const double serial) noexcept {
-    double whole = std::floor(serial);
-    std::int64_t seconds =
-        static_cast<std::int64_t>(std::llround((serial - whole) * 86400.0));
+    // The time of a date before the epoch counts up from midnight whatever
+    // the sign (CDate(-1.5) is 12/29/1899 12:00:00 PM), so the day is the
+    // serial cut toward zero.
+    double whole = std::trunc(serial);
+    std::int64_t seconds = static_cast<std::int64_t>(
+        std::llround(std::fabs(serial - whole) * 86400.0));
     if (seconds >= 86400) {
         seconds -= 86400;
-        whole += 1.0;
+        whole += serial < 0.0 ? -1.0 : 1.0;
     }
     DateParts parts;
     const auto days = static_cast<std::int64_t>(whole);
@@ -140,7 +143,7 @@ struct DateParts {
     const auto parts = split_date(serial);
     const bool has_time =
         parts.hour != 0 || parts.minute != 0 || parts.second != 0;
-    const bool has_date = std::floor(serial) != 0.0;
+    const bool has_date = std::trunc(serial) != 0.0;
     if (has_date && has_time) {
         return render_date_part(parts) + " " + render_time_part(parts);
     }

@@ -137,30 +137,42 @@ struct NativeSupport {
             (right_variant && std::holds_alternative<std::string>(right));
         in.variant_number_seen_ = (left_variant && holds_number(left)) ||
                                   (right_variant && holds_number(right));
-        if (op == "+" || op == "-" || op == "*" || op == "/") {
-            result = in.numeric_binary(left, right, op.front(), 0U);
-        } else if (op == "\\") {
-            result = in.integer_binary(left, right, '\\', 0U);
-        } else if (op == "mod") {
-            result = in.integer_binary(left, right, '%', 0U);
+        const auto arithmetic_code = [&]() -> char {
+            if (op == "+" || op == "-" || op == "*" || op == "/" || op == "^") {
+                return op.front();
+            }
+            if (op == "\\") {
+                return '\\';
+            }
+            if (op == "mod") {
+                return '%';
+            }
+            if (op == "and") {
+                return 'A';
+            }
+            if (op == "or") {
+                return 'O';
+            }
+            if (op == "xor") {
+                return 'X';
+            }
+            if (op == "eqv") {
+                return 'E';
+            }
+            if (op == "imp") {
+                return 'I';
+            }
+            return '\0';
+        };
+        if (arithmetic_code() != '\0') {
+            result = in.arithmetic(left, left_variant, right, right_variant,
+                                   arithmetic_code(), 0U);
         } else if (op == "=" || op == "<>" || op == "<" || op == ">" ||
                    op == "<=" || op == ">=") {
             result = in.compare_operands(left, left_variant, right,
                                          right_variant, op, 0U);
-        } else if (op == "and") {
-            result = in.logical_binary(left, right, 'A', 0U);
-        } else if (op == "or") {
-            result = in.logical_binary(left, right, 'O', 0U);
-        } else if (op == "xor") {
-            result = in.logical_binary(left, right, 'X', 0U);
-        } else if (op == "eqv") {
-            result = in.logical_binary(left, right, 'E', 0U);
-        } else if (op == "imp") {
-            result = in.logical_binary(left, right, 'I', 0U);
         } else if (op == "&") {
             result = concatenate(in, left, right);
-        } else if (op == "^") {
-            result = power(in, left, right);
         } else {
             in.set_error("WFC0010", "unknown operator", 0U);
         }
@@ -202,14 +214,13 @@ struct NativeSupport {
         return Value{matched};
     }
 
-    // `&`: two Nulls are an error, one Null is an empty String.
+    // `&`: two Nulls are Null, one Null is an empty String.
     static std::optional<Value> concatenate(Interpreter& in, const Value& left,
                                             const Value& right) {
         const bool left_null = is_null(left);
         const bool right_null = is_null(right);
         if (left_null && right_null) {
-            in.set_error("WFC0104", "Invalid use of Null", 0U);
-            return std::nullopt;
+            return Value{Null{}};
         }
         Value a = left;
         Value b = right;
@@ -254,116 +265,22 @@ struct NativeSupport {
         return std::nullopt;
     }
 
-    static std::optional<Value> power(Interpreter& in, const Value& left,
-                                      const Value& right) {
-        if (is_null(left) || is_null(right)) {
-            return Value{Null{}};
-        }
-        const auto base = number_of(left);
-        const auto exponent = number_of(right);
-        if (!base.has_value() || !exponent.has_value()) {
-            in.set_error("WFC0007", "operator requires numeric operands", 0U);
-            return std::nullopt;
-        }
-        if (*base == 0.0 && *exponent < 0.0) {
-            in.set_error("WFC0008", "division by zero", 0U);
-            return std::nullopt;
-        }
-        const double result = std::pow(*base, *exponent);
-        if (!std::isfinite(result)) {
-            in.set_error("WFC0009", "numeric overflow", 0U);
-            return std::nullopt;
-        }
-        return Value{result};
-    }
-
     static std::optional<Value> negate(Interpreter& in, Value value,
                                        NativeError& error) {
-        std::optional<Value> result;
-        if (const auto* flag = std::get_if<bool>(&value)) {
-            value = Value{static_cast<Int16>(*flag ? -1 : 0)};
-        }
-        if (const auto* byte = std::get_if<Byte>(&value)) {
-            value = Value{static_cast<Int16>(*byte)};
-        }
-        if (is_null(value)) {
-            return value;
-        }
-        if (std::holds_alternative<Empty>(value)) {
-            return Value{Integer{0}};
-        }
-        if (const auto* number = std::get_if<double>(&value)) {
-            return Value{-*number};
-        }
-        if (const auto* single = std::get_if<float>(&value)) {
-            return Value{-*single};
-        }
-        if (const auto* decimal = std::get_if<Decimal>(&value)) {
-            Decimal negated = *decimal;
-            if (!is_zero_big(negated.mantissa)) {
-                negated.negative = !negated.negative;
-            }
-            return Value{negated};
-        }
-        if (const auto* currency = std::get_if<Currency>(&value)) {
-            if (currency->scaled == std::numeric_limits<std::int64_t>::min()) {
-                in.set_error("WFC0009", "numeric overflow", 0U);
-                take_error(in, error);
-                return std::nullopt;
-            }
-            return Value{Currency{-currency->scaled}};
-        }
-        if (const auto* short_integer = std::get_if<Int16>(&value)) {
-            if (*short_integer == std::numeric_limits<Int16>::min()) {
-                in.set_error("WFC0009", "integer overflow", 0U);
-                take_error(in, error);
-                return std::nullopt;
-            }
-            return Value{static_cast<Int16>(-*short_integer)};
-        }
-        const auto* integer = in.require_integer(value, 0U);
-        if (integer == nullptr) {
+        auto result = in.unary_operation(value, true, true, 0U);
+        if (!result.has_value()) {
             take_error(in, error);
-            return std::nullopt;
         }
-        if (*integer == std::numeric_limits<Integer>::min()) {
-            in.set_error("WFC0009", "integer overflow", 0U);
-            take_error(in, error);
-            return std::nullopt;
-        }
-        return Value{static_cast<Integer>(-*integer)};
+        return result;
     }
 
     static std::optional<Value> logical_not(Interpreter& in, const Value& value,
                                             NativeError& error) {
-        if (const auto* integer = std::get_if<Integer>(&value)) {
-            return Value{static_cast<Integer>(~*integer)};
-        }
-        if (const auto* short_integer = std::get_if<Int16>(&value)) {
-            return Value{static_cast<Int16>(~*short_integer)};
-        }
-        if (const auto* byte = std::get_if<Byte>(&value)) {
-            return Value{static_cast<Byte>(~*byte)};
-        }
-        if (!std::holds_alternative<bool>(value)) {
-            Value widened = value;
-            if (!in.widen_bitwise_operand(widened, 0U)) {
-                take_error(in, error);
-                return std::nullopt;
-            }
-            if (const auto* integer = std::get_if<Integer>(&widened)) {
-                return Value{static_cast<Integer>(~*integer)};
-            }
-        }
-        const auto operand = in.coerce_ternary_operand(value, 0U);
-        if (!operand.has_value()) {
+        auto result = in.unary_operation(value, true, false, 0U);
+        if (!result.has_value()) {
             take_error(in, error);
-            return std::nullopt;
         }
-        if (operand->is_null) {
-            return Value{Null{}};
-        }
-        return Value{!operand->value};
+        return result;
     }
 
     static std::optional<std::int32_t> to_long(Interpreter& in,

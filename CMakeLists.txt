@@ -74,6 +74,7 @@ target_sources(
     src/interpreter/native_engine.cpp
     src/interpreter/native_engine.hpp
     src/interpreter/select_case.cpp
+    src/interpreter/arithmetic.cpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
     src/interpreter/interpreter.hpp
@@ -1793,7 +1794,7 @@ Print x & " " & TypeName(x) & " " & (10@ / 3@) & " " & (100.5@ * 3@)]=]
     TC-MP0002-currency-cli
     PROPERTIES
       LABELS "integration;mp-0002;expressions;numeric;variables;currency"
-      PASS_REGULAR_EXPRESSION "10.5 Currency 3.3333 301.5"
+      PASS_REGULAR_EXPRESSION "10.5 Currency 3.33333333333333 301.5"
   )
 
   add_test(
@@ -2770,6 +2771,40 @@ Print v.x & q.x]=]
       set_tests_properties(
         TC-MP0002-operator-probe-${probe_mode}
         PROPERTIES LABELS "integration;mp-0002;operators" TIMEOUT 600
+      )
+    endforeach()
+  endif()
+
+  # The arithmetic and logical operators (+ - * / \ Mod ^ & And Or Xor Eqv Imp,
+  # unary - and Not) work as Visual Basic 6 does: a probe of 16,920 operations
+  # (evidence/reference/arithmetic-probe), run the same way. The native run
+  # compiles 17,000 small functions, so it takes minutes.
+  set(
+    arithmetic_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-ArithmeticProbe.ps1"
+  )
+  set(
+    arithmetic_reference
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/arithmetic-probe"
+    "/vb6-reference.txt"
+  )
+  string(CONCAT arithmetic_reference ${arithmetic_reference})
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      add_test(
+        NAME TC-MP0002-arithmetic-probe-${probe_mode}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+          "-DGENERATOR=${arithmetic_generator}"
+          "-DREFERENCE=${arithmetic_reference}"
+          "-DWORK=${CMAKE_BINARY_DIR}/arithmetic-probe-${probe_mode}"
+          "-DPROJECT=ArithmeticProbe.vbp" "-DOUTPUT=arithmetic-probe.txt"
+          "-DMODE=${probe_mode}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-arithmetic-probe-${probe_mode}
+        PROPERTIES LABELS "integration;mp-0002;operators" TIMEOUT 1500
       )
     endforeach()
   endif()

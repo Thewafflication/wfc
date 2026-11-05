@@ -579,16 +579,9 @@ RtString* string_space(const std::int32_t count) {
     return make_string(std::string(static_cast<std::size_t>(count), ' '));
 }
 
-// VB6 writes a Double with 15 significant digits and a Single with 7 (C's %G
-// rules: exponent form below 1E-4 or from 1E15 up); negative zero is "0".
+// VB6 writes a Double with 15 significant digits and a Single with 7.
 [[nodiscard]] std::string format_float(const double value, const int digits) {
-    if (std::isnan(value) || std::isinf(value)) {
-        return std::to_string(value);
-    }
-    char buffer[48];
-    std::snprintf(buffer, sizeof(buffer), "%.*G", digits, value);
-    std::string text = buffer;
-    return text == "-0" ? "0" : text;
+    return wfc::detail::float_text(value, digits);
 }
 
 void print_double(const double value, const std::int32_t digits) {
@@ -652,8 +645,11 @@ double math_function(const std::int32_t which, const double value) {
 }
 
 double double_power(const double base, const double exponent) {
-    if (base == 0.0 && exponent < 0.0) {
-        raise_error(11);
+    // Measured under VB6: zero to a negative power and a negative number to a
+    // fraction are error 5, an overflow is error 6.
+    if ((base == 0.0 && exponent < 0.0) ||
+        (base < 0.0 && exponent != std::trunc(exponent))) {
+        raise_error(5);
         return 0.0;
     }
     const double result = std::pow(base, exponent);

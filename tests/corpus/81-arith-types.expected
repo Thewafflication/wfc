@@ -1,6 +1,6 @@
 Byte          Integer       Integer       Integer       Long          Long
 Byte          Integer       Integer       Long          Double        Integer
-Single        Single        Double        Currency      Currency      Currency
+Single        Double        Double        Currency      Currency      Double
 Integer       Integer       Integer       Integer       Byte          Integer
 Byte          Integer       Long          Double        String
  32768        Long

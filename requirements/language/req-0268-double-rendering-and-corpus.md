@@ -4,7 +4,9 @@
 
 - A `Double` converts to text with **15 significant digits** and a `Single`
   with **7**, following C `%G` rules (exponent form below `1E-4` and from
-  `1E15` / `1E7` up, written `1E+15` / `1E-05`), matching VB6's `Print`,
+  `1E15` / `1E7` up; revised 2026-11-05 by REQ-0315: a number below 1 is
+  written in full while the zeros after the point and the significant digits
+  fit the 15 or 7 digits, so `0.00001`, not `1E-05`), matching VB6's `Print`,
   `CStr`, `&` and `Format` default. This replaces shortest-round-trip
   rendering (`0.1 + 0.2` is `0.3`, `Sqr(2)` is `1.4142135623731`). The known
   VB6 `Rnd` fingerprint values already had seven digits; the other `Rnd`
