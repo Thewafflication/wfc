@@ -53,6 +53,13 @@ WFC reproduces the reference line for line, in the interpreter and in native
 code. The tests `TC-MP0002-select-case-probe-interpret` and `...-native` run the
 probe and compare it with this file.
 
-To measure again, generate the project, open `SelectCaseProbe.vbp` in Visual
-Basic 6, choose Run > Start With Full Compile, and keep the
-`select-case-probe.txt` that it writes.
+To measure again, generate the project and run it:
+
+```powershell
+pwsh -NoProfile -File scripts/New-SelectCaseProbe.ps1
+python scripts/run_vb6_probe.py evidence/reference/select-case-probe/SelectCaseProbe.vbp evidence/reference/select-case-probe/select-case-probe.txt
+```
+
+`scripts/run_vb6_probe.py` opens the project in Visual Basic 6, presses Start
+With Full Compile, waits for the file and closes the IDE (the desktop must be
+unlocked; it takes the foreground for about a minute).
