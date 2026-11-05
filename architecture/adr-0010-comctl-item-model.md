@@ -4,8 +4,8 @@
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
 steps 1 to 6 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
-`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 started (the
-collections of every control but the TreeView through COM; `Nodes` open)
+`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 implemented for
+every collection (events and a few item members open)
 
 **Date:** 2026-11-04
 
@@ -165,8 +165,12 @@ below).
    job). Second part: `ListItems` and `ColumnHeaders` (ListView),
    `ListImages` (an image without a picture is error 481) and `ComboItems`
    (ImageCombo, with `SelectedItem`; nothing is selected at first) use the
-   same objects. Not yet: `Nodes` (it needs the tree: `Relative`,
-   `Relationship` through `place_node`, `Parent`, `Children`), the events
+   same objects. Third part: `Nodes` of the TreeView: `Add(Relative,
+   Relationship, Key, Text, ...)` places the node with `place_node` and
+   `check_relationship` (error 35607), `Parent`, `Children`, `Child`,
+   `Next`, `Previous`, `FirstSibling`, `LastSibling`, `Root` and `FullPath`
+   are read from the links, and `Remove` removes the node with what is
+   below it, as in the evaluator. Not yet: the events
    (`BeforeClick`, `Click`; they are the two-step operations of Decision
    4), the binding of an ImageList to a control (so the bound-list rules
    do not apply through COM), `ImageCombo.Text` following the selection,
