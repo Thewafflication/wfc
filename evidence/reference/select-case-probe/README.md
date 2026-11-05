@@ -39,3 +39,18 @@ pwsh -NoProfile -File scripts/New-SelectCaseProbe.ps1
 
 The Visual Basic 6 file is the reference. Every line where WFC differs is a
 defect of WFC.
+
+## Result
+
+`vb6-reference.txt` is the answer of Visual Basic 6 (the full compile, 1,695
+lines, no probe refused by the compiler), run on 2026-11-04. It is the
+reference. `wfc-native.txt` and `wfc-interpreter.txt` are WFC's answers when
+that file was made (not committed).
+
+Where VB6 differs from what was assumed:
+
+- `Select Case Null` with `Case Null` does not match; no `Null` ever matches.
+- A typed number or String selector against `Null` is error 94 (Invalid use of
+  Null); a Variant selector or a Variant that holds Null gives no match.
+- A Variant that holds a string against a number is not an error.
+- A number against a Date is Overflow (6) for Integer and no match for Long.

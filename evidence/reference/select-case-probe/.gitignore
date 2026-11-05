@@ -2,3 +2,5 @@
 *.bas
 *.vbp
 *.txt
+!vb6-reference.txt
+*.vbw
