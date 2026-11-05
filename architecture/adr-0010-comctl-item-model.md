@@ -186,9 +186,25 @@ below).
    images. `TreeView.Sorted` and `Node.Sorted` sort siblings with
    `text_before`, `PathSeparator` is read by `FullPath`, and an
    ImageCombo keeps `Text`, `SelStart`, `SelLength` and `SelText` with the
-   selection (`images.hpp`). Not done: the events that need a mouse or a
-   window (NodeClick, ItemClick, label edits), which stay with the
-   evaluator's input scripts.
+   selection (`images.hpp`). Fifth part, the input of the user: every
+   control with a Behaviour answers a hidden member
+   `WfcInput(Action, Argument)` (in the words of the WFC input scripts:
+   `click`, `dblclick`, `select`, `check`, `expand`, `key`, `edit`,
+   `canceledit`, `button`, `menu`, `panel`, `type` ...), through which a
+   window host forwards what the user did. `src/com_input.hpp` changes the
+   state and raises the events as the evaluator does, with the rules of
+   `tree.hpp`, `list.hpp`, `toolbar.hpp`, `layout.hpp` and `labeledit.hpp`:
+   NodeClick, Click, Expand, Collapse, NodeCheck, ItemClick, DblClick,
+   ItemCheck, ColumnClick, ButtonClick, ButtonDropDown, ButtonMenuClick,
+   PanelClick, PanelDblClick, Dropdown, and the label edit with
+   BeforeLabelEdit(Cancel) and AfterLabelEdit(Cancel, NewString). The
+   event raiser of `attach` now takes the arguments of the event (a
+   By Ref Cancel or NewString is a VT_BYREF Variant the sink changes).
+   The properties the input depends on (`LabelEdit`, `MultiSelect`,
+   `SingleSel`, `Checkboxes`, `AllowCustomize`, `Locked`) are heard as they
+   are set. Not done: the key and mouse events themselves (KeyDown,
+   MouseDown ...), which need a window, and hit testing of a point to
+   an item (the host does it with `HitTest`).
 
 Steps 1 to 6 change no behaviour that a program can see. Step 7 adds behaviour
 to the COM objects only.
