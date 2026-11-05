@@ -73,6 +73,7 @@ target_sources(
     src/interpreter/format.cpp
     src/interpreter/native_engine.cpp
     src/interpreter/native_engine.hpp
+    src/interpreter/select_case.cpp
     src/interpreter/statements.cpp
     src/interpreter/builtin_class_sources.hpp
     src/interpreter/interpreter.hpp
@@ -2706,6 +2707,39 @@ Print v.x & q.x]=]
       PROPERTIES LABELS "integration;mp-0002;corpus"
     )
   endforeach()
+
+  # Select Case compares as Visual Basic 6 does: a probe of about 6,700
+  # comparisons, run under WFC (interpreter and native code) and compared with
+  # what Visual Basic 6 answered (evidence/reference/select-case-probe).
+  find_program(WFC_PWSH NAMES pwsh powershell)
+  set(
+    select_case_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-SelectCaseProbe.ps1"
+  )
+  set(
+    select_case_reference
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/select-case-probe"
+    "/vb6-reference.txt"
+  )
+  string(CONCAT select_case_reference ${select_case_reference})
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      add_test(
+        NAME TC-MP0002-select-case-probe-${probe_mode}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+          "-DGENERATOR=${select_case_generator}"
+          "-DREFERENCE=${select_case_reference}"
+          "-DWORK=${CMAKE_BINARY_DIR}/select-case-probe-${probe_mode}"
+          "-DMODE=${probe_mode}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-select-case-probe-${probe_mode}
+        PROPERTIES LABELS "integration;mp-0002;select-case" TIMEOUT 600
+      )
+    endforeach()
+  endif()
 
   # The command line (MP-0010): help, mistakes, check, libraries.
   include(tests/cli/AddCliTest.cmake)

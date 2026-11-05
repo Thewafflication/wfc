@@ -1262,10 +1262,16 @@ RtVariant* variant_binary(const std::int32_t op, const RtVariant* a,
         "+", "-", "*",  "/",  "\\",  "mod", "&",   "^",   "=",  "<>",
         "<", ">", "<=", ">=", "and", "or",  "xor", "eqv", "imp"};
     wfc::detail::NativeError problem;
-    // Bits 8 and 9 say that an operand is a Variant of the program.
+    // Bits 8 and 9 say that an operand is a Variant of the program; bit 10
+    // that the comparison is a Select Case's (its own rules, see
+    // select_case.cpp).
     auto result =
-        engine().binary(names[op & 0xFF], value_of(a), value_of(b),
-                        (op & 0x100) != 0, (op & 0x200) != 0, problem);
+        (op & 0x400) != 0
+            ? engine().select_case_test(names[op & 0xFF], value_of(a),
+                                        value_of(b), (op & 0x100) != 0,
+                                        (op & 0x200) != 0, problem)
+            : engine().binary(names[op & 0xFF], value_of(a), value_of(b),
+                              (op & 0x100) != 0, (op & 0x200) != 0, problem);
     if (!result.has_value()) {
         raise_engine_error(problem);
         return nullptr;

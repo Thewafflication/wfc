@@ -59,6 +59,11 @@ public:
     [[nodiscard]] std::optional<Value> binary(
         std::string_view op, const Value& left, const Value& right,
         bool left_variant, bool right_variant, NativeError& error);
+    // `selector op value` as a Select Case compares (select_case.cpp): a
+    // Boolean Value, nullopt with `error` set when a conversion fails.
+    [[nodiscard]] std::optional<Value> select_case_test(
+        std::string_view op, const Value& selector, const Value& value,
+        bool selector_variant, bool value_variant, NativeError& error);
     [[nodiscard]] std::optional<Value> negate(const Value& value,
                                               NativeError& error);
     [[nodiscard]] std::optional<Value> logical_not(const Value& value,

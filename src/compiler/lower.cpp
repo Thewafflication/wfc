@@ -3303,24 +3303,80 @@ private:
         return slot;
     }
 
+    // The subject of a Select Case against a Case value. Two operands of one
+    // type compare as the operator does; any other pair has Visual Basic's
+    // rules for Select Case (the Case value is converted to the type of the
+    // subject, a Variant compares as a Variant), which the runtime knows.
+    [[nodiscard]] Value case_compare(const std::string& op,
+                                     const Value& subject,
+                                     const bool subject_typed, Value value,
+                                     const bool value_typed,
+                                     const Position at) {
+        value = default_value(value, at);
+        if (subject.type == value.type && subject.type != VbType::variant &&
+            subject.type != VbType::object && subject.type != VbType::record) {
+            return compare_values(op, subject, value, at);
+        }
+        return from_variant(variant_operation(op, subject, value, at, true,
+                                              subject_typed, value_typed),
+                            VbType::boolean, at);
+    }
+
+    // A Date or Currency (a literal or a variable) is held as a Variant, but
+    // it is typed for the comparison of a Select Case.
+    [[nodiscard]] bool is_typed_variant(const Expr& expression) const {
+        if (expression.kind == ExprKind::date_literal) {
+            return true;
+        }
+        if (expression.kind == ExprKind::call &&
+            expression.text == "wfcliteral") {
+            return true;
+        }
+        if (expression.kind == ExprKind::name &&
+            has_variable(expression.text)) {
+            const auto found = locals_.find(expression.text);
+            if (found != locals_.end()) {
+                return found->second.coerce == 'd' ||
+                       found->second.coerce == 'c';
+            }
+            if (const auto field = fields_.find(expression.text);
+                field != fields_.end()) {
+                return field->second.coerce == 'd' ||
+                       field->second.coerce == 'c';
+            }
+            if (const auto global = globals_.find(expression.text);
+                global != globals_.end()) {
+                return global->second.coerce == 'd' ||
+                       global->second.coerce == 'c';
+            }
+        }
+        return false;
+    }
+
     // One test of a Case against the subject; true when it matches.
     [[nodiscard]] Value case_test(const CaseClause& clause,
-                                  const Value& subject, const Position at) {
+                                  const Value& subject,
+                                  const bool subject_typed, const Position at) {
         if (clause.kind == CaseClause::Kind::range) {
-            const auto low = compare_values(">=", subject,
-                                            lower_expression(*clause.low), at);
-            const auto high = compare_values(
-                "<=", subject, lower_expression(*clause.high), at);
+            const auto low = case_compare(">=", subject, subject_typed,
+                                          lower_expression(*clause.low),
+                                          is_typed_variant(*clause.low), at);
+            const auto high = case_compare("<=", subject, subject_typed,
+                                           lower_expression(*clause.high),
+                                           is_typed_variant(*clause.high), at);
             const auto both = builder_->new_temp();
             builder_->emit(Opcode::bit_and, both, low.operand, high.operand);
             return Value{both, VbType::boolean};
         }
         const std::string op =
             clause.kind == CaseClause::Kind::relation ? clause.op : "=";
-        return compare_values(op, subject, lower_expression(*clause.low), at);
+        return case_compare(op, subject, subject_typed,
+                            lower_expression(*clause.low),
+                            is_typed_variant(*clause.low), at);
     }
 
     void lower_select(const Stmt& statement) {
+        const bool subject_typed = is_typed_variant(*statement.expr);
         auto subject = lower_expression(*statement.expr);
         if (subject.type == VbType::string) {
             // The subject is read by every test: keep it in a slot of its own.
@@ -3351,7 +3407,8 @@ private:
             const int body = builder_->new_label();
             const int next = builder_->new_label();
             for (const auto& clause : block.clauses) {
-                const auto test = case_test(clause, subject, statement.at);
+                const auto test =
+                    case_test(clause, subject, subject_typed, statement.at);
                 flush_temps();
                 builder_->branch(Opcode::branch_nonzero, test.operand, body);
             }
@@ -6015,7 +6072,10 @@ private:
     // `left op right` where an operand is a Variant: the engine decides.
     [[nodiscard]] Value variant_operation(const std::string& op,
                                           const Value& left, const Value& right,
-                                          const Position at) {
+                                          const Position at,
+                                          const bool select_case = false,
+                                          const bool left_typed = false,
+                                          const bool right_typed = false) {
         static const std::map<std::string, ir::VariantOp> codes = {
             {"+", ir::VariantOp::add},
             {"-", ir::VariantOp::subtract},
@@ -6045,9 +6105,11 @@ private:
         Value result;
         result.type = VbType::variant;
         result.operand = new_owned_variant();
-        const auto flags = static_cast<std::int64_t>(found->second) |
-                           (left.type == VbType::variant ? 0x100 : 0) |
-                           (right.type == VbType::variant ? 0x200 : 0);
+        const auto flags =
+            static_cast<std::int64_t>(found->second) |
+            (left.type == VbType::variant && !left_typed ? 0x100 : 0) |
+            (right.type == VbType::variant && !right_typed ? 0x200 : 0) |
+            (select_case ? 0x400 : 0);
         builder_->runtime(Service::variant_binary,
                           {ir::immediate(flags), a.operand, b.operand},
                           result.operand, true);

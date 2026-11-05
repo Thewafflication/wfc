@@ -97,14 +97,14 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0048` | Unexpected Next | — | `REQ-0151` |
 | `WFC0049` | Next variable does not match For | — | `REQ-0151`, `REQ-0209` |
 | `WFC0052` | Exit For is not inside a For loop | — | `REQ-0152` |
-| `WFC0053` | Case value must match selector type | 13 (Type mismatch) | `REQ-0153`, `REQ-0154`, `REQ-0156` |
+| `WFC0053` | Case value must match selector type (no longer produced: `REQ-0313`) | 13 (Type mismatch) | `REQ-0153`, `REQ-0154`, `REQ-0156` |
 | `WFC0054` | Expected Case after Select; expected End Select; expected Case or End Select | — | `REQ-0153` |
 | `WFC0055` | Expected Select after End | — | `REQ-0153` |
 | `WFC0056` | Duplicate Case Else | — | `REQ-0153` |
 | `WFC0057` | Case is not permitted after Case Else | — | `REQ-0153` |
 | `WFC0058` | Unexpected Case | — | `REQ-0153` |
 | `WFC0059` | Expected Case value | — | `REQ-0154` |
-| `WFC0060` | Case range requires same-type Long or String values | 13 (Type mismatch) | `REQ-0155` |
+| `WFC0060` | Case range requires same-type Long or String values (no longer produced: `REQ-0313`) | 13 (Type mismatch) | `REQ-0155` |
 | `WFC0061` | Expected relational operator after Case Is | — | `REQ-0156` |
 | `WFC0062` | Cannot assign to constant | — | `REQ-0157`, `REQ-0227` |
 | `WFC0064` | Constant initializer cannot reference a variable | — | `REQ-0157`, `REQ-0227` |

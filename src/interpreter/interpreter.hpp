@@ -2205,6 +2205,17 @@ private:
         const Value& left, const Value& right, const std::string_view operation,
         const std::size_t operator_offset);
 
+    // How Select Case orders its selector against a Case value
+    // (select_case.cpp): -1, 0 or 1, or nullopt with `error` 0 when a Null
+    // makes them unordered (no Case matches) and `error` set to the number of
+    // the Visual Basic error when a conversion fails. `*_variant` say an
+    // operand is a Variant.
+    [[nodiscard]] std::optional<int> select_case_order(const Value& selector,
+                                                       bool selector_variant,
+                                                       const Value& value,
+                                                       bool value_variant,
+                                                       int& error);
+
     // Evaluate `+`, `-`, `*`, and `/`. Two Long operands under `+`/`-`/`*` keep
     // the exact integer path (including overflow); every other combination
     // computes in the wider of the two operand categories, in VB6's

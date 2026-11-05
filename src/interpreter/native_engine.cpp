@@ -172,6 +172,31 @@ struct NativeSupport {
         return result;
     }
 
+    static std::optional<Value> select_case_test(
+        Interpreter& in, const std::string_view op, const Value& selector,
+        const Value& value, const bool selector_variant,
+        const bool value_variant, NativeError& error) {
+        int number = 0;
+        const auto order = in.select_case_order(selector, selector_variant,
+                                                value, value_variant, number);
+        if (number != 0) {
+            static_cast<void>(in.raise_runtime(
+                number, Interpreter::vb_error_description(number), 0U));
+            take_error(in, error);
+            return std::nullopt;
+        }
+        bool matched = false;
+        if (order.has_value()) {
+            matched = op == "="    ? *order == 0
+                      : op == "<>" ? *order != 0
+                      : op == "<"  ? *order < 0
+                      : op == "<=" ? *order <= 0
+                      : op == ">"  ? *order > 0
+                                   : *order >= 0;
+        }
+        return Value{matched};
+    }
+
     // `&`: two Nulls are an error, one Null is an empty String.
     static std::optional<Value> concatenate(Interpreter& in, const Value& left,
                                             const Value& right) {
@@ -1088,6 +1113,14 @@ std::optional<double> NativeEngine::to_double(const Value& value,
 std::optional<std::string> NativeEngine::to_text(const Value& value,
                                                  NativeError& error) {
     return NativeSupport::to_text(*interpreter_, value, error);
+}
+
+std::optional<Value> NativeEngine::select_case_test(
+    const std::string_view op, const Value& selector, const Value& value,
+    const bool selector_variant, const bool value_variant, NativeError& error) {
+    return NativeSupport::select_case_test(*interpreter_, op, selector, value,
+                                           selector_variant, value_variant,
+                                           error);
 }
 
 std::optional<bool> NativeEngine::to_boolean(const Value& value,

@@ -3102,8 +3102,10 @@ int main() {
     expect_program_failure("Select Case 1\nCase , 1\nEnd Select", "WFC0059");
     expect_program_success(
         "Select Case True\nCase False To True\nPrint 1\nEnd Select", "");
-    expect_program_failure("Select Case 1\nCase 0 To \"2\"\nEnd Select",
-                           "WFC0060");
+    // Select Case converts a Case value to the type of its selector, as
+    // Visual Basic 6 does (select-case-probe): "2" is the number 2.
+    expect_program_success(
+        "Select Case 1\nCase 0 To \"2\"\nPrint \"in\"\nEnd Select", "in");
     expect_program_failure("Select Case 1\nCase Is 1\nEnd Select", "WFC0061");
     expect_program_success(
         "Select Case True\nCase Is < False\nPrint 1\nEnd Select", "1");

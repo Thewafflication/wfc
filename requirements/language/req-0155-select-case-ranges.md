@@ -13,20 +13,18 @@ values in a comma-separated list:
 Case <lower> To <upper>, <value>, ...
 ```
 
-`Long` ranges use signed numeric ordering and `String` ranges use the current
-ordinal string ordering. The selector and both bounds must have the same type.
-Ranges whose lower bound exceeds their upper bound do not match. Range clauses
+The selector is compared with the lower bound by `>=` and with the upper
+bound by `<=`, each as REQ-0313 says (revised 2026-11-04). Ranges whose lower
+bound exceeds their upper bound do not match. Range clauses
 participate in the existing ordered first-match and skipped-runtime behavior.
 
-This increment excludes Boolean ranges and `Case Is` relational clauses.
-(Revised 2026-10-29, MP-0010: a Boolean selector or value compares as the number
-it is, so Boolean ranges and `Case Is` are allowed.)
+(Revised 2026-11-04: any pair of types can be compared; see REQ-0313.)
 
 ## Diagnostics
 
 | Code | Condition |
 | --- | --- |
-| `WFC0060` | Range values differ in type or use unsupported Boolean ordering. |
+| `WFC0060` | No longer produced by `Select Case` (REQ-0313). |
 
 ## Verification
 

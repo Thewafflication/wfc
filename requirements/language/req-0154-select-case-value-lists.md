@@ -18,8 +18,8 @@ End Select
 
 Values are considered from left to right. A branch matches when any value is
 equal to the selector. Values after a match and values in later branches are
-parsed and type-checked without raising arithmetic runtime failures. Every
-value must match the selector's `Long`, `String`, or `Boolean` type.
+parsed and type-checked without raising arithmetic runtime failures. A value
+is compared as REQ-0313 says; the values after a match are not evaluated.
 
 This increment excludes ranges and `Case Is` relational clauses.
 
@@ -27,7 +27,7 @@ This increment excludes ranges and `Case Is` relational clauses.
 
 | Code | Condition |
 | --- | --- |
-| `WFC0053` | A listed value does not match the selector type. |
+| `WFC0053` | No longer produced by `Select Case` (REQ-0313). |
 | `WFC0059` | A value is missing before or after a comma. |
 
 ## Verification

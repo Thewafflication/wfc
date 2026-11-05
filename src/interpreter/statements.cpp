@@ -2828,20 +2828,25 @@ bool Interpreter::parse_select_statement() {
     }
     skip_horizontal_whitespace();
     const auto selector_offset = offset_;
+    // Whether an operand is a Variant matters to how it is compared (see
+    // select_case.cpp): a Variant variable was read, or the value is Null or
+    // Empty (which only a Variant holds).
+    const auto is_variant_value = [&](const Value& value) {
+        const bool variant = variant_operand_seen_ ||
+                             std::holds_alternative<Null>(value) ||
+                             std::holds_alternative<Empty>(value);
+        variant_operand_seen_ = false;
+        return variant;
+    };
+    variant_operand_seen_ = false;
     auto selector = parse_expression();
     if (!selector.has_value()) {
         return false;
     }
+    const bool selector_variant = is_variant_value(*selector);
     if (!consume_loop_header_end()) {
         return false;
     }
-    // A Boolean selector compares as the number it is.
-    const auto as_number = [](Value& value) {
-        if (const auto* flag = std::get_if<bool>(&value)) {
-            value = Value{static_cast<Int16>(*flag ? -1 : 0)};
-        }
-    };
-    as_number(*selector);
 
     bool has_case{};
     bool has_else{};
@@ -2916,121 +2921,74 @@ bool Interpreter::parse_select_statement() {
                     set_error("WFC0059", "expected Case value", value_offset);
                     return false;
                 }
+                variant_operand_seen_ = false;
                 auto case_value = parse_expression();
                 if (!case_value.has_value()) {
                     execute_ = enclosing_execution;
                     return false;
                 }
-                as_number(*case_value);
-                // A numeric String and a number compare as numbers.
-                Value chosen = *selector;
-                if (evaluate_case) {
-                    const auto numeric_text = [&](const Value& text,
-                                                  Value& number) {
-                        const auto* string = std::get_if<std::string>(&text);
-                        if (string == nullptr) {
-                            return false;
-                        }
-                        const auto parsed = parse_numeric_string(*string);
-                        if (parsed.status != NumericStringStatus::valid) {
-                            return false;
-                        }
-                        number = Value{parsed.value};
-                        return true;
-                    };
-                    if (std::holds_alternative<std::string>(chosen) &&
-                        is_number(*case_value)) {
-                        static_cast<void>(numeric_text(*selector, chosen));
-                    } else if (std::holds_alternative<std::string>(
-                                   *case_value) &&
-                               is_number(chosen)) {
-                        static_cast<void>(
-                            numeric_text(Value{*case_value}, *case_value));
-                    } else if (std::holds_alternative<Empty>(chosen)) {
-                        // Empty is 0 beside a number and "" beside a String.
-                        if (is_number(*case_value)) {
-                            chosen = Value{Integer{0}};
-                        } else if (std::holds_alternative<std::string>(
-                                       *case_value)) {
-                            chosen = Value{std::string{}};
-                        }
-                    }
-                }
-                // Null selects no Case, and is no error.
-                const bool null_selector = std::holds_alternative<Null>(chosen);
-                const bool both_numeric =
-                    is_number(*case_value) && is_number(chosen);
-                if (case_value->index() != chosen.index() && !both_numeric &&
-                    enclosing_execution && !null_selector &&
-                    !std::holds_alternative<Empty>(chosen) &&
-                    !std::holds_alternative<Empty>(*case_value)) {
-                    execute_ = enclosing_execution;
-                    set_error("WFC0053", "Case value must match selector type",
-                              value_offset);
-                    return false;
-                }
+                const bool value_variant = is_variant_value(*case_value);
                 skip_horizontal_whitespace();
-                bool item_matches{};
-                if (!relational_operator.empty()) {
-                    auto comparison = compare(
-                        chosen, *case_value, relational_operator, value_offset);
-                    if (!comparison.has_value()) {
+                // One test of the selector against a value; false when an
+                // error was raised.
+                const auto test = [&](const Value& value, const bool variant,
+                                      const std::string_view operation,
+                                      const std::size_t at, bool& matched) {
+                    matched = false;
+                    if (!evaluate_case) {
+                        return true;  // skipped code raises nothing
+                    }
+                    int error = 0;
+                    const auto order = select_case_order(
+                        *selector, selector_variant, value, variant, error);
+                    if (error != 0) {
                         execute_ = enclosing_execution;
+                        static_cast<void>(raise_runtime(
+                            error,
+                            vb_error_description(static_cast<Integer>(error)),
+                            at));
                         return false;
                     }
-                    // A Null selector/case value makes `compare` return
-                    // Null itself (three-valued logic), which is never a
-                    // match, matching Select Case Null never selecting
-                    // any Case clause in real VB6.
-                    const auto* comparison_boolean =
-                        std::get_if<bool>(&*comparison);
-                    item_matches =
-                        comparison_boolean != nullptr && *comparison_boolean;
+                    if (!order.has_value()) {
+                        return true;  // Null: no Case matches
+                    }
+                    matched = operation == "="    ? *order == 0
+                              : operation == "<>" ? *order != 0
+                              : operation == "<"  ? *order < 0
+                              : operation == "<=" ? *order <= 0
+                              : operation == ">"  ? *order > 0
+                                                  : *order >= 0;
+                    return true;
+                };
+                bool item_matches{};
+                if (!relational_operator.empty()) {
+                    if (!test(*case_value, value_variant, relational_operator,
+                              value_offset, item_matches)) {
+                        return false;
+                    }
                 } else if (consume_keyword("to")) {
                     skip_horizontal_whitespace();
                     const auto upper_offset = offset_;
+                    variant_operand_seen_ = false;
                     auto upper_value = parse_expression();
                     if (!upper_value.has_value()) {
                         execute_ = enclosing_execution;
                         return false;
                     }
-                    as_number(*upper_value);
-                    if (evaluate_case && !null_selector &&
-                        ((upper_value->index() != chosen.index() &&
-                          !(is_number(*upper_value) && is_number(chosen))) ||
-                         std::holds_alternative<bool>(chosen) ||
-                         (!is_number(chosen) &&
-                          !std::holds_alternative<std::string>(chosen)))) {
-                        execute_ = enclosing_execution;
-                        set_error("WFC0060",
-                                  "Case range requires same-type Long or "
-                                  "String values",
-                                  upper_offset);
+                    const bool upper_variant = is_variant_value(*upper_value);
+                    bool above_lower{};
+                    if (!test(*case_value, value_variant, ">=", value_offset,
+                              above_lower)) {
                         return false;
                     }
-                    if (!evaluate_case || null_selector) {
-                        // Skipped, or Null: nothing to compare.
-                    } else if (is_number(chosen)) {
-                        const double selected_number = as_double(chosen);
-                        item_matches =
-                            as_double(*case_value) <= selected_number &&
-                            selected_number <= as_double(*upper_value);
-                    } else {
-                        const auto& selected_string =
-                            std::get<std::string>(chosen);
-                        item_matches =
-                            compare_strings(std::get<std::string>(*case_value),
-                                            selected_string) <= 0 &&
-                            compare_strings(
-                                selected_string,
-                                std::get<std::string>(*upper_value)) <= 0;
+                    if (above_lower && !test(*upper_value, upper_variant, "<=",
+                                             upper_offset, item_matches)) {
+                        return false;
                     }
                     skip_horizontal_whitespace();
-                } else {
-                    item_matches =
-                        both_numeric
-                            ? as_double(*case_value) == as_double(chosen)
-                            : values_equal(*case_value, chosen);
+                } else if (!test(*case_value, value_variant, "=", value_offset,
+                                 item_matches)) {
+                    return false;
                 }
                 case_matches = case_matches || item_matches;
                 if (!consume(',')) {

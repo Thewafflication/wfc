@@ -2,7 +2,7 @@
 
 **Content type:** Project requirement
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Source:** MP-0002 core VB/VBA language execution objective
 

@@ -42,15 +42,18 @@ defect of WFC.
 
 ## Result
 
-`vb6-reference.txt` is the answer of Visual Basic 6 (the full compile, 1,695
-lines, no probe refused by the compiler), run on 2026-11-04. It is the
-reference. `wfc-native.txt` and `wfc-interpreter.txt` are WFC's answers when
-that file was made (not committed).
+`vb6-reference.txt` is the answer of Visual Basic 6.00.8176 to the whole probe
+(six thousand seven hundred and sixty-seven lines, no probe refused by the
+compiler), run on 2026-11-04. It is the reference. The probe has five waves:
+the basic kinds, other numbers and overflows, fractions, typed variables as the
+Case values, and Variants that hold Currency and fractions. The rules that came
+out of it are REQ-0313.
 
-Where VB6 differs from what was assumed:
+WFC reproduces the reference line for line, in the interpreter and in native
+code, except for the two known differences of REQ-0313. The tests
+`TC-MP0002-select-case-probe-interpret` and `...-native` run the probe (without
+the module that has `Option Compare Text`) and compare it with this file.
 
-- `Select Case Null` with `Case Null` does not match; no `Null` ever matches.
-- A typed number or String selector against `Null` is error 94 (Invalid use of
-  Null); a Variant selector or a Variant that holds Null gives no match.
-- A Variant that holds a string against a number is not an error.
-- A number against a Date is Overflow (6) for Integer and no match for Long.
+To measure again, generate the project, open `SelectCaseProbe.vbp` in Visual
+Basic 6, choose Run > Start With Full Compile, and keep the
+`select-case-probe.txt` that it writes.

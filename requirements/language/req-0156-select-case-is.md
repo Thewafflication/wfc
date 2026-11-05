@@ -13,9 +13,9 @@ values and ranges:
 Case Is < <value>, Is >= <value>, ...
 ```
 
-Supported operators are `=`, `<>`, `<`, `<=`, `>`, and `>=`. Values must match
-the selector type. `Long` and `String` support every operator; `Boolean`
-supports equality and inequality only. Clauses participate in ordered
+Supported operators are `=`, `<>`, `<`, `<=`, `>`, and `>=`. The selector
+and the value are compared as REQ-0313 says (revised 2026-11-04); every
+operator works with every type. Clauses participate in ordered
 first-match and skipped-runtime behavior.
 
 ## Diagnostics
@@ -24,9 +24,7 @@ first-match and skipped-runtime behavior.
 | --- | --- |
 | `WFC0061` | `Case Is` is not followed by a relational operator. |
 
-Existing `WFC0053` type diagnostics apply. (Revised 2026-10-29, MP-0010: a
-Boolean compares as the number it is, so the Boolean-ordering `WFC0018` no
-longer applies.)
+`WFC0053` and `WFC0018` no longer apply to a Case value (REQ-0313).
 
 ## Verification
 
