@@ -4,8 +4,7 @@
 
 **Status:** Accepted by the owner, COM collections included (2026-11-04);
 steps 1 to 6 implemented (`items.hpp`, `toolbar.hpp`, `tree.hpp`,
-`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 implemented for
-every collection (events and a few item members open)
+`list.hpp`, `labeledit.hpp`, `images.hpp`), step 7 implemented
 
 **Date:** 2026-11-04
 
@@ -170,12 +169,26 @@ below).
    `check_relationship` (error 35607), `Parent`, `Children`, `Child`,
    `Next`, `Previous`, `FirstSibling`, `LastSibling`, `Root` and `FullPath`
    are read from the links, and `Remove` removes the node with what is
-   below it, as in the evaluator. Not yet: the events
-   (`BeforeClick`, `Click`; they are the two-step operations of Decision
-   4), the binding of an ImageList to a control (so the bound-list rules
-   do not apply through COM), `ImageCombo.Text` following the selection,
-   and the members of the items that need a window (`Tab.Image` by key,
-   `Button.ButtonMenus`, `ListItem.ListSubItems`).
+   below it, as in the evaluator. Fourth part (the rest of the list):
+   `Behaviour::attach` gives a Behaviour the control's event raiser, so a
+   selection made by the program raises what the evaluator raises:
+   BeforeClick (with Cancel) and Click on a TabStrip (a cancelled
+   BeforeClick still raises Click and keeps the selection), Click and
+   Change on an ImageCombo. This is the one change to `class_factory.hpp`,
+   made in all four copies (`raise` also takes the Cancel argument).
+   `ListItem.SubItems(i)` with the rules of `list.hpp`, `ListItem.ListSubItems`
+   and `Button.ButtonMenus` are sub collections of their items. An
+   ImageList given to a control through `ImageList`, `Icons`, `SmallIcons`,
+   `HotImageList`, `DisabledImageList` or `ColumnHeaderIcons` is found
+   through its own `ListImages` and bound, so Remove, Clear and an insert
+   before the end are error 35615; `ImageWidth` and `ImageHeight` come
+   from the first image (`IPicture`) and are error 35614 once there are
+   images. `TreeView.Sorted` and `Node.Sorted` sort siblings with
+   `text_before`, `PathSeparator` is read by `FullPath`, and an
+   ImageCombo keeps `Text`, `SelStart`, `SelLength` and `SelText` with the
+   selection (`images.hpp`). Not done: the events that need a mouse or a
+   window (NodeClick, ItemClick, label edits), which stay with the
+   evaluator's input scripts.
 
 Steps 1 to 6 change no behaviour that a program can see. Step 7 adds behaviour
 to the COM objects only.

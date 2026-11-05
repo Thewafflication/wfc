@@ -75,14 +75,14 @@ installed wfc), `TC-MP0010-dynamic-package-connect4` and `-pipes`,
 | 2026-11-04 #27 | ADR-0010 step 7, first part: a TabStrip, a StatusBar and a Toolbar made through COM have `Tabs`, `Panels` and `Buttons` collections (`com_collections.hpp`): Add with its arguments in the evaluator's order, Remove, Clear, Count, Item by index or key, For Each, the item's properties and Index, the errors 35600, 35602, 35609 and 13, the first tab selected, the neighbour selected when the selected tab goes, and `TabStrip.SelectedItem`. The rules are those of `items.hpp`. The collection is returned by the control's Behaviour, so `class_factory.hpp` (identical in four libraries) is unchanged. No events yet. | `TC-MP0010-mscomctl-dll` (shared-libraries job; also run locally with `windows-x64-debug-shared`) |
 | 2026-11-04 #28 | ADR-0010 step 7, second part: `ListItems` and `ColumnHeaders` of a ListView, `ListImages` of an ImageList (error 481 without a picture) and `ComboItems` of an ImageCombo with `SelectedItem` are COM collections too; a control with several collections keeps one list for each. `Nodes` (hierarchy), `ListSubItems`, ImageList binding and the events remain. | `TC-MP0010-mscomctl-dll` (run locally with `windows-x64-debug-shared`) |
 | 2026-11-04 #29 | ADR-0010 step 7, third part: `Nodes` of a TreeView through COM (`com_collections.hpp`): Add with Relative (an index, a key or a node) and Relationship placed by `place_node` (errors 35607, 35601), the links Parent, Children, Child, Next, Previous, FirstSibling, LastSibling, Root and FullPath, and Remove taking the descendants with it. Also fixed in the shared code: removing the selected item of a collection that is not a TabStrip (an ImageCombo) leaves nothing selected instead of choosing a neighbour. Remaining in step 7: events, `ListSubItems`, ImageList binding, node sorting. | `TC-MP0010-mscomctl-dll` (run locally with `windows-x64-debug-shared`) |
+| 2026-11-04 #30 | ADR-0010 step 7, last part: `Behaviour::attach` (the only change to `class_factory.hpp`, in all four copies) lets a COM collection raise the events of a selection made by the program (TabStrip BeforeClick with Cancel and Click, ImageCombo Click and Change); `SubItems`, `ListSubItems` and `ButtonMenus`; an ImageList given to a control is bound (35615) and takes its size from the first image (35614 afterwards); `Sorted` of a TreeView and its nodes; `PathSeparator`; ImageCombo `Text`, `SelStart`, `SelLength`, `SelText`. | `TC-MP0010-mscomctl-dll` (run locally with `windows-x64-debug-shared`), `TC-MP0010-class-factory-header-*` |
 
 ## Open
 
 - The item collections of wfc-mscomctl (TabStrip, StatusBar, Toolbar, TreeView,
   ListView, ImageList, ImageCombo) move out of the evaluator as designed in
   [ADR-0010](../architecture/adr-0010-comctl-item-model.md) (accepted; steps 1 to 6
-  done, step 7: the collections of every control through COM done; the events,
-  `ListSubItems` and the ImageList binding open).
+  done, steps 1 to 7 done; only the mouse and window events of a COM client are open).
 - Submodule conversion of the four libraries below `lib/` (the repositories
   exist; `scripts/Convert-LibrariesToSubmodules.ps1 -Owner <owner>` splits the
   history out, pushes it and adds the submodules).
