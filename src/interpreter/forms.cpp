@@ -516,10 +516,48 @@ public:
     return control_of(*holder->data);
 }
 
+// The values that an enumeration of MSCOMCTL.OCX accepts, from the probe.
+[[nodiscard]] std::optional<std::pair<Integer, Integer>> comctl_enum_range(
+    const std::string& type) {
+    static const std::map<std::string, std::pair<Integer, Integer>> ranges = {
+        {"AppearanceConstants", {0, 1}},
+        {"BorderStyleConstants", {0, 1}},
+        {"LabelEditConstants", {0, 1}},
+        {"ListArrangeConstants", {0, 2}},
+        {"ListLabelEditConstants", {0, 1}},
+        {"ListPictureAlignmentConstants", {0, 5}},
+        {"ListSortOrderConstants", {0, 1}},
+        {"ListTextBackgroundConstants", {0, 1}},
+        {"ListViewConstants", {0, 3}},
+        {"MousePointerConstants", {0, 15}},
+        {"OLEDragConstants", {0, 1}},
+        {"OLEDropConstants", {0, 1}},
+        {"OrientationConstants", {0, 1}},
+        {"PlacementConstants", {0, 3}},
+        {"SbarStyleConstants", {0, 1}},
+        {"ScrollingConstants", {0, 1}},
+        {"TabSelStyleConstants", {0, 1}},
+        {"TabStyleConstants", {0, 2}},
+        {"TabWidthStyleConstants", {0, 2}},
+        {"TextPositionConstants", {0, 1}},
+        {"TickStyleConstants", {0, 3}},
+        {"ToolbarStyleConstants", {0, 1}},
+        {"ToolbarTextAlignConstants", {0, 1}},
+        {"TreeLineStyleConstants", {0, 1}},
+        {"TreeStyleConstants", {0, 7}},
+    };
+    const auto found = ranges.find(type);
+    if (found == ranges.end()) {
+        return std::nullopt;
+    }
+    return found->second;
+}
+
 // Converts `value` to the type-library type of a property.
 [[nodiscard]] bool coerce_property(Interpreter& in, Value& value,
                                    const std::string& type,
-                                   NativeFailure& failure);
+                                   NativeFailure& failure,
+                                   bool comctl_enums = false);
 
 }  // namespace
 
@@ -4870,7 +4908,7 @@ struct FormSupport {
 namespace {
 
 bool coerce_property(Interpreter& in, Value& value, const std::string& type,
-                     NativeFailure& failure) {
+                     NativeFailure& failure, const bool comctl_enums) {
     static_cast<void>(in);
     const auto mismatch = [&] {
         failure = NativeFailure{13, "Type mismatch"};
@@ -4931,6 +4969,37 @@ bool coerce_property(Interpreter& in, Value& value, const std::string& type,
         } else {
             value = Value{number};
         }
+        return true;
+    }
+    if (const auto range =
+            comctl_enums ? comctl_enum_range(type) : std::nullopt) {
+        // The enumerations of MSCOMCTL.OCX are Long, and a value outside the
+        // enumeration is refused (measured with evidence/reference/
+        // control-probe).
+        if (std::holds_alternative<bool>(value)) {
+            value = Value{std::get<bool>(value) ? -1.0 : 0.0};
+        } else if (const auto* text = std::get_if<std::string>(&value)) {
+            char* end = nullptr;
+            const double parsed = std::strtod(text->c_str(), &end);
+            if (end == text->c_str() || *end != '\0') {
+                return mismatch();
+            }
+            value = Value{parsed};
+        } else if (!is_number(value)) {
+            return mismatch();
+        }
+        const double rounded = std::nearbyint(as_double(value));
+        if (rounded < -2147483648.0 || rounded > 2147483647.0) {
+            failure = NativeFailure{6, "Overflow"};
+            return false;
+        }
+        const auto number = static_cast<Integer>(rounded);
+        const bool custom = type == "MousePointerConstants" && number == 99;
+        if (!custom && (number < range->first || number > range->second)) {
+            failure = NativeFailure{380, "Invalid property value"};
+            return false;
+        }
+        value = Value{number};
         return true;
     }
     return true;  // Variant, Picture, Font, Object, ...: stored as given
@@ -5298,6 +5367,14 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
             std::holds_alternative<Nothing>(result)) {
             result = make_empty_picture_value();
         }
+        if (comctl_enum_range(getter->type).has_value() &&
+            ui::find_comctl_class(cls->name) != nullptr &&
+            ui::find_control_class(cls->name) == nullptr) {
+            // An enumeration of MSCOMCTL.OCX reads as a Long.
+            result = is_number(result) ? Value{static_cast<Integer>(
+                                             std::nearbyint(as_double(result)))}
+                                       : Value{Integer{0}};
+        }
         return true;
     }
     if (ui::find_member(*cls, member, 'm') != nullptr) {
@@ -5444,7 +5521,10 @@ bool ControlObject::put(Interpreter& in, const std::string& member,
             converted = setter_type == "String" ? Value{std::string{}}
                                                 : Value{Integer{0}};
         }
-        if (!coerce_property(in, converted, setter_type, failure)) {
+        if (!coerce_property(
+                in, converted, setter_type, failure,
+                ui::find_comctl_class(cls->name) != nullptr &&
+                    ui::find_control_class(cls->name) == nullptr)) {
             return true;
         }
     }

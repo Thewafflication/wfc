@@ -9,7 +9,8 @@
 # Every line of the reference must be reproduced, including those of the module
 # that has `Option Compare Text` (the option belongs to one module) and the one
 # where `On Error Resume Next` goes on in the Case body after an error. The same
-# script runs the Select Case probe and the operator probe.
+# script runs the Select Case probe and the operator probe. With -DKNOWN=<file>
+# the lines whose label (the text before " = ") is listed there may differ.
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 execute_process(
@@ -44,13 +45,19 @@ if(NOT wanted_count EQUAL measured_count)
     "Visual Basic wrote ${wanted_count}"
   )
 endif()
+set(known "")
+if(DEFINED KNOWN)
+  file(STRINGS "${KNOWN}" known)
+endif()
 set(different 0)
 set(report "")
 math(EXPR last "${wanted_count} - 1")
 foreach(index RANGE ${last})
   list(GET wanted ${index} want)
   list(GET measured ${index} have)
-  if(NOT want STREQUAL have)
+  string(FIND "${want}" " = " split)
+  string(SUBSTRING "${want}" 0 ${split} label)
+  if(NOT want STREQUAL have AND NOT label IN_LIST known)
     math(EXPR different "${different} + 1")
     if(different LESS_EQUAL 10)
       string(APPEND report "\n  Visual Basic: ${want}\n  WFC:          ${have}")

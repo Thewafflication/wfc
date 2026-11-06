@@ -2843,6 +2843,37 @@ Print v.x & q.x]=]
     endforeach()
   endif()
 
+  # The properties of the MSComctlLib controls answer as in Visual Basic 6: the
+  # type of a value, the values an enumeration accepts, the errors. The lines
+  # that WFC still answers differently are listed in known-differences.txt
+  # (evidence/reference/control-probe).
+  set(
+    control_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-ControlProbe.ps1"
+  )
+  set(
+    control_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/control-probe"
+  )
+  if(WFC_PWSH)
+    add_test(
+      NAME TC-MP0002-control-probe-interpret
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+        "-DGENERATOR=${control_generator}"
+        "-DREFERENCE=${control_dir}/vb6-reference.txt"
+        "-DKNOWN=${control_dir}/known-differences.txt"
+        "-DWORK=${CMAKE_BINARY_DIR}/control-probe-interpret"
+        "-DPROJECT=ControlProbe.vbp" "-DOUTPUT=control-probe.txt"
+        "-DMODE=interpret" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+    )
+    set_tests_properties(
+      TC-MP0002-control-probe-interpret
+      PROPERTIES LABELS "integration;mp-0002;control" TIMEOUT 900
+    )
+  endif()
+
   # The command line (MP-0010): help, mistakes, check, libraries.
   include(tests/cli/AddCliTest.cmake)
   set(cli_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
