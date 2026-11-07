@@ -800,9 +800,11 @@ WindowId Win32Host::create_window(const std::string& kind,
     } else if (kind == "TabStrip") {
         make_child(L"SysTabControl32", TCS_TABS | WS_TABSTOP);
     } else if (kind == "Toolbar") {
-        make_child(L"ToolbarWindow32", TBSTYLE_FLAT | TBSTYLE_LIST |
-                                           CCS_NOPARENTALIGN | CCS_NORESIZE |
-                                           CCS_NODIVIDER);
+        // Raised buttons with the text below, as Visual Basic 6 draws a
+        // Toolbar; sync_common applies Style and TextAlignment.
+        make_child(L"ToolbarWindow32",
+                   CCS_NOPARENTALIGN | CCS_NORESIZE | CCS_NODIVIDER);
+        SetWindowTheme(entry->hwnd, L"", L"");
     } else if (kind == "StatusBar") {
         make_child(L"msctls_statusbar32",
                    CCS_NOPARENTALIGN | CCS_NORESIZE | SBARS_TOOLTIPS);

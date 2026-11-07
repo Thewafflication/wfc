@@ -16,6 +16,7 @@
 #include <sstream>
 #include <thread>
 
+#include <set>
 #include <wfc/comdlg32/dialogs.hpp>
 #include <wfc/mscomctl/images.hpp>
 #include <wfc/mscomctl/items.hpp>

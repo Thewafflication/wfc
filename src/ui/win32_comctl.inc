@@ -436,9 +436,11 @@ void Win32Host::sync_common(const WindowId window,
             GetClientRect(hwnd, &area);
             for (std::size_t i = 0; i < snapshot.items.size(); ++i) {
                 const long width = snapshot.items[i].width;
-                right +=
-                    width > 0 ? static_cast<int>(width * dpi_x_ / 1440) : 100;
-                edges.push_back(i + 1U == snapshot.items.size() ? -1 : right);
+                // Every panel keeps its own width (1440 twips by default);
+                // the last one does not stretch to the end of the bar.
+                right += static_cast<int>((width > 0 ? width : 1440) *
+                                          dpi_x_ / 1440);
+                edges.push_back(right);
             }
             if (edges.empty()) {
                 edges.push_back(-1);
@@ -456,6 +458,14 @@ void Win32Host::sync_common(const WindowId window,
             SendMessageW(hwnd, TB_DELETEBUTTON, 0, 0);
         }
         SendMessageW(hwnd, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
+        {  // Style tbrFlat is flat; TextAlignment 1 puts the text at the right
+            LONG_PTR bar = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            bar = snapshot.style == 1 ? (bar | TBSTYLE_FLAT)
+                                      : (bar & ~TBSTYLE_FLAT);
+            bar = snapshot.text_align == 1 ? (bar | TBSTYLE_LIST)
+                                           : (bar & ~TBSTYLE_LIST);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, bar);
+        }
         entry->images = replace_images(
             hwnd, TB_SETIMAGELIST, 0, entry->images,
             build_image_list(snapshot.images, snapshot.image_width,
@@ -503,11 +513,26 @@ void Win32Host::sync_common(const WindowId window,
         }
         SendMessageW(hwnd, TB_SETEXTENDEDSTYLE, 0,
                      TBSTYLE_EX_DRAWDDARROWS | TBSTYLE_EX_MIXEDBUTTONS);
+        if (snapshot.images.empty()) {  // VB6 still reserves the picture
+            SendMessageW(hwnd, TB_SETBITMAPSIZE, 0, MAKELPARAM(16, 15));
+        }
         SendMessageW(hwnd, TB_AUTOSIZE, 0, 0);
     } else if (kind == "treeview") {
         LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        style |=
-            TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS;
+        // Style: bit 1 is the +/- buttons, bit 2 the lines (tvwTextOnly, 0,
+        // draws neither); the spacing of Visual Basic 6 is 38 pixels then.
+        const long tree_style = snapshot.style;
+        const bool has_buttons = (tree_style & 2) != 0;
+        const bool has_lines = (tree_style & 4) != 0;
+        style |= TVS_SHOWSELALWAYS;
+        style = has_buttons ? (style | TVS_HASBUTTONS)
+                            : (style & ~static_cast<LONG_PTR>(TVS_HASBUTTONS));
+        style = has_lines ? (style | TVS_HASLINES | TVS_LINESATROOT)
+                          : (style & ~static_cast<LONG_PTR>(TVS_HASLINES |
+                                                            TVS_LINESATROOT));
+        if (tree_style == 0) {
+            SendMessageW(hwnd, TVM_SETINDENT, 38, 0);
+        }
         style = snapshot.checkboxes ? (style | TVS_CHECKBOXES)
                                     : (style & ~TVS_CHECKBOXES);
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);

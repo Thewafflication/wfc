@@ -70,3 +70,13 @@ Not done: paths. The program is a Linux program, so a probe that builds a path
 with `App.Path & "\file"` writes a file named `dir\file`; WFC treats `\` as a
 separator only on Windows. `--version`, interpreting a project, forms and
 screenshots work.
+
+## Geometry (frmGeo.frm, GeometryProbe.vbp)
+
+`geometry-vb6.txt` is what VB6 reports for the same controls (twips: the
+pixels in whole himetric, so 36 pixels are 540.2835). WFC now matches it
+except `Toolbar.ButtonHeight` and `ButtonWidth` (VB6 reports the effective
+size, WFC reports the property): a Toolbar is raised buttons with the text
+below, 38 pixels high and at least 36 wide, 2 pixels inside, fitted to its
+rows; a Tab is 18 pixels high, its text plus 13 wide, in container
+coordinates; a TreeView read from a form without `Style` is `tvwTextOnly`.

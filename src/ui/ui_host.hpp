@@ -146,6 +146,7 @@ struct CommonSnapshot {
     long value{0};
     long view{0};
     long style{0};
+    long text_align{0};  // Toolbar: 0 text below the picture, 1 beside it
     bool vertical{false};
     bool smooth{false};
     bool hide_headers{false};
