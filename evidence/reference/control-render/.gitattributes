@@ -1,0 +1,3 @@
+*.frm text eol=crlf
+*.vbp text eol=crlf
+*.png binary
