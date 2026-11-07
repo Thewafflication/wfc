@@ -14,8 +14,18 @@
 #include <objbase.h>
 #include <ocidl.h>
 #include <olectl.h>
+#ifdef __WINE__
+// Wine's headers give SetWindowTheme C++ linkage and leave the WIC class id
+// undefined in the import libraries.
+extern "C" {
+#include <uxtheme.h>
+}
+#include <initguid.h>
+#include <wincodec.h>
+#else
 #include <uxtheme.h>
 #include <wincodec.h>
+#endif
 
 #include <algorithm>
 #include <cmath>

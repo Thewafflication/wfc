@@ -16,6 +16,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#ifdef __WINE__
+#include <dlfcn.h>
+#endif
 #endif
 
 namespace wfc::package {
@@ -507,7 +510,17 @@ void block(std::string& out, const std::wstring& key, const std::string& value,
 }  // namespace
 
 fs::path running_image() {
-#ifdef _WIN32
+#ifdef __WINE__
+    // A Winelib program is the shared object wine loads, not /proc/self/exe.
+    Dl_info info{};
+    if (dladdr(reinterpret_cast<void*>(&running_image), &info) == 0 ||
+        info.dli_fname == nullptr) {
+        return {};
+    }
+    std::error_code error;
+    const fs::path found = fs::canonical(info.dli_fname, error);
+    return error ? fs::path(info.dli_fname) : found;
+#elif defined(_WIN32)
     std::wstring buffer(32768, L'\0');
     const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
                                             static_cast<DWORD>(buffer.size()));
@@ -515,7 +528,11 @@ fs::path running_image() {
         return {};
     }
     buffer.resize(length);
+#ifdef __WINE__
+    return wine_unix_path(buffer.c_str());
+#else
     return fs::path(buffer);
+#endif
 #else
     std::error_code error;
     const fs::path link = fs::read_symlink("/proc/self/exe", error);

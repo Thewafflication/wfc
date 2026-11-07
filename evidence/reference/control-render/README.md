@@ -39,5 +39,34 @@ its top is the caption that the window manager draws, not the form.
    window there. Under Wine the host now copies the window DC, as `grab.c`
    does.
 
-The Wine image is `wfc.exe` (a Windows binary) run by Wine. A Winelib build,
-a native Linux program built with `wineg++`, is not made yet.
+## Winelib
+
+`wfc-winelib.png` is made by a native Linux build of wfc (an ELF shared object
+that Wine loads), compiled and linked with `wineg++` (g++ 12) against Wine's
+Windows libraries. It is pixel-identical to `wfc.exe` under Wine, and its 741
+lines of the control probe are identical to the Windows x64 build's.
+
+Build (WSL, Wine 8.0 development packages, CMake 3.28 or newer; no sudo):
+
+```
+cmake -S . -B out/winelib -DCMAKE_TOOLCHAIN_FILE=cmake/winelib.cmake \
+      -DWFC_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build out/winelib --target wfc
+DISPLAY=:0 wine64 out/winelib/wfc.exe.so --interpret <project.vbp> --gui
+```
+
+What the port needed (`src/winelib_compat.hpp`, `cmake/winelib.cmake`):
+
+- the secure CRT functions glibc lacks (`localtime_s`, `_dupenv_s`,
+  `fopen_s`, `wcsncpy_s`, `IID_PPV_ARGS`);
+- winegcc's 16-bit `wchar_t` against glibc's 32-bit `wcslen` and `wmem*`
+  (libstdc++ calls them from `std::wstring`) and `_GLIBCXX_EXTERN_TEMPLATE=0`;
+- `_WIN32` hidden while `<filesystem>` is included, or its paths are wide;
+- `-fPIC`, no PIE hardening (winegcc links a shared object), the `version`,
+  `uuid` and `dbghelp` libraries, `CreateThread` for the large-stack thread,
+  the stack limits from the TIB, and `dladdr` for the program's own path.
+
+Not done: paths. The program is a Linux program, so a probe that builds a path
+with `App.Path & "\file"` writes a file named `dir\file`; WFC treats `\` as a
+separator only on Windows. `--version`, interpreting a project, forms and
+screenshots work.

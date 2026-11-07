@@ -11,6 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include "package.hpp"
 
 #pragma comment(lib, "version.lib")
 #endif
@@ -299,13 +300,18 @@ void print_command_help(const std::string& command) {
 
 #ifdef _WIN32
 std::string file_version(const fs::path& file) {
+#ifdef __WINE__
+    static_cast<void>(file);  // a Unix path; the Win32 call wants a DOS one
+    return {};
+#else
     DWORD ignored = 0;
-    const DWORD size = GetFileVersionInfoSizeW(file.c_str(), &ignored);
+    const std::wstring wide = file.wstring();
+    const DWORD size = GetFileVersionInfoSizeW(wide.c_str(), &ignored);
     if (size == 0U) {
         return {};
     }
     std::vector<char> data(size);
-    if (!GetFileVersionInfoW(file.c_str(), 0, size, data.data())) {
+    if (!GetFileVersionInfoW(wide.c_str(), 0, size, data.data())) {
         return {};
     }
     void* value = nullptr;
@@ -318,14 +324,19 @@ std::string file_version(const fs::path& file) {
     return std::to_string(HIWORD(info->dwFileVersionMS)) + "." +
            std::to_string(LOWORD(info->dwFileVersionMS)) + "." +
            std::to_string(HIWORD(info->dwFileVersionLS));
+#endif
 }
 
 fs::path running_folder() {
+#ifdef __WINE__
+    return wfc::package::running_image().parent_path();
+#else
     std::wstring buffer(32768, L'\0');
     const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
                                             static_cast<DWORD>(buffer.size()));
     buffer.resize(length);
     return fs::path(buffer).parent_path();
+#endif
 }
 #endif
 

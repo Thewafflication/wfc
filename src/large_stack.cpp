@@ -1,9 +1,12 @@
 #include "large_stack.hpp"
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__WINE__)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <process.h>
+#include <windows.h>
+#elif defined(__WINE__)
+// A Winelib thread must be a Wine thread (it needs a TEB for Win32 calls).
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -17,8 +20,14 @@ struct Launch {
     void* argument;
 };
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__WINE__)
 unsigned __stdcall thread_main(void* raw) {
+    const auto* launch = static_cast<const Launch*>(raw);
+    launch->entry(launch->argument);
+    return 0;
+}
+#elif defined(__WINE__)
+DWORD WINAPI thread_main(void* raw) {
     const auto* launch = static_cast<const Launch*>(raw);
     launch->entry(launch->argument);
     return 0;
@@ -36,10 +45,20 @@ void* thread_main(void* raw) {
 bool run_on_thread_with_stack(void (*entry)(void*), void* argument,
                               const std::size_t stack_bytes) {
     Launch launch{entry, argument};
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__WINE__)
     const auto handle = reinterpret_cast<HANDLE>(
         _beginthreadex(nullptr, static_cast<unsigned>(stack_bytes), thread_main,
                        &launch, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
+    if (handle == nullptr) {
+        return false;
+    }
+    WaitForSingleObject(handle, INFINITE);
+    CloseHandle(handle);
+    return true;
+#elif defined(__WINE__)
+    const HANDLE handle =
+        CreateThread(nullptr, stack_bytes, thread_main, &launch,
+                     STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
     if (handle == nullptr) {
         return false;
     }

@@ -13,6 +13,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(WfcWarnings)
 # WSP-SEC-0015: the pinned WSP build baseline supplies the hardening flags.
 include("${CMAKE_CURRENT_SOURCE_DIR}/wsp/tools/cmake/WspBuild.cmake")
+if(WFC_WINELIB)
+  # winegcc makes each program a shared object: PIE flags do not apply.
+  function(wsp_enable_hardening)
+  endfunction()
+endif()
 # Before the libraries: their tests register with the top-level directory.
 include(CTest)
 
@@ -117,11 +122,15 @@ target_link_libraries(
   wfc_frontend
   PUBLIC Threads::Threads wfc_mscomctl wfc_mscomctl2 wfc_comdlg32 wfc_mswinsck
 )
-if(WIN32)
+if(WIN32 OR WFC_WINELIB)
   target_link_libraries(
     wfc_frontend
     PUBLIC ole32 oleaut32 user32 gdi32 comctl32 comdlg32 ws2_32 uxtheme
   )
+endif()
+if(WFC_WINELIB)
+  # MSVC takes these from #pragma comment(lib, ...).
+  target_link_libraries(wfc_frontend PUBLIC version uuid dbghelp)
 endif()
 wfc_enable_strict_warnings(wfc_frontend)
 wsp_enable_hardening(wfc_frontend)

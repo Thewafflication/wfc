@@ -3064,7 +3064,15 @@ int run_native_image(const NativeImage& image, std::string& error,
     {
         ULONG_PTR low = 0;
         ULONG_PTR high = 0;
+#ifdef __WINE__
+        {
+            const auto* tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
+            low = reinterpret_cast<ULONG_PTR>(tib->StackLimit);
+            high = reinterpret_cast<ULONG_PTR>(tib->StackBase);
+        }
+#else
         GetCurrentThreadStackLimits(&low, &high);
+#endif
         const auto here = reinterpret_cast<std::uintptr_t>(&previous);
         const std::uintptr_t remaining = here > low ? here - low : 0;
         const std::uintptr_t limit = here - remaining / 2;
