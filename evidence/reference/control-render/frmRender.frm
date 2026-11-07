@@ -94,11 +94,7 @@ Private Sub Form_Load()
     tbr.Buttons.Add , "b", "Save"
     tbr.Buttons.Add , "c", "Close"
     Caption = "Control render, initial tabs=" & tabMain.Tabs.Count
-    If tabMain.Tabs.Count >= 1 Then
-        tabMain.Tabs(1).Caption = "General"
-    Else
-        tabMain.Tabs.Add , "k1", "General"
-    End If
+    tabMain.Tabs(1).Caption = "General"
     tabMain.Tabs.Add , "k2", "Colors"
     tabMain.Tabs.Add , "k3", "Fonts"
     prg.Min = 0: prg.Max = 100: prg.Value = 60
@@ -117,10 +113,6 @@ Private Sub Form_Load()
         it.SubItems(1) = CStr(i * 10)
     Next
     Caption = Caption & " panels=" & sbr.Panels.Count
-    If sbr.Panels.Count >= 1 Then
-        sbr.Panels(1).Text = "Ready"
-    Else
-        sbr.Panels.Add , , "Ready"
-    End If
+    sbr.Panels(1).Text = "Ready"
     sbr.Panels.Add , , "Second"
 End Sub

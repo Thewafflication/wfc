@@ -563,6 +563,8 @@ public:
 
 struct ComctlSupport {
     static void init(ControlObject& control);
+    // One tab and one panel for a control the form file left empty.
+    static void add_defaults(ControlObject& control);
     // Marks changes made while handling host input (not echoed back).
     static void from_host(ControlObject& control, bool on);
     [[nodiscard]] static bool get(Interpreter& in, ControlObject& self,
@@ -5990,6 +5992,7 @@ bool Interpreter::create_form_instance(
         }
         apply(*object, source);
         comctl_load_persisted(*this, *object, source, frx_directory);
+        ComctlSupport::add_defaults(*object);
         auto data = std::make_shared<InstanceData>();
         data->class_name = "wfcnative";
         data->native = object;

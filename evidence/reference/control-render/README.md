@@ -18,9 +18,11 @@ its top is the caption that the window manager draws, not the form.
 
 ## Differences seen
 
-1. **Start state.** VB6 starts the TabStrip with 1 tab and the StatusBar with 1
-   panel (`initial tabs=1 panels=1`); WFC starts both empty (0 and 0), so
-   `Tabs(1)` and `Panels(1)` fail with 35600 on a form that never added them.
+1. **Start state (fixed).** VB6 starts the TabStrip with 1 tab and the
+   StatusBar with 1 panel (`initial tabs=1 panels=1`). WFC started both empty,
+   so `Tabs(1)` and `Panels(1)` failed with 35600. A control loaded from a
+   form file with no persisted tabs or panels now starts with one, and
+   `wfc-windows-x64.png` shows `tabs=1 panels=1`.
 2. **Toolbar.** VB6 draws raised 3-D buttons; WFC draws flat text buttons.
 3. **TreeView.** A TreeView loaded from a form without a Style is text only
    in VB6 (Style 0); WFC draws lines and plus/minus boxes (Style 7). This is
@@ -32,6 +34,10 @@ its top is the caption that the window manager draws, not the form.
 5. **Wine.** Wine draws its own controls: a solid blue ProgressBar (VB6 and
    Windows WFC draw segments), flat tabs and sunken frames with a thin line.
    The layout, texts, tree, list and status panels are the same as Windows.
-6. **`--screenshots` under Wine.** The PNG that `wfc.exe` writes itself comes
-   out blank grey under Wine: `PrintWindow` does not render the window there.
-   Copying the window DC (`grab.c`) does show it.
+6. **`--screenshots` under Wine (fixed).** The PNG that `wfc.exe` wrote itself
+   came out blank grey under Wine, because `PrintWindow` does not render the
+   window there. Under Wine the host now copies the window DC, as `grab.c`
+   does.
+
+The Wine image is `wfc.exe` (a Windows binary) run by Wine. A Winelib build,
+a native Linux program built with `wineg++`, is not made yet.

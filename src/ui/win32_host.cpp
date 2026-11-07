@@ -27,6 +27,16 @@
 namespace wfc::ui {
 namespace {
 
+// True under Wine, which exports `wine_get_version` from ntdll.
+bool running_under_wine() {
+    static const bool wine = [] {
+        const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        return ntdll != nullptr &&
+               GetProcAddress(ntdll, "wine_get_version") != nullptr;
+    }();
+    return wine;
+}
+
 constexpr wchar_t kFormClass[] = L"WfcForm";
 constexpr wchar_t kPictureClass[] = L"WfcPicture";
 constexpr wchar_t kIdProperty[] = L"WfcId";
@@ -2129,7 +2139,19 @@ bool Win32Host::capture(const WindowId window, const std::string& path) {
     // A window the system has not drawn yet prints black (the machine may be
     // busy): wait for it for up to three seconds.
     for (int attempt = 0; attempt < 30; ++attempt) {
-        printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+        // Wine's PrintWindow leaves the window grey: copy the window DC, which
+        // is what the X display shows.
+        if (running_under_wine()) {
+            HDC window_dc = GetWindowDC(entry->hwnd);
+            printed = window_dc != nullptr &&
+                      BitBlt(memory, 0, 0, width, height, window_dc, 0, 0,
+                             SRCCOPY) != FALSE;
+            if (window_dc != nullptr) {
+                ReleaseDC(entry->hwnd, window_dc);
+            }
+        } else {
+            printed = PrintWindow(entry->hwnd, memory, 2U) != FALSE;
+        }
         if (!printed) {
             break;
         }
