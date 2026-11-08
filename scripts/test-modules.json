@@ -11,11 +11,11 @@
     },
     {
       "prefix": "lib/wfc-mswinsck/",
-      "label": "mswinsck"
+      "label": "mswinsck|control"
     },
     {
       "prefix": "lib/wfc-comdlg32/",
-      "label": "comdlg32"
+      "label": "comdlg32|control"
     },
     {
       "prefix": "lib/wfc-vbrun/",

@@ -541,6 +541,8 @@ public:
         {"OLEDragConstants", {0, 1}},
         {"OLEDropConstants", {0, 1}},
         {"OrientationConstants", {0, 1}},
+        {"PrinterOrientationConstants", {1, 2}},
+        {"ProtocolConstants", {0, 1}},
         {"PlacementConstants", {0, 3}},
         {"SbarStyleConstants", {0, 1}},
         {"ScrollingConstants", {0, 1}},

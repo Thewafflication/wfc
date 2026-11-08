@@ -2909,6 +2909,54 @@ Print v.x & q.x]=]
     )
   endif()
 
+  # The same for COMDLG32.OCX (CommonDialog).
+  set(
+    control3_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/control-probe-3"
+  )
+  if(WFC_PWSH)
+    add_test(
+      NAME TC-MP0002-control-probe-3-interpret
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+        "-DGENERATOR=${control_generator}" "-DLIBRARY=comdlg32"
+        "-DREFERENCE=${control3_dir}/vb6-reference.txt"
+        "-DKNOWN=${control3_dir}/known-differences.txt"
+        "-DWORK=${CMAKE_BINARY_DIR}/control-probe-3-interpret"
+        "-DPROJECT=ControlProbe3.vbp" "-DOUTPUT=control-probe.txt"
+        "-DMODE=interpret" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+    )
+    set_tests_properties(
+      TC-MP0002-control-probe-3-interpret
+      PROPERTIES LABELS "integration;mp-0002;control" TIMEOUT 900
+    )
+  endif()
+
+  # The same for MSWINSCK.OCX (Winsock).
+  set(
+    control4_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/control-probe-4"
+  )
+  if(WFC_PWSH)
+    add_test(
+      NAME TC-MP0002-control-probe-4-interpret
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+        "-DGENERATOR=${control_generator}" "-DLIBRARY=mswinsck"
+        "-DREFERENCE=${control4_dir}/vb6-reference.txt"
+        "-DKNOWN=${control4_dir}/known-differences.txt"
+        "-DWORK=${CMAKE_BINARY_DIR}/control-probe-4-interpret"
+        "-DPROJECT=ControlProbe4.vbp" "-DOUTPUT=control-probe.txt"
+        "-DMODE=interpret" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+    )
+    set_tests_properties(
+      TC-MP0002-control-probe-4-interpret
+      PROPERTIES LABELS "integration;mp-0002;control" TIMEOUT 900
+    )
+  endif()
+
   # The command line (MP-0010): help, mistakes, check, libraries.
   include(tests/cli/AddCliTest.cmake)
   set(cli_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")

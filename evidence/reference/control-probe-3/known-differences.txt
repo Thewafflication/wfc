@@ -1,0 +1,11 @@
+CommonDialog | hDC | set 0
+CommonDialog | hDC | set 1
+CommonDialog | hDC | set 2
+CommonDialog | hDC | set 3
+CommonDialog | hDC | set -1
+CommonDialog | hDC | set 5
+CommonDialog | hDC | set 99
+CommonDialog | FileTitle | set ''
+CommonDialog | FileTitle | set 'abc'
+CommonDialog | FontName | set 'abc'
+CommonDialog | hDC | get
