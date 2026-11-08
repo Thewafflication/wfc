@@ -14,6 +14,17 @@ The same three scripts run in the pre-commit hook, in CI, and by hand:
 | Build | `pwsh -NoProfile -File scripts/Invoke-Build.ps1 [-Preset <name>]` | Configure and build one preset; default `windows-x64-debug` |
 | Test | `pwsh -NoProfile -File scripts/Invoke-Tests.ps1 [-Preset <name>]` | Every registered CTest test for the preset, including negative tests; zero tests is an error |
 
+The commit gate runs `Invoke-Tests.ps1 -Scope Changed`: the staged paths are
+matched against `scripts/test-modules.json`, and only the tests of the modules
+they belong to run (a library under `lib/`, `tests/vb6games`). A path that
+belongs to no module (the interpreter, the compiler, the build) runs the fast
+tier, every test except the slow tier (`TC-MP0008-*` game and package runs and
+the `-probe-` runs), which CI covers. Documentation and evidence alone run no
+tests. Pushing a tag runs the pre-push stage `scripts/Test-ReleasePush.ps1`,
+which runs the full suite, every submodule's tests included; run
+`Invoke-Tests.ps1` by hand (the default scope is `Full`) before any release.
+The target is a commit gate of about three minutes.
+
 The local gate builds and tests `windows-x64-debug` only. CI runs lint once
 and build/test for `windows-x86-debug`, `windows-x64-debug`, and
 `windows-arm64-debug` (`WSP-TEST-0013`). Each script stops at the first
@@ -47,7 +58,7 @@ each tool's version before use and fail when it is missing or different
 
 Build output goes to `out/` (ignored). The hook runs once per commit, even for
 documentation-only commits (`always_run`, `pass_filenames: false`,
-`require_serial`), so a commit takes about a minute with a warm build.
+`require_serial`), so a commit takes about a minute with a warm build, plus its tests.
 
 ## Check inventory (`WSP-CHECK-0006`)
 

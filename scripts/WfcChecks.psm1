@@ -141,5 +141,56 @@ function Write-Stage {
     Write-Output $Text
 }
 
+function Get-ChangedTestSelection {
+    <#
+    .SYNOPSIS
+    Chooses the ctest arguments for the staged files (the commit gate).
+    .DESCRIPTION
+    Each staged path is matched against scripts/test-modules.json: the first
+    rule whose prefix matches names the module (a ctest label regex), a rule
+    with no label means nothing to test (documentation, evidence). A path no
+    rule matches belongs to the core and runs the fast tier.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Root)
+
+    $config = Get-Content (Join-Path $Root 'scripts/test-modules.json') -Raw |
+        ConvertFrom-Json
+    $files = @(& git -C $Root diff --cached --name-only)
+    $labels = [System.Collections.Generic.SortedSet[string]]::new()
+    $core = $false
+    $matchedAny = $false
+    foreach ($file in $files) {
+        $rule = $config.modules |
+            Where-Object { $file.StartsWith($_.prefix) } |
+            Select-Object -First 1
+        if ($null -eq $rule) {
+            $core = $true
+        } elseif ($rule.label) {
+            [void]$labels.Add($rule.label)
+        }
+        $matchedAny = $true
+    }
+    if (-not $matchedAny -or (-not $core -and $labels.Count -eq 0)) {
+        return [pscustomobject]@{
+            Skip = $true; Arguments = @()
+            Reason = 'no staged file belongs to tested code'
+        }
+    }
+    $arguments = @()
+    $reason = ''
+    if ($core) {
+        $arguments = @('-E', $config.slow)
+        $reason = 'core files changed: fast tier (all but the slow tier)'
+    } else {
+        $arguments = @('-L', ($labels -join '|'))
+        $reason = "module tests: $($labels -join ', ')"
+    }
+    $arguments += '--no-tests=error'
+    return [pscustomobject]@{
+        Skip = $false; Arguments = $arguments; Reason = $reason
+    }
+}
+
 Export-ModuleMember -Function Invoke-CheckedCommand, Write-Stage,
-    Resolve-PinnedTool, Get-OwnedFile
+    Resolve-PinnedTool, Get-OwnedFile, Get-ChangedTestSelection

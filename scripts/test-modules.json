@@ -1,0 +1,49 @@
+{
+  "slow": "TC-MP0008-|-probe-",
+  "modules": [
+    {
+      "prefix": "lib/wfc-mscomctl2/",
+      "label": "mscomctl2"
+    },
+    {
+      "prefix": "lib/wfc-mscomctl/",
+      "label": "mscomctl|comctl"
+    },
+    {
+      "prefix": "lib/wfc-mswinsck/",
+      "label": "mswinsck"
+    },
+    {
+      "prefix": "lib/wfc-comdlg32/",
+      "label": "comdlg32"
+    },
+    {
+      "prefix": "lib/wfc-vbrun/",
+      "label": "vbrun"
+    },
+    {
+      "prefix": "tests/vb6games",
+      "label": "vb6games"
+    },
+    {
+      "prefix": "docs/",
+      "label": null
+    },
+    {
+      "prefix": "planning/",
+      "label": null
+    },
+    {
+      "prefix": "evidence/",
+      "label": null
+    },
+    {
+      "prefix": "README",
+      "label": null
+    },
+    {
+      "prefix": ".github/",
+      "label": null
+    }
+  ]
+}
