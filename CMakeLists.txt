@@ -2883,6 +2883,32 @@ Print v.x & q.x]=]
     )
   endif()
 
+  # The same for the controls of MSCOMCT2.OCX (UpDown, MonthView, DTPicker,
+  # FlatScrollBar, Animation); the lines that depend on today's date, and
+  # those where VB6 hangs, are listed in known-differences.txt.
+  set(
+    control2_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/control-probe-2"
+  )
+  if(WFC_PWSH)
+    add_test(
+      NAME TC-MP0002-control-probe-2-interpret
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+        "-DGENERATOR=${control_generator}" "-DLIBRARY=mscomctl2"
+        "-DREFERENCE=${control2_dir}/vb6-reference.txt"
+        "-DKNOWN=${control2_dir}/known-differences.txt"
+        "-DWORK=${CMAKE_BINARY_DIR}/control-probe-2-interpret"
+        "-DPROJECT=ControlProbe2.vbp" "-DOUTPUT=control-probe.txt"
+        "-DMODE=interpret" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+    )
+    set_tests_properties(
+      TC-MP0002-control-probe-2-interpret
+      PROPERTIES LABELS "integration;mp-0002;control" TIMEOUT 900
+    )
+  endif()
+
   # The command line (MP-0010): help, mistakes, check, libraries.
   include(tests/cli/AddCliTest.cmake)
   set(cli_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")

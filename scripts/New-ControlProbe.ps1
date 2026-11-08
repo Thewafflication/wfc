@@ -22,16 +22,39 @@ pwsh -NoProfile -File scripts/New-ControlProbe.ps1
 #>
 [CmdletBinding()]
 param(
-    [string]$Output = (Join-Path (Split-Path -Parent $PSScriptRoot) `
-        'evidence\reference\control-probe')
+    [ValidateSet('mscomctl', 'mscomctl2')]
+    [string]$Library = 'mscomctl',
+    [string]$Output = ''
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $root = Split-Path -Parent $PSScriptRoot
-$library = Get-Content -Raw -Encoding UTF8 (Join-Path $root `
-    'evidence\reference\mscomctl-2.0-type-library.json') | ConvertFrom-Json
+$libraries = @{
+    mscomctl = @{
+        Json = 'mscomctl-2.0-type-library.json'
+        Namespace = 'MSComctlLib'
+        Guid = '{831FDD16-0C5C-11D2-A9FC-0000F8754DA1}'
+        Ocx = 'MSCOMCTL.OCX'
+        Folder = 'control-probe'
+        Name = 'ControlProbe'
+    }
+    mscomctl2 = @{
+        Json = 'mscomct2-2.0-type-library.json'
+        Namespace = 'MSComCtl2'
+        Guid = '{86CF1D34-0C5F-11D2-A9FC-0000F8754DA1}'
+        Ocx = 'MSCOMCT2.OCX'
+        Folder = 'control-probe-2'
+        Name = 'ControlProbe2'
+    }
+}
+$choice = $libraries[$Library]
+if (-not $Output) {
+    $Output = Join-Path $root "evidence\reference\$($choice.Folder)"
+}
+$typeLibrary = Get-Content -Raw -Encoding UTF8 (Join-Path $root `
+    "evidence\reference\$($choice.Json)") | ConvertFrom-Json
 
 # Properties that are objects, handles or depend on the window.
 $skip = @('hWnd', 'hImageList', 'Font', 'Picture', 'MouseIcon', 'Controls',
@@ -63,11 +86,11 @@ $crlf = "`r`n"
 $utf = New-Object System.Text.ASCIIEncoding
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
 
-$objectLine = 'Object = "{831FDD16-0C5C-11D2-A9FC-0000F8754DA1}#2.0#0"; ' +
-    '"MSCOMCTL.OCX"'
+$objectLine = 'Object = "' + $choice.Guid + '#2.0#0"; "' +
+    $choice.Ocx + '"'
 $count = 0
 $forms = @()
-foreach ($control in $library.controls) {
+foreach ($control in $typeLibrary.controls) {
     $name = $control.name
     $form = "frm$name"
     $forms += $form
@@ -147,7 +170,7 @@ foreach ($control in $library.controls) {
         '   ScaleHeight     =   3000',
         '   ScaleWidth      =   5000',
         '   StartUpPosition =   3  ''Windows Default',
-        "   Begin MSComctlLib.$name Ctl",
+        "   Begin $($choice.Namespace).$name Ctl",
         '      Height          =   1200',
         '      Left            =   120',
         '      TabIndex        =   0',
@@ -243,10 +266,10 @@ $main = $main + $crlf + ($calls -join $crlf) + $crlf +
     ($main -replace "`r?`n", $crlf) + $crlf, $utf)
 
 $project = @('Type=Exe', 'Startup="Sub Main"', 'Module=Probe; Probe.bas',
-    'Object={831FDD16-0C5C-11D2-A9FC-0000F8754DA1}#2.0#0; MSCOMCTL.OCX') +
+    "Object=$($choice.Guid)#2.0#0; $($choice.Ocx)") +
     ($forms | ForEach-Object { "Form=$_.frm" }) +
-    @('Name="ControlProbe"', 'Title="Control probe"')
-[System.IO.File]::WriteAllText((Join-Path $Output 'ControlProbe.vbp'),
+    @(('Name="' + $choice.Name + '"'), 'Title="Control probe"')
+[System.IO.File]::WriteAllText((Join-Path $Output ($choice.Name + '.vbp')),
     ($project -join $crlf) + $crlf, $utf)
 
 Write-Host "Wrote $count probes to $Output"

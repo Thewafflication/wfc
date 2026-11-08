@@ -1,0 +1,28 @@
+Animation | BackStyle | set 0
+Animation | BackStyle | set 1
+Animation | BackStyle | set 2
+Animation | BackStyle | set 3
+Animation | BackStyle | set -1
+Animation | BackStyle | set 5
+Animation | BackStyle | set 99
+Animation | Center | set True
+Animation | Center | set False
+UpDown | Orientation | set 0
+UpDown | Orientation | set 1
+UpDown | Orientation | set 2
+UpDown | Orientation | set 3
+UpDown | Orientation | set -1
+UpDown | Orientation | set 5
+UpDown | Orientation | set 99
+MonthView | MaxSelCount | set 0
+MonthView | MaxSelCount | set 1
+MonthView | MaxSelCount | set 2
+MonthView | MaxSelCount | set 3
+MonthView | MaxSelCount | set -1
+MonthView | MaxSelCount | set 5
+MonthView | MaxSelCount | set 99
+MonthView | Day | get
+MonthView | Month | get
+MonthView | Week | get
+MonthView | Year | get
+MonthView | DayOfWeek | get

@@ -11,10 +11,18 @@
 # where `On Error Resume Next` goes on in the Case body after an error. The same
 # script runs the Select Case probe and the operator probe. With -DKNOWN=<file>
 # the lines whose label (the text before " = ") is listed there may differ.
+# With -DLIBRARY=<name> the generator is run with -Library <name> (the control
+# probe of MSCOMCT2).
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
+set(generator_options "")
+if(DEFINED LIBRARY)
+  set(generator_options -Library "${LIBRARY}")
+endif()
 execute_process(
-  COMMAND "${PWSH}" -NoProfile -File "${GENERATOR}" -Output "${WORK}"
+  COMMAND
+    "${PWSH}" -NoProfile -File "${GENERATOR}" ${generator_options} -Output
+    "${WORK}"
   RESULT_VARIABLE generated
   OUTPUT_QUIET
 )

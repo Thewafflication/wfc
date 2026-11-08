@@ -77,8 +77,9 @@ namespace {
     if (type == "Integer") {
         return Value{Int16{0}};
     }
-    if (type == "Long") {
-        return Value{Integer{0}};
+    if (type == "Long" || type == "ULong" ||
+        (type.size() > 9 && type.ends_with("Constants"))) {
+        return Value{Integer{0}};  // an enumeration or a colour is a Long
     }
     if (type == "Single") {
         return Value{0.0F};
@@ -521,8 +522,14 @@ public:
 [[nodiscard]] std::optional<std::pair<Integer, Integer>> comctl_enum_range(
     const std::string& type) {
     static const std::map<std::string, std::pair<Integer, Integer>> ranges = {
+        {"AlignmentConstants", {0, 1}},
         {"AppearanceConstants", {0, 1}},
+        {"ArrowsConstants", {0, 2}},
         {"BorderStyleConstants", {0, 1}},
+        {"DayConstants", {1, 7}},
+        {"FlatScrollBarAppearanceConstants", {0, 2}},
+        {"FormatConstants", {0, 3}},
+        {"MonthConstants", {1, 12}},
         {"LabelEditConstants", {0, 1}},
         {"ListArrangeConstants", {0, 2}},
         {"ListLabelEditConstants", {0, 1}},
@@ -5371,8 +5378,9 @@ bool ControlObject::get(Interpreter& in, const std::string& member,
             result = make_empty_picture_value();
         }
         if (comctl_enum_range(getter->type).has_value() &&
-            ui::find_comctl_class(cls->name) != nullptr &&
-            ui::find_control_class(cls->name) == nullptr) {
+            (comctl != nullptr ||
+             (ui::find_comctl_class(cls->name) != nullptr &&
+              ui::find_control_class(cls->name) == nullptr))) {
             // An enumeration of MSCOMCTL.OCX reads as a Long.
             result = is_number(result) ? Value{static_cast<Integer>(
                                              std::nearbyint(as_double(result)))}

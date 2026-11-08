@@ -3,7 +3,7 @@
   "modules": [
     {
       "prefix": "lib/wfc-mscomctl2/",
-      "label": "mscomctl2"
+      "label": "mscomctl2|control"
     },
     {
       "prefix": "lib/wfc-mscomctl/",
