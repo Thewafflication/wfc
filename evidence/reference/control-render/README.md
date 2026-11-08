@@ -81,3 +81,17 @@ those sizes as ButtonHeight and ButtonWidth; a Tab is 18 pixels high, its
 text plus 13 wide, in container coordinates, and the client area is 4 pixels
 in below the rows of tabs; a TreeView read from a form without `Style` is
 `tvwTextOnly` with an indentation of 38 pixels.
+
+## Winelib comparison (Wine 8.0, `wfc.exe.so` built with wineg++)
+
+`geometry-winelib.txt` is the geometry probe run by the Winelib build: it is
+identical to `geometry-vb6.txt` (the sizes come from WFC's own layout, not from
+the Wine controls). `wfc-winelib.png` against `wfc-windows-x64.png` and
+`vb6.png`: the controls sit at the same places with the same text, and the
+toolbar buttons have the text below the picture room VB6 reserves. What differs
+is Wine's own drawing: its Toolbar draws no raised button edges, its
+ProgressBar is a smooth blue bar instead of blocks, and the tab, tree and list
+borders are Wine's. These are Wine's common controls, not WFC.
+
+The probe writes `App.Path & "\geometry.txt"`; under Winelib that is a file
+named `<dir>\geometry.txt` in the current folder (Unix paths).

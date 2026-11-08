@@ -466,10 +466,32 @@ void Win32Host::sync_common(const WindowId window,
                                            : (bar & ~TBSTYLE_LIST);
             SetWindowLongPtrW(hwnd, GWL_STYLE, bar);
         }
-        entry->images = replace_images(
-            hwnd, TB_SETIMAGELIST, 0, entry->images,
-            build_image_list(snapshot.images, snapshot.image_width,
-                             snapshot.image_height));
+        void* bar_images = build_image_list(
+            snapshot.images, snapshot.image_width, snapshot.image_height);
+        const bool reserved = bar_images == nullptr;
+        if (reserved) {
+            // VB6 reserves the room of a 16 by 15 picture for every button
+            // even when there is none; a blank list does the same here.
+            HIMAGELIST blank = ImageList_Create(16, 15, ILC_COLOR32 | ILC_MASK,
+                                                1, 0);
+            if (blank != nullptr) {  // one white picture, all of it masked
+                HDC screen = GetDC(nullptr);
+                HDC memory = CreateCompatibleDC(screen);
+                HBITMAP white = CreateCompatibleBitmap(screen, 16, 15);
+                const HGDIOBJ previous = SelectObject(memory, white);
+                RECT whole{0, 0, 16, 15};
+                FillRect(memory, &whole,
+                         static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
+                SelectObject(memory, previous);
+                ImageList_AddMasked(blank, white, RGB(255, 255, 255));
+                DeleteObject(white);
+                DeleteDC(memory);
+                ReleaseDC(nullptr, screen);
+            }
+            bar_images = blank;
+        }
+        entry->images =
+            replace_images(hwnd, TB_SETIMAGELIST, 0, entry->images, bar_images);
         long at = 0;
         for (const auto& item : snapshot.items) {
             std::wstring text = wide_text(item.text) + L'\0';
@@ -477,8 +499,9 @@ void Win32Host::sync_common(const WindowId window,
                 hwnd, TB_ADDSTRINGW, 0, reinterpret_cast<LPARAM>(text.c_str()));
             TBBUTTON button{};
             button.idCommand = static_cast<int>(at) + 1;
-            button.iBitmap =
-                item.image >= 0 ? static_cast<int>(item.image) : I_IMAGENONE;
+            button.iBitmap = item.image >= 0 ? static_cast<int>(item.image)
+                             : reserved      ? 0
+                                             : I_IMAGENONE;
             button.iString = static_cast<INT_PTR>(text_index);
             button.fsState =
                 static_cast<BYTE>((item.enabled ? TBSTATE_ENABLED : 0) |
@@ -515,6 +538,9 @@ void Win32Host::sync_common(const WindowId window,
                      TBSTYLE_EX_DRAWDDARROWS | TBSTYLE_EX_MIXEDBUTTONS);
         if (snapshot.images.empty()) {  // VB6 still reserves the picture
             SendMessageW(hwnd, TB_SETBITMAPSIZE, 0, MAKELPARAM(16, 15));
+            // The smallest button (36 by 38 pixels): Wine does not derive it
+            // from the picture it never gets.
+            SendMessageW(hwnd, TB_SETBUTTONSIZE, 0, MAKELPARAM(36, 38));
         }
         SendMessageW(hwnd, TB_AUTOSIZE, 0, 0);
     } else if (kind == "treeview") {
