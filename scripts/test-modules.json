@@ -1,5 +1,5 @@
 {
-  "slow": "TC-MP0008-|-probe-",
+  "slow": "TC-MP0008-|(arithmetic|library|select-case|operator)-probe-",
   "modules": [
     {
       "prefix": "lib/wfc-mscomctl2/",
@@ -7,7 +7,7 @@
     },
     {
       "prefix": "lib/wfc-mscomctl/",
-      "label": "mscomctl|comctl"
+      "label": "mscomctl|comctl|control"
     },
     {
       "prefix": "lib/wfc-mswinsck/",
@@ -32,6 +32,10 @@
     {
       "prefix": "planning/",
       "label": null
+    },
+    {
+      "prefix": "evidence/reference/control-",
+      "label": "control"
     },
     {
       "prefix": "evidence/",

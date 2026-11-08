@@ -19,7 +19,7 @@ matched against `scripts/test-modules.json`, and only the tests of the modules
 they belong to run (a library under `lib/`, `tests/vb6games`). A path that
 belongs to no module (the interpreter, the compiler, the build) runs the fast
 tier, every test except the slow tier (`TC-MP0008-*` game and package runs and
-the `-probe-` runs), which CI covers. Documentation and evidence alone run no
+the arithmetic, library, select-case and operator probes), which CI covers. Documentation and evidence alone run no
 tests. Pushing a tag runs the pre-push stage `scripts/Test-ReleasePush.ps1`,
 which runs the full suite, every submodule's tests included; run
 `Invoke-Tests.ps1` by hand (the default scope is `Full`) before any release.
