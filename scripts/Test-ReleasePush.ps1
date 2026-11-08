@@ -19,7 +19,7 @@ if (-not $remoteRef -or -not $remoteRef.StartsWith('refs/tags/')) {
     Write-Output '[tests] not a tag push: full suite skipped'
     return
 }
-Write-Output "[tests] release tag $remoteRef: full suite"
+Write-Output "[tests] release tag ${remoteRef}: full suite"
 & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Invoke-Tests.ps1') -Scope Full
 if ($LASTEXITCODE -ne 0) {
     throw "Full test suite failed ($LASTEXITCODE); the tag was not pushed."
