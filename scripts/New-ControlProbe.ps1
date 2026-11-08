@@ -22,7 +22,7 @@ pwsh -NoProfile -File scripts/New-ControlProbe.ps1
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('mscomctl', 'mscomctl2')]
+    [ValidateSet('mscomctl', 'mscomctl2', 'comdlg32', 'mswinsck')]
     [string]$Library = 'mscomctl',
     [string]$Output = ''
 )
@@ -39,6 +39,7 @@ $libraries = @{
         Ocx = 'MSCOMCTL.OCX'
         Folder = 'control-probe'
         Name = 'ControlProbe'
+        Version = '2.0'
     }
     mscomctl2 = @{
         Json = 'mscomct2-2.0-type-library.json'
@@ -47,6 +48,25 @@ $libraries = @{
         Ocx = 'MSCOMCT2.OCX'
         Folder = 'control-probe-2'
         Name = 'ControlProbe2'
+        Version = '2.0'
+    }
+    comdlg32 = @{
+        Json = 'comdlg32-1.2-type-library.json'
+        Namespace = 'MSComDlg'
+        Guid = '{F9043C88-F6F2-101A-A3C9-08002B2F49FB}'
+        Ocx = 'COMDLG32.OCX'
+        Folder = 'control-probe-3'
+        Name = 'ControlProbe3'
+        Version = '1.2'
+    }
+    mswinsck = @{
+        Json = 'mswinsck-1.0-type-library.json'
+        Namespace = 'MSWinsockLib'
+        Guid = '{248DD890-BB45-11CF-9ABC-0080C7E7B78D}'
+        Ocx = 'MSWINSCK.OCX'
+        Folder = 'control-probe-4'
+        Name = 'ControlProbe4'
+        Version = '1.0'
     }
 }
 $choice = $libraries[$Library]
@@ -57,7 +77,8 @@ $typeLibrary = Get-Content -Raw -Encoding UTF8 (Join-Path $root `
     "evidence\reference\$($choice.Json)") | ConvertFrom-Json
 
 # Properties that are objects, handles or depend on the window.
-$skip = @('hWnd', 'hImageList', 'Font', 'Picture', 'MouseIcon', 'Controls',
+$skip = @('hWnd', 'Action', 'SocketHandle', 'LocalHostName', 'LocalIP',
+    'hImageList', 'Font', 'Picture', 'MouseIcon', 'Controls',
     'ImageList', 'Icons', 'SmallIcons', 'DisabledImageList', 'HotImageList',
     'ColumnHeaderIcons', 'DropHighlight', 'SelectedItem', '_Value',
     'GetNumTicks', 'PanelProperties', 'ClientTop', 'ClientLeft',
@@ -86,11 +107,18 @@ $crlf = "`r`n"
 $utf = New-Object System.Text.ASCIIEncoding
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
 
-$objectLine = 'Object = "' + $choice.Guid + '#2.0#0"; "' +
+$objectLine = 'Object = "' + $choice.Guid + '#' + $choice.Version + '#0"; "' +
     $choice.Ocx + '"'
 $count = 0
 $forms = @()
-foreach ($control in $typeLibrary.controls) {
+# MSComctlLib and MSComCtl2 are exported with their controls; the other
+# libraries with their classes, whose default interface holds the members.
+$controls = if ($typeLibrary.PSObject.Properties.Name -contains 'controls') {
+    $typeLibrary.controls
+} else {
+    $typeLibrary.classes
+}
+foreach ($control in $controls) {
     $name = $control.name
     $form = "frm$name"
     $forms += $form
@@ -98,6 +126,7 @@ foreach ($control in $typeLibrary.controls) {
     $properties = [ordered]@{}
     foreach ($member in $members) {
         if (-not $member.kind.StartsWith('Property')) { continue }
+        if ($member.name.StartsWith('_')) { continue }
         if (@($member.parameters).Count -ne 0) { continue }
         if ($skip -contains $member.name) { continue }
         if (-not $properties.Contains($member.name)) {
@@ -266,7 +295,7 @@ $main = $main + $crlf + ($calls -join $crlf) + $crlf +
     ($main -replace "`r?`n", $crlf) + $crlf, $utf)
 
 $project = @('Type=Exe', 'Startup="Sub Main"', 'Module=Probe; Probe.bas',
-    "Object=$($choice.Guid)#2.0#0; $($choice.Ocx)") +
+    "Object=$($choice.Guid)#$($choice.Version)#0; $($choice.Ocx)") +
     ($forms | ForEach-Object { "Form=$_.frm" }) +
     @(('Name="' + $choice.Name + '"'), 'Title="Control probe"')
 [System.IO.File]::WriteAllText((Join-Path $Output ($choice.Name + '.vbp')),

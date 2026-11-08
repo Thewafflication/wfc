@@ -1,0 +1,2904 @@
+{
+    "schemaVersion":  1,
+    "generatedUtc":  "2026-11-08T03:28:44.2089446Z",
+    "source":  {
+                   "path":  "C:\\Windows\\SysWOW64\\COMDLG32.OCX",
+                   "sha256":  "F9ECCA1F6718F7AB711E3F675DCE438930079CA8649F101FB41A93D85977149D",
+                   "fileVersion":  "6.00.8169",
+                   "productVersion":  "6.00.8169"
+               },
+    "library":  {
+                    "name":  "MSComDlg",
+                    "guid":  "{F9043C88-F6F2-101A-A3C9-08002B2F49FB}",
+                    "majorVersion":  1,
+                    "minorVersion":  2,
+                    "lcid":  0,
+                    "sysKind":  1,
+                    "typeInfoCount":  11
+                },
+    "classes":  [
+                    {
+                        "name":  "CommonDialog",
+                        "guid":  "{F9043C85-F6F2-101A-A3C9-08002B2F49FB}",
+                        "progId":  "MSComDlg.CommonDialog.1",
+                        "flags":  38,
+                        "defaultInterface":  {
+                                                 "name":  "ICommonDialog",
+                                                 "guid":  "{083039C2-13F4-11D1-8B7E-0000F8754DA1}",
+                                                 "flags":  1,
+                                                 "members":  [
+                                                                 {
+                                                                     "name":  "_Action",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  0,
+                                                                     "flags":  64,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "_Action",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  0,
+                                                                     "flags":  64,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FileName",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  1,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FileName",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  1,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "DialogTitle",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "DialogTitle",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Filter",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  3,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Filter",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  3,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "DefaultExt",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  4,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "DefaultExt",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  4,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "InitDir",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  5,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "InitDir",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  5,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Color",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  6,
+                                                                     "flags":  0,
+                                                                     "returnType":  "ULong",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Color",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  6,
+                                                                     "flags":  0,
+                                                                     "returnType":  "ULong",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Flags",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  7,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Flags",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  7,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontName",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  8,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontName",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  8,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontBold",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  9,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontBold",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  9,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontItalic",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  10,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontItalic",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  10,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontStrikeThru",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  11,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontStrikeThru",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  11,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontUnderLine",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  12,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontUnderLine",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  12,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FromPage",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  13,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FromPage",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  13,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ToPage",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  14,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ToPage",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  14,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Min",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  15,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Min",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  15,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Max",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  16,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Max",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  16,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Copies",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  17,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Copies",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  17,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "CancelError",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  18,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "CancelError",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  18,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpFile",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  19,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpFile",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  19,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpCommand",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  20,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpCommand",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  20,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpKey",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  21,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpKey",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  21,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "PrinterDefault",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  22,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "PrinterDefault",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  22,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Boolean",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FilterIndex",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  23,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FilterIndex",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  23,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpContext",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  24,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "HelpContext",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  24,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontSize",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  25,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Single",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FontSize",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  25,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Single",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Action",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  26,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Action",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  26,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "MaxFileSize",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  27,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "MaxFileSize",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  27,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "hDC",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  28,
+                                                                     "flags":  1024,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "hDC",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  28,
+                                                                     "flags":  1024,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FileTitle",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  29,
+                                                                     "flags":  1024,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "FileTitle",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  29,
+                                                                     "flags":  1024,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowOpen",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  30,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowSave",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  31,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowColor",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  32,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowFont",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  33,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowPrinter",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  34,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "ShowHelp",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  35,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "AboutBox",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  -552,
+                                                                     "flags":  64,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Orientation",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  36,
+                                                                     "flags":  0,
+                                                                     "returnType":  "PrinterOrientationConstants",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Orientation",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  36,
+                                                                     "flags":  0,
+                                                                     "returnType":  "PrinterOrientationConstants",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 }
+                                                             ]
+                                             },
+                        "defaultEventInterface":  {
+                                                      "name":  "ICommonDialogEvents",
+                                                      "guid":  "{F9043C87-F6F2-101A-A3C9-08002B2F49FB}",
+                                                      "flags":  3,
+                                                      "members":  [
+
+                                                                  ]
+                                                  }
+                    }
+                ],
+    "interfaces":  [
+                       {
+                           "name":  "ICommonDialog",
+                           "guid":  "{083039C2-13F4-11D1-8B7E-0000F8754DA1}",
+                           "flags":  4304,
+                           "members":  [
+                                           {
+                                               "name":  "_Action",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "_Action",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileName",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileName",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DialogTitle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DialogTitle",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Filter",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Filter",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DefaultExt",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DefaultExt",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "InitDir",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "InitDir",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Color",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "ULong",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Color",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "ULong",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Flags",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Flags",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontName",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontName",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontBold",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontBold",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontItalic",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontItalic",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontStrikeThru",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  11,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontStrikeThru",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  11,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontUnderLine",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  12,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontUnderLine",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  12,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FromPage",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  13,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FromPage",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  13,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ToPage",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  14,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ToPage",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  14,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Min",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  15,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Min",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  15,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Max",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  16,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Max",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  16,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Copies",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  17,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Copies",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  17,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "CancelError",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  18,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "CancelError",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  18,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpFile",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  19,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpFile",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  19,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpCommand",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  20,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpCommand",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  20,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpKey",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  21,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpKey",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  21,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PrinterDefault",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  22,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PrinterDefault",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  22,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FilterIndex",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  23,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FilterIndex",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  23,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpContext",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  24,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpContext",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  24,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontSize",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  25,
+                                               "flags":  0,
+                                               "returnType":  "Single",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontSize",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  25,
+                                               "flags":  0,
+                                               "returnType":  "Single",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Action",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  26,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Action",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  26,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "MaxFileSize",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  27,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "MaxFileSize",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  27,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hDC",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  28,
+                                               "flags":  1024,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hDC",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  28,
+                                               "flags":  1024,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileTitle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  29,
+                                               "flags":  1024,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileTitle",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  29,
+                                               "flags":  1024,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowOpen",
+                                               "kind":  "Method",
+                                               "memberId":  30,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowSave",
+                                               "kind":  "Method",
+                                               "memberId":  31,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowColor",
+                                               "kind":  "Method",
+                                               "memberId":  32,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowFont",
+                                               "kind":  "Method",
+                                               "memberId":  33,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowPrinter",
+                                               "kind":  "Method",
+                                               "memberId":  34,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowHelp",
+                                               "kind":  "Method",
+                                               "memberId":  35,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "AboutBox",
+                                               "kind":  "Method",
+                                               "memberId":  -552,
+                                               "flags":  64,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Orientation",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  36,
+                                               "flags":  0,
+                                               "returnType":  "PrinterOrientationConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Orientation",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  36,
+                                               "flags":  0,
+                                               "returnType":  "PrinterOrientationConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "ICommonDialogEvents",
+                           "guid":  "{F9043C87-F6F2-101A-A3C9-08002B2F49FB}",
+                           "flags":  4096,
+                           "members":  [
+
+                                       ]
+                       },
+                       {
+                           "name":  "ICommonDialog11",
+                           "guid":  "{7FF19DC0-D9B3-11CF-8E74-00A0C90F26F8}",
+                           "flags":  16,
+                           "members":  [
+                                           {
+                                               "name":  "_Action",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "_Action",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileName",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileName",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DialogTitle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DialogTitle",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Filter",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Filter",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DefaultExt",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DefaultExt",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "InitDir",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "InitDir",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Color",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "ULong",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Color",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "ULong",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Flags",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Flags",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontName",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontName",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontBold",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontBold",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontItalic",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontItalic",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontStrikeThru",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  11,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontStrikeThru",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  11,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontUnderLine",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  12,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontUnderLine",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  12,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FromPage",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  13,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FromPage",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  13,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ToPage",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  14,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ToPage",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  14,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Min",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  15,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Min",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  15,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Max",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  16,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Max",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  16,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Copies",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  17,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Copies",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  17,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "CancelError",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  18,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "CancelError",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  18,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpFile",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  19,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpFile",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  19,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpCommand",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  20,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpCommand",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  20,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpKey",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  21,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpKey",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  21,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PrinterDefault",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  22,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PrinterDefault",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  22,
+                                               "flags":  0,
+                                               "returnType":  "Boolean",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FilterIndex",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  23,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FilterIndex",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  23,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpContext",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  24,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "HelpContext",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  24,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontSize",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  25,
+                                               "flags":  0,
+                                               "returnType":  "Single",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FontSize",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  25,
+                                               "flags":  0,
+                                               "returnType":  "Single",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Action",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  26,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Action",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  26,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "MaxFileSize",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  27,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "MaxFileSize",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  27,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hDC",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  28,
+                                               "flags":  1024,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "hDC",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  28,
+                                               "flags":  1024,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileTitle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  29,
+                                               "flags":  1024,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "FileTitle",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  29,
+                                               "flags":  1024,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowOpen",
+                                               "kind":  "Method",
+                                               "memberId":  30,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowSave",
+                                               "kind":  "Method",
+                                               "memberId":  31,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowColor",
+                                               "kind":  "Method",
+                                               "memberId":  32,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowFont",
+                                               "kind":  "Method",
+                                               "memberId":  33,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowPrinter",
+                                               "kind":  "Method",
+                                               "memberId":  34,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ShowHelp",
+                                               "kind":  "Method",
+                                               "memberId":  35,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "AboutBox",
+                                               "kind":  "Method",
+                                               "memberId":  -552,
+                                               "flags":  64,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Orientation",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  36,
+                                               "flags":  0,
+                                               "returnType":  "PrinterOrientationConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Orientation",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  36,
+                                               "flags":  0,
+                                               "returnType":  "PrinterOrientationConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       }
+                   ],
+    "declarations":  [
+
+                     ],
+    "constants":  [
+                      {
+                          "name":  "PrinterConstants",
+                          "guid":  "{05428B50-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlPDAllPages",
+                                              "value":  0,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDCollate",
+                                              "value":  16,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDDisablePrintToFile",
+                                              "value":  524288,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDHidePrintToFile",
+                                              "value":  1048576,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDNoPageNums",
+                                              "value":  8,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDNoSelection",
+                                              "value":  4,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDNoWarning",
+                                              "value":  128,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDPageNums",
+                                              "value":  2,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDPrintSetup",
+                                              "value":  64,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDPrintToFile",
+                                              "value":  32,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDReturnDC",
+                                              "value":  256,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDReturnDefault",
+                                              "value":  1024,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDReturnIC",
+                                              "value":  512,
+                                              "memberId":  1073741836,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDSelection",
+                                              "value":  1,
+                                              "memberId":  1073741837,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDHelpButton",
+                                              "value":  2048,
+                                              "memberId":  1073741838,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPDUseDevModeCopies",
+                                              "value":  262144,
+                                              "memberId":  1073741839,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "ColorConstants",
+                          "guid":  "{05428B51-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlCCRGBInit",
+                                              "value":  1,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCCFullOpen",
+                                              "value":  2,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCCPreventFullOpen",
+                                              "value":  4,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCCHelpButton",
+                                              "value":  8,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "FileOpenConstants",
+                          "guid":  "{05428B52-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlOFNReadOnly",
+                                              "value":  1,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNOverwritePrompt",
+                                              "value":  2,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNHideReadOnly",
+                                              "value":  4,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNNoChangeDir",
+                                              "value":  8,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNHelpButton",
+                                              "value":  16,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNNoValidate",
+                                              "value":  256,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNAllowMultiselect",
+                                              "value":  512,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNExtensionDifferent",
+                                              "value":  1024,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNPathMustExist",
+                                              "value":  2048,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNFileMustExist",
+                                              "value":  4096,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNCreatePrompt",
+                                              "value":  8192,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNShareAware",
+                                              "value":  16384,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNNoReadOnlyReturn",
+                                              "value":  32768,
+                                              "memberId":  1073741836,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNNoLongNames",
+                                              "value":  262144,
+                                              "memberId":  1073741837,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNExplorer",
+                                              "value":  524288,
+                                              "memberId":  1073741838,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNNoDereferenceLinks",
+                                              "value":  1048576,
+                                              "memberId":  1073741839,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlOFNLongNames",
+                                              "value":  2097152,
+                                              "memberId":  1073741840,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "FontsConstants",
+                          "guid":  "{05428B53-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlCFScreenFonts",
+                                              "value":  1,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFPrinterFonts",
+                                              "value":  2,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFBoth",
+                                              "value":  3,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFHelpButton",
+                                              "value":  4,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFEffects",
+                                              "value":  256,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFApply",
+                                              "value":  512,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFANSIOnly",
+                                              "value":  1024,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFNoVectorFonts",
+                                              "value":  2048,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFNoSimulations",
+                                              "value":  4096,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFLimitSize",
+                                              "value":  8192,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFFixedPitchOnly",
+                                              "value":  16384,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFWYSIWYG",
+                                              "value":  32768,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFForceFontExist",
+                                              "value":  65536,
+                                              "memberId":  1073741836,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFScalableOnly",
+                                              "value":  131072,
+                                              "memberId":  1073741837,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFTTOnly",
+                                              "value":  262144,
+                                              "memberId":  1073741838,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFNoFaceSel",
+                                              "value":  524288,
+                                              "memberId":  1073741839,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFNoStyleSel",
+                                              "value":  1048576,
+                                              "memberId":  1073741840,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCFNoSizeSel",
+                                              "value":  2097152,
+                                              "memberId":  1073741841,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "ErrorConstants",
+                          "guid":  "{05428B54-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlInvalidPropertyValue",
+                                              "value":  380,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlGetNotSupported",
+                                              "value":  394,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlSetNotSupported",
+                                              "value":  383,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlAlloc",
+                                              "value":  32752,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCancel",
+                                              "value":  32755,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlDialogFailure",
+                                              "value":  -32768,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlFindResFailure",
+                                              "value":  32761,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelp",
+                                              "value":  32751,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlInitialization",
+                                              "value":  32765,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlLoadResFailure",
+                                              "value":  32760,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlLoadStrFailure",
+                                              "value":  32762,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlLockResFailure",
+                                              "value":  32759,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlMemAllocFailure",
+                                              "value":  32758,
+                                              "memberId":  1073741836,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlMemLockFailure",
+                                              "value":  32757,
+                                              "memberId":  1073741837,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlNoFonts",
+                                              "value":  24574,
+                                              "memberId":  1073741838,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlBufferTooSmall",
+                                              "value":  20476,
+                                              "memberId":  1073741839,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlInvalidFileName",
+                                              "value":  20477,
+                                              "memberId":  1073741840,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlSubclassFailure",
+                                              "value":  20478,
+                                              "memberId":  1073741841,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlCreateICFailure",
+                                              "value":  28661,
+                                              "memberId":  1073741842,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlDndmMismatch",
+                                              "value":  28662,
+                                              "memberId":  1073741843,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlGetDevModeFail",
+                                              "value":  28666,
+                                              "memberId":  1073741844,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlInitFailure",
+                                              "value":  28665,
+                                              "memberId":  1073741845,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlLoadDrvFailure",
+                                              "value":  28667,
+                                              "memberId":  1073741846,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlNoDefaultPrn",
+                                              "value":  28663,
+                                              "memberId":  1073741847,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlNoDevices",
+                                              "value":  28664,
+                                              "memberId":  1073741848,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlParseFailure",
+                                              "value":  28669,
+                                              "memberId":  1073741849,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPrinterCodes",
+                                              "value":  28671,
+                                              "memberId":  1073741850,
+                                              "flags":  64,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlPrinterNotFound",
+                                              "value":  28660,
+                                              "memberId":  1073741851,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlRetDefFailure",
+                                              "value":  28668,
+                                              "memberId":  1073741852,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlSetupFailure",
+                                              "value":  28670,
+                                              "memberId":  1073741853,
+                                              "flags":  64,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlNoTemplate",
+                                              "value":  32764,
+                                              "memberId":  1073741854,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlNoInstance",
+                                              "value":  32763,
+                                              "memberId":  1073741855,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlInvalidSafeModeProcCall",
+                                              "value":  680,
+                                              "memberId":  1073741856,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "HelpConstants",
+                          "guid":  "{05428B55-E613-11CD-A2D5-08002B336F60}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlHelpContext",
+                                              "value":  1,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpQuit",
+                                              "value":  2,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpIndex",
+                                              "value":  3,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpContents",
+                                              "value":  3,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpHelpOnHelp",
+                                              "value":  4,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpSetIndex",
+                                              "value":  5,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpSetContents",
+                                              "value":  5,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpContextPopup",
+                                              "value":  8,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpForceFile",
+                                              "value":  9,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpKey",
+                                              "value":  257,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpCommandHelp",
+                                              "value":  258,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlHelpPartialKey",
+                                              "value":  261,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "PrinterOrientationConstants",
+                          "guid":  "{DE7CF09C-0E9A-11D1-8B7A-0000F8754DA1}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "cdlPortrait",
+                                              "value":  1,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "cdlLandscape",
+                                              "value":  2,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      }
+                  ]
+}

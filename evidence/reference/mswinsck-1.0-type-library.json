@@ -1,0 +1,1414 @@
+{
+    "schemaVersion":  1,
+    "generatedUtc":  "2026-11-08T03:28:50.4725590Z",
+    "source":  {
+                   "path":  "C:\\Windows\\SysWOW64\\MSWINSCK.OCX",
+                   "sha256":  "BF7E47C16D7E1C0E88534F4EF95E09D0FD821ED1A06B0D95A389B35364B63FF5",
+                   "fileVersion":  "6.00.8169",
+                   "productVersion":  "6.00.8169"
+               },
+    "library":  {
+                    "name":  "MSWinsockLib",
+                    "guid":  "{248DD890-BB45-11CF-9ABC-0080C7E7B78D}",
+                    "majorVersion":  1,
+                    "minorVersion":  0,
+                    "lcid":  0,
+                    "sysKind":  1,
+                    "typeInfoCount":  6
+                },
+    "classes":  [
+                    {
+                        "name":  "Winsock",
+                        "guid":  "{248DD896-BB45-11CF-9ABC-0080C7E7B78D}",
+                        "progId":  "MSWinsock.Winsock.1",
+                        "flags":  34,
+                        "defaultInterface":  {
+                                                 "name":  "IMSWinsockControl",
+                                                 "guid":  "{248DD892-BB45-11CF-9ABC-0080C7E7B78D}",
+                                                 "flags":  1,
+                                                 "members":  [
+                                                                 {
+                                                                     "name":  "AboutBox",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  -552,
+                                                                     "flags":  64,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Protocol",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  3,
+                                                                     "flags":  0,
+                                                                     "returnType":  "ProtocolConstants",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Protocol",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  3,
+                                                                     "flags":  0,
+                                                                     "returnType":  "ProtocolConstants",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "RemoteHostIP",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  4,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "LocalHostName",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  5,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "LocalIP",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  6,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "SocketHandle",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  7,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "_RemoteHost",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  0,
+                                                                     "flags":  64,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "_RemoteHost",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  0,
+                                                                     "flags":  64,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "RemotePort",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  1,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "RemotePort",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  1,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "LocalPort",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "LocalPort",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  2,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "State",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  8,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Integer",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "BytesReceived",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  9,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Long",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Connect",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  64,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "RemoteHost",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "RemotePort",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Listen",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  65,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Accept",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  66,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "requestID",
+                                                                                            "type":  "Long",
+                                                                                            "flags":  1,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "SendData",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  67,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "data",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  1,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "GetData",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  68,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "data",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  3,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "type",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "maxLen",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "PeekData",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  69,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "data",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  3,
+                                                                                            "optional":  false,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "type",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "maxLen",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Close",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  70,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "Bind",
+                                                                     "kind":  "Method",
+                                                                     "memberId":  71,
+                                                                     "flags":  0,
+                                                                     "returnType":  "Void",
+                                                                     "parameters":  [
+                                                                                        {
+                                                                                            "name":  "LocalPort",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        },
+                                                                                        {
+                                                                                            "name":  "LocalIP",
+                                                                                            "type":  "Variant",
+                                                                                            "flags":  17,
+                                                                                            "optional":  true,
+                                                                                            "hasDefault":  false,
+                                                                                            "defaultValue":  null
+                                                                                        }
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "RemoteHost",
+                                                                     "kind":  "PropertyGet",
+                                                                     "memberId":  10,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 },
+                                                                 {
+                                                                     "name":  "RemoteHost",
+                                                                     "kind":  "PropertyLet",
+                                                                     "memberId":  10,
+                                                                     "flags":  0,
+                                                                     "returnType":  "String",
+                                                                     "parameters":  [
+
+                                                                                    ]
+                                                                 }
+                                                             ]
+                                             },
+                        "defaultEventInterface":  {
+                                                      "name":  "DMSWinsockControlEvents",
+                                                      "guid":  "{248DD893-BB45-11CF-9ABC-0080C7E7B78D}",
+                                                      "flags":  3,
+                                                      "members":  [
+                                                                      {
+                                                                          "name":  "Error",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  6,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+                                                                                             {
+                                                                                                 "name":  "Number",
+                                                                                                 "type":  "Integer",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "Description",
+                                                                                                 "type":  "String",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "Scode",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "Source",
+                                                                                                 "type":  "String",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "HelpFile",
+                                                                                                 "type":  "String",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "HelpContext",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "CancelDisplay",
+                                                                                                 "type":  "Boolean",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             }
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "DataArrival",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  0,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+                                                                                             {
+                                                                                                 "name":  "bytesTotal",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             }
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "Connect",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  1,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "ConnectionRequest",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  2,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+                                                                                             {
+                                                                                                 "name":  "requestID",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             }
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "Close",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  5,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "SendProgress",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  3,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+                                                                                             {
+                                                                                                 "name":  "bytesSent",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "name":  "bytesRemaining",
+                                                                                                 "type":  "Long",
+                                                                                                 "flags":  0,
+                                                                                                 "optional":  false,
+                                                                                                 "hasDefault":  false,
+                                                                                                 "defaultValue":  null
+                                                                                             }
+                                                                                         ]
+                                                                      },
+                                                                      {
+                                                                          "name":  "SendComplete",
+                                                                          "kind":  "Method",
+                                                                          "memberId":  4,
+                                                                          "flags":  0,
+                                                                          "returnType":  "Void",
+                                                                          "parameters":  [
+
+                                                                                         ]
+                                                                      }
+                                                                  ]
+                                                  }
+                    }
+                ],
+    "interfaces":  [
+                       {
+                           "name":  "IMSWinsockControl",
+                           "guid":  "{248DD892-BB45-11CF-9ABC-0080C7E7B78D}",
+                           "flags":  4304,
+                           "members":  [
+                                           {
+                                               "name":  "AboutBox",
+                                               "kind":  "Method",
+                                               "memberId":  -552,
+                                               "flags":  64,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Protocol",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "ProtocolConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Protocol",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "ProtocolConstants",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "RemoteHostIP",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "LocalHostName",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "LocalIP",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SocketHandle",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  7,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "_RemoteHost",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "_RemoteHost",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  0,
+                                               "flags":  64,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "RemotePort",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "RemotePort",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "LocalPort",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "LocalPort",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "State",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  8,
+                                               "flags":  0,
+                                               "returnType":  "Integer",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "BytesReceived",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  9,
+                                               "flags":  0,
+                                               "returnType":  "Long",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Connect",
+                                               "kind":  "Method",
+                                               "memberId":  64,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "RemoteHost",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "RemotePort",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Listen",
+                                               "kind":  "Method",
+                                               "memberId":  65,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Accept",
+                                               "kind":  "Method",
+                                               "memberId":  66,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "requestID",
+                                                                      "type":  "Long",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SendData",
+                                               "kind":  "Method",
+                                               "memberId":  67,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "data",
+                                                                      "type":  "Variant",
+                                                                      "flags":  1,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "GetData",
+                                               "kind":  "Method",
+                                               "memberId":  68,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "data",
+                                                                      "type":  "Variant",
+                                                                      "flags":  3,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "type",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "maxLen",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "PeekData",
+                                               "kind":  "Method",
+                                               "memberId":  69,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "data",
+                                                                      "type":  "Variant",
+                                                                      "flags":  3,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "type",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "maxLen",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Close",
+                                               "kind":  "Method",
+                                               "memberId":  70,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Bind",
+                                               "kind":  "Method",
+                                               "memberId":  71,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "LocalPort",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "LocalIP",
+                                                                      "type":  "Variant",
+                                                                      "flags":  17,
+                                                                      "optional":  true,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "RemoteHost",
+                                               "kind":  "PropertyGet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "RemoteHost",
+                                               "kind":  "PropertyLet",
+                                               "memberId":  10,
+                                               "flags":  0,
+                                               "returnType":  "String",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       },
+                       {
+                           "name":  "DMSWinsockControlEvents",
+                           "guid":  "{248DD893-BB45-11CF-9ABC-0080C7E7B78D}",
+                           "flags":  4112,
+                           "members":  [
+                                           {
+                                               "name":  "Error",
+                                               "kind":  "Method",
+                                               "memberId":  6,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "Number",
+                                                                      "type":  "Integer",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "Description",
+                                                                      "type":  "String",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "Scode",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "Source",
+                                                                      "type":  "String",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "HelpFile",
+                                                                      "type":  "String",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "HelpContext",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "CancelDisplay",
+                                                                      "type":  "Boolean",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "DataArrival",
+                                               "kind":  "Method",
+                                               "memberId":  0,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "bytesTotal",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Connect",
+                                               "kind":  "Method",
+                                               "memberId":  1,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "ConnectionRequest",
+                                               "kind":  "Method",
+                                               "memberId":  2,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "requestID",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "Close",
+                                               "kind":  "Method",
+                                               "memberId":  5,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SendProgress",
+                                               "kind":  "Method",
+                                               "memberId":  3,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "bytesSent",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  },
+                                                                  {
+                                                                      "name":  "bytesRemaining",
+                                                                      "type":  "Long",
+                                                                      "flags":  0,
+                                                                      "optional":  false,
+                                                                      "hasDefault":  false,
+                                                                      "defaultValue":  null
+                                                                  }
+                                                              ]
+                                           },
+                                           {
+                                               "name":  "SendComplete",
+                                               "kind":  "Method",
+                                               "memberId":  4,
+                                               "flags":  0,
+                                               "returnType":  "Void",
+                                               "parameters":  [
+
+                                                              ]
+                                           }
+                                       ]
+                       }
+                   ],
+    "declarations":  [
+
+                     ],
+    "constants":  [
+                      {
+                          "name":  "ProtocolConstants",
+                          "guid":  "{248DD895-BB45-11CF-9ABC-0080C7E7B78D}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "sckTCPProtocol",
+                                              "value":  0,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckUDPProtocol",
+                                              "value":  1,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "StateConstants",
+                          "guid":  "{248DD894-BB45-11CF-9ABC-0080C7E7B78D}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "sckClosed",
+                                              "value":  0,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckOpen",
+                                              "value":  1,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckListening",
+                                              "value":  2,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnectionPending",
+                                              "value":  3,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckResolvingHost",
+                                              "value":  4,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckHostResolved",
+                                              "value":  5,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnecting",
+                                              "value":  6,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnected",
+                                              "value":  7,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckClosing",
+                                              "value":  8,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckError",
+                                              "value":  9,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      },
+                      {
+                          "name":  "ErrorConstants",
+                          "guid":  "{248DD891-BB45-11CF-9ABC-0080C7E7B78D}",
+                          "flags":  0,
+                          "members":  [
+                                          {
+                                              "name":  "sckInvalidPropertyValue",
+                                              "value":  380,
+                                              "memberId":  1073741824,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckGetNotSupported",
+                                              "value":  394,
+                                              "memberId":  1073741825,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckSetNotSupported",
+                                              "value":  383,
+                                              "memberId":  1073741826,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckOutOfMemory",
+                                              "value":  7,
+                                              "memberId":  1073741827,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckBadState",
+                                              "value":  40006,
+                                              "memberId":  1073741828,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckInvalidArg",
+                                              "value":  40014,
+                                              "memberId":  1073741829,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckSuccess",
+                                              "value":  40017,
+                                              "memberId":  1073741830,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckUnsupported",
+                                              "value":  40018,
+                                              "memberId":  1073741831,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckInvalidOp",
+                                              "value":  40020,
+                                              "memberId":  1073741832,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckOutOfRange",
+                                              "value":  40021,
+                                              "memberId":  1073741833,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckWrongProtocol",
+                                              "value":  40026,
+                                              "memberId":  1073741834,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckOpCanceled",
+                                              "value":  10004,
+                                              "memberId":  1073741835,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckInvalidArgument",
+                                              "value":  10014,
+                                              "memberId":  1073741836,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckWouldBlock",
+                                              "value":  10035,
+                                              "memberId":  1073741837,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckInProgress",
+                                              "value":  10036,
+                                              "memberId":  1073741838,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckAlreadyComplete",
+                                              "value":  10037,
+                                              "memberId":  1073741839,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNotSocket",
+                                              "value":  10038,
+                                              "memberId":  1073741840,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckMsgTooBig",
+                                              "value":  10040,
+                                              "memberId":  1073741841,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckPortNotSupported",
+                                              "value":  10043,
+                                              "memberId":  1073741842,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckAddressInUse",
+                                              "value":  10048,
+                                              "memberId":  1073741843,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckAddressNotAvailable",
+                                              "value":  10049,
+                                              "memberId":  1073741844,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNetworkSubsystemFailed",
+                                              "value":  10050,
+                                              "memberId":  1073741845,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNetworkUnreachable",
+                                              "value":  10051,
+                                              "memberId":  1073741846,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNetReset",
+                                              "value":  10052,
+                                              "memberId":  1073741847,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnectAborted",
+                                              "value":  10053,
+                                              "memberId":  1073741848,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnectionReset",
+                                              "value":  10054,
+                                              "memberId":  1073741849,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNoBufferSpace",
+                                              "value":  10055,
+                                              "memberId":  1073741850,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckAlreadyConnected",
+                                              "value":  10056,
+                                              "memberId":  1073741851,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNotConnected",
+                                              "value":  10057,
+                                              "memberId":  1073741852,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckSocketShutdown",
+                                              "value":  10058,
+                                              "memberId":  1073741853,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckTimedout",
+                                              "value":  10060,
+                                              "memberId":  1073741854,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckConnectionRefused",
+                                              "value":  10061,
+                                              "memberId":  1073741855,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNotInitialized",
+                                              "value":  10093,
+                                              "memberId":  1073741856,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckHostNotFound",
+                                              "value":  11001,
+                                              "memberId":  1073741857,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckHostNotFoundTryAgain",
+                                              "value":  11002,
+                                              "memberId":  1073741858,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNonRecoverableError",
+                                              "value":  11003,
+                                              "memberId":  1073741859,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          },
+                                          {
+                                              "name":  "sckNoData",
+                                              "value":  11004,
+                                              "memberId":  1073741860,
+                                              "flags":  0,
+                                              "type":  "Integer"
+                                          }
+                                      ]
+                      }
+                  ]
+}
