@@ -1,52 +1,17 @@
-TabStrip | TabFixedWidth | set 3
-TabStrip | TabFixedHeight | set 3
 TabStrip | ShowTips | set True
 TabStrip | ShowTips | set False
 TabStrip | HotTracking | set True
 TabStrip | HotTracking | set False
-TabStrip | TabMinWidth | get
-TabStrip | TabMinWidth | set 1!
-TabStrip | TabMinWidth | set 0.5!
-TabStrip | TabMinWidth | set 100!
-Toolbar | Appearance | get
 Toolbar | ShowTips | set True
 Toolbar | ShowTips | set False
-Toolbar | ButtonHeight | get
-Toolbar | ButtonHeight | set 0!
-Toolbar | ButtonHeight | set 1!
-Toolbar | ButtonHeight | set 0.5!
-Toolbar | ButtonHeight | set -1!
-Toolbar | ButtonHeight | set 100!
-Toolbar | ButtonWidth | get
-Toolbar | ButtonWidth | set 0!
-Toolbar | ButtonWidth | set 1!
-Toolbar | ButtonWidth | set 0.5!
-Toolbar | ButtonWidth | set -1!
-Toolbar | ButtonWidth | set 100!
 StatusBar | ShowTips | set True
 StatusBar | ShowTips | set False
-ProgressBar | ControlDefault | set -1!
-ProgressBar | Min | set -1!
-TreeView | Indentation | get
-TreeView | Indentation | set 1!
-TreeView | Indentation | set 0.5!
-TreeView | Indentation | set 100!
-TreeView | Style | get
-TreeView | Scroll | get
 ListView | SortKey | set 1
 ListView | SortKey | set 2
 ListView | SortKey | set 3
 ListView | SortKey | set -1
 ListView | SortKey | set 5
 ListView | SortKey | set 99
-ListView | SortOrder | set 2
-ListView | SortOrder | set 3
-ListView | SortOrder | set -1
-ListView | SortOrder | set 5
-ListView | SortOrder | set 99
-ImageList | ImageHeight | get
-ImageList | ImageWidth | get
-ImageList | MaskColor | get
 ImageCombo | SelLength | set 1
 ImageCombo | SelLength | set 2
 ImageCombo | SelLength | set 3

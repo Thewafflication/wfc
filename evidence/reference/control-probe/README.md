@@ -28,15 +28,10 @@ therefore run again after each hang with the probe skipped.
 
 ## Where WFC differs
 
-`known-differences.txt` lists the 62 labels that WFC still answers
+`known-differences.txt` lists the 27 labels that WFC still answers
 differently; `TC-MP0002-control-probe-interpret` checks every other line.
 
-- Defaults of a control loaded from a form without the property: VB6 gives 0
-  for `ImageList` width, height and mask colour, 5 for a `Slider` Value and
-  SelStart, 1 for a `ProgressBar` Value, 0 for `TreeView` Style, Toolbar
-  Appearance. WFC keeps the values of a control dropped on a form.
-- Twips: `Toolbar` ButtonWidth and ButtonHeight, `TreeView` Indentation and
-  `TabStrip` TabMinWidth are rounded to whole pixels by VB6.
+- `ShowTips` and `HotTracking` hang the exe of VB6 (the `= hang` lines), WFC
+  answers them.
 - `ImageCombo` SelStart, SelLength and SelText follow the text of the combo;
-  `ListView` SortKey is limited by the column headers.
-- `TabStrip` TabFixedWidth and TabFixedHeight of 3 read back as 2.
+  `ListView` SortKey and SortOrder are limited by the column headers.
