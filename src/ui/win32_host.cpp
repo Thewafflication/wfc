@@ -830,6 +830,7 @@ WindowId Win32Host::create_window(const std::string& kind,
         // MultiSelect is False.
         make_child(L"SysMonthCal32",
                    MCS_MULTISELECT | MCS_DAYSTATE | WS_TABSTOP);
+        SetWindowTheme(entry->hwnd, L"", L"");  // classic, as VB6 draws it
     } else if (kind == "TreeView") {
         make_child(L"SysTreeView32",
                    TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |

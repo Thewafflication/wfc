@@ -1,0 +1,5 @@
+Type=Exe
+Form=frmRender2.frm
+Object={86CF1D34-0C5F-11D2-A9FC-0000F8754DA1}#2.0#0; MSCOMCT2.OCX
+Startup="frmRender2"
+Name="ControlRender2"
