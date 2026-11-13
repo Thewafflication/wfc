@@ -13,6 +13,10 @@
 # the lines whose label (the text before " = ") is listed there may differ.
 # With -DLIBRARY=<name> the generator is run with -Library <name> (the control
 # probe of MSCOMCT2).
+
+# IN_LIST needs the newer behaviour; a -P script has no project to set it.
+cmake_policy(SET CMP0057 NEW)
+
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(generator_options "")
