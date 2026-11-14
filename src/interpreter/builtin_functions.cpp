@@ -514,15 +514,50 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // `Integer` (Int16) and `Byte` arguments reach library routines as
         // Long, except for functions whose result depends on the subtype.
         static const std::set<std::string, std::less<>> keep_subtype = {
-            "typename",  "vartype",   "hex",           "hex$",      "oct",
-            "oct$",      "isnumeric", "isempty",       "isnull",    "isobject",
-            "isarray",   "isdate",    "iserror",       "ismissing", "cvar",
-            "cstr",      "cbool",     "cbyte",         "cint",      "clng",
-            "csng",      "cdbl",      "ccur",          "cdec",      "cdate",
-            "cvdate",    "cverr",     "abs",           "sgn",       "int",
-            "fix",       "format",    "format$",       "str",       "str$",
-            "len",       "lenb",      "array",         "iif",       "switch",
-            "isnumeric", "varptr",    "formatdatetime"};
+            "typename",
+            "vartype",
+            "hex",
+            "hex$",
+            "oct",
+            "oct$",
+            "isnumeric",
+            "isempty",
+            "isnull",
+            "isobject",
+            "isarray",
+            "isdate",
+            "iserror",
+            "ismissing",
+            "cvar",
+            "cstr",
+            "cbool",
+            "cbyte",
+            "cint",
+            "clng",
+            "csng",
+            "cdbl",
+            "ccur",
+            "cdec",
+            "cdate",
+            "cvdate",
+            "cverr",
+            "abs",
+            "sgn",
+            "int",
+            "fix",
+            "format",
+            "format$",
+            "str",
+            "str$",
+            "len",
+            "lenb",
+            "array",
+            "iif",
+            "switch",
+            "isnumeric",
+            "varptr",
+            "formatdatetime",
+            "wfcstore"};
         const bool is_choose_fn = identifier == "choose";
         const bool keep_first =
             identifier == "round";  // Round(Integer) stays Integer
@@ -572,6 +607,15 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 argument = Value{static_cast<Integer>(*byte)};
             }
         }
+    }
+    // CLng(CVErr(11)) is 11: the conversion functions read the number of an
+    // error value.
+    if (execute_ && !arguments.empty() &&
+        std::holds_alternative<ErrorValue>(arguments[0]) &&
+        (is_cint || is_clng || is_csng || is_cdbl || is_ccur || is_cbyte ||
+         is_cbool || is_cdec)) {
+        arguments[0] = Value{
+            static_cast<Integer>(std::get<ErrorValue>(arguments[0]).code)};
     }
     // REQ-0259: an error-subtype Variant reaching a function that needs a
     // real value raises the error it carries.
@@ -1671,7 +1715,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return Value{rnd_last_value_};
         }
         rnd_state_ = (!arguments.empty() && argument < 0.0)
-                         ? seed_from_number(argument)
+                         ? rnd_step(seed_from_number(argument))
                          : rnd_step(rnd_state_);
         // REQ-0195's own Scope explicitly deferred this: real VB6's Rnd
         // returns Single, not Double. Narrowing rnd_value's double

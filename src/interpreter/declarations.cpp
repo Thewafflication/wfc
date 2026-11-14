@@ -2711,7 +2711,7 @@ bool Interpreter::parse_single_declaration() {
                     return false;
                 }
                 fixed_string_length_ = static_cast<std::size_t>(*size);
-                element_default = std::string(fixed_string_length_, ' ');
+                element_default = std::string(fixed_string_length_, '\0');
             }
         } else if (consume_keyword("boolean")) {
             element_default = false;

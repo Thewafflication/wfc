@@ -977,6 +977,8 @@ private:
     [[nodiscard]] static std::string environment_variable(
         const std::string& name);
 
+    // The Err object forgets its error (Err.Clear, On Error, Resume).
+    void reset_err_object();
     [[nodiscard]] bool raise_runtime(const Integer number,
                                      const std::string& description,
                                      const std::size_t offset);
@@ -2171,6 +2173,10 @@ private:
     // contract: the same seed always produces the same subsequent sequence.
     [[nodiscard]] static std::uint32_t seed_from_number(
         const double value) noexcept;
+    [[nodiscard]] static std::uint32_t reseed_from_high_word(
+        std::uint32_t state, std::uint32_t high_word) noexcept;
+    [[nodiscard]] static std::uint32_t reseed_from_number(
+        std::uint32_t state, double value) noexcept;
 
     // Non-deterministic seed source for argument-less Randomize, matching
     // VB6's documented system-timer-based reseeding.

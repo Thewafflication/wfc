@@ -515,15 +515,14 @@ int main() {
     expect_success("Print Rnd(0)", "0");
     expect_success("Print Rnd(1) & \" \" & Rnd(2) & \" \" & Rnd(3)",
                    "0.7055475 0.533424 0.5795186");
-    expect_success("Print Rnd(-5) & \" \" & Rnd(-5)",
-                   "8.105588E-02 8.105588E-02");
+    expect_success("Print Rnd(-5) & \" \" & Rnd(-5)", "0.8383257 0.8383257");
     expect_program_success("Print Rnd(-5): Print Rnd(1)",
-                           "8.105588E-02\n0.3073506");
+                           "0.8383257\n0.2874333");
     expect_program_success(
         "Randomize 42\nPrint Rnd()\nPrint Rnd()\nRandomize 42\nPrint Rnd()",
-        "0.215606\n0.5267472\n0.215606");
+        "0.3391077\n0.6483685\n3.598529E-02");
     expect_program_success("Randomize 1\nPrint Rnd()\nRandomize 2\nPrint Rnd()",
-                           "0.1196129\n0.7612116");
+                           "0.7648737\n0.9312817");
     expect_program_success("Randomize\nPrint Rnd() >= 0 And Rnd() < 1", "True");
     expect_success("Print TypeName(Rnd())", "Single");
     // Single literals, declarations, arithmetic promotion, and conversion.

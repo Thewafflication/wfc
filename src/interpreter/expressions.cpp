@@ -2139,10 +2139,15 @@ std::optional<Value> Interpreter::parse_negative_number() {
         return std::nullopt;
     }
     if (magnitude == maximum_magnitude) {
+        // 2147483648 is a Double literal, so -2147483648 is a Double; with
+        // the suffix & it is the smallest Long.
+        if (suffix == '\0') {
+            return Value{-static_cast<double>(magnitude)};
+        }
         return Value{std::numeric_limits<Integer>::min()};
     }
-    if (suffix == '\0' && integer_literals_are_integer_ &&
-        magnitude <= 32768U) {
+    // 32768 is a Long literal: -32768 is a Long, not an Integer.
+    if (suffix == '\0' && integer_literals_are_integer_ && magnitude < 32768U) {
         return Value{static_cast<Int16>(-static_cast<std::int32_t>(magnitude))};
     }
     return Value{static_cast<Integer>(-static_cast<Integer>(magnitude))};

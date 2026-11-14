@@ -95,7 +95,8 @@ std::optional<bool> Interpreter::parse_mid_statement(
         auto target_units = to_utf16_units(*target);
         const auto text_units = to_utf16_units(*text);
         if (begin >= target_units.size()) {
-            return true;
+            return raise_runtime(5, "Invalid procedure call or argument",
+                                 statement_offset);
         }
         std::size_t unit_count =
             std::min(text_units.size(), target_units.size() - begin);
@@ -107,7 +108,8 @@ std::optional<bool> Interpreter::parse_mid_statement(
         return true;
     }
     if (begin >= target->size()) {
-        return true;
+        return raise_runtime(5, "Invalid procedure call or argument",
+                             statement_offset);
     }
     std::size_t count = std::min(text->size(), target->size() - begin);
     if (length >= 0) {

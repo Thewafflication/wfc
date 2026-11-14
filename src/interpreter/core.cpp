@@ -916,7 +916,7 @@ std::string Interpreter::vb_error_description(const Integer number) {
         case 28:
             return "Out of stack space";
         case 35:
-            return "Sub, Function, or Property not defined";
+            return "Sub or Function not defined";
         case 47:
             return "Too many DLL application clients";
         case 48:
@@ -1110,13 +1110,13 @@ Integer Interpreter::runtime_error_number() const {
     if (code == "WFC0008") {
         return 11;
     }
-    if (code == "WFC0009") {
+    if (code == "WFC0009" || code == "WFC0047") {
         return 6;
     }
     if (code == "WFC0111") {
         return 9;
     }
-    if (code == "WFC0106") {
+    if (code == "WFC0106" || code == "WFC0108") {
         return 91;
     }
     if (code == "WFC0104") {
@@ -1144,11 +1144,20 @@ bool Interpreter::raise_runtime(const Integer number,
     err_number_ = number;
     err_erl_ = erl_;
     err_description_ = description;
-    err_source_.clear();
+    err_source_ =
+        project_name_.empty() ? std::string{"Project1"} : project_name_;
     err_help_file_.clear();
     err_help_context_ = 0;
     set_error("WFC0300", description, offset);
     return false;
+}
+
+void Interpreter::reset_err_object() {
+    err_number_ = 0;
+    err_description_.clear();
+    err_source_.clear();
+    err_help_file_.clear();
+    err_help_context_ = 0;
 }
 
 void Interpreter::set_error(const std::string_view code,

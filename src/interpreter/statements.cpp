@@ -442,6 +442,7 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             if (execute_) {
                 frame.on_error_mode = 1;
                 frame.in_error_handler = false;
+                reset_err_object();
             }
             return true;
         }
@@ -458,13 +459,8 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             if (execute_) {
                 frame.on_error_mode = 0;
                 frame.in_error_handler = false;
-                if (clears_error) {
-                    err_number_ = 0;
-                    err_description_.clear();
-                    err_source_.clear();
-                    err_help_file_.clear();
-                    err_help_context_ = 0;
-                }
+                reset_err_object();
+                static_cast<void>(clears_error);
             }
             return true;
         }
@@ -480,9 +476,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 set_error("WFC0301", "label not defined", label_offset);
                 return false;
             }
-            frame.on_error_mode = 2;
-            frame.on_error_label = target;
-            frame.in_error_handler = false;
+            if (!frame.in_error_handler) {
+                frame.on_error_mode = 2;
+                frame.on_error_label = target;
+            }
+            reset_err_object();
         }
         return true;
     }
@@ -515,6 +513,7 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                                      statement_offset);
             }
             frame.in_error_handler = false;
+            reset_err_object();
             if (frame.handler_depth > 0 && (target == frame.error_resume_next ||
                                             target == frame.error_retry)) {
                 frame.resume_signal = target == frame.error_retry &&
@@ -635,23 +634,76 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 }
             }
             if (execute_) {
-                const Integer raised = std::get<Integer>(*number);
+                // A number beyond 65535 is error 5.
+                const Integer raised = std::get<Integer>(*number) > 65535
+                                           ? Integer{5}
+                                           : std::get<Integer>(*number);
                 if (raised == 0) {
                     return raise_runtime(
                         5, "Invalid procedure call or argument", member_offset);
                 }
+                const std::string kept_description = err_description_;
+                const std::string kept_source = err_source_;
                 err_number_ = raised;
                 err_erl_ = erl_;
                 err_help_file_ = raised_help_file;
                 err_help_context_ = raised_help_context;
-                err_source_ = source_text;
-                err_description_ = has_description
-                                       ? description
-                                       : vb_error_description(raised);
+                err_source_ = !source_text.empty()    ? source_text
+                              : !kept_source.empty()  ? kept_source
+                              : project_name_.empty() ? std::string{"Project1"}
+                                                      : project_name_;
+                if (has_description) {
+                    err_description_ = description;
+                } else if (!kept_description.empty()) {
+                    err_description_ = kept_description;
+                } else if (raised < 0) {
+                    err_description_ = "Automation error";
+                } else {
+                    err_description_ = vb_error_description(raised);
+                }
                 set_error("WFC0300", err_description_, statement_offset);
                 return false;
             }
             return true;
+        }
+        // `Err.Number = n`, `Err.Description = text` and the other settable
+        // members.
+        if (member == "number" || member == "description" ||
+            member == "source" || member == "helpfile" ||
+            member == "helpcontext") {
+            skip_horizontal_whitespace();
+            if (!at_end() && current() == '=' &&
+                !(offset_ + 1U < source_.size() &&
+                  source_[offset_ + 1U] == '=')) {
+                advance();
+                skip_horizontal_whitespace();
+                auto value = parse_expression();
+                if (!value.has_value()) {
+                    return false;
+                }
+                if (execute_) {
+                    if (member == "description") {
+                        err_description_ = render(*value);
+                    } else if (member == "source") {
+                        err_source_ = render(*value);
+                    } else if (member == "helpfile") {
+                        err_help_file_ = render(*value);
+                    } else {
+                        const auto whole = whole_value(*value);
+                        if (!whole.has_value()) {
+                            return raise_runtime(13, "Type mismatch",
+                                                 member_offset);
+                        }
+                        if (member == "number") {
+                            err_number_ = *whole;
+                            err_description_.clear();
+                        } else {
+                            err_help_context_ = *whole;
+                        }
+                    }
+                }
+                return true;
+            }
         }
         offset_ = start;
         return std::nullopt;
@@ -1228,7 +1280,7 @@ bool Interpreter::parse_statement_core() {
             }
             if (execute_ && !(has_argument && argument == 0.0)) {
                 rnd_state_ = (has_argument && argument < 0.0)
-                                 ? seed_from_number(argument)
+                                 ? rnd_step(seed_from_number(argument))
                                  : rnd_step(rnd_state_);
                 rnd_last_value_ = static_cast<float>(rnd_value(rnd_state_));
             }
@@ -1492,7 +1544,9 @@ bool Interpreter::parse_randomize_statement(
     if (at_end() || current() == ':' || current() == '\r' ||
         current() == '\n' || current() == '\'') {
         if (execute_) {
-            rnd_state_ = seed_from_number(entropy_seed());
+            rnd_state_ = reseed_from_high_word(
+                rnd_state_, std::bit_cast<std::uint32_t>(
+                                static_cast<float>(entropy_seed())));
         }
         return true;
     }
@@ -1524,7 +1578,7 @@ bool Interpreter::parse_randomize_statement(
                 seed = *fixed;  // `Randomize Timer` replays under a test
             }
         }
-        rnd_state_ = seed_from_number(seed);
+        rnd_state_ = reseed_from_number(rnd_state_, seed);
     }
     return true;
 }
@@ -2358,8 +2412,10 @@ bool Interpreter::parse_for_statement() {
         return false;
     }
     Value step_value{Integer{1}};
+    bool explicit_step = false;
     skip_horizontal_whitespace();
     if (consume_keyword("step")) {
+        explicit_step = true;
         skip_horizontal_whitespace();
         auto parsed_step = parse_expression();
         if (!parsed_step.has_value()) {
@@ -2396,6 +2452,13 @@ bool Interpreter::parse_for_statement() {
         if (const auto* v = std::get_if<bool>(&value)) {
             return *v ? -1.0 : 0.0;
         }
+        if (const auto* v = std::get_if<std::string>(&value)) {
+            // A String that is a number counts as that number.
+            const auto parsed = parse_numeric_string(*v);
+            if (parsed.status == NumericStringStatus::valid) {
+                return parsed.value;
+            }
+        }
         if (!execute_) {
             return 0.0;  // a placeholder operand of a not-taken branch
         }
@@ -2410,14 +2473,96 @@ bool Interpreter::parse_for_statement() {
         return false;
     }
     if (is_variant_variable) {
-        const bool any_floating =
-            std::holds_alternative<double>(*start_value) ||
-            std::holds_alternative<float>(*start_value) ||
-            std::holds_alternative<double>(*end_value) ||
-            std::holds_alternative<float>(*end_value) ||
-            std::holds_alternative<double>(step_value) ||
-            std::holds_alternative<float>(step_value);
-        slot = any_floating ? Slot::floating_double : Slot::integer;
+        // The type that Visual Basic gives to the counter: the widest of the
+        // three values (Empty is an Integer, a String a Double).
+        const auto kind_of = [](const Value& value) -> int {
+            if (std::holds_alternative<Empty>(value)) {
+                return 0;
+            }
+            if (std::holds_alternative<Int16>(value)) {
+                return 2;
+            }
+            if (std::holds_alternative<Integer>(value)) {
+                return 3;
+            }
+            if (std::holds_alternative<float>(value)) {
+                return 4;
+            }
+            if (std::holds_alternative<double>(value)) {
+                return 5;
+            }
+            if (std::holds_alternative<Currency>(value)) {
+                return 6;
+            }
+            if (std::holds_alternative<DateValue>(value)) {
+                return 7;
+            }
+            if (std::holds_alternative<std::string>(value)) {
+                return 8;
+            }
+            if (std::holds_alternative<bool>(value)) {
+                return 11;
+            }
+            if (std::holds_alternative<Decimal>(value)) {
+                return 14;
+            }
+            if (std::holds_alternative<Byte>(value)) {
+                return 17;
+            }
+            return 10;
+        };
+        static const unsigned char widest[18][18] = {
+            {2, 1, 2, 3, 4, 5, 6, 7, 5, 10, 10, 2, 10, 10, 14, 10, 10, 17},
+            {1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 10, 1, 10, 10, 1, 10, 10, 1},
+            {2, 1, 2, 3, 4, 5, 6, 7, 5, 10, 10, 2, 10, 10, 14, 10, 10, 2},
+            {3, 1, 3, 3, 5, 5, 6, 7, 5, 10, 10, 3, 10, 10, 14, 10, 10, 3},
+            {4, 1, 4, 5, 4, 5, 6, 7, 5, 10, 10, 4, 10, 10, 14, 10, 10, 4},
+            {5, 1, 5, 5, 5, 5, 6, 7, 5, 10, 10, 5, 10, 10, 14, 10, 10, 5},
+            {6, 1, 6, 6, 6, 6, 6, 7, 6, 10, 10, 6, 10, 10, 14, 10, 10, 6},
+            {7, 1, 7, 7, 7, 7, 7, 7, 7, 10, 10, 7, 10, 10, 14, 10, 10, 7},
+            {5, 1, 5, 5, 5, 5, 6, 7, 5, 10, 10, 5, 10, 10, 14, 10, 10, 5},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {2, 1, 2, 3, 4, 5, 6, 7, 5, 10, 10, 2, 10, 10, 14, 10, 10, 2},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {14, 1, 14, 14, 14, 14, 14, 14, 14, 10, 10, 14, 10, 10, 14, 10, 10,
+             7},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+             10},
+            {17, 1, 2, 3, 4, 5, 6, 7, 5, 10, 10, 2, 10, 10, 14, 10, 10, 17},
+        };
+        const int first = kind_of(*start_value);
+        const int second = explicit_step ? kind_of(step_value) : 2;
+        const int third = kind_of(*end_value);
+        const int promoted = widest[widest[first][second]][third];
+        switch (promoted) {
+            case 2:
+                slot = Slot::int16;
+                break;
+            case 4:
+                slot = Slot::floating_single;
+                break;
+            case 17:
+                slot = Slot::byte;
+                break;
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 14:
+                slot = Slot::floating_double;
+                break;
+            default:
+                slot = Slot::integer;
+                break;
+        }
     }
     if (!consume_loop_header_end()) {
         return false;
@@ -2661,7 +2806,10 @@ bool Interpreter::parse_for_each_statement() {
         return false;
     }
     // REQ-0243: For Each over a Collection (or any class exposing a
-    // `WfcItems` method) iterates the array that method returns.
+    // `WfcItems` method) iterates the array that method returns. A Collection
+    // is enumerated live: an item added by the body is visited too.
+    std::shared_ptr<InstanceData> live_holder;
+    const ClassDef* live_class = nullptr;
     if (execute_) {
         if (const auto* com_holder =
                 std::get_if<ObjectInstance>(&*collection_value);
@@ -2721,11 +2869,13 @@ bool Interpreter::parse_for_each_statement() {
                 if (!items.has_value()) {
                     return false;
                 }
+                live_holder = holder->data;
+                live_class = &class_iterator->second;
                 collection_value = std::move(items);
             }
         }
     }
-    const auto* array = std::get_if<ArrayValue>(&*collection_value);
+    const ArrayValue* array = std::get_if<ArrayValue>(&*collection_value);
     if (array == nullptr && !execute_) {
         static const ArrayValue
             empty_array{};  // a placeholder in a not-taken branch
@@ -2741,7 +2891,8 @@ bool Interpreter::parse_for_each_statement() {
 
     const bool target_is_variant =
         variable.scope->variant_variables.contains(*identifier);
-    const auto count = array->elements.size();
+    auto count = array->elements.size();
+    ArrayValue refreshed_items;
     const auto assign_element = [&](const std::size_t index) -> bool {
         Value element_value = array->elements[index];
         if (variable.scope->object_variables.contains(*identifier) &&
@@ -2808,12 +2959,33 @@ bool Interpreter::parse_for_each_statement() {
         }
         ++index;
         continue_loop = index < count;
+        if (!continue_loop && live_holder != nullptr) {
+            // The items added while the loop ran come last.
+            auto fresh = call_class_method(*live_holder, *live_class,
+                                           "wfcitems", collection_offset,
+                                           /*require_function=*/true);
+            if (!fresh.has_value()) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            if (const auto* more = std::get_if<ArrayValue>(&*fresh);
+                more != nullptr && more->elements.size() > count) {
+                refreshed_items = *more;
+                array = &refreshed_items;
+                count = refreshed_items.elements.size();
+                continue_loop = index < count;
+            }
+        }
         if (continue_loop && !assign_element(index)) {
             execute_ = enclosing_execution;
             return false;
         }
     }
 
+    // A Variant that ran through the items is Empty when the loop is done.
+    if (enclosing_execution && target_is_variant) {
+        *variable.value = Value{Empty{}};
+    }
     offset_ = continuation_offset;
     execute_ = enclosing_execution;
     return true;
@@ -3070,8 +3242,15 @@ std::optional<bool> Interpreter::parse_bare_call(
         const bool bare_statement_end = at_end() || current() == '\r' ||
                                         current() == '\n' || current() == ':' ||
                                         current() == '\'';
-        const bool arguments_follow = !bare_statement_end && current() != '=' &&
-                                      current() != '(' && current() != '.';
+        // `Name .Member` after a space, inside a With block, passes the member
+        // of the With object to the procedure `Name`.
+        const bool with_member_argument =
+            !bare_statement_end && current() == '.' &&
+            offset_ != saved_offset && !with_names_.empty() &&
+            procedures_.contains(identifier);
+        const bool arguments_follow =
+            !bare_statement_end && current() != '=' && current() != '(' &&
+            (current() != '.' || with_member_argument);
         // `Name (arg)` / `Name(a, b)` as a statement: a parenthesized
         // list ending the statement. One argument is passed by value
         // (VB evaluates `(x)` as an expression); several are an

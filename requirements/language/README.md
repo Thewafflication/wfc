@@ -74,6 +74,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0317 — The properties of the MSComctlLib controls answer as Visual Basic 6 does](req-0317-comctl-properties.md)
 - [REQ-0318 — Format and its kin answer as Visual Basic 6 does](req-0318-format-functions.md)
 - [REQ-0319 — The library functions answer for edge arguments as Visual Basic 6 does](req-0319-library-edge-arguments.md)
+- [REQ-0320 — Statements, objects and errors behave as in Visual Basic 6](req-0320-statement-behaviour.md)
   defines the type, value or error of `+ - * / \ Mod ^ & And Or Xor Eqv Imp`,
   measured under Visual Basic 6 (it revises how REQ-0268 writes a small
   number).

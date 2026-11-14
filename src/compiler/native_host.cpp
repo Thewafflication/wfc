@@ -170,7 +170,7 @@ void print_zone() {
         case 20:
             return "Resume without error";
         case 35:
-            return "Sub, Function, or Property not defined";
+            return "Sub or Function not defined";
         case 52:
             return "Bad file name or number";
         case 53:

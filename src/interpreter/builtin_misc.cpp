@@ -609,6 +609,25 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (arguments.size() < 2U) {
             return bad_type();
         }
+        // The operation and the positions are Longs; a key or a stored item
+        // keeps the type it has (an Integer stays an Integer).
+        const auto widen = [&](const std::size_t index) {
+            if (index >= arguments.size()) {
+                return;
+            }
+            if (const auto* small = std::get_if<Int16>(&arguments[index])) {
+                arguments[index] = Value{static_cast<Integer>(*small)};
+            } else if (const auto* tiny =
+                           std::get_if<Byte>(&arguments[index])) {
+                arguments[index] = Value{static_cast<Integer>(*tiny)};
+            }
+        };
+        widen(0);
+        widen(4);
+        if (const auto* first = std::get_if<Integer>(&arguments[0]);
+            first != nullptr && *first >= 4 && *first != 12 && *first != 13) {
+            widen(2);
+        }
         const auto* op = std::get_if<Integer>(&arguments[0]);
         const auto* owner = std::get_if<ObjectInstance>(&arguments[1]);
         if (op == nullptr || owner == nullptr) {
@@ -1988,11 +2007,27 @@ double Interpreter::rnd_value(const std::uint32_t state) noexcept {
     return static_cast<double>(state) / 16777216.0;  // state / 2^24
 }
 
+// Rnd(negative): the seed comes from the bits of the Single (as MSVBVM60
+// does it).
 std::uint32_t Interpreter::seed_from_number(const double value) noexcept {
+    const auto bits = std::bit_cast<std::uint32_t>(static_cast<float>(value));
+    return (bits + (bits >> 24U)) & 0x00FFFFFFU;
+}
+
+// Randomize: the new state takes bits of the high word of the Double and
+// keeps the lowest byte of the state it had.
+std::uint32_t Interpreter::reseed_from_high_word(
+    const std::uint32_t state, const std::uint32_t high_word) noexcept {
+    const std::uint32_t mixed =
+        ((high_word & 0xFFFFU) << 8U) ^ ((high_word >> 8U) & 0xFFFF00U);
+    return (mixed & 0x00FFFFFFU) | (state & 0xFFU);
+}
+
+std::uint32_t Interpreter::reseed_from_number(const std::uint32_t state,
+                                              const double value) noexcept {
     const auto bits = std::bit_cast<std::uint64_t>(value);
-    auto folded = static_cast<std::uint32_t>(bits ^ (bits >> 32U));
-    folded ^= folded >> 16U;
-    return folded & 0x00FFFFFFU;
+    return reseed_from_high_word(state,
+                                 static_cast<std::uint32_t>(bits >> 32U));
 }
 
 std::optional<double> Interpreter::fixed_random_seed() {

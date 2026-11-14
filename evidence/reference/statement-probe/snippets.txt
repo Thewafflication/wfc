@@ -1,0 +1,1877 @@
+# The snippets of the statement probe (scripts/New-StatementProbe.ps1).
+# "@@ name" starts a snippet; lines starting with # are comments.
+#
+# --- Collection ---
+@@ collection add and item by index
+Dim c As New Collection
+c.Add "a"
+c.Add "b"
+c.Add "c"
+SayV c.Count
+SayV c(1)
+SayV c.Item(3)
+@@ collection item by key
+Dim c As New Collection
+c.Add "x", "kx"
+c.Add "y", "ky"
+SayV c("ky")
+SayV c("KX")
+@@ collection key case
+Dim c As New Collection
+c.Add 1, "Key"
+c.Add 2, "KEY"
+@@ collection duplicate key
+Dim c As New Collection
+c.Add 1, "k"
+c.Add 2, "k"
+@@ collection item missing key
+Dim c As New Collection
+c.Add 1, "k"
+SayV c("zz")
+@@ collection item index zero
+Dim c As New Collection
+c.Add 1
+SayV c(0)
+@@ collection item index too big
+Dim c As New Collection
+c.Add 1
+SayV c(2)
+@@ collection item index real
+Dim c As New Collection
+c.Add "a"
+c.Add "b"
+c.Add "c"
+SayV c(1.5)
+SayV c(2.5)
+@@ collection item string index
+Dim c As New Collection
+c.Add "a"
+c.Add "b"
+SayV c("2")
+@@ collection add before
+Dim c As New Collection
+c.Add "a"
+c.Add "c"
+c.Add "b", , 2
+SayV c(1)
+SayV c(2)
+SayV c(3)
+@@ collection add after
+Dim c As New Collection
+c.Add "a"
+c.Add "c"
+c.Add "b", , , 1
+SayV c(1)
+SayV c(2)
+SayV c(3)
+@@ collection add before and after
+Dim c As New Collection
+c.Add "a"
+c.Add "b", , 1, 1
+@@ collection add before by key
+Dim c As New Collection
+c.Add "a", "ka"
+c.Add "c", "kc"
+c.Add "b", "kb", "kc"
+SayV c(2)
+@@ collection add before bad
+Dim c As New Collection
+c.Add "a"
+c.Add "b", , 5
+@@ collection add object and key
+Dim c As New Collection
+Dim d As New Collection
+c.Add d, "inner"
+SayV TypeName(c("inner"))
+@@ collection remove
+Dim c As New Collection
+c.Add "a", "ka"
+c.Add "b", "kb"
+c.Add "c", "kc"
+c.Remove 2
+SayV c.Count
+SayV c(2)
+c.Remove "ka"
+SayV c.Count
+SayV c(1)
+@@ collection remove bad index
+Dim c As New Collection
+c.Add "a"
+c.Remove 2
+@@ collection remove bad key
+Dim c As New Collection
+c.Add "a", "k"
+c.Remove "zz"
+@@ collection remove during for each
+Dim c As New Collection
+Dim v As Variant
+c.Add 1
+c.Add 2
+c.Add 3
+For Each v In c
+    Say CStr(v)
+    If v = 1 Then c.Remove 1
+Next v
+@@ collection add during for each
+Dim c As New Collection
+Dim v As Variant
+c.Add 1
+c.Add 2
+For Each v In c
+    Say CStr(v)
+    If c.Count < 4 Then c.Add v + 10
+Next v
+@@ collection for each empty
+Dim c As New Collection
+Dim v As Variant
+For Each v In c
+    Say "x"
+Next v
+Say "done"
+@@ collection for each variant after
+Dim c As New Collection
+Dim v As Variant
+c.Add 1
+c.Add 2
+For Each v In c
+Next v
+SayV v
+@@ collection for each exit
+Dim c As New Collection
+Dim v As Variant
+c.Add 1
+c.Add 2
+c.Add 3
+For Each v In c
+    If v = 2 Then Exit For
+Next v
+SayV v
+@@ collection count after remove all
+Dim c As New Collection
+c.Add 1
+c.Remove 1
+SayV c.Count
+@@ collection item default member
+Dim c As New Collection
+c.Add "v1", "k"
+SayV c!k
+@@ collection add null key
+Dim c As New Collection
+c.Add 1, Null
+@@ collection add numeric key
+Dim c As New Collection
+c.Add 1, 5
+@@ collection add empty key
+Dim c As New Collection
+c.Add 1, ""
+SayV c.Count
+@@ collection variant types
+Dim c As New Collection
+c.Add 1
+c.Add 1.5
+c.Add "s"
+c.Add True
+c.Add Null
+c.Add Empty
+c.Add #1/1/2000#
+Dim i As Long
+For i = 1 To c.Count
+    SayV c(i)
+Next i
+@@ collection items are copies
+Dim c As New Collection
+Dim a(1) As Long
+c.Add 5
+SayV c(1) + 1
+@@ collection typename
+Dim c As New Collection
+Say TypeName(c)
+Say CStr(VarType(c))
+@@ collection new vs set
+Dim c As Collection
+Set c = New Collection
+c.Add 1
+SayV c.Count
+@@ collection nothing
+Dim c As Collection
+SayV c.Count
+@@ collection object key lookup after remove
+Dim c As New Collection
+c.Add "a", "k"
+c.Remove "k"
+c.Add "b", "k"
+SayV c("k")
+# --- Err object and errors ---
+@@ err division by zero
+Dim x As Long
+x = 1 / 0
+@@ err division by zero integer
+Dim x As Long
+x = 1 \ 0
+@@ err overflow integer
+Dim i As Integer
+i = 32767
+i = i + 1
+@@ err overflow long mult
+Dim n As Long
+n = 100000
+n = n * n
+@@ err overflow cint
+Dim i As Integer
+i = CInt(40000)
+@@ err subscript
+Dim a(3) As Long
+a(4) = 1
+@@ err subscript neg
+Dim a(3) As Long
+Dim i As Long
+i = -1
+a(i) = 1
+@@ err type mismatch
+Dim n As Long
+n = "abc"
+@@ err type mismatch variant
+Dim v As Variant
+v = "abc"
+Say CStr(v * 2)
+@@ err invalid procedure call
+Say Mid("abc", 0)
+@@ err illegal function call chr
+Say Chr(300)
+@@ err invalid use of null
+Dim v As Variant
+v = Null
+Say CStr(v)
+@@ err object required
+Dim o As Object
+Say o.Name
+@@ err object variable not set
+Dim o As Collection
+o.Add 1
+@@ err bad file name
+Open "" For Input As #7
+@@ err file not found
+Open "C:\no\such\file.txt" For Input As #7
+@@ err bad file number
+Close #98
+Print #98, "x"
+@@ err input past end
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe1.txt" For Output As #f
+Close #f
+Open App.Path & "\wfc_stmt_probe1.txt" For Input As #f
+Line Input #f, s
+Close #f
+@@ err raise number
+Err.Raise 1000
+@@ err raise with text
+Err.Raise 1001, "MySource", "My description"
+@@ err raise vbobject
+Err.Raise vbObjectError + 5, "src", "obj error"
+@@ err raise zero
+Err.Raise 0
+@@ err raise negative
+Err.Raise -5
+@@ err raise big
+Err.Raise 70000
+@@ err raise 5 description
+Err.Raise 5
+@@ err number after handled
+On Error Resume Next
+Dim x As Long
+x = 1 / 0
+Say CStr(Err.Number)
+Say Err.Description
+Say Err.Source
+Err.Clear
+Say CStr(Err.Number)
+@@ err description of numbers
+Dim i As Variant
+For Each i In Array(3, 5, 6, 7, 9, 11, 13, 14, 20, 28, 35, 48, 51, 52, 53, 54)
+    On Error Resume Next
+    Err.Clear
+    Err.Raise i
+    Say CStr(i) & "=" & Err.Description
+Next i
+@@ err description of numbers 2
+Dim i As Variant
+For Each i In Array(55, 57, 58, 61, 62, 63, 67, 68, 70, 71, 74, 75, 76, 91, 92, 93, 94)
+    On Error Resume Next
+    Err.Clear
+    Err.Raise i
+    Say CStr(i) & "=" & Err.Description
+Next i
+@@ err description of numbers 3
+Dim i As Variant
+For Each i In Array(380, 424, 429, 430, 438, 440, 445, 448, 449, 450, 451, 457, 458, 459)
+    On Error Resume Next
+    Err.Clear
+    Err.Raise i
+    Say CStr(i) & "=" & Err.Description
+Next i
+@@ err description unknown
+On Error Resume Next
+Err.Raise 12345
+Say Err.Description
+Err.Clear
+Err.Raise 999
+Say Err.Description
+@@ err resume next sequence
+On Error Resume Next
+Dim a As Long
+a = 1 / 0
+Say "after"
+a = CLng("x")
+Say "after2"
+Say CStr(Err.Number)
+@@ err resume next clears on exit sub
+Dim r As Long
+On Error Resume Next
+r = Fails(11)
+Say CStr(Err.Number)
+Say CStr(r)
+@@ err on error goto 0
+On Error Resume Next
+Dim a As Long
+a = 1 / 0
+On Error GoTo 0
+Say CStr(Err.Number)
+@@ err resume label
+Dim n As Long
+On Error GoTo fixit
+n = 1 / 0
+Say "continued"
+Exit Sub
+fixit:
+Say "handler"
+Resume Next
+@@ err resume retry
+Dim n As Long
+Dim d As Long
+d = 0
+On Error GoTo fixit
+n = 10 / d
+Say CStr(n)
+Exit Sub
+fixit:
+d = 2
+Resume
+@@ err resume line
+Dim n As Long
+On Error GoTo fixit
+n = 1 / 0
+Say "no"
+done:
+Say "end"
+Exit Sub
+fixit:
+Resume done
+@@ err error statement
+Error 11
+@@ err error statement 5
+On Error Resume Next
+Error 5
+Say Err.Description
+@@ err in handler
+On Error GoTo h1
+Err.Raise 5
+Exit Sub
+h1:
+Say "h1"
+Err.Raise 6
+@@ err nested goto
+On Error GoTo outer
+Err.Raise 5
+Exit Sub
+outer:
+Say "outer"
+On Error GoTo inner
+Err.Raise 6
+Exit Sub
+inner:
+Say CStr(Err.Number)
+@@ err erl
+On Error Resume Next
+10 Dim x As Long
+20 x = 1 / 0
+Say CStr(Erl)
+@@ err lasterror raise object
+On Error Resume Next
+Err.Raise 5, "a", "b", "c", 7
+Say CStr(Err.HelpContext)
+Say Err.HelpFile
+Say Err.Source
+@@ err clear by resume
+On Error Resume Next
+Err.Raise 5
+Say CStr(Err.Number)
+Dim z As Long
+z = 1
+Say CStr(Err.Number)
+@@ err number setter
+On Error Resume Next
+Err.Number = 11
+Say Err.Description
+@@ err description setter
+On Error Resume Next
+Err.Raise 11
+Err.Description = "mine"
+Say Err.Description
+@@ err source default
+On Error Resume Next
+Err.Raise 11
+Say Err.Source
+@@ err source after runtime
+On Error Resume Next
+Dim x As Long
+x = 1 / 0
+Say Err.Source
+@@ err lastdllerror
+Say CStr(Err.LastDllError)
+@@ err propagates to caller
+Say CStr(Twice(Fails(5)))
+@@ err goto in called function
+On Error GoTo here
+Say CStr(Fails(13))
+Exit Sub
+here:
+Say "caught " & Err.Number
+# --- Control flow ---
+@@ for step positive
+Dim i As Long
+For i = 1 To 10 Step 3
+    Say CStr(i)
+Next i
+Say CStr(i)
+@@ for step negative
+Dim i As Long
+For i = 10 To 1 Step -4
+    Say CStr(i)
+Next i
+Say CStr(i)
+@@ for step zero
+Dim i As Long
+Dim n As Long
+For i = 1 To 3 Step 0
+    n = n + 1
+    If n > 3 Then Exit For
+Next i
+Say CStr(n)
+@@ for no iterations
+Dim i As Long
+For i = 5 To 1
+    Say "x"
+Next i
+Say CStr(i)
+@@ for double step
+Dim d As Double
+For d = 0 To 1 Step 0.25
+    Say CStr(d)
+Next d
+@@ for single accumulate
+Dim s As Single
+Dim n As Long
+For s = 0 To 1 Step 0.1
+    n = n + 1
+Next s
+Say CStr(n)
+@@ for bound evaluated once
+Dim i As Long
+Dim n As Long
+n = 3
+For i = 1 To n
+    n = 10
+    Say CStr(i)
+Next i
+@@ for step evaluated once
+Dim i As Long
+Dim st As Long
+st = 1
+For i = 1 To 5 Step st
+    st = 2
+    Say CStr(i)
+Next i
+@@ for modify counter
+Dim i As Long
+For i = 1 To 5
+    Say CStr(i)
+    i = i + 1
+Next i
+@@ for integer overflow
+Dim i As Integer
+Dim n As Long
+For i = 32765 To 32767
+    n = n + 1
+Next i
+Say CStr(n)
+@@ for byte overflow
+Dim b As Byte
+Dim n As Long
+For b = 253 To 255
+    n = n + 1
+Next b
+Say CStr(n)
+@@ for long overflow
+Dim l As Long
+Dim n As Long
+For l = 2147483646 To 2147483647
+    n = n + 1
+Next l
+Say CStr(n)
+@@ for variant types
+Dim v As Variant
+For v = 1 To 3
+    SayV v
+Next v
+@@ for variant step double
+Dim v As Variant
+For v = 1 To 2 Step 0.5
+    SayV v
+Next v
+@@ for variant string
+Dim v As Variant
+For v = "1" To "3"
+    SayV v
+Next v
+@@ for string bound
+Dim i As Long
+For i = 1 To "3"
+    Say CStr(i)
+Next i
+@@ for exit for value
+Dim i As Long
+For i = 1 To 10
+    If i = 4 Then Exit For
+Next i
+Say CStr(i)
+@@ for nested exit
+Dim i As Long
+Dim j As Long
+For i = 1 To 3
+    For j = 1 To 3
+        If j = 2 Then Exit For
+    Next j
+    Say CStr(i) & CStr(j)
+Next i
+@@ for next without var
+Dim i As Long
+For i = 1 To 2
+    Say CStr(i)
+Next
+@@ for next list
+Dim i As Long
+Dim j As Long
+For i = 1 To 2
+    For j = 1 To 2
+        Say CStr(i * 10 + j)
+Next j, i
+@@ do while
+Dim n As Long
+Do While n < 3
+    n = n + 1
+Loop
+Say CStr(n)
+@@ do until post
+Dim n As Long
+Do
+    n = n + 1
+Loop Until n >= 3
+Say CStr(n)
+@@ do while false post
+Dim n As Long
+Do
+    n = n + 1
+Loop While False
+Say CStr(n)
+@@ do exit
+Dim n As Long
+Do
+    n = n + 1
+    If n = 5 Then Exit Do
+Loop
+Say CStr(n)
+@@ while wend
+Dim n As Long
+While n < 3
+    n = n + 1
+Wend
+Say CStr(n)
+@@ select case ranges
+Dim x As Long
+x = 7
+Select Case x
+    Case 1 To 5
+        Say "low"
+    Case 6, 7, 8
+        Say "mid"
+    Case Is > 8
+        Say "high"
+    Case Else
+        Say "other"
+End Select
+@@ select case string
+Dim s As String
+s = "b"
+Select Case s
+    Case "a", "b"
+        Say "ab"
+    Case Else
+        Say "else"
+End Select
+@@ select case is
+Dim x As Long
+x = 3
+Select Case True
+    Case x < 2
+        Say "lt2"
+    Case x < 5
+        Say "lt5"
+End Select
+@@ select case no match
+Dim x As Long
+x = 3
+Select Case x
+    Case 1
+        Say "1"
+End Select
+Say "end"
+@@ gosub return
+Dim n As Long
+GoSub inc
+GoSub inc
+Say CStr(n)
+Exit Sub
+inc:
+n = n + 1
+Return
+@@ gosub return without gosub
+Return
+@@ goto
+Dim n As Long
+GoTo skip
+n = 1
+skip:
+Say CStr(n)
+@@ on goto
+Dim n As Long
+n = 2
+On n GoTo l1, l2, l3
+l1:
+Say "1"
+l2:
+Say "2"
+l3:
+Say "3"
+@@ on gosub
+Dim n As Long
+n = 2
+On n GoSub l1, l2
+Say "back"
+Exit Sub
+l1:
+Say "1"
+Return
+l2:
+Say "2"
+Return
+@@ on goto out of range
+Dim n As Long
+n = 5
+On n GoTo l1
+Say "fell"
+Exit Sub
+l1:
+Say "1"
+@@ on goto zero
+Dim n As Long
+n = 0
+On n GoTo l1
+Say "fell"
+Exit Sub
+l1:
+Say "1"
+@@ on goto negative
+Dim n As Long
+n = -1
+On n GoTo l1
+Say "fell"
+Exit Sub
+l1:
+Say "1"
+@@ if multi line
+Dim n As Long
+n = 5
+If n < 3 Then
+    Say "a"
+ElseIf n < 6 Then
+    Say "b"
+Else
+    Say "c"
+End If
+@@ if single line else
+Dim n As Long
+n = 5
+If n < 3 Then Say "a" Else Say "b"
+@@ if variant null
+Dim v As Variant
+v = Null
+If v Then Say "t" Else Say "f"
+@@ if string true
+If "1" Then Say "t" Else Say "f"
+@@ if string zero
+If "0" Then Say "t" Else Say "f"
+@@ if bad string
+If "abc" Then Say "t" Else Say "f"
+@@ if empty string
+If "" Then Say "t" Else Say "f"
+@@ if number real
+If 0.5 Then Say "t" Else Say "f"
+@@ if object nothing
+Dim o As Object
+If o Is Nothing Then Say "nothing"
+@@ iif both evaluated
+Dim n As Long
+Say IIf(True, "a", CStr(1 / 0))
+@@ with
+Dim c As New Collection
+With c
+    .Add "a"
+    .Add "b"
+    SayV .Count
+End With
+@@ with nested
+Dim c As New Collection
+Dim d As New Collection
+With c
+    .Add "a"
+    With d
+        .Add "x"
+        .Add "y"
+        SayV .Count
+    End With
+    SayV .Count
+End With
+# --- Procedures and variables ---
+@@ byref default
+Dim n As Long
+n = 1
+ByRefInc n
+Say CStr(n)
+@@ byval
+Dim n As Long
+n = 1
+ByValInc n
+Say CStr(n)
+@@ byref paren
+Dim n As Long
+n = 1
+ByRefInc (n)
+Say CStr(n)
+@@ byref expression
+Dim n As Long
+n = 1
+ByRefInc n + 0
+Say CStr(n)
+@@ byref array element
+Dim a(2) As Long
+a(1) = 5
+ByRefInc a(1)
+Say CStr(a(1))
+@@ optional missing
+Say Opt()
+Say Opt(1)
+Say Opt(1, 2)
+Say Opt(, 3)
+@@ paramarray
+Say Total()
+Say Total(1, 2, 3)
+Say Total(1.5, "2")
+@@ static counter
+Say CStr(Counter())
+Say CStr(Counter())
+Say CStr(Counter())
+@@ swap variants
+Dim a As Variant
+Dim b As Variant
+a = 1
+b = "x"
+Swap a, b
+SayV a
+SayV b
+@@ default values
+Dim i As Integer
+Dim l As Long
+Dim s As Single
+Dim d As Double
+Dim c As Currency
+Dim st As String
+Dim v As Variant
+Dim b As Boolean
+Dim dt As Date
+Dim by As Byte
+SayV i
+SayV l
+SayV s
+SayV d
+SayV c
+SayV st
+SayV v
+SayV b
+SayV dt
+SayV by
+@@ variant empty ops
+Dim v As Variant
+SayV v + 1
+SayV v & "x"
+SayV IsEmpty(v)
+Say CStr(VarType(v))
+@@ variant assign types
+Dim v As Variant
+v = 1
+Say TypeName(v)
+v = 1.5
+Say TypeName(v)
+v = "s"
+Say TypeName(v)
+v = 1&
+Say TypeName(v)
+v = 1#
+Say TypeName(v)
+v = 1!
+Say TypeName(v)
+v = 1@
+Say TypeName(v)
+v = #1/1/2000#
+Say TypeName(v)
+v = True
+Say TypeName(v)
+@@ variant integer promote
+Dim v As Variant
+v = 32767
+v = v + 1
+Say TypeName(v)
+v = 2147483647
+v = v + 1
+Say TypeName(v)
+@@ variant multiply promote
+Dim v As Variant
+v = 200
+v = v * 200
+Say TypeName(v)
+v = 100000
+v = v * 100000
+Say TypeName(v)
+@@ variant division
+Dim v As Variant
+v = 7
+SayV v / 2
+SayV v \ 2
+SayV v Mod 2
+SayV 6 / 2
+@@ variant concat numbers
+Dim v As Variant
+v = 1
+SayV v & 2
+SayV v + "2"
+SayV "1" + "2"
+SayV "1" & "2"
+SayV 1 + "2"
+@@ variant compare
+SayV 1 = "1"
+SayV "a" < "b"
+SayV Null = Null
+SayV Empty = 0
+SayV Empty = ""
+@@ const
+Const a As Long = 5
+Const b = a * 2
+Say CStr(b)
+Say TypeName(b)
+@@ const types
+Const i = 5
+Const l = 5&
+Const d = 5.5
+Const s = "x"
+Say TypeName(i)
+Say TypeName(l)
+Say TypeName(d)
+Say TypeName(s)
+@@ implicit string to number
+Dim n As Long
+n = "12"
+Say CStr(n)
+n = "1e2"
+Say CStr(n)
+n = "&H10"
+Say CStr(n)
+@@ number to string
+Dim s As String
+s = 12
+Say s
+s = 1.5
+Say s
+s = True
+Say s
+s = #1/2/2000#
+Say s
+@@ boolean to number
+Dim n As Long
+n = True
+Say CStr(n)
+n = Not True
+Say CStr(n)
+n = 5 And 3
+Say CStr(n)
+n = 5 Or 3
+Say CStr(n)
+n = 5 Xor 3
+Say CStr(n)
+n = Not 5
+Say CStr(n)
+@@ boolean string
+Say CStr(True)
+Say CStr(CBool(5))
+Say CStr(CBool("True"))
+Say CStr(CBool("0"))
+@@ integer division rounding
+Say CStr(7 \ 2)
+Say CStr(-7 \ 2)
+Say CStr(7.5 \ 2)
+Say CStr(8 \ 2.5)
+Say CStr(7 Mod 3)
+Say CStr(-7 Mod 3)
+Say CStr(7 Mod -3)
+Say CStr(7.5 Mod 2)
+@@ exponent
+Say CStr(2 ^ 3)
+Say CStr(2 ^ -1)
+Say CStr((-8) ^ (1 / 3))
+Say CStr(0 ^ 0)
+Say CStr(-2 ^ 2)
+@@ string compare operators
+Say CStr("a" = "A")
+Say CStr("a" < "B")
+Say CStr("abc" < "abd")
+Say CStr("" = "")
+Say CStr("a" <> "a")
+@@ like operator
+Say CStr("abc" Like "a*")
+Say CStr("abc" Like "A*")
+Say CStr("abc" Like "a?c")
+Say CStr("a1c" Like "a#c")
+Say CStr("abc" Like "[a-c]*")
+@@ string concat types
+Say "a" & 1 & 2.5 & True
+Say 1 & 2
+@@ string multiplication
+Say CStr("3" * "4")
+Say CStr("3" + 4)
+Say CStr("3" - 4)
+@@ date arithmetic
+Dim d As Date
+d = #1/31/2000#
+Say CStr(d + 1)
+Say CStr(d - 31)
+Say CStr(d + 0.5)
+Say CStr(CDbl(d))
+@@ date compare
+Say CStr(#1/1/2000# < #1/2/2000#)
+Say CStr(#1/1/2000# = 36526)
+@@ date format print
+Dim d As Date
+d = #3/4/2001 5:06:07 PM#
+Say CStr(d)
+Say Format(d)
+Dim t As Date
+t = #5:06:07 PM#
+Say CStr(t)
+Dim e As Date
+e = #1/1/2001#
+Say CStr(e)
+@@ date literal forms
+Dim d As Date
+d = #12/31/1999 11:59:59 PM#
+Say CStr(d)
+d = #1/1/100#
+Say CStr(d)
+d = #1/1/9999#
+Say CStr(d)
+@@ date string assign
+Dim d As Date
+d = "1/2/2000"
+Say CStr(d)
+d = "12:30"
+Say CStr(d)
+@@ date bad string assign
+Dim d As Date
+d = "zzz"
+@@ date from number
+Dim d As Date
+d = 1.5
+Say CStr(d)
+d = -1.5
+Say CStr(d)
+@@ currency math
+Dim c As Currency
+c = 0.1
+c = c + 0.2
+Say CStr(c)
+Say CStr(c * 3)
+Say CStr(c / 3)
+Say CStr(922337203685477#)
+@@ currency overflow
+Dim c As Currency
+c = 922337203685477#
+c = c * 2
+@@ single precision
+Dim s As Single
+s = 0.1
+Say CStr(s)
+Say CStr(s * 3)
+Say CStr(CDbl(s))
+@@ double print
+Say CStr(0.1 + 0.2)
+Say CStr(1 / 3)
+Say CStr(100000000000#)
+Say CStr(1E+15)
+Say CStr(1E+16)
+Say CStr(1E-5)
+Say CStr(123456789012345678#)
+@@ long string
+Dim s As String
+s = String(5, "x") & Space(2) & "y"
+Say s
+Say CStr(Len(s))
+@@ fixed string
+Dim s As String * 5
+s = "ab"
+Say "[" & s & "]"
+s = "abcdefgh"
+Say "[" & s & "]"
+Say CStr(Len(s))
+@@ fixed string assign empty
+Dim s As String * 3
+Say "[" & s & "]"
+Say CStr(Len(s))
+@@ mid statement
+Dim s As String
+s = "abcdef"
+Mid(s, 2, 2) = "XYZ"
+Say s
+Mid(s, 5) = "12345"
+Say s
+Mid(s, 1, 0) = "q"
+Say s
+@@ mid statement bad
+Dim s As String
+s = "abc"
+Mid(s, 5, 1) = "x"
+@@ lset rset
+Dim s As String
+s = "abcde"
+LSet s = "xy"
+Say "[" & s & "]"
+s = "abcde"
+RSet s = "xy"
+Say "[" & s & "]"
+@@ string indexing functions
+Dim s As String
+s = "Hello"
+Say Mid(s, 2, 3)
+Say Left(s, 10)
+Say Right(s, 0)
+Say CStr(InStr(s, "l"))
+Say CStr(InStrRev(s, "l"))
+Say UCase(s) & LCase(s)
+Say StrReverse(s)
+@@ array basics
+Dim a(1 To 3) As Long
+Say CStr(LBound(a)) & CStr(UBound(a))
+a(1) = 1
+a(3) = 3
+Say CStr(a(2))
+@@ array redim preserve
+Dim a() As Long
+ReDim a(2)
+a(1) = 5
+ReDim Preserve a(4)
+Say CStr(a(1)) & CStr(UBound(a))
+ReDim a(1)
+Say CStr(a(1))
+@@ array redim preserve multi
+Dim a() As Long
+ReDim a(1, 1)
+a(1, 1) = 7
+ReDim Preserve a(1, 3)
+Say CStr(a(1, 1))
+ReDim Preserve a(3, 3)
+@@ array erase
+Dim a(2) As Long
+a(1) = 5
+Erase a
+Say CStr(a(1))
+Dim b() As Long
+ReDim b(2)
+Erase b
+Say CStr(UBound(b))
+@@ array dynamic ubound uninitialized
+Dim a() As Long
+Say CStr(UBound(a))
+@@ array dynamic lbound uninitialized
+Dim a() As Long
+Say CStr(LBound(a))
+@@ array bounds dimension
+Dim a(1 To 2, 3 To 5) As Long
+Say CStr(LBound(a, 1)) & CStr(UBound(a, 1))
+Say CStr(LBound(a, 2)) & CStr(UBound(a, 2))
+Say CStr(UBound(a, 3))
+@@ array of variants
+Dim a(2) As Variant
+SayV a(0)
+a(1) = "x"
+SayV a(1)
+@@ array function
+Dim a As Variant
+a = Array(1, "b", 3.5)
+Say CStr(LBound(a)) & CStr(UBound(a))
+SayV a(1)
+@@ array assign
+Dim a() As Long
+Dim b() As Long
+ReDim a(2)
+a(1) = 4
+b = a
+a(1) = 9
+Say CStr(b(1))
+@@ array in variant copy
+Dim a(2) As Long
+Dim v As Variant
+a(1) = 4
+v = a
+a(1) = 9
+Say CStr(v(1))
+@@ array split join
+Dim p() As String
+p = Split("a,b,c", ",")
+Say CStr(UBound(p))
+Say Join(p, "-")
+@@ array split limit
+Dim p() As String
+p = Split("a,b,c,d", ",", 2)
+Say CStr(UBound(p))
+Say p(1)
+@@ array erase dynamic redim
+Dim a() As String
+ReDim a(1)
+a(0) = "x"
+Erase a
+ReDim a(1)
+Say "[" & a(0) & "]"
+@@ array 2d
+Dim a(1, 1) As Long
+a(0, 1) = 1
+a(1, 0) = 2
+Say CStr(a(0, 1) + a(1, 0))
+@@ array big index
+Dim a(2) As Long
+a(2147483647) = 1
+@@ array bad redim type
+Dim a() As Long
+ReDim a(-1)
+@@ array lbound ubound
+Dim a(5 To 7) As Long
+Say CStr(UBound(a) - LBound(a) + 1)
+@@ array for each
+Dim a(2) As Long
+Dim v As Variant
+a(0) = 1
+a(1) = 2
+a(2) = 3
+For Each v In a
+    Say CStr(v)
+Next v
+@@ array for each types
+Dim a(1) As Long
+Dim v As Variant
+a(0) = 1
+For Each v In a
+    Say TypeName(v)
+Next v
+@@ array function result
+Dim v As Variant
+v = Array()
+Say CStr(UBound(v))
+@@ array isarray
+Dim a(1) As Long
+Dim v As Variant
+v = 5
+Say CStr(IsArray(a))
+Say CStr(IsArray(v))
+v = Array(1)
+Say CStr(IsArray(v))
+# --- Types and objects ---
+@@ typename variants
+Dim v As Variant
+Say TypeName(v)
+v = Null
+Say TypeName(v)
+v = Empty
+Say TypeName(v)
+v = CVErr(5)
+Say TypeName(v)
+Set v = Nothing
+Say TypeName(v)
+@@ vartype
+Say CStr(VarType(1))
+Say CStr(VarType(1&))
+Say CStr(VarType(1!))
+Say CStr(VarType(1#))
+Say CStr(VarType(1@))
+Say CStr(VarType("s"))
+Say CStr(VarType(True))
+Say CStr(VarType(#1/1/2000#))
+Say CStr(VarType(Null))
+Say CStr(VarType(Empty))
+Say CStr(VarType(CByte(1)))
+Say CStr(VarType(Array(1)))
+@@ cverr
+Dim v As Variant
+v = CVErr(11)
+Say TypeName(v)
+Say CStr(CLng(v))
+Say CStr(IsError(v))
+Say CStr(v)
+@@ cverr arithmetic
+Dim v As Variant
+v = CVErr(11)
+SayV v + 1
+@@ object set nothing
+Dim o As Object
+Set o = Nothing
+Say CStr(o Is Nothing)
+Say TypeName(o)
+@@ object assign without set
+Dim c As New Collection
+Dim o As Object
+o = c
+@@ object compare
+Dim c As New Collection
+Dim d As Collection
+Set d = c
+Say CStr(c Is d)
+Dim e As New Collection
+Say CStr(c Is e)
+@@ new autoinstantiate
+Dim c As New Collection
+Set c = Nothing
+c.Add 1
+Say CStr(c.Count)
+@@ createobject dictionary
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", 2
+Say CStr(d.Count)
+Say CStr(d("b"))
+Say CStr(d.Exists("a"))
+Say CStr(d.Exists("A"))
+@@ dictionary duplicate
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "a", 2
+@@ dictionary item missing
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+SayV d("zz")
+Say CStr(d.Count)
+@@ dictionary compare text
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.CompareMode = 1
+d.Add "a", 1
+Say CStr(d.Exists("A"))
+@@ dictionary keys items
+Dim d As Object
+Dim k As Variant
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "x", 1
+d.Add "y", 2
+For Each k In d.Keys
+    Say CStr(k)
+Next k
+Say CStr(UBound(d.Items))
+@@ createobject bad
+Dim o As Object
+Set o = CreateObject("No.Such.Class")
+@@ app object
+Say CStr(App.Title <> "x")
+Say CStr(App.Major >= 0)
+@@ environ
+Say CStr(Len(Environ("PATH")) > 0)
+Say Environ("NO_SUCH_VARIABLE_WFC")
+Say CStr(Len(Environ(1)) > 0)
+@@ timer
+Say CStr(Timer >= 0)
+Say TypeName(Timer)
+@@ now date types
+Say TypeName(Now)
+Say TypeName(Date)
+Say TypeName(Time)
+@@ rnd sequence
+Dim i As Long
+Rnd -1
+Randomize 5
+For i = 1 To 3
+    Say CStr(Rnd)
+Next i
+@@ rnd repeat
+Rnd -1
+Randomize 1
+Say CStr(Rnd)
+Say CStr(Rnd(0))
+Say CStr(Rnd(1))
+Rnd -1
+Randomize 1
+Say CStr(Rnd)
+@@ rnd negative arg
+Say CStr(Rnd(-1))
+Say CStr(Rnd(-1))
+Say CStr(Rnd(-2))
+@@ rnd after randomize same
+Randomize 7
+Dim a As Single
+a = Rnd
+Randomize 7
+Say CStr(a = Rnd)
+@@ rnd type
+Say TypeName(Rnd)
+@@ int fix
+Say CStr(Int(-2.5))
+Say CStr(Fix(-2.5))
+Say CStr(Int(2.5))
+Say CStr(Fix(2.5))
+Say CStr(Int(-0.5))
+@@ round banker
+Say CStr(Round(0.5))
+Say CStr(Round(1.5))
+Say CStr(Round(2.5))
+Say CStr(Round(-0.5))
+Say CStr(Round(2.675, 2))
+Say CStr(Round(1.005, 2))
+@@ cint banker
+Say CStr(CInt(0.5))
+Say CStr(CInt(1.5))
+Say CStr(CInt(2.5))
+Say CStr(CInt(-0.5))
+Say CStr(CInt(-1.5))
+@@ sgn abs
+Say CStr(Sgn(-3))
+Say CStr(Sgn(0))
+Say CStr(Abs(-3.5))
+@@ math functions
+Say CStr(Sqr(2))
+Say CStr(Exp(1))
+Say CStr(Log(10))
+Say CStr(Atn(1) * 4)
+Say CStr(Cos(0))
+@@ hex oct
+Say Hex(255)
+Say Hex(-1)
+Say Oct(8)
+Say Hex(65535)
+Say Hex(65536)
+@@ str val
+Say Str(5)
+Say Str(-5)
+Say Str(1.5)
+Say CStr(Val("12abc"))
+Say CStr(Val(" 3 4"))
+Say CStr(Val("&HFF"))
+@@ chr asc
+Say Chr(65)
+Say CStr(Asc("A"))
+Say CStr(Asc("ABC"))
+Say CStr(AscW("A"))
+@@ string compare function
+Say CStr(StrComp("a", "b"))
+Say CStr(StrComp("b", "a"))
+Say CStr(StrComp("a", "A", 1))
+@@ trim functions
+Say "[" & Trim("  a  ") & "]"
+Say "[" & LTrim("  a  ") & "]"
+Say "[" & RTrim("  a  ") & "]"
+@@ replace
+Say Replace("aaa", "a", "b", 2)
+Say Replace("aaa", "a", "b", 1, 2)
+Say Replace("abc", "B", "x", , , 1)
+@@ format basics
+Say Format(1234.5, "#,##0.00")
+Say Format(0.5, "0%")
+Say Format(Date, "yyyy") = CStr(Year(Date))
+@@ lcase ucase unicode
+Say UCase("straße")
+Say LCase("ÀÉ")
+@@ instr
+Say CStr(InStr("abc", "c"))
+Say CStr(InStr(2, "abca", "a"))
+Say CStr(InStr("abc", ""))
+@@ space string
+Say "[" & Space(3) & "]"
+Say "[" & String(3, "ab") & "]"
+@@ array lbound option
+Dim a(3) As Long
+Say CStr(LBound(a))
+@@ val of numbers
+SayV Val(12)
+SayV Val("")
+SayV Val("-")
+SayV Val("1e5")
+SayV Val("1d5")
+SayV Val("&O17")
+@@ print number formats
+Say CStr(1000000)
+Say CStr(1000000#)
+Say CStr(0.000001)
+Say CStr(12345678.9)
+Say CStr(-0.5)
+@@ cstr of boolean strings
+Say CStr(True) & CStr(False)
+Say CStr(Null = Null)
+@@ ccur cdec
+Say CStr(CCur(1.23456))
+Say CStr(CDec(1.5))
+Say TypeName(CDec(1))
+@@ decimal math
+Dim d As Variant
+d = CDec(1)
+d = d / 3
+SayV d
+SayV CDec(0.1) + CDec(0.2)
+@@ cbyte
+Say CStr(CByte(255))
+Say CStr(CByte(0.5))
+Say CStr(CByte(1.5))
+@@ cbyte overflow
+Say CStr(CByte(256))
+@@ cbyte negative
+Say CStr(CByte(-1))
+@@ bit ops
+Say CStr(&HFF And &HF)
+Say CStr(&H7FFF + 1)
+Say CStr(&HFFFF)
+Say CStr(&H8000)
+Say CStr(&H7FFFFFFF)
+Say CStr(&H80000000)
+Say CStr(&HFFFF&)
+Say CStr(&O17)
+@@ literal types
+Say TypeName(&H7FFF)
+Say TypeName(&H8000)
+Say TypeName(&H10000)
+Say TypeName(32767)
+Say TypeName(32768)
+Say TypeName(2147483647)
+Say TypeName(2147483648#)
+Say TypeName(1E5)
+Say TypeName(1.5)
+@@ unary minus literals
+Say TypeName(-32768)
+Say TypeName(-32769)
+Say TypeName(-1)
+Say TypeName(-1.5)
+Say TypeName(-2147483647)
+Say TypeName(-2147483648)
+Say TypeName(-2147483649)
+Say TypeName(-32767)
+Say TypeName(- 1)
+Say TypeName(-(1))
+Say TypeName(-&H7FFF)
+@@ shift emulation
+Say CStr(1 * 2 ^ 31)
+Say CStr(2 ^ 31 - 1)
+@@ line continuation
+Dim s As String
+s = "a" & _
+    "b" & _
+    "c"
+Say s
+@@ colon statements
+Dim a As Long: a = 1: Say CStr(a)
+@@ date functions
+Say CStr(Year(#1/2/2000#)) & CStr(Month(#1/2/2000#)) & CStr(Day(#1/2/2000#))
+Say CStr(Weekday(#1/2/2000#))
+Say CStr(Hour(#5:06:07 PM#)) & CStr(Minute(#5:06:07 PM#)) & CStr(Second(#5:06:07 PM#))
+@@ dateadd diff
+Say CStr(DateAdd("d", 1, #12/31/1999#))
+Say CStr(DateDiff("d", #1/1/2000#, #3/1/2000#))
+Say CStr(DateDiff("m", #1/31/2000#, #2/1/2000#))
+@@ timeserial dateserial
+Say CStr(DateSerial(2000, 2, 30))
+Say CStr(TimeSerial(25, 70, 70))
+@@ cdate strings
+Say CStr(CDate("1/2/2000 3:04 PM"))
+Say CStr(CDate("March 5, 2001"))
+@@ datevalue timevalue
+Say CStr(DateValue("12/25/1999"))
+Say CStr(TimeValue("3:30 PM"))
+@@ monthname weekdayname
+Say MonthName(3)
+Say MonthName(3, True)
+Say WeekdayName(1)
+Say WeekdayName(2, True)
+@@ choose switch
+Say Choose(2, "a", "b", "c")
+Say CStr(IsNull(Choose(5, "a")))
+Say Switch(False, 1, True, 2)
+@@ typename of results
+Say TypeName(1 + 1)
+Say TypeName(1 + 1.5)
+Say TypeName(1 / 2)
+Say TypeName(1 \ 2)
+Say TypeName(2 ^ 2)
+Say TypeName("a" & "b")
+Say TypeName(1 = 1)
+Say TypeName(CInt(1) + CInt(1))
+Say TypeName(CByte(1) + CByte(1))
+Say TypeName(CLng(1) + CInt(1))
+Say TypeName(1@ + 1)
+@@ typename arithmetic edge
+Say TypeName(CInt(32767) + CInt(1))
+@@ mod types
+Say TypeName(5 Mod 2)
+Say TypeName(5& Mod 2)
+Say TypeName(5.5 Mod 2)
+@@ and or types
+Say TypeName(True And True)
+Say TypeName(1 And 1)
+Say TypeName(1& And 1)
+Say TypeName(CByte(1) And CByte(1))
+@@ not types
+Say TypeName(Not 1)
+Say TypeName(Not CByte(1))
+Say TypeName(Not True)
+@@ comparison types
+Say TypeName("a" = "a")
+Say TypeName(1 < 2)
+@@ string in numeric context
+SayV "5" * 2
+SayV "5" + 2
+SayV "5" & 2
+@@ empty string numeric
+Dim n As Long
+n = ""
+@@ null assign
+Dim n As Long
+n = Null
+@@ null string assign
+Dim s As String
+s = Null
+@@ null concat
+SayV Null & "a"
+SayV "a" & Null
+SayV Null + "a"
+SayV Null + 1
+@@ null compare
+SayV Null = 1
+SayV Null And False
+SayV Null Or True
+SayV IsNull(Null + 1)
+@@ isnumeric isdate
+Say CStr(IsNumeric("5"))
+Say CStr(IsNumeric("5e3"))
+Say CStr(IsNumeric("&H10"))
+Say CStr(IsNumeric(""))
+Say CStr(IsNumeric(Null))
+Say CStr(IsNumeric("1,000"))
+Say CStr(IsNumeric("$5"))
+Say CStr(IsDate("1/2/2000"))
+Say CStr(IsDate("hello"))
+@@ cstr formats
+Say CStr(1E+20)
+Say CStr(-1E-20)
+Say CStr(123.456)
+Say CStr(0.1)
+@@ default property of control-less
+Dim v As Variant
+v = Array(1, 2)
+Say CStr(v(0) + v(1))
+@@ print statement to file and back
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe2.txt" For Output As #f
+Print #f, 1; 2; "a"; True
+Print #f, 1, 2
+Print #f, "x"; Spc(3); "y"; Tab(10); "z"
+Write #f, 1, "a", True, Null, #1/2/2000#
+Close #f
+Open App.Path & "\wfc_stmt_probe2.txt" For Input As #f
+Do While Not EOF(f)
+    Line Input #f, s
+    Say "[" & s & "]"
+Loop
+Close #f
+@@ print numbers formats
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe3.txt" For Output As #f
+Print #f, 1.5; -1.5; 1E+20; 0.0001; 100000000#; 1!; CSng(0.1)
+Print #f, 5 \ 2; 5 / 2; 2 ^ 10
+Close #f
+Open App.Path & "\wfc_stmt_probe3.txt" For Input As #f
+Do While Not EOF(f)
+    Line Input #f, s
+    Say "[" & s & "]"
+Loop
+Close #f
+@@ input statement
+Dim f As Integer
+Dim a As Long
+Dim b As String
+Dim c As Double
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe4.txt" For Output As #f
+Write #f, 12, "hi, there", 2.5
+Close #f
+Open App.Path & "\wfc_stmt_probe4.txt" For Input As #f
+Input #f, a, b, c
+Close #f
+Say CStr(a)
+Say b
+Say CStr(c)
+@@ file random access
+Dim f As Integer
+Dim n As Long
+Dim m As Long
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe5.bin" For Binary As #f
+n = 258
+Put #f, , n
+n = 3
+Put #f, , n
+Say CStr(LOF(f))
+Seek #f, 1
+Get #f, , m
+Say CStr(m)
+Say CStr(Loc(f))
+Say CStr(Seek(f))
+Close #f
+Kill App.Path & "\wfc_stmt_probe5.bin"
+@@ file eof lof
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe6.txt" For Output As #f
+Print #f, "abc"
+Close #f
+Open App.Path & "\wfc_stmt_probe6.txt" For Input As #f
+Say CStr(LOF(f))
+Say CStr(EOF(f))
+Say Input(2, f)
+Say CStr(Loc(f))
+Close #f
+@@ file append
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe7.txt" For Output As #f
+Print #f, "a"
+Close #f
+Open App.Path & "\wfc_stmt_probe7.txt" For Append As #f
+Print #f, "b"
+Close #f
+Say CStr(FileLen(App.Path & "\wfc_stmt_probe7.txt"))
+@@ file freefile
+Dim f As Integer
+f = FreeFile
+Say CStr(f)
+Open App.Path & "\wfc_stmt_probe8.txt" For Output As #f
+Say CStr(FreeFile)
+Close #f
+@@ file open twice
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe9.txt" For Output As #f
+Open App.Path & "\wfc_stmt_probe9.txt" For Output As #f
+@@ file input mode on missing
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_no_such_dir\x.txt" For Output As #f
+@@ dir function
+Say CStr(Len(Dir(App.Path & "\*.*")) >= 0)
+Say "[" & Dir(App.Path & "\wfc_no_such_file_xyz.txt") & "]"
+@@ fileattr getattr
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe10.txt" For Output As #f
+Close #f
+Say CStr(GetAttr(App.Path & "\wfc_stmt_probe10.txt") And 1)
+Say TypeName(FileLen(App.Path & "\wfc_stmt_probe10.txt"))
+@@ name kill
+Dim f As Integer
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe11.txt" For Output As #f
+Close #f
+Name App.Path & "\wfc_stmt_probe11.txt" As App.Path & "\wfc_stmt_probe12.txt"
+Kill App.Path & "\wfc_stmt_probe12.txt"
+Kill App.Path & "\wfc_stmt_probe12.txt"
+@@ mkdir rmdir
+On Error Resume Next
+RmDir App.Path & "\wfc_stmt_dir1"
+On Error GoTo h
+MkDir App.Path & "\wfc_stmt_dir1"
+MkDir App.Path & "\wfc_stmt_dir1"
+@@ rmdir
+RmDir App.Path & "\wfc_stmt_dir1"
+RmDir App.Path & "\wfc_stmt_dir1"
+@@ for each array after
+Dim a(1) As Long
+Dim v As Variant
+For Each v In a
+Next v
+SayV v
+@@ for each array break value type
+Dim a(2) As Long
+Dim v As Variant
+a(0) = 1
+For Each v In a
+    Say TypeName(v)
+    Exit For
+Next v
+@@ for each string array
+Dim a As Variant
+Dim v As Variant
+a = Array("x", "y")
+For Each v In a
+    Say CStr(v)
+Next v
+SayV v
+@@ err raise keeps description
+On Error Resume Next
+Err.Raise 5
+Err.Raise 6
+Say Err.Description
+@@ err raise number then description
+On Error Resume Next
+Err.Raise 11, "s1"
+Err.Raise 11
+Say Err.Source
+@@ err clear by on error
+On Error Resume Next
+Err.Raise 5
+On Error Resume Next
+Say CStr(Err.Number)
+@@ err clear by resume next
+On Error GoTo hh
+Err.Raise 5
+Say "unreached"
+hh:
+Say CStr(Err.Number)
+Resume Next
+@@ err handler exit sub clears
+On Error GoTo hh
+Err.Raise 5
+hh:
+Say CStr(Err.Number)
+Exit Sub
+@@ err in sub called with resume next
+On Error Resume Next
+Fails 11
+Say CStr(Err.Number)
+Say "after"
+@@ err unhandled in called sub with handler caller
+On Error GoTo hh
+Fails 11
+Say "unreached"
+Exit Sub
+hh:
+Say "caught" & Err.Number
+@@ err number zero raise
+On Error Resume Next
+Err.Raise 5
+Err.Raise 0
+Say CStr(Err.Number)
+@@ err raise vbobjecterror
+On Error Resume Next
+Err.Raise vbObjectError + 513, , "custom"
+Say CStr(Err.Number) & Err.Description
+@@ err raise 65535
+On Error Resume Next
+Err.Raise 65535
+Say CStr(Err.Number)
+Err.Raise 65536
+Say CStr(Err.Number)
+@@ err raise 32768
+On Error Resume Next
+Err.Raise 32768
+Say CStr(Err.Number) & Err.Description
+@@ mod zero typed
+Dim a As Long
+Dim b As Long
+a = 5
+On Error Resume Next
+Say CStr(a Mod b)
+Say CStr(Err.Number)
+@@ loc sequential
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Open App.Path & "\wfc_stmt_probe13.txt" For Output As #f
+Print #f, String(300, "x")
+Close #f
+Open App.Path & "\wfc_stmt_probe13.txt" For Input As #f
+Say CStr(Loc(f))
+Line Input #f, s
+Say CStr(Loc(f))
+Close #f
+@@ randomize variations
+Dim a As Single
+Dim b As Single
+Rnd -1
+Randomize 3
+a = Rnd
+Rnd -1
+Randomize 3
+b = Rnd
+Say CStr(a = b)
+Say CStr(a)
+@@ rnd minus one
+Say CStr(Rnd(-1))
+Say CStr(Rnd(0))
+Say CStr(Rnd)
+Say CStr(Rnd(-1))
+Say CStr(Rnd)
+@@ rnd seeds
+Say CStr(Rnd(-5))
+Say CStr(Rnd(-0.5))
+Say CStr(Rnd(-100000))
+Say CStr(Rnd(-1.5))
+@@ randomize 42 sequence
+Randomize 42
+Say CStr(Rnd())
+Say CStr(Rnd())
+Randomize 42
+Say CStr(Rnd())
+@@ randomize 1 and 2
+Randomize 1
+Say CStr(Rnd())
+Randomize 2
+Say CStr(Rnd())
+@@ rnd minus five
+Say CStr(Rnd(-5)) & " " & CStr(Rnd(-5))
+Say CStr(Rnd(1))
+@@ randomize timer type
+Randomize Timer
+Say TypeName(Rnd)
+@@ randomize no argument
+Randomize
+Say TypeName(Rnd)
+@@ randomize double seed
+Randomize 3.7
+Say CStr(Rnd())
+Randomize -3.7
+Say CStr(Rnd())
+Randomize 1E10
+Say CStr(Rnd())

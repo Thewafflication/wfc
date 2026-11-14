@@ -1773,7 +1773,7 @@ Print Rnd()]=]
     TC-MP0002-rnd-randomize-cli
     PROPERTIES
       LABELS "integration;mp-0002;expressions;vba;math;single"
-      PASS_REGULAR_EXPRESSION "0.215606.*0.5267472.*0.215606"
+      PASS_REGULAR_EXPRESSION "0.3391077.*0.6483685.*3.598529E-02"
   )
 
   add_test(
@@ -2887,18 +2887,24 @@ Print v.x & q.x]=]
   # UCase and LCase of every character answer as in Visual Basic 6 (the table
   # of the interpreter is made from this probe: scripts/New-CaseTable.py), and
   # the library functions with several arguments answer as in Visual Basic 6
-  # for edge values (evidence/reference/case-probe and argument-probe).
+  # for edge values, and small programs (statements, objects, errors) do what
+  # Visual Basic 6 does (evidence/reference/case-probe, argument-probe and
+  # statement-probe).
   set(
     probe_runner
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
   )
   if(WFC_PWSH)
     foreach(probe_mode interpret native)
-      foreach(probe_name case argument)
+      foreach(probe_name case argument statement)
         if(probe_name STREQUAL "case")
           set(probe_generator "New-CaseProbe.ps1")
           set(probe_project "CaseProbe.vbp")
           set(probe_output "case-probe.txt")
+        elseif(probe_name STREQUAL "statement")
+          set(probe_generator "New-StatementProbe.ps1")
+          set(probe_project "StatementProbe.vbp")
+          set(probe_output "statement-probe.txt")
         else()
           set(probe_generator "New-ArgumentProbe.ps1")
           set(probe_project "ArgumentProbe.vbp")

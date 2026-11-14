@@ -18,16 +18,21 @@ inline constexpr std::string_view kCollectionSource =
 Dim r As Long
 r = WfcStore(10, Me, 1)
 End Sub
-Public Sub Add(ByVal Item As Variant, Optional Key As String = "", Optional)VB"
+Public Sub Add(ByVal Item As Variant, Optional Key As Variant, Optional)VB"
     R"VB( Before As Variant, Optional After As Variant)
 Dim pos As Long
 Dim k As Variant
 If Not IsMissing(Before) And Not IsMissing(After) Then Err.Raise 5, ,)VB"
     R"VB( "Invalid procedure call or argument"
+If Not IsMissing(Key) Then
+If VarType(Key) <> 8 Then Err.Raise 13, , "Type mismatch"
+End If
+If Not IsMissing(Key) Then
 If Key <> "" Then
 If WfcStore(2, Me, Key) > 0 Then Err.Raise 457, , "This key is already)VB"
     R"VB( associated with an element of this collection"
 k = Key
+End If
 End If
 pos = 0
 If Not IsMissing(Before) Then pos = Locate(Before)

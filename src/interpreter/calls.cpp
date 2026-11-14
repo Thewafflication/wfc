@@ -189,7 +189,7 @@ std::optional<Value> Interpreter::instantiate_class(
         } else if (field_def.is_variant) {
             initial_value = Value{Empty{}};
         } else if (field_def.fixed_length != 0U) {
-            initial_value = Value{std::string(field_def.fixed_length, ' ')};
+            initial_value = Value{std::string(field_def.fixed_length, '\0')};
             instance->fields.fixed_string_lengths[field_name] =
                 field_def.fixed_length;
         } else {
@@ -905,6 +905,15 @@ std::optional<Value> Interpreter::invoke_definition(
     // as going out of scope here.
     const bool drained_ok =
         write_back_ok && drain_scope_instances(scopes_.back());
+    if (scopes_.back().in_error_handler) {
+        // A procedure that ends while its handler runs clears the Err object
+        // (as Exit Sub, Exit Function and Resume do).
+        err_number_ = 0;
+        err_description_.clear();
+        err_source_.clear();
+        err_help_file_.clear();
+        err_help_context_ = 0;
+    }
     scopes_.pop_back();
     if (!drained_ok) {
         return std::nullopt;

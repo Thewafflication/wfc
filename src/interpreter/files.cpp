@@ -744,8 +744,12 @@ std::optional<bool> Interpreter::parse_file_statement(
                       statement_offset);
             return false;
         }
-        if (number < 1 || number > 511 || path_text->empty()) {
+        if (number < 1 || number > 511) {
             return raise_runtime(52, "Bad file name or number",
+                                 statement_offset);
+        }
+        if (path_text->empty()) {
+            return raise_runtime(75, "Path/File access error",
                                  statement_offset);
         }
         if (files_.contains(number)) {
@@ -1260,6 +1264,11 @@ std::optional<Value> Interpreter::evaluate_file_function(
         std::fflush(file->handle);
         const long position = std::ftell(file->handle);
         if (name == "loc") {
+            if (file->mode >= 1 && file->mode <= 3) {
+                // a sequential file: the block of 128 bytes the position is in
+                return Value{static_cast<Integer>(
+                    (position < 0 ? 0 : position) / 128 + 1)};
+            }
             return Value{static_cast<Integer>(position < 0 ? 0 : position)};
         }
         std::fseek(file->handle, 0, SEEK_END);

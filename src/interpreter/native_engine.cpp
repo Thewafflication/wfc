@@ -893,7 +893,9 @@ struct NativeSupport {
     static void randomize(Interpreter& in, const bool has_seed, double seed,
                           const bool is_timer) {
         if (!has_seed) {
-            in.rnd_state_ = in.seed_from_number(in.entropy_seed());
+            in.rnd_state_ = in.reseed_from_high_word(
+                in.rnd_state_, std::bit_cast<std::uint32_t>(
+                                   static_cast<float>(in.entropy_seed())));
             return;
         }
         if (is_timer) {
@@ -901,7 +903,7 @@ struct NativeSupport {
                 seed = *fixed;  // `Randomize Timer` replays under a test
             }
         }
-        in.rnd_state_ = in.seed_from_number(seed);
+        in.rnd_state_ = in.reseed_from_number(in.rnd_state_, seed);
     }
 
     static std::optional<Value> call_function(

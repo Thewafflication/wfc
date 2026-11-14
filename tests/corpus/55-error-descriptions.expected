@@ -12,7 +12,7 @@
 18: User interrupt occurred
 20: Resume without error
 28: Out of stack space
-35: Sub, Function, or Property not defined
+35: Sub or Function not defined
 47: Too many DLL application clients
 48: Error in loading DLL
 49: Bad DLL calling convention
