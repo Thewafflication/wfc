@@ -232,7 +232,7 @@ struct DateParts {
             year = local.tm_year + 1900;
         }
         if (year < 100) {
-            year += year < 30 ? 2000 : 1900;
+            year += year < 50 ? 2000 : 1900;
         }
         if (month < 1 || day < 1 || year < 100 || year > 9999 ||
             day > days_in_month(year, month)) {
@@ -290,9 +290,18 @@ struct DateParts {
                (text[i] == ' ' || text[i] == '-') && [&] {
                    const auto save = i;
                    skip_separators();
-                   const bool alpha =
+                   bool alpha =
                        i < text.size() &&
                        std::isalpha(static_cast<unsigned char>(text[i])) != 0;
+                   if (alpha && i + 1U < text.size() &&
+                       (text[i] == 'a' || text[i] == 'A' || text[i] == 'p' ||
+                        text[i] == 'P') &&
+                       (text[i + 1U] == 'm' || text[i + 1U] == 'M') &&
+                       (i + 2U >= text.size() ||
+                        std::isalpha(
+                            static_cast<unsigned char>(text[i + 2U])) == 0)) {
+                       alpha = false;  // "5 PM" is a time, not a month name
+                   }
                    i = save;
                    return alpha;
                }()) {
@@ -355,7 +364,10 @@ struct DateParts {
             day = b;
             year = c;
             if (dc <= 2) {
-                year += year < 30 ? 2000 : 1900;
+                year += year < 50 ? 2000 : 1900;
+            }
+            if (month > 12 && day <= 12) {
+                std::swap(month, day);  // "13/1/2000" is day first
             }
         }
         if (month < 1 || month > 12 || day < 1 || year < 100 || year > 9999 ||
@@ -371,16 +383,31 @@ struct DateParts {
     if (i < text.size()) {
         std::int64_t hour{}, minute{}, second{};
         std::size_t digits{};
-        if (!read_number(hour, digits) || i >= text.size() || text[i] != ':') {
-            return std::nullopt;
-        }
-        ++i;
-        if (!read_number(minute, digits)) {
+        if (!read_number(hour, digits)) {
             return std::nullopt;
         }
         if (i < text.size() && text[i] == ':') {
             ++i;
-            if (!read_number(second, digits)) {
+            if (!read_number(minute, digits)) {
+                return std::nullopt;
+            }
+            if (i < text.size() && text[i] == ':') {
+                ++i;
+                if (!read_number(second, digits)) {
+                    return std::nullopt;
+                }
+            }
+        } else {
+            // "5 PM": the hour alone is a time only with AM or PM after it.
+            std::size_t at = i;
+            while (at < text.size() && text[at] == ' ') {
+                ++at;
+            }
+            const bool marked = at + 1 < text.size() &&
+                                (text[at] == 'a' || text[at] == 'A' ||
+                                 text[at] == 'p' || text[at] == 'P') &&
+                                (text[at + 1] == 'm' || text[at + 1] == 'M');
+            if (!marked) {
                 return std::nullopt;
             }
         }

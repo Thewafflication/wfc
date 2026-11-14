@@ -124,7 +124,6 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0078` | ChrB code must be in the byte range; Chr code must be in the character range | 5 (Invalid procedure call or argument) | `REQ-0165`, `REQ-0177` |
 | `WFC0079` | String fill code must be in the character range | 5 (Invalid procedure call or argument) | — |
 | `WFC0080` | String requires a non-empty fill String | 5 (Invalid procedure call or argument) | — |
-| `WFC0081` | Unsupported comparison method | — | `REQ-0167`, `REQ-0169` |
 | `WFC0082` | Replace count must be -1 or non-negative | 5 (Invalid procedure call or argument) | `REQ-0168` |
 | `WFC0083` | InStrRev start must be -1 or positive | 5 (Invalid procedure call or argument) | `REQ-0169` |
 | `WFC0086` | CLng requires a numeric value | 13 (Type mismatch) | `REQ-0173` |
@@ -132,7 +131,6 @@ A diagnostic with an `Err.Number` in the table below is a run-time error: an act
 | `WFC0088` | CInt requires a numeric value | 13 (Type mismatch) | `REQ-0199` |
 | `WFC0091` | RGB component must be non-negative | 5 (Invalid procedure call or argument) | `REQ-0176` |
 | `WFC0092` | QBColor index must be from 0 through 15 | 5 (Invalid procedure call or argument) | `REQ-0176` |
-| `WFC0093` | StrConv conversion is not supported in the current model | — | `REQ-0178` |
 | `WFC0094` | Round digit count must be non-negative | 5 (Invalid procedure call or argument) | `REQ-0180` |
 | `WFC0095` | CDbl requires a numeric value; CSng requires a numeric value | 13 (Type mismatch) | `REQ-0182` |
 | `WFC0096` | Sqr argument must be non-negative; Log argument must be positive | 5 (Invalid procedure call or argument) | `REQ-0183` |
@@ -209,6 +207,8 @@ These numbers are reserved and must not be reused.
 | `WFC0050` | A `Dim` declaration inside a `For` block | REQ-0271 (block-level `Dim` allowed) | `REQ-0151` |
 | `WFC0063` | A constant declaration inside a control-flow block | REQ-0271 (block-level declarations allowed) | `REQ-0157` |
 | `WFC0089` | `Choose`/`Switch` would return `Null` | The Variant model returns `Null` as VB6 does | `REQ-0154` |
+| `WFC0081` | Unsupported comparison method | REQ-0319 (the compare argument is validated as Visual Basic 6 does, error 5) | `REQ-0167`, `REQ-0169` |
+| `WFC0093` | StrConv conversion is not supported in the current model | REQ-0319 (an unsupported conversion is error 5) | `REQ-0178` |
 | `WFC0102` | Unsupported `Format` named style | REQ-0193 (unknown style text is a custom picture) | `REQ-0193` |
 | `WFC0116` | Unsupported fixed-size array form | REQ-0207 (dynamic arrays) | `REQ-0201` |
 | `WFC0130` | `Property Get` with parameters | REQ-0205 (indexed properties) | `REQ-0203` |

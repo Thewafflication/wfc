@@ -448,6 +448,41 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
     }
 
+    if (execute_) {
+        // Visual Basic: a Null in the place of a count, a position, a
+        // delimiter or a pattern is "Invalid use of Null" (error 94).
+        const auto null_in = [&](const std::size_t index) {
+            return index < arguments.size() &&
+                   std::holds_alternative<Null>(arguments[index]);
+        };
+        bool refused = false;
+        if (identifier == "mid") {
+            refused = null_in(1) || (null_in(2) && !null_in(0));
+        } else if (identifier == "left" || identifier == "right") {
+            refused = null_in(1);
+        } else if (identifier == "string") {
+            refused = null_in(0);
+        } else if (identifier == "instr") {
+            refused = arguments.size() >= 3U && (null_in(0) || null_in(3));
+        } else if (identifier == "instrrev") {
+            refused = null_in(0) || null_in(1);
+        } else if (identifier == "replace") {
+            refused = null_in(1) || null_in(3) || null_in(4) || null_in(5);
+        } else if (identifier == "split") {
+            refused = null_in(0) || null_in(1) || null_in(2);
+        } else if (identifier == "join" || identifier == "round" ||
+                   identifier == "weekday" || identifier == "dateadd" ||
+                   identifier == "filter") {
+            refused = null_in(1);
+        } else if (identifier == "datevalue" || identifier == "timevalue" ||
+                   identifier == "monthname" || identifier == "weekdayname") {
+            refused = null_in(0);
+        }
+        if (refused) {
+            set_error("WFC0104", "Invalid use of Null", identifier_offset);
+            return std::nullopt;
+        }
+    }
     {
         std::optional<Value> measured;
         if (measured_library_call(identifier, arguments, argument_variant,
@@ -896,16 +931,16 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         if (const auto* integer = std::get_if<Integer>(&arguments[0])) {
             if (*integer == std::numeric_limits<Integer>::min()) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
+                // The smallest Long has no positive Long: it becomes a Double.
+                return Value{-static_cast<double>(*integer)};
             }
             return Value{*integer < 0 ? static_cast<Integer>(-*integer)
                                       : *integer};
         }
         if (const auto* short_integer = std::get_if<Int16>(&arguments[0])) {
             if (*short_integer == std::numeric_limits<Int16>::min()) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
+                // The smallest Integer has no positive Integer: a Long.
+                return Value{static_cast<Integer>(32768)};
             }
             return Value{*short_integer < 0
                              ? static_cast<Int16>(-*short_integer)
@@ -1237,6 +1272,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             result = std::atan(argument);
         } else {
             result = std::exp(argument);  // is_exp
+            // A result below the smallest normal Double is flushed to zero.
+            if (result != 0.0 &&
+                std::fabs(result) < std::numeric_limits<double>::min()) {
+                result = 0.0;
+            }
         }
         if (!std::isfinite(result)) {
             set_error("WFC0009", "numeric overflow", identifier_offset);
@@ -1253,6 +1293,16 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         Integer digits = 0;
         if (arguments.size() == 2U) {
+            // A digit count that is not a whole number is rounded (to even).
+            if (const auto* fraction = std::get_if<double>(&arguments[1])) {
+                const double whole = std::nearbyint(*fraction);
+                if (std::fabs(whole) < 2147483647.0) {
+                    arguments[1] = Value{static_cast<Integer>(whole)};
+                }
+            } else if (const auto* single = std::get_if<float>(&arguments[1])) {
+                arguments[1] =
+                    Value{static_cast<Integer>(std::nearbyint(*single))};
+            }
             const auto* requested_digits = std::get_if<Integer>(&arguments[1]);
             if (requested_digits == nullptr) {
                 set_error("WFC0073", "Round requires a Long digit count",
@@ -2047,8 +2097,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             if (!execute_) {
                 return is_csng ? Value{0.0f} : Value{0.0};
             }
-            const auto parsed =
-                parse_numeric_string(std::get<std::string>(arguments[0]));
+            const auto parsed = parse_numeric_string(
+                std::get<std::string>(arguments[0]), false);
             if (parsed.status == NumericStringStatus::out_of_range) {
                 set_error("WFC0009", "numeric overflow", identifier_offset);
                 return std::nullopt;
@@ -2119,8 +2169,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             if (!execute_) {
                 return Value{Currency{}};
             }
-            const auto parsed =
-                parse_numeric_string(std::get<std::string>(arguments[0]));
+            const auto parsed = parse_numeric_string(
+                std::get<std::string>(arguments[0]), false);
             if (parsed.status == NumericStringStatus::out_of_range) {
                 set_error("WFC0009", "numeric overflow", identifier_offset);
                 return std::nullopt;
@@ -2270,7 +2320,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
 
         const auto parsed =
-            parse_numeric_string(std::get<std::string>(arguments[0]));
+            parse_numeric_string(std::get<std::string>(arguments[0]), false);
         if (parsed.status == NumericStringStatus::out_of_range) {
             set_error("WFC0009", "integer overflow", identifier_offset);
             return std::nullopt;
@@ -2482,9 +2532,18 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return Value{Integer{}};
         }
         bool text_compare = text_compare_here();
+        // An empty String is answered before anything else is checked: 0
+        // for an empty String to search, the start for an empty pattern.
+        if (identifier != "instrb" && haystack->empty()) {
+            return Value{Integer{0}};
+        }
+        if (identifier != "instrb" && needle->empty()) {
+            return Value{start};
+        }
         if (compare_method != nullptr) {
-            if (*compare_method < -1 || *compare_method > 1) {
-                set_error("WFC0081", "unsupported comparison method",
+            // 0 binary, 1 text, 2 is not allowed, and beyond it text.
+            if (*compare_method < -1 || *compare_method == 2) {
+                set_error("WFC0101", "Invalid procedure call or argument",
                           identifier_offset);
                 return std::nullopt;
             }
@@ -2598,7 +2657,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
-                set_error("WFC0081", "unsupported comparison method",
+                set_error("WFC0101", "Invalid procedure call or argument",
                           identifier_offset);
                 return std::nullopt;
             }
@@ -2692,7 +2751,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
             if (*compare_method < -1 || *compare_method > 1) {
-                set_error("WFC0081", "unsupported comparison method",
+                set_error("WFC0101", "Invalid procedure call or argument",
                           identifier_offset);
                 return std::nullopt;
             }
@@ -2755,8 +2814,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
-            if (*compare_method < -1 || *compare_method > 1) {
-                set_error("WFC0081", "unsupported comparison method",
+            if (*compare_method < -1) {
+                set_error("WFC0101", "Invalid procedure call or argument",
                           identifier_offset);
                 return std::nullopt;
             }
@@ -2885,8 +2944,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // The Variant-returning string functions propagate Null; their `$`
         // forms reject it (error 94).
         static const std::set<std::string, std::less<>> null_propagating = {
-            "trim",  "ltrim", "rtrim", "ucase",  "lcase", "left",
-            "right", "mid",   "space", "string", "chr",   "chrw"};
+            "trim", "ltrim", "rtrim",  "ucase", "lcase", "left",   "right",
+            "mid",  "space", "string", "chr",   "chrw",  "strconv"};
         static const std::set<std::string, std::less<>> null_rejecting = {
             "trim$",  "ltrim$", "rtrim$", "ucase$",    "lcase$", "left$",
             "right$", "mid$",   "space$", "string$",   "chr$",   "chrw$",
@@ -3000,7 +3059,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return std::nullopt;
         }
         if (identifier == "ascb") {
-            return Value{static_cast<Integer>(
+            return Value{static_cast<Byte>(
                 static_cast<unsigned char>(string_to_bytes(*string).front()))};
         }
         const auto lead = static_cast<unsigned char>(string->front());
@@ -3044,8 +3103,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     unit =
                         word_start ? unit_to_upper(unit) : unit_to_lower(unit);
                     word_start = false;
-                } else {
-                    word_start = true;
+                } else if (unit != u'\'') {
+                    word_start = true;  // an apostrophe stays inside a word
                 }
             }
             return Value{from_utf16_units(units)};
@@ -3060,11 +3119,22 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             return Value{std::move(bytes)};
         }
-        if (*conversion == 64) {  // vbUnicode on a String: unchanged
-            return Value{*string};
+        if (*conversion == 64) {
+            // vbUnicode on a String reads the bytes of its characters as
+            // ANSI text: every character becomes its low and its high byte.
+            std::u16string widened;
+            for (const char16_t unit : to_utf16_units(*string)) {
+                widened.push_back(static_cast<char16_t>(unit & 0xFFU));
+                widened.push_back(static_cast<char16_t>(unit >> 8U));
+            }
+            return Value{from_utf16_units(widened)};
         }
-        set_error("WFC0093",
-                  "StrConv conversion is not supported in the current model",
+        if (*conversion == 0) {
+            return Value{*string};  // no conversion
+        }
+        // vbWide and vbNarrow need a double-byte system; anything else is
+        // not a conversion: error 5.
+        set_error("WFC0101", "Invalid procedure call or argument",
                   identifier_offset);
         return std::nullopt;
     }

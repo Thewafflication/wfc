@@ -564,6 +564,33 @@ std::optional<Value> Interpreter::parse_not() {
     return unary_operation(*value, operand_variant, false, operator_offset);
 }
 
+// A list in a Like pattern must be closed, and a range in it must go up
+// (error 93, "Invalid pattern string", otherwise).
+bool Interpreter::like_pattern_valid(const std::string& pattern) {
+    for (std::size_t i = 0; i < pattern.size(); ++i) {
+        if (pattern[i] != '[') {
+            continue;
+        }
+        std::size_t at = i + 1;
+        if (at < pattern.size() && pattern[at] == '!') {
+            ++at;
+        }
+        const auto close = pattern.find(']', at);
+        if (close == std::string::npos) {
+            return false;
+        }
+        for (std::size_t j = at; j + 2 < close; ++j) {
+            if (pattern[j + 1] == '-' &&
+                static_cast<unsigned char>(pattern[j]) >
+                    static_cast<unsigned char>(pattern[j + 2])) {
+                return false;
+            }
+        }
+        i = close;
+    }
+    return true;
+}
+
 bool Interpreter::like_match(const std::string& text,
                              const std::string& pattern, const bool fold) {
     if (is_ascii_text(text) && is_ascii_text(pattern)) {
@@ -626,9 +653,19 @@ std::optional<Value> Interpreter::parse_comparison() {
                 left = Value{false};
                 continue;
             }
+            if (std::holds_alternative<Null>(*left) ||
+                std::holds_alternative<Null>(*pattern)) {
+                left = Value{Null{}};  // Like of a Null is Null
+                continue;
+            }
             if (text == nullptr || mask == nullptr) {
                 set_error("WFC0018", "Like requires String operands",
                           operator_offset);
+                return std::nullopt;
+            }
+            if (execute_ && !text->empty() && !like_pattern_valid(*mask)) {
+                static_cast<void>(raise_runtime(93, "Invalid pattern string",
+                                                operator_offset));
                 return std::nullopt;
             }
             left =

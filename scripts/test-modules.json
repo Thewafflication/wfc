@@ -1,5 +1,5 @@
 {
-  "slow": "TC-MP0008-|(arithmetic|library|select-case|operator)-probe-",
+  "slow": "MP0008-|(arithmetic|library|operator|format|case|argument)-probe-",
   "modules": [
     {
       "prefix": "lib/wfc-mscomctl2/",

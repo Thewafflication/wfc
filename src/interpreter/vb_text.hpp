@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include "vb_case_table.hpp"
 
 #include "vb_date.hpp"
 
@@ -383,56 +384,38 @@ inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
     return (c >= 0x139U && c <= 0x148U) || (c >= 0x179U && c <= 0x17EU);
 }
 
+// The entry of the table of cases for a character (null when it has no case).
+[[nodiscard]] inline const CaseEntry* case_entry(const char16_t c) noexcept {
+    std::size_t low = 0;
+    std::size_t high = sizeof(kCaseTable) / sizeof(kCaseTable[0]);
+    while (low < high) {
+        const std::size_t middle = low + (high - low) / 2U;
+        if (kCaseTable[middle].code < c) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
+    return low < sizeof(kCaseTable) / sizeof(kCaseTable[0]) &&
+                   kCaseTable[low].code == c
+               ? &kCaseTable[low]
+               : nullptr;
+}
+
 [[nodiscard]] inline char16_t unit_to_lower(const char16_t c) noexcept {
-    if (c >= u'A' && c <= u'Z') {
-        return static_cast<char16_t>(c + 32);
+    if (c < 0x80U) {
+        return c >= u'A' && c <= u'Z' ? static_cast<char16_t>(c + 32) : c;
     }
-    if (c >= 0xC0U && c <= 0xDEU && c != 0xD7U) {
-        return static_cast<char16_t>(c + 32);
-    }
-    if (c == 0x178U) {
-        return 0xFFU;
-    }
-    if (c >= 0x391U && c <= 0x3A9U && c != 0x3A2U) {
-        return static_cast<char16_t>(c + 32);
-    }
-    if (c >= 0x410U && c <= 0x42FU) {
-        return static_cast<char16_t>(c + 32);
-    }
-    if (c >= 0x400U && c <= 0x40FU) {
-        return static_cast<char16_t>(c + 80);
-    }
-    if (latin_ext_a_letter(c) &&
-        (c % 2U == (latin_ext_a_odd_upper(c) ? 1U : 0U))) {
-        return static_cast<char16_t>(c + 1);
-    }
-    return c;
+    const CaseEntry* const entry = case_entry(c);
+    return entry == nullptr ? c : static_cast<char16_t>(entry->lower);
 }
 
 [[nodiscard]] inline char16_t unit_to_upper(const char16_t c) noexcept {
-    if (c >= u'a' && c <= u'z') {
-        return static_cast<char16_t>(c - 32);
+    if (c < 0x80U) {
+        return c >= u'a' && c <= u'z' ? static_cast<char16_t>(c - 32) : c;
     }
-    if (c >= 0xE0U && c <= 0xFEU && c != 0xF7U) {
-        return static_cast<char16_t>(c - 32);
-    }
-    if (c == 0xFFU) {
-        return 0x178U;
-    }
-    if (c >= 0x3B1U && c <= 0x3C9U && c != 0x3C2U) {
-        return static_cast<char16_t>(c - 32);
-    }
-    if (c >= 0x430U && c <= 0x44FU) {
-        return static_cast<char16_t>(c - 32);
-    }
-    if (c >= 0x450U && c <= 0x45FU) {
-        return static_cast<char16_t>(c - 80);
-    }
-    if (latin_ext_a_letter(c) &&
-        (c % 2U == (latin_ext_a_odd_upper(c) ? 0U : 1U))) {
-        return static_cast<char16_t>(c - 1);
-    }
-    return c;
+    const CaseEntry* const entry = case_entry(c);
+    return entry == nullptr ? c : static_cast<char16_t>(entry->upper);
 }
 
 // Case-fold `text` for a text comparison (ASCII bytes, or full units when

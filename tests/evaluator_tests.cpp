@@ -2893,11 +2893,10 @@ int main() {
     expect_program_failure("Print Chr(256)", "WFC0078");
     expect_program_failure("Print ChrB(256)", "WFC0078");
     expect_program_failure("Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
-                           "WFC0081");
-    expect_program_failure("Print StrComp(\"a\", \"A\", 99)", "WFC0081");
-    expect_program_failure(
-        "Print Replace(\"a\", \"a\", \"b\", 1, -1, vbDatabaseCompare)",
-        "WFC0081");
+                           "WFC0101");
+    expect_program_failure("Print StrComp(\"a\", \"A\", 99)", "WFC0101");
+    expect_success(
+        "Print Replace(\"a\", \"a\", \"b\", 1, -1, vbDatabaseCompare)", "b");
     expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)",
                            "WFC0082");
     expect_program_failure("Print InStrRev(\"a\", \"a\", 0)", "WFC0083");
@@ -2911,7 +2910,7 @@ int main() {
                    "-16 42");
     expect_program_failure("Print Val(\"&H100000000\")", "WFC0009");
     expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
-    expect_program_failure("Print Abs(-2147483648)", "WFC0009");
+    expect_success("Print Abs(-2147483648)", "2147483648");
     expect_program_failure("Print CLng(\"2147483648\")", "WFC0009");
     expect_program_failure("Print CLng(\"\")", "WFC0086");
     expect_program_failure("Print CLng(\"12 trailing\")", "WFC0086");
@@ -2976,8 +2975,8 @@ int main() {
     expect_program_failure("Print QBColor(16)", "WFC0092");
     expect_program_failure("Print StrConv(\"a\")", "WFC0072");
     expect_program_failure("Print StrConv(\"a\", \"1\")", "WFC0073");
-    expect_program_failure("Print StrConv(\"a\", vbWide)", "WFC0093");
-    expect_program_failure("Print StrConv(\"a\", 99)", "WFC0093");
+    expect_program_failure("Print StrConv(\"a\", vbWide)", "WFC0101");
+    expect_program_failure("Print StrConv(\"a\", 99)", "WFC0101");
     expect_program_failure("Print Round(\"x\")", "WFC0073");
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");

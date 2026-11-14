@@ -2884,6 +2884,52 @@ Print v.x & q.x]=]
     endforeach()
   endif()
 
+  # UCase and LCase of every character answer as in Visual Basic 6 (the table
+  # of the interpreter is made from this probe: scripts/New-CaseTable.py), and
+  # the library functions with several arguments answer as in Visual Basic 6
+  # for edge values (evidence/reference/case-probe and argument-probe).
+  set(
+    probe_runner
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+  )
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      foreach(probe_name case argument)
+        if(probe_name STREQUAL "case")
+          set(probe_generator "New-CaseProbe.ps1")
+          set(probe_project "CaseProbe.vbp")
+          set(probe_output "case-probe.txt")
+        else()
+          set(probe_generator "New-ArgumentProbe.ps1")
+          set(probe_project "ArgumentProbe.vbp")
+          set(probe_output "argument-probe.txt")
+        endif()
+        set(
+          probe_folder
+          "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/${probe_name}-probe"
+        )
+        set(probe_known "")
+        if(EXISTS "${probe_folder}/known-differences.txt")
+          set(probe_known "-DKNOWN=${probe_folder}/known-differences.txt")
+        endif()
+        add_test(
+          NAME TC-MP0002-${probe_name}-probe-${probe_mode}
+          COMMAND
+            "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+            "-DGENERATOR=${CMAKE_CURRENT_SOURCE_DIR}/scripts/${probe_generator}"
+            "-DREFERENCE=${probe_folder}/vb6-reference.txt"
+            "-DWORK=${CMAKE_BINARY_DIR}/${probe_name}-probe-${probe_mode}"
+            "-DPROJECT=${probe_project}" "-DOUTPUT=${probe_output}"
+            "-DMODE=${probe_mode}" ${probe_known} -P "${probe_runner}"
+        )
+        set_tests_properties(
+          TC-MP0002-${probe_name}-probe-${probe_mode}
+          PROPERTIES LABELS "integration;mp-0002;library" TIMEOUT 1500
+        )
+      endforeach()
+    endforeach()
+  endif()
+
   # The properties of the MSComctlLib controls answer as in Visual Basic 6: the
   # type of a value, the values an enumeration accepts, the errors. The lines
   # that WFC still answers differently are listed in known-differences.txt

@@ -1,0 +1,4 @@
+StrConv('hello wORLD o'neil', vbFromUnicode)
+StrConv('', vbFromUnicode)
+StrConv('abc def', vbFromUnicode)
+StrConv(12, vbFromUnicode)

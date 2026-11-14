@@ -1621,17 +1621,33 @@ std::optional<Value> Interpreter::evaluate_date_function(
         if (!y || !m || !d) {
             return mismatch();
         }
+        for (const std::int64_t argument : {*y, *m, *d}) {
+            if (argument < -32768 || argument > 32767) {
+                set_error("WFC0009", "numeric overflow", offset);
+                return std::nullopt;
+            }
+        }
         std::int64_t year = *y;
+        std::int64_t month = *m;
+        {
+            const std::int64_t shifted = month - 1;
+            const std::int64_t whole =
+                shifted >= 0 ? shifted / 12 : -((11 - shifted) / 12);
+            year += whole;
+            month = shifted - whole * 12 + 1;
+        }
         if (year >= 0 && year <= 99) {
-            year += year < 30 ? 2000 : 1900;
+            year += year < 50 ? 2000 : 1900;
         } else if (year < 0 && year >= -99) {
             year += 2000;
         }
-        if (year < 0 || year > 9999) {
-            set_error("WFC0009", "numeric overflow", offset);
+        const double serial = date_serial(year, month, *d);
+        if (year < 100 || year > 9999 || !(serial > -657435.0) ||
+            !(serial < 2958466.0)) {
+            set_error("WFC0101", "Invalid procedure call or argument", offset);
             return std::nullopt;
         }
-        return Value{DateValue{date_serial(year, *m, *d)}};
+        return Value{DateValue{serial}};
     }
     if (name == "timeserial") {
         if (!arity(3, 3)) {
@@ -1645,7 +1661,7 @@ std::optional<Value> Interpreter::evaluate_date_function(
         }
         const double total =
             static_cast<double>(*h * 3600 + *m * 60 + *sec) / 86400.0;
-        return Value{DateValue{total - std::floor(total)}};
+        return Value{DateValue{total}};
     }
     if (name == "datevalue" || name == "timevalue") {
         if (!arity(1, 1)) {
@@ -1671,7 +1687,7 @@ std::optional<Value> Interpreter::evaluate_date_function(
         if (!serial.has_value()) {
             return mismatch();
         }
-        if (*serial < -657435.0 || *serial >= 2958466.0) {
+        if (*serial <= -657435.0 || *serial >= 2958466.0) {
             set_error("WFC0009", "numeric overflow",
                       offset);  // outside year 100..9999
             return std::nullopt;
@@ -1804,7 +1820,16 @@ std::optional<Value> Interpreter::evaluate_date_function(
             if (!amount || !serial) {
                 return mismatch();
             }
-            const auto n = *amount;
+            // The amount is cut to a whole number (not rounded).
+            std::int64_t n = *amount;
+            if (is_number(arguments[1]) &&
+                !std::holds_alternative<Decimal>(arguments[1])) {
+                n = static_cast<std::int64_t>(
+                    std::trunc(as_double(arguments[1])));
+            }
+            const auto in_range = [](const double result) {
+                return result > -657435.0 && result < 2958466.0;
+            };
             if (interval == "yyyy" || interval == "q" || interval == "m") {
                 const auto parts = split_date(*serial);
                 const std::int64_t months = interval == "yyyy" ? n * 12
@@ -1818,8 +1843,14 @@ std::optional<Value> Interpreter::evaluate_date_function(
                 const std::int64_t day =
                     std::min(parts.day, days_in_month(year, month));
                 const double time_of_day = *serial - std::floor(*serial);
-                return Value{
-                    DateValue{date_serial(year, month, day) + time_of_day}};
+                const double moved =
+                    date_serial(year, month, day) + time_of_day;
+                if (year < 100 || year > 9999 || !in_range(moved)) {
+                    set_error("WFC0101", "Invalid procedure call or argument",
+                              offset);
+                    return std::nullopt;
+                }
+                return Value{DateValue{moved}};
             }
             double delta = 0.0;
             if (interval == "d" || interval == "y" || interval == "w") {
@@ -1832,6 +1863,11 @@ std::optional<Value> Interpreter::evaluate_date_function(
                 delta = static_cast<double>(n) / 1440.0;
             } else {
                 delta = static_cast<double>(n) / 86400.0;
+            }
+            if (!in_range(*serial + delta)) {
+                set_error("WFC0101", "Invalid procedure call or argument",
+                          offset);
+                return std::nullopt;
             }
             return Value{DateValue{*serial + delta}};
         }
@@ -1933,7 +1969,7 @@ std::optional<Value> Interpreter::evaluate_date_function(
         } else {
             result = parts.second;
         }
-        return Value{static_cast<Integer>(result)};
+        return Value{static_cast<Int16>(result)};
     }
     set_error("WFC0071", "unsupported function", offset);
     return std::nullopt;

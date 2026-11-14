@@ -228,7 +228,7 @@ struct NumericStringResult {
 // conversion intrinsics. Surrounding ASCII whitespace and a leading plus are
 // accepted; the entire remaining decimal/exponent spelling must be consumed.
 [[nodiscard]] inline NumericStringResult parse_numeric_string(
-    const std::string_view text) {
+    const std::string_view text, const bool short_hex = true) {
     std::size_t first{};
     std::size_t last = text.size();
     const auto is_ascii_whitespace = [](const char character) {
@@ -348,9 +348,10 @@ struct NumericStringResult {
             return {};
         }
         // 4 or fewer hex digits is an Integer (sign-extended from 16 bits).
-        const bool short_form =
-            text[end - 1U] != '&' && (end - first - 2U) <= (hex ? 4U : 6U) &&
-            magnitude <= 0xFFFFULL && text[last - 1U] != '&';
+        const bool short_form = short_hex && text[end - 1U] != '&' &&
+                                (end - first - 2U) <= (hex ? 4U : 6U) &&
+                                magnitude <= 0xFFFFULL &&
+                                text[last - 1U] != '&';
         double result =
             short_form
                 ? static_cast<double>(static_cast<std::int16_t>(magnitude))

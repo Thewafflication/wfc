@@ -1502,6 +1502,7 @@ private:
         return match(0, 0);
     }
 
+    [[nodiscard]] static bool like_pattern_valid(const std::string& pattern);
     [[nodiscard]] static bool like_match(const std::string& text,
                                          const std::string& pattern,
                                          const bool fold);
