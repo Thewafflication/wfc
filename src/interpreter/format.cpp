@@ -205,15 +205,40 @@ std::string Interpreter::render_custom_numeric_picture(
     if (sections.size() == 1U) {
         return render_custom_numeric_picture_section(value, sections.front());
     }
-    // A section left empty (`0;;0`) shows nothing for its values.
-    const std::string& chosen = (sections.size() >= 3U && value == 0.0)
+    // A value that rounds to zero in the places of its own section is a
+    // zero. A section left empty (`0;;0`) shows nothing for its values.
+    const auto places_of = [](const std::string& section) {
+        std::size_t places = 0U;
+        bool after_point = false;
+        bool in_text = false;
+        for (std::size_t i = 0U; i < section.size(); ++i) {
+            const char c = section[i];
+            if (c == '\\') {
+                ++i;
+            } else if (c == '"') {
+                in_text = !in_text;
+            } else if (!in_text && c == '.') {
+                after_point = true;
+            } else if (!in_text && after_point && (c == '0' || c == '#')) {
+                ++places;
+            }
+        }
+        return places;
+    };
+    const std::size_t sign_section = value < 0.0 ? 1U : 0U;
+    const double unit =
+        std::pow(10.0, static_cast<double>(places_of(sections[sign_section])));
+    const bool rounds_to_zero =
+        value == 0.0 || (sections.size() >= 3U &&
+                         std::floor(std::fabs(value) * unit + 0.5) == 0.0);
+    const std::string& chosen = (sections.size() >= 3U && rounds_to_zero)
                                     ? sections[2]
                                 : value < 0.0 ? sections[1]
                                               : sections.front();
     if (chosen.empty()) {
         return {};
     }
-    if (sections.size() >= 3U && value == 0.0) {
+    if (sections.size() >= 3U && rounds_to_zero) {
         return render_custom_numeric_picture_section(0.0, sections[2]);
     }
     if (value < 0.0) {
@@ -237,6 +262,10 @@ std::string Interpreter::render_custom_numeric_picture_section(
             if (c == '\\' && i + 1U < picture_in.size()) {
                 picture.push_back(c);
                 picture.push_back(picture_in[++i]);
+                continue;
+            }
+            if (!in_quotes && c == '*' && i + 1U < picture_in.size()) {
+                ++i;  // the fill character and what it fills with
                 continue;
             }
             if (c == '"') {
@@ -337,8 +366,16 @@ std::string Interpreter::render_custom_numeric_picture_section(
             while (exponent_text.size() < exponent_digits) {
                 exponent_text.insert(0, "0");
             }
-            std::string result = render_custom_numeric_picture_section(
-                mantissa, mantissa_picture);
+            std::string shown_picture = mantissa_picture;
+            if (magnitude == 0.0 &&
+                shown_picture.find('0') == std::string::npos) {
+                const auto last_hash = shown_picture.find('#');
+                if (last_hash != std::string::npos) {
+                    shown_picture[last_hash] = '0';
+                }
+            }
+            std::string result =
+                render_custom_numeric_picture_section(mantissa, shown_picture);
             result.push_back(picture[e_position]);
             if (exponent < 0) {
                 result.push_back('-');

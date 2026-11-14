@@ -6,6 +6,29 @@
 
 namespace wfc::detail {
 
+namespace {
+
+// True when a Format picture works on text (@ & < > !), outside literals.
+[[nodiscard]] bool format_text_picture(const std::string& style) {
+    for (std::size_t i = 0; i < style.size(); ++i) {
+        const char c = style[i];
+        if (c == '\\') {
+            ++i;
+        } else if (c == '"') {
+            const auto close = style.find('"', i + 1U);
+            if (close == std::string::npos) {
+                break;
+            }
+            i = close;
+        } else if (c == '@' || c == '&' || c == '<' || c == '>' || c == '!') {
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
 std::optional<Value> Interpreter::parse_function_call(
     const std::string_view identifier, const std::size_t identifier_offset) {
     const bool dry_run = !execute_;
@@ -544,7 +567,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     } else if (is_split || is_filter) {
         valid_arity =
             arguments.size() >= (is_split ? 1U : 2U) && arguments.size() <= 4U;
-    } else if (is_join || is_round || is_format || is_lbound || is_ubound) {
+    } else if (is_format) {
+        valid_arity = arguments.size() >= 1U && arguments.size() <= 4U;
+    } else if (is_join || is_round || is_lbound || is_ubound) {
         valid_arity = arguments.size() == 1U || arguments.size() == 2U;
     } else if (is_error_message || is_rnd) {
         valid_arity = arguments.size() <= 1U;
@@ -1316,19 +1341,50 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                       identifier_offset);
             return std::nullopt;
         }
+        // Visual Basic gives "" for a Null, whatever the picture.
+        if (std::holds_alternative<Null>(arguments[0])) {
+            return Value{std::string{}};
+        }
+        const bool text_picture = format_text_picture(*style);
+        const bool date_picture = is_date_picture(*style);
+        if (const auto* flag = std::get_if<bool>(&arguments[0])) {
+            // A Boolean is its name for a text picture and -1 or 0 otherwise.
+            if (text_picture && !date_picture) {
+                arguments[0] = Value{std::string{*flag ? "True" : "False"}};
+            } else {
+                arguments[0] = Value{static_cast<Integer>(*flag ? -1 : 0)};
+            }
+        }
         if (const auto* date_argument = std::get_if<DateValue>(&arguments[0])) {
-            return Value{
-                execute_ ? format_date_pattern(date_argument->serial, *style)
-                         : std::string{}};
+            if (date_picture) {
+                return Value{execute_ ? format_date_pattern(
+                                            date_argument->serial, *style)
+                                      : std::string{}};
+            }
+            // A Date is its text for a text picture and its serial otherwise.
+            arguments[0] = text_picture ? Value{render(arguments[0])}
+                                        : Value{date_argument->serial};
         }
-        if (is_number(arguments[0]) && is_date_picture(*style)) {
-            // A numeric value formatted with a date/time picture is a serial.
-            return Value{
-                execute_ ? format_date_pattern(as_double(arguments[0]), *style)
-                         : std::string{}};
+        if (const auto* text = std::get_if<std::string>(&arguments[0]);
+            text != nullptr && !text->empty() && !text_picture) {
+            // A String that is a number is that number.
+            const auto parsed = parse_numeric_string(*text);
+            if (parsed.status == NumericStringStatus::valid) {
+                arguments[0] = Value{parsed.value};
+            }
         }
-        if (is_number(arguments[0]) &&
-            style->find_first_of("@&") != std::string::npos &&
+        if (is_number(arguments[0]) && date_picture) {
+            // A numeric value formatted with a date/time picture is a serial;
+            // one outside the range of a Date is an overflow.
+            const double serial = as_double(arguments[0]);
+            if (!(serial > -657435.0 && serial < 2958466.0)) {
+                set_error("WFC0009", "numeric overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{execute_ ? format_date_pattern(serial, *style)
+                                  : std::string{}};
+        }
+        if (is_number(arguments[0]) && text_picture &&
             style->find_first_of("0#") == std::string::npos) {
             arguments[0] = Value{
                 render(arguments[0])};  // `@@@@` formats the digits as text
@@ -1340,6 +1396,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 return Value{std::string{}};
             }
             std::string fmt = *style;
+            if (text_argument->empty() && fmt.find(';') == std::string::npos) {
+                return Value{std::string{}};  // "" has nothing to place
+            }
             const auto section = fmt.find(';');
             if (section != std::string::npos) {
                 fmt = text_argument->empty() &&
@@ -1372,6 +1431,20 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 }
             }
             std::u16string chars = to_utf16_units(*text_argument);
+            if (left_fill) {
+                // `!` keeps the last characters of a text that is too long.
+                std::size_t slots = 0;
+                for (std::size_t i = 0; i < mask.size(); ++i) {
+                    if (mask[i] == u'\x01') {
+                        ++i;
+                    } else if (mask[i] == u'@' || mask[i] == u'&') {
+                        ++slots;
+                    }
+                }
+                if (slots != 0 && chars.size() > slots) {
+                    chars = chars.substr(chars.size() - slots);
+                }
+            }
             for (auto& c : chars) {
                 if (upper) {
                     c = unit_to_upper(c);
@@ -1499,10 +1572,15 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             // a negative value (matching every other numeric style's
             // own negative-sign convention) rather than parentheses.
             std::string rendered = render_fixed_style(widened, true);
-            const std::string::size_type dollar_position =
-                (!rendered.empty() && rendered.front() == '-') ? 1U : 0U;
-            rendered.insert(dollar_position, "$");
-            return Value{std::move(rendered)};
+            const bool negative_amount =
+                !rendered.empty() && rendered.front() == '-';
+            if (negative_amount) {
+                // The negative amount of the system (US) locale is in
+                // parentheses.
+                rendered.erase(0U, 1U);
+                return Value{"($" + rendered + ")"};
+            }
+            return Value{"$" + rendered};
         }
         if (lowered_style == "percent") {
             const double scaled = widened * 100.0;

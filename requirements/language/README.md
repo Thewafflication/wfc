@@ -72,6 +72,7 @@ narrow corpus cannot be mistaken for complete VB6 language support.
 - [REQ-0315 — The arithmetic and logical operators work as Visual Basic 6 does](req-0315-arithmetic-and-logical-operators.md)
 - [REQ-0316 — The functions of the library answer as Visual Basic 6 does](req-0316-library-functions-on-variants.md)
 - [REQ-0317 — The properties of the MSComctlLib controls answer as Visual Basic 6 does](req-0317-comctl-properties.md)
+- [REQ-0318 — Format and its kin answer as Visual Basic 6 does](req-0318-format-functions.md)
   defines the type, value or error of `+ - * / \ Mod ^ & And Or Xor Eqv Imp`,
   measured under Visual Basic 6 (it revises how REQ-0268 writes a small
   number).

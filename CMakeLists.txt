@@ -1756,7 +1756,7 @@ Print label & value# & " " & TypeName(value)]=]
     PROPERTIES
       LABELS "integration;mp-0002;expressions;vba;conversion"
       PASS_REGULAR_EXPRESSION
-        "1,234.50 50.00% Yes -\\$1,234.50 0007 1,234,567.89"
+        "1,234.50 50.00% Yes [(]\\$1,234.50[)] 0007 1,234,567.89"
   )
 
   add_test(
@@ -2847,6 +2847,38 @@ Print v.x & q.x]=]
       )
       set_tests_properties(
         TC-MP0002-library-probe-${probe_mode}
+        PROPERTIES LABELS "integration;mp-0002;library" TIMEOUT 1500
+      )
+    endforeach()
+  endif()
+
+  # Format, FormatNumber, FormatCurrency, FormatPercent and FormatDateTime
+  # answer as in Visual Basic 6 for values of every kind and pictures of every
+  # family: a probe of 3,105 calls (evidence/reference/format-probe).
+  set(
+    format_generator
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/New-FormatProbe.ps1"
+  )
+  set(
+    format_reference
+    "${CMAKE_CURRENT_SOURCE_DIR}/evidence/reference/format-probe"
+    "/vb6-reference.txt"
+  )
+  string(CONCAT format_reference ${format_reference})
+  if(WFC_PWSH)
+    foreach(probe_mode interpret native)
+      add_test(
+        NAME TC-MP0002-format-probe-${probe_mode}
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DPWSH=${WFC_PWSH}"
+          "-DGENERATOR=${format_generator}" "-DREFERENCE=${format_reference}"
+          "-DWORK=${CMAKE_BINARY_DIR}/format-probe-${probe_mode}"
+          "-DPROJECT=FormatProbe.vbp" "-DOUTPUT=format-probe.txt"
+          "-DMODE=${probe_mode}" -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/select_case_probe/run_probe.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-format-probe-${probe_mode}
         PROPERTIES LABELS "integration;mp-0002;library" TIMEOUT 1500
       )
     endforeach()

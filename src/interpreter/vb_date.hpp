@@ -431,7 +431,7 @@ struct DateParts {
             return false;
         }
     }
-    bool token = false;
+    bool token = lowered.find("ttttt") != std::string::npos;
     for (std::size_t i = 0; i < lowered.size(); ++i) {
         const char c = lowered[i];
         if (c == '\\') {
@@ -548,10 +548,10 @@ struct DateParts {
         } else if (c == 'y') {
             const auto n = run_length('y');
             if (n == 1) {
-                out +=
-                    std::to_string(static_cast<std::int64_t>(
-                                       serial - date_serial(parts.year, 1, 1)) +
-                                   1);
+                out += std::to_string(
+                    static_cast<std::int64_t>(std::trunc(serial) -
+                                              date_serial(parts.year, 1, 1)) +
+                    1);
             } else {
                 out += n >= 3 ? std::to_string(parts.year)
                               : pad2(parts.year % 100);

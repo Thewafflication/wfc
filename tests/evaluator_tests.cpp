@@ -398,7 +398,7 @@ int main() {
     expect_success(
         "Print Format(1234.5, \"Currency\") & \" \" & Format(-1234.5, "
         "\"Currency\")",
-        "$1,234.50 -$1,234.50");
+        "$1,234.50 ($1,234.50)");
     expect_success(
         "Print Format(0, \"Currency\") & \" \" & Format(5, \"currency\")",
         "$0.00 $5.00");
@@ -2982,7 +2982,7 @@ int main() {
     expect_program_failure("Print Round(5, -1)", "WFC0094");
     expect_program_failure("Print Round(1, 2, 3)", "WFC0072");
     expect_program_failure("Print Format()", "WFC0072");
-    expect_program_failure("Print Format(1, 2, 3)", "WFC0072");
+    expect_program_failure("Print Format(1, 2, 3, 4, 5)", "WFC0072");
     expect_program_failure("Print Format(42, 5)", "WFC0073");
     expect_program_success("Print Format(\"x\", \"Fixed\")", "x");
     expect_program_failure("Print Format(1e308, \"Percent\")", "WFC0009");

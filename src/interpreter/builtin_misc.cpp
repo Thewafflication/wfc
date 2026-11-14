@@ -1337,6 +1337,8 @@ std::optional<Value> Interpreter::evaluate_misc_function(
             bool include_leading = true;
             if (const auto* flag = std::get_if<bool>(&arguments[2])) {
                 include_leading = *flag;
+            } else if (std::holds_alternative<Empty>(arguments[2])) {
+                include_leading = true;
             } else if (const auto leading = number_at(2, -2.0)) {
                 include_leading = *leading != 0.0;
             }
@@ -1348,6 +1350,8 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (count >= 5U) {
             if (const auto* g = std::get_if<bool>(&arguments[4])) {
                 group = *g;
+            } else if (std::holds_alternative<Empty>(arguments[4])) {
+                group = true;
             } else if (const auto grouping = number_at(4, -2.0)) {
                 group = *grouping != 0.0;
             }
@@ -1373,8 +1377,11 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (count >= 4U) {
             if (const auto* p = std::get_if<bool>(&arguments[3])) {
                 parens = *p;
+            } else if (std::holds_alternative<Empty>(arguments[3])) {
+                parens = currency;
             } else if (const auto flag = number_at(3, -2.0)) {
-                parens = *flag == -1.0 || *flag == 1.0;
+                parens =
+                    *flag == -2.0 ? currency : (*flag == -1.0 || *flag == 1.0);
             }
         }
         if (negative && text.find_first_of("123456789") != std::string::npos) {
@@ -1725,11 +1732,25 @@ std::optional<Value> Interpreter::evaluate_date_function(
         if (!arity(1, 2)) {
             return std::nullopt;
         }
-        const auto serial = serial_at(0);
         const auto style =
             count == 2U ? long_at(1) : std::optional<std::int64_t>{0};
-        if (!serial || !style) {
+        if (!style) {
             return mismatch();
+        }
+        if (*style < 0 || *style > 4) {
+            set_error("WFC0101", "Invalid procedure call or argument", offset);
+            return std::nullopt;
+        }
+        if (std::holds_alternative<Null>(arguments[0])) {
+            return Value{std::string{}};
+        }
+        const auto serial = serial_at(0);
+        if (!serial) {
+            return mismatch();
+        }
+        if (!(*serial > -657435.0 && *serial < 2958466.0)) {
+            set_error("WFC0009", "numeric overflow", offset);
+            return std::nullopt;
         }
         const auto parts = split_date(*serial);
         char buffer[64];
