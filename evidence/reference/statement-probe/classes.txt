@@ -285,3 +285,35 @@ End Function
 Public Sub SetName(ByVal n As String)
     Name = n
 End Sub
+## module OptText
+Option Compare Text
+Option Explicit
+
+Public Function Eq(ByVal a As String, ByVal b As String) As Boolean
+    Eq = (a = b)
+End Function
+
+Public Function Lt(ByVal a As String, ByVal b As String) As Boolean
+    Lt = (a < b)
+End Function
+
+Public Function Find(ByVal a As String, ByVal b As String) As Long
+    Find = InStr(a, b)
+End Function
+
+Public Function Cmp(ByVal a As String, ByVal b As String) As Long
+    Cmp = StrComp(a, b)
+End Function
+
+Public Function Sel(ByVal a As String) As String
+    Select Case a
+        Case "abc"
+            Sel = "matched"
+        Case Else
+            Sel = "no"
+    End Select
+End Function
+
+Public Function Lk(ByVal a As String, ByVal p As String) As Boolean
+    Lk = a Like p
+End Function

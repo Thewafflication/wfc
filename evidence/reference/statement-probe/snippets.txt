@@ -3063,3 +3063,14 @@ Print #f, #1/2/2000#, #1/2/2000#
 Close #f
 Say Right(Slurp("f60.dat"), 3)
 Say CStr(Len(Slurp("f60.dat")) > 20)
+@@ option compare text
+SayV Eq("ABC", "abc")
+SayV Lt("a", "B")
+SayV Find("Hello", "L")
+SayV Cmp("a", "A")
+SayV Sel("ABC")
+SayV Lk("ABC", "a*")
+@@ option compare binary here
+SayV "ABC" = "abc"
+SayV InStr("Hello", "L")
+SayV StrComp("a", "A")

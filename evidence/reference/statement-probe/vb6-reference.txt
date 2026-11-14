@@ -461,3 +461,5 @@ file app properties = String;Integer;Long;False;
 file date time statements = String;String;10;8;4;
 file width items = abcdefgh<U+000D><U+000A>ijklmnop<U+000D><U+000A>abcdefghijklmnop<U+000D><U+000A>x<U+000D><U+000A> 12345 <U+000D><U+000A> 67890 <U+000D><U+000A> 11111 <U+000D><U+000A>"abcdefghijkl","mnop"<U+000D><U+000A>;
 file print date types =  <U+000D><U+000A>;True;
+option compare text = Boolean:True;Boolean:True;Long:3;Long:0;String:matched;Boolean:True;
+option compare binary here = Boolean:False;Long:0;Integer:1;
