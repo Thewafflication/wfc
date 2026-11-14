@@ -195,12 +195,25 @@ private:
         }
     }
 
-    // adr xd, the image offset `target`
+    // The address of the image offset `target`: adr xd, #offset while it is
+    // within +-1 MiB of this instruction; beyond that (the data sits at the
+    // start of the image, code of a large program is far from it) adrp and
+    // add, which reach 4 GiB. The image starts on a page.
     void address_of(const std::uint32_t reg, const std::size_t target) {
         const auto offset = static_cast<std::int64_t>(target) -
                             static_cast<std::int64_t>(image_.size());
-        const auto bits = static_cast<std::uint32_t>(offset) & 0x1FFFFFU;
-        emit(0x10000000U | ((bits & 3U) << 29) | ((bits >> 2) << 5) | reg);
+        if (offset >= -(std::int64_t{1} << 20) &&
+            offset < (std::int64_t{1} << 20)) {
+            const auto bits = static_cast<std::uint32_t>(offset) & 0x1FFFFFU;
+            emit(0x10000000U | ((bits & 3U) << 29) | ((bits >> 2) << 5) | reg);
+            return;
+        }
+        const auto pages = static_cast<std::int64_t>(target >> 12U) -
+                           static_cast<std::int64_t>(image_.size() >> 12U);
+        const auto bits = static_cast<std::uint32_t>(pages) & 0x1FFFFFU;
+        emit(0x90000000U | ((bits & 3U) << 29) | ((bits >> 2) << 5) | reg);
+        emit(0x91000000U | (static_cast<std::uint32_t>(target & 0xFFFU) << 10) |
+             (reg << 5) | reg);
     }
 
     // ldr/str of 4 or 8 bytes at [base + offset] (offset >= 0, a multiple of
