@@ -400,8 +400,8 @@ jobs:
             wpm trust add release_keys/wfc-release.public
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             $packages = @(Get-ChildItem out/packages/*.zip -File)
-            if ($packages.Count -ne 2) {
-              throw "Expected two packages, found $($packages.Count)."
+            if ($packages.Count -ne 3) {
+              throw "Expected three packages, found $($packages.Count)."
             }
             foreach ($package in $packages) {
               wpm verify $package.FullName
