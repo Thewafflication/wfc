@@ -1391,6 +1391,7 @@ bool Interpreter::parse_print_statement() {
         return false;
     }
     std::string text;
+    std::vector<std::size_t> item_starts;
     bool newline = true;
     // The print column (0-based) the next item lands in: after any text an
     // earlier `Print ...;` left on the current console line, then `text`.
@@ -1488,6 +1489,9 @@ bool Interpreter::parse_print_statement() {
             return false;
         }
         if (execute_) {
+            if (to_file) {
+                item_starts.push_back(text.size());
+            }
             if (std::holds_alternative<Null>(*value)) {
                 text += "Null";
             } else if (vb_number_spacing_ && is_number(*value) &&
@@ -1500,6 +1504,10 @@ bool Interpreter::parse_print_statement() {
                 }
                 text += digits;
                 text.push_back(' ');
+            } else if (vb_number_spacing_ &&
+                       std::holds_alternative<DateValue>(*value)) {
+                text += show_byte_halves(render(*value));
+                text.push_back(' ');  // VB6 follows a Date with a blank
             } else {
                 text += show_byte_halves(render(*value));
             }
@@ -1517,8 +1525,21 @@ bool Interpreter::parse_print_statement() {
         }
         return true;
     }
+    if (to_file && !item_starts.empty()) {
+        return write_print_items(file_number, text, item_starts, newline,
+                                 offset_);
+    }
     if (to_file) {
-        return write_to_file(file_number, newline ? text + "\r\n" : text,
+        // the new lines inside the text (from Tab) are CR LF in a file too
+        std::string in_file;
+        for (const char c : text) {
+            if (c == '\n') {
+                in_file += "\r\n";
+            } else {
+                in_file.push_back(c);
+            }
+        }
+        return write_to_file(file_number, newline ? in_file + "\r\n" : in_file,
                              offset_);
     }
     if (surface != nullptr) {

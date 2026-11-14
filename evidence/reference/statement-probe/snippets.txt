@@ -2267,3 +2267,799 @@ SayV b.X
 GlobalCount = 5
 GlobalCount = GlobalCount + 1
 SayV GlobalCount
+# --- Files ---
+@@ file print separators
+Dim f As Integer
+f = FreeFile
+Rm "f01.dat"
+Open Pth("f01.dat") For Output As #f
+Print #f, 1; 2; 3
+Print #f, 1, 2, 3
+Print #f, "a"; "b"
+Print #f, "a", "b"
+Print #f, 1;
+Print #f, 2
+Print #f,
+Print #f, ,"x"
+Close #f
+Say Slurp("f01.dat")
+@@ file print numbers
+Dim f As Integer
+f = FreeFile
+Rm "f02.dat"
+Open Pth("f02.dat") For Output As #f
+Print #f, 1.5; -1.5; 0.5; 100; 1E+20; 1E-20; 123456789#
+Print #f, True; False; Null; Empty
+Print #f, #1/2/2000#; #3:04:05 PM#; #1/2/2000 3:04:05 PM#
+Print #f, 1!; 1#; 1@; CByte(5); CInt(5); 5&
+Close #f
+Say Slurp("f02.dat")
+@@ file print spc tab
+Dim f As Integer
+f = FreeFile
+Rm "f03.dat"
+Open Pth("f03.dat") For Output As #f
+Print #f, "a"; Spc(3); "b"
+Print #f, "a"; Tab(10); "b"
+Print #f, "abcdefghijkl"; Tab(5); "x"
+Print #f, Tab(3); "x"
+Print #f, "a"; Tab; "b"
+Print #f, "a", "b", "c"
+Close #f
+Say Slurp("f03.dat")
+@@ file print zones
+Dim f As Integer
+f = FreeFile
+Rm "f04.dat"
+Open Pth("f04.dat") For Output As #f
+Print #f, 1, 22, 333, 4444, 55555, 666666
+Print #f, "abcdefghijklmnop", "x"
+Close #f
+Say Slurp("f04.dat")
+@@ file write types
+Dim f As Integer
+f = FreeFile
+Rm "f05.dat"
+Open Pth("f05.dat") For Output As #f
+Write #f, 1, 2.5, "s", True, False
+Write #f, Null, Empty, #1/2/2000#, #3:04:05 PM#
+Write #f, "a,b", "q""uote", ""
+Write #f, 1E+20, 1E-20, 0.1, -5
+Write #f,
+Write #f, 1; 2
+Close #f
+Say Slurp("f05.dat")
+@@ file write then input
+Dim f As Integer
+Dim a As Variant
+Dim b As Variant
+Dim c As Variant
+Dim d As Variant
+f = FreeFile
+Rm "f06.dat"
+Open Pth("f06.dat") For Output As #f
+Write #f, 12, "hi, there", #1/2/2000#, True
+Close #f
+Open Pth("f06.dat") For Input As #f
+Input #f, a, b, c, d
+Close #f
+SayV a
+SayV b
+SayV c
+SayV d
+@@ file input typed
+Dim f As Integer
+Dim a As Long
+Dim b As Double
+Dim s As String
+f = FreeFile
+Rm "f07.dat"
+Open Pth("f07.dat") For Output As #f
+Print #f, "12 3.5 word"
+Print #f, "1,2,hello"
+Close #f
+Open Pth("f07.dat") For Input As #f
+Input #f, a, b, s
+SayV a
+SayV b
+SayV s
+Input #f, a, b, s
+SayV a
+SayV b
+SayV s
+Close #f
+@@ file input conversion error
+Dim f As Integer
+Dim a As Long
+f = FreeFile
+Rm "f08.dat"
+Open Pth("f08.dat") For Output As #f
+Print #f, "abc"
+Close #f
+Open Pth("f08.dat") For Input As #f
+Input #f, a
+SayV a
+Close #f
+@@ file input past end
+Dim f As Integer
+Dim a As Long
+f = FreeFile
+Rm "f09.dat"
+Open Pth("f09.dat") For Output As #f
+Print #f, "1"
+Close #f
+Open Pth("f09.dat") For Input As #f
+Input #f, a
+Input #f, a
+Close #f
+@@ file line input forms
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f10.dat"
+Open Pth("f10.dat") For Binary As #f
+Put #f, , "a" & vbCr & "b" & vbLf & "c" & vbCrLf & "d" & vbLf & vbCr & "e"
+Close #f
+Open Pth("f10.dat") For Input As #f
+Do While Not EOF(f)
+    Line Input #f, s
+    Say "[" & s & "]"
+Loop
+Close #f
+@@ file line input empty and eof
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f11.dat"
+Open Pth("f11.dat") For Output As #f
+Close #f
+Open Pth("f11.dat") For Input As #f
+Say CStr(EOF(f))
+Line Input #f, s
+Close #f
+@@ file line input no final newline
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f12.dat"
+Open Pth("f12.dat") For Binary As #f
+Put #f, , "abc"
+Close #f
+Open Pth("f12.dat") For Input As #f
+Line Input #f, s
+Say s
+Say CStr(EOF(f))
+Close #f
+@@ file input dollar
+Dim f As Integer
+f = FreeFile
+Rm "f13.dat"
+Open Pth("f13.dat") For Output As #f
+Print #f, "abcdef"
+Close #f
+Open Pth("f13.dat") For Input As #f
+Say Input(3, f)
+Say Input$(2, f)
+Say CStr(LOF(f))
+Say CStr(Loc(f))
+Say CStr(Seek(f))
+Close #f
+@@ file input dollar too many
+Dim f As Integer
+f = FreeFile
+Rm "f14.dat"
+Open Pth("f14.dat") For Output As #f
+Print #f, "ab"
+Close #f
+Open Pth("f14.dat") For Input As #f
+Say Input(10, f)
+Close #f
+@@ file eof ctrl z
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f15.dat"
+Open Pth("f15.dat") For Binary As #f
+Put #f, , "ab" & Chr$(26) & "cd"
+Close #f
+Open Pth("f15.dat") For Input As #f
+Line Input #f, s
+Say "[" & s & "]"
+Say CStr(EOF(f))
+Close #f
+@@ file output read error
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f16.dat"
+Open Pth("f16.dat") For Output As #f
+Line Input #f, s
+@@ file input write error
+Dim f As Integer
+f = FreeFile
+Rm "f17.dat"
+Open Pth("f17.dat") For Output As #f
+Close #f
+Open Pth("f17.dat") For Input As #f
+Print #f, "x"
+@@ file closed use
+Dim f As Integer
+f = FreeFile
+Rm "f18.dat"
+Open Pth("f18.dat") For Output As #f
+Close #f
+Print #f, "x"
+@@ file bad number
+Print #0, "x"
+@@ file number out of range
+Dim f As Integer
+f = 600
+Open Pth("f19.dat") For Output As #f
+@@ file already open number
+Dim f As Integer
+f = FreeFile
+Rm "f20.dat"
+Open Pth("f20.dat") For Output As #f
+Open Pth("f20b.dat") For Output As #f
+@@ file same file twice
+Dim f As Integer
+Dim g As Integer
+f = FreeFile
+Rm "f21.dat"
+Open Pth("f21.dat") For Output As #f
+g = FreeFile
+Open Pth("f21.dat") For Output As #g
+@@ file same file twice input
+Dim f As Integer
+Dim g As Integer
+f = FreeFile
+Rm "f22.dat"
+Open Pth("f22.dat") For Output As #f
+Print #f, "x"
+Close #f
+Open Pth("f22.dat") For Input As #f
+g = FreeFile
+Open Pth("f22.dat") For Input As #g
+Say "both"
+@@ file missing input
+Dim f As Integer
+f = FreeFile
+Open Pth("no_such_file_wfc.dat") For Input As #f
+@@ file missing path
+Dim f As Integer
+f = FreeFile
+Open Pth("no_such_dir\x.dat") For Output As #f
+@@ file append creates
+Dim f As Integer
+f = FreeFile
+Rm "f23.dat"
+Open Pth("f23.dat") For Append As #f
+Print #f, "a"
+Close #f
+Open Pth("f23.dat") For Append As #f
+Print #f, "b"
+Close #f
+Say Slurp("f23.dat")
+@@ file output truncates
+Dim f As Integer
+f = FreeFile
+Rm "f24.dat"
+Open Pth("f24.dat") For Output As #f
+Print #f, "long long line"
+Close #f
+Open Pth("f24.dat") For Output As #f
+Print #f, "s"
+Close #f
+Say Slurp("f24.dat")
+@@ file binary put get types
+Dim f As Integer
+Dim b As Byte
+Dim i As Integer
+Dim l As Long
+Dim s As Single
+Dim d As Double
+Dim c As Currency
+Dim bo As Boolean
+f = FreeFile
+Rm "f25.dat"
+Open Pth("f25.dat") For Binary As #f
+Put #f, , CByte(200)
+Put #f, , CInt(-2)
+Put #f, , CLng(100000)
+Put #f, , CSng(1.5)
+Put #f, , CDbl(2.5)
+Put #f, , CCur(3.25)
+Put #f, , True
+Say CStr(LOF(f))
+Seek #f, 1
+Get #f, , b
+Get #f, , i
+Get #f, , l
+Get #f, , s
+Get #f, , d
+Get #f, , c
+Get #f, , bo
+SayV b
+SayV i
+SayV l
+SayV s
+SayV d
+SayV c
+SayV bo
+Close #f
+@@ file binary string
+Dim f As Integer
+Dim s As String
+Dim t As String
+f = FreeFile
+Rm "f26.dat"
+Open Pth("f26.dat") For Binary As #f
+Put #f, , "hello"
+Put #f, , "ab"
+Say CStr(LOF(f))
+Seek #f, 1
+s = String(5, " ")
+Get #f, , s
+t = String(2, " ")
+Get #f, , t
+Say s & "|" & t
+Close #f
+@@ file binary variant
+Dim f As Integer
+Dim v As Variant
+Dim w As Variant
+f = FreeFile
+Rm "f27.dat"
+Open Pth("f27.dat") For Binary As #f
+v = 5
+Put #f, , v
+v = "ab"
+Put #f, , v
+v = 1.5
+Put #f, , v
+Say CStr(LOF(f))
+Seek #f, 1
+Get #f, , w
+SayV w
+Get #f, , w
+SayV w
+Get #f, , w
+SayV w
+Close #f
+@@ file binary positions
+Dim f As Integer
+Dim b As Byte
+f = FreeFile
+Rm "f28.dat"
+Open Pth("f28.dat") For Binary As #f
+Put #f, 5, CByte(7)
+Say CStr(LOF(f))
+Get #f, 1, b
+SayV b
+Get #f, 5, b
+SayV b
+Say CStr(Loc(f))
+Say CStr(Seek(f))
+Get #f, 6, b
+@@ file binary seek beyond
+Dim f As Integer
+Dim b As Byte
+f = FreeFile
+Rm "f29.dat"
+Open Pth("f29.dat") For Binary As #f
+Put #f, , CByte(1)
+Seek #f, 10
+Put #f, , CByte(2)
+Say CStr(LOF(f))
+Seek #f, 0
+@@ file binary eof
+Dim f As Integer
+Dim b As Byte
+f = FreeFile
+Rm "f30.dat"
+Open Pth("f30.dat") For Binary As #f
+Put #f, , CByte(1)
+Seek #f, 1
+Say CStr(EOF(f))
+Get #f, , b
+Say CStr(EOF(f))
+Get #f, , b
+SayV b
+Say CStr(EOF(f))
+Close #f
+@@ file binary array
+Dim f As Integer
+Dim a(1 To 3) As Integer
+Dim b(1 To 3) As Integer
+Dim i As Long
+f = FreeFile
+Rm "f31.dat"
+For i = 1 To 3
+    a(i) = i * 10
+Next i
+Open Pth("f31.dat") For Binary As #f
+Put #f, , a
+Say CStr(LOF(f))
+Seek #f, 1
+Get #f, , b
+SayV b(2)
+Close #f
+@@ file binary udt
+Dim f As Integer
+Dim p As Pt
+Dim q As Pt
+f = FreeFile
+Rm "f32.dat"
+p.X = 7
+p.Y = 8
+Open Pth("f32.dat") For Binary As #f
+Put #f, , p
+Say CStr(LOF(f))
+Seek #f, 1
+Get #f, , q
+SayV q.X + q.Y
+Close #f
+@@ file random records
+Dim f As Integer
+Dim p As Pt
+Dim q As Pt
+f = FreeFile
+Rm "f33.dat"
+Open Pth("f33.dat") For Random As #f Len = Len(p)
+p.X = 1
+p.Y = 2
+Put #f, 1, p
+p.X = 3
+p.Y = 4
+Put #f, 3, p
+Say CStr(LOF(f))
+Get #f, 1, q
+SayV q.X
+Get #f, 3, q
+SayV q.Y
+Get #f, 2, q
+SayV q.X
+Say CStr(Loc(f))
+Say CStr(EOF(f))
+Close #f
+@@ file random default length
+Dim f As Integer
+Dim l As Long
+f = FreeFile
+Rm "f34.dat"
+Open Pth("f34.dat") For Random As #f
+Put #f, 1, CLng(5)
+Put #f, 2, CLng(6)
+Say CStr(LOF(f))
+Get #f, 2, l
+SayV l
+Close #f
+@@ file random record too long
+Dim f As Integer
+Dim l As Long
+f = FreeFile
+Rm "f35.dat"
+Open Pth("f35.dat") For Random As #f Len = 2
+Put #f, 1, CLng(5)
+@@ file random bad record
+Dim f As Integer
+Dim l As Long
+f = FreeFile
+Rm "f36.dat"
+Open Pth("f36.dat") For Random As #f Len = 4
+Get #f, 0, l
+@@ file random past end
+Dim f As Integer
+Dim l As Long
+f = FreeFile
+Rm "f37.dat"
+Open Pth("f37.dat") For Random As #f Len = 4
+Put #f, 1, CLng(5)
+Get #f, 5, l
+SayV l
+@@ file random string field
+Dim f As Integer
+Dim r As Recd
+Dim q As Recd
+f = FreeFile
+Rm "f38.dat"
+r.Name = "abcd"
+r.Id = 5
+r.Note = "variable"
+Open Pth("f38.dat") For Random As #f Len = 64
+Put #f, 1, r
+Get #f, 1, q
+SayV q.Name
+SayV q.Note
+SayV q.Id
+Close #f
+@@ file seek sequential
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f39.dat"
+Open Pth("f39.dat") For Output As #f
+Print #f, "abcdef"
+Close #f
+Open Pth("f39.dat") For Input As #f
+Say CStr(Seek(f))
+Say Input(2, f)
+Say CStr(Seek(f))
+Seek #f, 5
+Say Input(2, f)
+Close #f
+@@ file lof of output
+Dim f As Integer
+f = FreeFile
+Rm "f40.dat"
+Open Pth("f40.dat") For Output As #f
+Print #f, "abc"
+Say CStr(LOF(f))
+Say CStr(Loc(f))
+Say CStr(Seek(f))
+Close #f
+@@ file freefile numbers
+Dim a As Integer
+Dim b As Integer
+a = FreeFile
+Rm "f41.dat"
+Open Pth("f41.dat") For Output As #a
+b = FreeFile
+Say CStr(b > a)
+Close #a
+Say CStr(FreeFile = a)
+@@ file freefile range
+Dim a As Integer
+Dim b As Integer
+a = FreeFile(1)
+b = FreeFile(0)
+Say CStr(a >= 256)
+Say CStr(b < 256)
+@@ file close not open
+Close #77
+Say "ok"
+@@ file lock
+Dim f As Integer
+f = FreeFile
+Rm "f44.dat"
+Open Pth("f44.dat") For Binary As #f
+Put #f, , CLng(1)
+Lock #f, 1 To 4
+Unlock #f, 1 To 4
+Say "locked"
+Close #f
+@@ file printer width
+Dim f As Integer
+f = FreeFile
+Rm "f45.dat"
+Open Pth("f45.dat") For Output As #f
+Width #f, 10
+Print #f, "abcdefghijklmnop"
+Close #f
+Say Slurp("f45.dat")
+@@ file unicode text
+Dim f As Integer
+Dim s As String
+f = FreeFile
+Rm "f46.dat"
+Open Pth("f46.dat") For Output As #f
+Print #f, "caf" & ChrW(233) & ChrW(8364)
+Close #f
+Say Slurp("f46.dat")
+Open Pth("f46.dat") For Input As #f
+Line Input #f, s
+Say CStr(AscW(Mid(s, 4, 1)))
+Say CStr(AscW(Mid(s, 5, 1)))
+Say CStr(Len(s))
+Close #f
+@@ file kill wildcard
+Dim f As Integer
+f = FreeFile
+Rm "f47a.dat"
+Rm "f47b.dat"
+Open Pth("f47a.dat") For Output As #f
+Close #f
+Open Pth("f47b.dat") For Output As #f
+Close #f
+Kill Pth("f47*.dat")
+Say "[" & Dir(Pth("f47*.dat")) & "]"
+@@ file kill missing
+Kill Pth("no_such_file_wfc.dat")
+@@ file name rename
+Dim f As Integer
+f = FreeFile
+Rm "f48a.dat"
+Rm "f48b.dat"
+Open Pth("f48a.dat") For Output As #f
+Close #f
+Name Pth("f48a.dat") As Pth("f48b.dat")
+Say "[" & Dir(Pth("f48a.dat")) & "]"
+Say "[" & Dir(Pth("f48b.dat")) & "]"
+@@ file name onto existing
+Dim f As Integer
+f = FreeFile
+Rm "f49a.dat"
+Rm "f49b.dat"
+Open Pth("f49a.dat") For Output As #f
+Close #f
+Open Pth("f49b.dat") For Output As #f
+Close #f
+Name Pth("f49a.dat") As Pth("f49b.dat")
+@@ file name missing
+Name Pth("no_such_file_wfc.dat") As Pth("f50.dat")
+@@ file filecopy
+Dim f As Integer
+f = FreeFile
+Rm "f51a.dat"
+Rm "f51b.dat"
+Open Pth("f51a.dat") For Output As #f
+Print #f, "copy me"
+Close #f
+FileCopy Pth("f51a.dat"), Pth("f51b.dat")
+Say Slurp("f51b.dat")
+FileCopy Pth("f51a.dat"), Pth("f51b.dat")
+Say "again"
+@@ file filecopy missing
+FileCopy Pth("no_such_file_wfc.dat"), Pth("f52.dat")
+@@ file filelen
+Dim f As Integer
+f = FreeFile
+Rm "f53.dat"
+Open Pth("f53.dat") For Output As #f
+Print #f, "abc"
+Close #f
+SayV FileLen(Pth("f53.dat"))
+Dim n As Long
+n = FileLen(Pth("no_such_file_wfc.dat"))
+@@ file filedatetime
+Dim f As Integer
+f = FreeFile
+Rm "f54.dat"
+Open Pth("f54.dat") For Output As #f
+Close #f
+Say TypeName(FileDateTime(Pth("f54.dat")))
+Say CStr(Abs(DateDiff("s", FileDateTime(Pth("f54.dat")), Now)) < 120)
+Dim d As Date
+d = FileDateTime(Pth("no_such_file_wfc.dat"))
+@@ file getattr setattr
+Dim f As Integer
+f = FreeFile
+Rm "f55.dat"
+Open Pth("f55.dat") For Output As #f
+Close #f
+Say CStr(GetAttr(Pth("f55.dat")) And 31)
+SetAttr Pth("f55.dat"), vbReadOnly
+Say CStr(GetAttr(Pth("f55.dat")) And 31)
+SetAttr Pth("f55.dat"), vbNormal
+Say CStr(GetAttr(Pth("f55.dat")) And 31)
+Say TypeName(GetAttr(Pth("f55.dat")))
+@@ file readonly write
+Dim f As Integer
+f = FreeFile
+Rm "f56.dat"
+Open Pth("f56.dat") For Output As #f
+Close #f
+SetAttr Pth("f56.dat"), vbReadOnly
+Open Pth("f56.dat") For Output As #f
+@@ file readonly kill
+Dim f As Integer
+f = FreeFile
+Rm "f57.dat"
+Open Pth("f57.dat") For Output As #f
+Close #f
+SetAttr Pth("f57.dat"), vbReadOnly
+Kill Pth("f57.dat")
+@@ file getattr dir
+Say CStr(GetAttr(App.Path) And vbDirectory)
+Dim n As Long
+n = GetAttr(Pth("no_such_file_wfc.dat"))
+@@ file mkdir rmdir nested
+On Error Resume Next
+RmDir Pth("wfc_d1\sub")
+RmDir Pth("wfc_d1")
+On Error GoTo h
+MkDir Pth("wfc_d1\sub")
+@@ file mkdir twice
+On Error Resume Next
+RmDir Pth("wfc_d2")
+On Error GoTo h
+MkDir Pth("wfc_d2")
+MkDir Pth("wfc_d2")
+@@ file rmdir non empty
+Dim f As Integer
+On Error Resume Next
+Kill Pth("wfc_d3\x.dat")
+RmDir Pth("wfc_d3")
+On Error GoTo h
+MkDir Pth("wfc_d3")
+f = FreeFile
+Open Pth("wfc_d3\x.dat") For Output As #f
+Close #f
+RmDir Pth("wfc_d3")
+@@ file rmdir missing
+RmDir Pth("wfc_no_such_dir")
+@@ file chdir curdir
+Dim old As String
+old = CurDir
+ChDir App.Path
+Say CStr(UCase(CurDir) = UCase(App.Path))
+ChDir old
+ChDir Pth("wfc_no_such_dir")
+@@ file chdrive
+Say Left(CurDir, 1) = Left(App.Path, 1)
+@@ file dir loop
+Dim f As Integer
+Dim n As Long
+Dim s As String
+f = FreeFile
+Rm "f58a.dat"
+Rm "f58b.dat"
+Open Pth("f58a.dat") For Output As #f
+Close #f
+Open Pth("f58b.dat") For Output As #f
+Close #f
+s = Dir(Pth("f58?.dat"))
+Do While s <> ""
+    n = n + 1
+    s = Dir
+Loop
+Say CStr(n)
+@@ file dir no more
+Dim s As String
+s = Dir(Pth("no_such_file_wfc*.dat"))
+Say "[" & s & "]"
+s = Dir
+@@ file dir attributes
+Dim s As String
+s = Dir(App.Path, vbDirectory)
+Say CStr(Len(s) > 0)
+@@ file dir without pattern
+Dim s As String
+s = Dir
+@@ file dir typename
+Say TypeName(Dir(Pth("*.nothing")))
+@@ file environ
+Say CStr(Len(Environ("TEMP")) > 0)
+Say TypeName(Environ("TEMP"))
+Say TypeName(Environ$("TEMP"))
+Say CStr(Environ(0))
+@@ file shell missing
+Shell "no_such_program_wfc.exe"
+@@ file command
+Say TypeName(Command)
+Say TypeName(Command$)
+@@ file app properties
+Say TypeName(App.Path)
+Say TypeName(App.Major)
+Say TypeName(App.hInstance)
+Say CStr(App.PrevInstance)
+@@ file date time statements
+Dim d As Date
+d = Date
+Say TypeName(Date$)
+Say TypeName(Time$)
+Say CStr(Len(Date$))
+Say CStr(Len(Time$))
+Say CStr(Len(Format(Now, "yyyy")))
+@@ file width items
+Dim f As Integer
+f = FreeFile
+Rm "f59.dat"
+Open Pth("f59.dat") For Output As #f
+Width #f, 10
+Print #f, "abcd"; "efgh"; "ijkl"; "mnop"
+Print #f, "abcdefghijklmnop"; "x"
+Print #f, 12345; 67890; 11111
+Write #f, "abcdefghijkl", "mnop"
+Close #f
+Say Slurp("f59.dat")
+@@ file print date types
+Dim f As Integer
+f = FreeFile
+Rm "f60.dat"
+Open Pth("f60.dat") For Output As #f
+Print #f, #1/2/2000#; "|"; #3:04:05 PM#; "|"; Date; "|"
+Print #f, #1/2/2000#, #1/2/2000#
+Close #f
+Say Right(Slurp("f60.dat"), 3)
+Say CStr(Len(Slurp("f60.dat")) > 20)

@@ -969,6 +969,7 @@ private:
         bool shared{};     // opened with the Shared clause
         long width{};      // Width # line width; 0 = unlimited
         long column{};     // characters written on the current line
+        bool hit_end{};    // the last Get found the end of the file
     };
 
     [[nodiscard]] static std::FILE* open_file(const std::string& path,
@@ -997,9 +998,15 @@ private:
     [[nodiscard]] static bool file_at_eof(std::FILE* handle);
 
     // Reads one `Input #` field: a quoted string or a run up to ',' / newline.
+    // Print # with a Width: an item that does not fit on the line starts a
+    // new one (`starts` are the positions of the items in `text`).
+    [[nodiscard]] bool write_print_items(Integer number,
+                                         const std::string& text,
+                                         const std::vector<std::size_t>& starts,
+                                         bool newline, std::size_t offset);
     [[nodiscard]] static bool read_input_field(std::FILE* handle,
-                                               std::string& token,
-                                               bool& quoted);
+                                               std::string& token, bool& quoted,
+                                               bool numeric_target);
 
     [[nodiscard]] bool store_input_token(Value& target, const bool is_variant,
                                          const std::string& token,
@@ -2451,6 +2458,7 @@ private:
     std::map<Integer, OpenFile> files_;
     std::vector<std::string> dir_matches_;
     std::size_t dir_index_{};
+    bool dir_active_{};  // a Dir(pattern) search that has not ended
     bool execute_{true};
     bool allow_declarations_{true};
     bool constant_expression_{};

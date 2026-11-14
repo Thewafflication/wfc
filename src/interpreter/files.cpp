@@ -52,16 +52,18 @@ bool Interpreter::write_to_file(const Integer number, const std::string& text,
     }
     std::string bytes = text_to_ansi_bytes(text);
     if (file->width > 0) {
-        // Width # wraps the line once it holds `width` characters.
+        // Width # starts a new line when the line already holds `width`
+        // characters; what is written in one piece is not split.
         std::string wrapped;
+        if (file->column >= file->width && !bytes.empty() &&
+            bytes.front() != '\r' && bytes.front() != '\n') {
+            wrapped = "\r\n";
+            file->column = 0;
+        }
         for (const char c : bytes) {
             if (c == '\n') {
                 file->column = 0;
             } else if (c != '\r') {
-                if (file->column >= file->width) {
-                    wrapped += "\r\n";
-                    file->column = 0;
-                }
                 ++file->column;
             }
             wrapped.push_back(c);
@@ -75,13 +77,63 @@ bool Interpreter::write_to_file(const Integer number, const std::string& text,
     return true;
 }
 
+bool Interpreter::write_print_items(const Integer number,
+                                    const std::string& text,
+                                    const std::vector<std::size_t>& starts,
+                                    const bool newline,
+                                    const std::size_t offset) {
+    auto* const file = find_open_file(number, offset);
+    if (file == nullptr) {
+        return false;
+    }
+    std::string out;
+    std::size_t previous = 0;
+    const auto emit = [&](const std::string& piece) {
+        for (const char c : piece) {
+            if (c == '\n') {
+                out += "\r\n";
+                file->column = 0;
+            } else {
+                out.push_back(c);
+                ++file->column;
+            }
+        }
+    };
+    for (std::size_t index = 0; index < starts.size(); ++index) {
+        emit(text.substr(previous, starts[index] - previous));
+        const std::size_t end =
+            index + 1U < starts.size() ? starts[index + 1U] : text.size();
+        const std::string item =
+            text.substr(starts[index], end - starts[index]);
+        if (file->width > 0 && file->column > 0 &&
+            file->column + static_cast<long>(utf16_length(item)) >
+                file->width) {
+            out += "\r\n";
+            file->column = 0;
+        }
+        emit(item);
+        previous = end;
+    }
+    emit(text.substr(previous));
+    if (newline) {
+        out += "\r\n";
+        file->column = 0;
+    }
+    const long width = std::exchange(file->width, 0L);
+    const bool written = write_to_file(number, out, offset);
+    if (auto* const again = find_open_file(number, offset)) {
+        again->width = width;
+    }
+    return written;
+}
+
 bool Interpreter::read_file_line(std::FILE* handle, std::string& line) {
     line.clear();
     int c = std::fgetc(handle);
-    if (c == EOF) {
+    if (c == EOF || c == 0x1A) {  // Ctrl-Z ends a text file
         return false;
     }
-    while (c != EOF && c != '\n') {
+    while (c != EOF && c != 0x1A) {
         if (c == '\r') {
             const int next = std::fgetc(handle);
             if (next != '\n' && next != EOF) {
@@ -92,12 +144,15 @@ bool Interpreter::read_file_line(std::FILE* handle, std::string& line) {
         line.push_back(static_cast<char>(c));
         c = std::fgetc(handle);
     }
+    if (c == 0x1A) {
+        std::ungetc(c, handle);  // the next read finds the end
+    }
     return true;
 }
 
 bool Interpreter::file_at_eof(std::FILE* handle) {
     const int c = std::fgetc(handle);
-    if (c == EOF) {
+    if (c == EOF || c == 0x1A) {  // Ctrl-Z ends a text file
         return true;
     }
     std::ungetc(c, handle);
@@ -105,7 +160,7 @@ bool Interpreter::file_at_eof(std::FILE* handle) {
 }
 
 bool Interpreter::read_input_field(std::FILE* handle, std::string& token,
-                                   bool& quoted) {
+                                   bool& quoted, const bool numeric_target) {
     token.clear();
     quoted = false;
     int c = std::fgetc(handle);
@@ -146,9 +201,20 @@ bool Interpreter::read_input_field(std::FILE* handle, std::string& token,
         }
         return true;
     }
-    while (c != EOF && c != ',' && c != '\n' && c != '\r') {
+    while (c != EOF && c != ',' && c != '\n' && c != '\r' &&
+           !(numeric_target && (c == ' ' || c == '\t'))) {
         token.push_back(static_cast<char>(c));
         c = std::fgetc(handle);
+    }
+    if (numeric_target && (c == ' ' || c == '\t')) {
+        // the blanks after a number, and a comma after them, end the field
+        while (c == ' ' || c == '\t') {
+            c = std::fgetc(handle);
+        }
+        if (c != ',' && c != EOF && c != '\r' && c != '\n') {
+            std::ungetc(c, handle);
+            c = ' ';
+        }
     }
     if (c == '\r') {
         const int next = std::fgetc(handle);
@@ -272,7 +338,11 @@ bool Interpreter::store_input_token(Value& target, const bool is_variant,
 
 std::string Interpreter::write_item_text(const Value& value) {
     if (const auto* text = std::get_if<std::string>(&value)) {
-        return "\"" + *text + "\"";
+        std::string quoted = "\"";
+        for (const char c : *text) {
+            quoted += c == '"' ? std::string("\"\"") : std::string(1U, c);
+        }
+        return quoted + "\"";
     }
     if (const auto* flag = std::get_if<bool>(&value)) {
         return *flag ? "#TRUE#" : "#FALSE#";
@@ -288,7 +358,7 @@ std::string Interpreter::write_item_text(const Value& value) {
         char buffer[64];
         const bool has_time =
             parts.hour != 0 || parts.minute != 0 || parts.second != 0;
-        const bool has_date = std::floor(date->serial) != 0.0 || !has_time;
+        const bool has_date = true;
         std::string text = "#";
         if (has_date) {
             std::snprintf(buffer, sizeof(buffer), "%04lld-%02lld-%02lld",
@@ -306,7 +376,17 @@ std::string Interpreter::write_item_text(const Value& value) {
         }
         return text + "#";
     }
-    return render(value);
+    std::string number = render(value);
+    if (is_number(value) && !std::holds_alternative<Integer>(value) &&
+        !std::holds_alternative<Int16>(value)) {
+        // a number below 1 is written without the zero before the point
+        const std::size_t sign =
+            !number.empty() && number.front() == '-' ? 1U : 0U;
+        if (number.compare(sign, 2U, "0.") == 0) {
+            number.erase(sign, 1U);
+        }
+    }
+    return number;
 }
 
 bool Interpreter::parse_hash_file_number(Integer& number) {
@@ -385,6 +465,7 @@ std::optional<bool> Interpreter::parse_binary_statement(
             return raise_runtime(63, "Bad record number", statement_offset);
         }
         seek_record(*file, *position);
+        file->hit_end = false;
         return true;
     }
     skip_horizontal_whitespace();
@@ -436,6 +517,7 @@ std::optional<bool> Interpreter::parse_binary_statement(
         std::fseek(file->handle, std::ftell(file->handle), SEEK_SET);
     }
     const long record_start = std::ftell(file->handle);
+    bool past_end_seen = false;
     const auto transfer = [&](void* data, const std::size_t size) {
         return is_get ? std::fread(data, 1, size, file->handle) == size
                       : std::fwrite(data, 1, size, file->handle) == size;
@@ -473,10 +555,11 @@ std::optional<bool> Interpreter::parse_binary_statement(
                 }
             }
             if (!transfer(&tag, 2)) {
-                return is_get ? raise_runtime(62, "Input past end of file",
-                                              statement_offset)
-                              : raise_runtime(57, "Device I/O error",
-                                              statement_offset);
+                if (is_get) {
+                    past_end_seen = true;
+                    return false;
+                }
+                return raise_runtime(57, "Device I/O error", statement_offset);
             }
             if (is_get) {
                 switch (tag) {
@@ -637,25 +720,49 @@ std::optional<bool> Interpreter::parse_binary_statement(
         }
         if (!ok) {
             if (is_get) {
-                return raise_runtime(62, "Input past end of file",
-                                     statement_offset);
+                past_end_seen = true;
+                return false;
             }
             return raise_runtime(57, "Device I/O error", statement_offset);
         }
         return true;
     };
+    if (is_get) {
+        file->hit_end = false;
+    }
     if (!transfer_value(*lvalue.ptr, lvalue.fixed, false, lvalue.variant)) {
-        return false;
+        if (!past_end_seen) {
+            return false;
+        }
+        // Get beyond the end of the file is no error: the variable is zero
+        // and EOF turns True.
+        file->hit_end = true;
+        if (auto* as_long = std::get_if<Integer>(lvalue.ptr)) {
+            *as_long = 0;
+        } else if (auto* small = std::get_if<Int16>(lvalue.ptr)) {
+            *small = 0;
+        } else if (auto* tiny = std::get_if<Byte>(lvalue.ptr)) {
+            *tiny = 0;
+        } else if (auto* single = std::get_if<float>(lvalue.ptr)) {
+            *single = 0.0F;
+        } else if (auto* real = std::get_if<double>(lvalue.ptr)) {
+            *real = 0.0;
+        } else if (auto* money = std::get_if<Currency>(lvalue.ptr)) {
+            money->scaled = 0;
+        } else if (auto* when = std::get_if<DateValue>(lvalue.ptr)) {
+            when->serial = 0.0;
+        } else if (auto* flag = std::get_if<bool>(lvalue.ptr)) {
+            *flag = false;
+        } else if (auto* text = std::get_if<std::string>(lvalue.ptr)) {
+            text->assign(text->size(), '\0');
+        }
     }
     if (file->mode == 5) {
         const long end = record_start + file->record_length;
-        if (!is_get && std::ftell(file->handle) < end) {
-            std::fseek(file->handle, 0, SEEK_END);
-            if (std::ftell(file->handle) < end) {
-                const std::string padding(
-                    static_cast<std::size_t>(end - std::ftell(file->handle)),
-                    '\0');
-                std::fwrite(padding.data(), 1, padding.size(), file->handle);
+        if (!is_get) {
+            const long written = std::ftell(file->handle) - record_start;
+            if (written > file->record_length) {
+                return raise_runtime(59, "Bad record length", statement_offset);
             }
         }
         std::fseek(file->handle, end, SEEK_SET);
@@ -799,6 +906,19 @@ std::optional<bool> Interpreter::parse_file_statement(
                 !std::filesystem::exists(std::filesystem::path(*path_text),
                                          path_error)) {
                 return raise_runtime(53, "File not found", statement_offset);
+            }
+            if (mode != 1) {
+                // a read-only file cannot be opened for writing: error 75
+                const auto permissions =
+                    std::filesystem::status(std::filesystem::path(*path_text),
+                                            path_error)
+                        .permissions();
+                if (!path_error &&
+                    (permissions & std::filesystem::perms::owner_write) ==
+                        std::filesystem::perms::none) {
+                    return raise_runtime(75, "Path/File access error",
+                                         statement_offset);
+                }
             }
             return raise_runtime(70, "Permission denied", statement_offset);
         }
@@ -997,7 +1117,13 @@ std::optional<bool> Interpreter::parse_file_statement(
                 }
                 std::string token;
                 bool quoted{};
-                if (!read_input_field(file->handle, token, quoted)) {
+                const Value& destination = *variable.value;
+                const bool numeric_destination =
+                    !element_variant &&
+                    !variable.scope->variant_variables.contains(*name) &&
+                    is_number(destination);
+                if (!read_input_field(file->handle, token, quoted,
+                                      numeric_destination)) {
                     return raise_runtime(62, "Input past end of file",
                                          statement_offset);
                 }
@@ -1059,8 +1185,19 @@ std::optional<bool> Interpreter::parse_file_statement(
             if (!std::filesystem::is_regular_file(target, ec)) {
                 return raise_runtime(53, "File not found", statement_offset);
             }
+            const auto permissions =
+                std::filesystem::status(target, ec).permissions();
+            if ((permissions & std::filesystem::perms::owner_write) ==
+                std::filesystem::perms::none) {
+                return raise_runtime(75, "Path/File access error",
+                                     statement_offset);
+            }
             std::filesystem::remove(target, ec);
         } else if (first == 'm') {
+            const auto parent = target.parent_path();
+            if (!parent.empty() && !std::filesystem::is_directory(parent, ec)) {
+                return raise_runtime(76, "Path not found", statement_offset);
+            }
             if (!std::filesystem::create_directory(target, ec) || ec) {
                 return raise_runtime(75, "Path/File access error",
                                      statement_offset);
@@ -1213,7 +1350,8 @@ std::optional<Value> Interpreter::evaluate_file_function(
         if (!execute_) {
             return Value{Integer{}};
         }
-        for (Integer n = 1; n <= 255; ++n) {
+        const bool high = count == 1U && long_at(0).value_or(0) == 1;
+        for (Integer n = high ? 256 : 1; n <= (high ? 511 : 255); ++n) {
             if (!files_.contains(n)) {
                 return Value{n};
             }
@@ -1257,19 +1395,27 @@ std::optional<Value> Interpreter::evaluate_file_function(
             return std::nullopt;
         }
         if (name == "eof") {
-            return Value{file->mode == 1 || file->mode >= 4
-                             ? file_at_eof(file->handle)
-                             : true};
+            if (file->mode >= 4) {
+                return Value{file->hit_end};
+            }
+            return Value{file->mode == 1 ? file_at_eof(file->handle) : true};
         }
         std::fflush(file->handle);
         const long position = std::ftell(file->handle);
         if (name == "loc") {
-            if (file->mode >= 1 && file->mode <= 3) {
-                // a sequential file: the block of 128 bytes the position is in
-                return Value{static_cast<Integer>(
-                    (position < 0 ? 0 : position) / 128 + 1)};
+            const long where = position < 0 ? 0 : position;
+            if (file->mode == 1) {
+                // Input: the block of 128 bytes the position is in
+                return Value{static_cast<Integer>(where / 128 + 1)};
             }
-            return Value{static_cast<Integer>(position < 0 ? 0 : position)};
+            if (file->mode == 2 || file->mode == 3) {
+                return Value{static_cast<Integer>(where / 128)};
+            }
+            if (file->mode == 5) {
+                // Random: the number of the record last read or written
+                return Value{static_cast<Integer>(where / file->record_length)};
+            }
+            return Value{static_cast<Integer>(where)};
         }
         std::fseek(file->handle, 0, SEEK_END);
         const long size = std::ftell(file->handle);
@@ -1317,8 +1463,9 @@ std::optional<Value> Interpreter::evaluate_file_function(
         if (const auto position = whole_value(arguments[0])) {
             // `Environ(n)` is the n-th "NAME=value" entry (1-based).
             if (*position < 1) {
-                return raise_runtime(5, "Invalid procedure call or argument",
-                                     offset);
+                static_cast<void>(raise_runtime(
+                    5, "Invalid procedure call or argument", offset));
+                return std::nullopt;
             }
             std::string entry;
 #ifdef _WIN32
@@ -1346,6 +1493,11 @@ std::optional<Value> Interpreter::evaluate_file_function(
         if (!execute_) {
             return Value{std::string{}};
         }
+        if (count == 0U && !dir_active_) {
+            static_cast<void>(
+                raise_runtime(5, "Invalid procedure call or argument", offset));
+            return std::nullopt;
+        }
         if (count >= 1U) {
             const auto* pattern = std::get_if<std::string>(&arguments[0]);
             if (pattern == nullptr) {
@@ -1354,6 +1506,7 @@ std::optional<Value> Interpreter::evaluate_file_function(
             }
             dir_matches_.clear();
             dir_index_ = 0;
+            dir_active_ = true;
             std::error_code ec;
             std::filesystem::path full(*pattern);
             const auto directory = full.has_parent_path()
@@ -1396,6 +1549,7 @@ std::optional<Value> Interpreter::evaluate_file_function(
         if (dir_index_ < dir_matches_.size()) {
             return Value{dir_matches_[dir_index_++]};
         }
+        dir_active_ = false;
         return Value{std::string{}};
     }
     if (name == "input" || name == "input$" || name == "inputb" ||

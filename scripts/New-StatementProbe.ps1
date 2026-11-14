@@ -148,6 +148,28 @@ Public Function Twice(ByVal x As Long) As Long
     Twice = x * 2
 End Function
 
+Public Function Pth(ByVal name As String) As String
+    Pth = App.Path & "\" & name
+End Function
+
+Public Sub Rm(ByVal name As String)
+    On Error Resume Next
+    SetAttr Pth(name), vbNormal
+    Kill Pth(name)
+    Err.Clear
+End Sub
+
+Public Function Slurp(ByVal name As String) As String
+    Dim f As Integer
+    Dim s As String
+    f = FreeFile
+    Open Pth(name) For Binary As #f
+    s = Space$(LOF(f))
+    If LOF(f) > 0 Then Get #f, , s
+    Close #f
+    Slurp = s
+End Function
+
 Public Sub Swapper(ByRef p As Props)
     Set p = New Props
     p.Value = 99

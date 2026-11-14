@@ -791,7 +791,7 @@ End Property
 Public Property Get PrevInstance() As Boolean
 PrevInstance = False
 End Property
-Public Property Get Major() As Long
+Public Property Get Major() As Integer
 Major = 1
 End Property
 Public Property Get Minor() As Long

@@ -1211,6 +1211,10 @@ std::string NativeEngine::print_text(const Value& value) {
         return (digits.empty() || digits.front() != '-' ? " " : "") + digits +
                " ";
     }
+    if (std::holds_alternative<DateValue>(value)) {
+        return NativeSupport::render(value) +
+               " ";  // a Date is followed by a blank
+    }
     return NativeSupport::render(value);
 }
 
