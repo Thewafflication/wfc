@@ -301,6 +301,14 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         if (!execute_) {
             return true;
         }
+        if (const auto* record = std::get_if<ObjectInstance>(&*value);
+            record != nullptr &&
+            std::holds_alternative<ObjectInstance>(*variable.value) &&
+            is_udt_class(record->data->class_name)) {
+            // LSet of one record to another: the fields are copied.
+            *variable.value = Value{ObjectInstance{clone_udt(*record->data)}};
+            return true;
+        }
         auto* const target = std::get_if<std::string>(variable.value);
         const auto* text = std::get_if<std::string>(&*value);
         if (target == nullptr || text == nullptr) {
@@ -3248,9 +3256,10 @@ std::optional<bool> Interpreter::parse_bare_call(
             !bare_statement_end && current() == '.' &&
             offset_ != saved_offset && !with_names_.empty() &&
             procedures_.contains(identifier);
-        const bool arguments_follow =
-            !bare_statement_end && current() != '=' && current() != '(' &&
-            (current() != '.' || with_member_argument);
+        bool arguments_follow = !bare_statement_end && current() != '=' &&
+                                current() != '(' &&
+                                (current() != '.' || with_member_argument);
+        const bool opens_group = !bare_statement_end && current() == '(';
         // `Name (arg)` / `Name(a, b)` as a statement: a parenthesized
         // list ending the statement. One argument is passed by value
         // (VB evaluates `(x)` as an expression); several are an
@@ -3266,6 +3275,12 @@ std::optional<bool> Interpreter::parse_bare_call(
             parenthesized_list = group.is_list;
         }
         offset_ = saved_offset;
+        // `Name (a) + 1`: the group is the start of the argument, not the whole
+        // of it.
+        if (opens_group && !parenthesized_call &&
+            procedures_.contains(identifier)) {
+            arguments_follow = true;
+        }
         if (parenthesized_call) {
             bare_call_arguments_ = !parenthesized_list;
             std::optional<Value> result;

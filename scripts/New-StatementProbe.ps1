@@ -58,6 +58,34 @@ foreach ($line in (Get-Content -LiteralPath $snippetFile)) {
     }
 }
 
+# The classes and modules of the snippets: "## class Name" or "## module Name".
+$extraFile = Join-Path (Split-Path -Parent $snippetFile) 'classes.txt'
+$extras = New-Object System.Collections.Generic.List[object]
+if (Test-Path $extraFile) {
+    $currentExtra = $null
+    foreach ($line in (Get-Content -LiteralPath $extraFile)) {
+        if ($line -match '^## (class|module) (\w+)$') {
+            $currentExtra = @{ Kind = $Matches[1]; Name = $Matches[2]
+                Lines = New-Object System.Collections.Generic.List[string] }
+            $extras.Add($currentExtra)
+        } elseif ($null -ne $currentExtra -and -not $line.StartsWith('#')) {
+            $currentExtra.Lines.Add($line)
+        }
+    }
+}
+foreach ($extra in $extras) {
+    $header = @()
+    if ($extra.Kind -eq 'class') {
+        $header = @('VERSION 1.0 CLASS', 'BEGIN',
+            "  MultiUse = -1  'True", 'END')
+    }
+    $header += "Attribute VB_Name = `"$($extra.Name)`""
+    $extension = if ($extra.Kind -eq 'class') { 'cls' } else { 'bas' }
+    $path = Join-Path $Output "$($extra.Name).$extension"
+    [System.IO.File]::WriteAllText($path,
+        (($header + $extra.Lines.ToArray()) -join $crlf) + $crlf, $ascii)
+}
+
 $helpers = @'
 Attribute VB_Name = "Helpers"
 Option Explicit
@@ -119,6 +147,11 @@ End Function
 Public Function Twice(ByVal x As Long) As Long
     Twice = x * 2
 End Function
+
+Public Sub Swapper(ByRef p As Props)
+    Set p = New Props
+    p.Value = 99
+End Sub
 
 Public Sub Swap(ByRef a As Variant, ByRef b As Variant)
     Dim t As Variant
@@ -226,8 +259,18 @@ End Sub
 [System.IO.File]::WriteAllText((Join-Path $Output 'Probe.bas'),
     ($main -replace "`r?`n", $crlf) + $crlf, $ascii)
 
-$project = @('Type=Exe', 'Startup="Sub Main"', 'Module=Probe; Probe.bas',
-    'Module=Helpers; Helpers.bas') +
+$extraLines = @()
+foreach ($extra in $extras) {
+    if ($extra.Kind -eq 'class') {
+        $extraLines += "Class=$($extra.Name); $($extra.Name).cls"
+    } else {
+        $extraLines += "Module=$($extra.Name); $($extra.Name).bas"
+    }
+}
+$ole = 'Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#' +
+    '..\..\Windows\SysWOW64\stdole2.tlb#OLE Automation'
+$project = @('Type=Exe', $ole, 'Startup="Sub Main"', 'Module=Probe; Probe.bas',
+    'Module=Helpers; Helpers.bas') + $extraLines +
     ($modules | ForEach-Object { "Module=$_; $_.bas" }) +
     @('Name="StatementProbe"', 'Title="Statement probe"')
 [System.IO.File]::WriteAllText((Join-Path $Output 'StatementProbe.vbp'),

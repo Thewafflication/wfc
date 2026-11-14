@@ -1869,6 +1869,28 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!execute_) {
             return Value{Integer{}};
         }
+        if (const auto* object = std::get_if<ObjectInstance>(&arguments[0])) {
+            const auto found =
+                class_definitions_.find(object->data->class_name);
+            bool needs_arguments = true;
+            if (found != class_definitions_.end() &&
+                !found->second.default_member.empty()) {
+                needs_arguments = false;
+                const auto method =
+                    found->second.methods.find(found->second.default_member);
+                if (method != found->second.methods.end()) {
+                    for (const auto& parameter : method->second.parameters) {
+                        if (!parameter.is_optional) {
+                            needs_arguments = true;
+                        }
+                    }
+                }
+            }
+            if (!needs_arguments &&
+                !resolve_default_value(arguments[0], identifier_offset)) {
+                return std::nullopt;
+            }
+        }
         if (std::holds_alternative<Integer>(arguments[0])) {
             return Value{Integer{3}};
         }
@@ -3013,7 +3035,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         !std::holds_alternative<std::string>(arguments[0])) {
         if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
             if (is_udt_class(instance->data->class_name)) {
-                return Value{static_cast<Integer>(udt_byte_size(arguments[0]))};
+                const std::size_t size = udt_byte_size(arguments[0]);
+                if (size <= 32767U) {
+                    return Value{static_cast<Int16>(size)};
+                }
+                return Value{static_cast<Integer>(size)};
             }
         }
         if (is_number(arguments[0]) ||

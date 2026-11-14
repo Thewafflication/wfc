@@ -1104,6 +1104,9 @@ Integer Interpreter::runtime_error_number() const {
         code == "WFC0021" || code == "WFC0099") {
         return 13;  // Type mismatch
     }
+    if (code == "WFC0142") {
+        return 438;  // Object doesn't support this property or method
+    }
     if (code == "WFC0136" || code == "WFC0107") {
         return 424;  // Object required
     }

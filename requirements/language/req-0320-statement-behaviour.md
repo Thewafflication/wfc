@@ -15,8 +15,8 @@ does, measured with `evidence/reference/statement-probe`.
 
 Small programs (the snippets of `evidence/reference/statement-probe/snippets.txt`:
 Collection and Dictionary, the Err object and error handling, loops and
-branches, procedures, variables and literals, arrays, strings, dates, Rnd and
-files) shall do what they do under Visual Basic 6.00.8176. 316 snippets were
+branches, procedures, variables and literals, arrays, strings, dates, Rnd,
+files, and classes with events, interfaces, enums and user-defined types) shall do what they do under Visual Basic 6.00.8176. 383 snippets were
 run under Visual Basic 6 (the answers are in
 `evidence/reference/statement-probe/vb6-reference.txt`); the rules that came
 out of them:
@@ -44,6 +44,12 @@ out of them:
   `With` passes the member to the procedure `Name`; an object assigned without
   `Set` is error 91; `Open` of an empty name is error 75; `Loc` of a
   sequential file counts blocks of 128 bytes from 1.
+- **Classes and types.** `VarType` of an object whose default property takes
+  no argument is the type of that property's value (a Collection stays 9);
+  calling a private member of an object is error 438; `Name (a) + 1` as a
+  statement passes the whole expression; `Len` of a user-defined type is an
+  Integer and counts a variable-length String as 4 bytes; `LSet` of one
+  record to another copies it.
 - **Conversions.** `CLng`, `CInt` and the others read the number of an error
   value (`CVErr(11)` is 11).
 - **Rnd.** `Rnd(negative)` seeds from the bits of the Single and steps once;

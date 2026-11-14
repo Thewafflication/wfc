@@ -1875,3 +1875,395 @@ Randomize -3.7
 Say CStr(Rnd())
 Randomize 1E10
 Say CStr(Rnd())
+# --- Classes ---
+@@ class init and term
+Dim a As Life
+Set a = New Life
+a.Name = "A"
+Say "made"
+Set a = Nothing
+Say "after"
+@@ class term when reassigned
+Dim a As Life
+Set a = New Life
+a.Name = "1"
+Set a = New Life
+a.Name = "2"
+Say "end"
+@@ class two references
+Dim a As Life
+Dim b As Life
+Set a = New Life
+a.Name = "x"
+Set b = a
+Set a = Nothing
+Say "a gone"
+Set b = Nothing
+Say "b gone"
+@@ class term at procedure end
+Dim a As New Life
+a.Name = "auto"
+a.Hello
+Say "last"
+@@ class new instantiates lazily
+Dim a As New Life
+Say "before use"
+a.Name = "lazy"
+Say "after use"
+@@ class autoinstantiate after nothing
+Dim a As New Life
+a.Name = "one"
+Set a = Nothing
+Say "nothing"
+a.Name = "two"
+Say "again"
+@@ class term order locals
+Dim a As Life
+Dim b As Life
+Set a = New Life
+a.Name = "a"
+Set b = New Life
+b.Name = "b"
+@@ class parent child
+Dim p As Parent
+Set p = New Parent
+Say "made"
+Set p = Nothing
+Say "gone"
+@@ class property default
+Dim p As New Props
+p = 5
+SayV p
+SayV p.Value
+p.Value = 6
+SayV p
+@@ class property let get
+Dim p As New Props
+p.Value = 3
+p.Text = "t"
+SayV p.Value
+SayV p.Text
+SayV p.Twice()
+SayV p.Count
+@@ class property let error
+Dim p As New Props
+p.Value = -1
+@@ class property writeonly get
+Dim p As New Props
+p.WriteOnlyNumber = 4
+SayV p.Value
+@@ class property indexed
+Dim p As New Props
+p.Item(2) = "two"
+SayV p.Item(2)
+SayV "[" & p.Item(1) & "]"
+@@ class property indexed range
+Dim p As New Props
+p.Item(4) = "x"
+@@ class property self chain
+Dim p As New Props
+p.Value = 9
+SayV p.Self.Self.Value
+@@ class property set link
+Dim p As New Props
+Dim q As New Props
+q.Value = 8
+Set p.Link = q
+SayV p.Link.Value
+@@ class property link nothing
+Dim p As New Props
+SayV p.Link Is Nothing
+@@ class property pair
+Dim p As New Props
+Dim v As Variant
+p.Value = 4
+p.Text = "z"
+v = p.Pair
+SayV v(0)
+SayV v(1)
+@@ class private method via public
+Dim p As New Props
+p.CallHidden
+@@ class friend
+Dim p As New Props
+SayV p.FriendOnly()
+@@ class static in method
+Dim p As New Props
+Dim q As New Props
+SayV p.Counter()
+SayV p.Counter()
+SayV q.Counter()
+@@ class optional params
+Dim d As New Defaulted
+d.Name = "n"
+SayV d.Describe
+SayV d.Describe("[", "]")
+SayV d.Describe(, "!")
+SayV d.Describe(suffix:="?")
+@@ class named args
+Dim d As New Defaulted
+d.SetName n:="named"
+SayV d.Name
+@@ class typename
+Dim p As New Props
+Dim o As Object
+Say TypeName(p)
+Say CStr(VarType(p))
+Set o = p
+Say TypeName(o)
+@@ class is operator
+Dim a As New Props
+Dim b As Props
+Dim c As New Props
+Set b = a
+Say CStr(a Is b)
+Say CStr(a Is c)
+@@ class compare with number
+Dim a As New Props
+a.Value = 5
+Say CStr(a = 5)
+Say CStr(a + 1)
+@@ class object in variant
+Dim v As Variant
+Dim p As New Props
+p.Value = 3
+Set v = p
+Say TypeName(v)
+SayV v.Value
+@@ class object in collection
+Dim c As New Collection
+Dim p As New Props
+p.Value = 3
+c.Add p
+c(1).Value = 4
+SayV p.Value
+@@ class object byref
+Dim p As New Props
+p.Value = 1
+Swapper p
+SayV p.Value
+@@ class set nothing then use
+Dim p As Props
+Set p = New Props
+Set p = Nothing
+p.Value = 1
+@@ class unset variable use
+Dim p As Props
+SayV p.Value
+@@ class with block
+Dim p As New Props
+With p
+    .Value = 7
+    .Text = "w"
+    SayV .Value
+    SayV .Twice()
+End With
+@@ class array of objects
+Dim a(1 To 2) As Props
+Set a(1) = New Props
+a(1).Value = 5
+SayV a(1).Value
+SayV a(2) Is Nothing
+@@ class collection class enumeration
+Dim r As New Registry
+Dim v As Variant
+r.Add "a"
+r.Add "b"
+For Each v In r
+    Say CStr(v)
+Next v
+SayV r.Count
+SayV r(2)
+SayV r("a")
+@@ class collection class duplicate
+Dim r As New Registry
+r.Add "a"
+r.Add "a"
+@@ class events
+Dim n As New Notifier
+Dim l As New Listener
+l.Attach n
+n.Value = 5
+n.Finish
+@@ class events detach
+Dim n As New Notifier
+Dim l As New Listener
+l.Attach n
+l.Detach
+n.Value = 5
+Say "quiet"
+@@ class events byref
+Dim n As New Notifier
+Dim l As New Listener
+l.Attach n
+SayV n.Ask()
+@@ class events no listener
+Dim n As New Notifier
+n.Value = 1
+SayV n.Ask()
+@@ class implements
+Dim s As New Square
+Dim i As IShape
+s.Side = 3
+Set i = s
+SayV i.Area()
+SayV i.Name()
+SayV s.Perimeter()
+@@ class implements typename
+Dim s As New Square
+Dim i As IShape
+Set i = s
+Say TypeName(i)
+Say CStr(TypeOf i Is Square)
+Say CStr(TypeOf i Is IShape)
+@@ class typeof
+Dim p As New Props
+Dim o As Object
+Set o = p
+Say CStr(TypeOf o Is Props)
+Say CStr(TypeOf o Is Life)
+@@ class callbyname
+Dim p As New Props
+CallByName p, "Value", VbLet, 12
+SayV CallByName(p, "Value", VbGet)
+SayV CallByName(p, "Twice", VbMethod)
+@@ class callbyname bad
+Dim p As New Props
+SayV CallByName(p, "Nope", VbGet)
+@@ class late bound
+Dim o As Object
+Set o = New Props
+o.Value = 3
+SayV o.Twice()
+SayV o.Nope
+@@ class late bound private
+Dim o As Object
+Set o = New Props
+o.CallHidden
+o.Hidden
+@@ class create object missing
+Dim o As Object
+Set o = CreateObject("Nope.Class")
+@@ class variant object compare
+Dim v As Variant
+Dim w As Variant
+Dim p As New Props
+Set v = p
+Set w = p
+Say CStr(v Is w)
+@@ class isobject
+Dim p As New Props
+Dim v As Variant
+Set v = p
+Say CStr(IsObject(v))
+v = 5
+Say CStr(IsObject(v))
+Say CStr(IsObject(p))
+# --- Enums, types, constants ---
+@@ enum values
+SayV Red
+SayV Green
+SayV Blue
+SayV Teal
+Say TypeName(Red)
+@@ enum variable
+Dim c As Color
+c = Green
+SayV c
+c = 99
+SayV c
+Say ColorName(Blue)
+Say ColorName(5)
+@@ enum flags
+Dim f As Flags
+f = FlagA Or FlagC
+SayV f
+SayV (f And FlagB) <> 0
+SayV (f And FlagC) <> 0
+@@ enum default
+Dim c As Color
+SayV c
+@@ enum arithmetic
+SayV Red + Green
+SayV Blue * 2
+Say TypeName(Red + 1)
+@@ const module
+SayV Answer
+SayV Greeting
+SayV Answer * 2
+Say TypeName(Answer)
+@@ type basic
+Dim p As Pt
+p.X = 3
+p.Y = 4
+SayV p.X + p.Y
+SayV PtSum(p)
+@@ type copy
+Dim a As Pt
+Dim b As Pt
+a.X = 1
+b = a
+a.X = 9
+SayV b.X
+@@ type byref
+Dim p As Pt
+p.X = 1
+PtBump p
+SayV p.X
+@@ type function result
+Dim p As Pt
+p = MakePt(3, 4)
+SayV p.X * 10 + p.Y
+@@ type default values
+Dim p As Pt
+Dim r As Recd
+SayV p.X
+SayV r.Id
+SayV Len(r.Name)
+SayV "[" & r.Note & "]"
+SayV r.Where.X
+SayV r.Tags(1)
+@@ type nested and fixed string
+Dim r As Recd
+r.Name = "abcdefg"
+r.Id = 7
+r.Where.X = 3
+r.Tags(2) = 5
+r.Note = "n"
+SayV r.Name
+SayV r.Where.X + r.Tags(2)
+SayV Len(r)
+@@ type len
+Dim p As Pt
+Dim r As Recd
+SayV Len(p)
+SayV Len(r)
+@@ type array
+Dim a(1 To 2) As Pt
+a(1).X = 1
+a(2).X = 2
+SayV a(1).X + a(2).X
+@@ type redim array
+Dim a() As Pt
+ReDim a(1 To 2)
+a(2).Y = 5
+SayV a(2).Y
+ReDim Preserve a(1 To 3)
+SayV a(2).Y
+@@ type with
+Dim r As Recd
+With r
+    .Id = 3
+    .Where.Y = 4
+    SayV .Id + .Where.Y
+End With
+@@ type lset
+Dim a As Pt
+Dim b As Pt
+a.X = 5
+LSet b = a
+SayV b.X
+@@ global variable
+GlobalCount = 5
+GlobalCount = GlobalCount + 1
+SayV GlobalCount

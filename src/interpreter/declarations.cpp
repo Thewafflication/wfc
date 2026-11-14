@@ -3468,7 +3468,7 @@ std::size_t Interpreter::udt_byte_size(const Value& value) const {
                 total +=
                     instance->data->fields.fixed_string_lengths.contains(name)
                         ? text->size()
-                        : 2U + text->size();
+                        : 4U;
             } else {
                 total += udt_byte_size(field->second);
             }

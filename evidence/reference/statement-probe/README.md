@@ -6,11 +6,12 @@ Small programs were run under Visual Basic 6: each snippet of `snippets.txt`
 is the body of a procedure that reports through `Say` and `SayV` (the type
 and value of a Variant), and the probe records what it said, or the error that
 stopped it (`|err<number>:<description>`; `|propagated...` when an error
-leaves the procedure unhandled). The answers are in `vb6-reference.txt` (316
+leaves the procedure unhandled). The answers are in `vb6-reference.txt` (383
 lines); the rules that came out of them are REQ-0320.
 
 `scripts/New-StatementProbe.ps1` writes the project into this folder from
-`snippets.txt` (the generated files are not committed). To add a snippet, add
+`snippets.txt` and `classes.txt` (classes with properties, events and an
+interface, an enum, user-defined types; the generated files are not committed). To add a snippet, add
 a `@@ name` block to `snippets.txt`, generate, compile the project with
 `VB6.EXE /make` (no elevation: see `../argument-probe`), run
 `StatementProbe.exe` from its folder and copy `statement-probe.txt` to

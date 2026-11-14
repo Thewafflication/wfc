@@ -1,0 +1,287 @@
+# The classes and modules of the statement probe. "## class Name" or
+# "## module Name" starts one; the VB_Name header is added.
+## module Defs
+Option Explicit
+
+Public Enum Color
+    Red = 1
+    Green
+    Blue = 10
+    Teal
+End Enum
+
+Public Enum Flags
+    FlagA = 1
+    FlagB = 2
+    FlagC = 4
+End Enum
+
+Public Type Pt
+    X As Long
+    Y As Long
+End Type
+
+Public Type Recd
+    Name As String * 4
+    Id As Integer
+    Where As Pt
+    Tags(1 To 2) As Long
+    Note As String
+End Type
+
+Public Const Answer As Long = 42
+Public Const Greeting As String = "hi"
+Public GlobalCount As Long
+
+Public Function PtSum(ByRef p As Pt) As Long
+    PtSum = p.X + p.Y
+End Function
+
+Public Sub PtBump(ByRef p As Pt)
+    p.X = p.X + 1
+End Sub
+
+Public Sub PtBumpVal(ByVal n As Long)
+    n = n + 1
+End Sub
+
+Public Function MakePt(ByVal x As Long, ByVal y As Long) As Pt
+    MakePt.X = x
+    MakePt.Y = y
+End Function
+
+Public Function ColorName(ByVal c As Color) As String
+    Select Case c
+        Case Red: ColorName = "red"
+        Case Green: ColorName = "green"
+        Case Blue: ColorName = "blue"
+        Case Else: ColorName = "other" & c
+    End Select
+End Function
+## class Life
+Option Explicit
+
+Public Name As String
+
+Private Sub Class_Initialize()
+    Say "init"
+End Sub
+
+Private Sub Class_Terminate()
+    Say "term" & Name
+End Sub
+
+Public Sub Hello()
+    Say "hello" & Name
+End Sub
+## class Props
+Option Explicit
+
+Private mValue As Long
+Private mText As String
+Private mItems(1 To 3) As String
+Private mLink As Object
+Public Count As Long
+
+Public Property Get Value() As Long
+Attribute Value.VB_UserMemId = 0
+    Value = mValue
+End Property
+
+Public Property Let Value(ByVal v As Long)
+    If v < 0 Then Err.Raise 380, "Props", "negative"
+    mValue = v
+    Count = Count + 1
+End Property
+
+Public Property Get Text() As String
+    Text = mText
+End Property
+
+Public Property Let Text(ByVal s As String)
+    mText = s
+End Property
+
+Public Property Get ReadOnlyNumber() As Long
+    ReadOnlyNumber = 7
+End Property
+
+Public Property Let WriteOnlyNumber(ByVal v As Long)
+    mValue = v * 2
+End Property
+
+Public Property Get Item(ByVal i As Long) As String
+    Item = mItems(i)
+End Property
+
+Public Property Let Item(ByVal i As Long, ByVal s As String)
+    mItems(i) = s
+End Property
+
+Public Property Get Self() As Props
+    Set Self = Me
+End Property
+
+Public Property Set Link(ByVal o As Object)
+    Set mLink = o
+End Property
+
+Public Property Get Link() As Object
+    Set Link = mLink
+End Property
+
+Public Function Twice() As Long
+    Twice = mValue * 2
+End Function
+
+Public Sub Reset()
+    mValue = 0
+End Sub
+
+Private Sub Hidden()
+    Say "hidden"
+End Sub
+
+Public Sub CallHidden()
+    Hidden
+End Sub
+
+Friend Function FriendOnly() As Long
+    FriendOnly = 99
+End Function
+
+Public Function Counter() As Long
+    Static n As Long
+    n = n + 1
+    Counter = n
+End Function
+
+Public Property Get Pair() As Variant
+    Pair = Array(mValue, mText)
+End Property
+## class Notifier
+Option Explicit
+
+Public Event Changed(ByVal newValue As Long)
+Public Event Done()
+Public Event Asked(ByRef answer As Long)
+
+Private mValue As Long
+
+Public Property Let Value(ByVal v As Long)
+    mValue = v
+    RaiseEvent Changed(v)
+End Property
+
+Public Property Get Value() As Long
+    Value = mValue
+End Property
+
+Public Sub Finish()
+    RaiseEvent Done
+End Sub
+
+Public Function Ask() As Long
+    Dim a As Long
+    a = -1
+    RaiseEvent Asked(a)
+    Ask = a
+End Function
+## class Listener
+Option Explicit
+
+Private WithEvents src As Notifier
+Public Log As String
+
+Public Sub Attach(ByVal n As Notifier)
+    Set src = n
+End Sub
+
+Public Sub Detach()
+    Set src = Nothing
+End Sub
+
+Private Sub src_Changed(ByVal newValue As Long)
+    Say "changed " & newValue
+End Sub
+
+Private Sub src_Done()
+    Say "done"
+End Sub
+
+Private Sub src_Asked(answer As Long)
+    answer = 42
+End Sub
+## class IShape
+Option Explicit
+
+Public Function Area() As Long
+End Function
+
+Public Function Name() As String
+End Function
+## class Square
+Option Explicit
+Implements IShape
+
+Public Side As Long
+
+Private Function IShape_Area() As Long
+    IShape_Area = Side * Side
+End Function
+
+Private Function IShape_Name() As String
+    IShape_Name = "square"
+End Function
+
+Public Function Perimeter() As Long
+    Perimeter = Side * 4
+End Function
+## class Parent
+Option Explicit
+
+Public Kid As Life
+
+Private Sub Class_Initialize()
+    Set Kid = New Life
+    Kid.Name = "kid"
+End Sub
+
+Private Sub Class_Terminate()
+    Say "parent term"
+End Sub
+## class Registry
+Option Explicit
+
+Private mItems As New Collection
+
+Public Sub Add(ByVal s As String)
+    mItems.Add s, s
+End Sub
+
+Public Property Get Count() As Long
+    Count = mItems.Count
+End Property
+
+Public Function Item(ByVal i As Variant) As String
+Attribute Item.VB_UserMemId = 0
+    Item = mItems(i)
+End Function
+
+Public Function NewEnum() As IUnknown
+Attribute NewEnum.VB_UserMemId = -4
+    Set NewEnum = mItems.[_NewEnum]
+End Function
+## class Defaulted
+Option Explicit
+
+Public Name As String
+
+Public Function Describe(Optional ByVal prefix As String = "<", _
+                         Optional ByVal suffix As String = ">") As String
+    Describe = prefix & Name & suffix
+End Function
+
+Public Sub SetName(ByVal n As String)
+    Name = n
+End Sub
