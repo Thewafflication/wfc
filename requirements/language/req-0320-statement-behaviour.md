@@ -57,6 +57,12 @@ out of them:
   lowest byte (the algorithm of MSVBVM60, as `rtcRandomNext` has it), so a
   program that calls `Randomize` with the same number twice may not repeat its
   numbers.
+- **Errors in loop headers.** Under `On Error Resume Next` an error in the
+  condition of `While`, `Do While` or `Do Until` enters the loop; one in the
+  condition after `Loop` ends it; one in a bound of `For` runs the body once
+  with the counter unchanged.
+- **Recursion.** A procedure may call itself 100,000 levels deep (the stack of
+  compiled programs and of the interpreter is sized for it).
 
 ## Verification
 

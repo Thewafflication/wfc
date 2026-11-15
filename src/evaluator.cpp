@@ -660,9 +660,10 @@ namespace {
 // reserved (not committed) stack. `depth_limit` is the procedure nesting the
 // stack is sized for; 0 means the thread could not be created and the work
 // ran inline.
-constexpr std::size_t kLargeStackBytes =
-    sizeof(void*) >= 8U ? (std::size_t{512} << 20U) : (std::size_t{160} << 20U);
-constexpr std::size_t kLargeStackDepth = sizeof(void*) >= 8U ? 5000U : 1500U;
+constexpr std::size_t kLargeStackBytes = sizeof(void*) >= 8U
+                                             ? (std::size_t{8192} << 20U)
+                                             : (std::size_t{160} << 20U);
+constexpr std::size_t kLargeStackDepth = sizeof(void*) >= 8U ? 125000U : 1500U;
 
 struct LargeStackTask {
     std::function<void()> work;

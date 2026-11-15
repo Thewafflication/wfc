@@ -2246,12 +2246,19 @@ bool Interpreter::parse_do_statement() {
     skip_horizontal_whitespace();
     const auto condition_offset = offset_;
     auto condition = parse_expression();
+    bool condition_failed = false;
     if (!condition.has_value()) {
-        return false;
+        // an error in the condition under Resume Next enters the loop
+        if (!execute_ || !recover_runtime_error(condition_offset)) {
+            return false;
+        }
+        condition_failed = true;
     }
     const auto boolean =
-        coerce_condition_boolean(*condition, condition_offset, "WFC0035",
-                                 "Do condition must be Boolean");
+        condition_failed
+            ? std::optional<bool>{until ? false : true}
+            : coerce_condition_boolean(*condition, condition_offset, "WFC0035",
+                                       "Do condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
@@ -2297,13 +2304,19 @@ bool Interpreter::parse_do_statement() {
         offset_ = condition_offset;
         execute_ = enclosing_execution;
         auto next_condition = parse_expression();
+        bool next_failed = false;
         if (!next_condition.has_value()) {
-            execute_ = enclosing_execution;
-            return false;
+            if (!recover_runtime_error(condition_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            next_failed = true;
         }
         const auto next_boolean =
-            coerce_condition_boolean(*next_condition, condition_offset,
-                                     "WFC0035", "Do condition must be Boolean");
+            next_failed ? std::optional<bool>{until ? false : true}
+                        : coerce_condition_boolean(
+                              *next_condition, condition_offset, "WFC0035",
+                              "Do condition must be Boolean");
         if (!next_boolean.has_value()) {
             execute_ = enclosing_execution;
             return false;
@@ -2495,31 +2508,65 @@ bool Interpreter::parse_for_statement() {
         return false;
     }
     skip_horizontal_whitespace();
-    auto start_value = parse_expression();
-    if (!start_value.has_value()) {
-        return false;
-    }
-    skip_horizontal_whitespace();
-    if (!consume_keyword("to")) {
-        set_error("WFC0044", "expected To", offset_);
-        return false;
-    }
-    skip_horizontal_whitespace();
-    auto end_value = parse_expression();
-    if (!end_value.has_value()) {
-        return false;
-    }
+    std::optional<Value> start_value;
+    std::optional<Value> end_value;
     Value step_value{Integer{1}};
     bool explicit_step = false;
-    skip_horizontal_whitespace();
-    if (consume_keyword("step")) {
-        explicit_step = true;
+    bool header_ok = false;
+    do {
+        start_value = parse_expression();
+        if (!start_value.has_value()) {
+            break;
+        }
         skip_horizontal_whitespace();
-        auto parsed_step = parse_expression();
-        if (!parsed_step.has_value()) {
+        if (!consume_keyword("to")) {
+            set_error("WFC0044", "expected To", offset_);
+            break;
+        }
+        skip_horizontal_whitespace();
+        end_value = parse_expression();
+        if (!end_value.has_value()) {
+            break;
+        }
+        skip_horizontal_whitespace();
+        if (consume_keyword("step")) {
+            explicit_step = true;
+            skip_horizontal_whitespace();
+            auto parsed_step = parse_expression();
+            if (!parsed_step.has_value()) {
+                break;
+            }
+            step_value = std::move(*parsed_step);
+        }
+        header_ok = true;
+    } while (false);
+    if (!header_ok) {
+        // An error in a bound under On Error Resume Next runs the body once
+        // and leaves the counter as it was, as Visual Basic does.
+        if (!execute_ || !recover_runtime_error(variable_offset)) {
             return false;
         }
-        step_value = std::move(*parsed_step);
+        if (!consume_loop_header_end()) {
+            return false;
+        }
+        std::size_t continuation_offset{};
+        ++for_depth_;
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
+        --for_depth_;
+        if (!parsed_body) {
+            execute_ = true;
+            return false;
+        }
+        execute_ = true;
+        if (exit_for_requested_) {
+            exit_for_requested_ = false;
+        } else if (exit_do_requested_ || exit_sub_requested_ ||
+                   exit_function_requested_) {
+            execute_ = false;
+        }
+        offset_ = continuation_offset;
+        return true;
     }
     const auto numeric = [this](const Value& value) -> std::optional<double> {
         if (const auto* v = std::get_if<Integer>(&value)) {

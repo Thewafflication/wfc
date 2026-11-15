@@ -172,6 +172,17 @@ add_executable(
 )
 target_compile_features(wfc PRIVATE cxx_std_20)
 target_link_libraries(wfc PRIVATE wfc_frontend)
+if(MSVC)
+  # Compiled programs run on the main thread: a deep recursion (Visual Basic
+  # allows about 125,000 levels) needs more than the default 1 MB of stack.
+  # It only reserves address space until it is used.
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(WFC_MAIN_STACK 25165824)
+  else()
+    set(WFC_MAIN_STACK 12582912)
+  endif()
+  target_link_options(wfc PRIVATE "/STACK:${WFC_MAIN_STACK}")
+endif()
 wfc_enable_strict_warnings(wfc)
 wsp_enable_hardening(wfc)
 target_compile_definitions(
@@ -211,6 +222,9 @@ if(WIN32)
   add_executable(wfcl src/launcher.cpp "${CMAKE_CURRENT_BINARY_DIR}/wfcl.rc")
   target_compile_features(wfcl PRIVATE cxx_std_20)
   target_include_directories(wfcl PRIVATE include)
+  if(MSVC)
+    target_link_options(wfcl PRIVATE "/STACK:${WFC_MAIN_STACK}")
+  endif()
   add_dependencies(wfcl wfc_runtime)
   wfc_enable_strict_warnings(wfcl)
   wsp_enable_hardening(wfcl)
@@ -2646,6 +2660,12 @@ Print v.x & q.x]=]
         PROPERTIES LABELS "integration;mp-0009;native" TIMEOUT 60
       )
     endforeach()
+    # The interpreter of a debug build uses gigabytes of stack to run into
+    # the recursion limit.
+    set_tests_properties(
+      TC-MP0009-native-27-recursion-limit
+      PROPERTIES TIMEOUT 600
+    )
     # A project (a directory with a .vbp, modules and classes) is compared the
     # same way.
     file(

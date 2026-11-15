@@ -21,7 +21,7 @@ struct Launch {
 };
 
 #if defined(_WIN32) && !defined(__WINE__)
-unsigned __stdcall thread_main(void* raw) {
+DWORD WINAPI thread_main(void* raw) {
     const auto* launch = static_cast<const Launch*>(raw);
     launch->entry(launch->argument);
     return 0;
@@ -46,9 +46,10 @@ bool run_on_thread_with_stack(void (*entry)(void*), void* argument,
                               const std::size_t stack_bytes) {
     Launch launch{entry, argument};
 #if defined(_WIN32) && !defined(__WINE__)
-    const auto handle = reinterpret_cast<HANDLE>(
-        _beginthreadex(nullptr, static_cast<unsigned>(stack_bytes), thread_main,
-                       &launch, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
+    // CreateThread, not _beginthreadex: the stack size may be 4 GB or more.
+    const HANDLE handle =
+        CreateThread(nullptr, stack_bytes, thread_main, &launch,
+                     STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
     if (handle == nullptr) {
         return false;
     }

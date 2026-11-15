@@ -3278,3 +3278,41 @@ ElseIf 1 / n > 1 Then
 Else
     Say "c"
 End If
+@@ flow error in do while condition
+Dim n As Long
+Dim k As Long
+On Error Resume Next
+Do While 1 / n > 1
+    k = k + 1
+    If k > 2 Then Exit Do
+Loop
+Say CStr(k)
+@@ flow error in do until pretest condition
+Dim n As Long
+Dim k As Long
+On Error Resume Next
+Do Until 1 / n > 1
+    k = k + 1
+    If k > 2 Then Exit Do
+Loop
+Say CStr(k)
+@@ flow error in loop while condition
+Dim n As Long
+Dim k As Long
+On Error Resume Next
+Do
+    k = k + 1
+    If k > 5 Then Exit Do
+Loop While 1 / n > 1
+Say CStr(k)
+@@ flow error in for bound
+Dim i As Long
+Dim n As Long
+On Error Resume Next
+For i = 1 To 10 \ n
+    Say CStr(i)
+    Exit For
+Next i
+Say "end"
+@@ flow deep recursion
+SayV Recurse(100000)
