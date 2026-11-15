@@ -513,3 +513,7 @@ err object vartype = 3;
 err object in variant = ErrObject;0;
 err object as object = ErrObject;False;
 err object default value = |err5:Invalid procedure call or argument
+strconv round trip = hello;
+strconv to byte array = 1;65,66;
+strconv unicode of bytes = Hi!;
+strconv from unicode accented = 2;233;

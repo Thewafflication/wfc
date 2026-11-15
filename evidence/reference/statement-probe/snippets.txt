@@ -3333,3 +3333,20 @@ Say CStr(o Is Nothing)
 @@ err object default value
 Err.Raise 5
 Say "x"
+@@ strconv round trip
+Say StrConv(StrConv("hello", vbFromUnicode), vbUnicode)
+@@ strconv to byte array
+Dim b() As Byte
+b = StrConv("AB", vbFromUnicode)
+Say CStr(UBound(b))
+Say CStr(b(0)) & "," & CStr(b(1))
+@@ strconv unicode of bytes
+Dim b() As Byte
+ReDim b(0 To 2)
+b(0) = 72: b(1) = 105: b(2) = 33
+Say StrConv(b, vbUnicode)
+@@ strconv from unicode accented
+Dim s As String
+s = StrConv(ChrW(233) & "x", vbFromUnicode)
+Say CStr(LenB(s))
+Say CStr(AscB(MidB(s, 1, 1)))

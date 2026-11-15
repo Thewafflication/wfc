@@ -6,7 +6,7 @@ Small programs were run under Visual Basic 6: each snippet of `snippets.txt`
 is the body of a procedure that reports through `Say` and `SayV` (the type
 and value of a Variant), and the probe records what it said, or the error that
 stopped it (`|err<number>:<description>`; `|propagated...` when an error
-leaves the procedure unhandled). The answers are in `vb6-reference.txt` (515
+leaves the procedure unhandled). The answers are in `vb6-reference.txt` (519
 lines); the rules that came out of them are REQ-0320.
 
 `scripts/New-StatementProbe.ps1` writes the project into this folder from
@@ -18,7 +18,8 @@ a `@@ name` block to `snippets.txt`, generate, compile the project with
 `vb6-reference.txt`. VB6 refuses some programs at compile time (a label named
 `Fix`, an Integer passed by reference to a Long), so those cannot be probed.
 
-Not covered yet: `5 Mod 0` as a
+Not covered yet: a String of an odd number of bytes (`StrConv(s, vbFromUnicode)` is a
+Byte array in WFC: its `Len` rounds up and a Variant holds a Byte array), `5 Mod 0` as a
 constant expression (Visual Basic does not stop), the entries of `Option Base`
 and `Option Compare` modules.
 
