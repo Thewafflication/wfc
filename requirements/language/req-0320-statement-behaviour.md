@@ -61,6 +61,8 @@ out of them:
   condition of `While`, `Do While` or `Do Until` enters the loop; one in the
   condition after `Loop` ends it; one in a bound of `For` runs the body once
   with the counter unchanged.
+- **The Err object.** `Err` as a value (`Set e = Err`, `TypeName(Err)`) is an
+  `ErrObject` whose default property is `Number` (`VarType(Err)` is 3).
 - **Recursion.** A procedure may call itself 100,000 levels deep (the stack of
   compiled programs and of the interpreter is sized for it).
 

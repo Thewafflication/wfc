@@ -13,6 +13,38 @@ namespace wfc::detail {
 // REQ-0243: the built-in `Collection`, written in the evaluator's own VB
 // dialect and registered on demand; its storage is the native `WfcStore`.
 
+// `Err` used as a value (`Set e = Err`, `TypeName(Err)`): the members read
+// the one error state.
+inline constexpr std::string_view kErrObjectSource =
+    R"VB(Public Property Get Number() As Long
+Attribute Number.VB_UserMemId = 0
+Number = Err.Number
+End Property
+Public Property Get Description() As String
+Description = Err.Description
+End Property
+Public Property Get Source() As String
+Source = Err.Source
+End Property
+Public Property Get HelpFile() As String
+HelpFile = Err.HelpFile
+End Property
+Public Property Get HelpContext() As Long
+HelpContext = Err.HelpContext
+End Property
+Public Property Get LastDllError() As Long
+LastDllError = Err.LastDllError
+End Property
+Public Sub Clear()
+Err.Clear
+End Sub
+Public Sub Raise(ByVal Number As Long, Optional Source As Variant,)VB"
+    R"VB( Optional Description As Variant, Optional HelpFile As Variant,)VB"
+    R"VB( Optional HelpContext As Variant)
+Err.Raise Number, Source, Description, HelpFile, HelpContext
+End Sub
+)VB";
+
 inline constexpr std::string_view kCollectionSource =
     R"VB(Private Sub Class_Initialize()
 Dim r As Long

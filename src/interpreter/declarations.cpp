@@ -1434,6 +1434,35 @@ void Interpreter::scan_builtin_classes() {
         }
         return false;
     };
+    // `Err` on its own (not `Err.Number`) is the Err object as a value.
+    const auto mentions_bare_err = [](const std::string_view text) {
+        for (std::size_t i = 0; i + 3U <= text.size(); ++i) {
+            if (ascii_lower(text[i]) != 'e' ||
+                ascii_lower(text[i + 1U]) != 'r' ||
+                ascii_lower(text[i + 2U]) != 'r' ||
+                (i > 0 &&
+                 (is_identifier_part(text[i - 1U]) || text[i - 1U] == '.')) ||
+                (i + 3U < text.size() && is_identifier_part(text[i + 3U]))) {
+                continue;
+            }
+            std::size_t k = i + 3U;
+            while (k < text.size() && (text[k] == ' ' || text[k] == '	')) {
+                ++k;
+            }
+            if (k >= text.size() || text[k] != '.') {
+                return true;
+            }
+        }
+        return false;
+    };
+    bool bare_err =
+        mentions_bare_err(source_) || mentions_bare_err(native_scan_text_);
+    for (const auto& module : class_sources_) {
+        bare_err = bare_err || mentions_bare_err(module.source);
+    }
+    if (bare_err && !user_defines("errobject")) {
+        class_sources_.push_back({"ErrObject", kErrObjectSource});
+    }
     // Each built-in is registered under an internal `Wfc` name (what
     // CreateObject builds) and, unless the program defines its own class of
     // that name, the public type name too

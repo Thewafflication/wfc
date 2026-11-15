@@ -1360,6 +1360,12 @@ std::optional<Value> Interpreter::parse_primary_base() {
                 return std::nullopt;
             }
             offset_ = err_start;
+            if (!with_err_member && find_variable_raw("err").value == nullptr &&
+                class_definitions_.contains("errobject")) {
+                // `Err` as a value: the Err object.
+                static_cast<void>(consume_keyword("err"));
+                return instantiate_class("errobject", err_start);
+            }
         }
     }
     if (consume_keyword("new")) {

@@ -3316,3 +3316,20 @@ Next i
 Say "end"
 @@ flow deep recursion
 SayV Recurse(100000)
+@@ err object typename
+Say TypeName(Err)
+@@ err object vartype
+Say CStr(VarType(Err))
+@@ err object in variant
+Dim v As Variant
+Set v = Err
+Say TypeName(v)
+Say CStr(v.Number)
+@@ err object as object
+Dim o As Object
+Set o = Err
+Say TypeName(o)
+Say CStr(o Is Nothing)
+@@ err object default value
+Err.Raise 5
+Say "x"
