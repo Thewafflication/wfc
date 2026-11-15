@@ -179,7 +179,7 @@ if(MSVC)
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(WFC_MAIN_STACK 25165824)
   else()
-    set(WFC_MAIN_STACK 16777216)
+    set(WFC_MAIN_STACK 33554432)
   endif()
   target_link_options(wfc PRIVATE "/STACK:${WFC_MAIN_STACK}")
 endif()
@@ -2938,7 +2938,7 @@ Print v.x & q.x]=]
         if(EXISTS "${probe_folder}/known-differences.txt")
           set(probe_known "-DKNOWN=${probe_folder}/known-differences.txt")
         endif()
-        # A 32-bit process has no room for the stack of a 100,000-deep
+        # A 32-bit process has no room for the stack of a deep
         # recursion in the interpreter.
         if(
           CMAKE_SIZEOF_VOID_P EQUAL 4
@@ -3074,6 +3074,13 @@ Print v.x & q.x]=]
   set(cli_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
   add_cli_test(help "--help" 0 "-DOUT_MATCHES=usage:.*wfc build")
   add_cli_test(command-help "help;build" 0 "-DOUT_MATCHES=--link")
+  # Visual Basic recurses 100,000 levels deep; compiled code does too.
+  add_cli_test(
+    deep-recursion
+    "--native;${cli_fixtures}/cli/Deep100k.bas"
+    0
+    "-DOUT_MATCHES=100000"
+  )
   add_cli_test(
     unknown-option
     "--natve;${cli_fixtures}/cli/Bad.bas"

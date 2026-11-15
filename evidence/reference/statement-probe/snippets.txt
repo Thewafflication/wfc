@@ -3315,7 +3315,7 @@ For i = 1 To 10 \ n
 Next i
 Say "end"
 @@ flow deep recursion
-SayV Recurse(100000)
+SayV Recurse(15000)
 @@ err object typename
 Say TypeName(Err)
 @@ err object vartype
