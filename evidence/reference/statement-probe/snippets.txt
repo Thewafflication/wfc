@@ -3117,3 +3117,164 @@ SayV GetModuleHandleA("kernel32") <> 0
 Dim h As Long
 h = GetModuleHandleA("nosuchmodule_wfc")
 SayV Err.LastDllError
+@@ flow inner handler
+SayV Inner(0)
+SayV Inner(5)
+@@ flow resume next in function
+SayV Outer(0)
+@@ flow rethrow
+SayV Rethrow()
+@@ flow rethrow caught
+On Error Resume Next
+SayV Rethrow()
+Say CStr(Err.Number) & Err.Source & Err.Description
+@@ flow cleanup on error
+Say WithCleanup(False)
+Say WithCleanup(True)
+@@ flow cleanup caught
+On Error Resume Next
+Say WithCleanup(True)
+Say "after"
+@@ flow recursion
+SayV Recurse(100)
+@@ flow recursion 1000
+SayV Recurse(1000)
+@@ flow byref dynamic array
+Dim a() As Long
+ReDim a(2)
+SayV ByRefArray(a)
+SayV UBound(a)
+@@ flow paramarray types
+Say Variadic(1, "a", 2.5, Null, Empty, True)
+Say Variadic()
+@@ flow optional typed
+Say OptTyped()
+Say OptTyped(1, "x", 3)
+Say OptTyped(, "y")
+@@ flow default returns
+SayV DefaultRet()
+SayV VarRet()
+SayV StrRet()
+Say TypeName(VarRet())
+Say CStr(ObjRet() Is Nothing)
+@@ flow function name as variable
+Dim x As Long
+x = DefaultRet
+SayV x
+@@ flow call keyword
+Call Say("called")
+Call ByRefInc(GlobalCount)
+SayV GlobalCount
+@@ flow exit sub in loop
+Dim i As Long
+For i = 1 To 5
+    If i = 3 Then Exit Sub
+    Say CStr(i)
+Next i
+@@ flow goto into loop label
+Dim i As Long
+i = 0
+top:
+i = i + 1
+If i < 3 Then GoTo top
+SayV i
+@@ flow select case error in expression
+Dim n As Long
+n = 0
+Select Case 1 / n
+    Case 1
+        Say "one"
+End Select
+@@ flow on error in loop resume next
+Dim i As Long
+Dim t As Long
+On Error Resume Next
+For i = 0 To 2
+    t = t + 10 \ i
+Next i
+SayV t
+SayV i
+@@ flow error in for each
+Dim v As Variant
+On Error Resume Next
+For Each v In Array(1, 0, 2)
+    Say CStr(10 \ v)
+Next v
+@@ flow error in condition
+Dim n As Long
+On Error Resume Next
+If 1 / n > 1 Then Say "big" Else Say "small"
+Say "after"
+@@ flow error in argument
+On Error Resume Next
+Say CStr(Twice(1 / 0))
+Say "after"
+@@ flow error in with
+Dim c As New Collection
+On Error Resume Next
+With c
+    .Add 1
+    .Remove 5
+    Say "in"
+End With
+Say "out"
+@@ flow resume next multi statement line
+Dim a As Long
+On Error Resume Next
+a = 1 / 0: Say "same line"
+Say "next line"
+@@ flow resume line label in handler
+Dim n As Long
+On Error GoTo hh
+n = 1 / 0
+Say "skipped"
+back:
+Say "back"
+Exit Sub
+hh:
+Say "hh"
+Resume back
+@@ flow err in handler of called sub
+On Error GoTo hh
+Fails 5
+Exit Sub
+hh:
+Say "caught" & Err.Number
+Fails 6
+@@ flow error in block if condition
+Dim n As Long
+On Error Resume Next
+If 1 / n > 1 Then
+    Say "then"
+Else
+    Say "else"
+End If
+Say "after"
+@@ flow error in while condition
+Dim n As Long
+Dim k As Long
+On Error Resume Next
+While 1 / n > 1
+    k = k + 1
+    If k > 2 Then GoTo done
+Wend
+done:
+Say CStr(k)
+@@ flow error in do until condition
+Dim n As Long
+Dim k As Long
+On Error Resume Next
+Do
+    k = k + 1
+Loop Until 1 / n > 1 Or k > 2
+Say CStr(k)
+@@ flow error in elseif condition
+Dim n As Long
+On Error Resume Next
+If False Then
+    Say "a"
+ElseIf 1 / n > 1 Then
+    Say "b"
+Else
+    Say "c"
+End If

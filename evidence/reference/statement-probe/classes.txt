@@ -346,3 +346,74 @@ Public Declare Function lstrcpyA Lib "kernel32" (ByVal d As String, _
 Public Declare Function GetModuleHandleA Lib "kernel32" (ByVal n As String) As Long
 Public Declare Function NoSuchFunc Lib "kernel32" () As Long
 Public Declare Function NoSuchLib Lib "nosuchlib_wfc.dll" () As Long
+## module Flow
+Option Explicit
+
+Public Function Inner(ByVal n As Long) As Long
+    On Error GoTo h
+    Inner = 10 \ n
+    Exit Function
+h:
+    Inner = -1
+End Function
+
+Public Function Outer(ByVal n As Long) As Long
+    On Error GoTo h
+    Outer = 10 \ n
+    Exit Function
+h:
+    Outer = Err.Number
+    Resume Next
+End Function
+
+Public Function Rethrow() As Long
+    On Error GoTo h
+    Err.Raise 1234, "src", "first"
+    Exit Function
+h:
+    Err.Raise Err.Number + 1, Err.Source, Err.Description & "+"
+End Function
+
+Public Function WithCleanup(ByVal fail As Boolean) As String
+    Dim l As Life
+    Set l = New Life
+    l.Name = "c"
+    If fail Then Err.Raise 77
+    WithCleanup = "ok"
+End Function
+
+Public Function Recurse(ByVal n As Long) As Long
+    If n = 0 Then
+        Recurse = 0
+    Else
+        Recurse = 1 + Recurse(n - 1)
+    End If
+End Function
+
+Public Function ByRefArray(ByRef a() As Long) As Long
+    ReDim Preserve a(UBound(a) + 1)
+    ByRefArray = UBound(a)
+End Function
+
+Public Function Variadic(ParamArray p() As Variant) As String
+    Dim i As Long
+    For i = LBound(p) To UBound(p)
+        Variadic = Variadic & TypeName(p(i)) & ","
+    Next i
+End Function
+
+Public Function OptTyped(Optional ByVal n As Long = 5, Optional ByVal s As String = "d", Optional v) As String
+    OptTyped = n & s & IsMissing(v)
+End Function
+
+Public Function DefaultRet() As Long
+End Function
+
+Public Function VarRet() As Variant
+End Function
+
+Public Function StrRet() As String
+End Function
+
+Public Function ObjRet() As Object
+End Function

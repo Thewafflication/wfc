@@ -865,6 +865,17 @@ std::optional<Value> Interpreter::invoke_definition(
         }
     }
     if (!ran_ok || !statics_copy_back_ok) {
+        if (!ran_ok) {
+            // The objects held by the locals end (Class_Terminate runs) while
+            // the error leaves the procedure; the error is the one raised.
+            const auto raised = error_;
+            const auto saved_execute = execute_;
+            error_ = wfc::Evaluation{};
+            execute_ = true;
+            static_cast<void>(drain_scope_instances(scopes_.back()));
+            execute_ = saved_execute;
+            error_ = raised;
+        }
         scopes_.pop_back();
         return std::nullopt;
     }

@@ -9,10 +9,6 @@ Sub Main()
         Print "else"
     End If
     Print "if", Err.Number: Err.Clear
-    While 1 \ n
-        Print "loop"
-    Wend
-    Print "while", Err.Number: Err.Clear
     For i = 1 To 10 \ n
         Print "for"
     Next i
@@ -24,10 +20,6 @@ Sub Main()
             Print "other"
     End Select
     Print "select", Err.Number: Err.Clear
-    Do While 5 \ n
-        Print "do"
-    Loop
-    Print "do", Err.Number: Err.Clear
     ' Statements inside a block still recover one by one.
     For i = 1 To 3
         Print i, 10 \ (i - 2)

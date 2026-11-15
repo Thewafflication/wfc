@@ -1688,18 +1688,49 @@ bool Interpreter::parse_if_statement() {
     skip_horizontal_whitespace();
     const auto condition_offset = offset_;
     auto condition = parse_expression();
+    std::optional<bool> failed_condition;
     if (!condition.has_value()) {
-        return false;
+        // An error in the condition under On Error Resume Next goes on in
+        // the Then part, as Visual Basic does.
+        std::size_t then_at = std::string::npos;
+        if (execute_) {
+            std::size_t at = condition_offset;
+            while (at < source_.size() && source_[at] != '\n') {
+                const bool boundary_before =
+                    at == 0U ||
+                    !std::isalnum(static_cast<unsigned char>(source_[at - 1U]));
+                if (boundary_before && at + 4U <= source_.size() &&
+                    ascii_lower(source_[at]) == 't' &&
+                    ascii_lower(source_[at + 1U]) == 'h' &&
+                    ascii_lower(source_[at + 2U]) == 'e' &&
+                    ascii_lower(source_[at + 3U]) == 'n' &&
+                    (at + 4U == source_.size() ||
+                     !std::isalnum(
+                         static_cast<unsigned char>(source_[at + 4U])))) {
+                    then_at = at + 4U;
+                    break;
+                }
+                ++at;
+            }
+        }
+        if (then_at == std::string::npos ||
+            !recover_runtime_error(condition_offset)) {
+            return false;
+        }
+        offset_ = then_at;
+        failed_condition = true;
     }
     const auto boolean =
-        coerce_condition_boolean(*condition, condition_offset, "WFC0021",
-                                 "If condition must be Boolean");
+        failed_condition.has_value()
+            ? failed_condition
+            : coerce_condition_boolean(*condition, condition_offset, "WFC0021",
+                                       "If condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
 
     skip_horizontal_whitespace();
-    if (!consume_keyword("then")) {
+    if (!failed_condition.has_value() && !consume_keyword("then")) {
         set_error("WFC0022", "expected Then", offset_);
         return false;
     }
@@ -1791,20 +1822,45 @@ bool Interpreter::parse_block_if_statement(const bool enclosing_execution,
             skip_horizontal_whitespace();
             const auto condition_offset = offset_;
             auto elseif_condition = parse_expression();
+            bool elseif_failed = false;
             if (!elseif_condition.has_value()) {
-                execute_ = enclosing_execution;
-                return false;
+                // an error here under Resume Next goes on in this branch
+                std::size_t then_at = std::string::npos;
+                for (std::size_t at = condition_offset;
+                     evaluate_condition && at + 4U <= source_.size() &&
+                     source_[at] != '\n';
+                     ++at) {
+                    if ((at == 0U || !std::isalnum(static_cast<unsigned char>(
+                                         source_[at - 1U]))) &&
+                        ascii_lower(source_[at]) == 't' &&
+                        ascii_lower(source_[at + 1U]) == 'h' &&
+                        ascii_lower(source_[at + 2U]) == 'e' &&
+                        ascii_lower(source_[at + 3U]) == 'n') {
+                        then_at = at + 4U;
+                        break;
+                    }
+                }
+                if (then_at == std::string::npos ||
+                    !recover_runtime_error(condition_offset)) {
+                    execute_ = enclosing_execution;
+                    return false;
+                }
+                offset_ = then_at;
+                elseif_failed = true;
             }
-            const auto elseif_boolean = coerce_condition_boolean(
-                *elseif_condition, condition_offset, "WFC0028",
-                "ElseIf condition must be Boolean");
+            const auto elseif_boolean =
+                elseif_failed
+                    ? std::optional<bool>{true}
+                    : coerce_condition_boolean(
+                          *elseif_condition, condition_offset, "WFC0028",
+                          "ElseIf condition must be Boolean");
             if (!elseif_boolean.has_value()) {
                 execute_ = enclosing_execution;
                 return false;
             }
 
             skip_horizontal_whitespace();
-            if (!consume_keyword("then")) {
+            if (!elseif_failed && !consume_keyword("then")) {
                 execute_ = enclosing_execution;
                 set_error("WFC0029", "expected Then after ElseIf", offset_);
                 return false;
@@ -1876,12 +1932,19 @@ bool Interpreter::parse_while_statement() {
     skip_horizontal_whitespace();
     const auto condition_offset = offset_;
     auto condition = parse_expression();
+    bool condition_failed = false;
     if (!condition.has_value()) {
-        return false;
+        // an error in the condition under Resume Next enters the loop
+        if (!execute_ || !recover_runtime_error(condition_offset)) {
+            return false;
+        }
+        condition_failed = true;
     }
     const auto boolean =
-        coerce_condition_boolean(*condition, condition_offset, "WFC0031",
-                                 "While condition must be Boolean");
+        condition_failed
+            ? std::optional<bool>{true}
+            : coerce_condition_boolean(*condition, condition_offset, "WFC0031",
+                                       "While condition must be Boolean");
     if (!boolean.has_value()) {
         return false;
     }
@@ -1915,13 +1978,19 @@ bool Interpreter::parse_while_statement() {
         offset_ = condition_offset;
         execute_ = enclosing_execution;
         auto next_condition = parse_expression();
+        bool next_failed = false;
         if (!next_condition.has_value()) {
-            execute_ = enclosing_execution;
-            return false;
+            if (!recover_runtime_error(condition_offset)) {
+                execute_ = enclosing_execution;
+                return false;
+            }
+            next_failed = true;
         }
-        const auto next_boolean = coerce_condition_boolean(
-            *next_condition, condition_offset, "WFC0031",
-            "While condition must be Boolean");
+        const auto next_boolean =
+            next_failed ? std::optional<bool>{true}
+                        : coerce_condition_boolean(
+                              *next_condition, condition_offset, "WFC0031",
+                              "While condition must be Boolean");
         if (!next_boolean.has_value()) {
             execute_ = enclosing_execution;
             return false;
