@@ -3074,3 +3074,46 @@ SayV Lk("ABC", "a*")
 SayV "ABC" = "abc"
 SayV InStr("Hello", "L")
 SayV StrComp("a", "A")
+@@ api basic
+SayV MulDiv(10, 3, 4)
+SayV lstrlenA("hello")
+SayV GetTickCount() > 0
+SayV GetCurrentProcessId() > 0
+Say TypeName(MulDiv(1, 1, 1))
+@@ api alias
+SayV Abs2(6, 7, 2)
+@@ api string buffer
+Dim b As String
+Dim n As Long
+b = String(260, vbNullChar)
+n = GetWindowsDirectoryA(b, 260)
+SayV n > 0
+SayV Left(b, n) = Environ("windir")
+SayV Len(b)
+@@ api string copy
+Dim b As String
+b = String(10, "x")
+lstrcpyA b, "abc"
+SayV Left(b, 4) = "abc" & vbNullChar
+SayV Len(b)
+@@ api udt byref
+Dim t As SysTime
+GetLocalTime t
+SayV t.wYear = Year(Now)
+SayV t.wMonth >= 1
+@@ api missing function
+SayV NoSuchFunc()
+@@ api missing library
+SayV NoSuchLib()
+@@ api null string
+SayV lstrlenA(vbNullString)
+SayV lstrlenA("")
+@@ api unicode string
+SayV lstrlenA("a" & ChrW(233) & ChrW(8364))
+@@ api bad module handle
+SayV GetModuleHandleA("nosuchmodule_wfc") = 0
+SayV GetModuleHandleA("kernel32") <> 0
+@@ api lasterror
+Dim h As Long
+h = GetModuleHandleA("nosuchmodule_wfc")
+SayV Err.LastDllError

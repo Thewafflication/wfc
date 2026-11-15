@@ -1754,7 +1754,7 @@ int main() {
         "Dim t As Long\nt = WfcMissingFunction()\nPrint "
         "Err.Number\nWfcMissingSub 10\nPrint Err.Number & \" \" & "
         "Err.Description",
-        "453\n453 Specified DLL function not found");
+        "453\n453 Can't find DLL entry point WfcMissingSub in user32");
     // UDT arrays, results and Variant copies (REQ-0267).
     expect_program_success(
         "Type Pt\nx As Long\nEnd Type\nSub Fill(a() As Pt)\nDim i As Long\nFor "

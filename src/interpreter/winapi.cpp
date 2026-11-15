@@ -307,7 +307,8 @@ std::optional<Value> Interpreter::emulate_win32_call(
         return Value{fill_buffer(1, value, argument_long(2))};
     }
     if (name == "lstrlen" && arguments.size() == 1U) {
-        return Value{static_cast<Integer>(argument_text(0).size())};
+        return Value{
+            static_cast<Integer>(text_to_ansi_bytes(argument_text(0)).size())};
     }
     if (name == "getfileattributes" && arguments.size() == 1U) {
         std::error_code ec;

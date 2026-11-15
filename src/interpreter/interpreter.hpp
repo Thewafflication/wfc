@@ -2458,7 +2458,8 @@ private:
     std::map<Integer, OpenFile> files_;
     std::vector<std::string> dir_matches_;
     std::size_t dir_index_{};
-    bool dir_active_{};  // a Dir(pattern) search that has not ended
+    Integer last_dll_error_{};  // Err.LastDllError
+    bool dir_active_{};         // a Dir(pattern) search that has not ended
     bool execute_{true};
     bool allow_declarations_{true};
     bool constant_expression_{};

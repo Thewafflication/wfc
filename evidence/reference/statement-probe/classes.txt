@@ -317,3 +317,32 @@ End Function
 Public Function Lk(ByVal a As String, ByVal p As String) As Boolean
     Lk = a Like p
 End Function
+## module Api
+Option Explicit
+
+Public Type SysTime
+    wYear As Integer
+    wMonth As Integer
+    wDayOfWeek As Integer
+    wDay As Integer
+    wHour As Integer
+    wMinute As Integer
+    wSecond As Integer
+    wMilliseconds As Integer
+End Type
+
+Public Declare Function GetTickCount Lib "kernel32" () As Long
+Public Declare Function lstrlenA Lib "kernel32" (ByVal s As String) As Long
+Public Declare Function MulDiv Lib "kernel32" (ByVal a As Long, _
+    ByVal b As Long, ByVal c As Long) As Long
+Public Declare Function GetWindowsDirectoryA Lib "kernel32" _
+    (ByVal buf As String, ByVal n As Long) As Long
+Public Declare Sub GetLocalTime Lib "kernel32" (ByRef t As SysTime)
+Public Declare Function GetCurrentProcessId Lib "kernel32" () As Long
+Public Declare Function Abs2 Lib "kernel32" Alias "MulDiv" (ByVal a As Long, _
+    ByVal b As Long, ByVal c As Long) As Long
+Public Declare Function lstrcpyA Lib "kernel32" (ByVal d As String, _
+    ByVal s As String) As Long
+Public Declare Function GetModuleHandleA Lib "kernel32" (ByVal n As String) As Long
+Public Declare Function NoSuchFunc Lib "kernel32" () As Long
+Public Declare Function NoSuchLib Lib "nosuchlib_wfc.dll" () As Long

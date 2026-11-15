@@ -205,7 +205,8 @@ std::optional<Value> Interpreter::call_declared_dll(
     }
     HMODULE module = LoadLibraryA(definition.external_library.c_str());
     if (module == nullptr) {
-        static_cast<void>(raise_runtime(48, "Error in loading DLL", offset));
+        static_cast<void>(raise_runtime(
+            53, "File not found: " + definition.external_library, offset));
         return std::nullopt;
     }
     FARPROC function =
@@ -215,6 +216,11 @@ std::optional<Value> Interpreter::call_declared_dll(
             GetProcAddress(module, (definition.external_export + "A").c_str());
     }
     if (function == nullptr) {
+        static_cast<void>(raise_runtime(
+            453,
+            "Can't find DLL entry point " + definition.external_export +
+                " in " + definition.external_library,
+            offset));
         return std::nullopt;
     }
 
@@ -235,9 +241,10 @@ std::optional<Value> Interpreter::call_declared_dll(
                           ? arguments[i].value
                           : Value{Integer{0}};
         if (parameter.type == ExternalType::String) {
-            const std::string text = std::holds_alternative<std::string>(value)
-                                         ? std::get<std::string>(value)
-                                         : std::string{};
+            const std::string text =
+                std::holds_alternative<std::string>(value)
+                    ? text_to_ansi_bytes(std::get<std::string>(value))
+                    : std::string{};
             buffers.push_back(
                 Buffer{i, parameter.type, text + std::string(1, '\0'), {}});
             slots[i] =
@@ -351,6 +358,7 @@ std::optional<Value> Interpreter::call_declared_dll(
             break;
     }
 
+    last_dll_error_ = static_cast<Integer>(GetLastError());
     // Drawing calls may have changed a form surface: show it.
     form_refresh_surfaces();
 
@@ -364,13 +372,11 @@ std::optional<Value> Interpreter::call_declared_dll(
             continue;
         }
         if (buffer.type == ExternalType::String) {
-            if (parameters[buffer.argument].by_val) {
-                continue;  // a ByVal string is not written back
-            }
-            // The function may write a shorter, NUL-terminated string.
+            // What the function wrote goes back (a ByVal String too, as VB
+            // does); the length stays.
             std::string text = buffer.bytes;
             text.pop_back();  // the terminator added for the call
-            *target = Value{text};
+            *target = Value{ansi_bytes_to_text(text)};
         } else if (buffer.type == ExternalType::Udt) {
             auto* holder = std::get_if<ObjectInstance>(target);
             const auto found = class_definitions_.find(buffer.udt);

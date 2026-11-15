@@ -1354,7 +1354,7 @@ std::optional<Value> Interpreter::parse_primary_base() {
                     return Value{err_help_context_};
                 }
                 if (member == "lastdllerror") {
-                    return Value{Integer{0}};
+                    return Value{last_dll_error_};
                 }
                 set_error("WFC0135", "unknown member", member_offset);
                 return std::nullopt;
