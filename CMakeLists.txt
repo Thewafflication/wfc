@@ -179,7 +179,7 @@ if(MSVC)
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(WFC_MAIN_STACK 25165824)
   else()
-    set(WFC_MAIN_STACK 12582912)
+    set(WFC_MAIN_STACK 16777216)
   endif()
   target_link_options(wfc PRIVATE "/STACK:${WFC_MAIN_STACK}")
 endif()
@@ -2937,6 +2937,14 @@ Print v.x & q.x]=]
         set(probe_known "")
         if(EXISTS "${probe_folder}/known-differences.txt")
           set(probe_known "-DKNOWN=${probe_folder}/known-differences.txt")
+        endif()
+        # A 32-bit process has no room for the stack of a 100,000-deep
+        # recursion in the interpreter.
+        if(
+          CMAKE_SIZEOF_VOID_P EQUAL 4
+          AND EXISTS "${probe_folder}/known-differences-32bit.txt"
+        )
+          set(probe_known "-DKNOWN=${probe_folder}/known-differences-32bit.txt")
         endif()
         add_test(
           NAME TC-MP0002-${probe_name}-probe-${probe_mode}
