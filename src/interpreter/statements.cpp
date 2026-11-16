@@ -309,6 +309,17 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             *variable.value = Value{ObjectInstance{clone_udt(*record->data)}};
             return true;
         }
+        // A number, Boolean or Date is written as its text; Null is refused.
+        if (std::holds_alternative<Null>(*value)) {
+            set_error("WFC0104", "Invalid use of Null", variable_offset);
+            return false;
+        }
+        if (std::holds_alternative<Empty>(*value)) {
+            value = Value{std::string{}};
+        } else if (is_number(*value) || std::holds_alternative<bool>(*value) ||
+                   std::holds_alternative<DateValue>(*value)) {
+            value = Value{render(*value)};
+        }
         auto* const target = std::get_if<std::string>(variable.value);
         const auto* text = std::get_if<std::string>(&*value);
         if (target == nullptr || text == nullptr) {

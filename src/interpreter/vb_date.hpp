@@ -331,20 +331,21 @@ struct DateParts {
         if (!read_number(b, db)) {
             return std::nullopt;
         }
-        bool month_day_only = false;
-        if (separator == '/' && da <= 2 &&
-            (i >= text.size() || text[i] == ' ')) {
-            month_day_only = true;  // "m/d": the current year
-        } else if (i >= text.size() || text[i] != separator) {
-            return std::nullopt;
-        } else {
+        // Two numbers alone ("1/2", "1/2000", "2000/1", "1-2000"): a month
+        // and a day of the current year when they are one, otherwise a month
+        // and a year (the first of the month).
+        const bool two_parts = i >= text.size() || text[i] == ' ';
+        if (!two_parts) {
+            if (text[i] != separator) {
+                return std::nullopt;
+            }
             ++i;
             if (!read_number(c, dc)) {
                 return std::nullopt;
             }
         }
         std::int64_t year{}, month{}, day{};
-        if (month_day_only) {
+        if (two_parts) {
             const std::time_t now = std::time(nullptr);
             std::tm local{};
 #ifdef _WIN32
@@ -352,9 +353,25 @@ struct DateParts {
 #else
             localtime_r(&now, &local);
 #endif
-            month = a;
-            day = b;
-            year = local.tm_year + 1900;
+            const std::int64_t this_year = local.tm_year + 1900;
+            if (da >= 3) {
+                year = a;
+                month = b;
+                day = 1;
+            } else if (db >= 3) {
+                month = a;
+                year = b;
+                day = 1;
+            } else if (a >= 1 && a <= 12 && b >= 1 &&
+                       b <= days_in_month(this_year, a)) {
+                month = a;
+                day = b;
+                year = this_year;
+            } else {
+                month = a;
+                year = b + (b < 50 ? 2000 : 1900);
+                day = 1;
+            }
         } else if (da >= 3) {
             year = a;
             month = b;
@@ -386,12 +403,17 @@ struct DateParts {
         if (!read_number(hour, digits)) {
             return std::nullopt;
         }
-        if (i < text.size() && text[i] == ':') {
+        // A period separates the parts of a time as a colon does ("1.5" is
+        // five past one).
+        const auto time_separator = [&] {
+            return i < text.size() && (text[i] == ':' || text[i] == '.');
+        };
+        if (time_separator()) {
             ++i;
             if (!read_number(minute, digits)) {
                 return std::nullopt;
             }
-            if (i < text.size() && text[i] == ':') {
+            if (time_separator()) {
                 ++i;
                 if (!read_number(second, digits)) {
                     return std::nullopt;

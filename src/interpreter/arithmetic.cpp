@@ -649,8 +649,11 @@ std::optional<Value> Interpreter::unary_operation(const Value& value_in,
                     return Value{static_cast<Int16>(-a.number)};
                 case Kind::integer:
                     if (a.number == -32768.0) {
+                        // Measured (statement probe, "lib negate integer
+                        // minimum"): a typed Integer stays -32768; a Variant
+                        // becomes a Long.
                         if (a.typed) {
-                            throw Failure{6};
+                            return Value{std::numeric_limits<Int16>::min()};
                         }
                         return Value{Integer{32768}};
                     }

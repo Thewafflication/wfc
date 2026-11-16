@@ -2008,6 +2008,9 @@ private:
     // Rules of the library measured under Visual Basic 6 (library_rules.cpp):
     // true when `result` is the answer; `variant` tells which arguments are
     // Variants of the program.
+    // Which arguments of the library call being evaluated are written as a
+    // plain variable name (`Str(flag)`, not `Str(Not flag)`).
+    std::vector<bool> library_argument_is_variable_;
     [[nodiscard]] bool measured_library_call(std::string_view identifier,
                                              std::vector<Value>& arguments,
                                              const std::vector<bool>& variant,

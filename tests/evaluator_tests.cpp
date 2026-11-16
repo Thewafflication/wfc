@@ -2893,7 +2893,10 @@ int main() {
     expect_program_failure("Print ChrB(256)", "WFC0078");
     expect_program_failure("Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
                            "WFC0101");
-    expect_program_failure("Print StrComp(\"a\", \"A\", 99)", "WFC0101");
+    // Measured under Visual Basic 6: 2 is refused, a value above it is a
+    // locale and the comparison is by text.
+    expect_program_failure("Print StrComp(\"a\", \"A\", 2)", "WFC0101");
+    expect_success("Print StrComp(\"a\", \"A\", 99)", "0");
     expect_success(
         "Print Replace(\"a\", \"a\", \"b\", 1, -1, vbDatabaseCompare)", "b");
     expect_program_failure("Print Replace(\"a\", \"a\", \"b\", 1, -2)",

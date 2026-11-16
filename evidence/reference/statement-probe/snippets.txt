@@ -3350,3 +3350,1151 @@ Dim s As String
 s = StrConv(ChrW(233) & "x", vbFromUnicode)
 Say CStr(LenB(s))
 Say CStr(AscB(MidB(s, 1, 1)))
+# --- Library calls with several operands ---
+@@ lib mid null length
+SayV Mid("abcdef", 2, Null)
+@@ lib mid null start
+SayV Mid("abcdef", Null)
+@@ lib mid of number
+SayV Mid(123456, 2, 3)
+SayV Mid(12.5, 2)
+@@ lib mid past end
+SayV Mid("abc", 4)
+SayV Mid("abc", 5, 2)
+SayV Mid("abc", 2, 0)
+@@ lib mid start zero
+SayV Mid("abc", 0)
+@@ lib mid negative length
+SayV Mid("abc", 1, -1)
+@@ lib mid real arguments
+SayV Mid("abcdef", 2.5, 2.5)
+SayV Mid("abcdef", 3.5, 1.5)
+@@ lib left of number
+SayV Left(12345, 2)
+SayV Right(12345, 2)
+SayV Left(1.5, 2)
+SayV Left(True, 2)
+SayV Left(#1/2/2000#, 3)
+@@ lib left null
+SayV Left(Null, 2)
+SayV Right(Null, 2)
+@@ lib left null length
+SayV Left("abc", Null)
+@@ lib left negative
+SayV Left("abc", -1)
+@@ lib left long
+SayV Left("abc", 10)
+SayV Right("abc", 10)
+SayV Left("abc", 0)
+SayV Left("abc", 1.5)
+SayV Left("abc", 2.5)
+@@ lib left empty variant
+Dim v As Variant
+SayV Left(v, 2)
+SayV Len(v)
+@@ lib instr start forms
+SayV InStr(2, "abcabc", "a")
+SayV InStr(7, "abcabc", "a")
+SayV InStr(1, "abc", "")
+SayV InStr(4, "abc", "")
+SayV InStr(5, "abc", "")
+SayV InStr(1, "", "a")
+SayV InStr(1, "", "")
+@@ lib instr start zero
+SayV InStr(0, "abc", "a")
+@@ lib instr null
+SayV InStr(1, Null, "a")
+SayV InStr(1, "a", Null)
+@@ lib instr null start
+SayV InStr(Null, "a", "a")
+@@ lib instr compare argument
+SayV InStr(1, "ABC", "b", vbTextCompare)
+SayV InStr(1, "ABC", "b", vbBinaryCompare)
+SayV InStr(1, "ABC", "b", 2)
+@@ lib instr bad compare
+SayV InStr(1, "ABC", "b", 5)
+@@ lib instrrev forms
+SayV InStrRev("abcabc", "a")
+SayV InStrRev("abcabc", "a", 3)
+SayV InStrRev("abcabc", "a", -1)
+SayV InStrRev("abcabc", "", 3)
+SayV InStrRev("abcabc", "c", 2)
+SayV InStrRev("", "a")
+SayV InStrRev("abc", "a", 10)
+@@ lib instrrev start zero
+SayV InStrRev("abc", "a", 0)
+@@ lib replace forms
+SayV Replace("aaaa", "a", "b", 2)
+SayV Replace("aaaa", "a", "b", 1, 2)
+SayV Replace("aaaa", "a", "b", 3, 1)
+SayV Replace("abc", "", "x")
+SayV Replace("abc", "b", "")
+SayV Replace("", "a", "b")
+SayV Replace("aAaA", "a", "x", 1, -1, vbTextCompare)
+SayV Replace("abc", "a", "b", 5)
+@@ lib replace start zero
+SayV Replace("abc", "a", "b", 0)
+@@ lib replace bad count
+SayV Replace("abc", "a", "b", 1, -2)
+@@ lib replace null
+SayV Replace(Null, "a", "b")
+@@ lib split forms
+Dim a As Variant
+a = Split("a,b,,c", ",")
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b,,c", ",", 2)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("", ",")
+Say CStr(UBound(a)) & ":" & CStr(LBound(a))
+a = Split("a b  c")
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("abc", "")
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("aXbxc", "x", -1, vbTextCompare)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b", ",", 0)
+Say CStr(UBound(a))
+@@ lib split bad limit
+Dim a As Variant
+a = Split("a,b", ",", -2)
+Say CStr(UBound(a))
+@@ lib join forms
+Say Join(Array(1, 2.5, "x", True), "-")
+Say Join(Array("a", "b"))
+Say Join(Array("a", "b"), "")
+Say Join(Array(), ",") & "."
+@@ lib join null element
+Say Join(Array("a", Null), ",")
+@@ lib join numbers array
+Dim n(1 To 3) As Long
+n(1) = 1: n(2) = 2: n(3) = 3
+Say Join(n, ",")
+@@ lib filter forms
+Dim a As Variant
+a = Filter(Array("apple", "Bat", "cat"), "a")
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Filter(Array("apple", "Bat", "cat"), "a", False)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Filter(Array("apple", "Bat", "cat"), "A", True, vbTextCompare)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Filter(Array("apple", "Bat"), "zz")
+Say CStr(UBound(a))
+@@ lib string function forms
+SayV String(3, "ab")
+SayV String(3, 65)
+SayV String(0, "a")
+SayV String(2, 321)
+@@ lib string empty character
+SayV String(3, "")
+@@ lib string negative
+SayV String(-1, "a")
+@@ lib string null
+SayV String(3, Null)
+@@ lib space forms
+SayV Space(0) & "."
+SayV Space(2.5) & "."
+SayV Space(3.5) & "."
+@@ lib space negative
+SayV Space(-1)
+@@ lib strcomp forms
+SayV StrComp("a", "A")
+SayV StrComp("a", "A", vbTextCompare)
+SayV StrComp("a", "b")
+SayV StrComp("b", "a")
+SayV StrComp("", "")
+SayV StrComp(Null, "a")
+SayV StrComp(1, 1)
+SayV StrComp(10, 9)
+@@ lib strcomp bad compare
+SayV StrComp("a", "b", 7)
+@@ lib round forms
+SayV Round(2.5)
+SayV Round(3.5)
+SayV Round(-2.5)
+SayV Round(2.345, 2)
+SayV Round(2.355, 2)
+SayV Round(1.005, 2)
+SayV Round(12345.678, 0)
+SayV Round(0.5)
+SayV Round(1.5)
+SayV Round(CCur(2.5))
+SayV Round(CCur(2.345), 2)
+SayV Round(CSng(2.5))
+SayV Round(7)
+SayV Round("2.5")
+SayV Round(Null)
+@@ lib round negative digits
+SayV Round(123.456, -1)
+@@ lib round many digits
+SayV Round(1.23456789012345, 14)
+SayV Round(1.5, 22)
+@@ lib round too many digits
+SayV Round(1.5, 23)
+@@ lib round decimal
+SayV Round(CDec("2.5"))
+SayV Round(CDec("3.5"))
+SayV Round(CDec("1.2345"), 3)
+@@ lib int fix negative
+SayV Int(-2.5)
+SayV Fix(-2.5)
+SayV Int(2.5)
+SayV Int("-2.5")
+SayV Fix(CCur(-2.5))
+SayV Int(CCur(-2.5))
+SayV Int(Null)
+SayV Int(True)
+@@ lib dateadd intervals
+SayV DateAdd("m", 1, #1/31/2000#)
+SayV DateAdd("m", -1, #3/31/2000#)
+SayV DateAdd("yyyy", 1, #2/29/2000#)
+SayV DateAdd("q", 1, #11/30/2000#)
+SayV DateAdd("y", 1, #12/31/1999#)
+SayV DateAdd("w", 1, #12/31/1999#)
+SayV DateAdd("ww", 1, #12/31/1999#)
+SayV DateAdd("h", 25, #1/1/2000#)
+SayV DateAdd("n", 90, #1/1/2000#)
+SayV DateAdd("s", 86400, #1/1/2000#)
+SayV DateAdd("d", 1.7, #1/1/2000#)
+SayV DateAdd("d", -1.7, #1/1/2000#)
+SayV DateAdd("M", 1, #1/1/2000#)
+@@ lib dateadd bad interval
+SayV DateAdd("x", 1, #1/1/2000#)
+@@ lib dateadd null
+SayV DateAdd("d", 1, Null)
+SayV DateAdd("d", Null, #1/1/2000#)
+@@ lib dateadd out of range
+SayV DateAdd("yyyy", 8000, #1/1/2000#)
+@@ lib dateadd below range
+SayV DateAdd("yyyy", -1901, #1/1/2000#)
+@@ lib dateadd string date
+SayV DateAdd("d", 1, "1/1/2000")
+SayV DateAdd("d", 1, 36526)
+@@ lib datediff intervals
+SayV DateDiff("yyyy", #12/31/1999#, #1/1/2000#)
+SayV DateDiff("q", #3/31/2000#, #4/1/2000#)
+SayV DateDiff("m", #1/31/2000#, #3/1/2000#)
+SayV DateDiff("y", #1/1/2000#, #1/1/2001#)
+SayV DateDiff("d", #1/1/2000 11:00:00 PM#, #1/2/2000 1:00:00 AM#)
+SayV DateDiff("w", #1/1/2000#, #1/15/2000#)
+SayV DateDiff("w", #1/1/2000#, #1/14/2000#)
+SayV DateDiff("ww", #1/1/2000#, #1/15/2000#)
+SayV DateDiff("ww", #1/1/2000#, #1/2/2000#)
+SayV DateDiff("ww", #1/1/2000#, #1/2/2000#, vbMonday)
+SayV DateDiff("h", #1/1/2000 11:59:00 PM#, #1/2/2000 12:01:00 AM#)
+SayV DateDiff("n", #1/1/2000 11:59:59 PM#, #1/2/2000 12:00:01 AM#)
+SayV DateDiff("s", #1/1/2000#, #1/2/2000#)
+SayV DateDiff("d", #1/2/2000#, #1/1/2000#)
+SayV DateDiff("m", #3/1/2000#, #1/31/2000#)
+@@ lib datediff null
+SayV DateDiff("d", Null, #1/1/2000#)
+SayV DateDiff("d", #1/1/2000#, Null)
+@@ lib datediff bad interval
+SayV DateDiff("z", #1/1/2000#, #1/2/2000#)
+@@ lib datediff seconds overflow
+SayV DateDiff("s", #1/1/1900#, #1/1/2000#)
+@@ lib datepart intervals
+SayV DatePart("yyyy", #3/4/2001 5:06:07 PM#)
+SayV DatePart("q", #3/4/2001#)
+SayV DatePart("q", #4/1/2001#)
+SayV DatePart("m", #3/4/2001#)
+SayV DatePart("y", #3/4/2001#)
+SayV DatePart("d", #3/4/2001#)
+SayV DatePart("w", #3/4/2001#)
+SayV DatePart("w", #3/4/2001#, vbMonday)
+SayV DatePart("ww", #3/4/2001#)
+SayV DatePart("ww", #1/1/2001#)
+SayV DatePart("ww", #12/31/2000#)
+SayV DatePart("h", #3/4/2001 5:06:07 PM#)
+SayV DatePart("n", #3/4/2001 5:06:07 PM#)
+SayV DatePart("s", #3/4/2001 5:06:07 PM#)
+@@ lib datepart first week
+SayV DatePart("ww", #1/1/2000#, vbSunday, vbFirstJan1)
+SayV DatePart("ww", #1/1/2000#, vbSunday, vbFirstFourDays)
+SayV DatePart("ww", #1/1/2000#, vbSunday, vbFirstFullWeek)
+SayV DatePart("ww", #1/3/2000#, vbMonday, vbFirstFourDays)
+SayV DatePart("ww", #12/31/2001#, vbMonday, vbFirstFourDays)
+SayV DatePart("ww", #1/1/2005#, vbMonday, vbFirstFourDays)
+SayV DatePart("ww", #1/1/2005#, vbMonday, vbFirstFullWeek)
+@@ lib datepart null
+SayV DatePart("d", Null)
+@@ lib datepart bad interval
+SayV DatePart("x", #1/1/2000#)
+@@ lib weekday forms
+SayV Weekday(#1/1/2000#)
+SayV Weekday(#1/1/2000#, vbMonday)
+SayV Weekday(#1/1/2000#, vbSaturday)
+SayV Weekday(Null)
+SayV Weekday("1/2/2000")
+@@ lib weekday bad first
+SayV Weekday(#1/1/2000#, 8)
+@@ lib monthname forms
+SayV MonthName(1)
+SayV MonthName(12, True)
+SayV MonthName(2, False)
+SayV MonthName(1.5)
+SayV MonthName(2.5)
+@@ lib monthname bad
+SayV MonthName(13)
+@@ lib monthname zero
+SayV MonthName(0)
+@@ lib monthname null
+SayV MonthName(Null)
+@@ lib weekdayname forms
+SayV WeekdayName(1)
+SayV WeekdayName(1, True)
+SayV WeekdayName(1, False, vbMonday)
+SayV WeekdayName(7, True, vbSunday)
+@@ lib weekdayname bad
+SayV WeekdayName(8)
+@@ lib dateserial forms
+SayV DateSerial(2000, 13, 1)
+SayV DateSerial(2000, 0, 1)
+SayV DateSerial(2000, 1, 0)
+SayV DateSerial(2000, 1, -1)
+SayV DateSerial(99, 1, 1)
+SayV DateSerial(29, 1, 1)
+SayV DateSerial(30, 1, 1)
+SayV DateSerial(0, 1, 1)
+SayV DateSerial(100, 1, 1)
+SayV DateSerial(2000, 2.5, 1.5)
+SayV DateSerial("2000", "2", "3")
+@@ lib dateserial out of range
+SayV DateSerial(10000, 1, 1)
+@@ lib dateserial negative year
+SayV DateSerial(-1, 1, 1)
+@@ lib dateserial null
+SayV DateSerial(2000, Null, 1)
+@@ lib timeserial forms
+SayV TimeSerial(0, 0, 0)
+SayV TimeSerial(-1, 0, 0)
+SayV TimeSerial(0, -1, 0)
+SayV TimeSerial(23, 59, 60)
+SayV TimeSerial(48, 0, 0)
+SayV TimeSerial(12, 30.5, 0)
+@@ lib timeserial overflow
+SayV TimeSerial(40000, 0, 0)
+@@ lib choose forms
+SayV Choose(1, "a", "b")
+SayV Choose(2, "a", "b")
+SayV Choose(3, "a", "b")
+SayV Choose(0, "a", "b")
+SayV Choose(1.9, "a", "b")
+SayV Choose(2.5, "a", "b")
+SayV Choose(-1, "a")
+@@ lib choose null index
+SayV Choose(Null, "a", "b")
+@@ lib choose evaluates all
+SayV Choose(1, 1, Fails(11))
+@@ lib switch forms
+SayV Switch(False, 1, True, 2)
+SayV Switch(False, 1, False, 2)
+SayV Switch(0, "a", 5, "b")
+SayV Switch(Null, 1, True, 2)
+@@ lib switch evaluates all
+SayV Switch(True, 1, True, Fails(11))
+@@ lib iif forms
+SayV IIf(True, 1, "b")
+SayV IIf(False, 1, "b")
+SayV IIf(5, 1, 2)
+SayV IIf("True", 1, 2)
+SayV IIf(0.1, 1, 2)
+@@ lib iif null
+SayV IIf(Null, 1, 2)
+@@ lib iif evaluates both
+SayV IIf(True, 1, Fails(11))
+@@ lib partition forms
+SayV Partition(5, 0, 100, 10)
+SayV Partition(-1, 0, 100, 10)
+SayV Partition(100, 0, 100, 10)
+SayV Partition(101, 0, 100, 10)
+SayV Partition(99, 0, 99, 5)
+SayV Partition(5, 0, 9, 1)
+SayV Partition(50, 0, 1000, 100)
+SayV Partition(5, 1, 10, 3)
+@@ lib partition null
+SayV Partition(Null, 0, 100, 10)
+@@ lib partition bad interval
+SayV Partition(5, 0, 100, 0)
+@@ lib partition bad range
+SayV Partition(5, 100, 0, 10)
+@@ lib partition negative start
+SayV Partition(5, -1, 100, 10)
+@@ lib val forms
+SayV Val("12abc")
+SayV Val(" 1 2 3")
+SayV Val("1.5.2")
+SayV Val("&H10")
+SayV Val("&O17")
+SayV Val("&HFFFF")
+SayV Val("&HFFFFFFFF")
+SayV Val("1e3")
+SayV Val("1d2")
+SayV Val("-")
+SayV Val("")
+SayV Val("+5")
+SayV Val("- 5")
+SayV Val("1,234")
+SayV Val(".5")
+SayV Val("5.")
+SayV Val("1e")
+SayV Val("&H")
+SayV Val("&HG")
+SayV Val("1" & vbTab & "2")
+SayV Val("1" & vbLf & "2")
+SayV Val("$5")
+SayV Val("1%")
+SayV Val("&H10&")
+SayV Val("1e400")
+@@ lib val of number
+SayV Val(12)
+@@ lib val null
+SayV Val(Null)
+@@ lib str forms
+SayV Str(5)
+SayV Str(-5)
+SayV Str(0.5)
+SayV Str(-0.5)
+SayV Str(1.5E+20)
+SayV Str(True)
+SayV Str(#1/2/2000#)
+SayV Str(CCur(1.5))
+SayV Str("12")
+SayV Str(Null)
+@@ lib str of text
+SayV Str("abc")
+@@ lib hex oct forms
+SayV Hex(255)
+SayV Hex(-1)
+SayV Hex(-1&)
+SayV Hex(32768)
+SayV Hex(-32768)
+SayV Hex(2.5)
+SayV Hex(3.5)
+SayV Hex("16")
+SayV Hex(Null)
+SayV Hex(Empty)
+SayV Oct(8)
+SayV Oct(-1)
+SayV Oct(-1&)
+SayV Hex(CByte(200))
+SayV Hex(True)
+@@ lib hex overflow
+SayV Hex(2147483648#)
+@@ lib lset rset
+Dim s As String
+s = "12345"
+LSet s = "ab"
+Say s & "."
+RSet s = "ab"
+Say s & "."
+LSet s = "abcdefgh"
+Say s & "."
+RSet s = "abcdefgh"
+Say s & "."
+s = ""
+LSet s = "x"
+Say s & "."
+@@ lib lset number
+Dim s As String
+s = "12345"
+LSet s = 42
+Say s & "."
+RSet s = 4.5
+Say s & "."
+@@ lib lset null
+Dim s As String
+s = "123"
+LSet s = Null
+Say s
+@@ lib strreverse forms
+SayV StrReverse("abc")
+SayV StrReverse("")
+SayV StrReverse(123)
+@@ lib strreverse null
+SayV StrReverse(Null)
+@@ lib ucase lcase forms
+SayV UCase("aBc1")
+SayV LCase("aBc1")
+SayV UCase(Null)
+SayV UCase(12)
+SayV LCase(True)
+SayV UCase(ChrW(233))
+SayV LCase(ChrW(201))
+@@ lib trim forms
+SayV "[" & Trim("  a b  ") & "]"
+SayV "[" & LTrim("  a b  ") & "]"
+SayV "[" & RTrim("  a b  ") & "]"
+SayV "[" & Trim(vbTab & "a" & vbTab) & "]"
+SayV Trim(Null)
+SayV "[" & Trim(5) & "]"
+@@ lib asc chr forms
+SayV Asc("A")
+SayV Asc("ABC")
+SayV AscW(ChrW(8364))
+SayV Asc(ChrW(8364))
+SayV Chr(65)
+SayV AscW(Chr(128))
+SayV Asc(Chr(128))
+SayV Asc(65)
+SayV Chr("65")
+SayV AscB("A")
+SayV AscW(ChrW(-1))
+SayV AscW(ChrW(65535))
+@@ lib asc empty
+SayV Asc("")
+@@ lib chr range
+SayV Chr(256)
+@@ lib chr negative
+SayV Chr(-1)
+@@ lib chrw range
+SayV AscW(ChrW(65536))
+@@ lib chrw negative range
+SayV AscW(ChrW(-32769))
+@@ lib asc null
+SayV Asc(Null)
+@@ lib chr null
+SayV Chr(Null)
+@@ lib len forms
+SayV Len("abc")
+SayV Len(Null)
+SayV LenB("abc")
+Dim i As Integer
+Dim l As Long
+Dim d As Double
+Dim c As Currency
+Dim v As Variant
+SayV Len(i)
+SayV Len(l)
+SayV Len(d)
+SayV Len(c)
+SayV Len(v)
+v = 5
+SayV Len(v)
+v = 5.5
+SayV Len(v)
+@@ lib numeric conversions round
+SayV CInt(2.5)
+SayV CInt(3.5)
+SayV CInt(-2.5)
+SayV CInt(-3.5)
+SayV CLng(2.5)
+SayV CByte(2.5)
+SayV CByte(0.5)
+SayV CInt("2.5")
+SayV CInt("3.5")
+SayV CLng("&H10")
+SayV CInt(" 12 ")
+SayV CCur(1.00005)
+SayV CCur(1.00015)
+SayV CCur("1,234.5")
+SayV CDbl("1e3")
+SayV CSng(0.1)
+SayV CDbl(CSng(0.1))
+SayV CLng(True)
+SayV CBool("true")
+SayV CBool("0")
+SayV CBool(0.1)
+@@ lib cint overflow
+Dim d As Double
+d = 32767.5
+SayV CInt(d)
+@@ lib cint edge
+Dim d As Double
+d = 32767.4
+SayV CInt(d)
+d = -32768.5
+SayV CInt(d)
+@@ lib clng overflow
+Dim d As Double
+d = 2147483647.5
+SayV CLng(d)
+@@ lib cbyte negative
+Dim d As Double
+d = -0.5
+SayV CByte(d)
+d = -0.6
+SayV CByte(d)
+@@ lib cbool text
+SayV CBool("yes")
+@@ lib cint text
+SayV CInt("1e2")
+SayV CInt("&HFFFF")
+SayV CLng("&HFFFF")
+SayV CInt("$5")
+SayV CDbl("(5)")
+SayV CDbl("5-")
+SayV CDbl("1 000")
+@@ lib cint text percent
+SayV CDbl("5%")
+@@ lib integer division and mod
+SayV 7 \ 2
+SayV -7 \ 2
+SayV 7.5 \ 2
+SayV 6.5 \ 2
+SayV 7 \ 2.5
+SayV 7 \ 3.5
+SayV 7 Mod 2.5
+SayV 7 Mod 3.5
+SayV -7 Mod 3
+SayV 7 Mod -3
+SayV 7.5 Mod 2
+SayV 8.5 Mod 3
+@@ lib integer division by small
+Dim d As Double
+d = 0.5
+SayV 5 \ d
+@@ lib mod by small
+Dim d As Double
+d = 0.5
+SayV 5 Mod d
+@@ lib integer division by under half
+Dim d As Double
+d = 0.4
+SayV 5 \ d
+@@ lib mod big
+Dim d As Double
+d = 3000000000#
+SayV d Mod 7
+@@ lib power forms
+SayV 2 ^ 10
+SayV 2 ^ -1
+@@ lib power negative fraction
+Dim d As Double
+d = -8
+SayV d ^ 0.5
+@@ lib power zero
+SayV 0 ^ 0
+SayV 0 ^ 1
+@@ lib power zero negative
+Dim d As Double
+SayV d ^ -1
+@@ lib power overflow
+Dim d As Double
+d = 10
+SayV d ^ 400
+@@ lib power integers
+SayV (-2) ^ 3
+SayV (-2) ^ 2
+SayV 4 ^ 0.5
+SayV 2 ^ 0.5
+SayV 10 ^ 15
+SayV 10 ^ 16
+SayV 1.1 ^ 2
+@@ lib cstr of reals
+SayV CStr(0.1)
+SayV CStr(1 / 3)
+SayV CStr(100000000000000#)
+SayV CStr(1E+15)
+SayV CStr(1E+16)
+SayV CStr(123456789012345678#)
+SayV CStr(0.0001)
+SayV CStr(0.00001)
+SayV CStr(1.5E-10)
+SayV CStr(CSng(1 / 3))
+SayV CStr(CSng(1E+7))
+SayV CStr(CSng(1E+8))
+SayV CStr(CSng(16777217))
+SayV CStr(-0.5)
+SayV CStr(CCur(0.5))
+SayV CStr(CCur(-1234567.8901))
+SayV CStr(CDec("0.10"))
+SayV CStr(CDec("1E3"))
+SayV CStr(1.7976931348623157E+308)
+SayV CStr(4.94065645841247E-324)
+SayV CStr(0.1 + 0.2)
+SayV CStr(1E+22)
+SayV CStr(123456.789)
+@@ lib sgn abs forms
+SayV Sgn(-2.5)
+SayV Sgn(0)
+SayV Sgn("5")
+SayV Sgn(Null)
+SayV Abs(-2.5)
+SayV Abs("-3")
+SayV Abs(Null)
+SayV Abs(True)
+SayV Abs(CCur(-1.5))
+SayV Abs(-32767)
+@@ lib abs integer minimum
+Dim i As Integer
+i = -32768
+SayV Abs(i)
+@@ lib abs long minimum
+Dim l As Long
+l = &H80000000
+SayV Abs(l)
+@@ lib sqr log forms
+SayV Sqr(16)
+SayV Sqr("9")
+SayV Sqr(Null)
+SayV Log(1)
+SayV Exp(0)
+@@ lib sqr negative
+SayV Sqr(-1)
+@@ lib log zero
+SayV Log(0)
+@@ lib log negative
+SayV Log(-1)
+@@ lib exp overflow
+SayV Exp(710)
+@@ lib exp edge
+SayV Exp(709)
+SayV Exp(-800)
+@@ lib logical operators
+SayV True Xor True
+SayV 5 Xor 3
+SayV True Imp False
+SayV False Imp Null
+SayV True Imp Null
+SayV Null Imp True
+SayV Null Imp False
+SayV 5 Eqv 3
+SayV True Eqv Null
+SayV Null Xor True
+SayV Not Null
+SayV Null And False
+SayV Null Or True
+SayV Null And True
+SayV 5 Imp 3
+SayV 1.5 And 3
+SayV 2.5 And 3
+SayV "5" And 3
+@@ lib logical text
+SayV "a" And 3
+@@ lib logical overflow
+Dim d As Double
+d = 3000000000#
+SayV d And 1
+@@ lib rgb qbcolor
+SayV RGB(1, 2, 3)
+SayV RGB(255, 255, 255)
+SayV RGB(256, 300, 1000)
+SayV QBColor(0)
+SayV QBColor(4)
+SayV QBColor(15)
+@@ lib rgb negative
+SayV RGB(-1, 0, 0)
+@@ lib qbcolor bad
+SayV QBColor(16)
+@@ lib isnumeric forms
+SayV IsNumeric("12")
+SayV IsNumeric("1e3")
+SayV IsNumeric("&H10")
+SayV IsNumeric("$5")
+SayV IsNumeric("5%")
+SayV IsNumeric("1,2,3")
+SayV IsNumeric("(5)")
+SayV IsNumeric("")
+SayV IsNumeric(" ")
+SayV IsNumeric("1 2")
+SayV IsNumeric(Null)
+SayV IsNumeric(Empty)
+SayV IsNumeric(#1/2/2000#)
+SayV IsNumeric(True)
+SayV IsNumeric("True")
+SayV IsNumeric("+-5")
+SayV IsNumeric("5-")
+SayV IsNumeric(".")
+SayV IsNumeric("1d5")
+SayV IsNumeric("&O8")
+@@ lib isdate forms
+SayV IsDate("1/2/2000")
+SayV IsDate("13/13/2000")
+SayV IsDate("Feb 30, 2000")
+SayV IsDate("2000-01-02")
+SayV IsDate("1:2:3")
+SayV IsDate("25:00")
+SayV IsDate(36526)
+SayV IsDate(Null)
+SayV IsDate("")
+SayV IsDate("January")
+SayV IsDate("1 Jan")
+SayV IsDate("1/2")
+SayV IsDate("12 PM")
+SayV IsDate("1.2.2000")
+@@ lib cdate forms
+SayV CDate("2000-01-02")
+SayV CDate("1/2") = DateSerial(Year(Date), 1, 2)
+SayV CDate("Jan 2000")
+SayV CDate("2 January 2000 13:00")
+SayV CDate("1/2/00")
+SayV CDate("1/2/29")
+SayV CDate("1/2/30")
+SayV CDate("12 PM")
+SayV CDate("12 AM")
+SayV CDate(1.5)
+SayV CDate(-1.5)
+SayV CDate("1.5")
+SayV CDate(0)
+@@ lib cdate bad month
+SayV CDate("13/13/2000")
+@@ lib cdate day first
+SayV CDate("13/1/2000")
+SayV CDate("2000/1/13")
+SayV CDate("1/2000")
+@@ lib cdate out of range
+SayV CDate(3000000)
+@@ lib str of boolean forms
+Dim b As Boolean
+Dim v As Variant
+b = True
+v = True
+Say "[" & Str(True) & "]"
+Say "[" & Str(b) & "]"
+Say "[" & Str(v) & "]"
+Say "[" & Str(1 = 1) & "]"
+Say "[" & Str(Not b) & "]"
+Say "[" & Str(CBool(1)) & "]"
+Say "[" & Str(b And b) & "]"
+Say "[" & Str$(b) & "]"
+@@ lib str of date forms
+Dim d As Date
+Dim v As Variant
+d = #1/2/2000#
+v = d
+Say "[" & Str(#1/2/2000#) & "]"
+Say "[" & Str(d) & "]"
+Say "[" & Str(v) & "]"
+Say "[" & Str(d + 1) & "]"
+Say "[" & Str(CDate(36526)) & "]"
+Say "[" & Str(DateSerial(2000, 1, 2)) & "]"
+@@ lib abs variant integer minimum
+Dim v As Variant
+v = CInt(-32768)
+SayV Abs(v)
+@@ lib abs variant long minimum
+Dim v As Variant
+v = CLng(&H80000000)
+SayV Abs(v)
+@@ lib negate integer minimum
+Dim i As Integer
+i = -32768
+SayV -i
+@@ lib negate variant integer minimum
+Dim v As Variant
+v = CInt(-32768)
+SayV -v
+@@ lib strcomp compare values
+SayV StrComp("a", "A", 3)
+SayV StrComp("a", "A", 7)
+SayV StrComp("a", "A", 1033)
+SayV StrComp("a", "A", 2)
+SayV StrComp("a", "A", -1)
+SayV StrComp("a", "b", 1033)
+@@ lib instr compare values
+SayV InStr(1, "ABC", "b", 1033)
+@@ lib instr compare three
+SayV InStr(1, "ABC", "b", 3)
+@@ lib replace compare values
+SayV Replace("ABC", "b", "x", 1, -1, 1033)
+@@ lib replace compare five
+SayV Replace("ABC", "b", "x", 1, -1, 5)
+@@ lib split compare five
+Dim a As Variant
+a = Split("aXbxc", "x", -1, 5)
+Say CStr(UBound(a))
+@@ lib choose index kinds
+Dim d As Double
+Dim v As Variant
+d = 1.9
+v = 2.9
+SayV Choose(d, "a", "b", "c")
+SayV Choose(v, "a", "b", "c")
+SayV Choose("2", "a", "b", "c")
+SayV Choose("2.9", "a", "b", "c")
+SayV Choose(True, "a", "b")
+SayV Choose(0.9, "a", "b")
+SayV Choose(-0.9, "a", "b")
+SayV Choose(3.99, "a", "b", "c")
+@@ lib choose text index
+SayV Choose("x", "a", "b")
+@@ lib join string array
+Dim s(1 To 2) As String
+s(1) = "a": s(2) = "b"
+Say Join(s, ",")
+@@ lib join variant array
+Dim v(1 To 3) As Variant
+v(1) = 1: v(2) = "b": v(3) = 2.5
+Say Join(v, ",")
+@@ lib join integer array
+Dim n(1 To 2) As Integer
+n(1) = 1: n(2) = 2
+Say Join(n, ",")
+@@ lib join double array
+Dim n(1 To 2) As Double
+n(1) = 1.5: n(2) = 2
+Say Join(n, ",")
+@@ lib join variant holding long array
+Dim n(1 To 2) As Long
+Dim v As Variant
+n(1) = 1: n(2) = 2
+v = n
+Say Join(v, ",")
+@@ lib join 2d array
+Dim s(1 To 2, 1 To 2) As String
+Say Join(s, ",")
+@@ lib join not array
+Say Join("abc", ",")
+@@ lib join empty elements
+Dim v(1 To 3) As Variant
+v(1) = "a"
+Say Join(v, ",")
+@@ lib join objects
+Dim v(1 To 1) As Variant
+Set v(1) = New Collection
+Say Join(v, ",")
+@@ lib filter number array
+Dim n(1 To 2) As Long
+Dim a As Variant
+n(1) = 1: n(2) = 12
+a = Filter(n, "1")
+Say CStr(UBound(a))
+@@ lib round digit limits
+SayV Round(1.5, 22)
+SayV Round(1.23456, 4)
+Dim v As Variant
+v = 2
+SayV Round(1.23456, v)
+SayV Round(1.23456, 2.5)
+SayV Round(1.23456, 3.5)
+SayV Round(1.23456, "2")
+@@ lib round null digits
+SayV Round(1.5, Null)
+@@ lib date text with periods
+SayV IsDate("1.5")
+SayV IsDate("1.2.2000")
+SayV IsDate("12.30")
+SayV IsDate("24.30")
+SayV IsDate("1.60")
+SayV IsDate("1.2.3")
+SayV IsDate("36526")
+SayV IsDate("36526.5")
+SayV IsDate("1.5 PM")
+SayV IsDate("1/2/2000 1.5")
+SayV IsDate("5")
+SayV IsDate("5 ")
+SayV IsDate("0.5")
+SayV IsDate(".5")
+@@ lib cdate text with periods
+SayV CDate("12.30")
+SayV CDate("1.2.3")
+SayV CDate("36526")
+SayV CDate("36526.5")
+SayV CDate("1.5 PM")
+SayV CDate("0.5")
+SayV CDate("5")
+SayV Year("1.5")
+SayV Hour("1.5")
+SayV Minute("12.30")
+@@ lib cdate month year forms
+SayV CDate("1/2000")
+SayV CDate("12/1999")
+SayV CDate("2000/1")
+SayV CDate("1/100")
+SayV CDate("1-2000")
+SayV IsDate("13/2000")
+SayV IsDate("1/32")
+SayV IsDate("1/99")
+SayV IsDate("0/2000")
+SayV CDate("1/32")
+SayV CDate("1/99")
+SayV CDate("2/29") = DateSerial(Year(Date), 3, 0)
+@@ lib isnumeric signs
+SayV IsNumeric("+-5")
+SayV IsNumeric("-+5")
+SayV IsNumeric("--5")
+SayV IsNumeric("+5")
+SayV IsNumeric("- 5")
+SayV IsNumeric("5 -")
+SayV IsNumeric("5+")
+SayV IsNumeric("(5")
+SayV IsNumeric("5)")
+SayV IsNumeric("$-5")
+SayV IsNumeric("-$5")
+SayV IsNumeric("$ 5")
+SayV IsNumeric("5$")
+SayV IsNumeric("(-5)")
+SayV IsNumeric("-(5)")
+SayV IsNumeric("($5)")
+SayV IsNumeric("1,,2")
+SayV IsNumeric(",1")
+SayV IsNumeric("1,")
+SayV IsNumeric("1.2.3")
+SayV IsNumeric("1e")
+SayV IsNumeric("e1")
+SayV IsNumeric("1e+")
+SayV IsNumeric("&H")
+SayV IsNumeric("&HFFFFFFFFF")
+SayV IsNumeric("&H1.5")
+SayV IsNumeric(" 5 ")
+SayV IsNumeric(vbTab & "5")
+SayV IsNumeric("5" & vbCrLf)
+SayV IsNumeric("0x10")
+SayV IsNumeric("1_000")
+SayV IsNumeric("Infinity")
+SayV IsNumeric("1e400")
+@@ lib cdbl signs
+SayV CDbl("-$5")
+SayV CDbl("$-5")
+SayV CDbl("(-5)")
+SayV CDbl("5+")
+SayV CDbl(" 5 ")
+SayV CDbl("1,")
+SayV CDbl(",1")
+@@ lib cdbl double sign
+SayV CDbl("+-5")
+@@ lib lset rset typed sources
+Dim s As String
+Dim i As Integer
+Dim d As Double
+Dim b As Boolean
+Dim t As Date
+Dim v As Variant
+i = 42: d = 4.5: b = True: t = #1/2/2000#
+s = "12345678"
+LSet s = i
+Say s & "."
+RSet s = d
+Say s & "."
+LSet s = b
+Say s & "."
+RSet s = t
+Say s & "."
+v = 7
+LSet s = v
+Say s & "."
+LSet s = Empty
+Say s & "."
+@@ lib rset null
+Dim s As String
+s = "123"
+RSet s = Null
+Say s
+@@ lib lset variant target
+Dim v As Variant
+v = "12345"
+LSet v = "ab"
+Say v & "."
+@@ lib split limit forms
+Dim a As Variant
+a = Split("a,b,c", ",", 1)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b,c", ",", 3)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b,c", ",", 10)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b,c", ",", 2.5)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+a = Split("a,b,c", ",", 1.5)
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+@@ lib split null text
+Dim a As Variant
+a = Split(Null, ",")
+Say CStr(UBound(a))
+@@ lib split null limit
+Dim a As Variant
+a = Split("a,b", ",", Null)
+Say CStr(UBound(a))
+@@ lib split number text
+Dim a As Variant
+a = Split(1.5, ".")
+Say CStr(UBound(a)) & ":" & Join(a, "|")
+@@ lib timeserial integer edge
+SayV TimeSerial(32767, 0, 0)
+SayV TimeSerial(-32768, 0, 0)
+SayV TimeSerial(0, 32767, 32767)
+@@ lib timeserial minute overflow
+SayV TimeSerial(0, 32768, 0)
+@@ lib timeserial second overflow
+SayV TimeSerial(0, 0, -32769)
+@@ lib dateserial integer overflow
+SayV DateSerial(32768, 1, 1)
+@@ lib dateserial month overflow
+SayV DateSerial(2000, 32768, 1)
+@@ lib dateserial big month
+SayV DateSerial(2000, 32767, 1)
+@@ lib dateserial big day
+SayV DateSerial(2000, 1, 32767)
+SayV DateSerial(2000, 1, -32768)
+@@ lib datepart weekday first forms
+SayV DatePart("w", #3/4/2001#, vbSunday)
+SayV DatePart("w", #3/4/2001#, vbSaturday)
+SayV DatePart("w", #3/5/2001#, vbMonday)
+SayV DatePart("w", #3/4/2001#, vbTuesday)
+@@ lib datepart weekday bad first
+SayV DatePart("w", #3/4/2001#, 8)
+@@ lib datepart bad first week
+SayV DatePart("ww", #3/4/2001#, vbSunday, 4)
+@@ lib datepart day bad first
+SayV DatePart("d", #3/4/2001#, 9)
+@@ lib datediff bad first
+SayV DateDiff("d", #3/4/2001#, #3/5/2001#, 9)
+@@ lib datediff weeks first forms
+SayV DateDiff("ww", #1/1/2000#, #1/8/2000#, vbSaturday)
+SayV DateDiff("ww", #1/1/2000#, #1/7/2000#, vbSaturday)
+SayV DateDiff("w", #1/1/2000#, #1/8/2000#, vbSaturday)
+SayV DateDiff("w", #1/8/2000#, #1/1/2000#)
+SayV DateDiff("w", #1/9/2000#, #1/1/2000#)
+SayV DateDiff("ww", #1/8/2000#, #1/1/2000#)
+@@ lib datediff big
+SayV DateDiff("s", #1/1/100#, #12/31/9999#)
+SayV DateDiff("n", #1/1/100#, #12/31/9999#)
+SayV DateDiff("s", #12/31/9999#, #1/1/100#)
+SayV DateDiff("s", #1/1/2000#, #1/19/2068 3:14:07 AM#)
+SayV DateDiff("s", #1/1/2000#, #1/19/2068 3:14:08 AM#)
+@@ lib dateadd big amounts
+SayV DateAdd("s", 2147483647, #1/1/2000#)
+SayV DateAdd("d", 0.9, #1/1/2000#)
+SayV DateAdd("m", 1.9, #1/31/2000#)
+SayV DateAdd("m", -1.9, #1/31/2000#)
+SayV DateAdd("h", "2", #1/1/2000#)
+@@ lib dateadd amount overflow
+Dim d As Double
+d = 3000000000#
+SayV DateAdd("s", d, #1/1/2000#)
+@@ lib partition forms more
+SayV Partition(5.7, 0, 100, 10)
+SayV Partition(9.5, 0, 100, 10)
+SayV Partition(5, 0, 100, 2.5)
+SayV Partition(5, 0, 100, 3.5)
+SayV Partition("15", "0", "100", "10")
+SayV Partition(5, 0, 5, 10)
+SayV Partition(0, 0, 0 + 1, 1)
+SayV Partition(1000, 0, 999, 100)
+@@ lib partition null others
+SayV Partition(5, Null, 100, 10)
+@@ lib partition null stop
+SayV Partition(5, 0, Null, 10)
+@@ lib partition null interval
+SayV Partition(5, 0, 100, Null)
+@@ lib partition equal range
+SayV Partition(5, 5, 5, 1)
+@@ lib partition big
+SayV Partition(5, 0, 2147483647, 1000)
+@@ lib partition stop overflow
+Dim d As Double
+d = 3000000000#
+SayV Partition(5, 0, d, 1000)
+@@ lib str dollar forms
+Dim b As Boolean
+Dim d As Date
+Dim v As Variant
+b = True
+d = #1/2/2000#
+v = True
+Say "[" & Str$(1 > 2) & "]"
+Say "[" & Str$(True) & "]"
+Say "[" & Str$(Not b) & "]"
+Say "[" & Str$(b) & "]"
+Say "[" & Str$(v) & "]"
+Say "[" & Str$(#1/2/2000#) & "]"
+Say "[" & Str$(d) & "]"
+Say "[" & Str$(d + 1) & "]"
+Say "[" & Str$(5) & "]"
+@@ lib date and number text confirmed
+SayV IsDate("2/30")
+SayV IsDate("2/28")
+SayV IsDate("13/45")
+SayV IsNumeric("1,,2")
+SayV StrComp("a", "A", 99)
+SayV CDate("2/30")

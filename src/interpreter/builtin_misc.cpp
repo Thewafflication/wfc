@@ -188,6 +188,13 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (const auto* flag = std::get_if<bool>(&v)) {
             return *flag ? -1.0 : 0.0;
         }
+        // A String that is a number counts as that number.
+        if (const auto* text = std::get_if<std::string>(&v)) {
+            const auto number = parse_numeric_string(*text);
+            if (number.status == NumericStringStatus::valid) {
+                return number.value;
+            }
+        }
         return std::nullopt;
     };
     const auto bad_type = [&]() {
@@ -1412,6 +1419,12 @@ std::optional<Value> Interpreter::evaluate_misc_function(
     if (!arity(4, 4)) {
         return std::nullopt;
     }
+    // A Null operand gives Null.
+    for (const auto& argument : arguments) {
+        if (std::holds_alternative<Null>(argument)) {
+            return Value{Null{}};
+        }
+    }
     const auto number = number_at(0, 0.0);
     const auto start = number_at(1, 0.0);
     const auto stop = number_at(2, 0.0);
@@ -1422,10 +1435,32 @@ std::optional<Value> Interpreter::evaluate_misc_function(
     if (!execute_) {
         return Value{std::string{}};
     }
-    if (*start < 0.0 || *stop <= *start || *interval < 1.0) {
+    // The operands are Longs: a real number is rounded to one (to even).
+    long long whole[4]{};
+    const double given[4] = {*number, *start, *stop, *interval};
+    for (std::size_t index = 0; index < 4U; ++index) {
+        const double rounded = std::nearbyint(given[index]);
+        if (!(rounded >= -2147483648.0 && rounded <= 2147483647.0)) {
+            static_cast<void>(raise_runtime(6, "Overflow", offset));
+            return std::nullopt;
+        }
+        whole[index] = static_cast<long long>(rounded);
+    }
+    const long long n = whole[0];
+    const long long lo = whole[1];
+    const long long hi = whole[2];
+    const long long step = whole[3];
+    if (lo < 0 || hi <= lo || step < 1) {
         return invalid_call();
     }
-    const auto width = std::to_string(static_cast<long long>(*stop) + 1).size();
+    // Each part is as wide as the widest of "start - 1" and "stop + 1"; the
+    // number after the largest Long is written as a Double, with the blank
+    // of its sign.
+    auto width =
+        std::max(std::to_string(hi + 1).size(), std::to_string(lo - 1).size());
+    if (hi + 1 > 2147483647LL) {
+        ++width;
+    }
     const auto pad = [&](const long long v) {
         std::string text = std::to_string(v);
         return std::string(text.size() < width ? width - text.size() : 0U,
@@ -1433,10 +1468,6 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                text;
     };
     const std::string blank(width, ' ');
-    const long long n = static_cast<long long>(std::floor(*number));
-    const long long lo = static_cast<long long>(*start);
-    const long long hi = static_cast<long long>(*stop);
-    const long long step = static_cast<long long>(*interval);
     if (n < lo) {
         return Value{blank + ":" + pad(lo - 1)};
     }
@@ -1506,12 +1537,16 @@ std::optional<Value> Interpreter::evaluate_date_function(
             return 0.0;
         }
         if (const auto* t = std::get_if<std::string>(&v)) {
-            // A String that is a number is that number of days.
+            // A String is read as a date first ("1.5" is five past one);
+            // one that is only a number is that number of days.
+            if (const auto parsed = parse_date_text(*t)) {
+                return parsed;
+            }
             const auto number = parse_numeric_string(*t);
             if (number.status == NumericStringStatus::valid) {
                 return number.value;
             }
-            return parse_date_text(*t);
+            return std::nullopt;
         }
         return std::nullopt;
     };
@@ -1678,6 +1713,13 @@ std::optional<Value> Interpreter::evaluate_date_function(
         if (!h || !m || !sec) {
             return mismatch();
         }
+        // The arguments are Integers.
+        for (const auto part : {*h, *m, *sec}) {
+            if (part < -32768 || part > 32767) {
+                static_cast<void>(raise_runtime(6, "Overflow", offset));
+                return std::nullopt;
+            }
+        }
         const double total =
             static_cast<double>(*h * 3600 + *m * 60 + *sec) / 86400.0;
         return Value{DateValue{total}};
@@ -1843,8 +1885,13 @@ std::optional<Value> Interpreter::evaluate_date_function(
             std::int64_t n = *amount;
             if (is_number(arguments[1]) &&
                 !std::holds_alternative<Decimal>(arguments[1])) {
-                n = static_cast<std::int64_t>(
-                    std::trunc(as_double(arguments[1])));
+                const double cut = std::trunc(as_double(arguments[1]));
+                // The amount is a Long.
+                if (cut < -2147483648.0 || cut > 2147483647.0) {
+                    static_cast<void>(raise_runtime(6, "Overflow", offset));
+                    return std::nullopt;
+                }
+                n = static_cast<std::int64_t>(cut);
             }
             const auto in_range = [](const double result) {
                 return result > -657435.0 && result < 2958466.0;
@@ -1939,6 +1986,10 @@ std::optional<Value> Interpreter::evaluate_date_function(
                     static_cast<std::int64_t>(std::llround(*second * 86400.0) -
                                               std::llround(*first * 86400.0));
             }
+            // A difference a Long cannot hold is a Double.
+            if (result < -2147483648LL || result > 2147483647LL) {
+                return Value{static_cast<double>(result)};
+            }
             return Value{static_cast<Integer>(result)};
         }
         const auto serial = serial_at(1);
@@ -1962,7 +2013,18 @@ std::optional<Value> Interpreter::evaluate_date_function(
         } else if (interval == "d") {
             result = parts.day;
         } else if (interval == "w") {
-            result = parts.weekday;
+            // The day of the week counts from the first day given.
+            std::int64_t first_day = 1;
+            if (const auto fd =
+                    arguments.size() > 2U ? long_at(2) : std::nullopt) {
+                first_day = *fd == 0 ? 1 : *fd;
+            }
+            if (first_day < 1 || first_day > 7) {
+                set_error("WFC0101", "Invalid procedure call or argument",
+                          offset);
+                return std::nullopt;
+            }
+            result = (parts.weekday - first_day + 7) % 7 + 1;
         } else if (interval == "ww") {
             std::int64_t first_day = 1;
             std::int64_t first_week = 1;

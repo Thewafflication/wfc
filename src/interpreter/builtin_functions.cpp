@@ -292,6 +292,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     // it actually requires one or more arguments.
     std::vector<Value> arguments;
     std::vector<bool> argument_variant;
+    std::vector<bool> argument_plain;
     if (preset_arguments_ != nullptr) {
         arguments = *preset_arguments_;
     } else if (consume('(')) {
@@ -421,8 +422,36 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     continue;
                 }
                 const bool enclosing_variant = take_variant_scope();
+                const auto argument_start = offset_;
                 auto argument = parse_expression();
                 argument_variant.push_back(variant_operand_seen_);
+                {
+                    // A plain name that is not a literal word.
+                    std::string_view written = std::string_view(source_).substr(
+                        argument_start, offset_ - argument_start);
+                    while (!written.empty() &&
+                           (written.back() == ' ' || written.back() == '\t')) {
+                        written.remove_suffix(1U);
+                    }
+                    bool plain = !written.empty() &&
+                                 (std::isalpha(static_cast<unsigned char>(
+                                      written.front())) != 0 ||
+                                  written.front() == '_');
+                    std::string lowered;
+                    for (const char c : written) {
+                        if (std::isalnum(static_cast<unsigned char>(c)) == 0 &&
+                            c != '_') {
+                            plain = false;
+                        }
+                        lowered.push_back(ascii_lower(c));
+                    }
+                    if (lowered == "true" || lowered == "false" ||
+                        lowered == "empty" || lowered == "null" ||
+                        lowered == "nothing") {
+                        plain = false;
+                    }
+                    argument_plain.push_back(plain);
+                }
                 variant_operand_seen_ =
                     enclosing_variant || variant_operand_seen_;
                 if (!argument.has_value()) {
@@ -485,6 +514,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     }
     {
         std::optional<Value> measured;
+        library_argument_is_variable_ = argument_plain;
         if (measured_library_call(identifier, arguments, argument_variant,
                                   identifier_offset, measured)) {
             return measured;
@@ -731,6 +761,22 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return Value{Null{}};
         }
     }
+    // The index is cut to a whole number (1.9 chooses the first).
+    if (execute_ && is_choose) {
+        if (const auto* text = std::get_if<std::string>(&arguments[0])) {
+            const auto number = parse_numeric_string(*text);
+            if (number.status == NumericStringStatus::valid) {
+                arguments[0] = Value{number.value};
+            }
+        }
+        if (is_number(arguments[0]) &&
+            !std::holds_alternative<Integer>(arguments[0]) &&
+            !std::holds_alternative<Decimal>(arguments[0])) {
+            const double cut = std::trunc(as_double(arguments[0]));
+            arguments[0] = Value{static_cast<Integer>(
+                std::clamp(cut, -2147483647.0, 2147483647.0))};
+        }
+    }
     // Long parameters accept any value convertible to Long: a numeric String,
     // a Boolean, Empty, or a Double (rounded), as in `Left("abc", "2")`.
     if (execute_ && (is_left || is_right || is_mid || is_space || is_chr ||
@@ -795,14 +841,26 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             Integer limit = -1;
             if (arguments.size() >= 3U) {
-                const auto* limit_argument =
-                    std::get_if<Integer>(&arguments[2]);
-                if (limit_argument == nullptr) {
+                // The limit is a Long: a real number is rounded to one, and
+                // a limit below -1 is refused.
+                if (const auto* limit_argument =
+                        std::get_if<Integer>(&arguments[2])) {
+                    limit = *limit_argument;
+                } else if (is_number(arguments[2]) &&
+                           !std::holds_alternative<Decimal>(arguments[2])) {
+                    limit = static_cast<Integer>(
+                        std::nearbyint(as_double(arguments[2])));
+                } else {
                     set_error("WFC0073", "Split limit must be Long",
                               identifier_offset);
                     return std::nullopt;
                 }
-                limit = *limit_argument;
+                if (limit < -1) {
+                    static_cast<void>(
+                        raise_runtime(5, "Invalid procedure call or argument",
+                                      identifier_offset));
+                    return std::nullopt;
+                }
             }
             if (text == nullptr) {
                 set_error("WFC0073", "Split requires a String argument",
@@ -814,13 +872,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             bool text_compare = text_compare_here();
             if (arguments.size() >= 4U) {
+                // A value above 2 is a locale: the comparison is by text.
                 if (const auto* mode = std::get_if<Integer>(&arguments[3])) {
-                    text_compare =
-                        *mode == 1 || (*mode == -1 && text_compare_here());
+                    text_compare = *mode == 1 || *mode > 2 ||
+                                   (*mode == -1 && text_compare_here());
                 } else if (const auto* mode16 =
                                std::get_if<Int16>(&arguments[3])) {
-                    text_compare =
-                        *mode16 == 1 || (*mode16 == -1 && text_compare_here());
+                    text_compare = *mode16 == 1 || *mode16 > 2 ||
+                                   (*mode16 == -1 && text_compare_here());
                 }
             }
             std::string search_text = *text;
@@ -847,9 +906,24 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             return make_string_array(std::move(parts));
         }
         const auto* array = std::get_if<ArrayValue>(&arguments[0]);
-        if (array == nullptr || !array->dimensions.empty()) {
+        if (array == nullptr) {
             set_error("WFC0073",
                       "function requires a one-dimensional array argument",
+                      identifier_offset);
+            return std::nullopt;
+        }
+        // The array is one of Strings or of Variants, with one dimension.
+        const bool text_elements =
+            array->element_type_index == Value{std::string{}}.index() ||
+            array->element_type_index == Value{Empty{}}.index();
+        if (is_join && (!array->dimensions.empty() || !text_elements)) {
+            static_cast<void>(raise_runtime(
+                5, "Invalid procedure call or argument", identifier_offset));
+            return std::nullopt;
+        }
+        if (!array->dimensions.empty() || !text_elements) {
+            set_error("WFC0073",
+                      "function requires a one-dimensional array of Strings",
                       identifier_offset);
             return std::nullopt;
         }
@@ -867,8 +941,15 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             std::string joined;
             bool first = true;
             for (const auto& element : array->elements) {
+                if (is_object_reference(element)) {
+                    static_cast<void>(raise_runtime(
+                        450,
+                        "Wrong number of arguments or invalid property "
+                        "assignment",
+                        identifier_offset));
+                    return std::nullopt;
+                }
                 if (std::holds_alternative<Null>(element) ||
-                    is_object_reference(element) ||
                     std::holds_alternative<ArrayValue>(element)) {
                     set_error("WFC0073", "Join element must be a scalar",
                               identifier_offset);
@@ -1347,6 +1428,17 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 arguments[1] =
                     Value{static_cast<Integer>(std::nearbyint(*single))};
             }
+            // A String that is a number counts as that number.
+            if (const auto* text = std::get_if<std::string>(&arguments[1])) {
+                const auto number = parse_numeric_string(*text);
+                if (number.status == NumericStringStatus::valid &&
+                    std::fabs(number.value) < 2147483647.0) {
+                    arguments[1] = Value{
+                        static_cast<Integer>(std::nearbyint(number.value))};
+                }
+            } else if (const auto* small = std::get_if<Int16>(&arguments[1])) {
+                arguments[1] = Value{static_cast<Integer>(*small)};
+            }
             const auto* requested_digits = std::get_if<Integer>(&arguments[1]);
             if (requested_digits == nullptr) {
                 set_error("WFC0073", "Round requires a Long digit count",
@@ -1357,6 +1449,13 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             if (execute_ && digits < 0) {
                 set_error("WFC0094", "Round digit count must be non-negative",
                           identifier_offset);
+                return std::nullopt;
+            }
+            // More than 22 digits are refused.
+            if (execute_ && digits > 22) {
+                static_cast<void>(
+                    raise_runtime(5, "Invalid procedure call or argument",
+                                  identifier_offset));
                 return std::nullopt;
             }
         }
@@ -2035,9 +2134,13 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!std::holds_alternative<std::string>(arguments[0])) {
             return Value{false};  // Date, error values, ...
         }
-        const auto parsed =
-            parse_numeric_string(std::get<std::string>(arguments[0]));
-        return Value{parsed.status == NumericStringStatus::valid};
+        const auto& numeric_text = std::get<std::string>(arguments[0]);
+        const auto parsed = parse_numeric_string(numeric_text);
+        // A hexadecimal or octal number too long for a Long is a number
+        // still; a decimal one too large for a Double is not.
+        return Value{parsed.status == NumericStringStatus::valid ||
+                     (parsed.status == NumericStringStatus::out_of_range &&
+                      numeric_text.find('&') != std::string::npos)};
     }
 
     if (is_cbyte) {
@@ -2816,7 +2919,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         bool text_compare = text_compare_here();
         if (compare_method != nullptr) {
-            if (*compare_method < -1 || *compare_method > 1) {
+            // 2 (the database order) is refused; a value above it is a
+            // locale, compared by text.
+            if (*compare_method < -1 || *compare_method == 2) {
                 set_error("WFC0101", "Invalid procedure call or argument",
                           identifier_offset);
                 return std::nullopt;

@@ -241,95 +241,81 @@ struct NumericStringResult {
     while (last > first && is_ascii_whitespace(text[last - 1U])) {
         --last;
     }
-    {
-        // VB also reads a currency symbol (`$5`, `-$5`), parentheses for a
-        // negative number (`(5)`), a trailing sign (`5-`), and `D` as an
-        // exponent letter (`1D2`); rewrite those into the plain form.
-        std::string_view body = text.substr(first, last - first);
-        const auto trim_spaces = [&] {
-            while (!body.empty() && body.front() == ' ') {
-                body.remove_prefix(1U);
-            }
-            while (!body.empty() && body.back() == ' ') {
-                body.remove_suffix(1U);
-            }
-        };
-        bool negative = false;
-        bool rewritten = false;
-        if (body.size() >= 2U && body.front() == '(' && body.back() == ')') {
-            negative = true;
-            rewritten = true;
-            body = body.substr(1U, body.size() - 2U);
-            trim_spaces();
+    // What stands around the digits, as measured under Visual Basic 6 (the
+    // statement probe, "lib isnumeric signs"): one sign, before or after the
+    // number and possibly apart from it (`- 5`, `5 -`, `5+`); a currency
+    // symbol on either side, inside or outside the sign (`$-5`, `-$5`, `5$`);
+    // or parentheses for a negative number, which take no sign (`(5)`,
+    // `($5)`, but not `(-5)` or `-(5)`). A second sign is refused (`+-5`).
+    std::string_view body = text.substr(first, last - first);
+    bool negative = false;
+    bool sign_seen = false;
+    bool parenthesized = false;
+    bool currency = false;
+    const auto trim_spaces = [&] {
+        while (!body.empty() && body.front() == ' ') {
+            body.remove_prefix(1U);
         }
-        if (body.size() >= 2U && (body.back() == '-' || body.back() == '+') &&
-            std::isdigit(static_cast<unsigned char>(body[body.size() - 2U])) !=
-                0) {
-            negative = negative != (body.back() == '-');
-            rewritten = true;
+        while (!body.empty() && body.back() == ' ') {
             body.remove_suffix(1U);
-            trim_spaces();
         }
-        if (!body.empty() && (body.front() == '-' || body.front() == '+')) {
-            negative = negative != (body.front() == '-');
+    };
+    for (;;) {
+        trim_spaces();
+        if (body.empty()) {
+            return {};
+        }
+        const char c = body.front();
+        if (c == '(' && !parenthesized && !sign_seen && body.back() == ')') {
+            parenthesized = true;
+            negative = true;
+            body = body.substr(1U, body.size() - 2U);
+        } else if ((c == '-' || c == '+') && !sign_seen && !parenthesized) {
+            sign_seen = true;
+            negative = c == '-';
             body.remove_prefix(1U);
-            trim_spaces();
-        }
-        if (!body.empty() && body.front() == '$') {
-            rewritten = true;
+        } else if (c == '$' && !currency) {
+            currency = true;
             body.remove_prefix(1U);
-            trim_spaces();
-            if (!body.empty() && (body.front() == '-' || body.front() == '+')) {
-                negative = negative != (body.front() == '-');
-                body.remove_prefix(1U);
-                trim_spaces();
-            }
-        }
-        std::string normalized;
-        if (!body.empty() && body.front() != '&') {
-            for (std::size_t i = 0; i < body.size(); ++i) {
-                const char c = body[i];
-                if ((c == 'd' || c == 'D') && i > 0U &&
-                    std::isdigit(static_cast<unsigned char>(body[i - 1U])) !=
-                        0 &&
-                    i + 1U < body.size() &&
-                    (std::isdigit(static_cast<unsigned char>(body[i + 1U])) !=
-                         0 ||
-                     body[i + 1U] == '+' || body[i + 1U] == '-')) {
-                    rewritten = true;
-                    normalized.push_back('e');
-                } else {
-                    normalized.push_back(c);
-                }
-            }
         } else {
-            normalized = std::string(body);
-        }
-        if (rewritten && !normalized.empty() && normalized.front() != '+' &&
-            normalized.front() != '-' && normalized.front() != '$' &&
-            normalized.front() != '(') {
-            return parse_numeric_string((negative ? "-" : "") + normalized);
+            break;
         }
     }
-    if (first < last && text[first] == '+') {
-        ++first;
+    for (;;) {
+        trim_spaces();
+        if (body.empty()) {
+            return {};
+        }
+        const char c = body.back();
+        if ((c == '-' || c == '+') && !sign_seen && !parenthesized &&
+            body.size() >= 2U) {
+            sign_seen = true;
+            negative = c == '-';
+            body.remove_suffix(1U);
+        } else if (c == '$' && !currency) {
+            currency = true;
+            body.remove_suffix(1U);
+        } else {
+            break;
+        }
     }
-    if (first == last) {
-        return {};
-    }
+    const auto signed_result = [&](const double value) {
+        return NumericStringResult{NumericStringStatus::valid,
+                                   negative ? -value : value};
+    };
 
     // `&H1F` / `&O17` (optionally `&`-suffixed): VB converts these too.
-    if (last - first > 2U && text[first] == '&' &&
-        (text[first + 1U] == 'h' || text[first + 1U] == 'H' ||
-         text[first + 1U] == 'o' || text[first + 1U] == 'O')) {
-        const bool hex = text[first + 1U] == 'h' || text[first + 1U] == 'H';
-        std::size_t end = last;
-        if (text[end - 1U] == '&') {
+    if (body.size() > 2U && body[0] == '&' &&
+        (body[1] == 'h' || body[1] == 'H' || body[1] == 'o' ||
+         body[1] == 'O')) {
+        const bool hex = body[1] == 'h' || body[1] == 'H';
+        std::size_t end = body.size();
+        if (body[end - 1U] == '&') {
             --end;
         }
         std::uint64_t magnitude = 0;
-        for (std::size_t i = first + 2U; i < end; ++i) {
-            const char c = text[i];
+        for (std::size_t i = 2U; i < end; ++i) {
+            const char c = body[i];
             int digit = -1;
             if (c >= '0' && c <= '9') {
                 digit = c - '0';
@@ -338,59 +324,61 @@ struct NumericStringResult {
             } else if (hex && c >= 'A' && c <= 'F') {
                 digit = c - 'A' + 10;
             }
-            if (digit < 0 || (!hex && digit > 7) || magnitude > 0xFFFFFFFFULL) {
+            if (digit < 0 || (!hex && digit > 7)) {
                 return {};
+            }
+            if (magnitude > 0xFFFFFFFFULL) {
+                continue;  // too long: reported below
             }
             magnitude = magnitude * (hex ? 16U : 8U) +
                         static_cast<std::uint64_t>(digit);
         }
         if (magnitude > 0xFFFFFFFFULL) {
-            return {};
+            // Longer than a Long: a number still, but one that does not fit.
+            return {NumericStringStatus::out_of_range, 0.0};
         }
         // 4 or fewer hex digits is an Integer (sign-extended from 16 bits).
-        const bool short_form = short_hex && text[end - 1U] != '&' &&
-                                (end - first - 2U) <= (hex ? 4U : 6U) &&
-                                magnitude <= 0xFFFFULL &&
-                                text[last - 1U] != '&';
-        double result =
+        const bool short_form = short_hex && body.back() != '&' &&
+                                (end - 2U) <= (hex ? 4U : 6U) &&
+                                magnitude <= 0xFFFFULL;
+        const double result =
             short_form
                 ? static_cast<double>(static_cast<std::int16_t>(magnitude))
                 : static_cast<double>(static_cast<std::int32_t>(magnitude));
-        return {NumericStringStatus::valid, result};
+        return signed_result(result);
     }
-    // Thousands separators between digits of the integer part: `1,000`.
-    std::string stripped;
-    if (text.substr(first, last - first).find(',') != std::string_view::npos) {
-        bool in_integer_part = true;
-        for (std::size_t i = first; i < last; ++i) {
-            const char c = text[i];
-            if (c == '.' || c == 'e' || c == 'E') {
-                in_integer_part = false;
-            }
-            if (c == ',' && in_integer_part && i > first && i + 1U < last &&
-                std::isdigit(static_cast<unsigned char>(text[i - 1U])) != 0 &&
-                std::isdigit(static_cast<unsigned char>(text[i + 1U])) != 0) {
-                continue;
-            }
-            stripped.push_back(c);
-        }
-        if (stripped.find(',') != std::string::npos) {
-            return {};
-        }
-        return parse_numeric_string(stripped);
+    // The number itself starts with a digit or the decimal point.
+    if (std::isdigit(static_cast<unsigned char>(body.front())) == 0 &&
+        body.front() != '.') {
+        return {};
     }
-
+    // Thousands separators are dropped wherever they stand in the integer
+    // part (`1,000`, `1,,2`, `1,`); `D` is an exponent letter as `E` is.
+    std::string digits;
+    digits.reserve(body.size());
+    bool in_integer_part = true;
+    for (std::size_t i = 0; i < body.size(); ++i) {
+        const char c = body[i];
+        if (c == ',' && in_integer_part) {
+            continue;
+        }
+        if (c == '.' || c == 'e' || c == 'E' || c == 'd' || c == 'D') {
+            in_integer_part = false;
+        }
+        digits.push_back(c == 'd' || c == 'D' ? 'e' : c);
+    }
     double value{};
     const auto conversion =
-        std::from_chars(text.data() + first, text.data() + last, value);
+        std::from_chars(digits.data(), digits.data() + digits.size(), value);
     if (conversion.ec == std::errc::result_out_of_range) {
         return {NumericStringStatus::out_of_range, value};
     }
-    if (conversion.ec != std::errc{} || conversion.ptr != text.data() + last ||
+    if (conversion.ec != std::errc{} ||
+        conversion.ptr != digits.data() + digits.size() ||
         !std::isfinite(value)) {
         return {};
     }
-    return {NumericStringStatus::valid, value};
+    return signed_result(value);
 }
 
 // A value participates in numeric operators when it is a Long, Currency,

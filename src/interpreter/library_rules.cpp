@@ -154,6 +154,19 @@ bool Interpreter::measured_library_call(const std::string_view identifier,
                 Value{static_cast<Integer>(std::nearbyint(date->serial))};
         }
     }
+    // Abs of the smallest Integer or Long: a typed value has no room for the
+    // answer (overflow); a Variant widens.
+    if (key == "abs" && typed(0)) {
+        const auto* small = std::get_if<Int16>(&arguments[0]);
+        const auto* whole = std::get_if<Integer>(&arguments[0]);
+        if ((small != nullptr && *small == std::numeric_limits<Int16>::min()) ||
+            (whole != nullptr &&
+             *whole == std::numeric_limits<Integer>::min())) {
+            static_cast<void>(raise_runtime(6, "Overflow", offset));
+            result = std::nullopt;
+            return true;
+        }
+    }
     if (key == "abs" || key == "int" || key == "fix" || key == "round") {
         if (std::holds_alternative<Byte>(arguments[0])) {
             result = arguments[0];
@@ -253,14 +266,20 @@ bool Interpreter::measured_library_call(const std::string_view identifier,
             result = Value{std::string{" 0"}};
             return true;
         }
+        // The blank of the sign comes before a Boolean or a Date only when
+        // the argument is a typed variable itself (`Str(flag)`); a literal or
+        // an expression has none (`Str(True)`, `Str(Not flag)`).
+        const bool typed_variable = typed(0) &&
+                                    !library_argument_is_variable_.empty() &&
+                                    library_argument_is_variable_[0];
         if (const auto* date = std::get_if<DateValue>(&arguments[0])) {
-            result = Value{typed(0) ? " " + render(Value{*date})
-                                    : render(Value{*date})};
+            result = Value{typed_variable ? " " + render(Value{*date})
+                                          : render(Value{*date})};
             return true;
         }
         if (const auto* flag = std::get_if<bool>(&arguments[0])) {
             const std::string text = *flag ? "True" : "False";
-            result = Value{typed(0) ? " " + text : text};
+            result = Value{typed_variable ? " " + text : text};
             return true;
         }
         as_serial(0);
