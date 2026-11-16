@@ -4498,3 +4498,553 @@ SayV IsDate("13/45")
 SayV IsNumeric("1,,2")
 SayV StrComp("a", "A", 99)
 SayV CDate("2/30")
+# --- Like, byte strings, Mid statement, financial functions, type tests ---
+@@ like basic patterns
+SayV "abc" Like "abc"
+SayV "abc" Like "a*"
+SayV "abc" Like "*c"
+SayV "abc" Like "a?c"
+SayV "abc" Like "a??"
+SayV "abc" Like "a???"
+SayV "abc" Like "*"
+SayV "" Like "*"
+SayV "" Like ""
+SayV "" Like "?"
+SayV "abc" Like ""
+SayV "abc" Like "ABC"
+SayV "a1c" Like "a#c"
+SayV "abc" Like "a#c"
+SayV "a12c" Like "a##c"
+SayV "abc" Like "*b*"
+SayV "abc" Like "**"
+SayV "abc" Like "a*b*c"
+SayV "abc" Like "*abc*"
+SayV "aXbXc" Like "a*X*c"
+@@ like character lists
+SayV "b" Like "[abc]"
+SayV "d" Like "[abc]"
+SayV "b" Like "[a-c]"
+SayV "d" Like "[a-c]"
+SayV "b" Like "[!a-c]"
+SayV "d" Like "[!a-c]"
+SayV "-" Like "[a-]"
+SayV "-" Like "[-a]"
+SayV "-" Like "[!-a]"
+SayV "]" Like "]"
+SayV "[" Like "[[]"
+SayV "*" Like "[*]"
+SayV "?" Like "[?]"
+SayV "#" Like "[#]"
+SayV "a" Like "[*]"
+SayV "!" Like "[!]"
+SayV "a" Like "[!]"
+SayV "" Like "[]"
+SayV "a" Like "[]"
+SayV "a" Like "[]a"
+SayV "B" Like "[a-c]"
+SayV "b" Like "[A-C]"
+SayV "5" Like "[0-9]"
+SayV "ab" Like "[a][b]"
+SayV "a]" Like "a]"
+SayV "a-c" Like "a[-]c"
+SayV "b" Like "[a-cx-z]"
+SayV "y" Like "[a-cx-z]"
+SayV "m" Like "[a-cx-z]"
+@@ like bad range
+SayV "b" Like "[c-a]"
+@@ like unclosed list
+SayV "a" Like "[a"
+@@ like unclosed list empty
+SayV "[" Like "["
+@@ like unclosed list later
+SayV "ab" Like "a[b"
+@@ like null operands
+SayV Null Like "a"
+SayV "a" Like Null
+SayV Null Like Null
+@@ like numbers
+SayV 123 Like "1*"
+SayV 1.5 Like "#.#"
+SayV True Like "T*"
+SayV #1/2/2000# Like "1/*"
+SayV "12" Like 12
+@@ like empty variant
+Dim v As Variant
+SayV v Like ""
+SayV v Like "*"
+SayV "" Like v
+@@ like special characters
+SayV "a*c" Like "a[*]c"
+SayV "abc" Like "a[*]c"
+SayV "a.c" Like "a.c"
+SayV "a\c" Like "a\c"
+SayV "a c" Like "a c"
+SayV "a" & vbTab & "c" Like "a?c"
+SayV "a" & vbCrLf & "c" Like "a*c"
+SayV "a" & vbCrLf & "c" Like "a??c"
+SayV ChrW(233) Like "?"
+SayV ChrW(233) Like "[a-z]"
+SayV ChrW(8364) Like "?"
+@@ like digit pattern
+SayV "1" Like "#"
+SayV "a" Like "#"
+SayV "12" Like "#"
+SayV "" Like "#"
+SayV "1.5" Like "#.#"
+SayV "-1" Like "#"
+SayV ChrW(1633) Like "#"
+@@ byte string functions
+SayV LenB("abc")
+SayV LenB("")
+SayV AscB("A")
+SayV AscB(MidB("A", 2, 1))
+SayV LenB(LeftB("abc", 2))
+SayV LenB(LeftB("abc", 3))
+SayV LenB(RightB("abc", 3))
+SayV LenB(MidB("abc", 2))
+SayV LenB(MidB("abc", 2, 2))
+SayV LeftB("abc", 2)
+SayV MidB("abc", 3, 2)
+SayV RightB("abc", 2)
+SayV InStrB("abc", "b")
+SayV InStrB("abc", "c")
+SayV InStrB(1, "abc", "b")
+SayV InStrB(4, "abc", "b")
+SayV InStrB("abc", "")
+SayV LenB(ChrB(65))
+SayV AscB(ChrB(65))
+SayV LenB(ChrB(65) & ChrB(66))
+SayV LenB(ChrB(65) & "a")
+@@ byte string odd length
+Dim s As String
+s = ChrB(65) & ChrB(0) & ChrB(66)
+SayV LenB(s)
+SayV Len(s)
+SayV AscB(RightB(s, 1))
+SayV LenB(s & s)
+@@ byte string null
+SayV LenB(Null)
+SayV LeftB(Null, 1)
+SayV MidB(Null, 1)
+@@ byte string bad arguments
+SayV LeftB("abc", -1)
+@@ chrb range
+SayV LenB(ChrB(256))
+@@ ascb empty
+SayV AscB("")
+@@ byte array and string
+Dim b() As Byte
+Dim s As String
+b = "AB"
+Say CStr(UBound(b)) & ":" & CStr(b(0)) & "," & CStr(b(1)) & "," & CStr(b(2)) & "," & CStr(b(3))
+s = b
+Say s & ":" & CStr(Len(s))
+ReDim b(0 To 2)
+b(0) = 65: b(1) = 0: b(2) = 66
+s = b
+Say CStr(LenB(s)) & ":" & CStr(Len(s))
+@@ byte array empty string
+Dim b() As Byte
+b = ""
+Say CStr(UBound(b)) & ":" & CStr(LBound(b))
+@@ mid statement forms
+Dim s As String
+s = "abcdef"
+Mid(s, 2) = "XY"
+Say s
+s = "abcdef"
+Mid(s, 2, 1) = "XY"
+Say s
+s = "abcdef"
+Mid(s, 5) = "XYZ"
+Say s
+s = "abcdef"
+Mid(s, 1, 0) = "XY"
+Say s
+s = "abcdef"
+Mid(s, 6) = "XY"
+Say s
+s = "abcdef"
+Mid(s, 2, 100) = "XY"
+Say s
+s = "abcdef"
+Mid$(s, 3) = ""
+Say s
+s = "abcdef"
+Mid(s, 2) = 12
+Say s
+@@ mid statement start past end
+Dim s As String
+s = "abc"
+Mid(s, 4) = "X"
+Say s
+@@ mid statement start zero
+Dim s As String
+s = "abc"
+Mid(s, 0) = "X"
+Say s
+@@ mid statement negative length
+Dim s As String
+s = "abc"
+Mid(s, 1, -1) = "X"
+Say s
+@@ mid statement empty target
+Dim s As String
+Mid(s, 1) = "X"
+Say s & "."
+@@ mid statement null
+Dim s As String
+s = "abc"
+Mid(s, 1) = Null
+Say s
+@@ mid statement variant target
+Dim v As Variant
+v = "abcdef"
+Mid(v, 2, 2) = "XY"
+SayV v
+v = 123456
+Mid(v, 2, 2) = "XY"
+SayV v
+@@ midb statement
+Dim s As String
+s = "abcd"
+MidB(s, 3, 2) = "X"
+Say s
+@@ financial pmt family
+SayV Round(Pmt(0.01, 12, 1000), 6)
+SayV Round(Pmt(0.01, 12, 1000, 0, 1), 6)
+SayV Round(Pmt(0, 12, 1200), 6)
+SayV Round(Pmt(0.01, 12, 1000, 500), 6)
+SayV Round(IPmt(0.01, 1, 12, 1000), 6)
+SayV Round(IPmt(0.01, 12, 12, 1000), 6)
+SayV Round(PPmt(0.01, 1, 12, 1000), 6)
+SayV Round(PPmt(0.01, 12, 12, 1000), 6)
+SayV Round(IPmt(0.01, 1, 12, 1000, 0, 1), 6)
+@@ financial pmt zero periods
+SayV Pmt(0.01, 0, 1000)
+@@ financial ipmt bad period
+SayV IPmt(0.01, 13, 12, 1000)
+@@ financial ipmt period zero
+SayV IPmt(0.01, 0, 12, 1000)
+@@ financial values
+SayV Round(FV(0.01, 12, -100), 6)
+SayV Round(FV(0.01, 12, -100, -1000), 6)
+SayV Round(FV(0.01, 12, -100, 0, 1), 6)
+SayV Round(FV(0, 12, -100), 6)
+SayV Round(PV(0.01, 12, -100), 6)
+SayV Round(PV(0.01, 12, -100, 1000), 6)
+SayV Round(PV(0, 12, -100), 6)
+SayV Round(NPer(0.01, -100, 1000), 6)
+SayV Round(NPer(0, -100, 1000), 6)
+SayV Round(Rate(12, -100, 1000), 8)
+SayV Round(Rate(12, -100, 1000, 0, 0, 0.5), 8)
+@@ financial nper impossible
+SayV NPer(0.2, -100, 1000)
+@@ financial rate no solution
+SayV Rate(12, 100, 1000)
+@@ financial depreciation
+SayV Round(SLN(1000, 100, 5), 6)
+SayV Round(SYD(1000, 100, 5, 1), 6)
+SayV Round(SYD(1000, 100, 5, 5), 6)
+SayV Round(DDB(1000, 100, 5, 1), 6)
+SayV Round(DDB(1000, 100, 5, 5), 6)
+SayV Round(DDB(1000, 100, 5, 1, 1.5), 6)
+SayV Round(DDB(1000, 100, 5, 2.5), 6)
+@@ financial sln zero life
+SayV SLN(1000, 100, 0)
+@@ financial syd bad period
+SayV SYD(1000, 100, 5, 6)
+@@ financial ddb bad period
+SayV DDB(1000, 100, 5, 6)
+@@ financial ddb negative
+SayV DDB(-1000, 100, 5, 1)
+@@ financial npv irr
+Dim v(0 To 3) As Double
+v(0) = -1000: v(1) = 400: v(2) = 400: v(3) = 400
+SayV Round(NPV(0.1, v), 6)
+SayV Round(IRR(v), 8)
+SayV Round(IRR(v, 0.5), 8)
+SayV Round(MIRR(v, 0.1, 0.12), 8)
+@@ financial irr all positive
+Dim v(0 To 1) As Double
+v(0) = 100: v(1) = 100
+SayV IRR(v)
+@@ financial npv rate minus one
+Dim v(0 To 1) As Double
+v(0) = 100: v(1) = 100
+SayV NPV(-1, v)
+@@ type tests on values
+Dim v As Variant
+Dim o As Object
+Dim a() As Long
+SayV IsEmpty(v)
+SayV IsNull(v)
+SayV IsObject(v)
+SayV IsObject(o)
+SayV IsArray(a)
+SayV IsArray(v)
+SayV IsError(v)
+SayV IsError(CVErr(5))
+SayV IsEmpty(Empty)
+SayV IsEmpty(0)
+SayV IsEmpty("")
+SayV IsNull(Null)
+SayV IsNull("")
+SayV IsObject(Nothing)
+v = Array()
+SayV IsArray(v)
+Set v = Nothing
+SayV IsObject(v)
+SayV IsEmpty(v)
+SayV v Is Nothing
+@@ vartype of values
+Dim v As Variant
+Dim o As Object
+Dim a() As Long
+Dim s(1 To 2) As String
+SayV VarType(v)
+SayV VarType(Null)
+SayV VarType(1)
+SayV VarType(1&)
+SayV VarType(1!)
+SayV VarType(1#)
+SayV VarType(1@)
+SayV VarType(#1/1/2000#)
+SayV VarType("")
+SayV VarType(True)
+SayV VarType(CByte(1))
+SayV VarType(CDec(1))
+SayV VarType(CVErr(1))
+SayV VarType(a)
+SayV VarType(s)
+SayV VarType(Array())
+SayV VarType(o)
+SayV VarType(Nothing)
+@@ vartype of object default
+Dim c As New Collection
+SayV VarType(c)
+@@ typename of values
+Dim v As Variant
+Dim o As Object
+Dim a() As Long
+Dim s(1 To 2) As String
+Dim c As New Collection
+SayV TypeName(v)
+SayV TypeName(Null)
+SayV TypeName(1)
+SayV TypeName(1&)
+SayV TypeName(1!)
+SayV TypeName(1#)
+SayV TypeName(1@)
+SayV TypeName(#1/1/2000#)
+SayV TypeName("")
+SayV TypeName(True)
+SayV TypeName(CByte(1))
+SayV TypeName(CDec(1))
+SayV TypeName(CVErr(1))
+SayV TypeName(a)
+SayV TypeName(s)
+SayV TypeName(Array())
+SayV TypeName(o)
+SayV TypeName(Nothing)
+SayV TypeName(c)
+SayV TypeName(Array(1, 2)(0))
+@@ cverr values
+Dim v As Variant
+v = CVErr(11)
+SayV IsError(v)
+SayV CLng(v)
+SayV CStr(v)
+SayV v = CVErr(11)
+SayV IsNumeric(v)
+@@ cverr arithmetic
+Dim v As Variant
+v = CVErr(11)
+SayV v + 1
+@@ cverr range
+SayV CLng(CVErr(65535))
+@@ cverr too big
+SayV CLng(CVErr(65536))
+@@ cverr negative
+SayV CLng(CVErr(-1))
+@@ concat operand kinds
+SayV 1 & 2
+SayV 1.5 & True
+SayV "a" & Null
+SayV Null & Null
+SayV Null & "a"
+SayV #1/2/2000# & "x"
+SayV Empty & "x"
+SayV CCur(1.5) & "x"
+SayV CDec("1.50") & "x"
+SayV 1E+20 & "x"
+SayV CSng(0.1) & "x"
+SayV -0.5 & "x"
+SayV CByte(5) & 5
+@@ concat error value
+SayV CVErr(5) & "x"
+@@ plus on strings and numbers
+SayV "1" + "2"
+SayV "1" + 2
+SayV 1 + "2"
+SayV "a" + "b"
+SayV "1.5" + 1
+SayV True + "1"
+SayV Null + "a"
+SayV Empty + "a"
+SayV "" + Empty
+SayV "5" + Empty
+SayV #1/1/2000# + "1"
+@@ plus text and number
+SayV "a" + 1
+@@ plus empty text and number
+SayV "" + 1
+@@ array bounds forms
+Dim a(1 To 3, 5 To 7) As Long
+Dim d() As Long
+SayV LBound(a)
+SayV UBound(a)
+SayV LBound(a, 1)
+SayV UBound(a, 2)
+SayV LBound(a, 2)
+ReDim d(2 To 4)
+SayV LBound(d)
+SayV UBound(d, 1)
+SayV UBound(Array(1, 2, 3))
+SayV LBound(Array())
+SayV UBound(Array())
+SayV UBound(Split(""))
+@@ array bounds bad dimension
+Dim a(1 To 3) As Long
+SayV UBound(a, 2)
+@@ array bounds dimension zero
+Dim a(1 To 3) As Long
+SayV UBound(a, 0)
+@@ array bounds not array
+Dim v As Variant
+v = 5
+SayV UBound(v)
+@@ array bounds real dimension
+Dim a(1 To 3, 5 To 7) As Long
+SayV UBound(a, 1.5)
+SayV UBound(a, 2.5)
+SayV UBound(a, "2")
+@@ array redim forms
+Dim a() As Long
+ReDim a(5)
+a(5) = 7
+ReDim Preserve a(10)
+SayV a(5)
+ReDim Preserve a(2)
+SayV UBound(a)
+ReDim a(1 To 2, 1 To 2)
+a(2, 2) = 9
+ReDim Preserve a(1 To 2, 1 To 5)
+SayV a(2, 2)
+ReDim a(-3 To -1)
+SayV LBound(a)
+ReDim a(0)
+SayV UBound(a)
+@@ array redim preserve lower bound
+Dim a() As Long
+ReDim a(1 To 5)
+ReDim Preserve a(2 To 5)
+SayV LBound(a)
+@@ array redim preserve first dimension
+Dim a() As Long
+ReDim a(1 To 2, 1 To 2)
+ReDim Preserve a(1 To 3, 1 To 2)
+SayV UBound(a)
+@@ array redim preserve dimensions
+Dim a() As Long
+ReDim a(1 To 2)
+ReDim Preserve a(1 To 2, 1 To 2)
+SayV UBound(a)
+@@ array redim negative
+Dim a() As Long
+Dim n As Long
+n = -2
+ReDim a(n)
+SayV UBound(a)
+@@ array redim minus one
+Dim a() As Long
+Dim n As Long
+n = -1
+ReDim a(n)
+SayV UBound(a)
+SayV LBound(a)
+@@ array redim upper below lower
+Dim a() As Long
+Dim n As Long
+n = 3
+ReDim a(5 To n)
+SayV UBound(a)
+@@ array redim one below lower
+Dim a() As Long
+Dim n As Long
+n = 4
+ReDim a(5 To n)
+SayV UBound(a)
+SayV LBound(a)
+@@ array redim real bounds
+Dim a() As Long
+ReDim a(1.5 To 2.5)
+SayV LBound(a)
+SayV UBound(a)
+ReDim a(0.5 To 3.5)
+SayV LBound(a)
+SayV UBound(a)
+@@ array index kinds
+Dim a(0 To 5) As Long
+a(2) = 7
+a(3) = 9
+SayV a(2.5)
+SayV a(1.5)
+SayV a(3.5)
+SayV a("2")
+SayV a(True + 3)
+@@ array index null
+Dim a(0 To 5) As Long
+SayV a(Null)
+@@ array index text
+Dim a(0 To 5) As Long
+SayV a("x")
+@@ array element default
+Dim s(1 To 2) As String
+Dim v(1 To 2) As Variant
+Dim o(1 To 2) As Object
+Dim d(1 To 2) As Date
+Dim b(1 To 2) As Boolean
+SayV s(1)
+SayV v(1)
+SayV o(1) Is Nothing
+SayV d(1)
+SayV b(1)
+@@ array copy semantics
+Dim a(1 To 2) As Long
+Dim b() As Long
+Dim v As Variant
+a(1) = 1
+b = a
+b(1) = 5
+SayV a(1)
+v = a
+v(1) = 7
+SayV a(1)
+SayV v(1)
+SayV TypeName(v)
+@@ array assign fixed target
+Dim a(1 To 2) As Long
+Dim b(1 To 2) As Long
+b(1) = 3
+Dim v As Variant
+v = b
+SayV v(1)
+@@ array assign type mismatch
+Dim a() As Long
+Dim b() As Integer
+ReDim b(1 To 2)
+Dim v As Variant
+v = b
+a = v
+SayV UBound(a)

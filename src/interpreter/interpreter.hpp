@@ -1470,7 +1470,8 @@ private:
                         }
                         std::size_t q = p + 1;
                         bool negate = false;
-                        if (q < close && pattern[q] == Unit{'!'}) {
+                        // "[!]" is a list of the one character "!".
+                        if (q + 1 < close && pattern[q] == Unit{'!'}) {
                             negate = true;
                             ++q;
                         }

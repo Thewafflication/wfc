@@ -9,7 +9,11 @@ namespace wfc::detail {
 std::optional<bool> Interpreter::parse_mid_statement(
     const std::size_t statement_offset) {
     const auto start = offset_;
-    if (!consume_keyword("mid")) {
+    // MidB works on the bytes of the String, Mid on its characters.
+    bool by_bytes = false;
+    if (consume_keyword("midb")) {
+        by_bytes = true;
+    } else if (!consume_keyword("mid")) {
         return std::nullopt;
     }
     static_cast<void>(consume('$'));
@@ -58,8 +62,12 @@ std::optional<bool> Interpreter::parse_mid_statement(
         return false;
     }
     skip_horizontal_whitespace();
-    if (consume(',') && !long_argument(length)) {
-        return false;
+    bool has_length = false;
+    if (consume(',')) {
+        if (!long_argument(length)) {
+            return false;
+        }
+        has_length = true;
     }
     skip_horizontal_whitespace();
     if (!consume(')')) {
@@ -79,6 +87,21 @@ std::optional<bool> Interpreter::parse_mid_statement(
     if (!execute_) {
         return true;
     }
+    // Measured (statement probe, "mid statement ..."): a number is written
+    // as its text, on either side; Null is refused; a length below zero is
+    // an error.
+    if (std::holds_alternative<Null>(*replacement)) {
+        set_error("WFC0104", "Invalid use of Null", statement_offset);
+        return false;
+    }
+    if (is_number(*replacement) || std::holds_alternative<bool>(*replacement) ||
+        std::holds_alternative<DateValue>(*replacement)) {
+        replacement = Value{render(*replacement)};
+    }
+    if (is_number(*variable.value) &&
+        variable.scope->variant_variables.contains(*name)) {
+        *variable.value = Value{render(*variable.value)};
+    }
     auto* const target = std::get_if<std::string>(variable.value);
     const auto* text = std::get_if<std::string>(&*replacement);
     if (target == nullptr || text == nullptr) {
@@ -86,9 +109,26 @@ std::optional<bool> Interpreter::parse_mid_statement(
                   statement_offset);
         return false;
     }
-    if (position < 1 || length < -1) {
+    if (position < 1 || (has_length && length < 0)) {
         return raise_runtime(5, "Invalid procedure call or argument",
                              statement_offset);
+    }
+    if (by_bytes) {
+        std::string target_bytes = string_to_bytes(*target);
+        const std::string text_bytes = string_to_bytes(*text);
+        const auto first = static_cast<std::size_t>(position - 1);
+        if (first >= target_bytes.size()) {
+            return raise_runtime(5, "Invalid procedure call or argument",
+                                 statement_offset);
+        }
+        std::size_t byte_count =
+            std::min(text_bytes.size(), target_bytes.size() - first);
+        if (has_length) {
+            byte_count = std::min(byte_count, static_cast<std::size_t>(length));
+        }
+        target_bytes.replace(first, byte_count, text_bytes, 0, byte_count);
+        *target = bytes_to_string(target_bytes);
+        return true;
     }
     const auto begin = static_cast<std::size_t>(position - 1);
     if (!is_ascii_text(*target) || !is_ascii_text(*text)) {
@@ -632,6 +672,15 @@ bool Interpreter::parse_assignment(std::string identifier,
         }
         if (std::holds_alternative<ArrayValue>(*value)) {
             deep_copy_udt_values(*value);
+            // An array goes into an array variable of the same element type
+            // only (measured: Long() = Integer() is a type mismatch).
+            const auto* previous = std::get_if<ArrayValue>(variable.value);
+            if (previous != nullptr &&
+                !variable.scope->variant_variables.contains(identifier) &&
+                previous->element_type_index !=
+                    std::get<ArrayValue>(*value).element_type_index) {
+                return raise_runtime(13, "Type mismatch", identifier_offset);
+            }
         }
         // Assigning an array to a dynamic array leaves the target dynamic
         // (resizable).
@@ -1685,6 +1734,10 @@ Interpreter::parse_index_list(const std::size_t dimension_count) {
         const auto index_offset = offset_;
         auto index_value = parse_expression();
         if (!index_value.has_value()) {
+            return std::nullopt;
+        }
+        if (execute_ && std::holds_alternative<Null>(*index_value)) {
+            set_error("WFC0104", "Invalid use of Null", index_offset);
             return std::nullopt;
         }
         const auto index = coerce_long(*index_value, index_offset);

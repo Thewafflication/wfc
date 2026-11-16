@@ -647,6 +647,16 @@ std::optional<Value> Interpreter::parse_comparison() {
             if (!pattern.has_value()) {
                 return std::nullopt;
             }
+            // A number, Boolean, Date or Empty is compared as its text.
+            for (Value* const operand : {&*left, &*pattern}) {
+                if (std::holds_alternative<Empty>(*operand)) {
+                    *operand = Value{std::string{}};
+                } else if (is_number(*operand) ||
+                           std::holds_alternative<bool>(*operand) ||
+                           std::holds_alternative<DateValue>(*operand)) {
+                    *operand = Value{render(*operand)};
+                }
+            }
             const auto* text = std::get_if<std::string>(&*left);
             const auto* mask = std::get_if<std::string>(&*pattern);
             if ((text == nullptr || mask == nullptr) && !execute_) {
@@ -732,6 +742,13 @@ std::optional<Value> Interpreter::parse_concatenation() {
             // checked or joined.
             left = Value{std::string{}};
             continue;
+        }
+        // An error value has no text to join (measured: CVErr(5) & "x").
+        if (execute_ && (std::holds_alternative<ErrorValue>(*left) ||
+                         std::holds_alternative<ErrorValue>(*right))) {
+            static_cast<void>(
+                raise_runtime(13, "Type mismatch", operator_offset));
+            return std::nullopt;
         }
         // Two Nulls give Null; a single Null operand concatenates as an
         // empty string (measured under VB6 6.00.8176: Null & "x" = "x").

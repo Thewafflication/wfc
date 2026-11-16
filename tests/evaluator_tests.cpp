@@ -851,7 +851,7 @@ int main() {
         "arr(5)",
         "7");
     expect_program_failure(
-        "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(5)", "WFC0115");
+        "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(5)", "WFC0300");
     expect_program_success(
         "Dim arr() As Long\nReDim arr(1, 2)\narr(0, 0) = 1\narr(0, 1) = "
         "2\narr(0, 2) = 3\n"
@@ -867,7 +867,7 @@ int main() {
         "1 1");
     expect_program_failure(
         "Dim arr() As Long\nReDim arr(2, 3)\nReDim Preserve arr(3, 3)",
-        "WFC0151");
+        "WFC0300");
     // Erase on a multi-dimensional dynamic array (REQ-0219 regression):
     // Erase must clear the array's per-dimension bounds along with its
     // elements, not just its elements. Before this fix, a stale
@@ -2890,7 +2890,7 @@ int main() {
     expect_program_failure("Print Asc(\"\")", "WFC0077");
     expect_program_failure("Print Chr(-1)", "WFC0078");
     expect_program_failure("Print Chr(256)", "WFC0078");
-    expect_program_failure("Print ChrB(256)", "WFC0078");
+    expect_program_failure("Print ChrB(256)", "WFC0300");
     expect_program_failure("Print InStr(1, \"a\", \"a\", vbDatabaseCompare)",
                            "WFC0101");
     // Measured under Visual Basic 6: 2 is refused, a value above it is a

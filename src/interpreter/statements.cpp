@@ -3541,28 +3541,24 @@ bool Interpreter::parse_inline_statement_core() {
         const auto word = parse_identifier(&probe_type_character);
         offset_ = probe;
         static const std::set<std::string, std::less<>> delegated = {
-            "if",          "goto",          "gosub",
-            "return",      "resume",        "redim",
-            "erase",       "open",          "close",
-            "write",       "input",         "line",
-            "get",         "put",           "seek",
-            "kill",        "name",          "mkdir",
-            "rmdir",       "chdir",         "randomize",
-            "lset",        "rset",          "end",
-            "stop",        "raiseevent",    "mid",
-            "savesetting", "deletesetting", "chdrive",
-            "unlock",      "lock",          "reset",
-            "load",        "unload",        "beep",
-            "doevents",    "date",          "time",
-            "dim",         "static",        "const",
-            "error",       "debug",         "for",
-            "do",          "while",         "call",
-            "msgbox",      "appactivate",   "sendkeys",
-            "shell",       "setattr",       "filecopy",
-            "savepicture"};
+            "if",          "goto",          "gosub",       "return",
+            "resume",      "redim",         "erase",       "open",
+            "close",       "write",         "input",       "line",
+            "get",         "put",           "seek",        "kill",
+            "name",        "mkdir",         "rmdir",       "chdir",
+            "randomize",   "lset",          "rset",        "end",
+            "stop",        "raiseevent",    "mid",         "midb",
+            "savesetting", "deletesetting", "chdrive",     "unlock",
+            "lock",        "reset",         "load",        "unload",
+            "beep",        "doevents",      "date",        "time",
+            "dim",         "static",        "const",       "error",
+            "debug",       "for",           "do",          "while",
+            "call",        "msgbox",        "appactivate", "sendkeys",
+            "shell",       "setattr",       "filecopy",    "savepicture"};
         if (word.has_value() &&
             (probe_type_character == '\0' ||
-             (probe_type_character == '$' && *word == "mid")) &&
+             (probe_type_character == '$' &&
+              (*word == "mid" || *word == "midb"))) &&
             delegated.contains(*word) && *word != "date" && *word != "time") {
             return parse_statement_core();
         }

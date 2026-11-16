@@ -1018,6 +1018,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         const bool wide = identifier == "chrw" || identifier == "chrw$";
         const Integer maximum = wide ? 65535 : 255;
+        if (is_chr_b && (*character_code < 0 || *character_code > maximum)) {
+            // A code outside a Byte does not fit the argument.
+            static_cast<void>(raise_runtime(6, "Overflow", identifier_offset));
+            return std::nullopt;
+        }
         if (*character_code < 0 || *character_code > maximum) {
             set_error("WFC0078",
                       is_chr_b ? "ChrB code must be in the byte range"
@@ -1179,6 +1184,22 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // an ordinary 1-D array.
         Integer dimension = 1;
         if (arguments.size() == 2U) {
+            // The dimension is a Long: a real number or a numeric String
+            // is rounded to one.
+            if (const auto* text = std::get_if<std::string>(&arguments[1])) {
+                const auto number = parse_numeric_string(*text);
+                if (number.status == NumericStringStatus::valid) {
+                    arguments[1] = Value{number.value};
+                }
+            }
+            if (is_number(arguments[1]) &&
+                !std::holds_alternative<Integer>(arguments[1]) &&
+                !std::holds_alternative<Decimal>(arguments[1])) {
+                const double rounded = std::nearbyint(as_double(arguments[1]));
+                if (std::fabs(rounded) < 2147483647.0) {
+                    arguments[1] = Value{static_cast<Integer>(rounded)};
+                }
+            }
             const auto* dimension_argument =
                 std::get_if<Integer>(&arguments[1]);
             if (dimension_argument == nullptr) {
@@ -3115,8 +3136,9 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         // The Variant-returning string functions propagate Null; their `$`
         // forms reject it (error 94).
         static const std::set<std::string, std::less<>> null_propagating = {
-            "trim", "ltrim", "rtrim",  "ucase", "lcase", "left",   "right",
-            "mid",  "space", "string", "chr",   "chrw",  "strconv"};
+            "trim",    "ltrim", "rtrim",  "ucase",  "lcase", "left",
+            "right",   "mid",   "space",  "string", "chr",   "chrw",
+            "strconv", "leftb", "rightb", "midb"};
         static const std::set<std::string, std::less<>> null_rejecting = {
             "trim$",  "ltrim$", "rtrim$", "ucase$",    "lcase$", "left$",
             "right$", "mid$",   "space$", "string$",   "chr$",   "chrw$",
@@ -3218,7 +3240,13 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             set_error("WFC0009", "integer overflow", identifier_offset);
             return std::nullopt;
         }
-        // LenB counts the bytes of the UTF-16 form; Len counts UTF-16 units.
+        // LenB counts the bytes of the UTF-16 form; Len counts UTF-16 units,
+        // and a String of an odd number of bytes has half of them (rounded
+        // down).
+        if (identifier != "lenb" && string->find('\xEF') != std::string::npos) {
+            return Value{
+                static_cast<Integer>(string_to_bytes(*string).size() / 2U)};
+        }
         return Value{static_cast<Integer>(identifier == "lenb"
                                               ? string_to_bytes(*string).size()
                                               : utf16_length(*string))};

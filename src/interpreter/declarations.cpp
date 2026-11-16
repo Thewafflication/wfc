@@ -3157,6 +3157,14 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         required_dimension_count =
             array.dimensions.empty() ? 1U : array.dimensions.size();
     }
+    // Measured (statement probe, "array redim preserve ..."): ReDim Preserve
+    // that changes the number of dimensions, an earlier dimension or the
+    // lower bound of the last one is "Subscript out of range" when it runs.
+    if (preserve && array.is_allocated && !array.dimension_count_declared &&
+        new_dimensions.size() != required_dimension_count) {
+        return !execute_ ||
+               raise_runtime(9, "Subscript out of range", identifier_offset);
+    }
     if (new_dimensions.size() != required_dimension_count) {
         set_error("WFC0115",
                   "ReDim dimension count does not match the array's declared "
@@ -3174,13 +3182,18 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         for (std::size_t dimension = 0; dimension + 1U < new_dimensions.size();
              ++dimension) {
             if (new_dimensions[dimension] != array.dimensions[dimension]) {
-                set_error("WFC0151",
-                          "ReDim Preserve may only change a multi-dimensional "
-                          "array's last "
-                          "dimension",
-                          identifier_offset);
-                return false;
+                return !execute_ || raise_runtime(9, "Subscript out of range",
+                                                  identifier_offset);
             }
+        }
+    }
+    if (preserve && array.is_allocated && execute_) {
+        const Integer old_lower = array.dimensions.empty()
+                                      ? array.lower_bound
+                                      : array.dimensions.back().first;
+        if (new_dimensions.back().first != old_lower) {
+            return raise_runtime(9, "Subscript out of range",
+                                 identifier_offset);
         }
     }
 

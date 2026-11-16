@@ -1248,6 +1248,10 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (!execute_) {
             return Value{0.0};
         }
+        // A rate of -1 divides by zero: refused.
+        if (name == "npv" && *first == -1.0) {
+            return invalid_call();
+        }
         std::vector<double> flows;
         for (const auto& element : values->elements) {
             if (!is_number(element) ||
@@ -1322,6 +1326,14 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (name == "syd") {
             return finite_result((*cost - *salvage) * (*life - *period + 1.0) *
                                  2.0 / (*life * (*life + 1.0)));
+        }
+        if (*period != std::floor(*period)) {
+            // A period with a fraction: the book value has fallen for that
+            // many periods (measured: DDB(1000, 100, 5, 2.5)).
+            const double rate = *factor / *life;
+            const double book = *cost * std::pow(1.0 - rate, *period - 1.0);
+            return finite_result(
+                std::max(0.0, std::min(book * rate, book - *salvage)));
         }
         double total = 0.0;
         double depreciation = 0.0;
