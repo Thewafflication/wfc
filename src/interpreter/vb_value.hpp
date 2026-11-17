@@ -259,13 +259,14 @@ struct NumericStringResult {
     bool parenthesized = false;
     bool currency = false;
     const auto trim_spaces = [&] {
-        while (!body.empty() && body.front() == ' ') {
+        while (!body.empty() && (body.front() == ' ' || body.front() == '\t')) {
             body.remove_prefix(1U);
         }
-        while (!body.empty() && body.back() == ' ') {
+        while (!body.empty() && (body.back() == ' ' || body.back() == '\t')) {
             body.remove_suffix(1U);
         }
     };
+    const std::string_view whole_body = body;
     for (;;) {
         trim_spaces();
         if (body.empty()) {
@@ -310,17 +311,21 @@ struct NumericStringResult {
                                    negative ? -value : value};
     };
 
-    // `&H1F` / `&O17` (optionally `&`-suffixed): VB converts these too.
-    if (body.size() > 2U && body[0] == '&' &&
-        (body[1] == 'h' || body[1] == 'H' || body[1] == 'o' ||
-         body[1] == 'O')) {
+    // `&H1F`, `&O17` and `&17` (octal too). Measured (statement probe,
+    // "number text radix"): such a number stands alone, with no sign, no
+    // parentheses, no currency symbol and no suffix; one longer than a Long
+    // is the positive number it spells.
+    if (body.size() >= 2U && body[0] == '&') {
+        const bool lettered = body[1] == 'h' || body[1] == 'H' ||
+                              body[1] == 'o' || body[1] == 'O';
         const bool hex = body[1] == 'h' || body[1] == 'H';
-        std::size_t end = body.size();
-        if (body[end - 1U] == '&') {
-            --end;
+        const std::size_t digits_from = lettered ? 2U : 1U;
+        const std::size_t end = body.size();
+        if (body.size() != whole_body.size() || end == digits_from) {
+            return {};
         }
         std::uint64_t magnitude = 0;
-        for (std::size_t i = 2U; i < end; ++i) {
+        for (std::size_t i = digits_from; i < end; ++i) {
             const char c = body[i];
             int digit = -1;
             if (c >= '0' && c <= '9') {
@@ -333,19 +338,18 @@ struct NumericStringResult {
             if (digit < 0 || (!hex && digit > 7)) {
                 return {};
             }
-            if (magnitude > 0xFFFFFFFFULL) {
-                continue;  // too long: reported below
+            if (magnitude > 0x0FFFFFFFFFFFFFFFULL) {
+                return {NumericStringStatus::out_of_range, 0.0};
             }
             magnitude = magnitude * (hex ? 16U : 8U) +
                         static_cast<std::uint64_t>(digit);
         }
         if (magnitude > 0xFFFFFFFFULL) {
-            // Longer than a Long: a number still, but one that does not fit.
-            return {NumericStringStatus::out_of_range, 0.0};
+            return {NumericStringStatus::valid, static_cast<double>(magnitude)};
         }
         // 4 or fewer hex digits is an Integer (sign-extended from 16 bits).
-        const bool short_form = short_hex && body.back() != '&' &&
-                                (end - 2U) <= (hex ? 4U : 6U) &&
+        const bool short_form = short_hex &&
+                                (end - digits_from) <= (hex ? 4U : 6U) &&
                                 magnitude <= 0xFFFFULL;
         const double result =
             short_form
@@ -358,8 +362,9 @@ struct NumericStringResult {
         body.front() != '.') {
         return {};
     }
-    // Thousands separators are dropped wherever they stand in the integer
-    // part (`1,000`, `1,,2`, `1,`); `D` is an exponent letter as `E` is.
+    // Thousands separators are dropped wherever they stand before the
+    // exponent (`1,000`, `1,,2`, `1,`, `1.000,5`); `D` is an exponent letter
+    // as `E` is.
     std::string digits;
     digits.reserve(body.size());
     bool in_integer_part = true;
@@ -368,7 +373,7 @@ struct NumericStringResult {
         if (c == ',' && in_integer_part) {
             continue;
         }
-        if (c == '.' || c == 'e' || c == 'E' || c == 'd' || c == 'D') {
+        if (c == 'e' || c == 'E' || c == 'd' || c == 'D') {
             in_integer_part = false;
         }
         digits.push_back(c == 'd' || c == 'D' ? 'e' : c);
@@ -376,6 +381,11 @@ struct NumericStringResult {
     double value{};
     const auto conversion =
         std::from_chars(digits.data(), digits.data() + digits.size(), value);
+    if (conversion.ec == std::errc::result_out_of_range &&
+        conversion.ptr == digits.data() + digits.size() &&
+        std::fabs(value) < 1.0) {
+        return signed_result(0.0);  // too small to hold: zero
+    }
     if (conversion.ec == std::errc::result_out_of_range) {
         return {NumericStringStatus::out_of_range, value};
     }

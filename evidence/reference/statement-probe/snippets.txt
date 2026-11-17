@@ -6876,3 +6876,139 @@ SayV IsDate("Friday March 15 2024")
 SayV IsDate("March 15, 2024")
 SayV IsDate("15-Mar-24")
 SayV CDate("15-Mar-24")
+# --- Number text ---
+@@ number text plain 1
+Dim t As Variant
+For Each t In Array("0", "00", "007", "1.", ".1", "1.0", "-0", "+0", "-.5")
+    Say NumText(t)
+Next t
+@@ number text plain 2
+Dim t As Variant
+For Each t In Array("+.5", ".", "-", "+", "1 2", "1  ", "  1", "1" & vbTab & "", "1.2.3")
+    Say NumText(t)
+Next t
+@@ number text plain 3
+Dim t As Variant
+For Each t In Array("1..2", "0.1e1", "12345678901234567890", "0.000000000000000000001", "1e308", "1e309", "-1e309", "1e-400", "9999999999999999")
+    Say NumText(t)
+Next t
+@@ number text plain 4
+Dim t As Variant
+For Each t In Array("2147483647", "2147483648", "-2147483648", "-2147483649", "2147483647.5", "32767", "32768")
+    Say NumText(t)
+Next t
+@@ number text exponents 1
+Dim t As Variant
+For Each t In Array("1e3", "1E3", "1e+3", "1e-3", "1e", "e3", "1e3.5", "1 e3", "1e 3")
+    Say NumText(t)
+Next t
+@@ number text exponents 2
+Dim t As Variant
+For Each t In Array("1d3", "1D3", "1d+3", "1d", "d3", "1e3e3", "1ee3", ".e3", "1.e3")
+    Say NumText(t)
+Next t
+@@ number text exponents 3
+Dim t As Variant
+For Each t In Array(".5e1", "1e03", "1e0", "1e-0", "1e+", "1e-", "0e0", "1x3", "1f3")
+    Say NumText(t)
+Next t
+@@ number text signs 1
+Dim t As Variant
+For Each t In Array("-5", "+5", "--5", "++5", "+-5", "-+5", "- 5", "+ 5", "5-")
+    Say NumText(t)
+Next t
+@@ number text signs 2
+Dim t As Variant
+For Each t In Array("5+", "5 -", "5 +", "-5-", "+5+", "-5+", "(5)", "( 5 )", "(5")
+    Say NumText(t)
+Next t
+@@ number text signs 3
+Dim t As Variant
+For Each t In Array("5)", "((5))", "(-5)", "-(5)", "(5)-", "()", "(5.5)", "(.5)", "(5e2)")
+    Say NumText(t)
+Next t
+@@ number text signs 4
+Dim t As Variant
+For Each t In Array("-1e-2", "1-2", "1+2", "-", "- ", " - 5", "-" & vbTab & "5")
+    Say NumText(t)
+Next t
+@@ number text separators 1
+Dim t As Variant
+For Each t In Array("1,000", "1,000.5", "1,00", "1,0", "1,", ",1", "1,,2", "1,2,3", "1,000,000")
+    Say NumText(t)
+Next t
+@@ number text separators 2
+Dim t As Variant
+For Each t In Array("1.000,5", "1,000e3", "1,5e1", "1e1,0", "0,5", ",", "1, 2", "1 ,2", "1,2.3,4")
+    Say NumText(t)
+Next t
+@@ number text separators 3
+Dim t As Variant
+For Each t In Array(".1,2", "1.,2", "1,.2", "-1,000", "(1,000)", "1,000-", "1 000", "1'000", "1_000")
+    Say NumText(t)
+Next t
+@@ number text currency and percent 1
+Dim t As Variant
+For Each t In Array("$5", "$ 5", "5$", "5 $", "$-5", "-$5", "$(5)", "($5)", "(5$)")
+    Say NumText(t)
+Next t
+@@ number text currency and percent 2
+Dim t As Variant
+For Each t In Array("$5-", "$$5", "$", "$.5", "$1,000.50", "-$1,000", "$5e2", "$&H10", "5%")
+    Say NumText(t)
+Next t
+@@ number text currency and percent 3
+Dim t As Variant
+For Each t In Array("%5", "5 %", "50%", "5%%", "$5%", "USD5", "5USD", ChrW(163) & "5", ChrW(8364) & "5")
+    Say NumText(t)
+Next t
+@@ number text currency and percent 4
+Dim t As Variant
+For Each t In Array("5" & ChrW(8364), ChrW(165) & "5")
+    Say NumText(t)
+Next t
+@@ number text radix 1
+Dim t As Variant
+For Each t In Array("&H10", "&h10", "&HFF", "&HFFFF", "&HFFFF&", "&H10000", "&H7FFFFFFF", "&H80000000", "&HFFFFFFFF")
+    Say NumText(t)
+Next t
+@@ number text radix 2
+Dim t As Variant
+For Each t In Array("&H100000000", "&H", "&HG", "&H1G", "&H 10", "& H10", "-&H10", "+&H10", "&H-10")
+    Say NumText(t)
+Next t
+@@ number text radix 3
+Dim t As Variant
+For Each t In Array("&H1.5", "&H10.", "&O17", "&o17", "&O8", "&O", "&O177777", "&O37777777777", "&O40000000000")
+    Say NumText(t)
+Next t
+@@ number text radix 4
+Dim t As Variant
+For Each t In Array("&17", "&B101", "0x10", "10h", "&H10%", "&H10!", "&HFFFF%", "&H8000", "&H8000&")
+    Say NumText(t)
+Next t
+@@ number text radix 5
+Dim t As Variant
+For Each t In Array("(&H10)", "$&HFF", "&H1e2")
+    Say NumText(t)
+Next t
+@@ number text suffixes and words 1
+Dim t As Variant
+For Each t In Array("5%", "5&", "5!", "5#", "5@", "5.5#", "5.5!", "5e2#", "5 #")
+    Say NumText(t)
+Next t
+@@ number text suffixes and words 2
+Dim t As Variant
+For Each t In Array("True", "False", "true", "TRUE", "#TRUE#", "Null", "Empty", "Nothing", "Infinity")
+    Say NumText(t)
+Next t
+@@ number text suffixes and words 3
+Dim t As Variant
+For Each t In Array("Inf", "NaN", "1.#INF", "1.#QNAN", "abc", "12abc", "abc12", "1 abc", "one")
+    Say NumText(t)
+Next t
+@@ number text suffixes and words 4
+Dim t As Variant
+For Each t In Array("1/2", "1:2", "1/2/2000", "12:30", "Jan 1", "1 PM")
+    Say NumText(t)
+Next t

@@ -3376,16 +3376,27 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (compact[0] == '+' || compact[0] == '-') {
             digit_start = 1U;
         }
+        // Measured (statement probe, "number text radix"): a sign before
+        // "&H" gives 0; "&17" is octal as "&O17" is; "&" after the digits
+        // makes a Long of them (no Integer wrap); digits that do not fit a
+        // Long give 0.
+        if (digit_start == 1U && compact.size() > 1U && compact[1] == '&') {
+            return Value{Integer{0}};
+        }
         if (digit_start + 1U < compact.size() && compact[digit_start] == '&' &&
             (compact[digit_start + 1U] == 'h' ||
              compact[digit_start + 1U] == 'H' ||
              compact[digit_start + 1U] == 'o' ||
-             compact[digit_start + 1U] == 'O')) {
+             compact[digit_start + 1U] == 'O' ||
+             (compact[digit_start + 1U] >= '0' &&
+              compact[digit_start + 1U] <= '7'))) {
+            const bool lettered = std::isalpha(static_cast<unsigned char>(
+                                      compact[digit_start + 1U])) != 0;
             const int base = compact[digit_start + 1U] == 'h' ||
                                      compact[digit_start + 1U] == 'H'
                                  ? 16
                                  : 8;
-            const std::size_t radix_start = digit_start + 2U;
+            const std::size_t radix_start = digit_start + (lettered ? 2U : 1U);
             std::size_t radix_end = radix_start;
             const auto is_radix_digit = [base](const char character) {
                 if (character >= '0' && character <= '7') {
@@ -3408,12 +3419,13 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                 std::from_chars(compact.data() + radix_start,
                                 compact.data() + radix_end, magnitude, base);
             if (conversion.ec == std::errc::result_out_of_range) {
-                set_error("WFC0009", "integer overflow", identifier_offset);
-                return std::nullopt;
+                return Value{Integer{0}};
             }
+            const bool long_suffix =
+                radix_end < compact.size() && compact[radix_end] == '&';
 
             std::int64_t value = magnitude;
-            if (magnitude >= 0x8000U && magnitude <= 0xFFFFU) {
+            if (!long_suffix && magnitude >= 0x8000U && magnitude <= 0xFFFFU) {
                 value -= 0x10000LL;
             } else if (magnitude >= 0x80000000U) {
                 value -= 0x100000000LL;
@@ -3478,6 +3490,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
             const auto conversion = std::from_chars(
                 compact.data() + conversion_start, compact.data() + pos, value);
+            if (conversion.ec == std::errc::result_out_of_range &&
+                std::fabs(value) < 1.0) {
+                return Value{0.0};  // too small to hold: zero
+            }
             if (conversion.ec == std::errc::result_out_of_range) {
                 set_error("WFC0009", "numeric overflow", identifier_offset);
                 return std::nullopt;
@@ -3489,8 +3505,16 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             std::from_chars(compact.data() + conversion_start,
                             compact.data() + int_end, result);
         if (conversion.ec == std::errc::result_out_of_range) {
-            set_error("WFC0009", "integer overflow", identifier_offset);
-            return std::nullopt;
+            // Digits that do not fit a Long are a Double.
+            double wide{};
+            const auto wide_conversion =
+                std::from_chars(compact.data() + conversion_start,
+                                compact.data() + int_end, wide);
+            if (wide_conversion.ec != std::errc{}) {
+                set_error("WFC0009", "integer overflow", identifier_offset);
+                return std::nullopt;
+            }
+            return Value{wide};
         }
         return Value{result};
     }

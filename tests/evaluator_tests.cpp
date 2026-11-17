@@ -2908,10 +2908,12 @@ int main() {
     expect_success("Print Val(\"3.14 pie\")", "3.14");
     expect_success("Print Val(\".5\")", "0.5");
     expect_success("Print Val(\"-2.5e1\")", "-25");
-    expect_success("Print Val(\"-&H10\") & \" \" & Val(\"&H2Atrail\")",
-                   "-16 42");
-    expect_program_failure("Print Val(\"&H100000000\")", "WFC0009");
-    expect_program_failure("Print Val(\"2147483648\")", "WFC0009");
+    // Measured under Visual Basic 6 (statement probe, "number text ..."): a
+    // sign before "&H" gives 0, digits too long for a Long after "&H" give 0,
+    // and decimal digits too long for a Long are a Double.
+    expect_success("Print Val(\"-&H10\") & \" \" & Val(\"&H2Atrail\")", "0 42");
+    expect_success("Print Val(\"&H100000000\")", "0");
+    expect_success("Print Val(\"2147483648\")", "2147483648");
     expect_success("Print Abs(-2147483648)", "2147483648");
     expect_program_failure("Print CLng(\"2147483648\")", "WFC0009");
     expect_program_failure("Print CLng(\"\")", "WFC0086");

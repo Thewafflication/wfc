@@ -678,3 +678,26 @@ Public Function FixedLen(ByRef s As String) As Long
     FixedLen = Len(s)
     s = s & "zz"
 End Function
+## module NumTexts
+Option Explicit
+
+' What the conversions answer for one text: IsNumeric, CDbl, CLng, CCur, Val.
+Public Function NumText(ByVal t As String) As String
+    Dim s As String
+    s = IIf(IsNumeric(t), "T", "F")
+    On Error Resume Next
+    Err.Clear
+    s = s & "," & CStr(CDbl(t))
+    If Err.Number <> 0 Then s = s & "e" & Err.Number
+    Err.Clear
+    s = s & "," & CStr(CLng(t))
+    If Err.Number <> 0 Then s = s & "e" & Err.Number
+    Err.Clear
+    s = s & "," & CStr(CCur(t))
+    If Err.Number <> 0 Then s = s & "e" & Err.Number
+    Err.Clear
+    s = s & "," & CStr(Val(t))
+    If Err.Number <> 0 Then s = s & "e" & Err.Number
+    Err.Clear
+    NumText = s
+End Function
