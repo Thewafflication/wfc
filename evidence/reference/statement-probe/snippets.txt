@@ -5048,3 +5048,482 @@ Dim v As Variant
 v = b
 a = v
 SayV UBound(a)
+# --- Assignment conversions, typed overflow, StrConv, loops with typed counters ---
+@@ assign real to integer types
+Dim i As Integer
+Dim l As Long
+Dim b As Byte
+Dim d As Double
+d = 2.5: i = d: SayV i
+d = 3.5: i = d: SayV i
+d = -2.5: i = d: SayV i
+d = -3.5: i = d: SayV i
+d = 0.5: l = d: SayV l
+d = 1.5: l = d: SayV l
+d = 254.5: b = d: SayV b
+d = 0.5: b = d: SayV b
+d = 1.4999999999: i = d: SayV i
+d = 32767.4: i = d: SayV i
+@@ assign real to integer overflow
+Dim i As Integer
+Dim d As Double
+d = 32767.5
+i = d
+SayV i
+@@ assign real to byte overflow
+Dim b As Byte
+Dim d As Double
+d = 255.5
+b = d
+SayV b
+@@ assign negative to byte
+Dim b As Byte
+Dim d As Double
+d = -0.5
+b = d
+SayV b
+d = -0.6
+b = d
+SayV b
+@@ assign real to long overflow
+Dim l As Long
+Dim d As Double
+d = 2147483647.5
+l = d
+SayV l
+@@ assign text to numbers
+Dim i As Integer
+Dim l As Long
+Dim d As Double
+Dim c As Currency
+Dim s As Single
+Dim b As Byte
+i = "12": SayV i
+i = " 12 ": SayV i
+i = "2.5": SayV i
+i = "3.5": SayV i
+i = "&H10": SayV i
+i = "1e2": SayV i
+l = "1,234": SayV l
+d = "1.5e3": SayV d
+c = "$1.23456": SayV c
+s = "0.1": SayV s
+b = "255": SayV b
+d = "": SayV d
+@@ assign empty text to integer
+Dim i As Integer
+i = ""
+SayV i
+@@ assign text to integer bad
+Dim i As Integer
+i = "abc"
+SayV i
+@@ assign text to integer overflow
+Dim i As Integer
+i = "40000"
+SayV i
+@@ assign to boolean
+Dim b As Boolean
+b = 5: SayV b
+b = 0: SayV b
+b = -1: SayV b
+b = 0.1: SayV b
+b = "True": SayV b
+b = "false": SayV b
+b = "0": SayV b
+b = "5": SayV b
+b = "-0.0": SayV b
+b = #1/1/2000#: SayV b
+b = "#TRUE#": SayV b
+@@ assign text to boolean bad
+Dim b As Boolean
+b = "yes"
+SayV b
+@@ assign empty text to boolean
+Dim b As Boolean
+b = ""
+SayV b
+@@ assign null to typed
+Dim i As Integer
+i = Null
+SayV i
+@@ assign null to string
+Dim s As String
+s = Null
+SayV s
+@@ assign empty to typed
+Dim i As Integer
+Dim s As String
+Dim b As Boolean
+Dim d As Date
+i = 5: i = Empty: SayV i
+s = "x": s = Empty: SayV s
+b = True: b = Empty: SayV b
+d = #1/1/2000#: d = Empty: SayV d
+@@ assign to date
+Dim d As Date
+d = 1.5: SayV d
+d = "1/2/2000": SayV d
+d = "12:30": SayV d
+d = True: SayV d
+d = 36526: SayV d
+d = "36526": SayV d
+d = -0.5: SayV d
+d = "1.5": SayV d
+@@ assign date out of range
+Dim d As Date
+Dim x As Double
+x = 3000000
+d = x
+SayV d
+@@ assign to string
+Dim s As String
+s = 1.5: SayV s
+s = True: SayV s
+s = #1/2/2000#: SayV s
+s = CCur(1.5): SayV s
+s = 1E+20: SayV s
+s = CSng(0.1): SayV s
+s = CDec("1.10"): SayV s
+s = CByte(7): SayV s
+s = #12:30:00 PM#: SayV s
+s = #1/2/2000 12:30:00 PM#: SayV s
+s = 0.1 + 0.2: SayV s
+s = -0: SayV s
+@@ assign to currency
+Dim c As Currency
+c = 1.00005: SayV c
+c = 1.00015: SayV c
+c = 1.00025: SayV c
+c = -1.00005: SayV c
+c = 0.00005: SayV c
+c = 0.00015: SayV c
+c = "1.23455": SayV c
+c = 922337203685477#: SayV c
+@@ assign currency overflow
+Dim c As Currency
+Dim d As Double
+d = 1E+15
+c = d
+SayV c
+@@ assign to single
+Dim s As Single
+Dim d As Double
+s = 0.1: SayV s
+s = 16777217: SayV s
+s = 1 / 3: SayV s
+d = s: SayV d
+s = 3.4E+38: SayV s
+s = 1E-45: SayV s
+s = 1E-46: SayV s
+@@ typed integer arithmetic overflow
+Dim i As Integer
+Dim j As Integer
+i = 32767: j = 1
+SayV i + j
+@@ typed integer multiply overflow
+Dim i As Integer
+Dim j As Integer
+i = 200: j = 200
+SayV i * j
+@@ typed integer subtract overflow
+Dim i As Integer
+Dim j As Integer
+i = -32768: j = 1
+SayV i - j
+@@ typed long arithmetic overflow
+Dim i As Long
+Dim j As Long
+i = 2147483647: j = 1
+SayV i + j
+@@ typed long multiply overflow
+Dim i As Long
+Dim j As Long
+i = 65536: j = 65536
+SayV i * j
+@@ typed byte arithmetic
+Dim a As Byte
+Dim b As Byte
+a = 200: b = 100
+SayV a - b
+SayV a \ b
+SayV a Mod b
+SayV a And b
+SayV Not a
+SayV -b
+@@ typed byte add overflow
+Dim a As Byte
+Dim b As Byte
+a = 200: b = 100
+SayV a + b
+@@ typed byte subtract overflow
+Dim a As Byte
+Dim b As Byte
+a = 100: b = 200
+SayV a - b
+@@ typed mixed arithmetic
+Dim i As Integer
+Dim l As Long
+Dim b As Byte
+Dim s As Single
+Dim c As Currency
+i = 30000: l = 30000: b = 200: s = 1.5: c = 1.5
+SayV i + l
+SayV i + b
+SayV b + l
+SayV i + s
+SayV i * c
+SayV s * c
+SayV i / b
+SayV l \ b
+SayV c / 3
+SayV c \ 1
+SayV s ^ 2
+SayV b ^ 2
+@@ typed integer and long overflow into long
+Dim i As Integer
+Dim l As Long
+i = 32767: l = 1
+SayV i + l
+SayV i * 2&
+@@ typed integer literal arithmetic
+Dim i As Integer
+i = 32767
+SayV i + 0&
+SayV i + 0#
+@@ typed integer plus literal overflow
+Dim i As Integer
+i = 32767
+SayV i + 1
+@@ division by zero kinds
+Dim z As Double
+SayV 1 / z
+@@ division zero by zero
+Dim z As Double
+SayV z / z
+@@ integer division by zero
+Dim z As Long
+SayV 5 \ z
+@@ mod by zero
+Dim z As Long
+SayV 5 Mod z
+@@ currency division by zero
+Dim c As Currency
+SayV CCur(5) / c
+@@ single division by zero
+Dim s As Single
+SayV CSng(1) / s
+@@ for loop typed counters
+Dim i As Integer
+Dim b As Byte
+Dim s As Single
+Dim n As Long
+For i = 32765 To 32766
+    n = n + 1
+Next i
+SayV n
+SayV i
+n = 0
+For b = 253 To 254
+    n = n + 1
+Next b
+SayV n
+SayV b
+n = 0
+For s = 0 To 1 Step 0.25
+    n = n + 1
+Next s
+SayV n
+SayV s
+@@ for loop integer counter overflow
+Dim i As Integer
+Dim n As Long
+For i = 32766 To 32767
+    n = n + 1
+Next i
+SayV n
+@@ for loop byte counter overflow
+Dim b As Byte
+Dim n As Long
+For b = 254 To 255
+    n = n + 1
+Next b
+SayV n
+@@ for loop byte counter down
+Dim b As Byte
+Dim n As Long
+For b = 1 To 0 Step -1
+    n = n + 1
+Next b
+SayV n
+@@ for loop real bounds
+Dim i As Integer
+Dim n As Long
+For i = 1.5 To 3.5
+    n = n + 1
+Next i
+SayV n
+SayV i
+n = 0
+For i = 1 To 4 Step 1.5
+    n = n + 1
+Next i
+SayV n
+SayV i
+n = 0
+For i = 1 To 3 Step 0.4
+    n = n + 1
+    If n > 10 Then Exit For
+Next i
+SayV n
+@@ for loop step zero
+Dim i As Integer
+Dim n As Long
+For i = 1 To 3 Step 0
+    n = n + 1
+    If n > 5 Then Exit For
+Next i
+SayV n
+@@ for loop bounds evaluated once
+Dim i As Long
+Dim n As Long
+Dim top As Long
+top = 3
+For i = 1 To top
+    top = 10
+    n = n + 1
+Next i
+SayV n
+SayV i
+@@ for loop counter changed
+Dim i As Long
+Dim n As Long
+For i = 1 To 10
+    i = i + 2
+    n = n + 1
+Next i
+SayV n
+SayV i
+@@ for loop variant counter
+Dim v As Variant
+Dim n As Long
+For v = 1 To 3
+    n = n + 1
+Next v
+SayV v
+For v = 1.5 To 3
+    n = n + 1
+Next v
+SayV v
+For v = "1" To "3"
+    n = n + 1
+Next v
+SayV v
+SayV n
+@@ for loop double accumulation
+Dim d As Double
+Dim n As Long
+For d = 0 To 0.3 Step 0.1
+    n = n + 1
+Next d
+SayV n
+For d = 0 To 1 Step 0.1
+    n = n + 1
+Next d
+SayV n
+@@ for loop single accumulation
+Dim s As Single
+Dim n As Long
+For s = 0 To 0.3 Step 0.1
+    n = n + 1
+Next s
+SayV n
+For s = 0 To 1 Step 0.1
+    n = n + 1
+Next s
+SayV n
+@@ strconv case modes
+SayV StrConv("hello world", vbUpperCase)
+SayV StrConv("Hello World", vbLowerCase)
+SayV StrConv("hello wORLD foo-bar o'neil", vbProperCase)
+SayV StrConv("  two  spaces", vbProperCase)
+SayV StrConv("a" & vbTab & "b" & vbCrLf & "c", vbProperCase)
+SayV StrConv("1st 2ND x1y", vbProperCase)
+SayV StrConv("", vbProperCase)
+SayV StrConv(123, vbUpperCase)
+SayV StrConv("abc", vbUpperCase + vbLowerCase)
+@@ strconv null
+SayV StrConv(Null, vbUpperCase)
+@@ strconv bad mode
+SayV StrConv("abc", 0)
+@@ strconv mode zero text
+SayV StrConv("abc", 1024)
+@@ strconv unicode modes
+SayV LenB(StrConv("abc", vbFromUnicode))
+SayV LenB(StrConv("abc", vbUnicode))
+SayV Len(StrConv(StrConv("abc", vbFromUnicode), vbUnicode))
+SayV StrConv(StrConv("abc", vbFromUnicode), vbUnicode)
+SayV LenB(StrConv("", vbFromUnicode))
+SayV AscB(StrConv("A", vbFromUnicode))
+SayV LenB(StrConv("ab", vbUnicode))
+@@ strconv both unicode modes
+SayV StrConv("abc", vbUnicode + vbFromUnicode)
+@@ strconv case and unicode
+SayV LenB(StrConv("abc", vbUpperCase + vbFromUnicode))
+@@ string comparison operators mixed
+SayV "a" < "B"
+SayV "a" < "b"
+SayV "A" < "a"
+SayV "abc" < "abd"
+SayV "abc" < "ab"
+SayV "" < "a"
+SayV "10" < "9"
+SayV 10 < "9"
+SayV "10" < 9
+SayV "a" = "A"
+SayV "a" <> "A"
+SayV "a" > Null
+@@ string compare number text
+SayV 10 < "abc"
+@@ variant compare kinds
+Dim a As Variant
+Dim b As Variant
+a = "10": b = "9"
+SayV a < b
+a = 10: b = "9"
+SayV a < b
+a = "10": b = 9
+SayV a < b
+a = "abc": b = 5
+SayV a > b
+a = Empty: b = ""
+SayV a = b
+a = Empty: b = 0
+SayV a = b
+a = "": b = 0
+SayV a = b
+a = True: b = -1
+SayV a = b
+a = True: b = "True"
+SayV a = b
+a = #1/1/2000#: b = 36526
+SayV a = b
+a = #1/1/2000#: b = "1/1/2000"
+SayV a = b
+@@ ccur of constants and variables
+Dim d As Double
+SayV CCur(0.00005)
+SayV CCur(1.99995)
+SayV CCur(0.00015)
+SayV CCur(1.00025)
+d = 0.00005: SayV CCur(d)
+d = 1.99995: SayV CCur(d)
+d = 0.00015: SayV CCur(d)
+d = 1.00025: SayV CCur(d)
+SayV CCur("0.00005")
+SayV CCur("1.99995")
+SayV CCur("0.00015")
+SayV CCur("1.00025")
+SayV CCur(CDec("0.00005"))
+SayV CCur(CDec("0.00015"))
+SayV CCur(CSng(0.00005))

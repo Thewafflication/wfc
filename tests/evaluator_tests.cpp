@@ -2121,7 +2121,7 @@ int main() {
         "ABC abc");
     expect_success("Print StrConv(\"the quICK fox\", vbProperCase)",
                    "The Quick Fox");
-    expect_success("Print StrConv(\"ab1cd\", 3)", "Ab1Cd");
+    expect_success("Print StrConv(\"ab1cd\", 3)", "Ab1cd");
     expect_success("Print vbTrue & \" \" & vbFalse & \" \" & vbUseDefault",
                    "-1 0 -2");
     expect_success(

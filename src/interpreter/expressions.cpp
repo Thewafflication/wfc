@@ -83,17 +83,25 @@ bool Interpreter::implicit_scalar_conversion(Value& value,
             for (const char c : *text) {
                 lowered.push_back(ascii_lower(c));
             }
-            if (lowered == "true") {
+            // "#TRUE#" and "#FALSE#" are read too.
+            if (lowered == "true" || lowered == "#true#") {
                 value = true;
                 return true;
             }
-            if (lowered == "false") {
+            if (lowered == "false" || lowered == "#false#") {
                 value = false;
                 return true;
             }
         }
         if (target_index == Value{DateValue{}}.index()) {
             return true;  // handled by the Date branch below
+        }
+        // A Currency is rounded on the decimal digits of the text.
+        if (target_index == Value{Currency{}}.index()) {
+            if (const auto exact = currency_from_decimal_text(*text)) {
+                value = Currency{*exact};
+                return true;
+            }
         }
         const auto parsed = parse_numeric_string(*text);
         if (parsed.status == NumericStringStatus::out_of_range) {
@@ -222,12 +230,25 @@ bool Interpreter::coerce_numeric_value(Value& value,
     }
     // REQ-0242: Date <-> numeric/String implicit conversions.
     if (target_index == Value{DateValue{}}.index()) {
-        if (is_number(value) && !std::holds_alternative<Decimal>(value)) {
-            value = DateValue{as_double(value)};
-        } else if (const auto* text = std::get_if<std::string>(&value)) {
+        // A String is read as a date first and as a number of days
+        // otherwise; a day outside the years 100 to 9999 overflows.
+        if (const auto* text = std::get_if<std::string>(&value)) {
             if (const auto parsed = parse_date_text(*text)) {
                 value = DateValue{*parsed};
+            } else {
+                const auto number = parse_numeric_string(*text);
+                if (number.status == NumericStringStatus::valid) {
+                    value = number.value;
+                }
             }
+        }
+        if (is_number(value) && !std::holds_alternative<Decimal>(value)) {
+            const double serial = as_double(value);
+            if (execute_ && !(serial > -657435.0 && serial < 2958466.0)) {
+                static_cast<void>(raise_runtime(6, "Overflow", offset));
+                return false;
+            }
+            value = DateValue{serial};
         }
         return true;
     }
@@ -287,6 +308,12 @@ bool Interpreter::coerce_numeric_value(Value& value,
         return true;
     }
     if (target_index == Value{Currency{}}.index()) {
+        if (std::holds_alternative<Decimal>(value)) {
+            if (const auto exact = currency_from_decimal_text(render(value))) {
+                value = Currency{*exact};
+                return true;
+            }
+        }
         if (const auto* integer = std::get_if<Integer>(&value)) {
             value = Currency{static_cast<std::int64_t>(*integer) * 10000};
             return true;

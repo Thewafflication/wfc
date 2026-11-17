@@ -2346,6 +2346,17 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (std::holds_alternative<Empty>(arguments[0])) {
             return Value{Currency{}};
         }
+        // A String or a Decimal is rounded on its decimal digits.
+        if (execute_ && (std::holds_alternative<std::string>(arguments[0]) ||
+                         std::holds_alternative<Decimal>(arguments[0]))) {
+            const std::string digits =
+                std::holds_alternative<Decimal>(arguments[0])
+                    ? render(arguments[0])
+                    : std::get<std::string>(arguments[0]);
+            if (const auto exact = currency_from_decimal_text(digits)) {
+                return Value{Currency{*exact}};
+            }
+        }
         double value{};
         if (const auto* number = std::get_if<double>(&arguments[0])) {
             value = *number;
@@ -3306,29 +3317,34 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                     unit =
                         word_start ? unit_to_upper(unit) : unit_to_lower(unit);
                     word_start = false;
-                } else if (unit != u'\'') {
-                    word_start = true;  // an apostrophe stays inside a word
+                } else {
+                    // A word starts after white space only ("foo-bar" and
+                    // "x1y" are one word each).
+                    word_start = unit == u' ' || unit == u'\t' ||
+                                 unit == u'\r' || unit == u'\n' ||
+                                 unit == u'\v' || unit == u'\f' ||
+                                 unit == u'\0';
                 }
             }
             return Value{from_utf16_units(units)};
         }
         if (*conversion == 128) {  // vbFromUnicode: the string's ANSI bytes
-            ArrayValue bytes{};
-            bytes.is_dynamic = true;
-            bytes.element_type_index = Value{Byte{}}.index();
+            // The answer is a String of those bytes (LenB is their count).
+            std::string bytes;
             for (const char16_t unit : to_utf16_units(*string)) {
-                bytes.elements.emplace_back(
-                    static_cast<Byte>(unicode_to_ansi(unit)));
+                bytes.push_back(static_cast<char>(is_byte_half(unit)
+                                                      ? (unit & 0xFFU)
+                                                      : unicode_to_ansi(unit)));
             }
-            return Value{std::move(bytes)};
+            return Value{bytes_to_string(bytes)};
         }
         if (*conversion == 64) {
             // vbUnicode on a String reads the bytes of its characters as
             // ANSI text: every character becomes its low and its high byte.
             std::u16string widened;
-            for (const char16_t unit : to_utf16_units(*string)) {
-                widened.push_back(static_cast<char16_t>(unit & 0xFFU));
-                widened.push_back(static_cast<char16_t>(unit >> 8U));
+            for (const char byte : string_to_bytes(*string)) {
+                widened.push_back(static_cast<char16_t>(
+                    ansi_to_unicode(static_cast<unsigned char>(byte))));
             }
             return Value{from_utf16_units(widened)};
         }

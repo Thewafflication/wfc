@@ -219,15 +219,116 @@ inline void divide_u128(const UInt128 dividend, const UInt128 divisor,
     if (!std::isfinite(value)) {
         return std::nullopt;
     }
-    const double scaled = std::nearbyint(value * 10000.0);
+    // The exact product is rounded (to even), as Visual Basic does with the
+    // wider registers of the x87: 1.00025 is a little above the tie and
+    // becomes 1.0003, 0.00015 a little below and becomes 0.0001 (statement
+    // probe, "assign to currency"). `error` is what the Double product lost.
+    const double product = value * 10000.0;
+    const double error = std::fma(value, 10000.0, -product);
     constexpr double minimum =
         -9223372036854775808.0;  // exactly 2^63, exact in double
     constexpr double upper_bound =
         9223372036854775808.0;  // 2^63, exclusive upper bound
-    if (!(scaled >= minimum && scaled < upper_bound)) {
+    if (!(product >= minimum && product < upper_bound)) {
         return std::nullopt;
     }
+    if (std::fabs(product) >= 4503599627370496.0) {  // 2^52: a whole number
+        const auto whole = static_cast<std::int64_t>(product);
+        const auto lost = static_cast<std::int64_t>(std::nearbyint(error));
+        if ((lost > 0 &&
+             whole > std::numeric_limits<std::int64_t>::max() - lost) ||
+            (lost < 0 &&
+             whole < std::numeric_limits<std::int64_t>::min() - lost)) {
+            return std::nullopt;
+        }
+        return whole + lost;
+    }
+    double scaled = std::nearbyint(product);
+    const double low = std::floor(product);
+    if (product - low == 0.5 && error != 0.0) {
+        scaled = error > 0.0 ? low + 1.0 : low;  // not a tie after all
+    }
     return static_cast<std::int64_t>(scaled);
+}
+
+// A plain decimal text ("-12.34567": a sign, digits, a point; nothing else)
+// as a Currency, rounded to even on its decimal digits, which is how Visual
+// Basic converts a String or a Decimal ("0.00005" is 0, "0.00015" is 0.0002;
+// the Doubles 0.00005 and 0.00015 are both 0.0001). nullopt when the text has
+// another form or does not fit; the caller then converts through a Double.
+[[nodiscard]] inline std::optional<std::int64_t> currency_from_decimal_text(
+    std::string_view text) noexcept {
+    while (!text.empty() && (text.front() == ' ' || text.front() == '\t')) {
+        text.remove_prefix(1U);
+    }
+    while (!text.empty() && (text.back() == ' ' || text.back() == '\t')) {
+        text.remove_suffix(1U);
+    }
+    bool negative = false;
+    if (!text.empty() && (text.front() == '-' || text.front() == '+')) {
+        negative = text.front() == '-';
+        text.remove_prefix(1U);
+    }
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    std::uint64_t scaled = 0;
+    std::size_t index = 0;
+    std::size_t digits = 0;
+    constexpr std::uint64_t limit = 922337203685477580ULL;  // max / 10
+    const auto push = [&](const unsigned digit) {
+        if (scaled > limit) {
+            return false;
+        }
+        scaled = scaled * 10U + digit;
+        return true;
+    };
+    for (; index < text.size() && text[index] >= '0' && text[index] <= '9';
+         ++index, ++digits) {
+        if (!push(static_cast<unsigned>(text[index] - '0'))) {
+            return std::nullopt;
+        }
+    }
+    std::size_t kept = 0;
+    bool above_half = false;
+    bool at_half = false;
+    if (index < text.size() && text[index] == '.') {
+        ++index;
+        for (; index < text.size() && text[index] >= '0' && text[index] <= '9';
+             ++index, ++digits) {
+            const auto digit = static_cast<unsigned>(text[index] - '0');
+            if (kept < 4U) {
+                if (!push(digit)) {
+                    return std::nullopt;
+                }
+                ++kept;
+            } else if (kept == 4U) {
+                above_half = digit > 5U;
+                at_half = digit == 5U;
+                ++kept;
+            } else if (digit != 0U && at_half) {
+                above_half = true;
+                at_half = false;
+            }
+        }
+    }
+    if (index != text.size() || digits == 0U) {
+        return std::nullopt;
+    }
+    for (; kept < 4U; ++kept) {
+        if (!push(0U)) {
+            return std::nullopt;
+        }
+    }
+    if (above_half || (at_half && (scaled % 2U) != 0U)) {
+        ++scaled;
+    }
+    if (scaled >
+        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        return std::nullopt;
+    }
+    const auto magnitude = static_cast<std::int64_t>(scaled);
+    return negative ? -magnitude : magnitude;
 }
 
 enum class NumericStringStatus { valid, malformed, out_of_range };

@@ -569,11 +569,13 @@ End Function
 Public Property Get Contents() As Variant
 Dim i As Long
 Dim blob As String
+Dim bytes() As Byte
 For i = 1 To mCount
 blob = blob & Escape(mNames(i)) & "=" & mTypes(i) & "="
 blob = blob & Escape(mValues(i)) & vbLf
 Next i
-Contents = StrConv(blob, vbFromUnicode)
+bytes = StrConv(blob, vbFromUnicode)
+Contents = bytes
 End Property
 Public Property Let Contents(ByVal v As Variant)
 Dim blob As String
