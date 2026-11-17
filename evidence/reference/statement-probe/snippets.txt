@@ -4166,10 +4166,6 @@ SayV Abs(v)
 Dim v As Variant
 v = CLng(&H80000000)
 SayV Abs(v)
-@@ lib negate integer minimum
-Dim i As Integer
-i = -32768
-SayV -i
 @@ lib negate variant integer minimum
 Dim v As Variant
 v = CInt(-32768)
@@ -5527,3 +5523,56 @@ SayV CCur("1.00025")
 SayV CCur(CDec("0.00005"))
 SayV CCur(CDec("0.00015"))
 SayV CCur(CSng(0.00005))
+@@ for loop date counter
+Dim d As Date
+Dim n As Long
+For d = #1/1/2000# To #1/3/2000#
+    n = n + 1
+Next d
+SayV n
+SayV d
+n = 0
+For d = #1/1/2000# To #1/2/2000# Step 0.5
+    n = n + 1
+Next d
+SayV n
+SayV d
+n = 0
+For d = #1/3/2000# To #1/1/2000# Step -1
+    n = n + 1
+Next d
+SayV n
+SayV d
+@@ for loop currency counter
+Dim c As Currency
+Dim n As Long
+For c = 0 To 0.3 Step 0.1
+    n = n + 1
+Next c
+SayV n
+SayV c
+n = 0
+For c = 1 To 2 Step 0.00005
+    n = n + 1
+    If n > 5 Then Exit For
+Next c
+SayV n
+SayV c
+n = 0
+For c = 1.5 To 3
+    n = n + 1
+Next c
+SayV n
+SayV c
+@@ for loop variant date counter
+Dim v As Variant
+Dim n As Long
+For v = #1/1/2000# To #1/3/2000#
+    n = n + 1
+Next v
+SayV n
+SayV v
+For v = CCur(1) To CCur(2)
+    n = n + 1
+Next v
+SayV v

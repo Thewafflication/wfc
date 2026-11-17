@@ -2493,7 +2493,17 @@ bool Interpreter::parse_for_statement() {
     }
     const bool is_variant_variable =
         variable.scope->variant_variables.contains(*identifier);
-    enum class Slot { integer, int16, byte, floating_double, floating_single };
+    // A Date or a Currency counts too (a Date by days, a Currency in its
+    // four decimals).
+    enum class Slot {
+        integer,
+        int16,
+        byte,
+        floating_double,
+        floating_single,
+        date,
+        currency
+    };
     Slot slot{};
     if (std::holds_alternative<Integer>(*variable.value)) {
         slot = Slot::integer;
@@ -2505,6 +2515,12 @@ bool Interpreter::parse_for_statement() {
         slot = Slot::floating_double;
     } else if (std::holds_alternative<float>(*variable.value)) {
         slot = Slot::floating_single;
+    } else if (std::holds_alternative<DateValue>(*variable.value) &&
+               !is_variant_variable) {
+        slot = Slot::date;
+    } else if (std::holds_alternative<Currency>(*variable.value) &&
+               !is_variant_variable) {
+        slot = Slot::currency;
     } else if (!is_variant_variable) {
         set_error("WFC0045", "For control variable must be numeric",
                   variable_offset);
@@ -2708,9 +2724,13 @@ bool Interpreter::parse_for_statement() {
             case 17:
                 slot = Slot::byte;
                 break;
-            case 5:
             case 6:
+                slot = Slot::currency;
+                break;
             case 7:
+                slot = Slot::date;
+                break;
+            case 5:
             case 8:
             case 14:
                 slot = Slot::floating_double;
@@ -2724,8 +2744,9 @@ bool Interpreter::parse_for_statement() {
         return false;
     }
 
-    const bool floating =
-        slot == Slot::floating_double || slot == Slot::floating_single;
+    const bool floating = slot == Slot::floating_double ||
+                          slot == Slot::floating_single || slot == Slot::date ||
+                          slot == Slot::currency;
     std::int64_t whole_min = std::numeric_limits<Integer>::min();
     std::int64_t whole_max = std::numeric_limits<Integer>::max();
     if (slot == Slot::int16) {
@@ -2755,6 +2776,13 @@ bool Interpreter::parse_for_statement() {
             case Slot::floating_single:
                 *variable.value = static_cast<float>(number);
                 break;
+            case Slot::date:
+                *variable.value = DateValue{number};
+                break;
+            case Slot::currency:
+                *variable.value =
+                    Currency{currency_from_double(number).value_or(0)};
+                break;
         }
     };
     const auto read = [&]() -> double {
@@ -2778,6 +2806,17 @@ bool Interpreter::parse_for_statement() {
         limit = static_cast<float>(limit);
         step = static_cast<float>(step);
         current_value = static_cast<float>(current_value);
+    } else if (slot == Slot::currency) {
+        // The bounds and the step are Currency values themselves (a step of
+        // 0.00005 is 0.0001).
+        const auto as_currency = [](const double number) {
+            return static_cast<double>(
+                       currency_from_double(number).value_or(0)) /
+                   10000.0;
+        };
+        limit = as_currency(limit);
+        step = as_currency(step);
+        current_value = as_currency(current_value);
     }
     const auto should_continue = [&](const double current) {
         // Step 0 counts as positive: it loops until the body leaves.
@@ -2827,6 +2866,10 @@ bool Interpreter::parse_for_statement() {
 
         // The body may have assigned the control variable.
         double next = read() + step;
+        if (slot == Slot::currency) {
+            // Currency adds exactly: 0.1 three times is 0.3.
+            next = std::nearbyint(next * 10000.0) / 10000.0;
+        }
         if (slot == Slot::floating_single) {
             next = static_cast<float>(next);
         }

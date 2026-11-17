@@ -649,11 +649,13 @@ std::optional<Value> Interpreter::unary_operation(const Value& value_in,
                     return Value{static_cast<Int16>(-a.number)};
                 case Kind::integer:
                     if (a.number == -32768.0) {
-                        // Measured (statement probe, "lib negate integer
-                        // minimum"): a typed Integer stays -32768; a Variant
-                        // becomes a Long.
+                        // A typed Integer has no room for 32768: overflow
+                        // (the compiled Visual Basic program leaves -32768,
+                        // which is its native-code compiler skipping the
+                        // check; WFC keeps the error). A Variant becomes a
+                        // Long.
                         if (a.typed) {
-                            return Value{std::numeric_limits<Int16>::min()};
+                            throw Failure{6};
                         }
                         return Value{Integer{32768}};
                     }
