@@ -407,14 +407,41 @@ jobs:
               wpm verify $package.FullName
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
-            Get-FileHash out/packages/*.zip -Algorithm SHA256 |
-              ForEach-Object {
-                $name = Split-Path $_.Path -Leaf
-                '{0}  {1}' -f $_.Hash.ToLowerInvariant(), $name
-              } | Set-Content out/packages/SHA256SUMS -Encoding ascii
           } finally {
             Remove-Item $keyPath -Force -ErrorAction SilentlyContinue
           }
+
+      - name: Generate WPM release index and checksums
+        shell: pwsh
+        env:
+          RELEASE_TAG: >-
+            ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name ||
+            inputs.package_version }}
+        run: |
+          $repo = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+          $base = "$repo/releases/download"
+          $archives = Get-ChildItem out/packages/*.zip -File | Sort-Object Name
+          $packages = foreach ($archive in $archives) {
+            $pattern = '^(?<name>.+)-any-(?<version>[^/]+)\.zip$'
+            if ($archive.Name -notmatch $pattern) {
+              throw "Unexpected WPM package filename: $($archive.Name)"
+            }
+            [ordered]@{
+              name = $Matches.name
+              version = $Matches.version
+              arch = 'any'
+              url = "$base/$env:RELEASE_TAG/$($archive.Name)"
+            }
+          }
+          $index = 'out/packages/index.json'
+          [ordered]@{ version = 1; packages = @($packages) } |
+            ConvertTo-Json -Depth 4 | Set-Content $index -Encoding utf8NoBOM
+          $files = @($archives.FullName) + $index
+          Get-FileHash -LiteralPath $files -Algorithm SHA256 |
+            ForEach-Object {
+              $name = Split-Path $_.Path -Leaf
+              '{0}  {1}' -f $_.Hash.ToLowerInvariant(), $name
+            } | Set-Content out/packages/SHA256SUMS -Encoding ascii
 
       - name: Upload the signed packages
         uses: actions/upload-artifact@v7
