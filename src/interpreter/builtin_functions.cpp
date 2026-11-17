@@ -275,6 +275,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     std::vector<Value> arguments;
     std::vector<bool> argument_variant;
     std::vector<bool> argument_plain;
+    std::vector<bool> argument_fixed;
     if (preset_arguments_ != nullptr) {
         arguments = *preset_arguments_;
     } else if (consume('(')) {
@@ -433,6 +434,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                         plain = false;
                     }
                     argument_plain.push_back(plain);
+                    bool fixed_text = false;
+                    if (plain) {
+                        const auto named = find_variable_raw(lowered);
+                        fixed_text =
+                            named.value != nullptr && named.scope != nullptr &&
+                            named.scope->fixed_string_lengths.contains(lowered);
+                    }
+                    argument_fixed.push_back(fixed_text);
                 }
                 variant_operand_seen_ =
                     enclosing_variant || variant_operand_seen_;
@@ -497,6 +506,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     {
         std::optional<Value> measured;
         library_argument_is_variable_ = argument_plain;
+        library_argument_is_fixed_string_ = argument_fixed;
         if (measured_library_call(identifier, arguments, argument_variant,
                                   identifier_offset, measured)) {
             return measured;
@@ -3159,7 +3169,11 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         !std::holds_alternative<std::string>(arguments[0])) {
         if (const auto* instance = std::get_if<ObjectInstance>(&arguments[0])) {
             if (is_udt_class(instance->data->class_name)) {
-                const std::size_t size = udt_byte_size(arguments[0]);
+                // Len is the size in a file, LenB the size in memory.
+                const std::size_t size =
+                    identifier == "lenb"
+                        ? udt_memory_layout(arguments[0], false, false).first
+                        : udt_byte_size(arguments[0]);
                 if (size <= 32767U) {
                     return Value{static_cast<Int16>(size)};
                 }

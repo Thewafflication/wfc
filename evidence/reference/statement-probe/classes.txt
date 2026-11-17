@@ -583,3 +583,98 @@ Public Static Function AllStatic(ByVal n As Long) As Long
     total = total + n
     AllStatic = total
 End Function
+## module TypesMore
+Option Explicit
+
+Public Type InnerT
+    A As Integer
+    S As String
+End Type
+
+Public Type OuterT
+    N As Long
+    In1 As InnerT
+    Arr(1 To 3) As Integer
+    Dyn() As Long
+    V As Variant
+    O As Object
+    F As String * 5
+    D As Date
+    B As Boolean
+    C As Currency
+    By As Byte
+    Many(0 To 1) As InnerT
+End Type
+
+Public Type Packed
+    B1 As Byte
+    L As Long
+    B2 As Byte
+    I As Integer
+    D As Double
+    S As String * 3
+End Type
+
+Public Type TwoStr
+    A As String * 2
+    B As String * 2
+End Type
+
+Public Type Four
+    S As String * 4
+End Type
+
+Public Const KInt = 5
+Public Const KLng = 100000
+Public Const KDbl = 1.5
+Public Const KStr = "abc"
+Public Const KBool = True
+Public Const KDate = #1/2/2000#
+Public Const KExpr = KInt * 2 + 1
+Public Const KCat = KStr & "def"
+Public Const KHex = &HFF
+Public Const KBig = &H7FFFFFFF
+Public Const KNeg = -KInt
+Public Const KCur As Currency = 1.5
+Public Const KSng As Single = 0.1
+Public Const KByte As Byte = 7
+Public Const KTyped As Integer = 3.7
+Public Const KStrNum As String = "12"
+Public Const KCmp = (KInt > 3)
+Public Const KDiv = 7 / 2
+Public Const KIntDiv = 7 \ 2
+Public Const KPow = 2 ^ 10
+Public Const KMod = 7 Mod 3
+Public Const KAnd = 12 And 10
+Public Const KNot = Not 0
+Public Const KLen = 3 * 4
+
+Public Enum Wide
+    WNeg = -5
+    WNext
+    WHex = &H10
+    WExpr = WHex * 2
+    WBig = 2147483647
+    WSame = 1
+    WSame2 = 1
+    [With Space] = 9
+End Enum
+
+Public Function OuterN(ByRef o As OuterT) As Long
+    o.N = o.N + 1
+    OuterN = o.N
+End Function
+
+Public Function MakeInner(ByVal a As Integer, ByVal s As String) As InnerT
+    MakeInner.A = a
+    MakeInner.S = s
+End Function
+
+Public Function TakeWide(ByVal w As Wide) As String
+    TakeWide = TypeName(w) & ":" & w
+End Function
+
+Public Function FixedLen(ByRef s As String) As Long
+    FixedLen = Len(s)
+    s = s & "zz"
+End Function

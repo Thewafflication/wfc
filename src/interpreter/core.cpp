@@ -625,6 +625,19 @@ std::optional<std::string> Interpreter::parse_identifier(
             identifier.push_back(ascii_lower(current()));
             advance();
         } while (!at_end() && is_identifier_part(current()));
+        // `Module1.Colors.Red`: the name of the Enum after the module's.
+        if (!at_end() && current() == '.' && offset_ + 1 < source_.size() &&
+            is_identifier_start(source_[offset_ + 1]) &&
+            std::find(enum_names_.begin(), enum_names_.end(), identifier) !=
+                enum_names_.end() &&
+            find_variable(identifier).value == nullptr) {
+            advance();
+            identifier.clear();
+            do {
+                identifier.push_back(ascii_lower(current()));
+                advance();
+            } while (!at_end() && is_identifier_part(current()));
+        }
     }
     if (type_character != nullptr) {
         *type_character = '\0';

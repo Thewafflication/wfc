@@ -260,6 +260,12 @@ std::optional<CallArgument> Interpreter::parse_call_argument() {
              current() == '\'');
         if (bare_candidate) {
             const auto variable = find_variable(*identifier);
+            if (variable.value != nullptr && variable.scope != nullptr &&
+                variable.scope->fixed_string_lengths.contains(*identifier)) {
+                // A fixed-length String goes to a procedure as a copy: what
+                // the procedure does to it does not come back.
+                return CallArgument{*variable.value, nullptr};
+            }
             if (variable.value != nullptr) {
                 CallArgument bare{*variable.value, variable.value};
                 bare.typed_target =

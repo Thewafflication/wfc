@@ -1546,6 +1546,11 @@ private:
     // reported by `Len`): fixed strings are their length, a variable String
     // is its 2-byte descriptor plus text, scalars are their natural width.
     [[nodiscard]] std::size_t udt_byte_size(const Value& value) const;
+    // The size and the alignment of a value inside a record in memory (what
+    // LenB counts): fields are aligned to their own size, at most 4, and a
+    // fixed-length string has two bytes for each character.
+    [[nodiscard]] std::pair<std::size_t, std::size_t> udt_memory_layout(
+        const Value& value, bool fixed_string, bool variant) const;
 
     [[nodiscard]] std::optional<Value> instantiate_class(
         const std::string& class_name, const std::size_t offset);
@@ -2012,6 +2017,8 @@ private:
     // Which arguments of the library call being evaluated are written as a
     // plain variable name (`Str(flag)`, not `Str(Not flag)`).
     std::vector<bool> library_argument_is_variable_;
+    // ...and which of them name a fixed-length String variable.
+    std::vector<bool> library_argument_is_fixed_string_;
     [[nodiscard]] bool measured_library_call(std::string_view identifier,
                                              std::vector<Value>& arguments,
                                              const std::vector<bool>& variant,

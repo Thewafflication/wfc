@@ -3305,6 +3305,8 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
 
 bool Interpreter::parse_erase_statement() {
     std::vector<std::pair<std::string, std::size_t>> targets;
+    // The fields that lead to each array (`Erase record.list`).
+    std::vector<std::vector<std::string>> paths;
     while (true) {
         skip_horizontal_whitespace();
         const auto identifier_offset = offset_;
@@ -3315,6 +3317,17 @@ bool Interpreter::parse_erase_statement() {
             return false;
         }
         targets.emplace_back(std::move(*identifier), identifier_offset);
+        paths.emplace_back();
+        while (!at_end() && current() == '.') {
+            advance();
+            char member_type_character{};
+            auto member = parse_identifier(&member_type_character);
+            if (!member.has_value()) {
+                set_error("WFC0011", "expected member name after '.'", offset_);
+                return false;
+            }
+            paths.back().push_back(std::move(*member));
+        }
         skip_horizontal_whitespace();
         if (!at_end() && current() == ',') {
             advance();
@@ -3325,8 +3338,29 @@ bool Interpreter::parse_erase_statement() {
     if (!execute_) {
         return true;
     }
-    for (const auto& target : targets) {
-        const auto variable = find_variable(target.first);
+    for (std::size_t index = 0; index < targets.size(); ++index) {
+        const auto& target = targets[index];
+        struct ErasedVariable {
+            Value* value;
+        };
+        ErasedVariable variable{find_variable(target.first).value};
+        for (const auto& member : paths[index]) {
+            auto* holder = variable.value != nullptr
+                               ? std::get_if<ObjectInstance>(variable.value)
+                               : nullptr;
+            if (holder == nullptr) {
+                set_error("WFC0136",
+                          "member access requires an object reference",
+                          target.second);
+                return false;
+            }
+            const auto field = holder->data->fields.variables.find(member);
+            if (field == holder->data->fields.variables.end()) {
+                set_error("WFC0135", "unknown member", target.second);
+                return false;
+            }
+            variable.value = &field->second;
+        }
         if (variable.value == nullptr ||
             !std::holds_alternative<ArrayValue>(*variable.value)) {
             set_error("WFC0146", "Erase requires an array argument",
@@ -3360,8 +3394,24 @@ bool Interpreter::parse_erase_statement() {
             array.lower_bound = 0;
             array.is_allocated = false;
         } else {
-            std::fill(array.elements.begin(), array.elements.end(),
-                      array_element_default(array.element_type_index));
+            // A fixed array keeps its bounds; every element starts again (a
+            // record as a fresh record).
+            for (auto& element : array.elements) {
+                if (!array.element_class_name.empty() &&
+                    is_udt_class(array.element_class_name)) {
+                    auto fresh = instantiate_class(array.element_class_name,
+                                                   target.second);
+                    if (!fresh.has_value()) {
+                        return false;
+                    }
+                    element = std::move(*fresh);
+                } else if (array.element_fixed_length != 0U) {
+                    element =
+                        Value{std::string(array.element_fixed_length, ' ')};
+                } else {
+                    element = array_element_default(array.element_type_index);
+                }
+            }
         }
     }
     return true;
@@ -3540,6 +3590,76 @@ std::size_t Interpreter::udt_byte_size(const Value& value) const {
         return text->size();
     }
     return 16;  // Variant / Decimal
+}
+
+std::pair<std::size_t, std::size_t> Interpreter::udt_memory_layout(
+    const Value& value, const bool fixed_string, const bool variant) const {
+    if (variant) {
+        return {16U, 4U};
+    }
+    if (std::holds_alternative<Int16>(value) ||
+        std::holds_alternative<bool>(value)) {
+        return {2U, 2U};
+    }
+    if (std::holds_alternative<Byte>(value)) {
+        return {1U, 1U};
+    }
+    if (std::holds_alternative<double>(value) ||
+        std::holds_alternative<Currency>(value) ||
+        std::holds_alternative<DateValue>(value)) {
+        return {8U, 4U};
+    }
+    if (const auto* text = std::get_if<std::string>(&value)) {
+        if (fixed_string) {
+            return {utf16_length(*text) * 2U, 2U};
+        }
+        return {4U, 4U};
+    }
+    if (const auto* array = std::get_if<ArrayValue>(&value)) {
+        if (array->is_dynamic) {
+            return {4U, 4U};
+        }
+        std::size_t total = 0;
+        std::size_t alignment = 1;
+        for (const auto& element : array->elements) {
+            const auto [size, align] =
+                udt_memory_layout(element, array->element_fixed_length != 0U,
+                                  array->is_variant_element);
+            total = (total + align - 1U) / align * align + size;
+            alignment = std::max(alignment, align);
+        }
+        return {total, alignment};
+    }
+    if (const auto* instance = std::get_if<ObjectInstance>(&value)) {
+        const auto class_iterator =
+            class_definitions_.find(instance->data->class_name);
+        if (!is_udt_class(instance->data->class_name) ||
+            class_iterator == class_definitions_.end()) {
+            return {4U, 4U};  // an object reference
+        }
+        std::size_t total = 0;
+        std::size_t alignment = 1;
+        for (const auto& name : class_iterator->second.field_order) {
+            const auto field = instance->data->fields.variables.find(name);
+            if (field == instance->data->fields.variables.end()) {
+                continue;
+            }
+            const auto [size, align] = udt_memory_layout(
+                field->second,
+                instance->data->fields.fixed_string_lengths.contains(name),
+                instance->data->fields.variant_variables.contains(name));
+            total = (total + align - 1U) / align * align + size;
+            alignment = std::max(alignment, align);
+        }
+        total = (total + alignment - 1U) / alignment * alignment;
+        return {total, alignment};
+    }
+    if (std::holds_alternative<Empty>(value) ||
+        std::holds_alternative<Null>(value) ||
+        std::holds_alternative<Decimal>(value)) {
+        return {16U, 4U};
+    }
+    return {4U, 4U};  // Long, Single, a reference
 }
 
 bool Interpreter::parse_property_declaration_skip(

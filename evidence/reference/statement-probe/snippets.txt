@@ -5837,3 +5837,408 @@ SetLng (l) + 0
 SayV l
 SetLng -l
 SayV l
+# --- User-defined types, fixed-length strings, constants, enums ---
+@@ udt defaults all fields
+Dim o As OuterT
+SayV o.N
+SayV o.In1.A
+SayV o.In1.S
+SayV o.Arr(1)
+SayV o.V
+SayV o.O Is Nothing
+Say "[" & o.F & "]"
+SayV Len(o.F)
+SayV Asc(o.F)
+SayV o.D
+SayV o.B
+SayV o.C
+SayV o.By
+SayV o.Many(1).A
+@@ udt dynamic array field unallocated
+Dim o As OuterT
+SayV UBound(o.Dyn)
+@@ udt dynamic array field
+Dim o As OuterT
+Dim p As OuterT
+ReDim o.Dyn(1 To 3)
+o.Dyn(2) = 7
+p = o
+p.Dyn(2) = 9
+SayV o.Dyn(2)
+SayV p.Dyn(2)
+ReDim Preserve p.Dyn(1 To 5)
+SayV UBound(o.Dyn)
+SayV UBound(p.Dyn)
+Erase o.Dyn
+SayV UBound(p.Dyn)
+@@ udt copy is deep
+Dim a As OuterT
+Dim b As OuterT
+a.N = 1
+a.In1.S = "x"
+a.Arr(2) = 5
+a.Many(1).S = "m"
+a.V = Array(1, 2)
+b = a
+b.N = 2
+b.In1.S = "y"
+b.Arr(2) = 6
+b.Many(1).S = "n"
+SayV a.N
+SayV a.In1.S
+SayV a.Arr(2)
+SayV a.Many(1).S
+SayV UBound(b.V)
+@@ udt object field shared
+Dim a As OuterT
+Dim b As OuterT
+Set a.O = New Collection
+a.O.Add 1
+b = a
+b.O.Add 2
+SayV a.O.Count
+SayV a.O Is b.O
+Set b.O = Nothing
+SayV a.O.Count
+@@ udt variant field
+Dim o As OuterT
+o.V = 5
+SayV o.V
+o.V = "x"
+SayV o.V
+o.V = Null
+SayV o.V
+Set o.V = New Collection
+SayV TypeName(o.V)
+o.V = Empty
+SayV o.V
+@@ udt fixed string field
+Dim o As OuterT
+o.F = "ab"
+Say "[" & o.F & "]"
+o.F = "abcdefgh"
+Say "[" & o.F & "]"
+o.F = ""
+Say "[" & o.F & "]"
+SayV Len(o.F)
+o.F = 12
+Say "[" & o.F & "]"
+SayV o.F = "12"
+SayV o.F = "12   "
+SayV Trim(o.F) = "12"
+SayV Len(Trim(o.F))
+@@ udt fixed string null
+Dim o As OuterT
+o.F = Null
+Say o.F
+@@ udt in array
+Dim a(1 To 2) As OuterT
+Dim b() As OuterT
+a(1).N = 5
+a(2) = a(1)
+a(2).N = 6
+SayV a(1).N
+ReDim b(1 To 2)
+b(1).In1.S = "s"
+ReDim Preserve b(1 To 3)
+SayV b(1).In1.S
+SayV b(3).N
+b = a
+SayV b(2).N
+SayV UBound(b)
+@@ udt byref and function
+Dim o As OuterT
+Dim i As InnerT
+SayV OuterN(o)
+SayV OuterN(o)
+SayV o.N
+i = MakeInner(3, "t")
+SayV i.A
+SayV i.S
+SayV MakeInner(4, "u").S
+o.In1 = MakeInner(5, "v")
+SayV o.In1.A
+o.Many(0) = i
+SayV o.Many(0).S
+@@ udt with block
+Dim o As OuterT
+With o
+    .N = 3
+    .In1.A = 4
+    With .In1
+        .S = "w"
+    End With
+    .Arr(1) = .N + .In1.A
+End With
+SayV o.Arr(1)
+SayV o.In1.S
+@@ udt with on function result
+With MakeInner(1, "q")
+    SayV .S
+    SayV .A
+End With
+@@ udt len sizes
+Dim p As Packed
+Dim t As TwoStr
+Dim o As OuterT
+Dim i As InnerT
+Dim q As Pt
+SayV Len(p)
+SayV LenB(p)
+SayV Len(t)
+SayV LenB(t)
+SayV Len(i)
+SayV LenB(i)
+SayV Len(q)
+SayV LenB(q)
+@@ udt comparison of fields
+Dim a As Pt
+Dim b As Pt
+a.X = 1: b.X = 1
+SayV a.X = b.X
+SayV a.Y = b.Y
+@@ udt in variant
+Dim v As Variant
+Dim p As Pt
+p.X = 5
+v = p.X
+SayV v
+@@ udt in collection of fields
+Dim c As New Collection
+Dim p As Pt
+p.X = 5
+c.Add p.X
+p.X = 6
+SayV c(1)
+@@ udt erase array of udt
+Dim a(1 To 2) As OuterT
+a(1).N = 5
+a(1).In1.S = "s"
+Set a(1).O = New Collection
+Erase a
+SayV a(1).N
+SayV a(1).In1.S
+SayV a(1).O Is Nothing
+@@ fixed string local forms
+Dim s As String * 5
+Dim t As String * 3
+Say "[" & s & "]"
+SayV Len(s)
+SayV AscW(s)
+s = "abcdefg"
+Say "[" & s & "]"
+s = "ab"
+Say "[" & s & "]"
+t = s
+Say "[" & t & "]"
+s = t
+Say "[" & s & "]"
+s = s & "x"
+Say "[" & s & "]"
+SayV s = "ab "
+SayV s = "ab   "
+SayV RTrim(s) = "ab"
+SayV TypeName(s)
+SayV VarType(s)
+@@ fixed string functions
+Dim s As String * 5
+s = "ab"
+SayV Len(s & "x")
+SayV InStr(s, " ")
+SayV UCase(s) & "."
+Mid(s, 4, 2) = "yz"
+Say "[" & s & "]"
+LSet s = "q"
+Say "[" & s & "]"
+RSet s = "q"
+Say "[" & s & "]"
+SayV Left(s, 2) & "."
+SayV LenB(s)
+@@ fixed string byref
+Dim s As String * 5
+s = "ab"
+SayV FixedLen(s)
+Say "[" & s & "]"
+@@ fixed string in variant
+Dim s As String * 3
+Dim v As Variant
+s = "ab"
+v = s
+SayV Len(v)
+SayV TypeName(v)
+v = v & "x"
+SayV Len(v)
+@@ fixed string array
+Dim a(1 To 2) As String * 3
+a(1) = "abcdef"
+Say "[" & a(1) & "]"
+Say "[" & a(2) & "]"
+SayV Len(a(2))
+SayV AscW(a(2))
+@@ fixed string number assign
+Dim s As String * 4
+s = 3.5
+Say "[" & s & "]"
+s = True
+Say "[" & s & "]"
+s = #1/2/2000#
+Say "[" & s & "]"
+s = 123456
+Say "[" & s & "]"
+@@ constants of every kind
+SayV KInt
+SayV KLng
+SayV KDbl
+SayV KStr
+SayV KBool
+SayV KDate
+SayV KExpr
+SayV KCat
+SayV KHex
+SayV KBig
+SayV KNeg
+SayV KCur
+SayV KSng
+SayV KByte
+SayV KTyped
+SayV KStrNum
+SayV KCmp
+SayV KDiv
+SayV KIntDiv
+SayV KPow
+SayV KMod
+SayV KAnd
+SayV KNot
+SayV KLen
+@@ constants local
+Const a = 5
+Const b As Long = 5
+Const c = a + b
+Const d = "x" & "y"
+Const e = 1.5!
+Const f = 5&
+Const g = 5#
+Const h = 5@
+Const i = &H8000
+Const j = &H8000&
+Const k = 32768
+Const l = -32768
+Const m = 1E+3
+Const n = "a" = "a"
+Const o As String = 5
+Const p As Integer = "7"
+Const q As Double = 1 / 3
+Const r As Date = 1.5
+SayV a
+SayV b
+SayV c
+SayV d
+SayV e
+SayV f
+SayV g
+SayV h
+SayV i
+SayV j
+SayV k
+SayV l
+SayV m
+SayV n
+SayV o
+SayV p
+SayV q
+SayV r
+@@ constants builtin
+SayV vbCrLf = Chr(13) & Chr(10)
+SayV Len(vbNullString)
+SayV Len(vbNullChar)
+SayV Asc(vbTab)
+SayV vbObjectError
+SayV vbRed
+SayV vbWhite
+SayV vbKeyReturn
+SayV vbSunday
+SayV vbBinaryCompare
+SayV vbTrue
+SayV vbUseDefault
+SayV TypeName(vbRed)
+SayV TypeName(vbCrLf)
+SayV TypeName(vbTrue)
+SayV vbBack = Chr(8)
+SayV Asc(vbFormFeed)
+SayV Asc(vbVerticalTab)
+SayV vbNewLine = vbCrLf
+SayV TypeName(vbNullString)
+SayV vbNullString = ""
+SayV vbString
+SayV vbVariant
+SayV vbArray
+SayV vbMsgBoxHelpButton
+SayV vbGeneralDate
+@@ enum wide values
+SayV WNeg
+SayV WNext
+SayV WHex
+SayV WExpr
+SayV WBig
+SayV WSame = WSame2
+SayV [With Space]
+SayV Wide.WHex
+SayV TypesMore.Wide.WNext
+SayV TypeName(WNeg)
+SayV VarType(WBig)
+@@ enum typed variable
+Dim w As Wide
+SayV w
+w = WHex
+SayV w
+w = 12345
+SayV w
+w = 2.5
+SayV w
+w = "7"
+SayV w
+w = True
+SayV w
+SayV TypeName(w)
+SayV w + 1
+@@ enum variable text bad
+Dim w As Wide
+w = "x"
+SayV w
+@@ enum variable overflow
+Dim w As Wide
+Dim d As Double
+d = 3000000000#
+w = d
+SayV w
+@@ enum parameter
+Say TakeWide(WHex)
+Say TakeWide(99)
+Say TakeWide(2.5)
+Say TakeWide("3")
+@@ enum in expressions
+Dim w As Wide
+w = WHex
+SayV w Or WSame
+SayV w And 16
+SayV w = 16
+SayV w * 1.5
+SayV -w
+SayV Not w
+SayV w & ""
+SayV CStr(w)
+SayV IsNumeric(w)
+Select Case w
+    Case WHex
+        Say "hex"
+    Case Else
+        Say "other"
+End Select
+@@ enum for loop
+Dim w As Wide
+Dim n As Long
+For w = WNeg To WNext
+    n = n + 1
+Next w
+SayV n
+SayV w

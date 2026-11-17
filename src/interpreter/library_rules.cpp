@@ -244,6 +244,18 @@ bool Interpreter::measured_library_call(const std::string_view identifier,
         }
     }
 
+    // LenB of a fixed-length String variable is an Integer (its size is
+    // known beforehand).
+    if (key == "lenb" && !library_argument_is_fixed_string_.empty() &&
+        library_argument_is_fixed_string_[0]) {
+        if (const auto* text = std::get_if<std::string>(&arguments[0])) {
+            const auto bytes = string_to_bytes(*text).size();
+            if (bytes <= 32767U) {
+                result = Value{static_cast<Int16>(bytes)};
+                return true;
+            }
+        }
+    }
     // The size of a variable, and of the text of a Variant.
     if ((key == "len" || key == "lenb") && typed(0)) {
         if (const auto size = size_of_type(arguments[0])) {

@@ -1082,7 +1082,11 @@ bool Interpreter::parse_set_statement() {
     if (type_character == '\0' && !at_end() && current() == '(' &&
         std::holds_alternative<ArrayValue>(*variable.value)) {
         auto& array = std::get<ArrayValue>(*variable.value);
-        if (!array.is_object_element && !array.is_variant_element) {
+        const bool record_elements =
+            !array.elements.empty() &&
+            std::holds_alternative<ObjectInstance>(array.elements.front());
+        if (!array.is_object_element && !array.is_variant_element &&
+            !record_elements) {
             set_error("WFC0109", "Set requires an Object or Variant target",
                       identifier_offset);
             return false;
@@ -1094,6 +1098,20 @@ bool Interpreter::parse_set_statement() {
             return false;
         }
         skip_horizontal_whitespace();
+        if (!at_end() && current() == '.') {
+            // `Set list(i).field = expression`: the member of the element.
+            Value base{Nothing{}};
+            if (execute_) {
+                const auto element_offset = array_flat_offset(array, *indices);
+                if (!element_offset.has_value()) {
+                    return raise_runtime(9, "Subscript out of range",
+                                         identifier_offset);
+                }
+                base = array.elements[*element_offset];
+            }
+            advance();
+            return parse_member_set_assignment(base, identifier_offset);
+        }
         if (!consume('=')) {
             set_error("WFC0014", "expected assignment operator", offset_);
             return false;
