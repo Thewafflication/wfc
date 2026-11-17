@@ -241,12 +241,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                       offset_);
             return std::nullopt;
         }
-        const auto parameter_offset = offset_;
-        char type_character{};
-        auto parameter_name = parse_identifier(&type_character);
-        if (!parameter_name.has_value() || type_character != '\0') {
-            set_error("WFC0011", "IsMissing requires a parameter name",
-                      parameter_offset);
+        // The argument is any expression (`IsMissing(list(i))`): it is
+        // missing when it holds the "parameter not found" error value.
+        auto probed = parse_expression();
+        if (!probed.has_value()) {
             return std::nullopt;
         }
         skip_horizontal_whitespace();
@@ -263,24 +261,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!execute_) {
             return Value{false};
         }
-        // Membership in `missing_parameter_names` already implies
-        // Optional/Variant/no-default (see where it is populated
-        // above); confirming the name is at least a real parameter
-        // of the current procedure first (rather than checking the
-        // set directly) keeps `IsMissing(someUnrelatedName)` a plain
-        // False instead of an accidental True from a stale name.
-        bool is_missing = false;
-        if (in_procedure() && current_procedure_def_ != nullptr) {
-            for (const auto& parameter : current_procedure_def_->parameters) {
-                if (parameter.name == *parameter_name) {
-                    is_missing =
-                        current_scope().missing_parameter_names.contains(
-                            *parameter_name);
-                    break;
-                }
-            }
-        }
-        return Value{is_missing};
+        const auto* held = std::get_if<ErrorValue>(&*probed);
+        return Value{held != nullptr && held->code == kMissingArgument};
     }
 
     // A missing `(` is a parenthesis-free, zero-argument call (REQ-0213)
@@ -655,10 +637,14 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         !is_ismissing && execute_) {
         for (const auto& argument : arguments) {
             if (const auto* error_value = std::get_if<ErrorValue>(&argument)) {
-                static_cast<void>(raise_runtime(
-                    error_value->code == 0 ? 5 : error_value->code,
-                    vb_error_description(error_value->code),
-                    identifier_offset));
+                static_cast<void>(
+                    raise_runtime(error_value->code == 0
+                                      ? 5
+                                      : (error_value->code == kMissingArgument
+                                             ? 448
+                                             : error_value->code),
+                                  vb_error_description(error_value->code),
+                                  identifier_offset));
                 return std::nullopt;
             }
         }

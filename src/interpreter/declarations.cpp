@@ -3133,6 +3133,25 @@ bool Interpreter::parse_redim_declarator(const bool preserve) {
         Value* value;
     };
     const RedimVariable variable{redim_target};
+    // A fixed-size array given to a procedure cannot be resized there: error
+    // 10 when the statement runs. (ReDim of an array the procedure declared
+    // with fixed bounds itself is refused before the program runs, below.)
+    bool is_parameter = false;
+    if (current_procedure_def_ != nullptr) {
+        for (const auto& parameter : current_procedure_def_->parameters) {
+            if (parameter.name == *identifier) {
+                is_parameter = true;
+                break;
+            }
+        }
+    }
+    if (is_parameter && variable.value != nullptr &&
+        std::holds_alternative<ArrayValue>(*variable.value) &&
+        !std::get<ArrayValue>(*variable.value).is_dynamic) {
+        return !execute_ ||
+               raise_runtime(10, "This array is fixed or temporarily locked",
+                             identifier_offset);
+    }
     if (variable.value == nullptr ||
         !std::holds_alternative<ArrayValue>(*variable.value) ||
         !std::get<ArrayValue>(*variable.value).is_dynamic) {

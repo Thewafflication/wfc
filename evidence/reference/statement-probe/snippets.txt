@@ -5576,3 +5576,264 @@ For v = CCur(1) To CCur(2)
     n = n + 1
 Next v
 SayV v
+# --- Argument passing ---
+@@ args to integer parameter
+Say TakeInt(5)
+Say TakeInt(2.5)
+Say TakeInt(3.5)
+Say TakeInt("12")
+Say TakeInt(" 7 ")
+Say TakeInt(True)
+Say TakeInt(#1/2/1900#)
+Say TakeInt(Empty)
+Say TakeInt("2.5")
+Say TakeInt(CCur(1.5))
+@@ args integer overflow
+Dim l As Long
+l = 40000
+Say TakeInt(l)
+@@ args integer text bad
+Say TakeInt("abc")
+@@ args integer null
+Say TakeInt(Null)
+@@ args integer empty text
+Say TakeInt("")
+@@ args to long parameter
+Say TakeLng(2147483647)
+Say TakeLng(-2.5)
+Say TakeLng("&H10")
+Say TakeLng(1E+9)
+@@ args long overflow
+Dim d As Double
+d = 3000000000#
+Say TakeLng(d)
+@@ args to byte parameter
+Say TakeByte(255)
+Say TakeByte(0.5)
+Say TakeByte(1.5)
+Say TakeByte("7")
+@@ args byte negative
+Dim i As Integer
+i = -1
+Say TakeByte(i)
+@@ args byte overflow
+Dim i As Integer
+i = 256
+Say TakeByte(i)
+@@ args to string parameter
+Say TakeStr(5)
+Say TakeStr(1.5)
+Say TakeStr(True)
+Say TakeStr(#1/2/2000#)
+Say TakeStr(Empty) & "."
+Say TakeStr(CCur(2.5))
+Say TakeStr(1E+20)
+Say TakeStr(CDec("1.50"))
+@@ args string null
+Say TakeStr(Null)
+@@ args to boolean parameter
+Say TakeBool(5)
+Say TakeBool(0)
+Say TakeBool("True")
+Say TakeBool("0")
+Say TakeBool(0.1)
+Say TakeBool(Empty)
+@@ args boolean text bad
+Say TakeBool("x")
+@@ args to date parameter
+Say TakeDate(1.5)
+Say TakeDate("1/2/2000")
+Say TakeDate(Empty)
+Say TakeDate(True)
+Say TakeDate("12:30")
+@@ args date text bad
+Say TakeDate("x")
+@@ args to currency parameter
+Say TakeCur(1.00005)
+Say TakeCur("2.5")
+Say TakeCur(True)
+Say TakeCur(Empty)
+@@ args to double parameter
+Say TakeDbl("1e3")
+Say TakeDbl(True)
+Say TakeDbl(#1/1/1900#)
+Say TakeDbl(CCur(1.5))
+Say TakeDbl("&HFF")
+@@ args to variant parameter
+Dim a(1 To 2) As Long
+Dim o As Object
+Say TakeVar(5)
+Say TakeVar(5&)
+Say TakeVar("x")
+Say TakeVar(Null)
+Say TakeVar(Empty)
+Say TakeVar(a)
+Say TakeVar(Array(1))
+Say TakeVar(New Collection)
+Say TakeVar(o)
+Say TakeVar(1 = 1)
+Say TakeVar(CByte(1) + CByte(1))
+@@ args to object parameter
+Dim c As New Collection
+Dim v As Variant
+Say TakeObj(c)
+Say TakeObj(Nothing)
+Set v = c
+Say TakeObj(v)
+@@ args object from number
+Dim v As Variant
+v = 5
+Say TakeObj(v)
+@@ args object from empty
+Dim v As Variant
+Say TakeObj(v)
+@@ args byref variant
+Dim v As Variant
+Dim l As Long
+Dim s As String
+SetVar v, 5
+SayV v
+SetVar v, "x"
+SayV v
+SetVar l, 7
+SayV l
+SetVar l, "8"
+SayV l
+SetVar s, 9
+SayV s
+@@ args byref variant bad conversion
+Dim l As Long
+SetVar l, "abc"
+SayV l
+@@ args byref variant overflow
+Dim i As Integer
+Dim big As Long
+big = 40000
+SetVar i, big
+SayV i
+@@ args byref string forms
+Dim s As String
+Dim v As Variant
+Dim a(1 To 2) As String
+s = "a"
+SetStr s
+Say s
+SetStr (s)
+Say s
+a(1) = "e"
+SetStr a(1)
+Say a(1)
+SetStr "lit"
+Call SetStr(s)
+Say s
+Call SetStr((s))
+Say s
+@@ args byref long forms
+Dim l As Long
+Dim v As Variant
+Dim p As Pt
+l = 1
+SetLng l
+SayV l
+SetLng (l)
+SayV l
+SetLng p.X
+SayV p.X
+SetLng l + 0
+SayV l
+@@ args byref array forms
+Dim a() As Long
+ReDim a(1 To 2)
+SetArr a
+SayV UBound(a)
+SayV a(3)
+SetElem a
+SayV a(1)
+@@ args byref fixed array
+Dim a(1 To 2) As Long
+SetElem a
+SayV a(1)
+@@ args byref fixed array redim
+Dim a(1 To 2) As Long
+SetArr a
+SayV UBound(a)
+@@ args optional typed
+Say OptTypedArgs()
+Say OptTypedArgs(5)
+Say OptTypedArgs(, "x")
+Say OptTypedArgs(, , True)
+Say OptTypedArgs(1, "a", False, #1/1/1900#, New Collection)
+@@ args optional variant
+Say OptVar()
+Say OptVar(1)
+Say OptVar(, 2)
+Say OptVar(, , 3)
+Say OptVar(Empty, Null, Nothing Is Nothing)
+Say OptMissingPass()
+Say OptMissingPass(4)
+@@ args named
+Say Named(1)
+Say Named(a:=5)
+Say Named(1, c:=9)
+Say Named(c:=7, a:=6)
+Say Named(b:=8, a:=1)
+Say Named(1, , 4)
+@@ args paramarray forms
+Dim a(1 To 2) As Long
+Say PA()
+Say PA(1)
+Say PA(1, "x", 2.5)
+Say PA(, 1)
+Say PA(1, , 3)
+Say PA(a)
+Say PA(Null, Empty, Nothing)
+Say PA(Array(1, 2))
+Say PAFixed(1)
+Say PAFixed(1, 2, 3)
+@@ args paramarray byref
+Dim l As Long
+Dim v As Variant
+l = 1
+PAChange l
+SayV l
+v = 5
+PAChange v
+SayV v
+PAChange (l)
+SayV l
+@@ args function results
+Dim a() As Long
+Dim v As Variant
+a = RetArr()
+SayV UBound(a)
+SayV a(2)
+SayV RetArr()(2)
+v = RetVarArr()
+SayV UBound(v)
+SayV v(1)
+SayV RetVarArr()(2)
+SayV Fact(10)
+SayV Fact(20)
+SayV NoAssign()
+SayV RetVariantUnset()
+SayV RetTwice()
+@@ args function array index bad
+SayV RetArr()(9)
+@@ args static variables
+SayV StaticSum(1)
+SayV StaticSum(2)
+SayV StaticSum(3)
+SayV AllStatic(5)
+SayV AllStatic(5)
+@@ args evaluation order
+Dim s As String
+Say Named(Counter(), Counter(), Counter())
+@@ args expression in byref
+Dim l As Long
+l = 5
+SetLng CLng(l)
+SayV l
+SetLng (l) + 0
+SayV l
+SetLng -l
+SayV l

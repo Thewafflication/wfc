@@ -587,7 +587,7 @@ std::optional<Value> Interpreter::invoke_definition(
                 parameter.has_default
                     ? parameter.default_value
                     : (parameter.is_variant
-                           ? Value{Empty{}}
+                           ? Value{ErrorValue{kMissingArgument}}
                            : zero_value_for_index(parameter.type_index));
             argument_ptr = &synthesized_argument;
         }
@@ -595,6 +595,12 @@ std::optional<Value> Interpreter::invoke_definition(
         if (parameter.is_object_reference) {
             if (!std::holds_alternative<Nothing>(argument.value) &&
                 !std::holds_alternative<ObjectInstance>(argument.value)) {
+                if (execute_) {
+                    // A value that is no object: "Object required".
+                    static_cast<void>(raise_runtime(424, "Object required",
+                                                    identifier_offset));
+                    return std::nullopt;
+                }
                 set_error("WFC0106",
                           "Object parameter requires an object reference",
                           identifier_offset);
@@ -698,6 +704,10 @@ std::optional<Value> Interpreter::invoke_definition(
         for (std::size_t index = fixed_and_optional_count;
              index < arguments.size(); ++index) {
             Value element_value = std::move(arguments[index].value);
+            if (arguments[index].omitted) {
+                // A place left empty in the list is a missing argument.
+                element_value = Value{ErrorValue{kMissingArgument}};
+            }
             if (!param_array_parameter.is_variant) {
                 if (!coerce_numeric_value(element_value,
                                           param_array_parameter.type_index,
@@ -893,6 +903,38 @@ std::optional<Value> Interpreter::invoke_definition(
          ++index) {
         const auto& parameter = parameters[index];
         if (!parameter.by_val && arguments[index].byref_target != nullptr &&
+            parameter.is_variant && arguments[index].typed_target) {
+            // A typed variable given to a ByRef Variant parameter takes what
+            // the procedure left in it, converted to its own type (measured:
+            // statement probe, "args byref variant"); a value that does not
+            // convert is the error of an assignment.
+            Value left = scopes_.back().variables.at(parameter.name);
+            Value& target = *arguments[index].byref_target;
+            if (left.index() != target.index() &&
+                !std::holds_alternative<ArrayValue>(target) &&
+                !std::holds_alternative<ObjectInstance>(target) &&
+                !std::holds_alternative<Nothing>(target)) {
+                if (!coerce_numeric_value(left, target.index(),
+                                          identifier_offset)) {
+                    write_back_ok = false;
+                    break;
+                }
+                if (left.index() != target.index()) {
+                    static_cast<void>(
+                        raise_runtime(13, "Type mismatch", identifier_offset));
+                    write_back_ok = false;
+                    break;
+                }
+            }
+            if (left.index() == target.index() &&
+                !std::holds_alternative<ArrayValue>(target) &&
+                !std::holds_alternative<ObjectInstance>(target) &&
+                !std::holds_alternative<Nothing>(target)) {
+                target = std::move(left);
+            }
+            continue;
+        }
+        if (!parameter.by_val && arguments[index].byref_target != nullptr &&
             !(parameter.is_variant && arguments[index].typed_target)) {
             // REQ-0228: an object-typed ByRef parameter makes this
             // write-back reachable for an ObjectInstance for the first
@@ -908,6 +950,44 @@ std::optional<Value> Interpreter::invoke_definition(
             }
             *arguments[index].byref_target =
                 scopes_.back().variables.at(parameter.name);
+        }
+    }
+    // The elements of a ParamArray are the caller's variables too (measured:
+    // statement probe, "args paramarray byref"): what the procedure left in
+    // an element goes back to the variable it came from, converted to the
+    // type of a typed one.
+    if (write_back_ok && has_param_array) {
+        const auto held = scopes_.back().variables.find(parameters.back().name);
+        const auto* list = held != scopes_.back().variables.end()
+                               ? std::get_if<ArrayValue>(&held->second)
+                               : nullptr;
+        for (std::size_t index = fixed_and_optional_count;
+             list != nullptr && index < arguments.size(); ++index) {
+            const std::size_t at = index - fixed_and_optional_count;
+            Value* const target = arguments[index].byref_target;
+            if (target == nullptr || at >= list->elements.size() ||
+                std::holds_alternative<ArrayValue>(*target) ||
+                std::holds_alternative<ObjectInstance>(*target) ||
+                std::holds_alternative<Nothing>(*target)) {
+                continue;
+            }
+            Value left = list->elements[at];
+            if (std::holds_alternative<ArrayValue>(left) ||
+                std::holds_alternative<ObjectInstance>(left)) {
+                continue;
+            }
+            if (arguments[index].typed_target &&
+                left.index() != target->index()) {
+                if (!coerce_numeric_value(left, target->index(),
+                                          identifier_offset)) {
+                    write_back_ok = false;
+                    break;
+                }
+                if (left.index() != target->index()) {
+                    continue;
+                }
+            }
+            *target = std::move(left);
         }
     }
     // The return value and any ByRef write-backs above are already

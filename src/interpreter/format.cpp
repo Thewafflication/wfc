@@ -629,7 +629,9 @@ std::string Interpreter::render(const Value& value) {
         return render_date(date->serial);
     }
     if (const auto* error = std::get_if<ErrorValue>(&value)) {
-        return "Error " + std::to_string(error->code);
+        return "Error " + std::to_string(error->code == kMissingArgument
+                                             ? 448
+                                             : error->code);
     }
     if (const auto* string = std::get_if<std::string>(&value)) {
         return *string;

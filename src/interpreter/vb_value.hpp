@@ -65,6 +65,12 @@ struct ObjectInstance {
 // A Date value (REQ-0242): an OLE Automation date -- days since
 // 1899-12-30 in the integer part, time of day in the fraction.
 // An error-subtype Variant (REQ-0259), produced by `CVErr(n)`.
+// An Optional Variant argument that was left out holds the error value
+// "parameter not found" (0x80020004): IsMissing asks for exactly that, its
+// TypeName is "Error", and it stays missing when it is passed on.
+inline constexpr std::int32_t kMissingArgument =
+    static_cast<std::int32_t>(0x80020004U);
+
 struct ErrorValue {
     std::int32_t code{};
 

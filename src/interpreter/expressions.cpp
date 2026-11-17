@@ -2595,6 +2595,9 @@ std::optional<Value> Interpreter::compare(const Value& left, const Value& right,
         };
         const auto l = serial_of(left);
         const auto r = serial_of(right);
+        if ((!l.has_value() || !r.has_value()) && !execute_) {
+            return Value{false};  // a branch that is not taken
+        }
         if (!l.has_value() || !r.has_value()) {
             set_error("WFC0018",
                       "comparison requires operands of the same type",

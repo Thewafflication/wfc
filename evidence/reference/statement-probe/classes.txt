@@ -417,3 +417,169 @@ End Function
 
 Public Function ObjRet() As Object
 End Function
+## module Args
+Option Explicit
+
+Public Function TakeInt(ByVal i As Integer) As String
+    TakeInt = TypeName(i) & ":" & i
+End Function
+
+Public Function TakeLng(ByVal l As Long) As String
+    TakeLng = TypeName(l) & ":" & l
+End Function
+
+Public Function TakeByte(ByVal b As Byte) As String
+    TakeByte = TypeName(b) & ":" & b
+End Function
+
+Public Function TakeStr(ByVal s As String) As String
+    TakeStr = TypeName(s) & ":" & s
+End Function
+
+Public Function TakeBool(ByVal b As Boolean) As String
+    TakeBool = TypeName(b) & ":" & b
+End Function
+
+Public Function TakeDate(ByVal d As Date) As String
+    TakeDate = TypeName(d) & ":" & d
+End Function
+
+Public Function TakeCur(ByVal c As Currency) As String
+    TakeCur = TypeName(c) & ":" & c
+End Function
+
+Public Function TakeDbl(ByVal d As Double) As String
+    TakeDbl = TypeName(d) & ":" & d
+End Function
+
+Public Function TakeVar(ByVal v As Variant) As String
+    If IsObject(v) Then
+        TakeVar = "Object"
+    ElseIf IsNull(v) Then
+        TakeVar = "Null"
+    ElseIf IsArray(v) Then
+        TakeVar = TypeName(v)
+    Else
+        TakeVar = TypeName(v) & ":" & v
+    End If
+End Function
+
+Public Function TakeObj(ByVal o As Object) As String
+    If o Is Nothing Then
+        TakeObj = "Nothing"
+    Else
+        TakeObj = TypeName(o)
+    End If
+End Function
+
+Public Sub SetVar(ByRef v As Variant, ByVal x As Variant)
+    v = x
+End Sub
+
+Public Sub SetStr(ByRef s As String)
+    s = s & "!"
+End Sub
+
+Public Sub SetLng(ByRef l As Long)
+    l = l + 1
+End Sub
+
+Public Sub SetArr(ByRef a() As Long)
+    ReDim Preserve a(LBound(a) To UBound(a) + 1)
+    a(UBound(a)) = 99
+End Sub
+
+Public Sub SetElem(ByRef a() As Long)
+    a(LBound(a)) = 77
+End Sub
+
+Public Function OptTypedArgs(Optional ByVal i As Integer, _
+        Optional ByVal s As String, Optional ByVal b As Boolean, _
+        Optional ByVal d As Date, Optional ByVal o As Object) As String
+    OptTypedArgs = i & "," & s & "," & b & "," & CDbl(d) & "," & (o Is Nothing) _
+        & "," & IsMissing(i) & "," & IsMissing(s)
+End Function
+
+Public Function OptVar(Optional v As Variant, Optional w As Variant = 5, _
+        Optional x As Variant = "d") As String
+    OptVar = IsMissing(v) & "," & IsMissing(w) & "," & TypeName(v) & "," _
+        & TypeName(w) & "," & w & "," & x
+End Function
+
+Public Function OptMissingPass(Optional v As Variant) As String
+    OptMissingPass = OptVar(v)
+End Function
+
+Public Function Named(ByVal a As Long, Optional ByVal b As Long = 2, _
+        Optional ByVal c As Long = 3) As String
+    Named = a & "," & b & "," & c
+End Function
+
+Public Function PA(ParamArray p() As Variant) As String
+    Dim i As Long
+    Dim s As String
+    s = LBound(p) & ":" & UBound(p)
+    For i = LBound(p) To UBound(p)
+        If IsMissing(p(i)) Then
+            s = s & ";missing"
+        ElseIf IsArray(p(i)) Then
+            s = s & ";" & TypeName(p(i))
+        ElseIf IsObject(p(i)) Then
+            s = s & ";Object"
+        ElseIf IsNull(p(i)) Then
+            s = s & ";Null"
+        Else
+            s = s & ";" & TypeName(p(i)) & "=" & p(i)
+        End If
+    Next i
+    PA = s
+End Function
+
+Public Sub PAChange(ParamArray p() As Variant)
+    p(0) = p(0) + 1
+End Sub
+
+Public Function PAFixed(ByVal first As Long, ParamArray p() As Variant) As String
+    PAFixed = first & "|" & (UBound(p) - LBound(p) + 1)
+End Function
+
+Public Function RetArr() As Long()
+    Dim a(1 To 3) As Long
+    a(2) = 5
+    RetArr = a
+End Function
+
+Public Function RetVarArr() As Variant
+    RetVarArr = Array(1, "two", 3.5)
+End Function
+
+Public Function Fact(ByVal n As Long) As Double
+    If n <= 1 Then
+        Fact = 1
+    Else
+        Fact = n * Fact(n - 1)
+    End If
+End Function
+
+Public Function NoAssign() As Long
+End Function
+
+Public Function RetVariantUnset() As Variant
+End Function
+
+Public Function RetTwice() As Long
+    RetTwice = 1
+    RetTwice = RetTwice + 1
+End Function
+
+Public Function StaticSum(ByVal n As Long) As Long
+    Static total As Long
+    total = total + n
+    StaticSum = total
+End Function
+
+Public Static Function AllStatic(ByVal n As Long) As Long
+    Dim total As Long
+    total = total + n
+    AllStatic = total
+End Function

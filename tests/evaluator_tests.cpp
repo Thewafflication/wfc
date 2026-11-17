@@ -2952,7 +2952,7 @@ int main() {
     expect_program_failure("Print IsError()", "WFC0072");
     expect_program_failure("Print IsError(1, 2)", "WFC0072");
     expect_program_failure("Print IsMissing()", "WFC0072");
-    expect_program_failure("Print IsMissing(1, 2)", "WFC0011");
+    expect_program_failure("Print IsMissing(1, 2)", "WFC0072");
     expect_program_failure("Print Error(1.5)", "WFC0073");
     expect_program_failure("Print Error(-1)", "WFC0101");
     expect_program_failure("Print Error(65536)", "WFC0101");
