@@ -2475,6 +2475,9 @@ std::optional<Value> Interpreter::logical_binary(
 
 int Interpreter::compare_strings(const std::string_view left_in,
                                  const std::string_view right_in) const {
+    if (text_compare_here()) {
+        return text_order(left_in, right_in);
+    }
     std::string folded_left;
     std::string folded_right;
     std::string_view left = left_in;

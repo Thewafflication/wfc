@@ -6524,3 +6524,186 @@ SayV d("in")("x")
 d("in")("y") = 2
 SayV inner.Count
 SayV d("in").Exists("y")
+# --- Text comparison order ---
+@@ text compare letters and case
+SayV StrComp("a", "B", vbTextCompare)
+SayV StrComp("B", "a", vbTextCompare)
+SayV StrComp("a", "A", vbTextCompare)
+SayV StrComp("abc", "ABD", vbTextCompare)
+SayV StrComp("Z", "a", vbTextCompare)
+SayV StrComp("Z", "a", vbBinaryCompare)
+SayV StrComp("a", "Z", vbBinaryCompare)
+SayV StrComp("", "a", vbTextCompare)
+SayV StrComp("a", "", vbTextCompare)
+SayV StrComp("ab", "abc", vbTextCompare)
+@@ text compare digits and letters
+SayV StrComp("1", "a", vbTextCompare)
+SayV StrComp("9", "A", vbTextCompare)
+SayV StrComp("10", "9", vbTextCompare)
+SayV StrComp("a1", "a10", vbTextCompare)
+SayV StrComp("a2", "a10", vbTextCompare)
+SayV StrComp("1", "1 ", vbTextCompare)
+@@ text compare punctuation
+SayV StrComp("a-b", "ab", vbTextCompare)
+SayV StrComp("a-b", "ac", vbTextCompare)
+SayV StrComp("ab", "a-c", vbTextCompare)
+SayV StrComp("co-op", "coop", vbTextCompare)
+SayV StrComp("co-op", "coop", vbBinaryCompare)
+SayV StrComp("a'b", "ab", vbTextCompare)
+SayV StrComp("a'b", "ac", vbTextCompare)
+SayV StrComp("-a", "a", vbTextCompare)
+SayV StrComp("-", "a", vbTextCompare)
+SayV StrComp("-", "", vbTextCompare)
+SayV StrComp("'", "-", vbTextCompare)
+SayV StrComp("a_b", "ab", vbTextCompare)
+SayV StrComp("_", "a", vbTextCompare)
+SayV StrComp("_", "1", vbTextCompare)
+SayV StrComp(" ", "a", vbTextCompare)
+SayV StrComp(" ", "_", vbTextCompare)
+SayV StrComp("!", "a", vbTextCompare)
+SayV StrComp("!", "1", vbTextCompare)
+SayV StrComp("~", "a", vbTextCompare)
+SayV StrComp("[", "a", vbTextCompare)
+SayV StrComp("[", "A", vbBinaryCompare)
+SayV StrComp("a b", "ab", vbTextCompare)
+SayV StrComp("a.b", "ab", vbTextCompare)
+SayV StrComp("a,b", "a.b", vbTextCompare)
+SayV StrComp("$", "a", vbTextCompare)
+SayV StrComp("$", "1", vbTextCompare)
+SayV StrComp("@", "1", vbTextCompare)
+SayV StrComp("#", "$", vbTextCompare)
+SayV StrComp("a", "a" & vbTab, vbTextCompare)
+SayV StrComp(vbTab, " ", vbTextCompare)
+@@ text compare accents
+SayV StrComp(ChrW(233), "e", vbTextCompare)
+SayV StrComp(ChrW(233), "f", vbTextCompare)
+SayV StrComp(ChrW(233), "E", vbTextCompare)
+SayV StrComp(ChrW(233), ChrW(201), vbTextCompare)
+SayV StrComp(ChrW(233), "z", vbBinaryCompare)
+SayV StrComp("e" & ChrW(233), "ef", vbTextCompare)
+SayV StrComp("r" & ChrW(233) & "sum" & ChrW(233), "resume", vbTextCompare)
+SayV StrComp("r" & ChrW(233) & "sum" & ChrW(233), "resumf", vbTextCompare)
+SayV StrComp(ChrW(228), "a", vbTextCompare)
+SayV StrComp(ChrW(228), "b", vbTextCompare)
+SayV StrComp(ChrW(223), "ss", vbTextCompare)
+SayV StrComp(ChrW(223), "s", vbTextCompare)
+SayV StrComp(ChrW(230), "ae", vbTextCompare)
+SayV StrComp(ChrW(241), "n", vbTextCompare)
+SayV StrComp(ChrW(241), "o", vbTextCompare)
+SayV StrComp(ChrW(231), "c", vbTextCompare)
+SayV StrComp(ChrW(248), "o", vbTextCompare)
+SayV StrComp(ChrW(248), "p", vbTextCompare)
+SayV StrComp(ChrW(254), "t", vbTextCompare)
+SayV StrComp(ChrW(254), "z", vbTextCompare)
+@@ text compare operators in text module
+SayV OptText.Eq("abc", "ABC")
+SayV OptText.Eq("a-b", "ab")
+SayV OptText.Eq(ChrW(233), "e")
+SayV OptText.Eq(ChrW(233), ChrW(201))
+SayV OptText.Eq("ss", ChrW(223))
+SayV OptText.Lt("a-b", "ab")
+SayV OptText.Lt("ab", "a-b")
+SayV OptText.Lt("a", "B")
+SayV OptText.Lt("B", "a")
+SayV OptText.Lt("_", "a")
+SayV OptText.Lt("1", "a")
+SayV OptText.Lt("Z", "a")
+SayV OptText.Lt(ChrW(233), "f")
+SayV OptText.Lt("co-op", "coop")
+SayV OptText.Lt("coop", "co-op")
+SayV OptText.Cmp("a-b", "ab")
+SayV OptText.Cmp("ab", "AB")
+@@ text compare instr in text module
+SayV OptText.Find("ABC", "b")
+SayV OptText.Find("a-b", "ab")
+SayV OptText.Find("ab", "a-b")
+SayV OptText.Find("r" & ChrW(233) & "sum", "esu")
+SayV OptText.Find("resum", ChrW(233))
+SayV OptText.Find("co-op", "oo")
+SayV OptText.Find("abc", "")
+SayV InStr(1, "a-b", "ab", vbTextCompare)
+SayV InStr(1, "ABC", "c", vbTextCompare)
+SayV InStr(1, ChrW(201) & "t" & ChrW(233), ChrW(233), vbTextCompare)
+SayV InStr(1, ChrW(201) & "t" & ChrW(233), ChrW(233), vbBinaryCompare)
+SayV InStrRev("aXbxc", "x", -1, vbTextCompare)
+SayV Replace("a-b ab AB", "ab", "_", 1, -1, vbTextCompare)
+SayV Replace(ChrW(201) & "t" & ChrW(233), ChrW(233), "e", 1, -1, vbTextCompare)
+@@ text compare like in text module
+SayV OptText.Lk("ABC", "abc")
+SayV OptText.Lk("ABC", "a*")
+SayV OptText.Lk("B", "[a-c]")
+SayV OptText.Lk("b", "[A-C]")
+SayV OptText.Lk(ChrW(233), "e")
+SayV OptText.Lk(ChrW(233), "[a-z]")
+SayV OptText.Lk(ChrW(201), ChrW(233))
+SayV OptText.Lk("a-b", "ab")
+SayV OptText.Lk("a-b", "a?b")
+SayV OptText.Lk("Z", "[a-z]")
+SayV OptText.Lk("_", "[a-z]")
+SayV OptText.Lk("5", "[a-z]")
+@@ text compare select in text module
+Say OptText.Sel("ABC")
+Say OptText.Sel("abc")
+Say OptText.Sel("a-bc")
+Say OptText.Sel("abd")
+@@ binary compare order
+SayV "a" < "B"
+SayV "B" < "a"
+SayV "Z" < "a"
+SayV "_" < "a"
+SayV "a" < "_"
+SayV "1" < "A"
+SayV " " < "!"
+SayV "a" < ChrW(233)
+SayV ChrW(233) < "z"
+SayV ChrW(201) < ChrW(233)
+SayV "ab" < "a-b"
+SayV "a-b" < "ab"
+SayV ChrW(8364) > "z"
+SayV ChrW(255) < ChrW(256)
+SayV ChrW(-1) > ChrW(1)
+SayV StrComp(ChrW(-1), ChrW(1))
+SayV StrComp(ChrW(55357) & ChrW(56832), ChrW(65000))
+@@ case conversion of accents
+SayV AscW(UCase(ChrW(233)))
+SayV AscW(LCase(ChrW(201)))
+SayV AscW(UCase(ChrW(255)))
+SayV AscW(UCase(ChrW(223)))
+SayV Len(UCase(ChrW(223)))
+SayV AscW(LCase(ChrW(304)))
+SayV AscW(UCase(ChrW(305)))
+SayV AscW(UCase(ChrW(945)))
+SayV AscW(LCase(ChrW(1040)))
+SayV AscW(UCase(ChrW(181)))
+SayV AscW(LCase(ChrW(8364)))
+SayV AscW(UCase("i"))
+SayV AscW(StrConv(ChrW(233), vbUpperCase))
+SayV AscW(StrConv(ChrW(233) & "a", vbProperCase))
+@@ sorting words by text compare
+Dim w As Variant
+Dim i As Long
+Dim j As Long
+Dim t As String
+w = Array("coop", "co-op", "Coop", "CO-OP", "cop", "co op", "co_op", "co.op", "1st", "First", "first", "_x", "x", "X", ChrW(233) & "t", "et", "eu", "E")
+For i = 0 To UBound(w) - 1
+    For j = i + 1 To UBound(w)
+        If StrComp(w(j), w(i), vbTextCompare) < 0 Then
+            t = w(i): w(i) = w(j): w(j) = t
+        End If
+    Next j
+Next i
+Say Join(w, "|")
+@@ sorting words by binary compare
+Dim w As Variant
+Dim i As Long
+Dim j As Long
+Dim t As String
+w = Array("coop", "co-op", "Coop", "CO-OP", "cop", "co op", "co_op", "1st", "First", "first", "_x", "x", "X", ChrW(233) & "t", "et")
+For i = 0 To UBound(w) - 1
+    For j = i + 1 To UBound(w)
+        If w(j) < w(i) Then
+            t = w(i): w(i) = w(j): w(j) = t
+        End If
+    Next j
+Next i
+Say Join(w, "|")

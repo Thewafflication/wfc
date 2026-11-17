@@ -420,6 +420,13 @@ inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
 
 // Case-fold `text` for a text comparison (ASCII bytes, or full units when
 // non-ASCII).
+// The order of two texts where case does not count (Option Compare Text,
+// vbTextCompare): -1, 0 or 1. It is the order of Windows for the user's
+// locale, as in Visual Basic: a hyphen and an apostrophe count last ("co-op"
+// comes right after "coop"), an accent after the letters ("\u00E9t" between
+// "et" and "eu"), and "\u00DF" is "ss". Defined in winapi.cpp.
+[[nodiscard]] int text_order(std::string_view left, std::string_view right);
+
 [[nodiscard]] inline std::string fold_case(const std::string& text) {
     if (is_ascii_text(text)) {
         std::string folded = text;

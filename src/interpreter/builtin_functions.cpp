@@ -2959,9 +2959,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         }
         int comparison{};
         if (text_compare) {
-            const std::string lowered_left = fold_case(*left);
-            const std::string lowered_right = fold_case(*right);
-            comparison = lowered_left.compare(lowered_right);
+            comparison = text_order(*left, *right);
         } else {
             comparison = left->compare(*right);
         }

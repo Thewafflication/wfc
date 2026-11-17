@@ -338,4 +338,46 @@ std::optional<Value> Interpreter::emulate_win32_call(
     return std::nullopt;
 }
 
+int text_order(const std::string_view left, const std::string_view right) {
+    // Letters and digits of ASCII alone order the same either way.
+    const auto plain = [](const std::string_view text) {
+        for (const char c : text) {
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9'))) {
+                return false;
+            }
+        }
+        return true;
+    };
+    if (plain(left) && plain(right)) {
+        const auto common = std::min(left.size(), right.size());
+        for (std::size_t index = 0; index < common; ++index) {
+            const auto a = static_cast<unsigned char>(ascii_lower(left[index]));
+            const auto b =
+                static_cast<unsigned char>(ascii_lower(right[index]));
+            if (a != b) {
+                return a < b ? -1 : 1;
+            }
+        }
+        return left.size() == right.size()
+                   ? 0
+                   : (left.size() < right.size() ? -1 : 1);
+    }
+    const std::u16string wide_left = to_utf16_units(std::string(left));
+    const std::u16string wide_right = to_utf16_units(std::string(right));
+    const int order =
+        CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE,
+                       reinterpret_cast<const wchar_t*>(wide_left.data()),
+                       static_cast<int>(wide_left.size()),
+                       reinterpret_cast<const wchar_t*>(wide_right.data()),
+                       static_cast<int>(wide_right.size()));
+    if (order == 0) {
+        // The system could not compare them: the folded texts decide.
+        const int folded =
+            fold_case(std::string(left)).compare(fold_case(std::string(right)));
+        return (folded > 0) - (folded < 0);
+    }
+    return order - 2;  // CSTR_LESS_THAN is 1, CSTR_GREATER_THAN is 3
+}
+
 }  // namespace wfc::detail
