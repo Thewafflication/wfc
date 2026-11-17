@@ -6,6 +6,7 @@
 #define WFC_INTERPRETER_VB_DATE_HPP
 
 #include <ctime>
+#include <vector>
 
 #include "vb_value.hpp"
 
@@ -153,310 +154,321 @@ struct DateParts {
     return render_date_part(parts);
 }
 
-// Parses "m/d/yyyy", "yyyy-mm-dd" or "yyyy/m/d" (2-digit years: 00-29 ->
-// 2000s, 30-99 -> 1900s), each optionally followed by "h:mm[:ss][ AM|PM]",
-// or a time alone. Returns the serial, or nullopt when malformed.
+// Reads a date, a time, or both from text, by the rules measured under Visual
+// Basic 6 (the statement probe, "date text ..."):
+//  - A date is two or three parts: numbers, or numbers and one month name
+//    (the full name or at least its first three letters, with a period after
+//    it if wished). The parts are separated by "/", "-", "," or blanks, mixed
+//    freely. Three numbers are month/day/year; if that is no date, then
+//    year/month/day, then day/month/year. With a month name a number that
+//    can be the day is the day and the other is the year. Two parts are a
+//    month and a day of the current year when they are one, otherwise a month
+//    and a year. A year below 100 is in 1950 to 2049. Names of weekdays are
+//    not read.
+//  - A time is hours:minutes[:seconds]; a period separates as a colon does
+//    ("1.5" is five past one). AM, PM, A or P may follow, or come before a
+//    time with minutes; with one of them the hour alone is a time ("1 PM").
+//  - A time may come before or after the date, blanks between them.
+// Returns the serial, or nullopt when the text is none of these.
 [[nodiscard]] inline std::optional<double> parse_date_text(
     const std::string_view text) {
-    std::size_t i = 0;
-    const auto skip_space = [&] {
-        while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) {
-            ++i;
-        }
-    };
-    const auto read_number = [&](std::int64_t& value, std::size_t& digits) {
-        digits = 0;
-        value = 0;
-        while (i < text.size() &&
-               std::isdigit(static_cast<unsigned char>(text[i])) != 0) {
-            value = value * 10 + (text[i] - '0');
-            ++i;
-            ++digits;
-        }
-        return digits > 0;
-    };
-    skip_space();
-    double result = 0.0;
-    bool have_date = false;
-    const auto start = i;
-    std::int64_t a{}, b{}, c{};
-    std::size_t da{}, db{}, dc{};
-    // Month names: "March 5, 2024", "Fri, Mar 15 2024", "5 March 2024",
-    // "5-Mar-24".
-    const auto read_word = [&]() {
+    struct Token {
+        char kind;  // 'n' number, 'w' word, 'p' punctuation, 's' blanks
+        std::int64_t number;
+        std::size_t digits;
         std::string word;
-        while (i < text.size() &&
-               std::isalpha(static_cast<unsigned char>(text[i])) != 0) {
-            word.push_back(static_cast<char>(
-                std::tolower(static_cast<unsigned char>(text[i]))));
-            ++i;
-        }
-        return word;
+        char mark;
     };
-    const auto month_from_word = [](const std::string& word) -> std::int64_t {
-        static const char* const names[] = {"january", "february", "march",
-                                            "april",   "may",      "june",
-                                            "july",    "august",   "september",
-                                            "october", "november", "december"};
-        if (word.size() < 3U) {
-            return 0;
-        }
-        for (std::int64_t m = 0; m < 12; ++m) {
-            const std::string_view name = names[m];
-            if (word == name ||
-                (word.size() == 3U && name.substr(0, 3) == word)) {
-                return m + 1;
-            }
-        }
-        return 0;
-    };
-    const auto skip_separators = [&] {
-        while (i < text.size() &&
-               (text[i] == ' ' || text[i] == '\t' || text[i] == ',' ||
-                text[i] == '-' || text[i] == '.')) {
-            ++i;
-        }
-    };
-    const auto finish_named = [&](std::int64_t month, std::int64_t day,
-                                  std::int64_t year,
-                                  const bool have_year) -> bool {
-        if (!have_year) {
-            // No year given: the current year, as VB does.
-            const std::time_t now = std::time(nullptr);
-            std::tm local{};
-#ifdef _WIN32
-            localtime_s(&local, &now);
-#else
-            localtime_r(&now, &local);
-#endif
-            year = local.tm_year + 1900;
-        }
-        if (year < 100) {
-            year += year < 50 ? 2000 : 1900;
-        }
-        if (month < 1 || day < 1 || year < 100 || year > 9999 ||
-            day > days_in_month(year, month)) {
-            return false;
-        }
-        result = date_serial(year, month, day);
-        have_date = true;
-        return true;
-    };
-    if (i < text.size() &&
-        std::isalpha(static_cast<unsigned char>(text[i])) != 0) {
-        auto word = read_word();
-        static const char* const weekdays[] = {
-            "sunday",   "monday", "tuesday", "wednesday",
-            "thursday", "friday", "saturday"};
-        for (const char* weekday : weekdays) {
-            const std::string_view name = weekday;
-            if (word == name ||
-                (word.size() == 3U && name.substr(0, 3) == word)) {
-                skip_separators();
-                word = read_word();
-                break;
-            }
-        }
-        const auto month = month_from_word(word);
-        if (month == 0) {
-            return std::nullopt;
-        }
-        skip_separators();
-        std::int64_t first{}, second{};
-        std::size_t first_digits{}, second_digits{};
-        if (!read_number(first, first_digits)) {
-            return std::nullopt;
-        }
-        std::int64_t day = first, year = 0;
-        bool have_year = false;
-        skip_separators();
-        const auto before_next = i;
-        if (read_number(second, second_digits) &&
-            !(i < text.size() && text[i] == ':')) {
-            year = second;
-            have_year = true;
-        } else {
-            i = before_next;
-            if (first_digits > 2U) {  // "March 2024"
-                year = first;
-                day = 1;
-                have_year = true;
-            }
-        }
-        if (!finish_named(month, day, year, have_year)) {
-            return std::nullopt;
-        }
-    } else if (read_number(a, da) && i < text.size() &&
-               (text[i] == ' ' || text[i] == '-') && [&] {
-                   const auto save = i;
-                   skip_separators();
-                   bool alpha =
-                       i < text.size() &&
-                       std::isalpha(static_cast<unsigned char>(text[i])) != 0;
-                   if (alpha && i + 1U < text.size() &&
-                       (text[i] == 'a' || text[i] == 'A' || text[i] == 'p' ||
-                        text[i] == 'P') &&
-                       (text[i + 1U] == 'm' || text[i + 1U] == 'M') &&
-                       (i + 2U >= text.size() ||
-                        std::isalpha(
-                            static_cast<unsigned char>(text[i + 2U])) == 0)) {
-                       alpha = false;  // "5 PM" is a time, not a month name
-                   }
-                   i = save;
-                   return alpha;
-               }()) {
-        // "5 March 2024" / "5-Mar-24"
-        skip_separators();
-        const auto month = month_from_word(read_word());
-        if (month == 0) {
-            return std::nullopt;
-        }
-        skip_separators();
-        std::int64_t year{};
-        std::size_t year_digits{};
-        const auto before_year = i;
-        bool have_year = false;
-        if (read_number(year, year_digits) &&
-            !(i < text.size() && text[i] == ':')) {
-            have_year = true;
-        } else {
-            i = before_year;
-        }
-        if (!finish_named(month, a, year, have_year)) {
-            return std::nullopt;
-        }
-    } else if (da > 0 && i < text.size() &&
-               (text[i] == '/' || text[i] == '-')) {
-        const char separator = text[i++];
-        if (!read_number(b, db)) {
-            return std::nullopt;
-        }
-        // Two numbers alone ("1/2", "1/2000", "2000/1", "1-2000"): a month
-        // and a day of the current year when they are one, otherwise a month
-        // and a year (the first of the month).
-        const bool two_parts = i >= text.size() || text[i] == ' ';
-        if (!two_parts) {
-            if (text[i] != separator) {
-                return std::nullopt;
-            }
-            ++i;
-            if (!read_number(c, dc)) {
-                return std::nullopt;
-            }
-        }
-        std::int64_t year{}, month{}, day{};
-        if (two_parts) {
-            const std::time_t now = std::time(nullptr);
-            std::tm local{};
-#ifdef _WIN32
-            localtime_s(&local, &now);
-#else
-            localtime_r(&now, &local);
-#endif
-            const std::int64_t this_year = local.tm_year + 1900;
-            if (da >= 3) {
-                year = a;
-                month = b;
-                day = 1;
-            } else if (db >= 3) {
-                month = a;
-                year = b;
-                day = 1;
-            } else if (a >= 1 && a <= 12 && b >= 1 &&
-                       b <= days_in_month(this_year, a)) {
-                month = a;
-                day = b;
-                year = this_year;
-            } else {
-                month = a;
-                year = b + (b < 50 ? 2000 : 1900);
-                day = 1;
-            }
-        } else if (da >= 3) {
-            year = a;
-            month = b;
-            day = c;
-        } else {
-            month = a;
-            day = b;
-            year = c;
-            if (dc <= 2) {
-                year += year < 50 ? 2000 : 1900;
-            }
-            if (month > 12 && day <= 12) {
-                std::swap(month, day);  // "13/1/2000" is day first
-            }
-        }
-        if (month < 1 || month > 12 || day < 1 || year < 100 || year > 9999 ||
-            day > days_in_month(year, month)) {
-            return std::nullopt;
-        }
-        result = date_serial(year, month, day);
-        have_date = true;
-    } else {
-        i = start;
-    }
-    skip_space();
-    if (i < text.size()) {
-        std::int64_t hour{}, minute{}, second{};
-        std::size_t digits{};
-        if (!read_number(hour, digits)) {
-            return std::nullopt;
-        }
-        // A period separates the parts of a time as a colon does ("1.5" is
-        // five past one).
-        const auto time_separator = [&] {
-            return i < text.size() && (text[i] == ':' || text[i] == '.');
-        };
-        if (time_separator()) {
-            ++i;
-            if (!read_number(minute, digits)) {
-                return std::nullopt;
-            }
-            if (time_separator()) {
+    std::vector<Token> tokens;
+    for (std::size_t i = 0; i < text.size();) {
+        const auto c = static_cast<unsigned char>(text[i]);
+        if (c == ' ' || c == '\t') {
+            while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) {
                 ++i;
-                if (!read_number(second, digits)) {
-                    return std::nullopt;
-                }
             }
+            tokens.push_back({'s', 0, 0, {}, ' '});
+        } else if (std::isdigit(c) != 0) {
+            Token token{'n', 0, 0, {}, '\0'};
+            while (i < text.size() &&
+                   std::isdigit(static_cast<unsigned char>(text[i])) != 0) {
+                if (token.number < 100000000) {
+                    token.number = token.number * 10 + (text[i] - '0');
+                }
+                ++token.digits;
+                ++i;
+            }
+            tokens.push_back(std::move(token));
+        } else if (std::isalpha(c) != 0) {
+            Token token{'w', 0, 0, {}, '\0'};
+            while (i < text.size() &&
+                   std::isalpha(static_cast<unsigned char>(text[i])) != 0) {
+                token.word.push_back(static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(text[i]))));
+                ++i;
+            }
+            tokens.push_back(std::move(token));
+        } else if (c == '/' || c == '-' || c == ',' || c == '.' || c == ':') {
+            tokens.push_back({'p', 0, 0, {}, static_cast<char>(c)});
+            ++i;
         } else {
-            // "5 PM": the hour alone is a time only with AM or PM after it.
-            std::size_t at = i;
-            while (at < text.size() && text[at] == ' ') {
-                ++at;
-            }
-            const bool marked = at + 1 < text.size() &&
-                                (text[at] == 'a' || text[at] == 'A' ||
-                                 text[at] == 'p' || text[at] == 'P') &&
-                                (text[at + 1] == 'm' || text[at + 1] == 'M');
-            if (!marked) {
-                return std::nullopt;
-            }
-        }
-        skip_space();
-        if (i + 1 < text.size() + 0 && i + 2 <= text.size()) {
-            const char m0 = static_cast<char>(
-                std::tolower(static_cast<unsigned char>(text[i])));
-            const char m1 = static_cast<char>(
-                std::tolower(static_cast<unsigned char>(text[i + 1])));
-            if ((m0 == 'a' || m0 == 'p') && m1 == 'm') {
-                if (hour < 1 || hour > 12) {
-                    return std::nullopt;
-                }
-                hour = hour % 12 + (m0 == 'p' ? 12 : 0);
-                i += 2;
-            }
-        }
-        skip_space();
-        if (i != text.size() || hour > 23 || minute > 59 || second > 59) {
             return std::nullopt;
         }
-        result +=
-            static_cast<double>(hour * 3600 + minute * 60 + second) / 86400.0;
-    } else if (!have_date) {
+    }
+    const auto trim = [](std::vector<Token>& list) {
+        while (!list.empty() && list.front().kind == 's') {
+            list.erase(list.begin());
+        }
+        while (!list.empty() && list.back().kind == 's') {
+            list.pop_back();
+        }
+    };
+    trim(tokens);
+    if (tokens.empty()) {
         return std::nullopt;
     }
-    return result;
+    const auto is_meridiem = [](const Token& token) {
+        return token.kind == 'w' && (token.word == "am" || token.word == "pm" ||
+                                     token.word == "a" || token.word == "p");
+    };
+    const auto is_time_mark = [&](const std::size_t at) {
+        // A colon, or a period that stands between two numbers.
+        if (tokens[at].kind != 'p' || at == 0 || at + 1 >= tokens.size() ||
+            tokens[at - 1].kind != 'n' || tokens[at + 1].kind != 'n') {
+            return false;
+        }
+        return tokens[at].mark == ':' || tokens[at].mark == '.';
+    };
+
+    // The time, if there is one, is taken out of the tokens.
+    bool have_time = false;
+    std::int64_t hour = 0;
+    std::int64_t minute = 0;
+    std::int64_t second = 0;
+    std::size_t time_first = tokens.size();
+    std::size_t time_last = tokens.size();  // one past the last token
+    for (std::size_t at = 0; at < tokens.size(); ++at) {
+        if (tokens[at].kind == 'p' &&
+            (tokens[at].mark == ':' || (tokens[at].mark == '.' && at > 0 &&
+                                        tokens[at - 1].kind == 'n'))) {
+            if (!is_time_mark(at)) {
+                return std::nullopt;  // ":30", "1:", "1::3"
+            }
+            time_first = at - 1;
+            hour = tokens[at - 1].number;
+            minute = tokens[at + 1].number;
+            time_last = at + 2;
+            if (time_last < tokens.size() && tokens[time_last].kind == 'p' &&
+                (tokens[time_last].mark == ':' ||
+                 tokens[time_last].mark == '.')) {
+                if (!is_time_mark(time_last)) {
+                    return std::nullopt;
+                }
+                second = tokens[time_last + 1].number;
+                time_last += 2;
+            }
+            have_time = true;
+            break;
+        }
+    }
+    int meridiem = 0;  // 1 AM, 2 PM
+    const auto meridiem_of = [](const Token& token) {
+        return token.word.front() == 'p' ? 2 : 1;
+    };
+    if (have_time) {
+        // AM or PM after the time ("1:2 PM", "1:2PM"), or before it.
+        std::size_t after = time_last;
+        if (after < tokens.size() && tokens[after].kind == 's') {
+            ++after;
+        }
+        if (after < tokens.size() && is_meridiem(tokens[after])) {
+            meridiem = meridiem_of(tokens[after]);
+            time_last = after + 1;
+        } else if (time_first > 0) {
+            std::size_t before = time_first - 1;
+            if (tokens[before].kind == 's' && before > 0) {
+                --before;
+            }
+            if (is_meridiem(tokens[before])) {
+                meridiem = meridiem_of(tokens[before]);
+                time_first = before;
+            }
+        }
+    } else {
+        // The hour alone with AM or PM after it ("1 PM", "1PM").
+        for (std::size_t at = 0; at < tokens.size(); ++at) {
+            if (!is_meridiem(tokens[at])) {
+                continue;
+            }
+            std::size_t before = at;
+            if (before > 0 && tokens[before - 1].kind == 's') {
+                --before;
+            }
+            if (before == 0 || tokens[before - 1].kind != 'n') {
+                return std::nullopt;  // "pm 5"
+            }
+            hour = tokens[before - 1].number;
+            meridiem = meridiem_of(tokens[at]);
+            time_first = before - 1;
+            time_last = at + 1;
+            have_time = true;
+            break;
+        }
+    }
+    double time_part = 0.0;
+    if (have_time) {
+        if (hour > 23 || minute > 59 || second > 59) {
+            return std::nullopt;
+        }
+        if (meridiem == 2 && hour < 12) {
+            hour += 12;
+        } else if (meridiem == 1 && hour == 12) {
+            hour = 0;
+        }
+        time_part =
+            static_cast<double>(hour * 3600 + minute * 60 + second) / 86400.0;
+    }
+
+    // What is left, before or after the time, is the date.
+    std::vector<Token> date(
+        tokens.begin(), tokens.begin() + static_cast<std::ptrdiff_t>(std::min(
+                                             time_first, tokens.size())));
+    std::vector<Token> rest;
+    if (have_time) {
+        rest.assign(tokens.begin() + static_cast<std::ptrdiff_t>(time_last),
+                    tokens.end());
+    }
+    trim(date);
+    trim(rest);
+    if (!date.empty() && !rest.empty()) {
+        return std::nullopt;
+    }
+    if (date.empty()) {
+        date = std::move(rest);
+    } else if (have_time && tokens[time_first - 1].kind != 's') {
+        return std::nullopt;  // the time needs a blank before it
+    }
+    if (date.empty()) {
+        return have_time ? std::optional<double>{time_part} : std::nullopt;
+    }
+    if (have_time && time_first == 0 && time_last < tokens.size() &&
+        tokens[time_last].kind != 's') {
+        return std::nullopt;  // and a blank after it
+    }
+
+    // The parts of the date.
+    static const char* const month_names[] = {
+        "january", "february", "march",     "april",   "may",      "june",
+        "july",    "august",   "september", "october", "november", "december"};
+    std::vector<std::pair<std::int64_t, std::size_t>> numbers;  // value, digits
+    std::int64_t named_month = 0;
+    bool expect_part = true;
+    bool mark_seen = false;  // a "/", "-" or "," between two parts
+    for (std::size_t at = 0; at < date.size(); ++at) {
+        const Token& token = date[at];
+        if (token.kind == 's') {
+            continue;
+        }
+        if (token.kind == 'p') {
+            const bool after_name = at > 0 && date[at - 1].kind == 'w';
+            if (token.mark == '.' && after_name) {
+                continue;  // "Jan. 5"
+            }
+            if (expect_part || token.mark == '.' || token.mark == ':') {
+                return std::nullopt;
+            }
+            expect_part = true;
+            mark_seen = true;
+            continue;
+        }
+        // A part must not touch the part before it ("Jan5").
+        if (at > 0 && date[at - 1].kind != 's' && date[at - 1].kind != 'p') {
+            return std::nullopt;
+        }
+        if (token.kind == 'w') {
+            if (named_month != 0 || token.word.size() < 3U) {
+                return std::nullopt;
+            }
+            for (std::int64_t m = 0; m < 12; ++m) {
+                const std::string_view name = month_names[m];
+                if (name.substr(0, token.word.size()) == token.word) {
+                    named_month = m + 1;
+                    break;
+                }
+            }
+            if (named_month == 0) {
+                return std::nullopt;
+            }
+        } else {
+            numbers.emplace_back(token.number, token.digits);
+        }
+        expect_part = false;
+    }
+    if (expect_part) {
+        return std::nullopt;  // nothing after the last "/", "-" or ","
+    }
+
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &now);
+#else
+    localtime_r(&now, &local);
+#endif
+    const std::int64_t this_year = local.tm_year + 1900;
+    const auto full_year = [](const std::int64_t year) {
+        return year < 100 ? year + (year < 50 ? 2000 : 1900) : year;
+    };
+    const auto valid = [](const std::int64_t year, const std::int64_t month,
+                          const std::int64_t day) {
+        return year >= 100 && year <= 9999 && month >= 1 && month <= 12 &&
+               day >= 1 && day <= days_in_month(year, month);
+    };
+    std::int64_t year = 0;
+    std::int64_t month = 0;
+    std::int64_t day = 0;
+    bool found = false;
+    const auto take = [&](const std::int64_t y, const std::int64_t m,
+                          const std::int64_t d) {
+        if (!found && valid(y, m, d)) {
+            year = y;
+            month = m;
+            day = d;
+            found = true;
+        }
+    };
+    if (named_month != 0) {
+        if (numbers.size() == 2U) {
+            const auto first = numbers[0].first;
+            const auto second_number = numbers[1].first;
+            take(full_year(second_number), named_month, first);
+            take(full_year(first), named_month, second_number);
+        } else if (numbers.size() == 1U) {
+            take(this_year, named_month, numbers[0].first);
+            take(full_year(numbers[0].first), named_month, 1);
+        }
+    } else if (numbers.size() == 3U) {
+        const auto a = numbers[0].first;
+        const auto b = numbers[1].first;
+        const auto c = numbers[2].first;
+        take(full_year(c), a, b);  // month/day/year
+        take(full_year(a), b, c);  // year/month/day
+        take(full_year(c), b, a);  // day/month/year
+    } else if (numbers.size() == 2U && mark_seen) {
+        const auto a = numbers[0].first;
+        const auto b = numbers[1].first;
+        if (numbers[0].second >= 3U) {
+            take(a, b, 1);  // "2000/1"
+        } else if (numbers[1].second >= 3U) {
+            take(full_year(b), a, 1);  // "1/2000", "1,000"
+        } else {
+            take(this_year, a, b);
+            take(full_year(b), a, 1);  // "1/32"
+        }
+    }
+    if (!found) {
+        return std::nullopt;
+    }
+    return date_serial(year, month, day) + time_part;
 }
 
 // True when a Format picture is a date/time picture: a named date format, or

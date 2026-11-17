@@ -6707,3 +6707,172 @@ For i = 0 To UBound(w) - 1
     Next j
 Next i
 Say Join(w, "|")
+# --- Date and time text ---
+@@ date text month names 1
+Dim t As Variant
+For Each t In Array("Jan 5 2000", "January 5 2000", "Jan 5, 2000", "Jan. 5, 2000", "5 Jan 2000", "5-Jan-2000", "5 January, 2000", "2000 Jan 5", "2000-Jan-5", "Jan-5-2000", "Jan/5/2000", "5/Jan/2000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text month names 2
+Dim t As Variant
+For Each t In Array("Jan 2000", "January 2000", "2000 January", "Jan 5", "5 Jan", "Sept 5 2000", "Sep 5 2000", "Septem 5 2000", "Ja 5 2000", "JAN 5 2000", "jan 5 2000", "Jan5 2000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text month names 3
+Dim t As Variant
+For Each t In Array("Jan 5 00", "Jan 05 2000", "Jan 32 2000", "Feb 29 2000", "Feb 29 1900", "Feb 29 2001", "May 5 2000", "Mayo 5 2000", "December 31 9999", "Jan 1 100", "Jan 1 99", "Jan 1 0099")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text month names 4
+Dim t As Variant
+For Each t In Array("Jan 0 2000", "0 Jan 2000", "Jan 2000 5")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text weekdays 1
+Dim t As Variant
+For Each t In Array("Mon, Jan 3 2000", "Monday, January 3, 2000", "Mon Jan 3 2000", "Tue, Jan 3 2000", "Monday", "Mon 1/3/2000", "Sunday 1/2/2000", "Sun, 2 Jan 2000", "Mon., Jan 3 2000", "1/3/2000 Mon")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text numeric dates 1
+Dim t As Variant
+For Each t In Array("1/2/2000", "01/02/2000", "1-2-2000", "1.2.2000", "1 2 2000", "1/2/00", "1/2/0", "1/2/000", "1/2/100", "1/2/99", "1/2/1899", "1/2/9999")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text numeric dates 2
+Dim t As Variant
+For Each t In Array("1/2/10000", "12/31/99", "13/1/2000", "13/13/2000", "2000/1/2", "2000-01-02", "2000.01.02", "2000 1 2", "00/1/2", "1/2/3", "31/12/1999", "2/30/2000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text numeric dates 3
+Dim t As Variant
+For Each t In Array("2/29/2000", "2/29/1900", "0/1/2000", "1/0/2000", "1//2000", "/1/2000", "1/2/", "1/2/2000/", "1,2,2000", "1/2-2000", "1-2/2000", "20000102")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text numeric dates 4
+Dim t As Variant
+For Each t In Array("1/2/2000.", " 1/2/2000 ", "1 / 2 / 2000", "1/ 2/2000", "+1/2/2000", "-1/2/2000", "1/2/20 00", "001/2/2000", "1/002/2000", "1/2/02000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text times 1
+Dim t As Variant
+For Each t In Array("1:2", "1:2:3", "01:02:03", "1:2:3 PM", "1:2:3PM", "1:2 pm", "1 PM", "1PM", "1 P", "1 p.m.", "1:2 P", "1:2 A")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text times 2
+Dim t As Variant
+For Each t In Array("12 AM", "12 PM", "0 AM", "13 PM", "13:00 PM", "0:00", "24:00", "23:59:59", "23:60", "1:60", "1:2:60", "1:2:3:4")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text times 3
+Dim t As Variant
+For Each t In Array("1:2:3.5", "1:2.5", "1.2", "1.2.3 PM", ":30", "1:", "1::3", "12:00:00 AM", "12:30 am", "noon", "midnight", "1 o'clock")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text times 4
+Dim t As Variant
+For Each t In Array("5:30 pm", "PM 5:30", "pm 5", "5 30 pm", "1:2 AM PM", "25:00", "-1:00", "1:-2", "100:00", "1h 2m")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text date and time 1
+Dim t As Variant
+For Each t In Array("1/2/2000 3:04", "1/2/2000 3:04:05 PM", "1/2/2000 3PM", "3:04 1/2/2000", "3 PM 1/2/2000", "1/2/2000, 3:04", "1/2/2000  3:04", "1/2/2000T03:04:05", "2000-01-02 03:04:05", "2000-01-02T03:04:05", "2000-01-02T03:04:05Z", "Jan 2 2000 3:04 PM")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text date and time 2
+Dim t As Variant
+For Each t In Array("3:04 PM Jan 2 2000", "Jan 2 3:04", "Jan 2 2000 at 3:04", "1/2/2000 24:00", "1/2/2000 0:00", "1/2 3:04", "1/2000 3:04", "1/2/2000 3:04 5", "1/2/2000 PM", "1/2/2000 3", "3 1/2/2000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text other text 1
+Dim t As Variant
+For Each t In Array("", " ", "0", "1", "36526", "36526.5", "-1", "1e3", "1,000", "$5", "5%", "&H10")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text other text 2
+Dim t As Variant
+For Each t In Array("abc", "today", "now", "True", "#1/2/2000#", "1/2/2000#", "Jan", "January", "2000", "100", "99", "9999")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text other text 3
+Dim t As Variant
+For Each t In Array("10000", "1.5", ".5", "0.99999", "2958465", "2958466", "-657434", "-657435", "1/2/2000 abc", "abc 1/2/2000")
+    If IsDate(t) Then
+        Say CStr(CDbl(CDate(t)))
+    Else
+        Say "no"
+    End If
+Next t
+@@ date text weekday confirmed
+SayV IsDate("Friday, March 15, 2024")
+SayV IsDate("Friday March 15 2024")
+SayV IsDate("March 15, 2024")
+SayV IsDate("15-Mar-24")
+SayV CDate("15-Mar-24")
