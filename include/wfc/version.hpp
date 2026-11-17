@@ -4,6 +4,6 @@
 
 namespace wfc {
 
-inline constexpr std::string_view version = "0.8.18";
+inline constexpr std::string_view version = "0.8.19";
 
 }  // namespace wfc
