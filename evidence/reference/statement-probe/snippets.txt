@@ -6242,3 +6242,285 @@ For w = WNeg To WNext
 Next w
 SayV n
 SayV w
+# --- Scripting.Dictionary ---
+@@ dict add and item
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", "two"
+d.Add 3, 3.5
+SayV d.Count
+SayV d("a")
+SayV d.Item("b")
+SayV d(3)
+SayV d.Exists("a")
+SayV d.Exists("A")
+SayV d.Exists(3)
+SayV d.Exists("3")
+SayV TypeName(d)
+@@ dict duplicate key
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "a", 2
+@@ dict item creates key
+Dim d As Object
+Dim v As Variant
+Set d = CreateObject("Scripting.Dictionary")
+v = d("missing")
+SayV v
+SayV d.Count
+SayV d.Exists("missing")
+SayV IsEmpty(d("missing"))
+d("new") = 5
+SayV d.Count
+SayV d("new")
+@@ dict item assign replaces
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d("a") = 2
+d.Item("a") = d.Item("a") + 1
+SayV d("a")
+SayV d.Count
+@@ dict keys and items
+Dim d As Object
+Dim k As Variant
+Dim i As Long
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "z", 1
+d.Add "a", 2
+d.Add "m", 3
+k = d.Keys
+SayV UBound(k)
+SayV LBound(k)
+SayV Join(k, ",")
+SayV TypeName(k)
+k = d.Items
+SayV k(0) + k(1) + k(2)
+SayV d.Keys()(1)
+SayV d.Items()(2)
+For i = 0 To d.Count - 1
+    Say d.Keys()(i) & "=" & d.Items()(i)
+Next i
+@@ dict for each gives keys
+Dim d As Object
+Dim k As Variant
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "x", 10
+d.Add "y", 20
+For Each k In d
+    Say k & ":" & d(k)
+Next k
+For Each k In d.Items
+    SayV k
+Next k
+@@ dict remove
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", 2
+d.Add "c", 3
+d.Remove "b"
+SayV d.Count
+SayV Join(d.Keys, ",")
+d.Add "b", 4
+SayV Join(d.Keys, ",")
+d.RemoveAll
+SayV d.Count
+SayV UBound(d.Keys)
+@@ dict remove missing
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Remove "zz"
+@@ dict compare mode
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+SayV d.CompareMode
+d.CompareMode = vbTextCompare
+d.Add "Key", 1
+SayV d.Exists("KEY")
+SayV d("key")
+d("KEY") = 2
+SayV d.Count
+SayV Join(d.Keys, ",")
+@@ dict compare mode after add
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.CompareMode = vbTextCompare
+SayV d.CompareMode
+@@ dict compare mode case keys
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "A", 2
+SayV d.Count
+SayV d("a") & d("A")
+@@ dict key rename
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", 2
+d.Key("a") = "z"
+SayV Join(d.Keys, ",")
+SayV d("z")
+SayV d.Exists("a")
+@@ dict key rename missing
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Key("a") = "z"
+SayV d.Count
+@@ dict key rename to existing
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", 2
+d.Key("a") = "b"
+SayV d.Count
+@@ dict key kinds
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add 1, "int"
+d.Add 1.5, "dbl"
+d.Add True, "bool"
+d.Add #1/2/2000#, "date"
+d.Add "1", "str"
+SayV d.Count
+SayV d(1)
+SayV d(1&)
+SayV d(1#)
+SayV d(CByte(1))
+SayV d("1")
+SayV d(True)
+SayV d(-1)
+SayV d(1.5)
+SayV d(#1/2/2000#)
+SayV d(36527)
+SayV d.Count
+@@ dict null key
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add Null, 1
+SayV d.Count
+SayV d.Exists(Null)
+@@ dict object keys and items
+Dim d As Object
+Dim c As New Collection
+Dim e As New Collection
+Set d = CreateObject("Scripting.Dictionary")
+d.Add c, "c"
+d.Add "o", e
+e.Add 5
+SayV d.Exists(c)
+SayV d.Exists(e)
+SayV d(c)
+SayV d("o").Count
+SayV TypeName(d("o"))
+SayV d("o") Is e
+Set d("o") = c
+SayV d("o") Is c
+@@ dict array key
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add Array(1, 2), "arr"
+SayV d.Count
+@@ dict array item
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", Array(1, 2, 3)
+SayV UBound(d("a"))
+SayV d("a")(1)
+@@ dict count after errors
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+On Error Resume Next
+d.Add "a", 1
+d.Add "a", 2
+SayV Err.Number
+Err.Clear
+d.Remove "q"
+SayV Err.Number
+SayV d.Count
+@@ dict numeric text keys
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "10", "s"
+d.Add 10, "n"
+SayV d.Count
+SayV d("10") & d(10)
+SayV d(10.0#)
+SayV d(CCur(10))
+@@ dict keys snapshot
+Dim d As Object
+Dim k As Variant
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+k = d.Keys
+d.Add "b", 2
+SayV UBound(k)
+k(0) = "changed"
+SayV d.Exists("a")
+@@ dict add during for each
+Dim d As Object
+Dim k As Variant
+Dim n As Long
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 1
+d.Add "b", 2
+For Each k In d
+    n = n + 1
+    If n = 1 Then d.Add "c", 3
+    If n > 5 Then Exit For
+Next k
+SayV n
+SayV d.Count
+@@ dict default member forms
+Dim d As Object
+Dim v As Variant
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a", 5
+v = d.Item("a") + d("a")
+SayV v
+SayV d!a
+d!b = 7
+SayV d("b")
+SayV d.Count
+@@ dict item of missing with let
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Item("k") = "v"
+d.Item("k") = d.Item("k") & "w"
+SayV d("k")
+@@ dict wrong arguments
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add "a"
+@@ dict unknown member
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Push 1
+@@ dict hashval
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+SayV TypeName(d.HashVal("a"))
+SayV d.HashVal("a") = d.HashVal("a")
+@@ dict typed as variant
+Dim v As Variant
+Set v = CreateObject("Scripting.Dictionary")
+v.Add "a", 1
+SayV v.Count
+SayV v("a")
+SayV IsObject(v)
+SayV TypeName(v)
+@@ dict in collection and nested
+Dim d As Object
+Dim inner As Object
+Set d = CreateObject("Scripting.Dictionary")
+Set inner = CreateObject("Scripting.Dictionary")
+inner.Add "x", 1
+d.Add "in", inner
+SayV d("in")("x")
+d("in")("y") = 2
+SayV inner.Count
+SayV d("in").Exists("y")

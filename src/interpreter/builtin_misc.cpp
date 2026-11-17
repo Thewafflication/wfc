@@ -663,7 +663,8 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                 return std::string(buffer);
             }
             if (const auto* date = std::get_if<DateValue>(&key)) {
-                std::snprintf(buffer, sizeof(buffer), "d%.17g", date->serial);
+                // A Date is the same key as the number of its day.
+                std::snprintf(buffer, sizeof(buffer), "n%.17g", date->serial);
                 return std::string(buffer);
             }
             if (const auto* object = std::get_if<ObjectInstance>(&key)) {

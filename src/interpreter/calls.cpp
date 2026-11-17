@@ -526,6 +526,27 @@ std::optional<Value> Interpreter::invoke_definition(
     }
     if (arguments.size() < required_count ||
         (!has_param_array && arguments.size() > fixed_and_optional_count)) {
+        // An object of the library (a Dictionary, a Collection) is reached
+        // through its interface: the count is checked when the member is
+        // called. A class of the program is checked beforehand.
+        const auto library_object = [&] {
+            if (instance == nullptr) {
+                return false;
+            }
+            std::string lowered;
+            for (const char c : instance->class_name) {
+                lowered.push_back(ascii_lower(c));
+            }
+            return lowered == "dictionary" || lowered == "wfcdictionary" ||
+                   lowered == "collection";
+        };
+        if (execute_ && library_object()) {
+            // A member of an object: the count is checked when it is called.
+            static_cast<void>(raise_runtime(
+                450, "Wrong number of arguments or invalid property assignment",
+                identifier_offset));
+            return std::nullopt;
+        }
         set_error("WFC0072", "procedure received the wrong number of arguments",
                   identifier_offset);
         return std::nullopt;

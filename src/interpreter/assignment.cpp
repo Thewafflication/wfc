@@ -1556,15 +1556,42 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
             {
                 const auto call_offset = offset_;
                 skip_horizontal_whitespace();
+                // `obj(a)(b) = x`: a second list after the first applies to
+                // the object the first one gave.
+                const auto paren_followed_by_paren = [&](std::size_t at) {
+                    std::size_t depth = 0;
+                    bool in_string = false;
+                    for (; at < source_.size(); ++at) {
+                        const char ch = source_[at];
+                        if (ch == '\r' || ch == '\n') {
+                            return false;
+                        }
+                        if (ch == '"') {
+                            in_string = !in_string;
+                        } else if (!in_string && ch == '(') {
+                            ++depth;
+                        } else if (!in_string && ch == ')' && --depth == 0) {
+                            ++at;
+                            while (
+                                at < source_.size() &&
+                                (source_[at] == ' ' || source_[at] == '\t')) {
+                                ++at;
+                            }
+                            return at < source_.size() && source_[at] == '(';
+                        }
+                    }
+                    return false;
+                };
                 if (!at_end() && current() == '(' &&
-                    paren_followed_by_dot(offset_)) {
+                    (paren_followed_by_dot(offset_) ||
+                     paren_followed_by_paren(offset_))) {
                     offset_ = call_offset - identifier.size();
                     auto chained = parse_primary_base();
                     if (!chained.has_value()) {
                         return false;
                     }
                     skip_horizontal_whitespace();
-                    if (at_end() || current() != '.') {
+                    if (at_end() || (current() != '.' && current() != '(')) {
                         set_error("WFC0004", "unexpected trailing input",
                                   offset_);
                         return false;
@@ -1595,6 +1622,41 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
                 if (bang_instance.com != nullptr) {
                     return com_member_statement(*variable.value, std::string{},
                                                 bang_start, key);
+                }
+                // `obj!key = value` on a class: its default Property Let
+                // with the name as the key.
+                const auto bang_class =
+                    class_definitions_.find(bang_instance.class_name);
+                if (bang_class != class_definitions_.end() &&
+                    !bang_class->second.default_member.empty()) {
+                    const auto& class_def = bang_class->second;
+                    const auto letter =
+                        class_def.property_let.find(class_def.default_member);
+                    skip_horizontal_whitespace();
+                    if (letter != class_def.property_let.end() &&
+                        consume('=')) {
+                        skip_horizontal_whitespace();
+                        auto value = parse_expression();
+                        if (!value.has_value()) {
+                            return false;
+                        }
+                        if (!execute_) {
+                            return true;
+                        }
+                        if (!resolve_default_value(*value, bang_start)) {
+                            return false;
+                        }
+                        std::vector<CallArgument> arguments;
+                        arguments.push_back(
+                            CallArgument{Value{*key}, nullptr, false, {}});
+                        arguments.push_back(
+                            CallArgument{std::move(*value), nullptr});
+                        return invoke_definition(
+                                   letter->second, class_def.default_member,
+                                   std::move(arguments), bang_start,
+                                   class_def.source, &bang_instance)
+                            .has_value();
+                    }
                 }
                 set_error("WFC0135", "unknown member", bang_start);
                 return false;

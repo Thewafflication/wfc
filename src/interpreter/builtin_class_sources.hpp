@@ -130,8 +130,19 @@ End Property
 Private Function IndexOf(Key As Variant) As Long
 IndexOf = WfcStore(2, Me, Key)
 End Function
+Public Function HashVal(Key As Variant) As Long
+Dim s As String
+Dim i As Long
+Dim h As Long
+s = CStr(Key)
+For i = 1 To Len(s)
+h = (h * 31 + AscW(Mid$(s, i, 1))) Mod 1201
+Next i
+HashVal = h
+End Function
 Public Sub Add(Key As Variant, Item As Variant)
 Dim r As Long
+If IsArray(Key) Then Err.Raise 5, , "Invalid procedure call or argument"
 If IndexOf(Key) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This key)VB"
     R"VB( is already associated with an element of this collection"
 r = WfcStore(3, Me, Key, Item, 0)
@@ -178,7 +189,8 @@ Public Property Let Key(OldKey As Variant, NewKey As Variant)
 Dim i As Long
 Dim r As Long
 i = IndexOf(OldKey)
-If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
+If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Application-)VB"
+    R"VB(defined or object-defined error"
 If IndexOf(NewKey) > 0 Then Err.Raise 457, "Scripting.Dictionary", "This)VB"
     R"VB( key is already associated with an element of this collection"
 r = WfcStore(7, Me, i, NewKey)
@@ -186,7 +198,8 @@ End Property
 Public Sub Remove(Key As Variant)
 Dim i As Long
 i = IndexOf(Key)
-If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Element not found"
+If i = 0 Then Err.Raise 32811, "Scripting.Dictionary", "Application-)VB"
+    R"VB(defined or object-defined error"
 i = WfcStore(8, Me, i)
 End Sub
 Public Sub RemoveAll()
