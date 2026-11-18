@@ -3478,8 +3478,23 @@ struct FormSupport {
             }
             return true;
         }
-        if (member == "refresh" || member == "zorder" || member == "cls" ||
-            member == "setfocus") {
+        if (member == "refresh") {
+            // As in VB6 the control is repainted at once, not when the
+            // program next waits for input.
+            flush_repaints(in);
+            ui::WindowId window = self.window;
+            if (is_lightweight(self) && form != nullptr) {
+                double dx = 0.0;
+                double dy = 0.0;
+                const ControlObject* surface = surface_for(*form, self, dx, dy);
+                window = surface != nullptr ? surface->window : ui::kNoWindow;
+            }
+            if (window != ui::kNoWindow) {
+                runtime(in).host->refresh_window(window);
+            }
+            return true;
+        }
+        if (member == "zorder" || member == "cls" || member == "setfocus") {
             return true;
         }
         if (self.is_form && member == "show") {

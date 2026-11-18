@@ -131,6 +131,45 @@ int main() {
         host.draw(picture, operation);
         host.draw(form, operation);
     }
+    {
+        // What is drawn shows once the program waits for input, and at once
+        // after Refresh, as in VB6 (it used to show only when something else
+        // repainted the window).
+        const WindowId board = host.create_window("PictureBox", form);
+        host.set_bounds(board, Rect{100, 2600, 1500, 900});
+        host.set_visible(board, true);
+        const HWND board_window = host.handle_of(board);
+        const auto drain = [&] {
+            UpdateWindow(host.handle_of(form));
+            while (host.next_event(false)) {
+            }
+        };
+        const auto fill = [&](const long color) {
+            DrawOp operation;
+            operation.kind = "line";
+            operation.x2 = 1500;
+            operation.y2 = 900;
+            operation.box = true;
+            operation.filled = true;
+            operation.color = color;
+            host.draw(board, operation);
+        };
+        const auto shown = [&] {
+            const HDC dc = GetDC(board_window);
+            const COLORREF color = GetPixel(dc, 20, 20);
+            ReleaseDC(board_window, dc);
+            return color;
+        };
+        drain();
+        fill(0x0000FF);  // VB colors are &HBBGGRR, as COLORREF
+        drain();
+        expect(shown() == RGB(255, 0, 0),
+               "a drawing shows when the program waits for input");
+        fill(0x00FF00);
+        host.refresh_window(board);
+        expect(shown() == RGB(0, 255, 0), "Refresh shows a drawing at once");
+        host.destroy_window(board);
+    }
     const auto metrics = host.measure_text(form, "hello", FontSpec{});
     expect(metrics.width > 0 && metrics.height > 0, "text is measurable");
 

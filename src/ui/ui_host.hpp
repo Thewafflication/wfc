@@ -468,6 +468,9 @@ public:
         return 0;
     }
     virtual void refresh_surfaces() {}
+    // The Refresh method: `window` is repainted now, before the program
+    // returns to the message loop.
+    virtual void refresh_window(WindowId window) { static_cast<void>(window); }
 
     // A host-wide wake-up timer (not tied to a window) so a blocking message
     // loop can poll sockets or end after a deadline. Slot 0 delivers

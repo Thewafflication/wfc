@@ -362,6 +362,23 @@ struct Win32Support {
             reinterpret_cast<std::uintptr_t>(GetPropW(hwnd, kIdProperty)));
     }
 
+    // WM_PAINT of a form or picture box: the persistent surface is copied
+    // to the screen. Drawing invalidates the window without erasing it, so
+    // the background message alone would leave the new drawing unshown
+    // until something else repainted the window.
+    static void paint(Win32Host* host, HWND hwnd, WPARAM wparam) {
+        if (wparam != 0) {
+            host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam));
+            return;
+        }
+        PAINTSTRUCT paint;
+        const HDC dc = BeginPaint(hwnd, &paint);
+        if (dc != nullptr) {
+            host->paint_surface(hwnd, dc);
+        }
+        EndPaint(hwnd, &paint);
+    }
+
     static LRESULT CALLBACK form_proc(HWND hwnd, UINT message, WPARAM wparam,
                                       LPARAM lparam) {
         if (message == WM_NCCREATE) {
@@ -397,6 +414,13 @@ struct Win32Support {
             case WM_ERASEBKGND:
                 if (host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
                     return 1;
+                }
+                break;
+            case WM_PAINT:
+                if (const auto* frame = host->find(form);
+                    frame == nullptr || frame->client == nullptr) {
+                    paint(host, hwnd, wparam);
+                    return 0;
                 }
                 break;
             case WM_CTLCOLORSTATIC:
@@ -582,6 +606,10 @@ struct Win32Support {
         if (host != nullptr && message == WM_ERASEBKGND &&
             host->paint_surface(hwnd, reinterpret_cast<HDC>(wparam))) {
             return 1;
+        }
+        if (host != nullptr && message == WM_PAINT) {
+            paint(host, hwnd, wparam);
+            return 0;
         }
         if (host != nullptr &&
             (message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
@@ -2617,6 +2645,14 @@ void Win32Host::refresh_surfaces() {
         if (window->surface_dc != nullptr && window->hwnd != nullptr) {
             InvalidateRect(window->hwnd, nullptr, FALSE);
         }
+    }
+}
+
+void Win32Host::refresh_window(const WindowId window) {
+    const auto* entry = find(window);
+    if (entry != nullptr && entry->hwnd != nullptr) {
+        RedrawWindow(entry->hwnd, nullptr, nullptr,
+                     RDW_INVALIDATE | RDW_UPDATENOW);
     }
 }
 
