@@ -7012,3 +7012,80 @@ Dim t As Variant
 For Each t In Array("1/2", "1:2", "1/2/2000", "12:30", "Jan 1", "1 PM")
     Say NumText(t)
 Next t
+# --- ANSI and Unicode characters ---
+@@ chars chr asc high ansi 1
+Dim c As Long
+For c = 128 To 159
+    Say CStr(AscW(Chr(c))) & "/" & CStr(Asc(Chr(c)))
+Next c
+@@ chars chr asc high ansi 2
+Dim c As Long
+For c = 160 To 255 Step 5
+    Say CStr(AscW(Chr(c))) & "/" & CStr(Asc(Chr(c)))
+Next c
+@@ chars asc of unicode
+Dim v As Variant
+For Each v In Array(8364, 8220, 8221, 338, 339, 352, 381, 376, 710, 732, 8240, 8482, 256, 257, 321, 913, 945, 1040, 19968, 12354, 65, 8211, 8212, 8226, 8230, 402, 160, 255, 65279, 65533)
+    Say CStr(Asc(ChrW(v)))
+Next v
+@@ chars ucase lcase unicode
+Dim v As Variant
+For Each v In Array(224, 255, 256, 257, 304, 305, 322, 338, 339, 376, 402, 452, 453, 454, 913, 940, 962, 1025, 1105, 7838, 8486, 8490, 8491, 65345, 1329)
+    Say CStr(AscW(UCase(ChrW(v)))) & "/" & CStr(AscW(LCase(ChrW(v))))
+Next v
+@@ chars strconv from unicode high
+Dim b() As Byte
+Dim s As String
+s = ChrW(8364) & ChrW(233) & ChrW(19968) & ChrW(256) & "A"
+b = StrConv(s, vbFromUnicode)
+Dim i As Long
+For i = LBound(b) To UBound(b)
+    Say CStr(b(i))
+Next i
+@@ chars strconv to unicode high
+Dim b(0 To 4) As Byte
+b(0) = 128: b(1) = 233: b(2) = 129: b(3) = 141: b(4) = 159
+Dim s As String
+s = StrConv(b, vbUnicode)
+Dim i As Long
+For i = 1 To Len(s)
+    Say CStr(AscW(Mid(s, i, 1)))
+Next i
+@@ chars ascw negative and chrw forms
+SayV AscW(ChrW(40000))
+SayV AscW(ChrW(-25536))
+SayV AscW(ChrW(32768))
+SayV AscW(ChrW(65535))
+SayV ChrW(65) = ChrW$(65)
+SayV TypeName(ChrW(65))
+SayV TypeName(Chr$(65))
+SayV Asc("€")
+SayV AscW("€")
+@@ chars chr above 255
+SayV Chr(256)
+@@ chars chr of large
+SayV Chr(33000)
+@@ chars chr negative
+SayV AscW(Chr(-1))
+@@ chars len of unicode
+SayV Len(ChrW(19968) & "a")
+SayV LenB(ChrW(19968) & "a")
+SayV LenB(StrConv(ChrW(19968) & "a", vbFromUnicode))
+SayV InStr(ChrW(19968) & "ab", "b")
+SayV InStrB(ChrW(19968) & "ab", "b")
+SayV Mid(ChrW(19968) & "ab", 2, 1)
+SayV StrReverse("a" & ChrW(19968) & "b") = "b" & ChrW(19968) & "a"
+SayV Left(ChrW(19968) & ChrW(19969), 1) = ChrW(19968)
+@@ chars compare unicode binary
+SayV ChrW(19968) > "z"
+SayV ChrW(8364) > ChrW(255)
+SayV StrComp(ChrW(8364), ChrW(128))
+SayV ChrW(8364) = Chr(128)
+SayV Chr(128) = ChrW(8364)
+SayV Asc(Chr(128))
+SayV AscW(Chr(128))
+@@ chars like unicode
+SayV ChrW(19968) Like "?"
+SayV ChrW(19968) Like "[" & ChrW(19967) & "-" & ChrW(19969) & "]"
+SayV ChrW(8364) Like "[" & Chr(128) & "]"
+SayV "a" & ChrW(19968) Like "a*"

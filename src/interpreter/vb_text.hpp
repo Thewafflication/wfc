@@ -269,6 +269,12 @@ inline void fit_to_units(std::string& text, const std::size_t units) {
 }
 
 // The Windows-1252 byte for a character, or '?' when it has none.
+// A character that the ANSI code page does not hold, the way Windows writes
+// it there (its "best fit": a letter with a mark that the code page lacks
+// becomes the plain letter, as Visual Basic shows: Asc(ChrW(256)) is 65),
+// or 0 when Windows has no character for it either. Defined in winapi.cpp.
+[[nodiscard]] unsigned ansi_best_fit(std::uint32_t code) noexcept;
+
 [[nodiscard]] inline unsigned unicode_to_ansi(
     const std::uint32_t code) noexcept {
     if (code < 0x80U || (code >= 0xA0U && code <= 0xFFU)) {
@@ -278,6 +284,9 @@ inline void fit_to_units(std::string& text, const std::size_t units) {
         if (ansi_to_unicode(byte) == code) {
             return byte;
         }
+    }
+    if (const unsigned fitted = ansi_best_fit(code); fitted != 0U) {
+        return fitted;
     }
     return static_cast<unsigned>('?');
 }

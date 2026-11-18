@@ -338,6 +338,22 @@ std::optional<Value> Interpreter::emulate_win32_call(
     return std::nullopt;
 }
 
+unsigned ansi_best_fit(const std::uint32_t code) noexcept {
+    if (code > 0xFFFFU) {
+        return 0U;
+    }
+    const wchar_t wide = static_cast<wchar_t>(code);
+    char narrow[4]{};
+    BOOL defaulted = FALSE;
+    // 1252 is the code page the rest of the text conversions use.
+    const int written = WideCharToMultiByte(
+        1252, 0, &wide, 1, narrow, sizeof(narrow), nullptr, &defaulted);
+    if (written != 1 || defaulted != FALSE) {
+        return 0U;
+    }
+    return static_cast<unsigned char>(narrow[0]);
+}
+
 int text_order(const std::string_view left, const std::string_view right) {
     // Letters and digits of ASCII alone order the same either way.
     const auto plain = [](const std::string_view text) {
