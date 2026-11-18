@@ -16,8 +16,10 @@ runtime for x86, x64 and ARM64, and the demonstration programs built from the
 
 | Package | Contents | Notes |
 | --- | --- | --- |
-| `wfc-any-<version>.zip` | `x86`, `x64`, `arm64` directories each with `wfc.exe` and `wfcvbrun.dll`; `LICENSE`; `README.MD`; the compatibility record | One package for all architectures, `arch=any`, license `GPL-3.0-or-later` |
-| `wfc-games-any-<version>.zip` | For each corpus game and architecture a packaged program (`wfc --build`), the game's `PROVENANCE.md` and license, and the corresponding source revision of `vb6games` | The packaged programs embed the runtime, so they run without `wfc` installed. Each game's author license and credit travel with it |
+| `wfc-<arch>-<version>.zip` (`x86`, `x64`, `arm64`) | An `<arch>` directory with `wfc.exe`, `wfcl.exe`, `wfcrt.dll` and `wfcvbrun.dll`; `LICENSE`; `README.MD`; the compatibility record; the install scripts | One package per architecture (`arch=<arch>`), license `GPL-3.0-or-later` |
+| `wfc-linux-any-<version>.zip` | An `x64` and an `arm64` directory with the Winelib build (`wfc.exe.so` and its launcher); `LICENSE`; `README.MD`; `LINUX.txt` | Built on the Linux runners with winegcc; WPM only unpacks it on Windows |
+
+The corpus games (`wfc-games-any`) and the VBRUN library (`wfc-vbrun-any`) are built, signed and released by their own repositories, `Thewafflication/vb6games` and `Thewafflication/wfc-vbrun`. After the package job, a separate `verify` job on a clean runner checks `SHA256SUMS`, `index.json` and every signature (`scripts/Test-WpmRelease.ps1`), so the release needs no local verification.
 
 ## Build and trust order
 

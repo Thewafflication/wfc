@@ -67,6 +67,15 @@ static inline const wchar_t* wfc_wmemchr(const wchar_t* text, wchar_t value,
 #define wmemset wfc_wmemset
 #define wmemcmp wfc_wmemcmp
 #define wmemchr wfc_wmemchr
+// Code that names them std::wmemset and so on reaches the same functions.
+namespace std {
+using ::wfc_wcslen;
+using ::wfc_wmemchr;
+using ::wfc_wmemcmp;
+using ::wfc_wmemcpy;
+using ::wfc_wmemmove;
+using ::wfc_wmemset;
+}  // namespace std
 
 // winegcc defines _WIN32, which makes libstdc++ read std::filesystem::path as
 // a wide Windows path that its streams cannot open; include those headers

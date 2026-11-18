@@ -315,6 +315,68 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  linux:
+    name: Linux ${{ matrix.arch }} (Winelib)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: true
+
+      - name: Install Wine development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            wine64-tools libwine-dev wine64 cmake ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B out/winelib -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE=cmake/winelib.cmake
+          -DWFC_WINELIB_ARCH=${{ matrix.arch }}
+          -DCMAKE_BUILD_TYPE=Release
+          -DWFC_BUILD_TESTS=OFF
+          -DWFC_WARNINGS_AS_ERRORS=OFF
+
+      - name: Build
+        run: cmake --build out/winelib --target wfc
+
+      # Wine on the arm64 runner creates its prefix and then hangs, so only
+      # the x64 program is run.
+      - name: Run a program
+        if: matrix.arch == 'x64'
+        run: |
+          printf 'Print 1 + 2\n' > out/smoke.bas
+          export WINEDEBUG=-all
+          output=$(timeout 300 wine64 out/winelib/wfc.exe.so out/smoke.bas)
+          echo "$output"
+          test "$(echo "$output" | tr -d ' \r')" = 3
+
+      - name: Collect package input
+        run: |
+          target=out/package-input/linux-${{ matrix.arch }}
+          mkdir -p "$target"
+          cp out/winelib/wfc.exe out/winelib/wfc.exe.so "$target"
+
+      - name: Upload package input
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfc-linux-${{ matrix.arch }}-package-input
+          path: out/package-input/linux-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 14
+
   package:
     name: Signed WPM packages
     # Only a version tag builds the signed packages; publishing stays a
@@ -322,7 +384,7 @@ jobs:
     if: >-
       startsWith(github.ref, 'refs/tags/') ||
       (github.event_name == 'workflow_dispatch' && inputs.package_version != '')
-    needs: [build, release]
+    needs: [build, release, linux]
     runs-on: windows-2022
     timeout-minutes: 30
     environment: release
@@ -343,40 +405,25 @@ jobs:
       - name: Arrange package input
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force "out/package-input" | Out-Null
           foreach ($arch in 'x86', 'x64', 'arm64') {
             $from = "out/package-input-download/wfc-$arch-package-input"
             if (-not (Test-Path "$from/wfc.exe")) {
               throw "Missing package input for $arch."
             }
-            New-Item -ItemType Directory -Force "out/package-input" | Out-Null
             Move-Item $from "out/package-input/$arch"
+          }
+          foreach ($arch in 'x64', 'arm64') {
+            $from = "out/package-input-download/wfc-linux-$arch-package-input"
+            if (-not (Test-Path "$from/wfc.exe.so")) {
+              throw "Missing Linux package input for $arch."
+            }
+            Move-Item $from "out/package-input/linux-$arch"
           }
 
       - name: Install WPM
         shell: pwsh
-        run: |
-          $version = '1.0.16'
-          $archive = Join-Path $env:RUNNER_TEMP "wpm-x64-$version.zip"
-          $expected = '6553898f4e0bfbf171f601c16d314259' +
-            'fd28f59e7398d58a0549208b011c6544'
-          $base = 'https://github.com/Thewafflication/wpm/releases/download'
-          $url = "$base/$version/wpm-x64-$version.zip"
-          Invoke-WebRequest -UseBasicParsing $url -OutFile $archive
-          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-          if ($actual -ne $expected) {
-            throw 'Pinned WPM archive digest mismatch.'
-          }
-          $package = Join-Path $env:RUNNER_TEMP 'wpm-package'
-          Expand-Archive -LiteralPath $archive -DestinationPath $package
-          & (Join-Path $package 'setup.cmd') (Join-Path $package 'wpm.exe')
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $wpmDirectory = Join-Path $env:ProgramFiles 'WPM'
-          $wpmExe = Join-Path $wpmDirectory 'wpm.exe'
-          $reported = (& $wpmExe --version 2>&1) -join "`n"
-          if ($reported -notmatch 'Version 1\.0\.16') {
-            throw "Unexpected WPM version: $reported"
-          }
-          $wpmDirectory >> $env:GITHUB_PATH
+        run: ./scripts/Install-Wpm.ps1
 
       - name: Build and verify the signed packages
         shell: pwsh
@@ -396,12 +443,13 @@ jobs:
           try {
             [IO.File]::WriteAllText($keyPath, $env:WPM_PRIVATE_KEY)
             ./scripts/Build-WpmPackage.ps1 -Version $env:PACKAGE_VERSION `
-              -Architectures x86, x64, arm64 -SigningKey $keyPath
+              -Architectures x86, x64, arm64 -LinuxArchitectures x64, arm64 `
+              -SigningKey $keyPath
             wpm trust add release_keys/wfc-release.public
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             $packages = @(Get-ChildItem out/packages/*.zip -File)
-            if ($packages.Count -ne 3) {
-              throw "Expected three packages, found $($packages.Count)."
+            if ($packages.Count -ne 4) {
+              throw "Expected four packages, found $($packages.Count)."
             }
             foreach ($package in $packages) {
               wpm verify $package.FullName
@@ -422,14 +470,15 @@ jobs:
           $base = "$repo/releases/download"
           $archives = Get-ChildItem out/packages/*.zip -File | Sort-Object Name
           $packages = foreach ($archive in $archives) {
-            $pattern = '^(?<name>.+)-any-(?<version>[^/]+)\.zip$'
+            $pattern =
+              '^(?<name>.+)-(?<arch>any|x86|x64|arm64)-(?<version>[^/]+)\.zip$'
             if ($archive.Name -notmatch $pattern) {
               throw "Unexpected WPM package filename: $($archive.Name)"
             }
             [ordered]@{
               name = $Matches.name
               version = $Matches.version
-              arch = 'any'
+              arch = $Matches.arch
               url = "$base/$env:RELEASE_TAG/$($archive.Name)"
             }
           }
@@ -450,3 +499,29 @@ jobs:
           path: out/packages/*
           if-no-files-found: error
           retention-days: 30
+
+  verify:
+    name: Verify the signed packages
+    # A clean runner checks what the package job uploaded: the checksums,
+    # the index and every package's signature against the release key.
+    needs: package
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Download the signed packages
+        uses: actions/download-artifact@v7
+        with:
+          name: wfc-wpm-packages-${{ github.sha }}
+          path: out/packages
+
+      - name: Install WPM
+        shell: pwsh
+        run: ./scripts/Install-Wpm.ps1
+
+      - name: Verify the checksums, the index and the signatures
+        shell: pwsh
+        run: ./scripts/Test-WpmRelease.ps1 -Directory out/packages -Count 4
