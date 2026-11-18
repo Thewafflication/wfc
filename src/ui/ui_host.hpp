@@ -84,6 +84,9 @@ struct DrawOp {
     double source_y{0};
     double source_width{0};
     double source_height{0};
+    // Drawn by the program on a surface whose AutoRedraw is False: it shows
+    // on the screen at once, not when the window next repaints.
+    bool immediate{false};
 };
 
 // One element of a common control (tab, panel, button, node, list item,
@@ -400,6 +403,9 @@ public:
         static_cast<void>(bytes);
         return 0;
     }
+    // Gives back an id from load_picture: each load counts once, and the
+    // image is freed when the last one is given back.
+    virtual void release_picture(long id) { static_cast<void>(id); }
     // The ActiveX control hosted by a window created with the kind
     // "ActiveX:{CLSID}": its IUnknown with one reference added, or nullptr
     // when the control could not be created. The caller releases it.

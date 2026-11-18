@@ -5,6 +5,7 @@
 #ifndef WFC_INTERPRETER_PICTURES_HPP
 #define WFC_INTERPRETER_PICTURES_HPP
 
+#include <functional>
 #include <string>
 
 #include "interpreter.hpp"
@@ -38,6 +39,14 @@ public:
     PictureObject() = default;
     PictureObject(std::string image_bytes, const PictureInfo& header)
         : bytes(std::move(image_bytes)), info(header) {}
+    PictureObject(const PictureObject&) = delete;
+    PictureObject& operator=(const PictureObject&) = delete;
+    // The host frees the decoded image with the last picture that uses it.
+    ~PictureObject() override {
+        if (release_host) {
+            release_host();
+        }
+    }
 
     [[nodiscard]] std::string type_name() const override { return "Picture"; }
     [[nodiscard]] bool has_member(const std::string& member) const override;
@@ -52,8 +61,10 @@ public:
     PictureInfo info;
     // The picture's handle for programs: stable per object, 0 when empty.
     long handle{0};
-    // The host's id for the decoded image (0 until first drawn).
+    // The host's id for the decoded image (0 until first drawn), and what
+    // gives it back to the host.
     long host_id{0};
+    std::function<void()> release_host;
     // IPicture.KeepOriginalFormat and the palette handle (always 0 here).
     bool keep_original{true};
     long palette{0};

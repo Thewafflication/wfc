@@ -374,7 +374,7 @@ struct Win32Support {
         PAINTSTRUCT paint;
         const HDC dc = BeginPaint(hwnd, &paint);
         if (dc != nullptr) {
-            host->paint_surface(hwnd, dc);
+            host->paint_surface(hwnd, dc, &paint.rcPaint);
         }
         EndPaint(hwnd, &paint);
     }
@@ -1862,7 +1862,8 @@ Win32Host::Entry* Win32Host::ensure_surface(const WindowId window) {
     return entry;
 }
 
-bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
+bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target,
+                              const tagRECT* area) {
     const WindowId window = Win32Support::id_of(hwnd);
     auto* entry = find(window);
     if (entry == nullptr || entry->surface_dc == nullptr) {
@@ -1870,9 +1871,15 @@ bool Win32Host::paint_surface(HWND__* hwnd, HDC__* target) {
     }
     RECT client{};
     GetClientRect(hwnd, &client);
-    BitBlt(target, 0, 0, std::min<int>(client.right, entry->surface_width),
-           std::min<int>(client.bottom, entry->surface_height),
-           entry->surface_dc, 0, 0, SRCCOPY);
+    client.right = std::min<LONG>(client.right, entry->surface_width);
+    client.bottom = std::min<LONG>(client.bottom, entry->surface_height);
+    RECT copy = client;
+    if (area != nullptr && IntersectRect(&copy, &client, area) == FALSE) {
+        return true;  // nothing of the surface needs painting
+    }
+    BitBlt(target, copy.left, copy.top, copy.right - copy.left,
+           copy.bottom - copy.top, entry->surface_dc, copy.left, copy.top,
+           SRCCOPY);
     return true;
 }
 
@@ -2300,35 +2307,122 @@ bool Win32Host::capture(const WindowId window, const std::string& path) {
     return saved;
 }
 
+namespace {
+
+// An uncompressed 24- or 32-bit bitmap file (what Image and SavePicture
+// make) becomes a picture by copying its pixels; nullptr for other data.
+IPicture* picture_from_plain_bitmap(const std::string& bytes) {
+    BITMAPFILEHEADER file{};
+    BITMAPINFOHEADER header{};
+    if (bytes.size() < sizeof(file) + sizeof(header)) {
+        return nullptr;
+    }
+    std::memcpy(&file, bytes.data(), sizeof(file));
+    std::memcpy(&header, bytes.data() + sizeof(file), sizeof(header));
+    if (file.bfType != 0x4D42 || header.biSize != sizeof(header) ||
+        header.biCompression != BI_RGB || header.biPlanes != 1 ||
+        (header.biBitCount != 24 && header.biBitCount != 32) ||
+        header.biClrUsed != 0 || header.biWidth <= 0 || header.biHeight == 0) {
+        return nullptr;
+    }
+    const std::size_t stride =
+        ((static_cast<std::size_t>(header.biWidth) * header.biBitCount + 31U) /
+         32U) *
+        4U;
+    const std::size_t rows = static_cast<std::size_t>(
+        header.biHeight < 0 ? -static_cast<long long>(header.biHeight)
+                            : header.biHeight);
+    const std::size_t size = stride * rows;
+    if (file.bfOffBits < sizeof(file) + sizeof(header) ||
+        file.bfOffBits > bytes.size() || bytes.size() - file.bfOffBits < size) {
+        return nullptr;
+    }
+    BITMAPINFO info{};
+    info.bmiHeader = header;
+    void* pixels = nullptr;
+    HBITMAP bitmap =
+        CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    if (bitmap == nullptr) {
+        return nullptr;
+    }
+    std::memcpy(pixels, bytes.data() + file.bfOffBits, size);
+    PICTDESC description{};
+    description.cbSizeofstruct = sizeof(description);
+    description.picType = PICTYPE_BITMAP;
+    description.bmp.hbitmap = bitmap;
+    IPicture* picture = nullptr;
+    if (FAILED(OleCreatePictureIndirect(&description, IID_IPicture, TRUE,
+                                        reinterpret_cast<void**>(&picture))) ||
+        picture == nullptr) {
+        DeleteObject(bitmap);
+        return nullptr;
+    }
+    return picture;
+}
+
+}  // namespace
+
 long Win32Host::load_picture(const std::string& bytes) {
-    const auto known = picture_ids_.find(bytes);
-    if (known != picture_ids_.end()) {
-        return known->second;
+    // Small images (icons, sprites) are often loaded again and again: one
+    // decoded copy serves them all.
+    constexpr std::size_t kCachedSize = 1U << 20U;
+    const bool cacheable = bytes.size() <= kCachedSize;
+    if (cacheable) {
+        if (const auto known = picture_ids_.find(bytes);
+            known != picture_ids_.end()) {
+            ++picture_uses_[known->second].loads;
+            return known->second;
+        }
     }
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes.size());
-    if (memory == nullptr) {
-        return 0;
-    }
-    void* locked = GlobalLock(memory);
-    std::memcpy(locked, bytes.data(), bytes.size());
-    GlobalUnlock(memory);
-    IStream* stream = nullptr;
-    long id = 0;
-    if (SUCCEEDED(CreateStreamOnHGlobal(memory, TRUE, &stream))) {
-        IPicture* picture = nullptr;
-        if (SUCCEEDED(OleLoadPicture(stream, static_cast<LONG>(bytes.size()),
-                                     FALSE, IID_IPicture,
-                                     reinterpret_cast<void**>(&picture))) &&
-            picture != nullptr) {
-            id = static_cast<long>(pictures_.size()) + 1;
-            pictures_.emplace(id, picture);
-            picture_ids_.emplace(bytes, id);
+    IPicture* picture = picture_from_plain_bitmap(bytes);
+    if (picture == nullptr) {
+        HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes.size());
+        if (memory == nullptr) {
+            return 0;
+        }
+        void* locked = GlobalLock(memory);
+        std::memcpy(locked, bytes.data(), bytes.size());
+        GlobalUnlock(memory);
+        IStream* stream = nullptr;
+        if (FAILED(CreateStreamOnHGlobal(memory, TRUE, &stream))) {
+            GlobalFree(memory);
+            return 0;
+        }
+        if (FAILED(OleLoadPicture(stream, static_cast<LONG>(bytes.size()),
+                                  FALSE, IID_IPicture,
+                                  reinterpret_cast<void**>(&picture)))) {
+            picture = nullptr;
         }
         stream->Release();
-    } else {
-        GlobalFree(memory);
+        if (picture == nullptr) {
+            return 0;
+        }
+    }
+    const long id = next_picture_id_++;
+    pictures_.emplace(id, picture);
+    PictureUse& use = picture_uses_[id];
+    use.loads = 1;
+    if (cacheable) {
+        use.key = bytes;
+        use.cached = true;
+        picture_ids_.emplace(bytes, id);
     }
     return id;
+}
+
+void Win32Host::release_picture(const long id) {
+    const auto use = picture_uses_.find(id);
+    if (use == picture_uses_.end() || --use->second.loads > 0) {
+        return;
+    }
+    if (use->second.cached) {
+        picture_ids_.erase(use->second.key);
+    }
+    picture_uses_.erase(use);
+    if (const auto found = pictures_.find(id); found != pictures_.end()) {
+        static_cast<IPicture*>(found->second)->Release();
+        pictures_.erase(found);
+    }
 }
 
 std::optional<long> Win32Host::pixel(const WindowId window, const double x,
@@ -2369,6 +2463,9 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
     };
     HDC dc = entry->surface_dc;
     const COLORREF color = to_colorref(operation.color);
+    // GDI collects the area the operation touches, so only that part of the
+    // window is repainted.
+    SetBoundsRect(dc, nullptr, DCB_RESET | DCB_ENABLE);
     // A full-screen form draws inside its own area, in the middle of the
     // window.
     if (entry->off_x != 0 || entry->off_y != 0) {
@@ -2551,7 +2648,32 @@ void Win32Host::draw(const WindowId window, const DrawOp& operation) {
         SelectObject(dc, old_font);
         DeleteObject(font);
     }
-    InvalidateRect(entry->hwnd, nullptr, FALSE);
+    RECT touched{};
+    const UINT bounds = GetBoundsRect(dc, &touched, DCB_RESET);
+    SetBoundsRect(dc, nullptr, DCB_DISABLE);
+    if ((bounds & DCB_SET) != DCB_SET || IsRectEmpty(&touched) != FALSE) {
+        // Not reported: the whole surface may have changed.
+        touched = RECT{0, 0, entry->surface_width, entry->surface_height};
+    } else {
+        // The bounds are in logical units, before the viewport offset; a
+        // pixel of margin covers antialiased and wide pens.
+        LPtoDP(dc, reinterpret_cast<POINT*>(&touched), 2);
+        InflateRect(&touched, 2, 2);
+    }
+    if (entry->hwnd == nullptr) {
+        return;
+    }
+    if (operation.immediate && IsWindowVisible(entry->hwnd) != FALSE) {
+        // AutoRedraw False: the drawing goes to the screen now, as in VB6.
+        if (HDC screen = GetDC(entry->hwnd)) {
+            BitBlt(screen, touched.left, touched.top,
+                   touched.right - touched.left, touched.bottom - touched.top,
+                   entry->surface_dc, touched.left, touched.top, SRCCOPY);
+            ReleaseDC(entry->hwnd, screen);
+            return;
+        }
+    }
+    InvalidateRect(entry->hwnd, &touched, FALSE);
 }
 
 TextMetrics Win32Host::measure_text(const WindowId window,

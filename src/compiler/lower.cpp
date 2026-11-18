@@ -6582,6 +6582,7 @@ private:
                       !signatures_.contains(expression.text)) &&
                     (own_member(expression.text) != nullptr ||
                      signatures_.contains(expression.text) ||
+                     externals_.contains(expression.text) ||
                      find_builtin(expression.text) != nullptr ||
                      is_special_builtin(expression.text) ||
                      is_library_function(expression.text))) {

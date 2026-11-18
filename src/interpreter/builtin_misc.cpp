@@ -6,7 +6,9 @@
 #include "interpreter.hpp"
 #include "pictures.hpp"
 
+#include <chrono>
 #include <cstdlib>
+#include <ctime>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -16,6 +18,28 @@
 
 namespace wfc::detail {
 namespace {
+
+// The local time of day in seconds, with the milliseconds (Timer).
+double seconds_since_midnight() {
+#ifdef _WIN32
+    SYSTEMTIME now{};
+    GetLocalTime(&now);
+    return now.wHour * 3600.0 + now.wMinute * 60.0 + now.wSecond +
+           now.wMilliseconds / 1000.0;
+#else
+    const auto clock = std::chrono::system_clock::now();
+    const std::time_t whole = std::chrono::system_clock::to_time_t(clock);
+    std::tm local{};
+    localtime_r(&whole, &local);
+    const auto milliseconds =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            clock.time_since_epoch())
+            .count() %
+        1000;
+    return local.tm_hour * 3600.0 + local.tm_min * 60.0 + local.tm_sec +
+           static_cast<double>(milliseconds) / 1000.0;
+#endif
+}
 
 #ifdef _WIN32
 BOOL CALLBACK collect_font(const LOGFONTA* font, const TEXTMETRICA*,
@@ -1625,8 +1649,9 @@ std::optional<Value> Interpreter::evaluate_date_function(
             if (!execute_) {
                 return Value{0.0f};
             }
-            const double now = current_date_serial();
-            return Value{static_cast<float>((now - std::floor(now)) * 86400.0)};
+            // Seconds since midnight with the milliseconds, as in VB6 (the
+            // date functions keep whole seconds).
+            return Value{static_cast<float>(seconds_since_midnight())};
         }
         if (name.back() == '$') {
             if (!execute_) {

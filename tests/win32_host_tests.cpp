@@ -168,6 +168,88 @@ int main() {
         fill(0x00FF00);
         host.refresh_window(board);
         expect(shown() == RGB(0, 255, 0), "Refresh shows a drawing at once");
+        {
+            // AutoRedraw False: the drawing is on the screen before the
+            // program waits for input.
+            DrawOp operation;
+            operation.kind = "line";
+            operation.x2 = 1500;
+            operation.y2 = 900;
+            operation.box = true;
+            operation.filled = true;
+            operation.color = 0xFF0000;
+            operation.immediate = true;
+            host.draw(board, operation);
+            expect(shown() == RGB(0, 0, 255),
+                   "an AutoRedraw False drawing shows at once");
+        }
+        {
+            // A plain bitmap (what Image makes) draws as it is; small images
+            // share one decoded copy, freed with the last use.
+            const auto bitmap = [](const int width, const int height,
+                                   const unsigned char blue,
+                                   const unsigned char green,
+                                   const unsigned char red) {
+                const int stride = ((width * 3) + 3) & ~3;
+                BITMAPFILEHEADER file{};
+                BITMAPINFOHEADER info{};
+                info.biSize = sizeof(info);
+                info.biWidth = width;
+                info.biHeight = height;
+                info.biPlanes = 1;
+                info.biBitCount = 24;
+                info.biCompression = BI_RGB;
+                file.bfType = 0x4D42;
+                file.bfOffBits = sizeof(file) + sizeof(info);
+                std::string pixels(static_cast<std::size_t>(stride) * height,
+                                   '\0');
+                for (int y = 0; y < height; ++y) {
+                    for (int x = 0; x < width; ++x) {
+                        const auto at = static_cast<std::size_t>(y) * stride +
+                                        static_cast<std::size_t>(x) * 3U;
+                        pixels[at] = static_cast<char>(blue);
+                        pixels[at + 1U] = static_cast<char>(green);
+                        pixels[at + 2U] = static_cast<char>(red);
+                    }
+                }
+                file.bfSize =
+                    static_cast<DWORD>(file.bfOffBits + pixels.size());
+                std::string bytes(reinterpret_cast<const char*>(&file),
+                                  sizeof(file));
+                bytes.append(reinterpret_cast<const char*>(&info),
+                             sizeof(info));
+                return bytes + pixels;
+            };
+            const std::string small = bitmap(40, 30, 0, 200, 100);
+            const long first = host.load_picture(small);
+            const long again = host.load_picture(small);
+            expect(first != 0 && first == again,
+                   "the same small image is decoded once");
+            DrawOp operation;
+            operation.kind = "picture";
+            operation.picture = first;
+            operation.x2 = 1500;
+            operation.y2 = 900;
+            operation.immediate = true;
+            host.draw(board, operation);
+            expect(shown() == RGB(100, 200, 0), "a bitmap draws its pixels");
+            host.release_picture(first);
+            expect(host.load_picture(small) == first,
+                   "an image in use keeps its id");
+            host.release_picture(first);
+            host.release_picture(first);
+            const long renewed = host.load_picture(small);
+            expect(renewed != 0 && renewed != first,
+                   "an image is freed with its last use");
+            host.release_picture(renewed);
+            const std::string large = bitmap(800, 500, 1, 2, 3);
+            const long one = host.load_picture(large);
+            const long two = host.load_picture(large);
+            expect(one != 0 && two != 0 && one != two,
+                   "a large image is decoded for each load");
+            host.release_picture(one);
+            host.release_picture(two);
+        }
         host.destroy_window(board);
     }
     const auto metrics = host.measure_text(form, "hello", FontSpec{});

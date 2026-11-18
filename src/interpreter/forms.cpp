@@ -1771,6 +1771,14 @@ struct FormSupport {
                                            PictureObject& picture) {
         if (picture.host_id == 0 && !picture.bytes.empty()) {
             picture.host_id = runtime(in).host->load_picture(picture.bytes);
+            if (picture.host_id != 0) {
+                std::weak_ptr<FormRuntime> owner = in.forms_;
+                picture.release_host = [owner, id = picture.host_id] {
+                    if (const auto forms = owner.lock(); forms && forms->host) {
+                        forms->host->release_picture(id);
+                    }
+                };
+            }
         }
         return picture.host_id;
     }
@@ -2283,6 +2291,14 @@ struct FormSupport {
         }
     }
 
+    // A drawing method of the program (PSet, Line, Circle, Print,
+    // PaintPicture): with AutoRedraw False it shows at once, as in VB6.
+    static void program_draw(Interpreter& in, ControlObject& surface,
+                             ui::DrawOp operation) {
+        operation.immediate = !flag_of(surface, "autoredraw");
+        draw_op(in, surface, operation);
+    }
+
     [[nodiscard]] static ui::DrawOp base_op(const ControlObject& surface,
                                             const char* kind) {
         ui::DrawOp operation;
@@ -2330,7 +2346,7 @@ struct FormSupport {
                 const auto metrics =
                     state.host->measure_text(surface.window, line, font);
                 if (!line.empty()) {
-                    draw_op(in, surface, operation);
+                    program_draw(in, surface, operation);
                 }
                 if (terminated) {
                     current_x = scale.left;
@@ -2454,6 +2470,11 @@ struct FormSupport {
                     }
                 }
             }
+            if (!flag_of(surface, "autoredraw") &&
+                surface.window != ui::kNoWindow) {
+                // The screen is cleared at once, as in VB6.
+                runtime(in).host->refresh_window(surface.window);
+            }
             const Scale scale = scale_of(surface);
             surface.values["currentx"] = Value{static_cast<float>(scale.left)};
             surface.values["currenty"] = Value{static_cast<float>(scale.top)};
@@ -2535,7 +2556,7 @@ struct FormSupport {
                 operation.source_width = width_of(7, natural_width);
                 operation.source_height = height_of(8, natural_height);
             }
-            draw_op(in, surface, operation);
+            program_draw(in, surface, operation);
             return true;
         }
         if (member == "scalex" || member == "scaley") {
@@ -7044,7 +7065,7 @@ bool Interpreter::parse_surface_statement(InstanceData& surface_instance,
         operation.x1 = FormSupport::to_twips_x(*surface, x);
         operation.y1 = FormSupport::to_twips_y(*surface, y);
         operation.color = FormSupport::resolve_color(static_cast<long>(color));
-        FormSupport::draw_op(*this, *surface, operation);
+        FormSupport::program_draw(*this, *surface, operation);
         surface->values["currentx"] = Value{static_cast<float>(x)};
         surface->values["currenty"] = Value{static_cast<float>(y)};
         return true;
@@ -7110,7 +7131,7 @@ bool Interpreter::parse_surface_statement(InstanceData& surface_instance,
         operation.color = FormSupport::resolve_color(static_cast<long>(color));
         operation.box = box;
         operation.filled = filled;
-        FormSupport::draw_op(*this, *surface, operation);
+        FormSupport::program_draw(*this, *surface, operation);
         surface->values["currentx"] = Value{static_cast<float>(x2)};
         surface->values["currenty"] = Value{static_cast<float>(y2)};
         return true;
@@ -7186,7 +7207,7 @@ bool Interpreter::parse_surface_statement(InstanceData& surface_instance,
         operation.start = start;
         operation.end = end;
         operation.aspect = aspect;
-        FormSupport::draw_op(*this, *surface, operation);
+        FormSupport::program_draw(*this, *surface, operation);
         surface->values["currentx"] = Value{static_cast<float>(x)};
         surface->values["currenty"] = Value{static_cast<float>(y)};
         return true;

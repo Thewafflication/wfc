@@ -18,6 +18,7 @@ struct HWND__;
 struct HMENU__;
 struct HFONT__;
 struct HDC__;
+struct tagRECT;
 struct HBRUSH__;
 struct HBITMAP__;
 
@@ -112,6 +113,7 @@ public:
     [[nodiscard]] bool capture(WindowId window,
                                const std::string& path) override;
     [[nodiscard]] long load_picture(const std::string& bytes) override;
+    void release_picture(long id) override;
     void draw(WindowId window, const DrawOp& operation) override;
     [[nodiscard]] std::optional<long> pixel(WindowId window, double x,
                                             double y) const override;
@@ -142,7 +144,8 @@ private:
     std::map<long, HBRUSH__*> label_brushes_;
     // Paints the persistent surface of the window `hwnd` onto `target`;
     // false when the window has none.
-    bool paint_surface(HWND__* hwnd, HDC__* target);
+    bool paint_surface(HWND__* hwnd, HDC__* target,
+                       const tagRECT* area = nullptr);
     // The window's drawing surface, sized to its client area.
     Entry* ensure_surface(WindowId window);
 
@@ -193,9 +196,18 @@ private:
     bool swallow_click_{false};
     void close_all_forms();
     HFONT__* font_{nullptr};
-    // Decoded pictures (IPicture*) by id, and the id of each byte string.
+    // Decoded pictures (IPicture*) by id; the id of each small image by its
+    // bytes (a large one is decoded for each load); and of each id the bytes
+    // it is known by and how many loads use it.
     std::map<long, void*> pictures_;
     std::map<std::string, long> picture_ids_;
+    struct PictureUse {
+        std::string key;
+        bool cached{false};
+        long loads{0};
+    };
+    std::map<long, PictureUse> picture_uses_;
+    long next_picture_id_{1};
 };
 
 }  // namespace wfc::ui
