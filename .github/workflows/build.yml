@@ -359,7 +359,8 @@ jobs:
         if: matrix.arch == 'x64'
         run: |
           printf 'Print 1 + 2\n' > out/smoke.bas
-          export WINEDEBUG=-all
+          # Ubuntu's wine64 package puts the loader in /usr/lib/wine.
+          export PATH="/usr/lib/wine:$PATH" WINEDEBUG=-all
           output=$(timeout 300 wine64 out/winelib/wfc.exe.so out/smoke.bas)
           echo "$output"
           test "$(echo "$output" | tr -d ' \r')" = 3
