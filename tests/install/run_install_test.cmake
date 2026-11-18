@@ -55,12 +55,15 @@ foreach(
   bin/wfc-prompt.cmd
   install.json
   Install-Wfc.ps1
-  bin/${ARCH}/wfc.exe
 )
   if(NOT EXISTS "${root}/${file}")
     message(FATAL_ERROR "the install did not write ${file}")
   endif()
 endforeach()
+# One copy of wfc: the package's architecture goes straight into bin.
+if(EXISTS "${root}/bin/${ARCH}")
+  message(FATAL_ERROR "the install kept a second copy in bin/${ARCH}")
+endif()
 file(GLOB runtime_dll "${root}/lib/wfcrt/*/${ARCH}/wfcrt.dll")
 file(GLOB vbrun_dll "${root}/lib/wfcvbrun/*/${ARCH}/wfcvbrun.dll")
 if(NOT runtime_dll OR NOT vbrun_dll)

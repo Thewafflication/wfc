@@ -4,14 +4,16 @@ Installs or removes WFC (the Waughtal Form Compiler) and its libraries.
 
 .DESCRIPTION
 Run as an administrator the install is for every user of the machine and goes
-to C:\wfc; run without administrator rights it is for the current user only
-and goes to C:\wfc\users\<name>. -Scope overrides the choice.
+to Program Files\WFC; run without administrator rights it is for the current
+user only and goes to %LOCALAPPDATA%\Programs\WFC. -Scope overrides the
+choice. An installation of WFC 0.8.23 or earlier (C:\wfc, or
+C:\wfc\users\<name>) is removed first.
 
 Layout below the root:
 
-  bin\                     wfc.exe, wfcl.exe, wfc-prompt.cmd (this machine's
-                           architecture); bin\<arch>\ for every architecture
-                           the package carries
+  bin\                     wfc.exe, wfcl.exe, wfc-prompt.cmd of this
+                           machine's architecture; bin\<arch>\ for another
+                           architecture installed beside it
   lib\<name>\<ver>\<arch>\ the libraries, each in its own versioned folder
                            (wfcrt, wfcvbrun, and wfcmscomctl, wfccomdlg32,
                            wfcmswinsck when present)
@@ -96,12 +98,9 @@ if ($Scope -eq 'Machine' -and -not $administrator -and -not $FilesOnly) {
     throw 'A machine-wide install needs an administrator; use -Scope User.'
 }
 $target = if ($Scope -eq 'Machine') { 'Machine' } else { 'User' }
+$rootGiven = [bool]$Root
 if (-not $Root) {
-    $Root = if ($Scope -eq 'Machine') {
-        'C:\wfc'
-    } else {
-        "C:\wfc\users\$env:USERNAME"
-    }
+    $Root = Get-DefaultRoot $Scope
 }
 $bin = Join-Path $Root 'bin'
 $prompt = Join-Path $bin 'wfc-prompt.cmd'
@@ -240,17 +239,50 @@ $architectures = @(
 if ($architectures.Count -eq 0) {
     throw "No wfc.exe for any architecture below $Source."
 }
-$native = Get-NativeArchitecture
-if ($architectures -notcontains $native) {
-    $native = $architectures[0]
+# This machine's architecture goes straight into bin; another one goes to
+# bin\<arch>, unless bin has no wfc.exe yet.
+$machine = Get-NativeArchitecture
+$native = if ($architectures -contains $machine) { $machine } else {
+    $architectures[0]
 }
+$intoBin = $native -eq $machine -or
+    -not (Test-Path -LiteralPath (Join-Path $bin 'wfc.exe'))
 if (-not $PSCmdlet.ShouldProcess($Root, "Install WFC ($Scope)")) { return }
+
+# WFC 0.8.23 and earlier installed below C:\wfc: remove that installation
+# (its PATH entry, WFC_HOME, Start menu, registrations and files) with its own
+# script, then install here.
+$legacy = Get-LegacyRoot $Scope
+$legacyScript = Join-Path $legacy 'Install-Wfc.ps1'
+if (-not $rootGiven -and -not $FilesOnly -and $legacy -ne $Root -and
+    (Test-Path -LiteralPath (Join-Path $legacy 'install.json')) -and
+    (Test-Path -LiteralPath $legacyScript)) {
+    Write-Output "Removing the earlier installation at $legacy"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $legacyScript `
+        -Uninstall -Scope $Scope -Root $legacy
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not remove the earlier installation at $legacy."
+    }
+    Remove-Item -LiteralPath $legacyScript -Force -ErrorAction SilentlyContinue
+    if (-not (Get-ChildItem -LiteralPath $legacy -Force)) {
+        Remove-Item -LiteralPath $legacy -Force
+    }
+}
 
 $libraries = [ordered]@{}
 foreach ($architecture in $architectures) {
     $from = Join-Path $Source $architecture
-    $archBin = Join-Path $bin $architecture
+    $archBin = if ($architecture -eq $native -and $intoBin) { $bin } else {
+        Join-Path $bin $architecture
+    }
     New-Item -ItemType Directory -Force -Path $archBin | Out-Null
+    if ($archBin -eq $bin) {
+        # Earlier versions kept a second copy in bin\<arch>.
+        $copy = Join-Path $bin $architecture
+        if (Test-Path -LiteralPath $copy) {
+            Remove-Item -LiteralPath $copy -Recurse -Force
+        }
+    }
     foreach ($name in 'wfc.exe', 'wfcl.exe') {
         Copy-Item -LiteralPath (Join-Path $from $name) -Destination $archBin `
             -Force
@@ -272,13 +304,6 @@ foreach ($architecture in $architectures) {
         Copy-Item -LiteralPath $file -Destination $folder -Force
         $libraries["$library $architecture"] = $libraryVersion
     }
-}
-foreach ($name in 'wfc.exe', 'wfcl.exe', 'wfcw2k.exe') {
-    if (-not (Test-Path -LiteralPath (Join-Path $bin "$native\$name"))) {
-        continue
-    }
-    Copy-Item -LiteralPath (Join-Path $bin "$native\$name") `
-        -Destination $bin -Force
 }
 $version = '0.0.0'
 if ($libraries.Contains("wfcrt $native")) {

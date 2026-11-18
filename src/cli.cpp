@@ -242,7 +242,8 @@ void print_help() {
            "environment:\n"
            "  WFC_TARGET           win2000: the default target of "
            "`build` on any wfc\n"
-           "  WFC_HOME             installation folder (default C:\\wfc)\n"
+           "  WFC_HOME             installation folder (default Program "
+           "Files\\WFC)\n"
            "  WFC_SCREEN           pretend the screen is WIDTHxHEIGHT\n"
            "  NO_COLOR             no colors in messages\n\n"
            "exit codes: 0 done, 1 the program failed, 2 usage error, 3 "
@@ -395,6 +396,17 @@ std::string install_root() {
             candidates.push_back(parent);
         }
 #endif
+        if (const auto local = environment("LOCALAPPDATA"); !local.empty()) {
+            candidates.push_back(fs::path(local) / "Programs" / "WFC");
+        }
+        auto programs = environment("ProgramW6432");
+        if (programs.empty()) {
+            programs = environment("ProgramFiles");
+        }
+        if (!programs.empty()) {
+            candidates.push_back(fs::path(programs) / "WFC");
+        }
+        // Where WFC 0.8.23 and earlier installed.
         if (const auto user = environment("USERNAME"); !user.empty()) {
             candidates.push_back(fs::path("C:\\wfc\\users") / user);
         }

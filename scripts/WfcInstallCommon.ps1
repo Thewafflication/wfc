@@ -18,6 +18,29 @@ function Get-NativeArchitecture {
     }
 }
 
+# Where WFC installs when no root is given: Program Files for every user of
+# the machine, the user's own Programs folder for one user.
+function Get-DefaultRoot([string]$Scope) {
+    if ($Scope -eq 'Machine') {
+        $programs = $env:ProgramW6432
+        if (-not $programs) { $programs = $env:ProgramFiles }
+        return Join-Path $programs 'WFC'
+    }
+    return Join-Path $env:LOCALAPPDATA 'Programs\WFC'
+}
+
+# The roots of WFC 0.8.23 and earlier, which installed below C:\wfc.
+function Get-LegacyRoot([string]$Scope) {
+    if ($Scope -eq 'Machine') { return 'C:\wfc' }
+    return "C:\wfc\users\$env:USERNAME"
+}
+
+function Test-LegacyRoot([string]$Path) {
+    if (-not $Path) { return $false }
+    $full = $Path.TrimEnd('\')
+    return $full -ieq 'C:\wfc' -or $full -like 'C:\wfc\users\*'
+}
+
 function Get-LibraryVersion([string]$Path) {
     $info = (Get-Item -LiteralPath $Path).VersionInfo
     return "$($info.FileMajorPart).$($info.FileMinorPart)." +

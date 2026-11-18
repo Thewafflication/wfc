@@ -4,7 +4,8 @@
 //
 // The runtime is looked for in this order: beside the program, in
 // `%WFC_HOME%\bin`, in `%WFC_HOME%\lib\wfcrt\<version>\<arch>`, and in the
-// installation roots (`C:\wfc` for all users, `C:\wfc\users\<name>` for one).
+// installation roots (`%LOCALAPPDATA%\Programs\WFC` for one user,
+// `Program Files\WFC` for all, then `C:\wfc` of WFC 0.8.23 and earlier).
 // The library folders below `lib` of that root are added to the DLL search path
 // so wfcrt.dll finds the libraries it uses (wfcvbrun.dll and the OCX DLLs).
 
@@ -72,6 +73,17 @@ std::vector<fs::path> roots() {
         result.emplace_back(home);
         return result;
     }
+    if (const auto local = environment(L"LOCALAPPDATA"); !local.empty()) {
+        result.push_back(fs::path(local) / L"Programs" / L"WFC");
+    }
+    auto programs = environment(L"ProgramW6432");
+    if (programs.empty()) {
+        programs = environment(L"ProgramFiles");
+    }
+    if (!programs.empty()) {
+        result.push_back(fs::path(programs) / L"WFC");
+    }
+    // Where WFC 0.8.23 and earlier installed.
     const auto user = environment(L"USERNAME");
     if (!user.empty()) {
         result.push_back(fs::path(L"C:\\wfc\\users") / user);
@@ -158,12 +170,13 @@ int main(const int argument_count, const char* const arguments[]) {
     const HMODULE runtime = load_runtime(found);
     const std::string expected(wfc::version);
     if (runtime == nullptr) {
-        std::fprintf(stderr,
-                     "%s needs the WFC runtime library wfcrt.dll %s, which was "
-                     "not found beside the program, in WFC_HOME or in C:\\wfc. "
-                     "Install WFC or copy wfcrt.dll next to the program.\n",
-                     narrow(executable_path().filename().wstring()).c_str(),
-                     expected.c_str());
+        std::fprintf(
+            stderr,
+            "%s needs the WFC runtime library wfcrt.dll %s, which was "
+            "not found beside the program, in WFC_HOME or in an installation. "
+            "Install WFC or copy wfcrt.dll next to the program.\n",
+            narrow(executable_path().filename().wstring()).c_str(),
+            expected.c_str());
         return 9009;
     }
     const auto version = reinterpret_cast<VersionFunction>(

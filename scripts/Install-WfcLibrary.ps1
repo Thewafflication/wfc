@@ -7,9 +7,11 @@ wfcmswinsck) on its own, and registers it with Windows.
 The library goes to <root>\lib\<name>\<version>\<arch>, beside the other
 versions, where a dynamically linked program finds the newest one: installing a
 newer package updates the programs without touching wfc. The root is the one
-of the WFC installation (WFC_HOME, else C:\wfc for an administrator and
-C:\wfc\users\<name> otherwise). The DLL is registered with Windows
-(regsvr32): HKLM for a machine install, HKCU for a user install. install.json
+of the WFC installation (WFC_HOME, else Program Files\WFC for an
+administrator and %LOCALAPPDATA%\Programs\WFC otherwise; a WFC_HOME below
+C:\wfc, where WFC 0.8.23 and earlier installed, is not used). The DLL is
+registered with Windows (regsvr32): HKLM for a machine install, HKCU for a
+user install. install.json
 of the installation records the library and its version.
 
 .PARAMETER Source
@@ -67,15 +69,11 @@ if ($Scope -eq 'Auto') {
 if ($Scope -eq 'Machine' -and -not $administrator -and -not $FilesOnly) {
     throw 'A machine-wide install needs an administrator; use -Scope User.'
 }
-if (-not $Root) {
+if (-not $Root -and -not (Test-LegacyRoot $env:WFC_HOME)) {
     $Root = $env:WFC_HOME
 }
 if (-not $Root) {
-    $Root = if ($Scope -eq 'Machine') {
-        'C:\wfc'
-    } else {
-        "C:\wfc\users\$env:USERNAME"
-    }
+    $Root = Get-DefaultRoot $Scope
 }
 
 $architectures = @(

@@ -127,8 +127,9 @@ runtime binary, export layout, compiler helpers, and language services.
 
 `wpm install wfc` runs the install script (`scripts/Install-Wfc.ps1`, also in
 the package as `Install-Wfc.ps1`). Run as an administrator it installs for every
-user into `C:\wfc`; run without administrator rights it installs for the current
-user into `C:\wfc\users\<name>`. Either way it:
+user into `Program Files\WFC`; run without administrator rights it installs for
+the current user into `%LOCALAPPDATA%\Programs\WFC`. An installation of WFC
+0.8.23 or earlier (below `C:\wfc`) is removed first. Either way it:
 
 - puts `bin` on the PATH and sets `WFC_HOME`;
 - keeps each library in its own versioned folder,

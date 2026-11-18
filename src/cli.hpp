@@ -39,7 +39,8 @@ struct LibraryInfo {
 // carrying it inside itself.
 [[nodiscard]] bool library_is_loaded(const char* file);
 
-// The folder wfc is installed in (WFC_HOME, C:\wfc\users\<name> or C:\wfc), or
+// The folder wfc is installed in (WFC_HOME, Programs\WFC of the user,
+// Program Files\WFC, or C:\wfc of WFC 0.8.23 and earlier), or
 // empty when none of them holds an installation.
 [[nodiscard]] std::string install_root();
 
