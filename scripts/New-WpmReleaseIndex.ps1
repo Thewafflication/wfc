@@ -65,8 +65,11 @@ $index = Join-Path $Directory 'index.json'
 [ordered]@{ version = 1; packages = @($packages) } |
     ConvertTo-Json -Depth 4 | Set-Content $index -Encoding utf8NoBOM
 $files = @($archives.FullName) + $index
-Get-FileHash -LiteralPath $files -Algorithm SHA256 |
+$lines = Get-FileHash -LiteralPath $files -Algorithm SHA256 |
     ForEach-Object {
         $name = Split-Path $_.Path -Leaf
         '{0}  {1}' -f $_.Hash.ToLowerInvariant(), $name
-    } | Set-Content (Join-Path $Directory 'SHA256SUMS') -Encoding ascii
+    }
+# LF line ends, so sha256sum -c reads the file on any system.
+[IO.File]::WriteAllText((Join-Path $Directory 'SHA256SUMS'),
+    (($lines -join "`n") + "`n"), [Text.Encoding]::ASCII)
