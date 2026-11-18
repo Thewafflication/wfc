@@ -337,8 +337,9 @@ jobs:
       - name: Install Wine development packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            wine64-tools libwine-dev wine64 cmake ninja-build
+          sudo apt-get install -y \
+            wine64-tools libwine-dev wine64 g++ cmake ninja-build
+          command -v wineg++
 
       - name: Configure
         run: >
