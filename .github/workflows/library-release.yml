@@ -1,0 +1,202 @@
+name: Library release
+
+# The release workflow every WFC library repository calls (wfc-vbrun,
+# wfc-mscomctl, wfc-mscomctl2, wfc-comdlg32, wfc-mswinsck), so they all build
+# the same way: on a version tag (the version in VERSION) the Release DLL for
+# x86, x64 and arm64 with its tests, then wfc-<library>-any-<version>.zip
+# packed by scripts/Build-WfcLibraryPackage.ps1 and signed with the WFC
+# release key (the caller's WPM_RELEASE_PRIVATE_KEY secret), its index.json
+# and SHA256SUMS, and a clean runner that verifies them. Publishing the
+# release from the artifact is a separate step. With dry_run the package is
+# unsigned and not verified.
+#
+# A library repository's .github/workflows/release.yml:
+#
+#   on:
+#     push: { tags: ["*"] }
+#     workflow_dispatch:
+#       inputs: { dry_run: { type: boolean, default: true } }
+#   jobs:
+#     release:
+#       uses: Thewafflication/wfc/.github/workflows/library-release.yml@master
+#       with: { library: vbrun, dry_run: "${{ inputs.dry_run == true }}" }
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      library:
+        description: vbrun, mscomctl, mscomctl2, comdlg32 or mswinsck
+        type: string
+        required: true
+      dry_run:
+        description: Build an unsigned package without the release key
+        type: boolean
+        default: false
+    secrets:
+      WPM_RELEASE_PRIVATE_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Release ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: x86, platform: Win32, runner: windows-2022 }
+          - { arch: x64, platform: x64, runner: windows-2022 }
+          - { arch: arm64, platform: ARM64, runner: windows-11-arm }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Check the tag against VERSION
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -TotalCount 1).Trim()
+          if ($version -ne '${{ github.ref_name }}') {
+            throw "Tag ${{ github.ref_name }} is not VERSION $version."
+          }
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $shared = 'WFC_${{ inputs.library }}_SHARED'.ToUpperInvariant()
+          cmake -S . -B out/build -A ${{ matrix.platform }} "-D$shared=ON"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build out/build --config Release
+
+      - name: Test
+        shell: pwsh
+        run: ctest --test-dir out/build -C Release --output-on-failure
+
+      - name: Collect the DLL
+        shell: pwsh
+        run: |
+          $name = 'wfc${{ inputs.library }}.dll'
+          $dll = Get-ChildItem out/build -Recurse -Filter $name |
+            Where-Object FullName -Match 'Release' | Select-Object -First 1
+          if (-not $dll) { throw "No Release $name." }
+          New-Item -ItemType Directory -Force out/package-input | Out-Null
+          Copy-Item $dll.FullName out/package-input/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dll-${{ matrix.arch }}
+          path: out/package-input/wfc${{ inputs.library }}.dll
+          if-no-files-found: error
+          retention-days: 14
+
+  package:
+    name: Signed WPM package
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: library
+
+      - name: Check out the WFC scripts
+        uses: actions/checkout@v4
+        with:
+          repository: Thewafflication/wfc
+          path: wfc
+          sparse-checkout: |
+            scripts
+            release_keys
+            LICENSE
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dll-*
+          path: out/download
+
+      - name: Arrange the DLLs
+        shell: pwsh
+        run: |
+          foreach ($arch in 'x86', 'x64', 'arm64') {
+            $target = "out/package-input/$arch"
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item "out/download/dll-$arch/*.dll" $target
+          }
+
+      - name: Install WPM
+        shell: pwsh
+        run: ./wfc/scripts/Install-Wpm.ps1
+
+      - name: Build the package
+        shell: pwsh
+        env:
+          WPM_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          $sign = @{}
+          $keyPath = Join-Path $env:RUNNER_TEMP 'wfc-release.private'
+          if ($env:DRY_RUN -ne 'true') {
+            if ([string]::IsNullOrWhiteSpace($env:WPM_PRIVATE_KEY)) {
+              throw 'The repository must define WPM_RELEASE_PRIVATE_KEY.'
+            }
+            [IO.File]::WriteAllText($keyPath, $env:WPM_PRIVATE_KEY)
+            $sign = @{ SigningKey = $keyPath }
+          }
+          try {
+            ./wfc/scripts/Build-WfcLibraryPackage.ps1 `
+              -Library '${{ inputs.library }}' -LibraryRoot library @sign
+          } finally {
+            Remove-Item $keyPath -Force -ErrorAction SilentlyContinue
+          }
+          $version = (Get-Content library/VERSION -TotalCount 1).Trim()
+          ./wfc/scripts/New-WpmReleaseIndex.ps1 -Directory out/packages `
+            -Tag $version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wfc-${{ inputs.library }}-wpm-packages-${{ github.sha }}
+          path: out/packages/*
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    name: Verify the signed package
+    if: ${{ !inputs.dry_run }}
+    needs: package
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Check out the WFC scripts
+        uses: actions/checkout@v4
+        with:
+          repository: Thewafflication/wfc
+          path: wfc
+          sparse-checkout: |
+            scripts
+            release_keys
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: wfc-${{ inputs.library }}-wpm-packages-${{ github.sha }}
+          path: out/packages
+
+      - name: Install WPM
+        shell: pwsh
+        run: ./wfc/scripts/Install-Wpm.ps1
+
+      - name: Verify the checksums, the index and the signature
+        shell: pwsh
+        run: >
+          ./wfc/scripts/Test-WpmRelease.ps1 -Directory out/packages -Count 1
+          -PublicKey wfc/release_keys/wfc-release.public

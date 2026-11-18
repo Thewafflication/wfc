@@ -16,12 +16,18 @@ The release tag the packages are published under.
 
 .PARAMETER Repository
 The repository address; GITHUB_SERVER_URL/GITHUB_REPOSITORY by default.
+
+.PARAMETER Include
+index.json files of other releases whose packages this release depends on
+(the libraries of WFC, WFC for the games): their entries are added after
+this release's own, so one index resolves the whole dependency graph.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Directory,
     [Parameter(Mandatory)][string]$Tag,
-    [string]$Repository = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+    [string]$Repository = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY",
+    [string[]]$Include = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,6 +47,18 @@ $packages = foreach ($archive in $archives) {
         version = $Matches.version
         arch = $Matches.arch
         url = "$base/$($archive.Name)"
+    }
+}
+$packages = @($packages)
+foreach ($path in $Include) {
+    $other = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    foreach ($entry in @($other.packages)) {
+        $packages += [ordered]@{
+            name = $entry.name
+            version = $entry.version
+            arch = $entry.arch
+            url = $entry.url
+        }
     }
 }
 $index = Join-Path $Directory 'index.json'

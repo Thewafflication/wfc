@@ -66,20 +66,24 @@ foreach ($name in $expected) {
 # --- index ---------------------------------------------------------------
 $index = Get-Content -LiteralPath (Join-Path $Directory 'index.json') -Raw |
     ConvertFrom-Json
+# The packages of this release, then those of the releases it depends on
+# (other repositories), which only need an address.
 $entries = @($index.packages)
-if ($entries.Count -ne $Count) {
-    throw "index.json names $($entries.Count) packages, expected $Count."
+$own = @($entries | Where-Object {
+        $packages.Name -contains "$($_.name)-$($_.arch)-$($_.version).zip"
+    })
+if ($own.Count -ne $Count) {
+    throw "index.json names $($own.Count) of the packages, expected $Count."
 }
 foreach ($entry in $entries) {
     $file = "$($entry.name)-$($entry.arch)-$($entry.version).zip"
-    if ($packages.Name -notcontains $file) {
-        throw "index.json names $file, which is not in the folder."
-    }
-    if (-not $entry.url.EndsWith("/$file")) {
+    if (-not $entry.url.StartsWith('https://') -or
+        -not $entry.url.EndsWith("/$file")) {
         throw "index.json gives $file the address $($entry.url)."
     }
 }
-Write-Output "index ok     $($entries.Count) packages"
+Write-Output ("index ok     $($own.Count) packages, " +
+    "$($entries.Count - $own.Count) from other releases")
 
 # --- signatures ----------------------------------------------------------
 & $Wpm trust add $PublicKey

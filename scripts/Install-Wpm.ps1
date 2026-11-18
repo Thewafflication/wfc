@@ -15,9 +15,9 @@ SHA-256 digest of the archive.
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '1.0.16',
-    [string]$Sha256 = ('6553898f4e0bfbf171f601c16d314259' +
-        'fd28f59e7398d58a0549208b011c6544')
+    [string]$Version = '1.5.1',
+    [string]$Sha256 = ('a701899e42561bdb659e4a8a4881b2d4' +
+        'e5dd220133a443ae0e14c194b60f915d')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,7 +37,7 @@ if ($actual -ne $Sha256) {
 $package = Join-Path $temp 'wpm-package'
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 Expand-Archive -LiteralPath $archive -DestinationPath $package
-& (Join-Path $package 'setup.cmd') (Join-Path $package 'wpm.exe')
+& (Join-Path $package 'setup.cmd') --machine (Join-Path $package 'wpm.exe')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $wpmDirectory = Join-Path $env:ProgramFiles 'WPM'
 $wpmExe = Join-Path $wpmDirectory 'wpm.exe'

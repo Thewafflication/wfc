@@ -460,15 +460,36 @@ jobs:
             Remove-Item $keyPath -Force -ErrorAction SilentlyContinue
           }
 
+      # The wfc packages depend on the library packages at the versions of
+      # lib/*/VERSION; their releases must exist first, and their entries go
+      # into this release's index so it resolves the dependencies.
+      - name: Download the library indexes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          foreach ($library in 'vbrun', 'mscomctl', 'mscomctl2', 'comdlg32',
+              'mswinsck') {
+            $version = (Get-Content "lib/wfc-$library/VERSION" `
+                -TotalCount 1).Trim()
+            gh release download $version --repo "Thewafflication/wfc-$library" `
+              --pattern index.json --dir "out/library-index/$library"
+            if ($LASTEXITCODE -ne 0) {
+              throw "No release $version of wfc-$library."
+            }
+          }
+
       - name: Generate WPM release index and checksums
         shell: pwsh
         env:
           RELEASE_TAG: >-
             ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name ||
             inputs.package_version }}
-        run: >
-          ./scripts/New-WpmReleaseIndex.ps1 -Directory out/packages
-          -Tag $env:RELEASE_TAG
+        run: |
+          $include = @(Get-ChildItem out/library-index -Recurse `
+              -Filter index.json).FullName
+          ./scripts/New-WpmReleaseIndex.ps1 -Directory out/packages `
+            -Tag $env:RELEASE_TAG -Include $include
 
       - name: Upload the signed packages
         uses: actions/upload-artifact@v7

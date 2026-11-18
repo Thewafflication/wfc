@@ -11,16 +11,21 @@ Two stages (see planning/MP-0008-release-plan.md):
 
   (default)  Assembles from out/package-input:
                wfc-<arch>-<version>.zip    for each of -Architectures (x86,
-                                           x64, arm64): the tool in an <arch>
-                                           folder, LICENSE, README.MD, the
-                                           install scripts
+                                           x64, arm64): wfc.exe, wfcl.exe,
+                                           wfcw2k.exe and wfcrt.dll in an
+                                           <arch> folder, LICENSE, README.MD,
+                                           the install scripts; it depends on
+                                           the library packages (wfc-vbrun,
+                                           wfc-mscomctl, wfc-mscomctl2,
+                                           wfc-comdlg32, wfc-mswinsck) at the
+                                           versions in lib/*/VERSION
                wfc-linux-any-<version>.zip for -LinuxArchitectures, from
                                            out/package-input/linux-<arch>
                                            (the Winelib build: wfc.exe.so and
                                            its launcher), LICENSE, README.MD
 
-The corpus games (wfc-games) and the wfc-vbrun library are packaged and
-released by their own repositories, vb6games and wfc-vbrun.
+The corpus games and the libraries are packaged and released by their own
+repositories (vb6games, wfc-vbrun, wfc-mscomctl, ...).
 
 Nothing is signed unless -SigningKey is given (CI passes the key from the
 protected release environment), and nothing is published.
@@ -74,6 +79,10 @@ $toolFiles = @(
     'wfcmscomctl.dll', 'wfcmscomctl2.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll'
 )
 
+# What a wfc package carries; the library DLLs come in their own packages.
+$packageFiles = @('wfc.exe', 'wfcl.exe', 'wfcw2k.exe', 'wfcrt.dll')
+$libraries = 'vbrun', 'mscomctl', 'mscomctl2', 'comdlg32', 'mswinsck'
+
 function Get-InputDirectory([string]$Architecture) {
     return Join-Path $root "$InputRoot/$Architecture"
 }
@@ -95,7 +104,8 @@ function Invoke-Collect([string]$Architecture) {
 
 function Write-PackageInfo([string]$Directory, [string]$Name,
                            [string]$Description, [string]$Revision,
-                           [string]$Architecture = 'any') {
+                           [string]$Architecture = 'any',
+                           [string[]]$Depends = @()) {
     New-Item -ItemType Directory -Force `
         -Path (Join-Path $Directory '.wpm') | Out-Null
     @(
@@ -110,6 +120,7 @@ function Write-PackageInfo([string]$Directory, [string]$Name,
         'license=GPL-3.0-or-later'
         "source-version=$Version"
         "source-revision=$Revision"
+        foreach ($dependency in $Depends) { "depends=$dependency" }
     ) | Set-Content (Join-Path $Directory '.wpm/package.txt') -Encoding ascii
 }
 
@@ -142,6 +153,13 @@ try {
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $staging, $packages | Out-Null
 
+    # Each library at the version this source carries (its submodule).
+    $depends = foreach ($library in $libraries) {
+        $libraryVersion = (Get-Content "lib/wfc-$library/VERSION" `
+                -TotalCount 1).Trim()
+        "wfc-$library>=$libraryVersion"
+    }
+
     # --- wfc, one package per Windows architecture ----------------------
     foreach ($architecture in $Architectures) {
         $collected = Get-InputDirectory $architecture
@@ -151,7 +169,7 @@ try {
         $tool = Join-Path $staging "wfc-$architecture"
         $target = Join-Path $tool $architecture
         New-Item -ItemType Directory -Force -Path $target | Out-Null
-        foreach ($name in $toolFiles) {
+        foreach ($name in $packageFiles) {
             if (Test-Path (Join-Path $collected $name)) {
                 Copy-Item (Join-Path $collected $name) $target
             }
@@ -182,7 +200,7 @@ try {
         Copy-Item planning/compatibility-profile-1.0.md $tool
         Write-PackageInfo $tool 'wfc' `
             "Waughtal Form Compiler: a VB6 interpreter ($architecture)" `
-            $revision $architecture
+            $revision $architecture $depends
         Build-Package $tool 'wfc' $packages $architecture
     }
 

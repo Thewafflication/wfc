@@ -315,6 +315,25 @@ if (-not $FilesOnly) {
     }
 }
 
+# Keep what other packages recorded: the library packages WPM installs before
+# wfc (its dependencies) and the wfc package of another architecture.
+$recordPath = Join-Path $Root 'install.json'
+if (Test-Path -LiteralPath $recordPath) {
+    $earlier = Get-Content -Raw -LiteralPath $recordPath | ConvertFrom-Json
+    $recorded = $earlier.PSObject.Properties['libraries']
+    if ($recorded -and $recorded.Value) {
+        foreach ($property in $recorded.Value.PSObject.Properties) {
+            if (-not $libraries.Contains($property.Name)) {
+                $libraries[$property.Name] = $property.Value
+            }
+        }
+    }
+    $recorded = $earlier.PSObject.Properties['architectures']
+    if ($recorded) {
+        $architectures = @(@($architectures) + @($recorded.Value) |
+                Where-Object { $_ } | Select-Object -Unique)
+    }
+}
 $record = [ordered]@{
     version = $version
     scope = $Scope
