@@ -915,6 +915,9 @@ private:
                                             const std::size_t offset);
 
     [[nodiscard]] static std::string vb_error_description(const Integer number);
+    // The message that Error(n) and Err.Raise n give: that of the runtime.
+    [[nodiscard]] static std::string runtime_error_message(
+        const Integer number);
 
     // The VB error number a failed statement's diagnostic stands for, or 0
     // when it is not a catchable runtime error (a syntax/semantic error).

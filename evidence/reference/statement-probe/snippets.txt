@@ -7089,3 +7089,192 @@ SayV ChrW(19968) Like "?"
 SayV ChrW(19968) Like "[" & ChrW(19967) & "-" & ChrW(19969) & "]"
 SayV ChrW(8364) Like "[" & Chr(128) & "]"
 SayV "a" & ChrW(19968) Like "a*"
+# --- Error messages ---
+@@ error messages 1 to 50
+Dim n As Long
+Dim m As String
+For n = 1 To 50
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 51 to 100
+Dim n As Long
+Dim m As String
+For n = 51 To 100
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 101 to 150
+Dim n As Long
+Dim m As String
+For n = 101 To 150
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 151 to 200
+Dim n As Long
+Dim m As String
+For n = 151 To 200
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 201 to 250
+Dim n As Long
+Dim m As String
+For n = 201 To 250
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 251 to 300
+Dim n As Long
+Dim m As String
+For n = 251 To 300
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 301 to 350
+Dim n As Long
+Dim m As String
+For n = 301 To 350
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 351 to 400
+Dim n As Long
+Dim m As String
+For n = 351 To 400
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 401 to 450
+Dim n As Long
+Dim m As String
+For n = 401 To 450
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 451 to 500
+Dim n As Long
+Dim m As String
+For n = 451 To 500
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 501 to 550
+Dim n As Long
+Dim m As String
+For n = 501 To 550
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 551 to 600
+Dim n As Long
+Dim m As String
+For n = 551 To 600
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 601 to 650
+Dim n As Long
+Dim m As String
+For n = 601 To 650
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 651 to 700
+Dim n As Long
+Dim m As String
+For n = 651 To 700
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 701 to 750
+Dim n As Long
+Dim m As String
+For n = 701 To 750
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 751 to 800
+Dim n As Long
+Dim m As String
+For n = 751 To 800
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 801 to 850
+Dim n As Long
+Dim m As String
+For n = 801 To 850
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 851 to 900
+Dim n As Long
+Dim m As String
+For n = 851 To 900
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 901 to 950
+Dim n As Long
+Dim m As String
+For n = 901 To 950
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 951 to 1000
+Dim n As Long
+Dim m As String
+For n = 951 To 1000
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 1001 to 1050
+Dim n As Long
+Dim m As String
+For n = 1001 To 1050
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages 1051 to 1100
+Dim n As Long
+Dim m As String
+For n = 1051 To 1100
+    m = Error(n)
+    If m <> "Application-defined or object-defined error" Then Say n & "=" & m
+Next n
+@@ error messages other forms
+SayV Error(0) & "."
+SayV Error()
+Err.Number = 11
+SayV Error
+SayV Error$(5)
+SayV TypeName(Error(5))
+SayV Error(65535)
+SayV Error(31001)
+SayV Error(31004)
+SayV Error(32755)
+SayV Error(-2147024809)
+@@ error message negative
+SayV Error(-1)
+@@ error message too big
+SayV Error(65536)
+@@ error raise descriptions
+Dim n As Variant
+On Error Resume Next
+For Each n In Array(3, 5, 6, 7, 9, 11, 13, 28, 35, 48, 49, 51, 52, 53, 54, 55, 57, 58, 61, 62, 63, 67, 68, 70, 71, 74, 75, 76, 91, 92, 93, 94, 97, 98, 298, 321, 380, 381, 422, 423, 424, 429, 430, 432, 438, 440, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454, 455, 457, 458, 459, 460, 461, 735, 744, 746, 1000, 31001, 31004, 31018, 31027, 31032, 31036, 31037)
+    Err.Clear
+    Err.Raise n
+    Say n & "=" & Err.Description & "|" & Err.Source
+Next n
+@@ error raise vb object error
+On Error Resume Next
+Err.Raise vbObjectError + 1
+Say CStr(Err.Number) & "=" & Err.Description
+Err.Raise vbObjectError + 513, "Src", "Mine"
+Say CStr(Err.Number) & "=" & Err.Description & "|" & Err.Source
+Err.Raise 70000
+Say CStr(Err.Number) & "=" & Err.Description
+Err.Raise -5
+Say CStr(Err.Number) & "=" & Err.Description

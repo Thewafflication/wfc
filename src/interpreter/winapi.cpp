@@ -338,6 +338,31 @@ std::optional<Value> Interpreter::emulate_win32_call(
     return std::nullopt;
 }
 
+std::string system_error_text(const std::uint32_t code) {
+    wchar_t* buffer = nullptr;
+    const DWORD length = FormatMessageW(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+            FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<wchar_t*>(&buffer), 0, nullptr);
+    if (length == 0 || buffer == nullptr) {
+        return {};
+    }
+    std::u16string units(reinterpret_cast<const char16_t*>(buffer), length);
+    LocalFree(buffer);
+    // The line break that ends the text becomes a blank, as Visual Basic
+    // shows it ("Invalid advise flags ").
+    bool ended = false;
+    while (!units.empty() && (units.back() == u'\r' || units.back() == u'\n')) {
+        units.pop_back();
+        ended = true;
+    }
+    if (ended) {
+        units.push_back(u' ');
+    }
+    return from_utf16_units(units);
+}
+
 unsigned ansi_best_fit(const std::uint32_t code) noexcept {
     if (code > 0xFFFFU) {
         return 0U;

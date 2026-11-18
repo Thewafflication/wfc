@@ -676,9 +676,16 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
                 } else if (!kept_description.empty()) {
                     err_description_ = kept_description;
                 } else if (raised < 0) {
+                    // The text Windows has for the code follows on a line of
+                    // its own (measured: vbObjectError + 1).
                     err_description_ = "Automation error";
+                    const std::string system_text =
+                        system_error_text(static_cast<std::uint32_t>(raised));
+                    if (!system_text.empty()) {
+                        err_description_ += "\n" + system_text;
+                    }
                 } else {
-                    err_description_ = vb_error_description(raised);
+                    err_description_ = runtime_error_message(raised);
                 }
                 set_error("WFC0300", err_description_, statement_offset);
                 return false;

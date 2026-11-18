@@ -2228,8 +2228,10 @@ std::optional<Value> Interpreter::parse_function_call_impl(
         if (!execute_) {
             return Value{std::string{}};
         }
+        // Without an argument: the message of the current error.
         if (arguments.empty()) {
-            return Value{std::string{}};
+            return Value{err_number_ == 0 ? std::string{}
+                                          : runtime_error_message(err_number_)};
         }
         const auto* number = std::get_if<Integer>(&arguments[0]);
         if (number == nullptr) {
@@ -2237,12 +2239,17 @@ std::optional<Value> Interpreter::parse_function_call_impl(
                       identifier_offset);
             return std::nullopt;
         }
-        if (*number < 0 || *number > 65535) {
-            set_error("WFC0101", "Error number is outside the valid range",
-                      identifier_offset);
+        // Measured: a negative number has the general message; one above
+        // 65535 does not fit the argument (overflow).
+        if (*number > 65535) {
+            static_cast<void>(raise_runtime(6, "Overflow", identifier_offset));
             return std::nullopt;
         }
-        return Value{vb_error_description(*number)};
+        if (*number < 0) {
+            return Value{
+                std::string{"Application-defined or object-defined error"}};
+        }
+        return Value{runtime_error_message(*number)};
     }
 
     if (is_cvar) {

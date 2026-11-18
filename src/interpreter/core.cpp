@@ -896,6 +896,23 @@ bool Interpreter::resolve_default_value(Value& value,
     return true;
 }
 
+std::string Interpreter::runtime_error_message(const Integer number) {
+    // Measured (statement probe, "error messages ..."): the messages of the
+    // Printer and Clipboard objects and of the common dialog are not in the
+    // runtime, so Error(n) and Err.Raise n give the general one for them.
+    switch (number) {
+        case 483:
+        case 485:
+        case 486:
+        case 520:
+        case 521:
+        case 31001:
+            return "Application-defined or object-defined error";
+        default:
+            return vb_error_description(number);
+    }
+}
+
 std::string Interpreter::vb_error_description(const Integer number) {
     switch (number) {
         case 0:
@@ -985,7 +1002,7 @@ std::string Interpreter::vb_error_description(const Integer number) {
                    "already firing events to the maximum number of event "
                    "receivers that it supports";
         case 97:
-            return "Can't call Friend procedure on an object that is not an "
+            return "Can not call friend function on object which is not an "
                    "instance of defining class";
         case 98:
             return "A property or method call cannot include a reference to a "

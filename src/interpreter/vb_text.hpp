@@ -275,6 +275,10 @@ inline void fit_to_units(std::string& text, const std::size_t units) {
 // or 0 when Windows has no character for it either. Defined in winapi.cpp.
 [[nodiscard]] unsigned ansi_best_fit(std::uint32_t code) noexcept;
 
+// The text Windows has for an HRESULT or a system error code, its final
+// line break written as a blank, or empty. Defined in winapi.cpp.
+[[nodiscard]] std::string system_error_text(std::uint32_t code);
+
 [[nodiscard]] inline unsigned unicode_to_ansi(
     const std::uint32_t code) noexcept {
     if (code < 0x80U || (code >= 0xA0U && code <= 0xFFU)) {

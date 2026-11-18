@@ -2956,8 +2956,9 @@ int main() {
     expect_program_failure("Print IsMissing()", "WFC0072");
     expect_program_failure("Print IsMissing(1, 2)", "WFC0072");
     expect_program_failure("Print Error(1.5)", "WFC0073");
-    expect_program_failure("Print Error(-1)", "WFC0101");
-    expect_program_failure("Print Error(65536)", "WFC0101");
+    expect_success("Print Error(-1)",
+                   "Application-defined or object-defined error");
+    expect_program_failure("Print Error(65536)", "WFC0300");
     expect_program_failure("Print Error(1, 2)", "WFC0072");
     expect_program_failure("Print CInt(32768)", "WFC0009");
     expect_program_failure("Print CInt(-32769)", "WFC0009");

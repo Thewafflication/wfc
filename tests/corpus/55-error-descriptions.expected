@@ -72,14 +72,14 @@
 463: Class not registered on local machine
 481: Invalid picture
 482: Printer error
-483: Printer driver does not support specified property
+483: Application-defined or object-defined error
 484: Application-defined or object-defined error
-485: Invalid picture type
-486: Can't print form image to this type of printer
-520: Can't empty Clipboard
-521: Can't open Clipboard
+485: Application-defined or object-defined error
+486: Application-defined or object-defined error
+520: Application-defined or object-defined error
+521: Application-defined or object-defined error
 735: Can't save file to TEMP
 744: Search text not found
 746: Replacements too long
-31001: Out of memory
+31001: Application-defined or object-defined error
 32811: Application-defined or object-defined error

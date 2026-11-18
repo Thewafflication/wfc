@@ -6,7 +6,7 @@ Small programs were run under Visual Basic 6: each snippet of `snippets.txt`
 is the body of a procedure that reports through `Say` and `SayV` (the type
 and value of a Variant), and the probe records what it said, or the error that
 stopped it (`|err<number>:<description>`; `|propagated...` when an error
-leaves the procedure unhandled). The answers are in `vb6-reference.txt` (1,047
+leaves the procedure unhandled). The answers are in `vb6-reference.txt` (1,074
 lines); the rules that came out of them are REQ-0320.
 
 `scripts/New-StatementProbe.ps1` writes the project into this folder from
