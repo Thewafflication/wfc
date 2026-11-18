@@ -1,5 +1,6 @@
 ' An error in the header of a block (a condition, a bound) is trapped like one
-' in any other statement: with Resume Next the block is skipped.
+' in any other statement. With Resume Next an If goes on in its Then part and
+' a Select Case runs its Case Else (measured under VB6).
 Sub Main()
     Dim n As Long, i As Long
     On Error Resume Next

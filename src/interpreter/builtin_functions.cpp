@@ -689,7 +689,8 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     } else if (is_choose) {
         valid_arity = arguments.size() >= 2U;
     } else if (is_switch) {
-        valid_arity = arguments.size() >= 2U && arguments.size() % 2U == 0U;
+        // An odd count is a runtime error 5 (measured), checked below.
+        valid_arity = !arguments.empty();
     } else if (is_left || is_right || is_string || is_strconv) {
         valid_arity = arguments.size() == 2U;
     } else {
@@ -2104,8 +2105,17 @@ std::optional<Value> Interpreter::parse_function_call_impl(
     }
 
     if (is_switch) {
-        for (std::size_t pair = 0U; pair < arguments.size(); pair += 2U) {
+        if (execute_ && arguments.size() % 2U != 0U) {
+            static_cast<void>(raise_runtime(
+                5, "Invalid procedure call or argument", identifier_offset));
+            return std::nullopt;
+        }
+        for (std::size_t pair = 0U; pair + 1U < arguments.size(); pair += 2U) {
             if (!execute_) {
+                continue;
+            }
+            // Measured: a Null condition does not match.
+            if (std::holds_alternative<Null>(arguments[pair])) {
                 continue;
             }
             const auto condition = coerce_condition_boolean(
@@ -2119,7 +2129,7 @@ std::optional<Value> Interpreter::parse_function_call_impl(
             }
         }
         if (!execute_) {
-            return arguments[1];
+            return arguments.size() > 1U ? arguments[1] : Value{Null{}};
         }
         return Value{Null{}};  // VB: no expression matched
     }

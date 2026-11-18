@@ -783,14 +783,16 @@ int main() {
         "3\n"
         "For Each x In arr\nIf x = 2 Then\nExit For\nEnd If\nNext\nPrint x",
         "2");
-    expect_program_success(
+    // Measured under VB6: For Each over a dynamic array that has no
+    // elements yet is error 92, over a number error 13.
+    expect_program_failure(
         "Dim x As Long\nDim arr() As Long\nDim n As Long\n"
         "For Each x In arr\nn = n + 1\nNext\nPrint n",
-        "0");
+        "WFC0300");
     expect_program_success(
         "Dim x As String\nDim arr(2) As Long\nFor Each x In arr\nPrint x\nNext",
         "0\n0\n0");
-    expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0147");
+    expect_program_failure("Dim x As Long\nFor Each x In 5\nNext", "WFC0300");
     expect_program_failure("Dim x As Long\nFor Each x 5\nNext", "WFC0147");
     // Multi-dimensional (fixed-size only) arrays: Dim arr(b1, b2, ...),
     // indexed read/write, LBound/UBound with a dimension argument,
@@ -2011,11 +2013,18 @@ int main() {
         "Sub Fill()\nStatic grid(1, 1) As Long\ngrid(0, 0) = grid(0, 0) + 1\n"
         "Print grid(0, 0)\nEnd Sub\nCall Fill()\nCall Fill()",
         "1\n2");
-    expect_program_failure(
-        "Sub Bad()\nStatic arr() As Long\nEnd Sub\nCall Bad()", "WFC0149");
-    expect_program_failure(
-        "Sub Bad2()\nStatic arr(2) As Variant\nEnd Sub\nCall Bad2()",
-        "WFC0149");
+    // Measured under VB6: `Static arr()` is a dynamic array that keeps its
+    // ReDim between calls, and a Static array may hold Variants.
+    expect_program_success(
+        "Sub Grow()\nStatic arr() As Long\nStatic n As Long\n"
+        "n = n + 1\nReDim Preserve arr(n)\nPrint UBound(arr)\nEnd Sub\n"
+        "Call Grow()\nCall Grow()",
+        "1\n2");
+    expect_program_success(
+        "Sub Keep()\nStatic arr(2) As Variant\n"
+        "arr(1) = arr(1) & \"x\"\nPrint arr(1)\nEnd Sub\n"
+        "Call Keep()\nCall Keep()",
+        "x\nxx");
     expect_classes_success(
         {{"Foo",
           "Dim secret As Long\n\n"

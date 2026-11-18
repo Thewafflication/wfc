@@ -939,6 +939,10 @@ private:
     // After a statement sequence failed with a pending jump, transfers
     // control to the jump target. Returns false when no jump is pending.
     [[nodiscard]] bool take_pending_jump();
+    // Runs the GoSub routine at `target` until its Return, then goes on
+    // at the statement after the GoSub (the current offset), whatever
+    // block the GoSub stands in.
+    [[nodiscard]] bool run_gosub(std::size_t target);
 
     // Offset of the `label:` line inside the current procedure (or the
     // whole program at module level), or npos.
@@ -2500,6 +2504,9 @@ private:
     std::size_t max_procedure_depth_{
         64U};  // raised when running on a large stack
     bool exit_sub_requested_{};
+    // Set by Return: the running GoSub routine ends (blocks unwind as for
+    // Exit Sub, which is also set until run_gosub takes it back).
+    bool gosub_return_requested_{};
     bool exit_function_requested_{};
     // Rnd/Randomize generator state. 327680 is the verified default seed of
     // the reference VB6 6.00.8176 runtime's Rnd generator (confirmed against

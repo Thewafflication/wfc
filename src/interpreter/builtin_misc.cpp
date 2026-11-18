@@ -706,17 +706,34 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         switch (*op) {
             case 1:
                 return Value{static_cast<Integer>(store.keys.size())};
-            case 2: {
+            case 2:
+            case 14: {
                 if (arguments.size() < 3U) {
                     return bad_type();
                 }
                 if (store.dirty) {
                     reindex();
                 }
-                const auto found = store.index.find(canonical(arguments[2]));
-                return Value{found == store.index.end()
-                                 ? Integer{0}
-                                 : static_cast<Integer>(found->second + 1U)};
+                const std::string wanted = canonical(arguments[2]);
+                const auto found = store.index.find(wanted);
+                if (found != store.index.end()) {
+                    return Value{static_cast<Integer>(found->second + 1U)};
+                }
+                // 14 is the Dictionary's lookup: there an Empty key is the
+                // same key as "" and as 0 (measured), so each finds the
+                // other.
+                if (*op == 14 &&
+                    (wanted == "e" || wanted == "s" || wanted == "n0")) {
+                    for (std::size_t i = 0; i < store.keys.size(); ++i) {
+                        const std::string have = canonical(store.keys[i]);
+                        if (wanted == "e"
+                                ? have == "s" || have == "n0" || have == "e"
+                                : have == "e") {
+                            return Value{static_cast<Integer>(i + 1U)};
+                        }
+                    }
+                }
+                return Value{Integer{0}};
             }
             case 3: {
                 if (arguments.size() < 5U) {

@@ -128,7 +128,7 @@ Public Property Get Count() As Long
 Count = WfcStore(1, Me)
 End Property
 Private Function IndexOf(Key As Variant) As Long
-IndexOf = WfcStore(2, Me, Key)
+IndexOf = WfcStore(14, Me, Key)
 End Function
 Public Function HashVal(Key As Variant) As Long
 Dim s As String

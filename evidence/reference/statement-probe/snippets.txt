@@ -7278,3 +7278,675 @@ Err.Raise 70000
 Say CStr(Err.Number) & "=" & Err.Description
 Err.Raise -5
 Say CStr(Err.Number) & "=" & Err.Description
+@@ flow static local
+Say CStr(FqCount()) & CStr(FqCount()) & CStr(FqCount())
+@@ flow static function
+Say CStr(FqAll()) & CStr(FqAll())
+@@ flow static array
+Say FqStaticArray() & FqStaticArray() & FqStaticArray()
+@@ flow static object
+Say FqStaticObj() & FqStaticObj()
+@@ flow if null
+If Null Then Say "t" Else Say "f"
+@@ flow if not null
+If Not Null Then Say "t" Else Say "f"
+@@ flow if null and or
+Dim v As Variant
+v = Null
+If v And True Then Say "t" Else Say "f"
+If v Or True Then Say "t2" Else Say "f2"
+If v Or False Then Say "t3" Else Say "f3"
+@@ flow do while null
+Dim v As Variant
+v = Null
+Do While v
+    Say "in"
+    Exit Do
+Loop
+Say "out"
+@@ flow do until null
+Dim v As Variant
+v = Null
+Do Until v
+    Say "in"
+    Exit Do
+Loop
+Say "out"
+@@ flow loop while null
+Dim v As Variant, n As Long
+v = Null
+Do
+    n = n + 1
+    If n > 2 Then Exit Do
+Loop While v
+Say CStr(n)
+@@ flow while null
+Dim v As Variant
+v = Null
+While v
+    Say "in"
+    v = False
+Wend
+Say "out"
+@@ flow select case null
+Dim v As Variant
+v = Null
+Select Case v
+Case Null
+    Say "null"
+Case 1
+    Say "one"
+Case Else
+    Say "else"
+End Select
+@@ flow select case mixed types
+Dim v As Variant
+v = "10"
+Select Case v
+Case 9
+    Say "nine"
+Case 10
+    Say "ten"
+Case Else
+    Say "else"
+End Select
+Select Case 10
+Case "9" To "11"
+    Say "range"
+Case Else
+    Say "else2"
+End Select
+Select Case "b"
+Case "a" To "c"
+    Say "in"
+End Select
+Select Case "B"
+Case "a" To "c"
+    Say "in2"
+Case Else
+    Say "out2"
+End Select
+@@ flow select case variant string against numbers
+Dim v As Variant
+v = "abc"
+On Error Resume Next
+Select Case v
+Case 1
+    Say "one"
+Case Else
+    Say "else"
+End Select
+Say "err " & Err.Number
+@@ flow select case reversed range
+Select Case 5
+Case 10 To 1
+    Say "rev"
+Case Else
+    Say "else"
+End Select
+@@ flow select case evaluated once
+Dim n As Long
+Select Case FqNext(n)
+Case 5
+    Say "five"
+Case 1
+    Say "one"
+Case 1
+    Say "one again"
+End Select
+Say CStr(n)
+@@ flow select case is operators
+Select Case 7
+Case Is < 5, Is > 9
+    Say "out"
+Case Is <> 7
+    Say "ne"
+Case Is >= 7
+    Say "ge"
+End Select
+@@ flow select case list stops at match
+Dim n As Long
+Select Case 2
+Case FqNext(n), FqNext(n), FqNext(n)
+    Say "hit " & n
+End Select
+@@ flow select case error resume next
+On Error Resume Next
+Select Case 1 / 0
+Case 1
+    Say "one"
+Case Else
+    Say "else"
+End Select
+Say "after " & Err.Number
+@@ flow if error resume next
+On Error Resume Next
+If 1 / 0 Then
+    Say "then"
+Else
+    Say "else"
+End If
+Say "after"
+@@ flow single line if error resume next
+On Error Resume Next
+If 1 / 0 Then Say "then" Else Say "else"
+Say "after"
+@@ flow elseif error resume next
+On Error Resume Next
+If False Then
+    Say "a"
+ElseIf 1 / 0 Then
+    Say "b"
+Else
+    Say "c"
+End If
+Say "after"
+@@ flow do condition error resume next
+Dim i As Long
+On Error Resume Next
+Do While 1 / 0
+    i = i + 1
+    If i > 2 Then Exit Do
+Loop
+Say CStr(i)
+@@ flow erl no line
+On Error Resume Next
+Dim a As Long
+a = 1 / 0
+Say CStr(Erl)
+@@ flow resume without error
+Resume Next
+@@ flow err after callee resume next in caller
+On Error Resume Next
+Say CStr(FqRaiseInside())
+Say CStr(Err.Number)
+@@ flow exit function value
+Say CStr(FqExitEarly(1)) & CStr(FqExitEarly(0))
+@@ flow on gosub
+Dim i As Long
+For i = 0 To 3
+    On i GoSub a, b
+    Say "r" & i
+Next i
+Exit Sub
+a:
+Say "a"
+Return
+b:
+Say "b"
+Return
+@@ flow on goto out of range
+Dim i As Long
+On Error Resume Next
+i = -1
+On i GoTo a
+Say "err " & Err.Number
+i = 256
+Err.Clear
+On i GoTo a
+Say "err " & Err.Number
+i = 255
+Err.Clear
+On i GoTo a
+Say "err " & Err.Number
+Exit Sub
+a:
+Say "a"
+@@ flow on goto fraction
+Dim d As Double
+d = 1.5
+On d GoTo a, b
+Exit Sub
+a:
+Say "a"
+Exit Sub
+b:
+Say "b"
+@@ flow gosub nested
+GoSub one
+Say "end"
+Exit Sub
+one:
+Say "one"
+GoSub two
+Say "one back"
+Return
+two:
+Say "two"
+Return
+@@ flow iif evaluates both
+Dim n As Long
+Say CStr(IIf(True, FqNext(n), FqNext(n) * 10))
+Say CStr(n)
+@@ flow iif null condition
+Say CStr(IIf(Null, "t", "f"))
+@@ flow switch null
+Say CStr(Switch(Null, 1, True, 2))
+@@ flow switch odd arguments
+On Error Resume Next
+Dim v As Variant
+v = Switch(True)
+Say "err " & Err.Number
+@@ flow switch no match
+Say TypeName(Switch(False, 1))
+@@ flow choose fraction
+Say CStr(Choose(1.5, "a", "b", "c"))
+Say CStr(Choose(2.5, "a", "b", "c"))
+Say CStr(Choose(0.6, "a", "b"))
+Say TypeName(Choose(0.4, "a", "b"))
+@@ flow for step zero
+Dim i As Long, n As Long
+For i = 1 To 3 Step 0
+    n = n + 1
+    If n > 4 Then Exit For
+Next i
+Say CStr(n) & " " & CStr(i)
+@@ flow for counter changed inside
+Dim i As Long
+For i = 1 To 10
+    i = i + 3
+    Say CStr(i)
+Next i
+Say CStr(i)
+@@ flow for bound evaluated once
+Dim i As Long, hi As Long
+hi = 3
+For i = 1 To hi
+    hi = 10
+Next i
+Say CStr(i) & " " & hi
+@@ flow for step evaluated once
+Dim i As Long, st As Long, n As Long
+st = 1
+For i = 1 To 5 Step st
+    st = 2
+    n = n + 1
+Next i
+Say CStr(n)
+@@ flow for variant counter types
+Dim v As Variant
+For v = 1 To 2 Step 0.5
+    Say TypeName(v) & v
+Next v
+For v = 1 To 3
+Next v
+Say TypeName(v)
+For v = CByte(1) To CByte(2)
+Next v
+Say TypeName(v)
+For v = 1 To CLng(2)
+Next v
+Say TypeName(v)
+@@ flow for integer overflow
+Dim i As Integer
+On Error Resume Next
+For i = 32766 To 32767
+Next i
+Say CStr(Err.Number) & " " & CStr(i)
+@@ flow for byte counter
+Dim b As Byte, n As Long
+On Error Resume Next
+For b = 254 To 255
+    n = n + 1
+Next b
+Say CStr(Err.Number) & " " & CStr(b) & " " & n
+@@ flow for each over empty array
+Dim a() As Long, v As Variant
+On Error Resume Next
+For Each v In a
+    Say "in"
+Next v
+Say "err " & Err.Number
+@@ flow for each over scalar
+Dim v As Variant, x As Variant
+v = 5
+On Error Resume Next
+For Each x In v
+    Say "in"
+Next x
+Say "err " & Err.Number
+@@ flow for each copies element
+Dim a(2) As Long, v As Variant
+For Each v In a
+    v = 9
+Next v
+Say CStr(a(0)) & a(1)
+@@ flow for each after loop
+Dim v As Variant
+For Each v In Array(1, 2, 3)
+Next v
+Say TypeName(v) & v
+@@ flow for each array changed inside
+Dim a() As Variant, v As Variant, s As String
+a = Array(1, 2, 3)
+For Each v In a
+    a(2) = 30
+    s = s & v & ","
+Next v
+Say s
+@@ flow with evaluated once
+Dim n As Long
+With FqColl(n)
+    .Add 1
+    .Add 2
+    Say CStr(.Count)
+End With
+Say CStr(n)
+@@ flow with nothing
+Dim c As Collection
+On Error Resume Next
+With c
+    Say CStr(.Count)
+End With
+Say "err " & Err.Number
+@@ flow with record copy
+Dim t As FqRec
+t.n = 1
+With t
+    .n = 2
+    t.n = 3
+    Say CStr(.n)
+End With
+@@ flow with array element
+Dim r(1) As FqRec
+With r(1)
+    .n = 4
+    .s = "x"
+End With
+Say CStr(r(1).n) & r(1).s
+@@ flow with array element index changed
+Dim r(1) As FqRec, i As Long
+i = 0
+With r(i)
+    i = 1
+    .n = 5
+End With
+Say CStr(r(0).n) & CStr(r(1).n)
+@@ flow dictionary empty key
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+d.Add Empty, "e"
+Say CStr(d.Exists("")) & " " & CStr(d.Exists(0)) & " " & CStr(d.Exists(Empty)) & " " & d.Count
+On Error Resume Next
+d.Add "", "s"
+Say "err " & Err.Number
+Err.Clear
+d.Add 0, "z"
+Say "err " & Err.Number & " " & d.Count
+@@ flow dictionary null key
+Dim d As Object
+Set d = CreateObject("Scripting.Dictionary")
+On Error Resume Next
+d.Add Null, "n"
+Say "err " & Err.Number & " " & d.Count
+Say CStr(d.Exists(Null))
+@@ flow exit for nested
+Dim i As Long, j As Long, s As String
+For i = 1 To 3
+    For j = 1 To 3
+        If j = 2 Then Exit For
+        s = s & i & j & ","
+    Next j
+Next i
+Say s
+@@ flow do loop exit nested
+Dim i As Long, s As String
+Do
+    i = i + 1
+    Do
+        Exit Do
+    Loop
+    s = s & i
+    If i = 3 Then Exit Do
+Loop
+Say s
+@@ flow erl
+On Error GoTo hx
+10 Dim a As Long
+20 a = 1
+30 a = a / 0
+40 Say "no"
+Exit Sub
+hx:
+Say CStr(Erl)
+@@ flow erl after unnumbered line
+On Error GoTo hx
+10 Dim a As Long
+a = 1 / 0
+Exit Sub
+hx:
+Say CStr(Erl)
+@@ flow error in handler
+On Error GoTo hx
+Err.Raise 5
+Exit Sub
+hx:
+Say "h " & Err.Number
+Err.Raise 6
+@@ flow on error goto minus one
+On Error GoTo hx
+Err.Raise 5
+Exit Sub
+hx:
+On Error GoTo -1
+On Error GoTo hy
+Err.Raise 7
+Exit Sub
+hy:
+Say "h2 " & Err.Number
+@@ flow handler reused after resume
+Dim k As Long
+On Error GoTo hx
+Err.Raise 5
+Say "back " & Err.Number
+Err.Raise 6
+Say "back2 " & Err.Number
+Exit Sub
+hx:
+k = k + 1
+Say "h" & k & " " & Err.Number
+Resume Next
+@@ flow error through callee without handler
+On Error GoTo hx
+Say CStr(FqNoHandler())
+Say "next"
+Exit Sub
+hx:
+Say "caught " & Err.Number
+Resume Next
+@@ flow for each over empty array handler
+Dim a() As Long, v As Variant
+On Error GoTo hx
+For Each v In a
+    Say "in"
+Next v
+Say "end"
+Exit Sub
+hx:
+Say "err " & Err.Number
+Resume Next
+@@ flow for each over scalar handler
+Dim v As Variant, x As Variant
+v = 5
+On Error GoTo hx
+For Each x In v
+    Say "in " & TypeName(x)
+Next x
+Say "end"
+Exit Sub
+hx:
+Say "err " & Err.Number
+Resume Next
+@@ flow for each over nothing
+Dim c As Collection, x As Variant
+On Error GoTo hx
+For Each x In c
+    Say "in"
+Next x
+Say "end"
+Exit Sub
+hx:
+Say "err " & Err.Number
+Resume Next
+@@ flow for each over empty array goto handler
+Dim a() As Long, v As Variant
+On Error GoTo hx
+For Each v In a
+    Say "in"
+Next v
+Say "end"
+Exit Sub
+hx:
+Say "err " & Err.Number
+@@ flow select case error then case zero
+On Error Resume Next
+Select Case 1 / 0
+Case 0
+    Say "zero"
+Case Empty
+    Say "empty"
+Case Else
+    Say "else"
+End Select
+@@ flow select case error then is
+On Error Resume Next
+Select Case 1 / 0
+Case Is < 1
+    Say "lt"
+Case Else
+    Say "else"
+End Select
+@@ flow select case error handler resume next
+On Error GoTo hx
+Select Case 1 / 0
+Case 1
+    Say "one"
+Case Else
+    Say "else"
+End Select
+Say "after"
+Exit Sub
+hx:
+Say "err " & Err.Number
+Resume Next
+@@ flow eval order function argument
+Dim n As Long
+Say CStr(FqNext(n)) & " " & CStr(n)
+Say FqNext(n) & " " & n
+Say n & " " & FqNext(n)
+@@ flow err kept after callee returns
+Dim r As Long
+r = FqSwallow()
+Say CStr(Err.Number)
+Err.Clear
+@@ flow err kept after callee with handler returns
+Dim r As Long
+r = FqHandled()
+Say CStr(r) & " " & CStr(Err.Number)
+Err.Clear
+@@ flow err kept after sub with resume next
+FqSubSwallow
+Say CStr(Err.Number)
+Err.Clear
+@@ flow erl in procedure without numbers
+Dim r As Long
+On Error Resume Next
+r = FqErl()
+Say CStr(Erl) & " " & CStr(r)
+Err.Clear
+@@ flow err number same line after callee
+Dim r As Long
+r = FqSwallow(): Say CStr(Err.Number)
+Err.Clear
+@@ flow err number in condition after callee
+If FqSwallow() = 5 Then Say "five " & Err.Number
+Say CStr(Err.Number)
+Err.Clear
+@@ flow err number argument after callee
+Say CStr(FqSwallow() + 0)
+Say CStr(Err.Number)
+Err.Clear
+Say FqTwo(FqSwallow(), Err.Number)
+Err.Clear
+@@ flow err number variable after callee
+Dim r As Long, e As Long
+r = FqSwallow()
+e = Err.Number
+Say CStr(e)
+Err.Clear
+@@ order binary operators
+Dim x As Variant
+FqLogClear
+x = FqL(1) + FqL(2)
+Say FqLog()
+x = FqL(1) & FqL(2)
+Say FqLog()
+x = FqL(1) & "-" & FqL(2)
+Say FqLog()
+x = FqL(1) + FqL(2) + FqL(3)
+Say FqLog()
+x = FqL(1) + FqL(2) * FqL(3)
+Say FqLog()
+x = FqL(1) * FqL(2) + FqL(3)
+Say FqLog()
+x = (FqL(1) + 0) + FqL(2)
+Say FqLog()
+x = FqL(1) - FqL(2)
+Say FqLog()
+x = FqL(1) = FqL(2)
+Say FqLog()
+x = FqL(1) < FqL(2)
+Say FqLog()
+x = FqL(1) And FqL(2)
+Say FqLog()
+x = FqL(1) Or FqL(2)
+Say FqLog()
+x = FqL(1) \ FqL(2)
+Say FqLog()
+x = FqL(1) ^ FqL(2)
+Say FqLog()
+x = -FqL(1) + FqL(2)
+Say FqLog()
+@@ order typed operands
+Dim s As String
+FqLogClear
+s = FqLS(1) & FqLS(2)
+Say FqLog()
+s = FqLS(1) & FqLS(2) & FqLS(3)
+Say FqLog()
+@@ order arguments and calls
+Dim x As Variant
+FqLogClear
+x = FqTwo(FqL(1), FqL(2))
+Say FqLog()
+x = FqTwo(FqL(1) + FqL(2), FqL(3))
+Say FqLog()
+x = Array(FqL(1), FqL(2), FqL(3))
+Say FqLog()
+x = IIf(FqL(1), FqL(2), FqL(3))
+Say FqLog()
+x = Mid$("abcdef", FqL(1), FqL(2))
+Say FqLog()
+x = InStr(FqL(1), "abc", "b")
+Say FqLog()
+@@ order assignment target
+Dim c As New Collection
+FqLogClear
+c.Add FqL(1), CStr(FqL(2))
+Say FqLog()
+@@ order variable and call
+Dim n As Long, x As Variant
+x = FqNext(n) + n
+Say CStr(x)
+n = 0
+x = n & FqNext(n)
+Say CStr(x)
+@@ order select and if
+FqLogClear
+Select Case FqL(1)
+Case FqL(0), FqL(1)
+End Select
+Say FqLog()
+If FqL(1) = FqL(2) Then
+End If
+Say FqLog()

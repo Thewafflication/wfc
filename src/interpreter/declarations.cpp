@@ -2300,15 +2300,14 @@ bool Interpreter::parse_single_static_declaration(
     }
     skip_horizontal_whitespace();
 
-    // REQ-0231: `Static arr(<bounds>) As Type` -- always fixed-size,
-    // 1-D or multi-dimensional (REQ-0201/REQ-0210's own bound
-    // grammar, reused via `parse_fixed_array_bounds`). Unlike `Dim`,
-    // `Static` has no dynamic (bound-less/comma-only) array form at
-    // all: real VB6 requires a `Static` array's bounds to be fixed at
-    // declaration time, with no `ReDim` counterpart ever possible for
-    // one, so `Static arr()` is rejected outright rather than parsed
-    // as an unallocated dynamic array the way `Dim arr()` is.
+    // REQ-0231: `Static arr(<bounds>) As Type`, 1-D or multi-dimensional
+    // (the bound grammar of `Dim`, via `parse_fixed_array_bounds`). As
+    // with `Dim`, `Static arr()` and `Static arr(,)` declare a dynamic
+    // array, which keeps its `ReDim` between calls (measured: statement
+    // probe, "flow static array").
     bool is_array = false;
+    bool is_dynamic_array = false;
+    std::size_t dynamic_dimension_count = 0;
     Integer array_lower = 0;
     Integer array_upper = 0;
     std::vector<std::pair<Integer, Integer>> array_dimensions;
@@ -2316,13 +2315,23 @@ bool Interpreter::parse_single_static_declaration(
         is_array = true;
         advance();
         skip_horizontal_whitespace();
-        if (!at_end() && current() == ')') {
-            set_error(
-                "WFC0149",
-                "a Static array must have fixed bounds (Static arr(n) As Type)",
-                offset_);
-            return false;
+        std::size_t comma_count = 0;
+        const auto comma_check_offset = offset_;
+        while (!at_end() && current() == ',') {
+            advance();
+            skip_horizontal_whitespace();
+            ++comma_count;
         }
+        if (!at_end() && current() == ')') {
+            is_dynamic_array = true;
+            dynamic_dimension_count = comma_count == 0U ? 0U : comma_count + 1U;
+            advance();
+            skip_horizontal_whitespace();
+        } else {
+            offset_ = comma_check_offset;
+        }
+    }
+    if (is_array && !is_dynamic_array) {
         auto parsed_dimensions = parse_fixed_array_bounds(identifier_offset);
         if (!parsed_dimensions.has_value()) {
             return false;
@@ -2402,11 +2411,9 @@ bool Interpreter::parse_single_static_declaration(
         }
     }
 
-    if (is_array && (is_variant || is_object)) {
-        set_error("WFC0149",
-                  "a Static array's element type must be a fixed scalar type, "
-                  "not Variant or "
-                  "Object",
+    if (is_array && is_object && is_udt_class(declared_class_name) &&
+        !is_dynamic_array) {
+        set_error("WFC0149", "a fixed Static array of records is not supported",
                   identifier_offset);
         return false;
     }
@@ -2414,7 +2421,20 @@ bool Interpreter::parse_single_static_declaration(
     Value initial_value;
     if (is_array) {
         const auto element_type_index = element_default.index();
-        if (!array_dimensions.empty()) {
+        if (is_dynamic_array) {
+            ArrayValue array_value{/*elements=*/{},
+                                   /*lower_bound=*/0,
+                                   /*is_dynamic=*/true,
+                                   /*is_allocated=*/false,
+                                   element_type_index,
+                                   /*dimensions=*/{},
+                                   is_variant,
+                                   is_object,
+                                   declared_class_name};
+            array_value.dynamic_dimension_count = dynamic_dimension_count;
+            array_value.dimension_count_declared = dynamic_dimension_count > 0U;
+            initial_value = std::move(array_value);
+        } else if (!array_dimensions.empty()) {
             std::size_t total_size = 1U;
             for (const auto& dimension : array_dimensions) {
                 total_size *= static_cast<std::size_t>(dimension.second -
@@ -2427,15 +2447,23 @@ bool Interpreter::parse_single_static_declaration(
                            /*is_dynamic=*/false,
                            /*is_allocated=*/true,
                            element_type_index,
-                           array_dimensions};
+                           array_dimensions,
+                           is_variant,
+                           is_object,
+                           declared_class_name};
         } else {
             const auto size =
                 static_cast<std::size_t>(array_upper - array_lower) + 1U;
             initial_value =
                 ArrayValue{std::vector<Value>(size, std::move(element_default)),
                            array_lower,
-                           /*is_dynamic=*/false, /*is_allocated=*/true,
-                           element_type_index};
+                           /*is_dynamic=*/false,
+                           /*is_allocated=*/true,
+                           element_type_index,
+                           /*dimensions=*/{},
+                           is_variant,
+                           is_object,
+                           declared_class_name};
         }
     } else {
         initial_value = std::move(element_default);
@@ -2464,10 +2492,10 @@ bool Interpreter::parse_single_static_declaration(
             initial_value = std::move(*instance);
         }
         statics.variables.emplace(*identifier, std::move(initial_value));
-        if (is_variant) {
+        if (is_variant && !is_array) {
             statics.variant_variables.insert(*identifier);
         }
-        if (is_object) {
+        if (is_object && !is_array) {
             statics.object_variables.insert(*identifier);
             if (!declared_class_name.empty()) {
                 statics.object_class_names.emplace(*identifier,
@@ -2477,10 +2505,10 @@ bool Interpreter::parse_single_static_declaration(
     }
     current_scope().variables.emplace(*identifier,
                                       statics.variables.at(*identifier));
-    if (is_variant) {
+    if (is_variant && !is_array) {
         current_scope().variant_variables.insert(*identifier);
     }
-    if (is_object) {
+    if (is_object && !is_array) {
         current_scope().object_variables.insert(*identifier);
         if (!declared_class_name.empty()) {
             current_scope().object_class_names.emplace(*identifier,

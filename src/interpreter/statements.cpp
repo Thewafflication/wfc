@@ -31,9 +31,11 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
     if (frame.on_error_mode == 0 || frame.in_error_handler) {
         return false;
     }
+    // Erl is the last numbered line of the procedure that handles the
+    // error, also when a procedure it called raised it (measured).
+    err_erl_ = erl_;
     if (std::string_view(error_.diagnostic).substr(0, 7) != "WFC0300") {
         err_number_ = number;
-        err_erl_ = erl_;
         err_source_.clear();
         err_help_file_.clear();
         err_help_context_ = 0;
@@ -153,6 +155,55 @@ bool Interpreter::parse_statement_once() {
     }
     execute_ = entry_execute;
     return recover_runtime_error(start);
+}
+
+bool Interpreter::run_gosub(const std::size_t target) {
+    const auto return_point = offset_;
+    const auto end_limit =
+        in_procedure_body() && current_procedure_def_ != nullptr
+            ? current_procedure_def_->body_end
+            : source_.size();
+    const auto frame_index = scopes_.size() - 1U;
+    scopes_[frame_index].gosub_stack.push_back(return_point);
+    const auto depth = scopes_[frame_index].gosub_stack.size();
+    offset_ = target;
+    while (true) {
+        skip_program_leading_trivia();
+        if (offset_ >= end_limit || at_end()) {
+            // The routine ran into the end of the procedure: it ends.
+            exit_sub_requested_ = true;
+            exit_function_requested_ = true;
+            break;
+        }
+        if (!parse_statement()) {
+            if (take_pending_jump()) {
+                continue;
+            }
+            if (scopes_.size() > frame_index &&
+                scopes_[frame_index].gosub_stack.size() >= depth) {
+                scopes_[frame_index].gosub_stack.resize(depth - 1U);
+            }
+            return false;
+        }
+        if (!consume_statement_end()) {
+            return false;
+        }
+        if (gosub_return_requested_) {
+            gosub_return_requested_ = false;
+            exit_sub_requested_ = false;
+            exit_function_requested_ = false;
+            break;
+        }
+        if (exit_sub_requested_ || exit_function_requested_) {
+            break;
+        }
+    }
+    if (scopes_[frame_index].gosub_stack.size() >= depth) {
+        scopes_[frame_index].gosub_stack.resize(depth - 1U);
+    }
+    offset_ = return_point;
+    execute_ = true;
+    return true;
 }
 
 bool Interpreter::take_pending_jump() {
@@ -357,11 +408,11 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
         if (frame.gosub_stack.empty()) {
             return raise_runtime(3, "Return without GoSub", statement_offset);
         }
-        jump_pending_ = true;
-        jump_target_ = frame.gosub_stack.back();
         frame.gosub_stack.pop_back();
-        set_error("WFC0999", "internal jump", statement_offset);
-        return false;
+        gosub_return_requested_ = true;
+        exit_sub_requested_ = true;
+        exit_function_requested_ = true;
+        return true;
     }
     if (consume_keyword("gosub")) {
         skip_horizontal_whitespace();
@@ -380,11 +431,7 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             return false;
         }
         skip_to_statement_end();
-        scopes_.back().gosub_stack.push_back(offset_);
-        jump_pending_ = true;
-        jump_target_ = target;
-        set_error("WFC0999", "internal jump", statement_offset);
-        return false;
+        return run_gosub(target);
     }
     if (consume_keyword("on")) {
         skip_horizontal_whitespace();
@@ -442,7 +489,7 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
             }
             if (is_gosub) {
                 skip_to_statement_end();
-                scopes_.back().gosub_stack.push_back(offset_);
+                return run_gosub(target);
             }
             jump_pending_ = true;
             jump_target_ = target;
@@ -3011,6 +3058,24 @@ bool Interpreter::parse_for_each_statement() {
     if (!collection_value.has_value()) {
         return false;
     }
+    // For Each over an array variable reads the variable's elements as it
+    // goes: a change the body makes to an element not yet reached is seen
+    // (measured: statement probe, "flow for each array changed inside").
+    Value* live_array = nullptr;
+    if (execute_ && std::holds_alternative<ArrayValue>(*collection_value)) {
+        const auto collection_end = offset_;
+        offset_ = collection_offset;
+        const auto name = parse_identifier();
+        skip_horizontal_whitespace();
+        if (name.has_value() && offset_ == collection_end) {
+            const auto found = find_variable(*name);
+            if (found.value != nullptr &&
+                std::holds_alternative<ArrayValue>(*found.value)) {
+                live_array = found.value;
+            }
+        }
+        offset_ = collection_end;
+    }
     // REQ-0243: For Each over a Collection (or any class exposing a
     // `WfcItems` method) iterates the array that method returns. A Collection
     // is enumerated live: an item added by the body is visited too.
@@ -3087,6 +3152,55 @@ bool Interpreter::parse_for_each_statement() {
             empty_array{};  // a placeholder in a not-taken branch
         array = &empty_array;
     }
+    // Measured: For Each over Nothing is error 424, over a value that is
+    // not an array or an object 13, over an array without elements yet 92.
+    // When the error is resumed, the body runs once (the variable keeps its
+    // value) and then Next fails with 92.
+    Integer header_error = 0;
+    if (execute_ && array == nullptr) {
+        if (std::holds_alternative<Nothing>(*collection_value)) {
+            header_error = 424;
+        } else if (!is_object_reference(*collection_value)) {
+            header_error = 13;
+        }
+    } else if (execute_ && array->is_dynamic && !array->is_allocated) {
+        header_error = 92;
+    }
+    if (header_error != 0) {
+        static_cast<void>(raise_runtime(header_error,
+                                        runtime_error_message(header_error),
+                                        collection_offset));
+        if (!recover_runtime_error(collection_offset)) {
+            return false;
+        }
+        if (!consume_loop_header_end()) {
+            return false;
+        }
+        std::size_t continuation_offset{};
+        execute_ = enclosing_execution && !control_exit_requested();
+        ++for_depth_;
+        const bool parsed_body =
+            parse_for_body(*identifier, continuation_offset);
+        --for_depth_;
+        if (!parsed_body) {
+            execute_ = enclosing_execution;
+            return false;
+        }
+        offset_ = continuation_offset;
+        if (exit_for_requested_) {
+            exit_for_requested_ = false;
+            execute_ = enclosing_execution;
+            return true;
+        }
+        if (control_exit_requested()) {
+            execute_ = false;
+            return true;
+        }
+        execute_ = enclosing_execution;
+        static_cast<void>(
+            raise_runtime(92, runtime_error_message(92), continuation_offset));
+        return recover_runtime_error(continuation_offset);
+    }
     if (array == nullptr) {
         set_error("WFC0147", "For Each requires an array", collection_offset);
         return false;
@@ -3100,7 +3214,14 @@ bool Interpreter::parse_for_each_statement() {
     auto count = array->elements.size();
     ArrayValue refreshed_items;
     const auto assign_element = [&](const std::size_t index) -> bool {
-        Value element_value = array->elements[index];
+        const ArrayValue* source = array;
+        if (live_array != nullptr) {
+            if (const auto* now = std::get_if<ArrayValue>(live_array);
+                now != nullptr && index < now->elements.size()) {
+                source = now;
+            }
+        }
+        Value element_value = source->elements[index];
         if (variable.scope->object_variables.contains(*identifier) &&
             is_object_reference(element_value)) {
             *variable.value = std::move(element_value);
@@ -3219,7 +3340,12 @@ bool Interpreter::parse_select_statement() {
     variant_operand_seen_ = false;
     auto selector = parse_expression();
     if (!selector.has_value()) {
-        return false;
+        // Measured: when the error is resumed, no Case matches the test
+        // and Case Else runs.
+        if (!execute_ || !recover_runtime_error(selector_offset)) {
+            return false;
+        }
+        selector = Value{Null{}};
     }
     const bool selector_variant = is_variant_value(*selector);
     if (!consume_loop_header_end()) {

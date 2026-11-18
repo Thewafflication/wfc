@@ -701,3 +701,129 @@ Public Function NumText(ByVal t As String) As String
     Err.Clear
     NumText = s
 End Function
+## module Flow2
+Option Explicit
+
+Private FqLogText As String
+
+Public Type FqRec
+    n As Long
+    s As String
+End Type
+
+Public Function FqCount() As Long
+    Static n As Long
+    n = n + 1
+    FqCount = n
+End Function
+
+Public Static Function FqAll() As Long
+    Dim k As Long
+    k = k + 2
+    FqAll = k
+End Function
+
+Public Function FqStaticArray() As String
+    Static a() As Long
+    Static sized As Boolean
+    If Not sized Then
+        ReDim a(1)
+        sized = True
+    Else
+        ReDim Preserve a(UBound(a) + 1)
+    End If
+    FqStaticArray = CStr(UBound(a))
+End Function
+
+Public Function FqStaticObj() As String
+    Static c As Collection
+    If c Is Nothing Then Set c = New Collection
+    c.Add 1
+    FqStaticObj = CStr(c.Count)
+End Function
+
+Public Function FqNext(ByRef n As Long) As Long
+    n = n + 1
+    FqNext = n
+End Function
+
+Public Function FqSwallow() As Long
+    On Error Resume Next
+    Err.Raise 5
+    FqSwallow = Err.Number
+End Function
+
+Public Function FqRaiseInside() As Long
+    On Error Resume Next
+    Err.Raise 9
+    FqRaiseInside = 1
+End Function
+
+Public Function FqNoHandler() As Long
+    FqNoHandler = 1
+    Err.Raise 13
+    FqNoHandler = 2
+End Function
+
+Public Function FqExitEarly(ByVal n As Long) As Long
+    FqExitEarly = 7
+    If n = 1 Then Exit Function
+    FqExitEarly = 8
+End Function
+
+Public Function FqColl(ByRef n As Long) As Collection
+    n = n + 1
+    Set FqColl = New Collection
+End Function
+
+Public Function FqHandled() As Long
+    On Error GoTo h
+    Err.Raise 6
+    Exit Function
+h:
+    FqHandled = Err.Number
+End Function
+
+Public Sub FqSubSwallow()
+    On Error Resume Next
+    Err.Raise 7
+End Sub
+
+Public Function FqErl() As Long
+10  FqErl = 1
+20  Err.Raise 11
+30  FqErl = 2
+End Function
+
+Public Function FqTwo(ByVal a As Long, ByVal b As Long) As String
+    FqTwo = a & "," & b
+End Function
+
+Public Sub FqLogClear()
+    FqLogText = ""
+End Sub
+
+Public Function FqLog() As String
+    FqLog = FqLogText
+    FqLogText = ""
+End Function
+
+Public Function FqL(ByVal n As Variant) As Variant
+    FqLogText = FqLogText & n
+    FqL = n
+End Function
+
+Public Function FqLL(ByVal n As Long) As Long
+    FqLogText = FqLogText & n
+    FqLL = n
+End Function
+
+Public Function FqLS(ByVal n As Long) As String
+    FqLogText = FqLogText & n
+    FqLS = CStr(n)
+End Function
+
+Public Function FqLD(ByVal n As Long) As Double
+    FqLogText = FqLogText & n
+    FqLD = n
+End Function

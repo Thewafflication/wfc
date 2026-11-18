@@ -838,7 +838,11 @@ std::optional<Value> Interpreter::invoke_definition(
     const bool saved_variant_operand = variant_operand_seen_;
     const bool saved_variant_string = variant_string_seen_;
     const bool saved_variant_number = variant_number_seen_;
+    // Erl counts the numbered lines of each procedure on its own.
+    const Integer saved_erl = erl_;
+    erl_ = 0;
     const bool ran_ok = run_procedure_body(definition.body_end);
+    erl_ = saved_erl;
     variant_operand_seen_ = saved_variant_operand;
     variant_string_seen_ = saved_variant_string;
     variant_number_seen_ = saved_variant_number;
