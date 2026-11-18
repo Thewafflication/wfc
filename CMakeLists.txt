@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
   WFC
-  VERSION 0.8.24
+  VERSION 0.8.25
   DESCRIPTION "Waughtal Foundation Classes"
   LANGUAGES CXX
 )

@@ -46,7 +46,7 @@ powershell -NoProfile -File Install-WfcLibrary.ps1 -Source .
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [string]$Source = (Split-Path -Parent $PSCommandPath),
+    [string]$Source = '',
     [string]$Library,
     [ValidateSet('Auto', 'Machine', 'User')]
     [string]$Scope = 'Auto',
@@ -59,6 +59,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Windows PowerShell 5.1 leaves $PSCommandPath empty in parameter defaults, so
+# the folder of this script is taken here.
+if (-not $Source) { $Source = $PSScriptRoot }
 
 . (Join-Path $PSScriptRoot 'WfcInstallCommon.ps1')
 

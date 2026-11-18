@@ -59,7 +59,7 @@ powershell -NoProfile -File Install-Wfc.ps1 -Source .
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [string]$Source = (Split-Path -Parent $PSCommandPath),
+    [string]$Source = '',
     [ValidateSet('Auto', 'Machine', 'User')]
     [string]$Scope = 'Auto',
     [string]$Root,
@@ -71,6 +71,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Windows PowerShell 5.1 leaves $PSCommandPath empty in parameter defaults, so
+# the folder of this script is taken here.
+if (-not $Source) { $Source = $PSScriptRoot }
 
 . (Join-Path $PSScriptRoot 'WfcInstallCommon.ps1')
 
@@ -258,8 +261,9 @@ if (-not $rootGiven -and -not $FilesOnly -and $legacy -ne $Root -and
     (Test-Path -LiteralPath (Join-Path $legacy 'install.json')) -and
     (Test-Path -LiteralPath $legacyScript)) {
     Write-Output "Removing the earlier installation at $legacy"
+    # -Source too: that script's default for it fails in Windows PowerShell.
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $legacyScript `
-        -Uninstall -Scope $Scope -Root $legacy
+        -Uninstall -Scope $Scope -Root $legacy -Source $legacy
     if ($LASTEXITCODE -ne 0) {
         throw "Could not remove the earlier installation at $legacy."
     }
