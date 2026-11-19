@@ -1,0 +1,7 @@
+Type=Exe
+Form=FDlg.frm
+Form=FMain.frm
+Class=Person; Person.cls
+Class=Board; Board.cls
+Module=Main; Main.bas
+Startup="Sub Main"

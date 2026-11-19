@@ -40,13 +40,19 @@ struct NativeSupport {
             for (std::size_t i = 0; i < arguments_.size(); ++i) {
                 const std::string name = "wfcarg" + std::to_string(i);
                 auto& scope = in_.module_scope();
-                scope.variables.erase(name);
-                scope.variant_variables.erase(name);
                 if (arguments_[i].has_value()) {
+                    // Restored in place: a by-reference argument of an
+                    // outer call still points at this slot, so it must not
+                    // be erased and made again.
                     scope.variables[name] = std::move(*arguments_[i]);
                     if (was_variant_[i]) {
                         scope.variant_variables.insert(name);
+                    } else {
+                        scope.variant_variables.erase(name);
                     }
+                } else {
+                    scope.variables.erase(name);
+                    scope.variant_variables.erase(name);
                 }
             }
             in_.source_ = source_;
@@ -56,6 +62,11 @@ struct NativeSupport {
             in_.execute_ = execute_;
             in_.print_surface_ = print_surface_;
             in_.error_ = std::move(error_);
+        }
+        // Whether argument i was in use (by an outer call) before this one:
+        // its slot is kept, and restored when the frame ends.
+        [[nodiscard]] bool kept(const std::size_t i) const {
+            return i < arguments_.size() && arguments_[i].has_value();
         }
         // Remembers the arguments the statement is about to replace.
         void keep_arguments(const std::size_t count) {
@@ -431,8 +442,10 @@ struct NativeSupport {
                 found != scope.variables.end()) {
                 values[i] = found->second;  // a by-reference argument
             }
-            scope.variables.erase(name);
-            scope.variant_variables.erase(name);
+            if (!frame.kept(i)) {
+                scope.variables.erase(name);
+                scope.variant_variables.erase(name);
+            }
         }
         return result;
     }
@@ -823,8 +836,10 @@ struct NativeSupport {
         }
         for (std::size_t i = 0; i < values.size(); ++i) {
             const std::string name = "wfcarg" + std::to_string(i);
-            scope.variables.erase(name);
-            scope.variant_variables.erase(name);
+            if (!frame.kept(i)) {
+                scope.variables.erase(name);
+                scope.variant_variables.erase(name);
+            }
         }
         return ok;
     }

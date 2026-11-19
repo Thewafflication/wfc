@@ -2360,6 +2360,24 @@ Next j]=]
       LABELS "integration;mp-0009;native"
       PASS_REGULAR_EXPRESSION "Command1.3..caption = b.*Form1.caption = e361"
   )
+  # A call into a form passes the caller's variables by reference, and the
+  # form's own library calls (its Form_Load) must not disturb them: the
+  # write-back after the call went through erased slots of the engine's
+  # module scope, which corrupted the heap (Connect 4 after a few games).
+  set(
+    nested_byref_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-nested-byref"
+  )
+  add_test(
+    NAME TC-MP0009-native-nested-byref
+    COMMAND wfc --native "${nested_byref_dir}/NestedByRef.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-native-nested-byref
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "bad 0.*16 tabc1.5.*22 tabc1.5abc1.5"
+  )
   # A WithEvents field set from outside its class starts listening.
   add_test(
     NAME TC-MP0009-native-withevents-outside
