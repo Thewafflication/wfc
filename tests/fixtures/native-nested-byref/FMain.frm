@@ -35,4 +35,5 @@ Public Sub Run()
     Print n & " " & txt
     FDlg.Bump n, txt
     Print n & " " & txt
+    Print "owner " & FDlg.Owned()
 End Sub

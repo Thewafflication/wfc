@@ -1421,6 +1421,13 @@ struct RtObject final {
 std::unordered_map<struct RtObject*, std::weak_ptr<wfc::detail::InstanceData>>
     g_wrappers;
 
+// The engine form behind each compiled form object: the form's own code runs
+// in a compiled object, but every other reference to the form (a control's
+// Container, Me passed on as a Variant) must be the one form object, or `Is`
+// tells two views of one form apart.
+std::unordered_map<struct RtObject*, std::weak_ptr<wfc::detail::InstanceData>>
+    g_form_of;
+
 constexpr std::size_t kObjectHeaderSize = 24U;
 static_assert(sizeof(RtObject) <= kObjectHeaderSize);
 
@@ -1495,6 +1502,7 @@ void object_release(RtObject* object) {
                      object->record->handles[2 * i + 1]);
     }
     g_wrappers.erase(object);
+    g_form_of.erase(object);
     events_forget(object);
     delete object->store;
     std::free(object);
@@ -1990,6 +1998,7 @@ public:
             wfc::detail::NativeFailure failure;
             call_thunk(object, link, arguments, nullptr, ignored, failure);
         }
+        g_form_of[object] = form;
         form->compiled = std::shared_ptr<void>(object, [](void* held) {
             object_release(static_cast<RtObject*>(held));
         });
@@ -2059,6 +2068,11 @@ FormHooks g_form_hooks;
     using namespace wfc::detail;
     if (object == nullptr) {
         return Value{Nothing{}};
+    }
+    if (const auto form = g_form_of.find(object); form != g_form_of.end()) {
+        if (auto alive = form->second.lock()) {
+            return Value{ObjectInstance{std::move(alive)}};
+        }
     }
     if (const auto found = g_wrappers.find(object); found != g_wrappers.end()) {
         if (auto alive = found->second.lock()) {

@@ -29,6 +29,10 @@ End Sub
 
 ' A call into this form passes the caller's variable by reference; the
 ' library calls made while it runs must not disturb that argument.
+Public Function Owned() As Boolean
+    Owned = OwnerOf(Me, Label1)
+End Function
+
 Public Function Fresh(aOwner As Form, aBoard As Board, aP1 As Person, aP2 As Person) As Long
     aBoard.Reset 7, 6
     Unload Me

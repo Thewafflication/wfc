@@ -2376,7 +2376,7 @@ Next j]=]
     TC-MP0009-native-nested-byref
     PROPERTIES
       LABELS "integration;mp-0009;native"
-      PASS_REGULAR_EXPRESSION "bad 0.*16 tabc1.5.*22 tabc1.5abc1.5"
+      PASS_REGULAR_EXPRESSION "bad 0.*16 tabc1.5.*22 tabc1.5abc1.5.*owner True"
   )
   # A WithEvents field set from outside its class starts listening.
   add_test(
