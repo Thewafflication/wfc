@@ -1,0 +1,4 @@
+Type=Exe
+Module=Main; Main.bas
+Startup="Sub Main"
+Title="Icon beside the project"

@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -392,7 +393,17 @@ void block(std::string& out, const std::wstring& key, const std::string& value,
     const auto number = [&](const char* key) {
         return static_cast<std::uint32_t>(std::atol(find(key).c_str()));
     };
-    const std::string icon = project_icon(project, values);
+    std::string icon = project_icon(project, values);
+    if (icon.empty()) {
+        // No icon in the form: `<project name>.ico` beside the project.
+        fs::path beside = project;
+        beside.replace_extension(".ico");
+        bool read = false;
+        std::string bytes = slurp(beside, read);
+        if (read) {
+            icon = std::move(bytes);
+        }
+    }
     if (find("majorver").empty() && find("versioncompanyname").empty() &&
         find("versionproductname").empty() && find("title").empty() &&
         icon.empty()) {
@@ -612,6 +623,24 @@ bool build(const fs::path& image, const fs::path& project,
     if (!source.good()) {
         problem = "cannot read the runtime image " + image.string();
         return false;
+    }
+
+    // A program that shows forms is a Windows program, not a console one: it
+    // opens no console window.
+    if (std::find(options.begin(), options.end(), "--gui") != options.end() &&
+        runtime.size() > 0x40U) {
+        std::uint32_t pe = 0;
+        std::memcpy(&pe, runtime.data() + 0x3C, sizeof(pe));
+        const std::size_t at = static_cast<std::size_t>(pe) + 24U + 68U;
+        if (at + 2U <= runtime.size() && runtime[pe] == 'P' &&
+            runtime[pe + 1U] == 'E') {
+            std::uint16_t subsystem = 0;
+            std::memcpy(&subsystem, runtime.data() + at, sizeof(subsystem));
+            if (subsystem == 3U) {  // IMAGE_SUBSYSTEM_WINDOWS_CUI
+                subsystem = 2U;     // IMAGE_SUBSYSTEM_WINDOWS_GUI
+                std::memcpy(runtime.data() + at, &subsystem, sizeof(subsystem));
+            }
+        }
     }
 
     std::string footer(kFooterMagic.begin(), kFooterMagic.end());

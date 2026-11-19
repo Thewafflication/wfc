@@ -3227,6 +3227,22 @@ Print v.x & q.x]=]
     )
   endif()
 
+  if(WIN32)
+    add_test(
+      NAME TC-MP0008-package-icon-beside
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${package_tests}/ico-fixture/Iconed.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-icon-beside"
+        "-DCHECK=${package_tests}/icon_differs.ps1" -P
+        "${package_tests}/run_icon_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-icon-beside
+      PROPERTIES LABELS "integration;mp-0008;package"
+    )
+  endif()
+
   foreach(package_case 194-comctl-persisted 195-comctl-refine)
     set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-mscomctl/tests/corpus")
     add_test(

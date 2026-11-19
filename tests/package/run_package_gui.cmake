@@ -23,6 +23,22 @@ execute_process(
 if(NOT built EQUAL 0)
   message(FATAL_ERROR "--build failed (${built}): ${build_errors}")
 endif()
+# A program of forms is a Windows program: no console window opens for it.
+file(READ "${app}" header LIMIT 4096 HEX)
+string(SUBSTRING "${header}" 120 8 lfanew_hex) # e_lfanew at offset 0x3C
+string(REGEX MATCHALL ".." lfanew_bytes "${lfanew_hex}")
+list(REVERSE lfanew_bytes)
+string(JOIN "" lfanew_text ${lfanew_bytes})
+math(EXPR lfanew "0x${lfanew_text}")
+math(EXPR subsystem_at "(${lfanew} + 24 + 68) * 2")
+string(SUBSTRING "${header}" ${subsystem_at} 4 subsystem_hex)
+if(NOT subsystem_hex STREQUAL "0200") # IMAGE_SUBSYSTEM_WINDOWS_GUI
+  message(
+    FATAL_ERROR
+    "the --gui program is not a Windows-subsystem program "
+    "(subsystem bytes ${subsystem_hex})"
+  )
+endif()
 if(DEFINED SEED)
   set(ENV{WFC_RANDOM_SEED} "${SEED}")
 endif()

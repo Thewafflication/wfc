@@ -1883,6 +1883,32 @@ struct FormSupport {
                object.class_key == "line";
     }
 
+    // A Label without text directly on the form or a picture box. In VB6 a
+    // Label is lightweight: its background takes part in the z-order of the
+    // Shapes and Images (a Shape listed before an opaque Label is drawn over
+    // it). Such a Label is a colored box here: its background is painted on
+    // the surface in that order and its window is transparent. (A Label with
+    // text stays an opaque window: a transparent one loses its text under
+    // the surface's painting.)
+    [[nodiscard]] static bool label_fills_surface(const InstanceData& form,
+                                                  const ControlObject& object) {
+        if (object.is_form || object.class_key != "label" ||
+            !text_value(object, "caption").empty()) {
+            return false;
+        }
+        if (object.container.empty()) {
+            return true;
+        }
+        const ControlObject* holder = control_named(
+            const_cast<InstanceData&>(form), object.container, -1);
+        return holder != nullptr && holder->class_key == "picturebox";
+    }
+
+    [[nodiscard]] static bool paints_on_surface(const InstanceData& form,
+                                                const ControlObject& object) {
+        return is_lightweight(object) || label_fills_surface(form, object);
+    }
+
     // The surface a lightweight control is drawn on: the enclosing picture
     // box, else the form (with the offset of enclosing frames).
     [[nodiscard]] static ControlObject* surface_for(InstanceData& form,
@@ -2013,6 +2039,24 @@ struct FormSupport {
                            : static_cast<int>(number_of(object, "borderstyle")))
                     : 1;
             draw_op(in, surface, operation);
+        } else if (object.class_key == "label") {
+            const auto style = object.values.find("backstyle");
+            if (style != object.values.end() &&
+                as_double(style->second) == 0.0) {
+                return;  // transparent: only its text shows
+            }
+            ui::DrawOp operation = base_op(surface, "shape");
+            operation.x1 = dx + number_of(object, "left");
+            operation.y1 = dy + number_of(object, "top");
+            operation.x2 = number_of(object, "width");
+            operation.y2 = number_of(object, "height");
+            operation.radius = 0.0;
+            operation.color = color_of(object, "backcolor");
+            operation.fill_color = color_of(object, "backcolor");
+            operation.fill_style = 0;  // solid
+            operation.draw_width = 1;
+            operation.draw_style = 5;  // no border
+            draw_op(in, surface, operation);
         } else if (object.class_key == "line") {
             ui::DrawOp operation = base_op(surface, "line");
             operation.x1 = dx + number_of(object, "x1");
@@ -2040,7 +2084,7 @@ struct FormSupport {
         paint_surface_picture(in, surface);
         std::vector<ControlObject*> lightweights;
         for_each_control(form, [&](ControlObject& object) {
-            if (is_lightweight(object)) {
+            if (paints_on_surface(form, object)) {
                 lightweights.push_back(&object);
             }
         });
@@ -2056,6 +2100,17 @@ struct FormSupport {
             double dy = 0.0;
             if (surface_for(form, *object, dx, dy) == &surface) {
                 paint_lightweight(in, surface, *object, dx, dy);
+            }
+        }
+        // A Label is a window above the surface: its text shows over what
+        // was just painted.
+        for (ControlObject* object : lightweights) {
+            double dx = 0.0;
+            double dy = 0.0;
+            if (object->class_key == "label" &&
+                object->window != ui::kNoWindow &&
+                surface_for(form, *object, dx, dy) == &surface) {
+                runtime(in).host->refresh_window(object->window);
             }
         }
     }
@@ -2105,7 +2160,7 @@ struct FormSupport {
                                              InstanceData& form) {
         std::vector<ControlObject*> surfaces;
         for_each_control(form, [&](ControlObject& object) {
-            if (!is_lightweight(object)) {
+            if (!paints_on_surface(form, object)) {
                 return;
             }
             double dx = 0.0;
@@ -2458,7 +2513,7 @@ struct FormSupport {
                 // Lightweight controls are part of the surface, not drawings.
                 std::vector<ControlObject*> lightweights;
                 for_each_control(*owner, [&](ControlObject& object) {
-                    if (is_lightweight(object)) {
+                    if (paints_on_surface(*owner, object)) {
                         lightweights.push_back(&object);
                     }
                 });
@@ -2981,8 +3036,12 @@ struct FormSupport {
             return found == label.values.end() ? -1L : color_of(label, key);
         };
         const auto style = label.values.find("backstyle");
-        const bool transparent =
+        bool transparent =
             style != label.values.end() && as_double(style->second) == 0.0;
+        if (const auto owner = label.form.lock();
+            owner && label_fills_surface(*owner, label)) {
+            transparent = true;  // the background is painted on the surface
+        }
         runtime(in).host->set_label_style(label.window, color("forecolor"),
                                           color("backcolor"), transparent);
     }
@@ -3862,6 +3921,28 @@ struct FormSupport {
         const bool live = self.window != ui::kNoWindow;
         if (self.comctl != nullptr) {
             comctl_push(in, self);
+        }
+        if (live && self.class_key == "label" &&
+            (member == "backcolor" || member == "backstyle" ||
+             member == "visible" || member == "caption" ||
+             is_geometry_member(self, member))) {
+            // The background of a Label is painted on its surface.
+            if (const auto owner = self.form.lock();
+                owner && label_fills_surface(*owner, self)) {
+                double dx = 0.0;
+                double dy = 0.0;
+                if (ControlObject* surface =
+                        surface_for(*owner, self, dx, dy)) {
+                    if (runtime(in).headless != nullptr) {
+                        repaint_surface(in, *owner, *surface);
+                    } else {
+                        mark_dirty(in, owner, *surface);
+                    }
+                }
+            }
+            if (member == "caption") {
+                push_label_style(in, self);  // text or not: transparent or not
+            }
         }
         if (is_lightweight(self) && live) {
             if (const auto owner = self.form.lock()) {
