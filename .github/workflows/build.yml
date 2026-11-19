@@ -334,15 +334,16 @@ jobs:
         with:
           submodules: true
 
-      # A stalled package mirror once held this step for 40 minutes: each
-      # try gets 8 minutes, and a second try follows a failed one.
+      # Only what winegcc and wine64 need: with the recommended packages
+      # (codecs, fonts, ...) the x64 runner's slow mirror took over 8
+      # minutes. Each try gets 8 minutes, and a second follows a failed one.
       - name: Install Wine development packages
         timeout-minutes: 20
         run: |
           for attempt in 1 2; do
             if timeout 480 sudo apt-get update &&
-              timeout 480 sudo apt-get install -y \
-                wine64-tools libwine-dev wine64 g++ cmake ninja-build; then
+              timeout 480 sudo apt-get install -y --no-install-recommends \
+                wine64-tools libwine-dev wine64 gcc g++ cmake ninja-build; then
               break
             fi
             if [ "$attempt" = 2 ]; then exit 1; fi
