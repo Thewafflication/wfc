@@ -343,13 +343,16 @@ jobs:
           for attempt in 1 2; do
             if timeout 480 sudo apt-get update &&
               timeout 480 sudo apt-get install -y --no-install-recommends \
-                wine64-tools libwine-dev wine64 gcc g++ cmake ninja-build; then
+                wine wine64-tools libwine-dev wine64 gcc g++ cmake \
+                ninja-build; then
               break
             fi
             if [ "$attempt" = 2 ]; then exit 1; fi
             echo "apt-get did not finish; trying again"
           done
-          command -v wineg++
+          # Ubuntu keeps winegcc, wineg++ and the wine64 loader here.
+          echo /usr/lib/wine >> "$GITHUB_PATH"
+          ls /usr/lib/wine/wineg++ /usr/lib/wine/wine64 || command -v wineg++
 
       - name: Configure
         run: >

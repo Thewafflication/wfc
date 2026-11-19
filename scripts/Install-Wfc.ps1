@@ -254,13 +254,32 @@ if (-not $PSCmdlet.ShouldProcess($Root, "Install WFC ($Scope)")) { return }
 
 # WFC 0.8.23 and earlier installed below C:\wfc: remove that installation
 # (its PATH entry, WFC_HOME, Start menu, registrations and files) with its own
-# script, then install here.
+# script, then install here. The library packages installed there move here
+# first: WPM still counts them as installed and would not install them again.
+$carried = [ordered]@{}
 $legacy = Get-LegacyRoot $Scope
 $legacyScript = Join-Path $legacy 'Install-Wfc.ps1'
 if (-not $rootGiven -and -not $FilesOnly -and $legacy -ne $Root -and
     (Test-Path -LiteralPath (Join-Path $legacy 'install.json')) -and
     (Test-Path -LiteralPath $legacyScript)) {
-    Write-Output "Removing the earlier installation at $legacy"
+    $legacyRecord = Get-Content -Raw -LiteralPath (
+        Join-Path $legacy 'install.json') | ConvertFrom-Json
+    $recorded = $legacyRecord.PSObject.Properties['libraries']
+    if ($recorded -and $recorded.Value) {
+        foreach ($property in $recorded.Value.PSObject.Properties) {
+            $library, $architecture = $property.Name -split ' '
+            if ($library -eq 'wfcrt') { continue }
+            $from = Join-Path $legacy `
+                "lib\$library\$($property.Value)\$architecture"
+            if (-not (Test-Path -LiteralPath $from)) { continue }
+            $to = Join-Path $Root "lib\$library\$($property.Value)"
+            New-Item -ItemType Directory -Force -Path $to | Out-Null
+            Copy-Item -LiteralPath $from -Destination $to -Recurse -Force
+            $carried[$property.Name] = $property.Value
+        }
+    }
+    Write-Output ("Moving $($carried.Count) libraries from $legacy and " +
+        'removing the earlier installation there')
     # -Source too: that script's default for it fails in Windows PowerShell.
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $legacyScript `
         -Uninstall -Scope $Scope -Root $legacy -Source $legacy
@@ -330,20 +349,6 @@ if ($PSCommandPath -ne (Join-Path $Root 'Install-Wfc.ps1')) {
             -Destination (Join-Path $Root $name) -Force
     }
 }
-if (-not $FilesOnly) {
-    Register-Integration $version
-    if (-not $NoRegister) {
-        $entries = @($libraries.GetEnumerator() | ForEach-Object {
-                [pscustomobject]@{ Name = $_.Key; Value = $_.Value }
-            })
-        foreach ($file in Get-RegisteredFile $entries) {
-            Invoke-LibraryRegistration -Dll $file.Path `
-                -Architecture $file.Architecture -Scope $Scope `
-                -MicrosoftIds:$RegisterMicrosoftIds
-        }
-    }
-}
-
 # Keep what other packages recorded: the library packages WPM installs before
 # wfc (its dependencies) and the wfc package of another architecture.
 $recordPath = Join-Path $Root 'install.json'
@@ -363,6 +368,27 @@ if (Test-Path -LiteralPath $recordPath) {
                 Where-Object { $_ } | Select-Object -Unique)
     }
 }
+foreach ($name in $carried.Keys) {
+    if (-not $libraries.Contains($name)) {
+        $libraries[$name] = $carried[$name]
+    }
+}
+# Every library of the installation is registered here, the ones the library
+# packages installed too: removing an earlier installation unregisters them.
+if (-not $FilesOnly) {
+    Register-Integration $version
+    if (-not $NoRegister) {
+        $entries = @($libraries.GetEnumerator() | ForEach-Object {
+                [pscustomobject]@{ Name = $_.Key; Value = $_.Value }
+            })
+        foreach ($file in Get-RegisteredFile $entries) {
+            Invoke-LibraryRegistration -Dll $file.Path `
+                -Architecture $file.Architecture -Scope $Scope `
+                -MicrosoftIds:$RegisterMicrosoftIds
+        }
+    }
+}
+
 $record = [ordered]@{
     version = $version
     scope = $Scope
