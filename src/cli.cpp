@@ -45,6 +45,7 @@ constexpr Option kOptions[] = {
     {"--version", 0},
     {"--verbose", 0},
     {"--gui", 0},
+    {"--console", 0},
     {"--fullscreen", 0},
     {"--native", 0},
     {"--interpret", 0},
@@ -267,9 +268,13 @@ void print_command_help(const std::string& command) {
                      "its file and line and\nexits 3, or exits 0 when the "
                      "program compiles.\n";
     } else if (command == "build") {
-        std::cout << "wfc build <project.vbp> -o <app.exe> [--gui] "
+        std::cout << "wfc build <project.vbp> -o <app.exe> [--gui|--console] "
                      "[--native] [--link static|dynamic]\n          "
                      "[--bundle] [--target win2000|host]\n\n"
+                     "A project with forms shows them in windows (--gui: a "
+                     "Windows program with no\nconsole, as VB6 makes them) "
+                     "unless --console asks for the headless console\n"
+                     "program.\n\n"
                      "Writes a program of the architecture of this wfc. "
                      "Static (default) copies\nthe whole runtime into the "
                      "program; dynamic writes a small launcher that\nloads "

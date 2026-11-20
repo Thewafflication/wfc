@@ -462,6 +462,18 @@ std::filesystem::path runtime_file(const char* const name) {
     return wfc::cli::find_runtime_file(name);
 }
 
+// Whether the project lists a form (a `Form=` line).
+bool project_has_forms(const std::filesystem::path& project) {
+    std::ifstream stream(project);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (line.rfind("Form=", 0) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // `wfc --build <project.vbp> -o <app.exe> [--gui] [--native]`: a packaged
 // program. With --native the project is compiled now and the program carries
 // the machine code.
@@ -473,6 +485,7 @@ int build_package(const int argument_count, const char* const arguments[]) {
     bool interpret = false;
     bool dynamic = false;
     bool bundle = false;
+    bool console_only = false;
     // --target: win2000 (the small runtime, or an error), host (the runtime of
     // this wfc), or by default the small runtime when it can be used.
     enum class Target { automatic, win2000, host };
@@ -483,6 +496,8 @@ int build_package(const int argument_count, const char* const arguments[]) {
             output = arguments[++i];
         } else if (argument == "--gui") {
             options.emplace_back("--gui");
+        } else if (argument == "--console") {
+            console_only = true;
         } else if (argument == "--native") {
             native = true;
         } else if (argument == "--interpret") {
@@ -517,6 +532,13 @@ int build_package(const int argument_count, const char* const arguments[]) {
     // Compiling changes the directory to the project's: keep the paths valid.
     project = std::filesystem::absolute(project);
     output = std::filesystem::absolute(output);
+    // A VB6 program is a Windows program, never a console one (measured: VB6
+    // writes the Windows subsystem even for a project of one module), so a
+    // project that has forms shows them in windows without being asked:
+    // --console keeps the old headless, console program.
+    if (!console_only && options.empty() && project_has_forms(project)) {
+        options.emplace_back("--gui");
+    }
     std::string problem;
     std::vector<std::pair<std::string, std::string>> extra;
     // Windows 2000 and later: x86 machine code with the small runtime, written

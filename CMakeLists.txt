@@ -3229,6 +3229,21 @@ Print v.x & q.x]=]
 
   if(WIN32)
     add_test(
+      NAME TC-MP0008-package-default-subsystem
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-gdi.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-default-subsystem" -P
+        "${package_tests}/run_default_subsystem_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-default-subsystem
+      PROPERTIES LABELS "integration;mp-0008;package"
+    )
+  endif()
+
+  if(WIN32)
+    add_test(
       NAME TC-MP0008-package-icon-beside
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
