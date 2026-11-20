@@ -72,7 +72,9 @@ jobs:
         shell: pwsh
         run: >
           ctest --preset windows-x64-debug-shared
-          --tests-regex 'TC-MP0010-.*dll' --no-tests=error
+          --tests-regex
+          'TC-MP0010-.*dll|wfc-[a-z0-9]+-TC-[0-9]+-.*dll'
+          --no-tests=error
 
   build:
     name: Debug ${{ matrix.arch }}
