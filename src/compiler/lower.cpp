@@ -6589,7 +6589,11 @@ private:
                     return lower_call(expression.text, {}, expression.at, true,
                                       expression.suffix);
                 }
-                if (!has_variable(expression.text)) {
+                // A control of the form shadows a constant of a library
+                // (`dtpTime` the control, `dtpTime` the DateTimeFormat).
+                if (!has_variable(expression.text) &&
+                    !(is_control(expression.text) &&
+                      own_member(expression.text) == nullptr)) {
                     if (const auto constant = find_constant(expression.text)) {
                         return *constant;
                     }

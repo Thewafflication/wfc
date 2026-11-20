@@ -1,0 +1,4 @@
+Type=Exe
+Form=FMain.frm
+Module=Main; Main.bas
+Startup="Sub Main"

@@ -5266,6 +5266,10 @@ public:
         const Value before =
             object->values.contains(key) ? object->values[key] : Value{Empty{}};
         object->values[key] = std::move(converted);
+        if (!standalone && !(before == object->values[key]) &&
+            !FormSupport::property_changed(in, *object, key, before, failure)) {
+            return true;  // the window refused the new font
+        }
         if (standalone && !(before == object->values[key])) {
             // FontEvents.FontChanged(PropertyName)
             const auto self_instance = self.lock();

@@ -2378,6 +2378,20 @@ Next j]=]
       LABELS "integration;mp-0009;native"
       PASS_REGULAR_EXPRESSION "bad 0.*16 tabc1.5.*22 tabc1.5abc1.5.*owner True"
   )
+  set(
+    control_shadow_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/native-control-shadow"
+  )
+  add_test(
+    NAME TC-MP0009-native-control-shadows-constant
+    COMMAND wfc --native "${control_shadow_dir}/ControlShadow.vbp"
+  )
+  set_tests_properties(
+    TC-MP0009-native-control-shadows-constant
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      PASS_REGULAR_EXPRESSION "caption control"
+  )
   # A WithEvents field set from outside its class starts listening.
   add_test(
     NAME TC-MP0009-native-withevents-outside
