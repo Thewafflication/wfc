@@ -28,7 +28,7 @@ increment's work and cannot be verified without reference binaries.
    command line passed through. Output is the same as running the project with
    `wfc`. Native machine-code generation stays behind this interface: `--build`
    can later emit a compiled image without changing how users build programs.
-2. **VBRUN library.** `wfcvbrun.dll` (CMake target `wfc_vbrun`) is built for the
+2. **VBRUN library.** `msvbvm60.dll` (CMake target `wfc_vbrun`) is built for the
    architecture of the preset. Its export directory is generated from
    `evidence/reference/msvbvm60-6.0-runtime.json` into a module-definition file:
    ordinal base 100, 1,911 slots, the 635 named exports at their reference
@@ -42,7 +42,7 @@ increment's work and cannot be verified without reference binaries.
    and ARM64 each get their own back end and runtime. There is no translation
    layer and no x86 helper process on x64 or ARM64; an x86 program is not run
    through emulation by WFC. The x86 `MSVBVM60` export surface of
-   `wfcvbrun.dll` serves only unmodified x86 VB6 binaries on x86, and its
+   `msvbvm60.dll` serves only unmodified x86 VB6 binaries on x86, and its
    x64 and ARM64 builds exist for layout verification. The native back ends
    are future work: the planned order is an intermediate representation, then
    one back end per architecture sharing one runtime written for all three.
