@@ -22,3 +22,6 @@
 [submodule "lib/wfc-mscomctl2"]
 	path = lib/wfc-mscomctl2
 	url = https://github.com/Thewafflication/wfc-mscomctl2.git
+[submodule "lib/wfc-adodb"]
+	path = lib/wfc-adodb
+	url = https://github.com/Thewafflication/wfc-adodb.git
