@@ -3163,20 +3163,26 @@ Print v.x & q.x]=]
     find_program(WFC_POWERSHELL powershell)
     if(WFC_POWERSHELL)
       string(TOLOWER "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" wfc_architecture)
-      add_test(
-        NAME TC-MP0010-install
-        COMMAND
-          "${CMAKE_COMMAND}" "-DPOWERSHELL=${WFC_POWERSHELL}"
-          "-DINSTALLER=${CMAKE_CURRENT_SOURCE_DIR}/scripts/Install-Wfc.ps1"
-          "-DBIN=$<TARGET_FILE_DIR:wfc>" "-DARCH=${wfc_architecture}"
-          "-DPROJECT=${cli_fixtures}/native-default/Native.vbp"
-          "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/install-test" -P
-          "${CMAKE_CURRENT_SOURCE_DIR}/tests/install/run_install_test.cmake"
-      )
-      set_tests_properties(
-        TC-MP0010-install
-        PROPERTIES LABELS "integration;mp-0010;package"
-      )
+      # With WFC_OCX_SHARED wfc.exe itself imports the control libraries by
+      # name, so it cannot run from an installed layout that keeps them in
+      # versioned folders; only the launcher finds them there.
+      if(NOT WFC_OCX_SHARED)
+        add_test(
+          NAME TC-MP0010-install
+          COMMAND
+            "${CMAKE_COMMAND}" "-DPOWERSHELL=${WFC_POWERSHELL}"
+            "-DINSTALLER=${CMAKE_CURRENT_SOURCE_DIR}/scripts/Install-Wfc.ps1"
+            "-DBIN=$<TARGET_FILE_DIR:wfc>" "-DARCH=${wfc_architecture}"
+            "-DPROJECT=${cli_fixtures}/native-default/Native.vbp"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/install-test" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/install/run_install_test.cmake"
+        )
+        set_tests_properties(
+          TC-MP0010-install
+          PROPERTIES LABELS "integration;mp-0010;package"
+        )
+      endif()
+
       set(wfc_scripts "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
       set(wfc_install_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/install")
       # One library on its own: the versioned folder, install.json and the
