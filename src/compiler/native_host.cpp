@@ -3,6 +3,7 @@
 #include "library.hpp"
 
 #include "../interpreter/native_engine.hpp"
+#include "../interpreter/pds_screen.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -102,6 +103,27 @@ void end_engine_line();
 void put(const char* text, const std::size_t length) {
     flush_engine_output();
     end_engine_line();
+    if (wfc::detail::pds::active()) {
+        // A PDS program that uses the text screen prints on it (ADR-0011):
+        // each piece is a Print item, a line break ends the line.
+        const std::string_view all(text, length);
+        std::size_t start = 0;
+        while (start <= all.size()) {
+            const auto end = all.find(char{10}, start);
+            const auto piece = all.substr(start, end == std::string_view::npos
+                                                     ? std::string_view::npos
+                                                     : end - start);
+            if (!piece.empty()) {
+                wfc::detail::pds::print_item(piece);
+            }
+            if (end == std::string_view::npos) {
+                break;
+            }
+            wfc::detail::pds::new_line();
+            start = end + 1U;
+        }
+        return;
+    }
     std::cout.write(text, static_cast<std::streamsize>(length));
     for (std::size_t i = 0; i < length; ++i) {
         g_column = text[i] == '\n' ? 0 : g_column + 1;
@@ -131,6 +153,11 @@ void print_newline() {
 
 // Tab(n): to column n (a new line first when the column has passed).
 void print_tab(const std::int32_t column) {
+    if (wfc::detail::pds::active()) {
+        flush_engine_output();
+        wfc::detail::pds::tab(static_cast<int>(column));
+        return;
+    }
     const auto at = static_cast<std::int32_t>(g_column) + 1;
     if (column < at) {
         put("\n", 1U);
@@ -142,12 +169,22 @@ void print_tab(const std::int32_t column) {
 }
 
 void print_spc(const std::int32_t count) {
+    if (wfc::detail::pds::active()) {
+        flush_engine_output();
+        wfc::detail::pds::spc(static_cast<int>(count));
+        return;
+    }
     if (count > 0) {
         put(std::string(static_cast<std::size_t>(count), ' '));
     }
 }
 
 void print_zone() {
+    if (wfc::detail::pds::active()) {
+        flush_engine_output();
+        wfc::detail::pds::comma();
+        return;
+    }
     put(std::string(static_cast<std::size_t>(14 - g_column % 14), ' '));
 }
 
@@ -1155,6 +1192,15 @@ void finish_output() {
     if (g_engine_line_open) {
         std::cout.put(char{10});
         g_engine_line_open = false;
+    }
+    // The text screen of a PDS program, after the plain output (ADR-0011).
+    if (const std::string screen = wfc::detail::pds::finish();
+        !screen.empty()) {
+        if (g_column != 0) {
+            std::cout.put(char{10});
+        }
+        std::cout << screen << char{10};
+        g_column = 0;
     }
     std::cout.flush();
 }

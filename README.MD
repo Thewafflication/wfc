@@ -212,10 +212,14 @@ become submodules (`scripts/Convert-LibrariesToSubmodules.ps1`).
 `lib/wfc-mscomctl2` (`mscomct2.ocx`: Animation, UpDown, MonthView, DTPicker,
 FlatScrollBar) is a submodule too; it has the member tables and the
 registration, and the controls themselves are not implemented yet.
-`lib/wfc-brun71` (a submodule) is the start of a BASIC PDS 7.1 runtime
-(`BRUN71`): the text screen of `SCREEN 0`, `INKEY$` and a Windows console host,
-with a clone of the PDS 7.1 User Interface Toolbox planned on top; wfc does not
-run PDS programs on it yet.
+`lib/wfc-brun71` (a submodule) is a BASIC PDS 7.1 runtime (`BRUN71`): the
+text screen of `SCREEN 0`, `INKEY$` and a Windows console host. wfc runs PDS
+and QuickBASIC programs on it, interpreted and as native code: `CLS`,
+`LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN` and `POS` in a
+standard module start the text screen, shown live in the console (or printed
+as text at the end when the output is redirected; keys then come from the
+standard input). See `architecture/adr-0011-pds-text-programs.md`. A clone of
+the PDS 7.1 User Interface Toolbox is planned on top.
 
 ## Build the Current Development Slice
 

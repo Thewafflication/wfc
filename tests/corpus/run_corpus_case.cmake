@@ -2,15 +2,21 @@
 # text.
 # The interpreter runs the program (a project is otherwise compiled).
 # Usage: cmake -DWFC=<wfc> -DINPUT=<.bas|.vbp> -DEXPECTED=<file>
-#   [-DDEBUG_EXPECTED=<file>] -P run_corpus_case.cmake
+#   [-DDEBUG_EXPECTED=<file>] [-DKEYS=<file>] -P run_corpus_case.cmake
 # DEBUG_EXPECTED holds the Immediate-window output (Debug.Print) and load
 # warnings that wfc writes to stderr.
+# KEYS is the standard input of the program: the keys a PDS program reads
+# with INKEY$ (ADR-0011).
 set(interpret_option --interpret)
 if(PACKAGED)
   set(interpret_option "")
 endif()
+set(input_option "")
+if(DEFINED KEYS)
+  set(input_option INPUT_FILE "${KEYS}")
+endif()
 execute_process(
-  COMMAND "${WFC}" ${interpret_option} "${INPUT}"
+  COMMAND "${WFC}" ${interpret_option} "${INPUT}" ${input_option}
   OUTPUT_VARIABLE actual
   ERROR_VARIABLE errors
   RESULT_VARIABLE result

@@ -5,6 +5,7 @@
 #include "ado_helper.hpp"
 #include "forms.hpp"
 #include "interpreter.hpp"
+#include "pds_screen.hpp"
 #include "pictures.hpp"
 
 #include <chrono>
@@ -151,6 +152,9 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "formatpercent",
                                                        "partition",
                                                        "doevents",
+                                                       "inkey$",
+                                                       "csrlin",
+                                                       "pos",
                                                        "imestatus",
                                                        "command",
                                                        "command$",
@@ -242,6 +246,27 @@ std::optional<Value> Interpreter::evaluate_misc_function(
     if (name == "loadresstring" || name == "loadresdata" ||
         name == "loadrespicture") {
         return load_resource_builtin(name, arguments, offset);
+    }
+    // The PDS text screen (ADR-0011): INKEY$, CSRLIN and POS(n), whose
+    // argument is ignored.
+    if (name == "inkey$" || name == "csrlin" || name == "pos") {
+        if (!arity(name == "pos" ? 1U : 0U, name == "pos" ? 1U : 0U)) {
+            return std::nullopt;
+        }
+        if (!execute_) {
+            return name == "inkey$" ? Value{std::string{}} : Value{Integer{}};
+        }
+        if (name == "inkey$") {
+            try {
+                return Value{pds::inkey()};
+            } catch (const brun71::BasicError& error) {
+                static_cast<void>(pds_error(error.number(), offset));
+                return std::nullopt;
+            }
+        }
+        const auto& screen = pds::screen();
+        return Value{static_cast<Integer>(name == "csrlin" ? screen.csrlin()
+                                                           : screen.pos())};
     }
     if (name == "doevents" || name == "imestatus") {
         if (!arity(0, 0)) {

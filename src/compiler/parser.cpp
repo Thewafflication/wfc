@@ -1135,6 +1135,9 @@ private:
             !(ahead(1).kind == TokenKind::symbol && ahead(1).text == "=")) {
             return simple_engine_statement(current().spelling + " ");
         }
+        if (starts_pds_statement(word)) {
+            return pds_statement();
+        }
         if (word == "beep") {
             auto result = make(StmtKind::engine);
             advance();
@@ -1384,6 +1387,56 @@ private:
         statement.items.push_back(std::move(expression));
         statement.separators.push_back(mode);
         return name;
+    }
+
+    // The statements of the PDS text screen in a standard module (ADR-0011):
+    // CLS, LOCATE, COLOR, WIDTH (not `Width #n`) and VIEW PRINT, unless the
+    // word is followed by `=`, `.`, `#` or `(` (an assignment, a member, a
+    // file, an array element). The shared runtime runs them.
+    [[nodiscard]] bool starts_pds_statement(const std::string& word) const {
+        if (options_.is_form || options_.is_class) {
+            return false;
+        }
+        const Token& next = ahead(1);
+        if (word == "view") {
+            return next.kind == TokenKind::identifier && next.text == "print";
+        }
+        if (word != "cls" && word != "locate" && word != "color" &&
+            word != "width") {
+            return false;
+        }
+        return !(next.kind == TokenKind::symbol &&
+                 (next.text == "=" || next.text == "." || next.text == "#" ||
+                  next.text == "("));
+    }
+
+    // The current token is the statement's first word.
+    [[nodiscard]] StmtPtr pds_statement() {
+        auto result = make(StmtKind::engine);
+        const std::string word = current().spelling;
+        advance();
+        if (current().kind == TokenKind::identifier &&
+            current().text == "print") {
+            result->text = word + " " + current().spelling;
+            advance();
+            if (!at_end_of_statement() && !is_word("else")) {
+                result->text +=
+                    " " + engine_argument(*result, expression(), 'i');
+                expect_word("to");
+                result->text +=
+                    " To " + engine_argument(*result, expression(), 'i');
+            }
+            return result;
+        }
+        result->text = word + " ";
+        while (!at_end_of_statement() && !is_word("else")) {
+            if (accept_symbol(",")) {
+                result->text += ",";
+                continue;
+            }
+            result->text += engine_argument(*result, expression(), 'i');
+        }
+        return result;
     }
 
     // `Print #n, items` and `Write #n, items`: the current token is the `#`.

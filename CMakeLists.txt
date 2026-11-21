@@ -73,6 +73,9 @@ target_sources(
     src/interpreter/declarations.cpp
     src/interpreter/expressions.cpp
     src/interpreter/files.cpp
+    src/interpreter/pds_screen.cpp
+    src/interpreter/pds_screen.hpp
+    src/interpreter/pds_statements.cpp
     src/interpreter/pictures.cpp
     src/interpreter/pictures.hpp
     src/interpreter/forms.cpp
@@ -133,6 +136,7 @@ target_link_libraries(
     wfc_comdlg32
     wfc_mswinsck
     wfc_adodb
+    wfc_brun71
 )
 if(WIN32 OR WFC_WINELIB)
   target_link_libraries(
@@ -2767,17 +2771,41 @@ Print v.x & q.x]=]
     if(EXISTS "${corpus_debug_file}")
       set(corpus_debug "-DDEBUG_EXPECTED=${corpus_debug_file}")
     endif()
+    # A .keys file is the standard input (the keys of INKEY$, ADR-0011).
+    set(corpus_keys "")
+    if(EXISTS "${corpus_dir}/${corpus_name}.keys")
+      set(corpus_keys "-DKEYS=${corpus_dir}/${corpus_name}.keys")
+    endif()
     add_test(
       NAME TC-MP0002-corpus-${corpus_name}
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>" "-DINPUT=${corpus_input}"
-        "-DEXPECTED=${expected_file}" ${corpus_debug} -P
+        "-DEXPECTED=${expected_file}" ${corpus_debug} ${corpus_keys} -P
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
     )
     set_tests_properties(
       TC-MP0002-corpus-${corpus_name}
       PROPERTIES LABELS "integration;mp-0002;corpus"
     )
+    # The PDS programs (lib/wfc-brun71) run as native code as well.
+    if(corpus_dir MATCHES "/lib/wfc-brun71/")
+      add_test(
+        NAME TC-MP0002-corpus-${corpus_name}-native
+        COMMAND
+          "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+          "-DINPUT=${corpus_input}" "-DEXPECTED=${expected_file}" -DPACKAGED=1
+          ${corpus_keys} -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/corpus/run_corpus_case.cmake"
+      )
+      set_tests_properties(
+        TC-MP0002-corpus-${corpus_name}-native
+        PROPERTIES LABELS "integration;mp-0002;corpus;brun71"
+      )
+      set_tests_properties(
+        TC-MP0002-corpus-${corpus_name}
+        PROPERTIES LABELS "integration;mp-0002;corpus;brun71"
+      )
+    endif()
   endforeach()
 
   # Select Case compares as Visual Basic 6 does: a probe of about 6,700

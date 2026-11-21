@@ -3,6 +3,7 @@
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
+#include "pds_screen.hpp"
 
 namespace wfc::detail {
 
@@ -932,6 +933,9 @@ bool Interpreter::parse_statement_core() {
     if (consume_keyword("beep")) {
         return true;
     }
+    if (const auto pds_statement = parse_pds_statement(statement_offset)) {
+        return *pds_statement;
+    }
     {
         const auto before_call = offset_;
         if (consume_keyword("callbyname")) {
@@ -1458,6 +1462,11 @@ bool Interpreter::parse_print_statement() {
     std::string text;
     std::vector<std::size_t> item_starts;
     bool newline = true;
+    // A PDS program that uses the text screen prints on it, item by item
+    // (ADR-0011).
+    const bool to_screen = execute_ && !to_file && surface == nullptr &&
+                           printer == nullptr && !discard_print_ &&
+                           pds::active();
     // The print column (0-based) the next item lands in: after any text an
     // earlier `Print ...;` left on the current console line, then `text`.
     const auto print_column = [&]() -> std::size_t {
@@ -1493,7 +1502,11 @@ bool Interpreter::parse_print_statement() {
         }
         if (current() == ',') {
             advance();
-            text.append(14U - print_column() % 14U, ' ');
+            if (to_screen) {
+                pds::comma();
+            } else {
+                text.append(14U - print_column() % 14U, ' ');
+            }
             newline = false;
             continue;
         }
@@ -1522,7 +1535,13 @@ bool Interpreter::parse_print_statement() {
                               offset_);
                     return false;
                 }
-                if (execute_ && *count > 0) {
+                if (to_screen) {
+                    if (is_spc) {
+                        pds::spc(static_cast<int>(*count));
+                    } else {
+                        pds::tab(static_cast<int>(*count));
+                    }
+                } else if (execute_ && *count > 0) {
                     if (is_spc) {
                         text.append(static_cast<std::size_t>(*count), ' ');
                     } else {
@@ -1543,7 +1562,11 @@ bool Interpreter::parse_print_statement() {
             }
             if (is_tab) {
                 // A bare `Tab` advances to the next print zone.
-                text.append(14U - print_column() % 14U, ' ');
+                if (to_screen) {
+                    pds::comma();
+                } else {
+                    text.append(14U - print_column() % 14U, ' ');
+                }
                 newline = false;
                 continue;
             }
@@ -1557,6 +1580,9 @@ bool Interpreter::parse_print_statement() {
             if (to_file) {
                 item_starts.push_back(text.size());
             }
+            // On the screen each item is placed on its own (an item that
+            // does not fit on the line starts the next one).
+            const auto item_start = text.size();
             if (std::holds_alternative<Null>(*value)) {
                 text += "Null";
             } else if (vb_number_spacing_ && is_number(*value) &&
@@ -1576,10 +1602,20 @@ bool Interpreter::parse_print_statement() {
             } else {
                 text += show_byte_halves(render(*value));
             }
+            if (to_screen) {
+                pds::print_item(std::string_view(text).substr(item_start));
+                text.resize(item_start);
+            }
         }
         newline = true;
     }
     if (!execute_) {
+        return true;
+    }
+    if (to_screen) {
+        if (newline) {
+            pds::new_line();
+        }
         return true;
     }
     if (discard_print_) {

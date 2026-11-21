@@ -1069,6 +1069,21 @@ private:
     // `Spc(n)` and `Tab(n)` pad (REQ-0245).
     [[nodiscard]] bool parse_print_statement();
 
+    // The statements of the PDS text screen (ADR-0011, pds_statements.cpp):
+    // CLS, LOCATE, COLOR, WIDTH and VIEW PRINT outside form code. nullopt
+    // when the statement is not one of them (the offset is left alone).
+    [[nodiscard]] std::optional<bool> parse_pds_statement(
+        std::size_t statement_offset);
+    // `[a] [, [b] ...]`: the arguments of a PDS statement, each left out or
+    // a whole number (rounded as BASIC does).
+    [[nodiscard]] bool parse_pds_arguments(
+        std::vector<std::optional<int>>& arguments);
+    [[nodiscard]] std::optional<int> pds_integer(const Value& value,
+                                                 std::size_t offset);
+    [[nodiscard]] bool at_pds_statement_end();
+    // Raises the BASIC error a statement of the screen reported.
+    [[nodiscard]] bool pds_error(int number, std::size_t offset);
+
     [[nodiscard]] bool parse_randomize_statement(
         const std::size_t statement_offset);
 
