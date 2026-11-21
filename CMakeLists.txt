@@ -2342,6 +2342,21 @@ Next j]=]
       LABELS "integration;mp-0009;native"
       PASS_REGULAR_EXPRESSION "Command1.3..caption = b.*Form1.caption = e361"
   )
+  # A scripted run with real windows ends when the script does; it used to
+  # wait for input for ever.
+  add_test(
+    NAME TC-MP0009-native-gui-script-exits
+    COMMAND
+      wfc "${loadarray_dir}/LoadArray.vbp" --gui --ui-script
+      "${loadarray_dir}/check.ui"
+  )
+  set_tests_properties(
+    TC-MP0009-native-gui-script-exits
+    PROPERTIES
+      LABELS "integration;mp-0009;native"
+      TIMEOUT 60
+      PASS_REGULAR_EXPRESSION "Form1.caption = e361"
+  )
   # A call into a form passes the caller's variables by reference, and the
   # form's own library calls (its Form_Load) must not disturb them: the
   # write-back after the call went through erased slots of the engine's

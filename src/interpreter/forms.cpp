@@ -4953,7 +4953,7 @@ struct FormSupport {
             // A Winsock handler failed.
         } else if (const auto event = state.host->next_event(
                        state.headless == nullptr && !state.host->exhausted() &&
-                       state.script_next >= state.script.size())) {
+                       in.ui_script_.empty())) {
             if (event->name == "WfcExit") {
                 state.exit_requested = true;
                 state.host->wake_timer(1, 0);
