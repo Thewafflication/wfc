@@ -31,6 +31,8 @@ add_subdirectory(lib/wfc-mswinsck)
 # The BASIC PDS 7.1 text-mode runtime (BRUN71): text screen, keyboard and
 # console host. Not yet called by the evaluator.
 add_subdirectory(lib/wfc-brun71)
+# ADODB over SQLite (the built-in ADODB.Connection and ADODB.Recordset).
+add_subdirectory(lib/wfc-adodb)
 
 add_library(wfc_frontend STATIC)
 target_sources(
@@ -62,6 +64,7 @@ target_sources(
     src/compiler/x64.cpp
     src/compiler/x86.cpp
     src/compiler/arm64.cpp
+    src/interpreter/ado_helper.cpp
     src/interpreter/assignment.cpp
     src/interpreter/builtin_functions.cpp
     src/interpreter/builtin_misc.cpp
@@ -123,7 +126,13 @@ target_include_directories(
 find_package(Threads REQUIRED)
 target_link_libraries(
   wfc_frontend
-  PUBLIC Threads::Threads wfc_mscomctl wfc_mscomctl2 wfc_comdlg32 wfc_mswinsck
+  PUBLIC
+    Threads::Threads
+    wfc_mscomctl
+    wfc_mscomctl2
+    wfc_comdlg32
+    wfc_mswinsck
+    wfc_adodb
 )
 if(WIN32 OR WFC_WINELIB)
   target_link_libraries(

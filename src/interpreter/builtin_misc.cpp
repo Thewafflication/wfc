@@ -2,6 +2,7 @@
 // Rnd/Randomize. Internal to the WFC evaluator; not part of the public API.
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
+#include "ado_helper.hpp"
 #include "forms.hpp"
 #include "interpreter.hpp"
 #include "pictures.hpp"
@@ -170,6 +171,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "getallsettings",
                                                        "objptr",
                                                        "strptr",
+                                                       "wfcado",
                                                        "wfcregexmatches",
                                                        "wfcregexreplace",
                                                        "loadresstring",
@@ -499,6 +501,15 @@ std::optional<Value> Interpreter::evaluate_misc_function(
                     class_definitions_.contains("wfcregexp")) {
                     return instantiate_class("wfcregexp", offset);
                 }
+                for (const auto& [progid_name, class_name] :
+                     {std::pair{"adodb.connection", "wfcadoconnection"},
+                      std::pair{"adodb.command", "wfcadocommand"},
+                      std::pair{"adodb.recordset", "wfcadorecordset"}}) {
+                    if (lowered == progid_name &&
+                        class_definitions_.contains(class_name)) {
+                        return instantiate_class(class_name, offset);
+                    }
+                }
                 if (lowered == "stdole.stdfont" || lowered == "stdfont") {
                     return make_standalone_font();
                 }
@@ -527,6 +538,18 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         static_cast<void>(raise_runtime(
             429, "ActiveX component can't create object", offset));
         return std::nullopt;
+    }
+    if (name == "wfcado") {
+        if (!execute_) {
+            return Value{Integer{0}};
+        }
+        auto outcome = wfc_ado(arguments);
+        if (outcome.error != 0) {
+            static_cast<void>(
+                raise_runtime(outcome.error, outcome.text, offset));
+            return std::nullopt;
+        }
+        return std::move(outcome.value);
     }
     if (name == "wfcregexmatches" || name == "wfcregexreplace") {
         const bool replacing = name == "wfcregexreplace";

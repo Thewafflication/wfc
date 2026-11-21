@@ -1533,6 +1533,29 @@ void Interpreter::scan_builtin_classes() {
             class_sources_.push_back({"RegExp", kRegExpSource});
         }
     }
+    // ADODB over SQLite. Active when a program uses ADODB.Connection or
+    // ADODB.Command; a lone ADODB.Recordset (disconnected, Fields.Append)
+    // stays with COM until wfc-adodb has disconnected recordsets.
+    if (any_source_mentions("adodb.connection", false) ||
+        any_source_mentions("adodb.command", false)) {
+        class_sources_.push_back({"WfcAdoConnection", kAdoConnectionSource});
+        class_sources_.push_back({"WfcAdoCommand", kAdoCommandSource});
+        class_sources_.push_back({"WfcAdoRecordset", kAdoRecordsetSource});
+        class_sources_.push_back({"WfcAdoFields", kAdoFieldsSource});
+        class_sources_.push_back({"WfcAdoField", kAdoFieldSource});
+        const auto add_ado_alias = [&](const std::string_view type_name,
+                                       const std::string_view lowered,
+                                       const std::string_view source) {
+            if (!user_defines(lowered)) {
+                class_sources_.push_back({std::string(type_name), source});
+            }
+        };
+        add_ado_alias("Connection", "connection", kAdoConnectionSource);
+        add_ado_alias("Command", "command", kAdoCommandSource);
+        add_ado_alias("Recordset", "recordset", kAdoRecordsetSource);
+        add_ado_alias("Fields", "fields", kAdoFieldsSource);
+        add_ado_alias("Field", "field", kAdoFieldSource);
+    }
     const auto mentions_app = [](const std::string_view text) {
         for (std::size_t i = 0; i + 4U <= text.size(); ++i) {
             if (ascii_lower(text[i]) == 'a' &&

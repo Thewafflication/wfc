@@ -1569,6 +1569,245 @@ End If
 End Function
 )VB";
 
+// ADODB over SQLite (wfc-adodb): Connection, Command, Recordset, Fields and
+// Field, written in VB over the native helper WfcAdo (ado_helper.cpp).
+inline constexpr std::string_view kAdoConnectionSource =
+    R"VB(Private h As Long
+Public ConnectionString As String
+Public Provider As String
+Public CursorLocation As Long
+Public CommandTimeout As Long
+Public Property Get State() As Long
+If h <> 0 Then State = 1
+End Property
+Public Property Get Version() As String
+Version = "2.8"
+End Property
+Public Property Get WfcEngine() As String
+WfcEngine = "SQLite " & WfcAdo(8, h)
+End Property
+Public Sub Open(Optional cs As String = "", Optional u As String = "",)VB"
+    R"VB( Optional p As String = "", Optional o As Long = -1)
+If h <> 0 Then Err.Raise 3705, , "Operation is not allowed when the)VB"
+    R"VB( object is open."
+If cs <> "" Then ConnectionString = cs
+h = WfcAdo(1, 0, ConnectionString)
+End Sub
+Public Sub Close()
+Dim r As Long
+If h = 0 Then Err.Raise 3704, , "Operation is not allowed when the)VB"
+    R"VB( object is closed."
+r = WfcAdo(2, h)
+h = 0
+End Sub
+Public Function WfcExec(ByVal sql As String, params As Variant) As Variant
+WfcExec = WfcAdo(3, h, sql, params)
+End Function
+Public Function Execute(ByVal CommandText As String,)VB"
+    R"VB( Optional RecordsAffected As Variant,)VB"
+    R"VB( Optional Options As Long = -1) As Object
+Dim r As Variant, rs As New WfcAdoRecordset
+r = WfcAdo(3, h, CommandText, Array())
+rs.Attach r(0)
+If Not IsMissing(RecordsAffected) Then RecordsAffected = r(1)
+Set Execute = rs
+End Function
+Public Function BeginTrans() As Long
+BeginTrans = WfcAdo(4, h)
+End Function
+Public Sub CommitTrans()
+Dim r As Long
+r = WfcAdo(5, h)
+End Sub
+Public Sub RollbackTrans()
+Dim r As Long
+r = WfcAdo(6, h)
+End Sub
+Private Sub Class_Terminate()
+Dim r As Long
+If h <> 0 Then r = WfcAdo(2, h)
+End Sub
+)VB";
+
+inline constexpr std::string_view kAdoCommandSource =
+    R"VB(Private cn As Object
+Public CommandText As String
+Public CommandType As Long
+Public Prepared As Boolean
+Public Property Get ActiveConnection() As Object
+Set ActiveConnection = cn
+End Property
+Public Property Set ActiveConnection(c As Object)
+Set cn = c
+End Property
+Public Function Execute(Optional RecordsAffected As Variant,)VB"
+    R"VB( Optional Parameters As Variant, Optional Options As Long = -1))VB"
+    R"VB( As Object
+Dim r As Variant, rs As New WfcAdoRecordset
+If cn Is Nothing Then Err.Raise 3709, , "The connection cannot be used)VB"
+    R"VB( to perform this operation. It is either closed or invalid in)VB"
+    R"VB( this context."
+If IsMissing(Parameters) Then
+r = cn.WfcExec(CommandText, Array())
+Else
+r = cn.WfcExec(CommandText, Parameters)
+End If
+rs.Attach r(0)
+If Not IsMissing(RecordsAffected) Then RecordsAffected = r(1)
+Set Execute = rs
+End Function
+)VB";
+
+inline constexpr std::string_view kAdoRecordsetSource =
+    R"VB(Private h As Long
+Private cn As Object
+Public CursorType As Long
+Public LockType As Long
+Public CursorLocation As Long
+Public PageSize As Long
+Public Property Get ActiveConnection() As Object
+Set ActiveConnection = cn
+End Property
+Public Property Set ActiveConnection(c As Object)
+Set cn = c
+End Property
+Public Sub Attach(ByVal rh As Long)
+h = rh
+End Sub
+Public Function WfcTake() As Long
+WfcTake = h
+h = 0
+End Function
+Public Property Get State() As Long
+If h <> 0 Then State = 1
+End Property
+Public Sub Open(Optional Source As Variant, Optional ActiveConnection)VB"
+    R"VB( As Variant, Optional CursorType As Long = 0, Optional LockType)VB"
+    R"VB( As Long = 1, Optional Options As Long = -1)
+Dim rs As Object
+If h <> 0 Then Err.Raise 3705, , "Operation is not allowed when the)VB"
+    R"VB( object is open."
+If Not IsMissing(ActiveConnection) Then
+If IsObject(ActiveConnection) Then
+Set cn = ActiveConnection
+Else
+Set cn = CreateObject("ADODB.Connection")
+cn.Open CStr(ActiveConnection)
+End If
+End If
+If cn Is Nothing Then Err.Raise 3709, , "The connection cannot be used)VB"
+    R"VB( to perform this operation. It is either closed or invalid in)VB"
+    R"VB( this context."
+If IsMissing(Source) Then Err.Raise 3707, , "Cannot change the)VB"
+    R"VB( ActiveConnection property of a Recordset object which has a)VB"
+    R"VB( Command object as its source."
+Set rs = cn.Execute(CStr(Source))
+h = rs.WfcTake()
+End Sub
+Public Sub Close()
+Dim r As Long
+If h = 0 Then Err.Raise 3704, , "Operation is not allowed when the)VB"
+    R"VB( object is closed."
+r = WfcAdo(33, h)
+h = 0
+End Sub
+Public Property Get Fields() As Object
+Dim f As New WfcAdoFields
+f.Init h
+Set Fields = f
+End Property
+Public Property Get Collect(Index As Variant) As Object
+Attribute Collect.VB_UserMemId = 0
+Dim f As New WfcAdoFields
+f.Init h
+Set Collect = f.Item(Index)
+End Property
+Public Property Get BOF() As Boolean
+BOF = WfcAdo(28, h)
+End Property
+Public Property Get EOF() As Boolean
+EOF = WfcAdo(29, h)
+End Property
+Public Property Get RecordCount() As Long
+RecordCount = WfcAdo(30, h)
+End Property
+Public Property Get AbsolutePosition() As Long
+AbsolutePosition = WfcAdo(31, h)
+End Property
+Public Sub MoveFirst()
+Dim r As Long
+r = WfcAdo(24, h)
+End Sub
+Public Sub MoveLast()
+Dim r As Long
+r = WfcAdo(25, h)
+End Sub
+Public Sub MoveNext()
+Dim r As Long
+r = WfcAdo(26, h)
+End Sub
+Public Sub MovePrevious()
+Dim r As Long
+r = WfcAdo(27, h)
+End Sub
+Private Sub Class_Terminate()
+Dim r As Long
+If h <> 0 Then r = WfcAdo(33, h)
+End Sub
+)VB";
+
+inline constexpr std::string_view kAdoFieldsSource =
+    R"VB(Private rh As Long
+Public Sub Init(ByVal h As Long)
+rh = h
+End Sub
+Public Property Get Count() As Long
+Count = WfcAdo(20, rh)
+End Property
+Public Function Item(Index As Variant) As Object
+Attribute Item.VB_UserMemId = 0
+Dim f As New WfcAdoField, i As Long
+If VarType(Index) = vbString Then
+i = WfcAdo(32, rh, Index)
+If i < 0 Then Err.Raise 3265, , "Item cannot be found in the)VB"
+    R"VB( collection corresponding to the requested name or ordinal."
+Else
+i = CLng(Index)
+End If
+f.Init rh, i
+Set Item = f
+End Function
+Public Function WfcItems() As Variant
+Dim r() As Variant, i As Long, n As Long
+n = WfcAdo(20, rh)
+If n = 0 Then
+WfcItems = Array()
+Else
+ReDim r(1 To n)
+For i = 1 To n
+Set r(i) = Item(i - 1)
+Next i
+WfcItems = r
+End If
+End Function
+)VB";
+
+inline constexpr std::string_view kAdoFieldSource =
+    R"VB(Private rh As Long
+Private ix As Long
+Public Sub Init(ByVal h As Long, ByVal i As Long)
+rh = h
+ix = i
+End Sub
+Public Property Get Name() As String
+Name = WfcAdo(21, rh, ix)
+End Property
+Public Property Get Value() As Variant
+Attribute Value.VB_UserMemId = 0
+Value = WfcAdo(23, rh, ix)
+End Property
+)VB";
+
 }  // namespace wfc::detail
 
 #endif  // WFC_INTERPRETER_BUILTIN_CLASS_SOURCES_HPP
