@@ -28,6 +28,9 @@ add_subdirectory(lib/wfc-mscomctl)
 add_subdirectory(lib/wfc-mscomctl2)
 add_subdirectory(lib/wfc-comdlg32)
 add_subdirectory(lib/wfc-mswinsck)
+# The BASIC PDS 7.1 text-mode runtime (BRUN71): text screen, keyboard and
+# console host. Not yet called by the evaluator.
+add_subdirectory(lib/wfc-brun71)
 
 add_library(wfc_frontend STATIC)
 target_sources(

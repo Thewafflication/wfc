@@ -18,6 +18,10 @@
       "label": "comdlg32|control"
     },
     {
+      "prefix": "lib/wfc-brun71/",
+      "label": "brun71"
+    },
+    {
       "prefix": "lib/wfc-vbrun/",
       "label": "vbrun"
     },

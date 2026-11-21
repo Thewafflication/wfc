@@ -25,3 +25,6 @@
 [submodule "lib/wfc-adodb"]
 	path = lib/wfc-adodb
 	url = https://github.com/Thewafflication/wfc-adodb.git
+[submodule "lib/wfc-brun71"]
+	path = lib/wfc-brun71
+	url = https://github.com/Thewafflication/wfc-brun71.git
