@@ -35,6 +35,14 @@
       }
     },
     {
+      "name": "windows-x86-debug-shared",
+      "displayName": "Windows x86 Debug, control libraries as DLLs",
+      "inherits": "windows-x86-debug",
+      "cacheVariables": {
+        "WFC_OCX_SHARED": "ON"
+      }
+    },
+    {
       "name": "windows-arm64-debug",
       "displayName": "Windows ARM64 Debug",
       "generator": "Visual Studio 18 2026",
@@ -42,6 +50,14 @@
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
         "WFC_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-arm64-debug-shared",
+      "displayName": "Windows ARM64 Debug, control libraries as DLLs",
+      "inherits": "windows-arm64-debug",
+      "cacheVariables": {
+        "WFC_OCX_SHARED": "ON"
       }
     },
     {
@@ -92,8 +108,18 @@
       "configuration": "Debug"
     },
     {
+      "name": "windows-x86-debug-shared",
+      "configurePreset": "windows-x86-debug-shared",
+      "configuration": "Debug"
+    },
+    {
       "name": "windows-arm64-debug",
       "configurePreset": "windows-arm64-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-arm64-debug-shared",
+      "configurePreset": "windows-arm64-debug-shared",
       "configuration": "Debug"
     },
     {
@@ -147,8 +173,30 @@
       }
     },
     {
+      "name": "windows-x86-debug-shared",
+      "configurePreset": "windows-x86-debug-shared",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 8
+      }
+    },
+    {
       "name": "windows-arm64-debug",
       "configurePreset": "windows-arm64-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 8
+      }
+    },
+    {
+      "name": "windows-arm64-debug-shared",
+      "configurePreset": "windows-arm64-debug-shared",
       "configuration": "Debug",
       "output": {
         "outputOnFailure": true
