@@ -5,7 +5,10 @@
 
 #include <wfc/adodb/adodb.hpp>
 
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <map>
 #include <memory>
@@ -84,6 +87,98 @@ adodb::Value to_adodb(const Value& value) {
     return adodb::Value{as_double(value)};
 }
 
+// The value of a field as the Visual Basic type its ADO data type names.
+Value typed(const adodb::Value& stored, const int type) {
+    if (stored.index() == 0 || stored.index() >= 3) {
+        return from_adodb(stored);
+    }
+    double number = 0;
+    if (const auto* whole_number = std::get_if<std::int64_t>(&stored)) {
+        number = static_cast<double>(*whole_number);
+    } else if (const auto* real = std::get_if<double>(&stored)) {
+        number = *real;
+    } else {
+        return from_adodb(stored);  // text in a numeric field: as it is
+    }
+    switch (type) {
+        case 2:
+            return Value{static_cast<Int16>(number)};
+        case 3:
+            return Value{static_cast<Integer>(number)};
+        case 4:
+            return Value{static_cast<float>(number)};
+        case 5:
+            return Value{number};
+        case 6:
+            return Value{Currency{std::llround(number * 10000.0)}};
+        case 7:
+        case 133:
+        case 134:
+        case 135:
+            return Value{DateValue{number}};
+        case 11:
+            return Value{number != 0.0};
+        case 16:
+        case 17:
+            return Value{static_cast<Byte>(number)};
+        default:
+            return from_adodb(stored);
+    }
+}
+
+// A value assigned to a field, in the form the recordset stores for its type.
+adodb::Value coerced(const Value& value, const int type) {
+    if (std::holds_alternative<Empty>(value) ||
+        std::holds_alternative<Null>(value)) {
+        return adodb::Value{};
+    }
+    const bool text_type = type == 200 || type == 201 || type == 202 ||
+                           type == 203 || type == 8 || type == 129 ||
+                           type == 130;
+    if (text_type) {
+        if (const auto* v = std::get_if<std::string>(&value)) {
+            return adodb::Value{*v};
+        }
+        if (const auto* v = std::get_if<bool>(&value)) {
+            return adodb::Value{std::string(*v ? "True" : "False")};
+        }
+        char buffer[40];
+        if (const auto number = whole(value)) {
+            return adodb::Value{std::to_string(*number)};
+        }
+        std::snprintf(buffer, sizeof(buffer), "%.15g", as_double(value));
+        return adodb::Value{std::string(buffer)};
+    }
+    double number = 0;
+    if (const auto* v = std::get_if<std::string>(&value)) {
+        char* end = nullptr;
+        number = std::strtod(v->c_str(), &end);
+        if (end == v->c_str() || *end != '\0') {
+            return adodb::Value{*v};  // not a number: kept as text
+        }
+    } else if (const auto* flag = std::get_if<bool>(&value)) {
+        number = *flag ? -1.0 : 0.0;
+    } else if (const auto* date = std::get_if<DateValue>(&value)) {
+        number = date->serial;
+    } else if (const auto whole_number = whole(value)) {
+        number = static_cast<double>(*whole_number);
+    } else {
+        number = as_double(value);
+    }
+    switch (type) {
+        case 2:
+        case 3:
+        case 16:
+        case 17:
+        case 20:
+        case 11:
+            return adodb::Value{static_cast<std::int64_t>(
+                type == 11 && number != 0.0 ? -1 : std::llround(number))};
+        default:
+            return adodb::Value{number};
+    }
+}
+
 AdoOutcome failed(const adodb::Connection& connection) {
     AdoOutcome outcome;
     if (!connection.errors().empty()) {
@@ -153,6 +248,11 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
         }
         const Integer id = all.next++;
         all.connections[id] = std::move(connection);
+        return ok(Value{id});
+    }
+    if (*op == 40) {  // a closed, disconnected recordset
+        const Integer id = all.next++;
+        all.recordsets[id] = adodb::Recordset::create();
         return ok(Value{id});
     }
     if (*op >= 2 && *op <= 9) {
@@ -250,7 +350,7 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
             if (set.bof() || set.eof()) {
                 return no_record();
             }
-            return ok(from_adodb(set.value(*index)));
+            return ok(typed(set.value(*index), set.field(*index).type));
         }
         case 24:
             set.move_first();
@@ -272,6 +372,91 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
             return ok(Value{static_cast<Integer>(set.absolute_position())});
         case 32:
             return ok(Value{static_cast<Integer>(set.field_index(text_at(2)))});
+        case 34:  // Fields.Append(name, type, size)
+            return set.append_field(text_at(2), static_cast<int>(long_at(3)),
+                                    static_cast<long>(long_at(4)))
+                       ? ok(Value{Integer{0}})
+                       : bad(3367,
+                             "Object or provider is not capable of"
+                             " performing requested operation.");
+        case 35:  // Open without a source
+            return set.open_empty() ? ok(Value{Integer{0}})
+                                    : bad(3705,
+                                          "Operation is not allowed when the"
+                                          " object is open.");
+        case 36:
+        case 37:
+        case 38:
+        case 39:
+        case 41: {
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            if (!set.editable()) {
+                return bad(3251,
+                           "Current Recordset does not support"
+                           " updating. This may be a limitation of"
+                           " the provider, or of the selected"
+                           " locktype.");
+            }
+            bool done = false;
+            if (*op == 36) {
+                done = set.add_new();
+            } else if (*op == 37) {
+                done = set.update() || true;  // nothing pending is fine
+            } else if (*op == 38) {
+                if (set.bof() || set.eof()) {
+                    return no_record();
+                }
+                done = set.delete_current();
+            } else if (*op == 39) {
+                done = set.cancel_update() || true;
+            } else {
+                const auto index = field();
+                if (!index) {
+                    return bad(3265,
+                               "Item cannot be found in the"
+                               " collection corresponding to the"
+                               " requested name or ordinal.");
+                }
+                if (set.bof() || set.eof()) {
+                    return no_record();
+                }
+                done = arguments.size() > 3U &&
+                       set.set_value(*index, coerced(arguments[3],
+                                                     set.field(*index).type));
+            }
+            return done ? ok(Value{Integer{0}})
+                        : bad(3001,
+                              "Arguments are of the wrong type, are"
+                              " out of acceptable range, or are in"
+                              " conflict with one another.");
+        }
+        case 42:
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            return set.set_filter(text_at(2))
+                       ? ok(Value{Integer{0}})
+                       : bad(3001,
+                             "Arguments are of the wrong type, are"
+                             " out of acceptable range, or are in"
+                             " conflict with one another.");
+        case 43:  // Find(criteria, skip, direction)
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            return set.find(text_at(2), static_cast<long>(long_at(3)),
+                            long_at(4) != 2)
+                       ? ok(Value{Integer{0}})
+                       : bad(3001,
+                             "Arguments are of the wrong type, are"
+                             " out of acceptable range, or are in"
+                             " conflict with one another.");
+        case 44:
+            return ok(Value{set.filter()});
+        case 45:
+            return ok(Value{static_cast<Integer>(set.state())});
         case 33:
             all.recordsets.erase(found);
             return ok(Value{Integer{0}});

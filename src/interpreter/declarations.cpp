@@ -1533,11 +1533,12 @@ void Interpreter::scan_builtin_classes() {
             class_sources_.push_back({"RegExp", kRegExpSource});
         }
     }
-    // ADODB over SQLite. Active when a program uses ADODB.Connection or
-    // ADODB.Command; a lone ADODB.Recordset (disconnected, Fields.Append)
-    // stays with COM until wfc-adodb has disconnected recordsets.
+    // ADODB over SQLite: Connection and Command talk to a SQLite database,
+    // and a Recordset is either a query result or built in memory
+    // (Fields.Append, AddNew), as with the Microsoft provider.
     if (any_source_mentions("adodb.connection", false) ||
-        any_source_mentions("adodb.command", false)) {
+        any_source_mentions("adodb.command", false) ||
+        any_source_mentions("adodb.recordset", false)) {
         class_sources_.push_back({"WfcAdoConnection", kAdoConnectionSource});
         class_sources_.push_back({"WfcAdoCommand", kAdoCommandSource});
         class_sources_.push_back({"WfcAdoRecordset", kAdoRecordsetSource});

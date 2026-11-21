@@ -1679,14 +1679,32 @@ WfcTake = h
 h = 0
 End Function
 Public Property Get State() As Long
-If h <> 0 Then State = 1
+If h <> 0 Then State = WfcAdo(45, h)
 End Property
-Public Sub Open(Optional Source As Variant, Optional ActiveConnection)VB"
-    R"VB( As Variant, Optional CursorType As Long = 0, Optional LockType)VB"
-    R"VB( As Long = 1, Optional Options As Long = -1)
-Dim rs As Object
-If h <> 0 Then Err.Raise 3705, , "Operation is not allowed when the)VB"
-    R"VB( object is open."
+Private Sub Need()
+)VB"
+    R"VB(If State = 0 Then Err.Raise 3704, , "Operation is not allowed)VB"
+    R"VB( when the object is closed."
+)VB"
+    R"VB(End Sub
+)VB"
+    R"VB(Public Sub Open(Optional Source As Variant, Optional)VB"
+    R"VB( ActiveConnection As Variant, Optional CursorType As Long = 0,)VB"
+    R"VB( Optional LockType As Long = 1, Optional Options As Long = -1)
+)VB"
+    R"VB(Dim rs As Object, nh As Long, r As Long
+)VB"
+    R"VB(If State <> 0 Then Err.Raise 3705, , "Operation is not allowed)VB"
+    R"VB( when the object is open."
+)VB"
+    R"VB(If IsMissing(Source) Then
+)VB"
+    R"VB(If h = 0 Then Err.Raise 3704, , "Operation is not allowed when)VB"
+    R"VB( the object is closed."
+)VB"
+    R"VB(r = WfcAdo(35, h)
+Exit Sub
+End If
 If Not IsMissing(ActiveConnection) Then
 If IsObject(ActiveConnection) Then
 Set cn = ActiveConnection
@@ -1695,32 +1713,36 @@ Set cn = CreateObject("ADODB.Connection")
 cn.Open CStr(ActiveConnection)
 End If
 End If
-If cn Is Nothing Then Err.Raise 3709, , "The connection cannot be used)VB"
-    R"VB( to perform this operation. It is either closed or invalid in)VB"
-    R"VB( this context."
-If IsMissing(Source) Then Err.Raise 3707, , "Cannot change the)VB"
-    R"VB( ActiveConnection property of a Recordset object which has a)VB"
-    R"VB( Command object as its source."
-Set rs = cn.Execute(CStr(Source))
-h = rs.WfcTake()
+)VB"
+    R"VB(If cn Is Nothing Then Err.Raise 3709, , "The connection cannot)VB"
+    R"VB( be used to perform this operation. It is either closed or)VB"
+    R"VB( invalid in this context."
+)VB"
+    R"VB(Set rs = cn.Execute(CStr(Source))
+nh = rs.WfcTake()
+If h <> 0 Then r = WfcAdo(33, h)
+h = nh
 End Sub
 Public Sub Close()
 Dim r As Long
-If h = 0 Then Err.Raise 3704, , "Operation is not allowed when the)VB"
-    R"VB( object is closed."
+Need
 r = WfcAdo(33, h)
 h = 0
 End Sub
 Public Property Get Fields() As Object
 Dim f As New WfcAdoFields
+If h = 0 Then h = WfcAdo(40, 0)
 f.Init h
 Set Fields = f
 End Property
 Public Property Get Collect(Index As Variant) As Object
 Attribute Collect.VB_UserMemId = 0
-Dim f As New WfcAdoFields
-f.Init h
-Set Collect = f.Item(Index)
+Set Collect = Fields.Item(Index)
+End Property
+Public Property Let Collect(Index As Variant, v As Variant)
+Dim f As Object
+Set f = Fields.Item(Index)
+f.Value = v
 End Property
 Public Property Get BOF() As Boolean
 BOF = WfcAdo(28, h)
@@ -1733,6 +1755,13 @@ RecordCount = WfcAdo(30, h)
 End Property
 Public Property Get AbsolutePosition() As Long
 AbsolutePosition = WfcAdo(31, h)
+End Property
+Public Property Get Filter() As Variant
+Filter = WfcAdo(44, h)
+End Property
+Public Property Let Filter(v As Variant)
+Dim r As Long
+r = WfcAdo(42, h, CStr(v))
 End Property
 Public Sub MoveFirst()
 Dim r As Long
@@ -1750,6 +1779,55 @@ Public Sub MovePrevious()
 Dim r As Long
 r = WfcAdo(27, h)
 End Sub
+Public Sub AddNew()
+Dim r As Long
+r = WfcAdo(36, h)
+End Sub
+Public Sub Update()
+Dim r As Long
+r = WfcAdo(37, h)
+End Sub
+Public Sub CancelUpdate()
+Dim r As Long
+r = WfcAdo(39, h)
+End Sub
+Public Sub Delete()
+Dim r As Long
+r = WfcAdo(38, h)
+End Sub
+)VB"
+    R"VB(Public Sub Find(Criteria As String, Optional SkipRows As Long)VB"
+    R"VB( = 0, Optional SearchDirection As Long = 1, Optional Start As)VB"
+    R"VB( Variant)
+)VB"
+    R"VB(Dim r As Long
+r = WfcAdo(43, h, Criteria, SkipRows, SearchDirection)
+End Sub
+)VB"
+    R"VB(Public Function GetRows(Optional Rows As Long = -1, Optional)VB"
+    R"VB( Start As Variant, Optional Fields As Variant) As Variant
+)VB"
+    R"VB(Dim a() As Variant, nf As Long, n As Long, i As Long, j As)VB"
+    R"VB( Long
+)VB"
+    R"VB(Need
+nf = WfcAdo(20, h)
+)VB"
+    R"VB(If WfcAdo(29, h) Or WfcAdo(28, h) Then Err.Raise 3021, ,)VB"
+    R"VB( "Either BOF or EOF is True, or the current record has been)VB"
+    R"VB( deleted. Requested operation requires a current record."
+)VB"
+    R"VB(n = WfcAdo(30, h) - WfcAdo(31, h) + 1
+If Rows >= 0 And Rows < n Then n = Rows
+ReDim a(0 To nf - 1, 0 To n - 1)
+For j = 0 To n - 1
+For i = 0 To nf - 1
+a(i, j) = WfcAdo(23, h, i)
+Next i
+MoveNext
+Next j
+GetRows = a
+End Function
 Private Sub Class_Terminate()
 Dim r As Long
 If h <> 0 Then r = WfcAdo(33, h)
@@ -1764,14 +1842,24 @@ End Sub
 Public Property Get Count() As Long
 Count = WfcAdo(20, rh)
 End Property
+)VB"
+    R"VB(Public Sub Append(FieldName As String, FieldType As Long,)VB"
+    R"VB( Optional DefinedSize As Long = 0, Optional Attrib As Long =)VB"
+    R"VB( -1)
+)VB"
+    R"VB(Dim r As Long
+r = WfcAdo(34, rh, FieldName, FieldType, DefinedSize)
+End Sub
 Public Function Item(Index As Variant) As Object
 Attribute Item.VB_UserMemId = 0
 Dim f As New WfcAdoField, i As Long
 If VarType(Index) = vbString Then
 i = WfcAdo(32, rh, Index)
-If i < 0 Then Err.Raise 3265, , "Item cannot be found in the)VB"
+)VB"
+    R"VB(If i < 0 Then Err.Raise 3265, , "Item cannot be found in the)VB"
     R"VB( collection corresponding to the requested name or ordinal."
-Else
+)VB"
+    R"VB(Else
 i = CLng(Index)
 End If
 f.Init rh, i
@@ -1805,6 +1893,10 @@ End Property
 Public Property Get Value() As Variant
 Attribute Value.VB_UserMemId = 0
 Value = WfcAdo(23, rh, ix)
+End Property
+Public Property Let Value(v As Variant)
+Dim r As Long
+r = WfcAdo(41, rh, ix, v)
 End Property
 )VB";
 
