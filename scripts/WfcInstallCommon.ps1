@@ -52,6 +52,21 @@ $script:RegisteredLibraries = @(
     'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2', 'wfccomdlg32', 'wfcmswinsck'
 )
 
+# The file each library is built as: the name of the Microsoft original it
+# replaces (wfcrt is the WFC runtime and has no original).
+$script:LibraryFiles = @{
+    wfcrt = 'wfcrt.dll'
+    wfcvbrun = 'msvbvm60.dll'
+    wfcmscomctl = 'mscomctl.ocx'
+    wfcmscomctl2 = 'mscomct2.ocx'
+    wfccomdlg32 = 'comdlg32.ocx'
+    wfcmswinsck = 'mswinsck.ocx'
+}
+
+function Get-LibraryFile([string]$Library) {
+    return $script:LibraryFiles[$Library]
+}
+
 # The regsvr32 that loads a library of the given architecture, or $null when
 # this machine cannot run it.
 function Get-Regsvr32([string]$Architecture) {

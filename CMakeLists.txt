@@ -22,7 +22,7 @@ endif()
 include(CTest)
 
 # The control libraries; each is a static library or, with WFC_OCX_SHARED, a
-# DLL of its own (wfcmscomctl.dll, wfccomdlg32.dll, wfcmswinsck.dll).
+# file of its own (mscomctl.ocx, comdlg32.ocx, mswinsck.ocx).
 option(WFC_OCX_SHARED "Build the WFC control libraries as DLLs" OFF)
 add_subdirectory(lib/wfc-mscomctl)
 add_subdirectory(lib/wfc-mscomctl2)

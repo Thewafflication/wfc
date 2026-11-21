@@ -13,11 +13,11 @@ foreach(
   wfc.exe
   wfcl.exe
   wfcrt.dll
-  wfcvbrun.dll
-  wfcmscomctl.dll
-  wfcmscomctl2.dll
-  wfccomdlg32.dll
-  wfcmswinsck.dll
+  msvbvm60.dll
+  mscomctl.ocx
+  mscomct2.ocx
+  comdlg32.ocx
+  mswinsck.ocx
 )
   if(EXISTS "${BIN}/${name}")
     file(COPY "${BIN}/${name}" DESTINATION "${WORK}/pkg/${ARCH}")
@@ -65,7 +65,7 @@ if(EXISTS "${root}/bin/${ARCH}")
   message(FATAL_ERROR "the install kept a second copy in bin/${ARCH}")
 endif()
 file(GLOB runtime_dll "${root}/lib/wfcrt/*/${ARCH}/wfcrt.dll")
-file(GLOB vbrun_dll "${root}/lib/wfcvbrun/*/${ARCH}/wfcvbrun.dll")
+file(GLOB vbrun_dll "${root}/lib/wfcvbrun/*/${ARCH}/msvbvm60.dll")
 if(NOT runtime_dll OR NOT vbrun_dll)
   message(FATAL_ERROR "versioned library folders missing below ${root}/lib")
 endif()

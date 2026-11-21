@@ -426,6 +426,22 @@ std::string install_root() {
     return {};
 }
 
+// The folder below lib\ that holds a library file: the file is named after
+// the Microsoft original (mscomctl.ocx), the folder after the WFC library.
+static std::string library_folder_name(const std::string& stem) {
+    static const std::pair<const char*, const char*> names[] = {
+        {"msvbvm60", "wfcvbrun"},     {"mscomctl", "wfcmscomctl"},
+        {"mscomct2", "wfcmscomctl2"}, {"comdlg32", "wfccomdlg32"},
+        {"mswinsck", "wfcmswinsck"},
+    };
+    for (const auto& [file, folder] : names) {
+        if (stem == file) {
+            return folder;
+        }
+    }
+    return stem;
+}
+
 bool library_is_loaded(const char* const file) {
 #ifdef _WIN32
     return GetModuleHandleA(file) != nullptr;
@@ -451,7 +467,8 @@ std::string find_runtime_file(const std::string_view file) {
         return in_bin.string();
     }
     // lib\<name>\<version>\<arch>\<file>, the highest version first.
-    const auto library = fs::path(root) / "lib" / fs::path(file).stem();
+    const auto stem = fs::path(file).stem().string();
+    const auto library = fs::path(root) / "lib" / library_folder_name(stem);
     std::string best_version;
     fs::path best;
     for (const auto& entry : fs::directory_iterator(library, error)) {
@@ -482,11 +499,11 @@ std::vector<LibraryInfo> libraries() {
         const char* built_in;
     } entries[] = {
         {"wfcrt", "wfcrt.dll", nullptr},
-        {"wfcmscomctl", "wfcmscomctl.dll", WFC_MSCOMCTL_VERSION_STRING},
-        {"wfcmscomctl2", "wfcmscomctl2.dll", WFC_MSCOMCTL2_VERSION_STRING},
-        {"wfccomdlg32", "wfccomdlg32.dll", WFC_COMDLG32_VERSION_STRING},
-        {"wfcmswinsck", "wfcmswinsck.dll", WFC_MSWINSCK_VERSION_STRING},
-        {"wfcvbrun", "wfcvbrun.dll", nullptr},
+        {"wfcmscomctl", "mscomctl.ocx", WFC_MSCOMCTL_VERSION_STRING},
+        {"wfcmscomctl2", "mscomct2.ocx", WFC_MSCOMCTL2_VERSION_STRING},
+        {"wfccomdlg32", "comdlg32.ocx", WFC_COMDLG32_VERSION_STRING},
+        {"wfcmswinsck", "mswinsck.ocx", WFC_MSWINSCK_VERSION_STRING},
+        {"wfcvbrun", "msvbvm60.dll", nullptr},
     };
     for (const auto& entry : entries) {
         // A library this wfc carries inside itself is static, whether or not

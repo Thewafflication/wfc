@@ -15,8 +15,8 @@ Layout below the root:
                            machine's architecture; bin\<arch>\ for another
                            architecture installed beside it
   lib\<name>\<ver>\<arch>\ the libraries, each in its own versioned folder
-                           (wfcrt, wfcvbrun, and wfcmscomctl, wfccomdlg32,
-                           wfcmswinsck when present)
+                           (wfcrt, msvbvm60, and mscomctl, comdlg32,
+                           mswinsck when present)
   install.json             what is installed, with versions
   Install-Wfc.ps1          this script, for the uninstall
 
@@ -26,8 +26,8 @@ the PATH), a Windows Terminal profile, and an Apps & features entry.
 
 .PARAMETER Source
 The folder of the package: one folder per architecture (x64, x86, arm64)
-holding wfc.exe, wfcl.exe, wfcrt.dll, wfcvbrun.dll and optionally
-wfcmscomctl.dll, wfccomdlg32.dll and wfcmswinsck.dll.
+holding wfc.exe, wfcl.exe, wfcrt.dll, msvbvm60.dll and optionally
+mscomctl.ocx, comdlg32.ocx and mswinsck.ocx.
 
 .PARAMETER Scope
 Machine (all users, needs administrator rights), User, or Auto (default).
@@ -188,7 +188,7 @@ function Get-RegisteredFile([object[]]$Entries) {
         if ($script:RegisteredLibraries -notcontains $library) { continue }
         $folder = "lib\$library\$($entry.Value)\$architecture"
         $files += [pscustomobject]@{
-            Path = Join-Path $Root "$folder\$library.dll"
+            Path = Join-Path $Root "$folder\$(Get-LibraryFile $library)"
             Architecture = $architecture
         }
     }
@@ -316,11 +316,10 @@ foreach ($architecture in $architectures) {
         Copy-Item -LiteralPath (Join-Path $from 'wfcw2k.exe') `
             -Destination $archBin -Force
     }
-    foreach ($dll in 'wfcrt.dll', 'wfcvbrun.dll', 'wfcmscomctl.dll',
-        'wfcmscomctl2.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll') {
-        $file = Join-Path $from $dll
+    foreach ($library in 'wfcrt', 'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2',
+        'wfccomdlg32', 'wfcmswinsck') {
+        $file = Join-Path $from (Get-LibraryFile $library)
         if (-not (Test-Path -LiteralPath $file)) { continue }
-        $library = [IO.Path]::GetFileNameWithoutExtension($dll)
         $libraryVersion = Get-LibraryVersion $file
         $folder = Join-Path $Root "lib\$library\$libraryVersion\$architecture"
         New-Item -ItemType Directory -Force -Path $folder | Out-Null

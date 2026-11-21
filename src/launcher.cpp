@@ -7,7 +7,7 @@
 // installation roots (`%LOCALAPPDATA%\Programs\WFC` for one user,
 // `Program Files\WFC` for all, then `C:\wfc` of WFC 0.8.23 and earlier).
 // The library folders below `lib` of that root are added to the DLL search path
-// so wfcrt.dll finds the libraries it uses (wfcvbrun.dll and the OCX DLLs).
+// so wfcrt.dll finds the libraries it uses (msvbvm60.dll and the OCX files).
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX

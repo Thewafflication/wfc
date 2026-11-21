@@ -5,7 +5,7 @@ Builds the WPM package of one WFC library from its Release DLLs.
 .DESCRIPTION
 Used by the release workflow every library repository shares
 (.github/workflows/library-release.yml). Reads
-<InputRoot>/<arch>/wfc<Library>.dll for x86, x64 and arm64 and writes
+<InputRoot>/<arch>/<original name> for x86, x64 and arm64 and writes
 wfc-<Library>-any-<version>.zip, the version being the one in VERSION of the
 library repository. The package holds one folder per architecture, the
 library's README, the WFC license and the WFC library install scripts
@@ -50,7 +50,13 @@ Set-StrictMode -Version Latest
 $wfcRoot = Split-Path -Parent $PSScriptRoot
 $LibraryRoot = (Resolve-Path $LibraryRoot).Path
 $name = "wfc-$Library"
-$dll = "wfc$Library.dll"
+$dll = @{
+    vbrun = 'msvbvm60.dll'
+    mscomctl = 'mscomctl.ocx'
+    mscomctl2 = 'mscomct2.ocx'
+    comdlg32 = 'comdlg32.ocx'
+    mswinsck = 'mswinsck.ocx'
+}[$Library]
 $versionFile = Join-Path $LibraryRoot 'VERSION'
 $version = (Get-Content $versionFile -TotalCount 1).Trim()
 $revision = (git -C $LibraryRoot rev-parse HEAD).Trim()

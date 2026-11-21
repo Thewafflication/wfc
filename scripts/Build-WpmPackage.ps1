@@ -75,8 +75,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent $PSScriptRoot
 $toolFiles = @(
-    'wfc.exe', 'wfcl.exe', 'wfcw2k.exe', 'wfcrt.dll', 'wfcvbrun.dll',
-    'wfcmscomctl.dll', 'wfcmscomctl2.dll', 'wfccomdlg32.dll', 'wfcmswinsck.dll'
+    'wfc.exe', 'wfcl.exe', 'wfcw2k.exe', 'wfcrt.dll', 'msvbvm60.dll',
+    'mscomctl.ocx', 'mscomct2.ocx', 'comdlg32.ocx', 'mswinsck.ocx'
 )
 
 # What a wfc package carries; the library DLLs come in their own packages.

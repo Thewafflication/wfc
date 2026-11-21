@@ -40,6 +40,13 @@ on:
 permissions:
   contents: read
 
+# The file each library is built as: the name of the Microsoft original.
+env:
+  LIBRARY_FILES: >-
+    {"vbrun":"msvbvm60.dll","mscomctl":"mscomctl.ocx",
+    "mscomctl2":"mscomct2.ocx","comdlg32":"comdlg32.ocx",
+    "mswinsck":"mswinsck.ocx"}
+
 jobs:
   build:
     name: Release ${{ matrix.arch }}
@@ -84,7 +91,7 @@ jobs:
       - name: Collect the DLL
         shell: pwsh
         run: |
-          $name = 'wfc${{ inputs.library }}.dll'
+          $name = '${{ fromJSON(env.LIBRARY_FILES)[inputs.library] }}'
           $dll = Get-ChildItem out/build -Recurse -Filter $name |
             Where-Object FullName -Match 'Release' | Select-Object -First 1
           if (-not $dll) { throw "No Release $name." }
@@ -94,7 +101,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dll-${{ matrix.arch }}
-          path: out/package-input/wfc${{ inputs.library }}.dll
+          path: >-
+            out/package-input/${{ fromJSON(env.LIBRARY_FILES)[inputs.library] }}
           if-no-files-found: error
           retention-days: 14
 
@@ -130,7 +138,7 @@ jobs:
           foreach ($arch in 'x86', 'x64', 'arm64') {
             $target = "out/package-input/$arch"
             New-Item -ItemType Directory -Force $target | Out-Null
-            Move-Item "out/download/dll-$arch/*.dll" $target
+            Move-Item "out/download/dll-$arch/*" $target
           }
 
       - name: Install WPM

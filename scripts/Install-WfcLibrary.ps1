@@ -89,7 +89,8 @@ if (-not $Library) {
             Where-Object {
                 $name = $_
                 $architectures | Where-Object {
-                    Test-Path (Join-Path $Source "$_\$name.dll")
+                    $file = Get-LibraryFile $name
+                    Test-Path (Join-Path $Source "$_\$file")
                 }
             }
     )
@@ -101,6 +102,7 @@ if (-not $Library) {
 if ($script:RegisteredLibraries -notcontains $Library) {
     throw "Unknown library '$Library'."
 }
+$file = Get-LibraryFile $Library
 
 $recordPath = Join-Path $Root 'install.json'
 
@@ -149,11 +151,11 @@ function Update-Record([string]$Architecture, [string]$Version) {
 if ($Uninstall) {
     if (-not $PSCmdlet.ShouldProcess($Root, "Remove $Library")) { return }
     foreach ($architecture in $architectures) {
-        $dll = Join-Path $Source "$architecture\$Library.dll"
+        $dll = Join-Path $Source "$architecture\$file"
         if (-not (Test-Path -LiteralPath $dll)) { continue }
         $version = Get-LibraryVersion $dll
         $folder = Join-Path $Root "lib\$Library\$version\$architecture"
-        $installed = Join-Path $folder "$Library.dll"
+        $installed = Join-Path $folder $file
         if (-not $FilesOnly -and -not $NoRegister -and
             (Test-Path -LiteralPath $installed)) {
             Invoke-LibraryRegistration -Dll $installed `
@@ -175,7 +177,7 @@ if ($architectures.Count -eq 0) {
 }
 if (-not $PSCmdlet.ShouldProcess($Root, "Install $Library ($Scope)")) { return }
 foreach ($architecture in $architectures) {
-    $dll = Join-Path $Source "$architecture\$Library.dll"
+    $dll = Join-Path $Source "$architecture\$file"
     if (-not (Test-Path -LiteralPath $dll)) { continue }
     $version = Get-LibraryVersion $dll
     $folder = Join-Path $Root "lib\$Library\$version\$architecture"
@@ -183,7 +185,7 @@ foreach ($architecture in $architectures) {
     Copy-Item -LiteralPath $dll -Destination $folder -Force
     if ($FilesOnly) { continue }
     if (-not $NoRegister) {
-        Invoke-LibraryRegistration -Dll (Join-Path $folder "$Library.dll") `
+        Invoke-LibraryRegistration -Dll (Join-Path $folder $file) `
             -Architecture $architecture -Scope $Scope `
             -MicrosoftIds:$RegisterMicrosoftIds
     }
