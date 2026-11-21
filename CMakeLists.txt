@@ -3246,6 +3246,18 @@ Print v.x & q.x]=]
 
   if(WIN32)
     add_test(
+      NAME TC-MP0008-package-app-path
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${package_tests}/../fixtures/native-app-path/AppPath.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-app-path" -P
+        "${package_tests}/run_app_path_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-app-path
+      PROPERTIES LABELS "integration;mp-0008;package"
+    )
+    add_test(
       NAME TC-MP0008-package-default-subsystem
       COMMAND
         "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"

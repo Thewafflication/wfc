@@ -312,6 +312,9 @@ int prepare_native(const int argument_count, const char* const arguments[],
                                                      project.class_sources[i]});
     }
     info.app_properties = project.app_properties;
+    // App.Path is where the program runs, not the folder it was built from:
+    // a packaged program starts in the folder that holds its files.
+    info.app_properties["path"].clear();
     {
         // The modules: `Attribute VB_Name = "Helpers"`.
         std::istringstream lines(source);
