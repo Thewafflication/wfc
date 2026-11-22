@@ -932,6 +932,10 @@ bool Interpreter::parse_statement_core() {
         }
     }
     if (consume_keyword("beep")) {
+        // A PDS program hears it (ADR-0011); a VB6 Beep stays silent.
+        if (execute_) {
+            pds::beep();
+        }
         return true;
     }
     if (const auto pds_statement = parse_pds_statement(statement_offset)) {

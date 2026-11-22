@@ -59,6 +59,28 @@ void print_text(std::string_view text);
 // CHR$(0) and its code). Throws brun71::BasicError 62 like read_line.
 [[nodiscard]] std::string read_chars(int count);
 
+// BEEP: a short tone, when the screen has started (a VB6 Beep is silent).
+void beep();
+
+// SOUND and PLAY (brun71 sound.hpp): heard when the screen is shown on the
+// console; otherwise skipped at once. Throw brun71::BasicError 5 for an
+// argument out of range.
+void sound(double frequency, double duration);
+void play(std::string_view music);
+
+// SLEEP [seconds]: waits for the time, or with 0 or none for ever, until a
+// key is pressed; the key stays for INKEY$. With keys from the standard
+// input a key there ends it at once; once that input has ended the time
+// passes (SLEEP with no time returns).
+void sleep(double seconds);
+
+// KEY ON, KEY OFF, KEY n, text$, KEY LIST (brun71 keyline.hpp); after CLS
+// and WIDTH the line is drawn again.
+void key_line(bool show);
+void assign_key(int key, std::string_view text);
+void list_keys();
+void redraw_keys();
+
 // Ends the session: closes the console screen buffer and returns the text
 // of the screen (empty when there was no session, or it already ended).
 [[nodiscard]] std::string finish();

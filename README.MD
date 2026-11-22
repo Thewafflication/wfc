@@ -219,8 +219,10 @@ and QuickBASIC programs on it, interpreted and as native code: `CLS`,
 `INPUT$`, `CSRLIN` and `POS` in a standard module start the text screen,
 shown live in the console (or printed as text at the end when the output is
 redirected; keys then come from the standard input). `PRINT USING` formats
-numbers and strings as PDS does. See `architecture/adr-0011-pds-text-programs.md`. A clone of
-the PDS 7.1 User Interface Toolbox is planned on top.
+numbers and strings as PDS does; `SOUND`, `PLAY`, `BEEP`, `SLEEP` and the
+soft keys (`KEY n`, `KEY ON`) work too. See
+`architecture/adr-0011-pds-text-programs.md`. A clone of the PDS 7.1 User
+Interface Toolbox is planned on top.
 
 ## Build the Current Development Slice
 

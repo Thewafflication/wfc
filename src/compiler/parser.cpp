@@ -1402,9 +1402,10 @@ private:
     }
 
     // The statements of the PDS text screen in a standard module (ADR-0011):
-    // CLS, LOCATE, COLOR, WIDTH (not `Width #n`) and VIEW PRINT, unless the
-    // word is followed by `=`, `.`, `#` or `(` (an assignment, a member, a
-    // file, an array element). The shared runtime runs them.
+    // CLS, LOCATE, COLOR, WIDTH (not `Width #n`), VIEW PRINT and KEY (ON,
+    // OFF, LIST, n, text$), unless the word is followed by `=`, `.`, `#` or
+    // `(` (an assignment, a member, a file, an array element). The shared
+    // runtime runs them.
     [[nodiscard]] bool starts_pds_statement(const std::string& word) const {
         if (options_.is_form || options_.is_class) {
             return false;
@@ -1414,7 +1415,11 @@ private:
             return next.kind == TokenKind::identifier && next.text == "print";
         }
         if (word != "cls" && word != "locate" && word != "color" &&
-            word != "width") {
+            word != "width" && word != "key") {
+            return false;
+        }
+        if (word == "key" && (next.kind == TokenKind::end_of_statement ||
+                              next.kind == TokenKind::end_of_file)) {
             return false;
         }
         return !(next.kind == TokenKind::symbol &&
@@ -1427,6 +1432,13 @@ private:
         auto result = make(StmtKind::engine);
         const std::string word = current().spelling;
         advance();
+        if (current().kind == TokenKind::identifier &&
+            (current().text == "on" || current().text == "off" ||
+             current().text == "list")) {
+            result->text = word + " " + current().spelling;  // KEY ON
+            advance();
+            return result;
+        }
         if (current().kind == TokenKind::identifier &&
             current().text == "print") {
             result->text = word + " " + current().spelling;

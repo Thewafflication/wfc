@@ -12,6 +12,8 @@
 #include "wfc/brun71/cp437.hpp"
 #include "wfc/brun71/input.hpp"
 #include "wfc/brun71/keyboard.hpp"
+#include "wfc/brun71/keyline.hpp"
+#include "wfc/brun71/sound.hpp"
 
 #ifdef WFC_BRUN71_HAS_CONSOLE
 #include "wfc/brun71/console.hpp"
@@ -37,8 +39,11 @@ struct Session {
     std::unique_ptr<brun71::Console> host;
 #endif
     bool console_input = false;  // keys come from the console
-    bool input_ended = false;    // the standard input is at its end
-    bool after_cr = false;       // the last byte read was a CR
+    bool live = false;           // the screen is shown on the console
+    brun71::SoftKeys soft_keys;
+    brun71::MusicPlayer music;
+    bool input_ended = false;  // the standard input is at its end
+    bool after_cr = false;     // the last byte read was a CR
     long empty_polls = 0;
     std::string pending;  // the second byte of an extended key for INPUT$
     bool dirty = false;
@@ -84,6 +89,7 @@ Session& session() {
             g_session->host = brun71::Console::open(output);
         }
         g_session->console_input = input && g_session->host != nullptr;
+        g_session->live = output && g_session->host != nullptr;
         g_session->screen.on_bell = [] {
             MessageBeep(MB_OK);
         };
@@ -337,6 +343,118 @@ std::string read_chars(const int count) {
         }
     }
     return ansi_bytes_to_text(bytes);
+}
+
+namespace {
+
+// Plays tones on the console's speaker (Beep) when the screen is shown
+// there; otherwise there is nothing to hear and no time is spent.
+void play_tones(const std::vector<brun71::Tone>& tones) {
+#ifdef WFC_BRUN71_HAS_CONSOLE
+    if (!session().live) {
+        return;
+    }
+    changed(true);
+    for (const auto& tone : tones) {
+        if (tone.milliseconds <= 0) {
+            continue;
+        }
+        if (tone.frequency == 0) {
+            Sleep(static_cast<DWORD>(tone.milliseconds));
+        } else {
+            Beep(static_cast<DWORD>(tone.frequency),
+                 static_cast<DWORD>(tone.milliseconds));
+        }
+    }
+#else
+    static_cast<void>(tones);
+#endif
+}
+
+}  // namespace
+
+void beep() {
+    if (active()) {
+        play_tones({brun71::Tone{800, 250}});
+    }
+}
+
+void sound(const double frequency, const double duration) {
+    play_tones({brun71::sound_tone(frequency, duration)});
+}
+
+void play(const std::string_view music) {
+    play_tones(session().music.play(screen_bytes(music)));
+}
+
+void sleep(const double seconds) {
+    Session& state = session();
+    changed(true);
+    if (!state.keys.empty()) {
+        return;
+    }
+    const bool forever = seconds <= 0.0;
+#ifdef WFC_BRUN71_HAS_CONSOLE
+    if (state.console_input) {
+        const auto end = Clock::now() + std::chrono::duration<double>(seconds);
+        while (state.keys.empty()) {
+            int wait = 100;
+            if (!forever) {
+                const auto left =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        end - Clock::now())
+                        .count();
+                if (left <= 0) {
+                    return;
+                }
+                wait = static_cast<int>(left < 100 ? left : 100);
+            }
+            static_cast<void>(state.host->wait(wait));
+            state.host->poll(state.keys);
+        }
+        return;
+    }
+#endif
+    // The standard input: a key waiting there ends the sleep at once (and
+    // stays for INKEY$); when it has ended, the time passes.
+    if (const auto key = read_input_key(state)) {
+        state.keys.push(*key);
+        return;
+    }
+    if (!forever) {
+        std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
+    }
+}
+
+void key_line(const bool show) {
+    Session& state = session();
+    if (show) {
+        state.soft_keys.show(state.screen);
+    } else {
+        state.soft_keys.hide(state.screen);
+    }
+    changed();
+}
+
+void assign_key(const int key, const std::string_view text) {
+    Session& state = session();
+    state.soft_keys.assign(key, screen_bytes(text), state.screen);
+    changed();
+}
+
+void list_keys() {
+    Session& state = session();
+    for (const auto& line : state.soft_keys.list()) {
+        state.screen.print_text(line);
+        state.screen.new_line();
+    }
+    changed();
+}
+
+void redraw_keys() {
+    if (active()) {
+        session().soft_keys.redraw(session().screen);
+    }
 }
 
 std::string finish() {

@@ -4,7 +4,8 @@
 
 **Status:** Accepted by the owner as milestone M2 of `lib/wfc-brun71`
 (2026-11-21); the screen statements, `INKEY$`, `CSRLIN`, `POS`, `INPUT`,
-`LINE INPUT`, `INPUT$(n)` and `PRINT USING` are implemented
+`LINE INPUT`, `INPUT$(n)`, `PRINT USING`, `SOUND`, `PLAY`, `SLEEP`,
+`BEEP` and `KEY` are implemented
 
 **Date:** 2026-11-21
 
@@ -88,6 +89,16 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
     (`using.hpp`) on the Windows-1252 bytes of the format and the strings,
     then prints the text where that `PRINT` would print: the screen, a file,
     or the plain output. Native code runs it as an engine statement.
+11. **Sound, SLEEP and the soft keys.** `SOUND`, `PLAY`, `SLEEP` and `KEY`
+    (`ON`, `OFF`, `LIST`, `n, text$`) are statements in the places of 2;
+    `SLEEP`, `SOUND` and `PLAY` also yield to a procedure of the program
+    with that name, so a `Declare Sub Sleep Lib "kernel32"` keeps working.
+    Native code makes them engine statements when it lowers a call to a name
+    the program does not define. The tones (library `sound.hpp`) are played
+    with the Windows `Beep` only when the screen is shown on a console, so a
+    redirected run is silent and spends no time. `SLEEP` ends on a key,
+    which stays for `INKEY$`. `BEEP` sounds once the screen has started; a
+    VB6 `Beep` stays silent as before.
 
 ## Consequences
 
@@ -102,6 +113,7 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
   `LOCATE (5), 1` is read as an array element; native code does not see a
   program's own `Sub Locate`; `ERROR$(5)` gives VB6's text.
 - `305-pds-input` and `306-pds-using` check the keyboard input and
-  `PRINT USING` in both engines.
-- Next in M2: `BEEP`/`SOUND`/`PLAY`/`SLEEP`, `KEY` and `ON KEY`, `WRITE` to
-  the screen; then M3, the User Interface Toolbox.
+  `PRINT USING` in both engines; `307-pds-sound-keys` the sound statements,
+  `SLEEP` and the soft keys; `308-pds-sleep-api` a declared `Sleep`.
+- Next in M2: `ON KEY(n) GOSUB` and `KEY(n) ON/OFF/STOP`, `WRITE` to the
+  screen; then M3, the User Interface Toolbox.

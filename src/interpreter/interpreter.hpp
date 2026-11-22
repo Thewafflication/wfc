@@ -1080,6 +1080,13 @@ private:
         std::size_t statement_offset);
     // The variables of an INPUT: where each one is and whether it is a
     // Variant. Empty `targets` and false on a parse error.
+    // SLEEP, SOUND, PLAY and KEY (ON, OFF, LIST, n, text$); `start` is the
+    // offset of the word, for a KEY that turns out not to be the statement.
+    [[nodiscard]] std::optional<bool> parse_pds_sound_statement(
+        std::string_view word, std::size_t start, std::size_t statement_offset);
+    // A number for SOUND and SLEEP; error 13 for a String.
+    [[nodiscard]] std::optional<double> pds_number(const Value& value,
+                                                   std::size_t offset);
     [[nodiscard]] bool parse_pds_input_targets(
         std::vector<std::pair<Value*, bool>>& targets);
     // `[a] [, [b] ...]`: the arguments of a PDS statement, each left out or

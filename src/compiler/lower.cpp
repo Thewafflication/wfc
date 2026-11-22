@@ -4473,6 +4473,26 @@ private:
             lower_randomize(statement);
             return;
         }
+        if ((statement.text == "sleep" || statement.text == "sound" ||
+             statement.text == "play") &&
+            !signatures_.contains(statement.text) &&
+            !externals_.contains(statement.text)) {
+            // The PDS statements (ADR-0011) run in the shared runtime, unless
+            // the program has a procedure of that name (`Declare Sub Sleep`).
+            std::vector<EngineArgument> list;
+            std::string text = statement.text;
+            text[0] = static_cast<char>(text[0] - 'a' + 'A');
+            for (std::size_t i = 0; i < statement.items.size(); ++i) {
+                if (!statement.items[i]) {
+                    fail("an argument is missing", statement.at);
+                }
+                text += (i == 0 ? " " : ", ") + std::string("wfcarg") +
+                        std::to_string(i);
+                list.push_back(EngineArgument{statement.items[i].get(), 'i'});
+            }
+            static_cast<void>(emit_engine_statement(text, list, statement.at));
+            return;
+        }
         static_cast<void>(
             lower_call(statement.text, statement.items, statement.at, false));
     }

@@ -317,13 +317,135 @@ std::optional<bool> Interpreter::parse_pds_input_statement(
     }
 }
 
+std::optional<double> Interpreter::pds_number(const Value& value,
+                                              const std::size_t offset) {
+    if (std::holds_alternative<Empty>(value)) {
+        return 0.0;
+    }
+    if (const auto* flag = std::get_if<bool>(&value)) {
+        return *flag ? -1.0 : 0.0;
+    }
+    if (is_number(value)) {
+        return as_double(value);
+    }
+    static_cast<void>(pds_error(13, offset));
+    return std::nullopt;
+}
+
+std::optional<bool> Interpreter::parse_pds_sound_statement(
+    const std::string_view word, const std::size_t start,
+    const std::size_t statement_offset) {
+    // The values of the statement, parsed left to right.
+    std::vector<std::pair<Value, std::size_t>> values;
+    const auto value = [&]() -> bool {
+        skip_horizontal_whitespace();
+        const auto at = offset_;
+        auto parsed = parse_expression();
+        if (!parsed.has_value() || !resolve_default_value(*parsed, at)) {
+            return false;
+        }
+        values.emplace_back(std::move(*parsed), at);
+        return true;
+    };
+    const auto expect_comma = [&]() -> bool {
+        skip_horizontal_whitespace();
+        if (!consume(',')) {
+            set_error("WFC0014", "expected comma", offset_);
+            return false;
+        }
+        return true;
+    };
+    const auto number = [&](const std::size_t index) {
+        return pds_number(values[index].first, values[index].second);
+    };
+    // KEY ON, KEY OFF, KEY LIST, KEY n, text$
+    int key_action = 0;  // 1 on, 2 off, 3 list, 4 assign
+    if (word == "key") {
+        if (consume_keyword("on")) {
+            key_action = 1;
+        } else if (consume_keyword("off")) {
+            key_action = 2;
+        } else if (consume_keyword("list")) {
+            key_action = 3;
+        } else if (at_pds_statement_end()) {
+            offset_ = start;
+            return std::nullopt;
+        } else {
+            key_action = 4;
+            if (!value() || !expect_comma() || !value()) {
+                return false;
+            }
+        }
+    } else if (word == "sleep") {
+        if (!at_pds_statement_end() && !value()) {
+            return false;
+        }
+    } else if (word == "sound") {
+        if (!value() || !expect_comma() || !value()) {
+            return false;
+        }
+    } else if (!value()) {  // play
+        return false;
+    }
+    if (!execute_) {
+        return true;
+    }
+    try {
+        if (word == "sleep") {
+            double seconds = 0.0;
+            if (!values.empty()) {
+                const auto given = number(0);
+                if (!given) {
+                    return false;
+                }
+                seconds = std::nearbyint(*given);
+            }
+            pds::sleep(seconds);
+        } else if (word == "sound") {
+            const auto frequency = number(0);
+            if (!frequency) {
+                return false;
+            }
+            const auto duration = number(1);
+            if (!duration) {
+                return false;
+            }
+            pds::sound(*frequency, *duration);
+        } else if (word == "play") {
+            const auto* music = std::get_if<std::string>(&values[0].first);
+            if (music == nullptr) {
+                return pds_error(13, values[0].second);
+            }
+            pds::play(*music);
+        } else if (key_action == 1 || key_action == 2) {
+            pds::key_line(key_action == 1);
+        } else if (key_action == 3) {
+            pds::list_keys();
+        } else {
+            const auto key = pds_integer(values[0].first, values[0].second);
+            if (!key) {
+                return false;
+            }
+            const auto* text = std::get_if<std::string>(&values[1].first);
+            if (text == nullptr) {
+                return pds_error(13, values[1].second);
+            }
+            pds::assign_key(*key, *text);
+        }
+    } catch (const brun71::BasicError& error) {
+        return pds_error(error.number(), statement_offset);
+    }
+    return true;
+}
+
 std::optional<bool> Interpreter::parse_pds_statement(
     const std::size_t statement_offset) {
     if (const auto input = parse_pds_input_statement(statement_offset)) {
         return input;
     }
-    static constexpr std::string_view kWords[] = {"cls", "locate", "color",
-                                                  "width", "view"};
+    static constexpr std::string_view kWords[] = {"cls",   "locate", "color",
+                                                  "width", "view",   "sleep",
+                                                  "sound", "play",   "key"};
     const auto start = offset_;
     std::string_view word;
     for (const auto candidate : kWords) {
@@ -345,6 +467,9 @@ std::optional<bool> Interpreter::parse_pds_statement(
     if (not_a_statement) {
         offset_ = start;
         return std::nullopt;
+    }
+    if (word == "sleep" || word == "sound" || word == "play" || word == "key") {
+        return parse_pds_sound_statement(word, start, statement_offset);
     }
     if (word == "view") {
         if (!consume_keyword("print")) {
@@ -415,6 +540,7 @@ std::optional<bool> Interpreter::parse_pds_statement(
     const int error = pds::run([&](brun71::TextScreen& screen) {
         if (word == "cls") {
             screen.cls(argument(0));
+            pds::redraw_keys();
         } else if (word == "locate") {
             screen.locate(argument(0), argument(1), argument(2), argument(3),
                           argument(4));
@@ -422,6 +548,7 @@ std::optional<bool> Interpreter::parse_pds_statement(
             screen.color(argument(0), argument(1), argument(2));
         } else {
             screen.width(argument(0), argument(1));
+            pds::redraw_keys();
         }
     });
     if (error != 0) {
