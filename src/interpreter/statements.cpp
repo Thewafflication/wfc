@@ -1444,8 +1444,22 @@ bool Interpreter::parse_identifier_statement(
 }
 
 bool Interpreter::at_statement_end() const noexcept {
-    return at_end() || current() == '\r' || current() == '\n' ||
-           current() == ':' || current() == '\'';
+    if (at_end() || current() == '\r' || current() == '\n' ||
+        current() == ':' || current() == '\'') {
+        return true;
+    }
+    // `If c Then Proc1 Else Proc2`: Else ends the call before it.
+    constexpr std::string_view word = "else";
+    if (offset_ + word.size() > source_.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < word.size(); ++i) {
+        if (ascii_lower(source_[offset_ + i]) != word[i]) {
+            return false;
+        }
+    }
+    return offset_ + word.size() == source_.size() ||
+           !is_identifier_part(source_[offset_ + word.size()]);
 }
 
 bool Interpreter::parse_print_statement() {
@@ -3702,9 +3716,7 @@ std::optional<bool> Interpreter::parse_bare_call(
         find_variable(identifier).value == nullptr) {
         const auto saved_offset = offset_;
         skip_horizontal_whitespace();
-        const bool bare_statement_end = at_end() || current() == '\r' ||
-                                        current() == '\n' || current() == ':' ||
-                                        current() == '\'';
+        const bool bare_statement_end = at_statement_end();
         // `Name .Member` after a space, inside a With block, passes the member
         // of the With object to the procedure `Name`.
         const bool with_member_argument =

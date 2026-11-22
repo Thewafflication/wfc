@@ -1512,9 +1512,7 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
                 char peek_type_character{};
                 auto peek_member_name = parse_identifier(&peek_type_character);
                 skip_horizontal_whitespace();
-                const bool bare_statement_end =
-                    at_end() || current() == '\r' || current() == '\n' ||
-                    current() == ':' || current() == '\'';
+                const bool bare_statement_end = at_statement_end();
                 const bool arguments_follow =
                     !bare_statement_end && current() != '=' &&
                     current() != '(' && current() != '.';
@@ -1744,9 +1742,7 @@ bool Interpreter::parse_assignment_or_array_element(std::string identifier,
                     auto peek_member_name =
                         parse_identifier(&peek_type_character);
                     skip_horizontal_whitespace();
-                    const bool bare_statement_end =
-                        at_end() || current() == '\r' || current() == '\n' ||
-                        current() == ':' || current() == '\'';
+                    const bool bare_statement_end = at_statement_end();
                     const bool arguments_follow =
                         !bare_statement_end && current() != '=' &&
                         current() != '(' && current() != '.';
@@ -1991,9 +1987,7 @@ bool Interpreter::parse_array_element_assignment_on(
                     auto peek_member_name =
                         parse_identifier(&peek_type_character);
                     skip_horizontal_whitespace();
-                    const bool bare_statement_end =
-                        at_end() || current() == '\r' || current() == '\n' ||
-                        current() == ':' || current() == '\'';
+                    const bool bare_statement_end = at_statement_end();
                     const bool arguments_follow =
                         !bare_statement_end && current() != '=' &&
                         current() != '(' && current() != '.';
