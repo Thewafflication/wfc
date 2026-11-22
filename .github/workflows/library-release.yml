@@ -1,9 +1,10 @@
 name: Library release
 
 # The release workflow every WFC library repository calls (wfc-vbrun,
-# wfc-mscomctl, wfc-mscomctl2, wfc-comdlg32, wfc-mswinsck), so they all build
-# the same way: on a version tag (the version in VERSION) the Release DLL for
-# x86, x64 and arm64 with its tests, then wfc-<library>-any-<version>.zip
+# wfc-mscomctl, wfc-mscomctl2, wfc-comdlg32, wfc-mswinsck, wfc-adodb), so they
+# all build the same way: on a version tag (the version in VERSION) the Release
+# DLL for x86, x64 and arm64 with its tests, then
+# wfc-<library>-any-<version>.zip
 # packed by scripts/Build-WfcLibraryPackage.ps1 and signed with the WFC
 # release key (the caller's WPM_RELEASE_PRIVATE_KEY secret), its index.json
 # and SHA256SUMS, and a clean runner that verifies them. Publishing the
@@ -26,7 +27,7 @@ on:
   workflow_call:
     inputs:
       library:
-        description: vbrun, mscomctl, mscomctl2, comdlg32 or mswinsck
+        description: vbrun, mscomctl, mscomctl2, comdlg32, mswinsck or adodb
         type: string
         required: true
       dry_run:
@@ -45,7 +46,7 @@ env:
   LIBRARY_FILES: >-
     {"vbrun":"msvbvm60.dll","mscomctl":"mscomctl.ocx",
     "mscomctl2":"mscomct2.ocx","comdlg32":"comdlg32.ocx",
-    "mswinsck":"mswinsck.ocx"}
+    "mswinsck":"mswinsck.ocx","adodb":"msado15.dll"}
 
 jobs:
   build:

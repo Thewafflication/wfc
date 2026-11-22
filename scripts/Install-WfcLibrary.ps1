@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-Installs or removes one WFC library (wfcvbrun, wfcmscomctl, wfccomdlg32 or
-wfcmswinsck) on its own, and registers it with Windows.
+Installs or removes one WFC library (wfcvbrun, wfcmscomctl, wfccomdlg32,
+wfcmswinsck or wfcadodb) on its own, and registers it with Windows.
 
 .DESCRIPTION
 The library goes to <root>\lib\<name>\<version>\<arch>, beside the other

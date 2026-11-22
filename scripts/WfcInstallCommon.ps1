@@ -49,7 +49,8 @@ function Get-LibraryVersion([string]$Path) {
 
 # The libraries that register with Windows (they export DllRegisterServer).
 $script:RegisteredLibraries = @(
-    'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2', 'wfccomdlg32', 'wfcmswinsck'
+    'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2', 'wfccomdlg32', 'wfcmswinsck',
+    'wfcadodb'
 )
 
 # The file each library is built as: the name of the Microsoft original it
@@ -61,6 +62,7 @@ $script:LibraryFiles = @{
     wfcmscomctl2 = 'mscomct2.ocx'
     wfccomdlg32 = 'comdlg32.ocx'
     wfcmswinsck = 'mswinsck.ocx'
+    wfcadodb = 'msado15.dll'
 }
 
 function Get-LibraryFile([string]$Library) {

@@ -317,7 +317,7 @@ foreach ($architecture in $architectures) {
             -Destination $archBin -Force
     }
     foreach ($library in 'wfcrt', 'wfcvbrun', 'wfcmscomctl', 'wfcmscomctl2',
-        'wfccomdlg32', 'wfcmswinsck') {
+        'wfccomdlg32', 'wfcmswinsck', 'wfcadodb') {
         $file = Join-Path $from (Get-LibraryFile $library)
         if (-not (Test-Path -LiteralPath $file)) { continue }
         $libraryVersion = Get-LibraryVersion $file

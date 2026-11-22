@@ -16,7 +16,7 @@ WFC installation and register it with Windows.
 Nothing is signed unless -SigningKey is given, and nothing is published.
 
 .PARAMETER Library
-The library: vbrun, mscomctl, mscomctl2, comdlg32 or mswinsck.
+The library: vbrun, mscomctl, mscomctl2, comdlg32, mswinsck or adodb.
 
 .PARAMETER LibraryRoot
 The checkout of the library repository.
@@ -36,7 +36,9 @@ Optional WPM private key file; the package is unsigned without it.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('vbrun', 'mscomctl', 'mscomctl2', 'comdlg32', 'mswinsck')]
+    [ValidateSet(
+        'vbrun', 'mscomctl', 'mscomctl2', 'comdlg32', 'mswinsck', 'adodb'
+    )]
     [string]$Library,
     [Parameter(Mandatory)][string]$LibraryRoot,
     [string]$InputRoot = 'out/package-input',
@@ -56,6 +58,7 @@ $dll = @{
     mscomctl2 = 'mscomct2.ocx'
     comdlg32 = 'comdlg32.ocx'
     mswinsck = 'mswinsck.ocx'
+    adodb = 'msado15.dll'
 }[$Library]
 $versionFile = Join-Path $LibraryRoot 'VERSION'
 $version = (Get-Content $versionFile -TotalCount 1).Trim()

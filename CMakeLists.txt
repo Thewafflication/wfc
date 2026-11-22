@@ -660,6 +660,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
     lib/wfc-mscomctl2/include/wfc/ocx/registration.hpp
     lib/wfc-comdlg32/include/wfc/ocx/registration.hpp
     lib/wfc-mswinsck/include/wfc/ocx/registration.hpp
+    lib/wfc-adodb/include/wfc/ocx/registration.hpp
     lib/wfc-vbrun/src/wfc_registration.hpp
   )
     string(MAKE_C_IDENTIFIER "${wfc_copy}" wfc_copy_id)
