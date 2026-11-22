@@ -1876,6 +1876,55 @@ End Property
 Public Property Get AbsolutePosition() As Long
 AbsolutePosition = WfcAdo(31, h)
 End Property
+Public Property Let AbsolutePosition(ByVal v As Long)
+Dim i As Long
+Need
+MoveFirst
+For i = 2 To v
+MoveNext
+Next i
+End Property
+Public Sub Move(ByVal NumRecords As Long, Optional Start As Variant)
+Dim i As Long
+Need
+If Not IsMissing(Start) Then
+If Start = 1 Then MoveFirst
+If Start = 2 Then MoveLast
+End If
+For i = 1 To Abs(NumRecords)
+If NumRecords > 0 Then
+MoveNext
+Else
+MovePrevious
+End If
+Next i
+End Sub
+)VB"
+    R"VB(Public Function Supports(ByVal CursorOptions As Long) As Boolean
+Supports = True
+End Function
+Public Function GetString(Optional ByVal StringFormat As Long = 2,)VB"
+    R"VB( Optional ByVal NumRows As Long = -1,)VB"
+    R"VB( Optional ByVal ColumnDelimeter As String = vbTab,)VB"
+    R"VB( Optional ByVal RowDelimeter As String = vbCr,)VB"
+    R"VB( Optional ByVal NullExpr As String = "") As String
+Dim s As String, i As Long, nf As Long, n As Long, v As Variant
+Need
+nf = WfcAdo(20, h)
+Do While Not WfcAdo(28, h) And Not WfcAdo(29, h)
+If NumRows >= 0 And n >= NumRows Then Exit Do
+For i = 0 To nf - 1
+v = WfcAdo(23, h, i)
+If IsNull(v) Then v = NullExpr
+s = s & v
+If i < nf - 1 Then s = s & ColumnDelimeter
+Next i
+s = s & RowDelimeter
+n = n + 1
+MoveNext
+Loop
+GetString = s
+End Function
 Public Property Get Filter() As Variant
 Filter = WfcAdo(44, h)
 End Property
