@@ -955,7 +955,8 @@ inline void merge_byte_halves(std::string& text, const std::size_t left_size) {
 [[nodiscard]] inline bool is_reserved_member_name(
     const std::string_view identifier) noexcept {
     return identifier != "print" && identifier != "randomize" &&
-           identifier != "empty" && is_reserved_identifier(identifier);
+           identifier != "empty" && identifier != "type" &&
+           is_reserved_identifier(identifier);
 }
 
 }  // namespace wfc::detail

@@ -1897,6 +1897,12 @@ End Sub
 Public Property Get Name() As String
 Name = WfcAdo(21, rh, ix)
 End Property
+Public Property Get Type() As Long
+Let Type = WfcAdo(48, rh, ix)
+End Property
+Public Property Get DefinedSize() As Long
+DefinedSize = WfcAdo(49, rh, ix)
+End Property
 Public Property Get Value() As Variant
 Attribute Value.VB_UserMemId = 0
 Value = WfcAdo(23, rh, ix)

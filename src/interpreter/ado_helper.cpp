@@ -469,6 +469,19 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
                              " ordinal.");
         case 47:
             return ok(Value{set.sort()});
+        case 48:    // Field.Type
+        case 49: {  // Field.DefinedSize
+            const auto index = field();
+            if (!index) {
+                return bad(3265,
+                           "Item cannot be found in the collection"
+                           " corresponding to the requested name or"
+                           " ordinal.");
+            }
+            const auto& info = set.field(*index);
+            return ok(Value{static_cast<Integer>(
+                *op == 48 ? info.type : info.defined_size)});
+        }
         case 33:
             all.recordsets.erase(found);
             return ok(Value{Integer{0}});
