@@ -3,8 +3,8 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M2 of `lib/wfc-brun71`
-(2026-11-21); the screen statements, `INKEY$`, `CSRLIN` and `POS` are
-implemented
+(2026-11-21); the screen statements, `INKEY$`, `CSRLIN`, `POS`, `INPUT`,
+`LINE INPUT`, `INPUT$(n)` and `PRINT USING` are implemented
 
 **Date:** 2026-11-21
 
@@ -74,7 +74,20 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
    (box drawing written as Unicode) is placed as that glyph.
 8. **No endless wait.** With the standard input at its end, 1,000,000 empty
    `INKEY$` calls in a row raise error 62 (Input past end of file), so a test
-   whose keys run out fails instead of hanging.
+   whose keys run out fails instead of hanging; `INPUT`, `LINE INPUT` and
+   `INPUT$(n)`, which wait for keys, raise it at once.
+9. **Keyboard input.** `INPUT` and `LINE INPUT` without `#` (in the same
+   places as the statements of 2) and `INPUT$(n)` with one argument read the
+   keyboard; they start the screen like the other statements. The line
+   editor and the field rules are the library's (`input.hpp`); the
+   interpreter stores the fields, asking again ("Redo from start") before any
+   variable changes. Native code runs them as engine statements, the
+   variables passed by reference. A variable with no type is a Variant in
+   WFC, so `INPUT n` stores a number when the field is one, else the text.
+10. **PRINT USING.** `PRINT [#n,] USING` formats with the library
+    (`using.hpp`) on the Windows-1252 bytes of the format and the strings,
+    then prints the text where that `PRINT` would print: the screen, a file,
+    or the plain output. Native code runs it as an engine statement.
 
 ## Consequences
 
@@ -88,5 +101,7 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
   `SCREEN(row, col)` is not available (the name is VB6's `Screen` object);
   `LOCATE (5), 1` is read as an array element; native code does not see a
   program's own `Sub Locate`; `ERROR$(5)` gives VB6's text.
-- Next in M2: `PRINT USING`, `INPUT`/`LINE INPUT`/`INPUT$`, `BEEP`/`SOUND`/
-  `PLAY`/`SLEEP`, `KEY` and `ON KEY`; then M3, the User Interface Toolbox.
+- `305-pds-input` and `306-pds-using` check the keyboard input and
+  `PRINT USING` in both engines.
+- Next in M2: `BEEP`/`SOUND`/`PLAY`/`SLEEP`, `KEY` and `ON KEY`, `WRITE` to
+  the screen; then M3, the User Interface Toolbox.

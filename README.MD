@@ -215,10 +215,11 @@ registration, and the controls themselves are not implemented yet.
 `lib/wfc-brun71` (a submodule) is a BASIC PDS 7.1 runtime (`BRUN71`): the
 text screen of `SCREEN 0`, `INKEY$` and a Windows console host. wfc runs PDS
 and QuickBASIC programs on it, interpreted and as native code: `CLS`,
-`LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN` and `POS` in a
-standard module start the text screen, shown live in the console (or printed
-as text at the end when the output is redirected; keys then come from the
-standard input). See `architecture/adr-0011-pds-text-programs.md`. A clone of
+`LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INPUT`, `LINE INPUT`, `INKEY$`,
+`INPUT$`, `CSRLIN` and `POS` in a standard module start the text screen,
+shown live in the console (or printed as text at the end when the output is
+redirected; keys then come from the standard input). `PRINT USING` formats
+numbers and strings as PDS does. See `architecture/adr-0011-pds-text-programs.md`. A clone of
 the PDS 7.1 User Interface Toolbox is planned on top.
 
 ## Build the Current Development Slice

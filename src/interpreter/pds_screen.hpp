@@ -1,8 +1,8 @@
 // The text screen of a BASIC PDS 7.1 (QuickBASIC) program (ADR-0011): one
 // per process, shared by the interpreter and native code. It starts with the
-// first statement of the screen (CLS, LOCATE, COLOR, VIEW PRINT, WIDTH, or
-// the functions INKEY$, CSRLIN and POS); from then on PRINT to the console
-// writes on it instead of the plain output.
+// first statement of the screen (CLS, LOCATE, COLOR, VIEW PRINT, WIDTH,
+// INPUT, LINE INPUT, or the functions INKEY$, INPUT$(n), CSRLIN and POS);
+// from then on PRINT to the console writes on it instead of the plain output.
 //
 // When the standard output is a console, the screen is shown live in a
 // console screen buffer of its own and keys come from the console. Otherwise
@@ -45,6 +45,19 @@ void new_line();
 
 // INKEY$: the next key as wfc text, or "".
 [[nodiscard]] std::string inkey();
+
+// Text at the cursor as it is (an INPUT prompt, PRINT USING): wrapping and
+// scrolling, but no item rules.
+void print_text(std::string_view text);
+
+// INPUT and LINE INPUT: waits for the line the user types at the cursor
+// (brun71::LineEditor) and returns it as wfc text; the cursor stays after it.
+// Throws brun71::BasicError 62 when the standard input ends first.
+[[nodiscard]] std::string read_line();
+
+// INPUT$(n): the next n characters typed, not shown (an extended key is two,
+// CHR$(0) and its code). Throws brun71::BasicError 62 like read_line.
+[[nodiscard]] std::string read_chars(int count);
 
 // Ends the session: closes the console screen buffer and returns the text
 // of the screen (empty when there was no session, or it already ended).

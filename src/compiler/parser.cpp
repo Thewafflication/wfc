@@ -1074,8 +1074,20 @@ private:
         }
         if (word == "line" && ahead(1).kind == TokenKind::identifier &&
             ahead(1).text == "input") {
-            advance();
-            return input_statement(true);
+            if (ahead(2).kind == TokenKind::symbol && ahead(2).text == "#") {
+                advance();
+                return input_statement(true);
+            }
+            if (!options_.is_form && !options_.is_class) {
+                return pds_input_statement();
+            }
+        }
+        if (word == "input" && !options_.is_form && !options_.is_class &&
+            ahead(1).kind != TokenKind::end_of_statement &&
+            ahead(1).kind != TokenKind::end_of_file &&
+            !(ahead(1).kind == TokenKind::symbol &&
+              (ahead(1).text == "=" || ahead(1).text == "."))) {
+            return pds_input_statement();
         }
         if (word == "open") {
             return open_statement();
@@ -1439,6 +1451,43 @@ private:
         return result;
     }
 
+    // `INPUT [;] ["prompt" {; | ,}] a, b` and `LINE INPUT [;] ["prompt";] a$`
+    // from the keyboard of the PDS screen (ADR-0011): the current token is
+    // the first word. The shared runtime runs the statement.
+    [[nodiscard]] StmtPtr pds_input_statement() {
+        auto result = make(StmtKind::engine);
+        if (is_word("line")) {
+            advance();
+            result->text = "Line ";
+        }
+        advance();  // Input
+        result->text += "Input ";
+        if (accept_symbol(";")) {
+            result->text += "; ";
+        }
+        if (current().kind == TokenKind::string) {
+            std::string quoted = "\"";
+            for (const char c : current().text) {
+                quoted += c == '"' ? std::string("\"\"") : std::string(1, c);
+            }
+            result->text += quoted + "\"";
+            advance();
+            if (accept_symbol(",")) {
+                result->text += ", ";
+            } else {
+                expect_symbol(";");
+                result->text += "; ";
+            }
+        }
+        std::string separator;
+        do {
+            result->text +=
+                separator + engine_argument(*result, expression(), 'b');
+            separator = ", ";
+        } while (accept_symbol(","));
+        return result;
+    }
+
     // `Print #n, items` and `Write #n, items`: the current token is the `#`.
     [[nodiscard]] StmtPtr file_print_statement(const std::string& keyword) {
         auto result = make(StmtKind::engine);
@@ -1452,6 +1501,12 @@ private:
         while (!at_end_of_statement() && !is_word("else")) {
             if (is_symbol(";") || is_symbol(",")) {
                 result->text += current().text;
+                advance();
+                continue;
+            }
+            if (is_word("using")) {
+                // `Print #n, Using format; values`
+                result->text += " Using";
                 advance();
                 continue;
             }
@@ -1578,6 +1633,25 @@ private:
         if (ahead(1).kind == TokenKind::symbol && ahead(1).text == "#") {
             advance();
             return file_print_statement("Print");
+        }
+        if (ahead(1).kind == TokenKind::identifier &&
+            ahead(1).text == "using") {
+            // `Print Using format; values`: the shared runtime formats them.
+            auto result = make(StmtKind::engine);
+            advance();  // Print
+            advance();  // Using
+            result->text =
+                "Print Using " + engine_argument(*result, expression(), 'i');
+            while (!at_end_of_statement() && !is_word("else")) {
+                if (is_symbol(";") || is_symbol(",")) {
+                    result->text += current().text;
+                    advance();
+                    continue;
+                }
+                result->text +=
+                    " " + engine_argument(*result, expression(), 'i');
+            }
+            return result;
         }
         if (options_.is_form) {
             return surface_statement(make_expr(ExprKind::name, here_me()),

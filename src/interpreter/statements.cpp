@@ -4,6 +4,7 @@
 
 #include "interpreter.hpp"
 #include "pds_screen.hpp"
+#include "wfc/brun71/using.hpp"
 
 namespace wfc::detail {
 
@@ -1483,7 +1484,88 @@ bool Interpreter::parse_print_statement() {
         }
         return base + utf16_length(text);
     };
-    while (true) {
+    bool using_format = false;
+    {
+        // `PRINT [#n,] USING format; values [;]` (PDS, ADR-0011): the values
+        // formatted by the fields of the format (wfc-brun71 using.hpp).
+        skip_horizontal_whitespace();
+        const auto before_using = offset_;
+        if (consume_keyword("using")) {
+            skip_horizontal_whitespace();
+            if (!at_end() && (current() == '=' || current() == '.')) {
+                offset_ = before_using;
+            } else {
+                using_format = true;
+            }
+        }
+    }
+    if (using_format) {
+        const auto format_offset = offset_;
+        auto format = parse_expression();
+        if (!format.has_value() ||
+            !resolve_default_value(*format, format_offset)) {
+            return false;
+        }
+        skip_horizontal_whitespace();
+        if (!consume(';') && !consume(',')) {
+            set_error("WFC0014", "expected ; after the USING format", offset_);
+            return false;
+        }
+        std::vector<brun71::UsingValue> values;
+        while (true) {
+            skip_horizontal_whitespace();
+            if (at_pds_statement_end()) {
+                newline = values.empty();
+                break;
+            }
+            const auto value_offset = offset_;
+            auto value = parse_expression();
+            if (!value.has_value() ||
+                !resolve_default_value(*value, value_offset)) {
+                return false;
+            }
+            if (execute_) {
+                if (const auto* held = std::get_if<std::string>(&*value)) {
+                    values.emplace_back(text_to_ansi_bytes(*held));
+                } else if (const auto* flag = std::get_if<bool>(&*value)) {
+                    values.emplace_back(*flag ? -1.0 : 0.0);
+                } else if (std::holds_alternative<Empty>(*value)) {
+                    values.emplace_back(0.0);
+                } else if (is_number(*value)) {
+                    values.emplace_back(as_double(*value));
+                } else {
+                    return raise_runtime(13, "Type mismatch", value_offset);
+                }
+            }
+            skip_horizontal_whitespace();
+            newline = true;
+            if (!consume(';') && !consume(',')) {
+                break;
+            }
+            newline = false;
+        }
+        if (!execute_) {
+            return true;
+        }
+        const auto* format_text = std::get_if<std::string>(&*format);
+        if (format_text == nullptr) {
+            return raise_runtime(13, "Type mismatch", format_offset);
+        }
+        try {
+            text = ansi_bytes_to_text(
+                brun71::format_using(text_to_ansi_bytes(*format_text), values));
+        } catch (const brun71::BasicError& error) {
+            return pds_error(error.number(), format_offset);
+        }
+        if (to_screen) {
+            pds::print_text(text);
+            if (newline) {
+                pds::new_line();
+            }
+            return true;
+        }
+    }
+    while (!using_format) {
         skip_horizontal_whitespace();
         if (at_statement_end()) {
             break;

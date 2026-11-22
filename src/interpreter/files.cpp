@@ -3,6 +3,7 @@
 // Split out of src/evaluator.cpp; see src/interpreter/README.md.
 
 #include "interpreter.hpp"
+#include "pds_screen.hpp"
 
 namespace wfc::detail {
 
@@ -1005,6 +1006,12 @@ std::optional<bool> Interpreter::parse_file_statement(
             offset_ = start;
             return std::nullopt;
         }
+        skip_horizontal_whitespace();
+        if (at_end() || current() != '#') {
+            // `LINE INPUT var$`: the keyboard (pds_statements.cpp).
+            offset_ = start;
+            return std::nullopt;
+        }
         Integer number{};
         if (!parse_hash_file_number(number)) {
             return false;
@@ -1554,8 +1561,31 @@ std::optional<Value> Interpreter::evaluate_file_function(
     }
     if (name == "input" || name == "input$" || name == "inputb" ||
         name == "inputb$") {
-        if (!arity(2, 2)) {
+        const bool bytes = name == "inputb" || name == "inputb$";
+        if (!arity(bytes ? 2U : 1U, 2)) {
             return std::nullopt;
+        }
+        if (arguments.size() == 1U) {
+            // INPUT$(n): n characters from the keyboard of the PDS screen.
+            const auto wanted = long_at(0);
+            if (!wanted) {
+                set_error("WFC0073", "Input requires Long arguments", offset);
+                return std::nullopt;
+            }
+            if (!execute_) {
+                return Value{std::string{}};
+            }
+            if (*wanted < 1 || *wanted > 32767) {
+                static_cast<void>(
+                    pds_error(brun71::kIllegalFunctionCall, offset));
+                return std::nullopt;
+            }
+            try {
+                return Value{pds::read_chars(static_cast<int>(*wanted))};
+            } catch (const brun71::BasicError& error) {
+                static_cast<void>(pds_error(error.number(), offset));
+                return std::nullopt;
+            }
         }
         const auto length = long_at(0);
         const auto number = long_at(1);

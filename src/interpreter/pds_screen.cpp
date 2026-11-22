@@ -10,6 +10,7 @@
 
 #include "vb_text.hpp"
 #include "wfc/brun71/cp437.hpp"
+#include "wfc/brun71/input.hpp"
 #include "wfc/brun71/keyboard.hpp"
 
 #ifdef WFC_BRUN71_HAS_CONSOLE
@@ -39,6 +40,7 @@ struct Session {
     bool input_ended = false;    // the standard input is at its end
     bool after_cr = false;       // the last byte read was a CR
     long empty_polls = 0;
+    std::string pending;  // the second byte of an extended key for INPUT$
     bool dirty = false;
     Clock::time_point shown{};
 };
@@ -276,6 +278,65 @@ std::string inkey() {
     }
     state.empty_polls = 0;
     return ansi_bytes_to_text(brun71::inkey_string(*key));
+}
+
+namespace {
+
+// Waits for the next key; error 62 when the standard input has ended.
+brun71::Key wait_key() {
+    Session& state = session();
+    changed(true);
+    while (true) {
+        if (const auto key = state.keys.pop()) {
+            return *key;
+        }
+#ifdef WFC_BRUN71_HAS_CONSOLE
+        if (state.console_input) {
+            static_cast<void>(state.host->wait(100));
+            state.host->poll(state.keys);
+            continue;
+        }
+#endif
+        if (const auto key = read_input_key(state)) {
+            return *key;
+        }
+        throw brun71::BasicError(brun71::kInputPastEnd);
+    }
+}
+
+}  // namespace
+
+void print_text(const std::string_view text) {
+    screen().print_text(screen_bytes(text));
+    changed();
+}
+
+std::string read_line() {
+    brun71::LineEditor editor(screen());
+    while (!editor.key(wait_key())) {
+        changed();
+    }
+    changed(true);
+    return ansi_bytes_to_text(editor.text());
+}
+
+std::string read_chars(const int count) {
+    Session& state = session();
+    std::string bytes;
+    while (static_cast<int>(bytes.size()) < count) {
+        if (!state.pending.empty()) {
+            bytes += state.pending;
+            state.pending.clear();
+            continue;
+        }
+        const std::string key = brun71::inkey_string(wait_key());
+        const auto room = static_cast<std::size_t>(count) - bytes.size();
+        bytes += key.substr(0, room);
+        if (key.size() > room) {
+            state.pending = key.substr(room);
+        }
+    }
+    return ansi_bytes_to_text(bytes);
 }
 
 std::string finish() {

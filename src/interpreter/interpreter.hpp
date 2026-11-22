@@ -1074,6 +1074,14 @@ private:
     // when the statement is not one of them (the offset is left alone).
     [[nodiscard]] std::optional<bool> parse_pds_statement(
         std::size_t statement_offset);
+    // INPUT and LINE INPUT from the keyboard (no `#`): the prompt, the line
+    // editor, "Redo from start". nullopt when the statement is not one.
+    [[nodiscard]] std::optional<bool> parse_pds_input_statement(
+        std::size_t statement_offset);
+    // The variables of an INPUT: where each one is and whether it is a
+    // Variant. Empty `targets` and false on a parse error.
+    [[nodiscard]] bool parse_pds_input_targets(
+        std::vector<std::pair<Value*, bool>>& targets);
     // `[a] [, [b] ...]`: the arguments of a PDS statement, each left out or
     // a whole number (rounded as BASIC does).
     [[nodiscard]] bool parse_pds_arguments(
