@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M3 of `lib/wfc-brun71`
-(2026-11-22); steps 1 to 3 of the implementation order are done
+(2026-11-22); steps 1 to 4 of the implementation order are done
 
 **Date:** 2026-11-22
 
@@ -115,6 +115,13 @@ Take option 3.
   and `MaxLength` first, raises `Change` for a new text, and gives a key
   the control used (`KeyResult::handled`) no default action, so the
   Enter that closes a combo box's list presses no button.
+- Menus and dialogs (step 4) are drawn and run by the text host
+  (`src/ui/text_host_dialogs.cpp`): it opens menus itself on F10 or Alt
+  and a title's key and raises the `Click` of the menu that opens and of
+  the item chosen; `MsgBox` and `InputBox` reach it through
+  `UiHost::message_box` and `input_box`, which the interpreter now calls
+  in text mode too. Menu shortcuts are the form model's (`key_default`),
+  so the Win32 host has them as well.
 - Timers (step 3) run on the clock with keys from the console. With keys
   from the standard input they run on a virtual clock that the bytes
   0, 0 move to the next timer that is due, so corpus programs with timers

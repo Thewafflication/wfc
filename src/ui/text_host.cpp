@@ -1,5 +1,7 @@
 #include "text_host.hpp"
 
+#include "text_host_support.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -12,123 +14,10 @@
 namespace wfc::ui {
 namespace {
 
+using namespace text;  // NOLINT(google-build-using-namespace)
+
 namespace pds = wfc::detail::pds;
 using brun71::Region;
-
-// A character cell in twips (VB6's ScaleMode 4, vbCharacters).
-constexpr double kCellWidth = 120.0;
-constexpr double kCellHeight = 240.0;
-// How long a wait for a key lasts before the timers are checked again.
-constexpr int kWaitSlice = 50;
-
-constexpr std::uint8_t kDisabledAttribute = 0x78;  // dark grey on grey
-constexpr std::uint8_t kAccessAttribute = 0x7F;    // white on grey
-
-int cells(const double twips, const double size) {
-    return static_cast<int>(std::lround(twips / size));
-}
-
-Region intersect(const Region& a, const Region& b) {
-    const int top = std::max(a.top, b.top);
-    const int left = std::max(a.left, b.left);
-    const int bottom = std::min(a.bottom(), b.bottom());
-    const int right = std::min(a.right(), b.right());
-    return Region{top, left, std::max(bottom - top + 1, 0),
-                  std::max(right - left + 1, 0)};
-}
-
-bool inside(const Region& region, const int row, const int column) {
-    return row >= region.top && row <= region.bottom() &&
-           column >= region.left && column <= region.right();
-}
-
-// The virtual-key code of a BIOS scan code of an extended key, with the
-// shift mask (1 Shift, 2 Ctrl, 4 Alt), or 0.
-long extended_key(const int code, long& shift) {
-    shift = 0;
-    switch (code) {
-        case 15:
-            shift = 1;
-            return 9;  // Shift+Tab
-        case 71:
-            return 36;  // Home
-        case 72:
-            return 38;  // Up
-        case 73:
-            return 33;  // Page Up
-        case 75:
-            return 37;  // Left
-        case 77:
-            return 39;  // Right
-        case 79:
-            return 35;  // End
-        case 80:
-            return 40;  // Down
-        case 81:
-            return 34;  // Page Down
-        case 82:
-            return 45;  // Insert
-        case 83:
-            return 46;  // Delete
-        case 133:
-            return 122;  // F11
-        case 134:
-            return 123;  // F12
-        default:
-            break;
-    }
-    if (code >= 59 && code <= 68) {
-        return 112 + (code - 59);  // F1-F10
-    }
-    // Alt and a letter: the scan codes of the three letter rows.
-    static constexpr const char* kRows[] = {"QWERTYUIOP", "ASDFGHJKL",
-                                            "ZXCVBNM"};
-    static constexpr int kFirst[] = {16, 30, 44};
-    for (int row = 0; row < 3; ++row) {
-        const std::string_view letters = kRows[row];
-        if (code >= kFirst[row] &&
-            code < kFirst[row] + static_cast<int>(letters.size())) {
-            shift = 4;
-            return letters[static_cast<std::size_t>(code - kFirst[row])];
-        }
-    }
-    if (code >= 120 && code <= 129) {
-        shift = 4;
-        return code == 129 ? '0' : '1' + (code - 120);  // Alt and a digit
-    }
-    return 0;
-}
-
-// The characters of UTF-8 text, and back.
-std::u32string decode(const std::string& text) {
-    std::u32string characters;
-    for (std::size_t i = 0; i < text.size();) {
-        const auto lead = static_cast<unsigned char>(text[i]);
-        const std::size_t length = lead < 0x80U   ? 1U
-                                   : lead < 0xE0U ? 2U
-                                   : lead < 0xF0U ? 3U
-                                                  : 4U;
-        char32_t code = length == 1U   ? lead
-                        : length == 2U ? lead & 0x1FU
-                        : length == 3U ? lead & 0x0FU
-                                       : lead & 0x07U;
-        for (std::size_t k = 1; k < length && i + k < text.size(); ++k) {
-            code = (code << 6U) |
-                   (static_cast<unsigned char>(text[i + k]) & 0x3FU);
-        }
-        characters.push_back(code);
-        i += length;
-    }
-    return characters;
-}
-
-std::string encode(const std::u32string& characters) {
-    std::string text;
-    for (const char32_t code : characters) {
-        wfc::detail::append_utf8_unit(text, code);
-    }
-    return text;
-}
 
 }  // namespace
 
@@ -218,6 +107,10 @@ void TextHost::destroy_window(const WindowId window) {
     std::erase(order_, window);
     if (focus_ == window) {
         focus_ = kNoWindow;
+    }
+    if (std::find(menu_path_.begin(), menu_path_.end(), window) !=
+        menu_path_.end()) {
+        close_menus();
     }
     changed();
 }
@@ -330,37 +223,16 @@ UiHost::KeyResult TextHost::control_key(const WindowId window, const long code,
         return KeyResult::ignored;
     }
     std::u32string characters = decode(entry->text);
-    std::size_t& caret = entry->caret;
-    caret = std::min(caret, characters.size());
-    changed();
-    if (ascii == 8) {
-        if (caret == 0) {
+    switch (edit_line(characters, entry->caret, code, ascii)) {
+        case Edit::ignored:
+            return KeyResult::ignored;
+        case Edit::moved:
+            changed();
             return KeyResult::handled;
-        }
-        characters.erase(--caret, 1);
-    } else if (ascii >= 32) {
-        characters.insert(caret++, 1,
-                          static_cast<char32_t>(wfc::detail::ansi_to_unicode(
-                              static_cast<unsigned>(ascii))));
-    } else if (ascii != 0) {
-        return KeyResult::ignored;  // Tab, Enter, Esc, the Ctrl keys
-    } else if (code == 37) {
-        caret -= caret > 0 ? 1U : 0U;
-        return KeyResult::handled;
-    } else if (code == 39) {
-        caret += caret < characters.size() ? 1U : 0U;
-        return KeyResult::handled;
-    } else if (code == 36) {
-        caret = 0;
-        return KeyResult::handled;
-    } else if (code == 35) {
-        caret = characters.size();
-        return KeyResult::handled;
-    } else if (code == 46 && caret < characters.size()) {
-        characters.erase(caret, 1);
-    } else {
-        return KeyResult::ignored;
+        case Edit::changed:
+            break;
     }
+    changed();
     entry->text = encode(characters);
     return KeyResult::text_changed;
 }
@@ -627,6 +499,13 @@ void TextHost::refresh_window(const WindowId window) {
 // A key from the keyboard: to the focused control (or the active form) as
 // KeyDown, KeyPress and KeyUp. Alt+F4 closes the active form.
 void TextHost::key(const int character, const int code) {
+    if (!menu_path_.empty()) {
+        menu_key(character, code);
+        return;
+    }
+    if (menu_opener(character, code)) {
+        return;
+    }
     const WindowId form = active_form();
     WindowId target = focus_;
     if (target == kNoWindow || form_of(target) != form) {
@@ -741,14 +620,17 @@ bool TextHost::exhausted() const {
 
 // ----- Drawing ----------------------------------------------------------
 
-TextHost::Placed TextHost::place_form(const Window& form) const {
+TextHost::Placed TextHost::place_form(const WindowId id,
+                                      const Window& form) const {
     const auto& screen = pds::screen();
     const bool bordered = form.border_style != 0;
     const int edge = bordered ? 1 : 0;
+    // A menu bar is a row of its own above the client area, as in VB6.
+    const int bar = menu_items(id).empty() ? 0 : 1;
     const int width =
         std::max(cells(form.bounds.width, kCellWidth), 1) + 2 * edge;
     const int height =
-        std::max(cells(form.bounds.height, kCellHeight), 1) + 2 * edge;
+        std::max(cells(form.bounds.height, kCellHeight), 1) + 2 * edge + bar;
     int left = cells(form.bounds.left, kCellWidth) + 1;
     int top = cells(form.bounds.top, kCellHeight) + 1;
     if (form.bounds.left == 0.0 && form.bounds.top == 0.0) {
@@ -760,8 +642,10 @@ TextHost::Placed TextHost::place_form(const Window& form) const {
     left = std::max(std::min(left, screen.columns() - width + 1), 1);
     top = std::max(std::min(top, screen.rows() - height + 1), 1);
     const Region outer{top, left, height, width};
-    return Placed{outer, Region{top + edge, left + edge, height - 2 * edge,
-                                width - 2 * edge}};
+    return Placed{outer,
+                  Region{top + edge + bar, left + edge, height - 2 * edge - bar,
+                         width - 2 * edge},
+                  bar != 0 ? top + edge : 0};
 }
 
 void TextHost::write(const int row, const int column, const std::string& bytes,
@@ -798,7 +682,7 @@ void TextHost::repaint() {
         if (form == nullptr || !form->visible) {
             continue;
         }
-        const Placed place = place_form(*form);
+        const Placed place = place_form(id, *form);
         brun71::fill(screen, place.outer, brun71::kWindowAttribute);
         if (form->border_style != 0) {
             const bool is_active = id == active;
@@ -812,7 +696,17 @@ void TextHost::repaint() {
                           attribute);
             brun71::shadow(screen, place.outer);
         }
+        if (place.bar_row != 0) {
+            paint_menu_bar(id, place);
+        }
         paint_children(id, place.client, place.client);
+    }
+    if (!menu_path_.empty()) {
+        paint_menus();
+        cursor_row_ = 0;
+    }
+    if (dialog_ != nullptr) {
+        paint_dialog(*dialog_);
     }
     if (Window* combo = find(dropped_); combo != nullptr) {
         // The open list of a combo box, over everything else.

@@ -109,6 +109,8 @@ target_sources(
     src/ui/headless_host.hpp
     src/ui/text_host.cpp
     src/ui/text_host.hpp
+    src/ui/text_host_dialogs.cpp
+    src/ui/text_host_support.hpp
     src/ui/ui_host.hpp
     src/ui/win32_host.cpp
     src/ui/win32_host.hpp

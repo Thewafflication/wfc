@@ -460,7 +460,7 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (const auto scripted = form_dialog_answer("msgbox")) {
             return Value{static_cast<Integer>(std::atol(scripted->c_str()))};
         }
-        if (execute_ && ui_mode_ == "win32") {
+        if (execute_ && (ui_mode_ == "win32" || ui_mode_ == "text")) {
             const std::string text =
                 std::holds_alternative<std::string>(arguments[0])
                     ? std::get<std::string>(arguments[0])
@@ -510,7 +510,7 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         if (const auto scripted = form_dialog_answer("inputbox")) {
             return Value{*scripted};
         }
-        if (execute_ && ui_mode_ == "win32") {
+        if (execute_ && (ui_mode_ == "win32" || ui_mode_ == "text")) {
             const auto text_at = [&](const std::size_t index) {
                 return count > index && std::holds_alternative<std::string>(
                                             arguments[index])

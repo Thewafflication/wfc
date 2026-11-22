@@ -47,6 +47,13 @@ public:
     void set_alignment(WindowId window, int alignment) override;
     void set_form_style(WindowId window, int border_style) override;
     [[nodiscard]] bool screen_metric(long index, long& value) const override;
+    [[nodiscard]] std::optional<long> message_box(WindowId owner,
+                                                  const std::string& text,
+                                                  const std::string& title,
+                                                  long style) override;
+    [[nodiscard]] std::optional<std::string> input_box(
+        WindowId owner, const std::string& prompt, const std::string& title,
+        const std::string& initial, bool& supported) override;
     void set_focus(WindowId window) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
@@ -94,10 +101,24 @@ private:
         long virtual_due{};
     };
     // The cells a window covers on the screen, and the cells its children
-    // are clipped to.
+    // are clipped to; a form with menus has its menu bar on `bar_row`.
     struct Placed {
         brun71::Region outer;
         brun71::Region client;
+        int bar_row{0};
+    };
+    // A MsgBox or InputBox on the screen: its text in lines, its buttons
+    // (captions with access keys), the one that has the focus (-1: the
+    // input field), and the input field's text and caret.
+    struct Dialog {
+        std::string title;
+        std::vector<std::string> lines;
+        std::vector<std::string> buttons;
+        int focus{0};
+        bool input{false};
+        std::u32string text;
+        std::size_t caret{0};
+        std::size_t scroll{0};
     };
 
     [[nodiscard]] const Window* find(WindowId window) const;
@@ -105,7 +126,7 @@ private:
     [[nodiscard]] WindowId form_of(WindowId window) const;
     [[nodiscard]] WindowId active_form() const;
     [[nodiscard]] bool shown(WindowId window) const;
-    [[nodiscard]] Placed place_form(const Window& form) const;
+    [[nodiscard]] Placed place_form(WindowId id, const Window& form) const;
     void raise(WindowId form);
     void next_option(WindowId window, bool forward);
     [[nodiscard]] KeyResult list_key(WindowId window, Window& list, long code,
@@ -113,6 +134,18 @@ private:
     [[nodiscard]] KeyResult scroll_key(WindowId window, const Window& bar,
                                        long code);
     void key(int character, int code);
+    // Menus (text_host_dialogs.cpp).
+    [[nodiscard]] std::vector<WindowId> menu_items(WindowId owner) const;
+    [[nodiscard]] bool menu_opener(int character, int code);
+    void menu_key(int character, int code);
+    void open_menu(WindowId top);
+    void close_menus();
+    void paint_menu_bar(WindowId form, const Placed& place);
+    void paint_menus();
+    // Dialogs: runs the dialog until a button is chosen; the button's index,
+    // or -1 for Esc (-2 when the keys ended).
+    [[nodiscard]] int run_dialog(Dialog& dialog, int cancel);
+    void paint_dialog(const Dialog& dialog);
     void queue_timers();
     void tick();
     void paint_list(Window& list, const brun71::Region& region,
@@ -142,6 +175,15 @@ private:
     // The open combo box, whose list is drawn over everything else.
     WindowId dropped_{kNoWindow};
     brun71::Region dropped_region_;
+    // The open menus, from the one on the menu bar down, and the item
+    // highlighted in each; the row of the active form's menu bar and the
+    // column of each title on it.
+    std::vector<WindowId> menu_path_;
+    std::vector<int> menu_index_;
+    int menu_bar_row_{0};
+    std::map<WindowId, int> menu_columns_;
+    // The dialog on the screen, drawn over everything else.
+    const Dialog* dialog_{nullptr};
     int cursor_row_{0};
     int cursor_column_{0};
 };

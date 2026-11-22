@@ -1703,10 +1703,67 @@ struct FormSupport {
         return true;
     }
 
+    // Whether a menu's Shortcut (^S, +{F1}, %{BKSP}, as the .frm writes it)
+    // is the key `code` with the modifiers `shift`.
+    [[nodiscard]] static bool is_shortcut(const ControlObject& menu,
+                                          const long code, const long shift) {
+        const auto found = menu.values.find("shortcut");
+        if (found == menu.values.end() ||
+            !std::holds_alternative<std::string>(found->second)) {
+            return false;
+        }
+        std::string spec = lower_text(std::get<std::string>(found->second));
+        long wanted_shift = 0;
+        std::size_t at = 0;
+        for (; at < spec.size(); ++at) {
+            if (spec[at] == '^') {
+                wanted_shift |= 2;
+            } else if (spec[at] == '+') {
+                wanted_shift |= 1;
+            } else if (spec[at] == '%') {
+                wanted_shift |= 4;
+            } else {
+                break;
+            }
+        }
+        spec.erase(0, at);
+        long wanted = 0;
+        if (spec.size() == 1U) {
+            wanted = std::toupper(static_cast<unsigned char>(spec[0]));
+        } else if (spec.size() > 2U && spec.front() == '{' &&
+                   spec.back() == '}') {
+            const std::string name = spec.substr(1, spec.size() - 2U);
+            if (name.size() >= 2U && name[0] == 'f' &&
+                std::isdigit(static_cast<unsigned char>(name[1])) != 0) {
+                wanted = 111 + std::atol(name.c_str() + 1);
+            } else if (name == "del" || name == "delete") {
+                wanted = 46;
+            } else if (name == "insert" || name == "ins") {
+                wanted = 45;
+            } else if (name == "bksp" || name == "backspace") {
+                wanted = 8;
+            }
+        }
+        return wanted != 0 && wanted == code && wanted_shift == shift;
+    }
+
     // What a key does when the program does not swallow it.
     [[nodiscard]] static bool key_default(Interpreter& in, InstanceData& form,
                                           ControlObject& source,
                                           const long code, const long shift) {
+        // A menu item's shortcut chooses it.
+        ControlObject* shortcut = nullptr;
+        for_each_control(form, [&](ControlObject& object) {
+            if (shortcut == nullptr && object.class_key == "menu" &&
+                flag_of(object, "enabled") && flag_of(object, "visible") &&
+                is_shortcut(object, code, shift)) {
+                shortcut = &object;
+            }
+        });
+        if (shortcut != nullptr) {
+            click_later(in, *shortcut);
+            return true;
+        }
         if ((shift & 4) != 0 && code >= 'A' && code <= 'Z') {
             return accelerator(
                 in, form,
@@ -6055,6 +6112,12 @@ bool Interpreter::create_form_instance(
                 }
                 continue;
             }
+            if (key == "shortcut") {
+                // A menu's shortcut is written as SendKeys text (^S, {F1}),
+                // without quotes: it is kept as that text.
+                object.values[key] = Value{property.value};
+                continue;
+            }
             if (key == "list" && property.in_resource && object.is_list()) {
                 // A list record: a 16-bit count, then each item as a 16-bit
                 // length and its text.
@@ -6987,7 +7050,7 @@ bool Interpreter::parse_sendkeys_statement(const std::size_t offset) {
 std::optional<long> Interpreter::ui_message_box(const std::string& text,
                                                 const std::string& title,
                                                 const long style) {
-    if (ui_mode_ != "win32" || !ui_script_.empty()) {
+    if ((ui_mode_ != "win32" && ui_mode_ != "text") || !ui_script_.empty()) {
         return std::nullopt;
     }
     auto& state = FormSupport::runtime(*this);
@@ -7008,7 +7071,7 @@ std::optional<std::string> Interpreter::ui_input_box(const std::string& prompt,
                                                      const std::string& initial,
                                                      bool& handled) {
     handled = false;
-    if (ui_mode_ != "win32" || !ui_script_.empty()) {
+    if ((ui_mode_ != "win32" && ui_mode_ != "text") || !ui_script_.empty()) {
         return std::nullopt;
     }
     auto& state = FormSupport::runtime(*this);
