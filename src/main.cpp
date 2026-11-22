@@ -477,9 +477,9 @@ bool project_has_forms(const std::filesystem::path& project) {
     return false;
 }
 
-// `wfc --build <project.vbp> -o <app.exe> [--gui] [--native]`: a packaged
-// program. With --native the project is compiled now and the program carries
-// the machine code.
+// `wfc --build <project.vbp> -o <app.exe> [--gui|--fullscreen] [--native]`: a
+// packaged program. With --native the project is compiled now and the program
+// carries the machine code.
 int build_package(const int argument_count, const char* const arguments[]) {
     std::filesystem::path project;
     std::filesystem::path output;
@@ -499,6 +499,11 @@ int build_package(const int argument_count, const char* const arguments[]) {
             output = arguments[++i];
         } else if (argument == "--gui") {
             options.emplace_back("--gui");
+        } else if (argument == "--fullscreen") {
+            // The program scales its windows to fill the screen (and shows a
+            // close button in the corner), as `wfc run --fullscreen` does.
+            options.emplace_back("--gui");
+            options.emplace_back("--fullscreen");
         } else if (argument == "--console") {
             console_only = true;
         } else if (argument == "--native") {

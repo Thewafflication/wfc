@@ -221,6 +221,8 @@ void print_help() {
            "build options:\n"
            "  -o <file>            the program to write (required)\n"
            "  --gui                the program shows its forms in windows\n"
+           "  --fullscreen         the program scales its forms to fill the "
+           "screen\n"
            "  --native             machine code; a project that does not "
            "compile is an error\n"
            "  --interpret          carry the project for the interpreter\n"
@@ -268,7 +270,8 @@ void print_command_help(const std::string& command) {
                      "its file and line and\nexits 3, or exits 0 when the "
                      "program compiles.\n";
     } else if (command == "build") {
-        std::cout << "wfc build <project.vbp> -o <app.exe> [--gui|--console] "
+        std::cout << "wfc build <project.vbp> -o <app.exe> "
+                     "[--gui|--fullscreen|--console] "
                      "[--native] [--link static|dynamic]\n          "
                      "[--bundle] [--target win2000|host]\n\n"
                      "A project with forms shows them in windows (--gui: a "

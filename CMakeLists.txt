@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
   WFC
-  VERSION 0.8.31
+  VERSION 0.8.32
   DESCRIPTION "Waughtal Foundation Classes"
   LANGUAGES CXX
 )
@@ -3295,6 +3295,18 @@ Print v.x & q.x]=]
     )
     set_tests_properties(
       TC-MP0008-package-app-path
+      PROPERTIES LABELS "integration;mp-0008;package"
+    )
+    add_test(
+      NAME TC-MP0008-package-fullscreen
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DPROJECT=${CMAKE_CURRENT_SOURCE_DIR}/tests/gui/gui-gdi.vbp"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-fullscreen" -P
+        "${package_tests}/run_fullscreen_test.cmake"
+    )
+    set_tests_properties(
+      TC-MP0008-package-fullscreen
       PROPERTIES LABELS "integration;mp-0008;package"
     )
     add_test(
