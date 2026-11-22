@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M3 of `lib/wfc-brun71`
-(2026-11-22); steps 1 to 4 of the implementation order are done
+(2026-11-22); steps 1 to 5 of the implementation order are done
 
 **Date:** 2026-11-22
 
@@ -122,6 +122,14 @@ Take option 3.
   `UiHost::message_box` and `input_box`, which the interpreter now calls
   in text mode too. Menu shortcuts are the form model's (`key_default`),
   so the Win32 host has them as well.
+- The mouse (step 5) is read by the library's console host
+  (`brun71::Console::enable_mouse`, `mouse.hpp`) and turned into mouse
+  events by the text host (`src/ui/text_host_mouse.cpp`), which finds the
+  window under the pointer from where it last drew each one. A click
+  that should focus a control without a `Click` (a combo box, a scroll
+  bar, a text box's caret) posts `UserFocus`, which the form model now
+  handles. `wfc build` keeps a `WfcTextUI=1` project a console program;
+  `TC-MP0007-package-320-text-form` and `...-326-text-mouse` check it.
 - Timers (step 3) run on the clock with keys from the console. With keys
   from the standard input they run on a virtual clock that the bytes
   0, 0 move to the next timer that is due, so corpus programs with timers

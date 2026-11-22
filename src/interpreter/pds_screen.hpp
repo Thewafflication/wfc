@@ -23,6 +23,7 @@
 
 #include "wfc/brun71/error.hpp"
 #include "wfc/brun71/keytrap.hpp"
+#include "wfc/brun71/mouse.hpp"
 #include "wfc/brun71/screen.hpp"
 
 namespace wfc::detail::pds {
@@ -109,6 +110,13 @@ const char* report_error(int number);
 [[nodiscard]] bool keys_ended();
 // True when the keys come from the console, false from the standard input.
 [[nodiscard]] bool keys_from_console();
+// The mouse of the text host: from then on the console reports it, and
+// the mouse events come from next_mouse(). With keys from the standard
+// input a mouse record (the bytes 0, 255 and four more, see
+// brun71::mouse_record) is read as the key 0, 255 and its event waits
+// for next_mouse().
+void enable_mouse();
+[[nodiscard]] std::optional<brun71::MouseEvent> next_mouse();
 // Shows the screen on the console now.
 void present();
 // wfc text as the bytes the screen holds (see the top of this file).

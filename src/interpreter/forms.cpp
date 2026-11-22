@@ -4292,6 +4292,12 @@ struct FormSupport {
                 return false;
             }
         }
+        if (name == "userfocus") {
+            // The user put the focus on a control (a host that draws its
+            // controls itself, on a mouse click that raises no Click).
+            return source->is_form || focus_control(in, *form, source->name,
+                                                    source->index, in.offset_);
+        }
         if (name == "userscroll" || name == "userscrollby") {
             if (source->is_scroll() && !event.arguments.empty()) {
                 const double amount = std::get<double>(event.arguments[0]);

@@ -17,6 +17,7 @@
 
 #include "ui_host.hpp"
 #include "wfc/brun71/forms.hpp"
+#include "wfc/brun71/mouse.hpp"
 
 namespace wfc::ui {
 
@@ -134,6 +135,10 @@ private:
     [[nodiscard]] KeyResult scroll_key(WindowId window, const Window& bar,
                                        long code);
     void key(int character, int code);
+    // The mouse (text_host_mouse.cpp).
+    void mouse(const brun71::MouseEvent& event);
+    [[nodiscard]] bool menu_click(int row, int column);
+    [[nodiscard]] int dialog_click(int row, int column) const;
     // Menus (text_host_dialogs.cpp).
     [[nodiscard]] std::vector<WindowId> menu_items(WindowId owner) const;
     [[nodiscard]] bool menu_opener(int character, int code);
@@ -184,6 +189,24 @@ private:
     std::map<WindowId, int> menu_columns_;
     // The dialog on the screen, drawn over everything else.
     const Dialog* dialog_{nullptr};
+    // Where the last repaint drew each window, in the order it drew them
+    // (the one on top last): the cells it covers and the cell its
+    // coordinates start from. The boxes of the open menus, by level; the
+    // buttons of the dialog.
+    struct Hit {
+        WindowId window{kNoWindow};
+        brun71::Region area;
+        brun71::Region origin;
+    };
+    std::vector<Hit> hits_;
+    std::vector<brun71::Region> menu_boxes_;
+    std::vector<brun71::Region> dialog_buttons_;
+    // The window a button went down on gets its MouseUp (the capture); a
+    // double click's release raises no Click.
+    WindowId captured_{kNoWindow};
+    bool double_clicked_{false};
+    int mouse_row_{0};
+    int mouse_column_{0};
     int cursor_row_{0};
     int cursor_column_{0};
 };

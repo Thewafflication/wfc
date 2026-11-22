@@ -25,6 +25,7 @@ TextHost::TextHost() {
     auto& screen = pds::screen();
     screen.view_print();
     background_ = screen.cells();
+    pds::enable_mouse();
 }
 
 const TextHost::Window* TextHost::find(const WindowId window) const {
@@ -522,6 +523,9 @@ void TextHost::key(const int character, const int code) {
             tick();
             return;
         }
+        if (code == 255) {
+            return;  // a mouse record; its event comes from next_mouse()
+        }
         if (code == 107) {
             queue_.push_back(UiEvent{form, "Close", {}});
             return;
@@ -583,6 +587,10 @@ std::optional<UiEvent> TextHost::next_event(const bool wait) {
                     timer.due - now);
             slice = std::min(
                 slice, static_cast<int>(std::max<long long>(left.count(), 0)));
+        }
+        if (const auto event = pds::next_mouse()) {
+            mouse(*event);
+            continue;
         }
         if (const auto pressed = pds::next_key(slice)) {
             key(pressed->character, pressed->code);
@@ -676,6 +684,9 @@ void TextHost::repaint() {
     cursor_row_ = 0;
     cursor_column_ = 0;
     dropped_ = kNoWindow;
+    hits_.clear();
+    menu_bar_row_ = 0;
+    menu_columns_.clear();
     const WindowId active = active_form();
     for (const WindowId id : order_) {
         const Window* form = find(id);
@@ -683,6 +694,7 @@ void TextHost::repaint() {
             continue;
         }
         const Placed place = place_form(id, *form);
+        hits_.push_back(Hit{id, place.outer, place.client});
         brun71::fill(screen, place.outer, brun71::kWindowAttribute);
         if (form->border_style != 0) {
             const bool is_active = id == active;
@@ -737,6 +749,7 @@ void TextHost::paint_children(const WindowId parent, const Region& origin,
             origin.left + cells(entry.bounds.left, kCellWidth),
             std::max(cells(entry.bounds.height, kCellHeight), 1),
             std::max(cells(entry.bounds.width, kCellWidth), 1)};
+        hits_.push_back(Hit{id, intersect(region, clip), region});
         paint_control(id, entry, region, clip);
         // A container's children are placed from its top-left cell.
         paint_children(id, region, intersect(region, clip));

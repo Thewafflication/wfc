@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <memory>
 #include <thread>
 #include <utility>
@@ -44,6 +45,8 @@ struct Session {
     brun71::SoftKeys soft_keys;
     brun71::MusicPlayer music;
     brun71::KeyTraps traps;
+    std::deque<brun71::MouseEvent> mouse;
+    bool mouse_wanted = false;
     Clock::time_point polled{};  // the console was last read for events
     bool input_ended = false;    // the standard input is at its end
     bool after_cr = false;       // the last byte read was a CR
@@ -195,6 +198,21 @@ std::optional<brun71::Key> read_input_key(Session& state) {
             state.input_ended = true;
             return std::nullopt;
         }
+        if (*code == 255) {
+            // A mouse record: four more bytes.
+            std::string record;
+            for (int i = 0; i < 4; ++i) {
+                const auto next = read_input_byte();
+                if (!next) {
+                    state.input_ended = true;
+                    return std::nullopt;
+                }
+                record.push_back(static_cast<char>(*next));
+            }
+            if (const auto event = brun71::mouse_record(record)) {
+                state.mouse.push_back(*event);
+            }
+        }
         return brun71::Key{0, *code};
     }
     // CR LF, CR and LF are each one Enter.
@@ -236,7 +254,8 @@ int take_trapped(Session& state) {
 int fetch(Session& state) {
 #ifdef WFC_BRUN71_HAS_CONSOLE
     if (state.console_input) {
-        state.host->poll(state.keys);
+        state.host->poll(state.keys,
+                         state.mouse_wanted ? &state.mouse : nullptr);
         return take_trapped(state);
     }
 #endif
@@ -566,6 +585,26 @@ std::optional<brun71::Key> next_key(const int wait_ms) {
 bool keys_ended() {
     Session& state = session();
     return state.input_ended && state.keys.empty();
+}
+
+void enable_mouse() {
+    Session& state = session();
+    state.mouse_wanted = true;
+#ifdef WFC_BRUN71_HAS_CONSOLE
+    if (state.console_input && state.host) {
+        state.host->enable_mouse();
+    }
+#endif
+}
+
+std::optional<brun71::MouseEvent> next_mouse() {
+    Session& state = session();
+    if (state.mouse.empty()) {
+        return std::nullopt;
+    }
+    const brun71::MouseEvent event = state.mouse.front();
+    state.mouse.pop_front();
+    return event;
 }
 
 bool keys_from_console() {

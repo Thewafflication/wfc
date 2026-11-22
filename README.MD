@@ -223,8 +223,14 @@ numbers and strings as PDS does; `SOUND`, `PLAY`, `BEEP`, `SLEEP` and the
 soft keys (`KEY n`, `KEY ON`), key trapping (`ON KEY(n) GOSUB`), `WRITE`
 and `SCREEN(row, col)` work too, and an error no handler takes ends the
 program with BRUN71's message. See
-`architecture/adr-0011-pds-text-programs.md`. Next: VB6 forms in text mode,
-an event-driven text user interface for VB6 programs.
+`architecture/adr-0011-pds-text-programs.md`.
+
+A VB6 project with `WfcTextUI=1` in its `.vbp` (or run with `wfc --text-ui`)
+shows its forms on the same text screen: forms, labels, buttons, check and
+option boxes, frames, text, list and combo boxes, scroll bars, timers, menus,
+`MsgBox`, `InputBox` and the mouse, driven by the unchanged VB6 form model;
+`wfc build` makes it a console program. See
+`architecture/adr-0012-text-mode-forms.md`.
 
 ## Build the Current Development Slice
 

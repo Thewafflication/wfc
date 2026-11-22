@@ -110,6 +110,7 @@ target_sources(
     src/ui/text_host.cpp
     src/ui/text_host.hpp
     src/ui/text_host_dialogs.cpp
+    src/ui/text_host_mouse.cpp
     src/ui/text_host_support.hpp
     src/ui/ui_host.hpp
     src/ui/win32_host.cpp
@@ -3360,6 +3361,26 @@ Print v.x & q.x]=]
     set_tests_properties(
       TC-MP0007-package-${package_case}
       PROPERTIES LABELS "integration;mp-0007;package"
+    )
+  endforeach()
+
+  # Text-mode form programs (ADR-0012) packaged as console programs, driven
+  # by their keys.
+  foreach(package_case 320-text-form 326-text-mouse)
+    set(package_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib/wfc-brun71/tests/corpus")
+    add_test(
+      NAME TC-MP0007-package-${package_case}
+      COMMAND
+        "${CMAKE_COMMAND}" "-DWFC=$<TARGET_FILE:wfc>"
+        "-DINPUT=${package_dir}/${package_case}.vbp"
+        "-DEXPECTED=${package_dir}/${package_case}.expected"
+        "-DKEYS=${package_dir}/${package_case}.keys"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/package-${package_case}" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/package/run_package_case.cmake"
+    )
+    set_tests_properties(
+      TC-MP0007-package-${package_case}
+      PROPERTIES LABELS "integration;mp-0007;package;brun71"
     )
   endforeach()
 

@@ -293,6 +293,7 @@ void TextHost::paint_menu_bar(const WindowId form, const Placed& place) {
 // The open menus, each a box below its title or beside its item.
 void TextHost::paint_menus() {
     auto& screen = pds::screen();
+    menu_boxes_.clear();
     const Region all{1, 1, screen.rows(), screen.columns()};
     Region previous{};
     for (std::size_t level = 0; level < menu_path_.size(); ++level) {
@@ -325,6 +326,7 @@ void TextHost::paint_menus() {
         left = std::max(std::min(left, screen.columns() - width + 1), 1);
         top = std::max(std::min(top, screen.rows() - height + 1), 1);
         const Region box{top, left, height, width};
+        menu_boxes_.push_back(box);
         brun71::fill(screen, box, brun71::kWindowAttribute);
         brun71::frame(screen, box, brun71::Border::single,
                       brun71::kWindowAttribute);
@@ -428,9 +430,12 @@ void TextHost::paint_dialog(const Dialog& dialog) {
         row += 2;
     }
     int column = box.left + 2 + (content - buttons_width) / 2;
+    dialog_buttons_.clear();
     for (std::size_t i = 0; i < faces.size(); ++i) {
         const auto caption = screen_caption(dialog.buttons[i]);
         const bool focused = static_cast<int>(i) == dialog.focus;
+        dialog_buttons_.push_back(
+            Region{row, column, 1, static_cast<int>(caption.text.size()) + 4});
         write(row, column, "< " + caption.text + " >",
               focused ? brun71::kFocusAttribute : brun71::kWindowAttribute,
               all);
@@ -470,6 +475,18 @@ int TextHost::run_dialog(Dialog& dialog, const int cancel) {
             changed();
             repaint();
         }
+        if (const auto click = pds::next_mouse()) {
+            // A button released over a button chooses it.
+            if (click->kind == brun71::MouseEvent::Kind::up &&
+                (click->buttons & brun71::kLeftButton) != 0) {
+                const int button = dialog_click(click->row, click->column);
+                if (button >= 0) {
+                    result = button;
+                    break;
+                }
+            }
+            continue;
+        }
         const auto pressed = pds::next_key(text::kWaitSlice);
         if (!pressed) {
             if (frozen_ || pds::keys_ended()) {
@@ -480,6 +497,9 @@ int TextHost::run_dialog(Dialog& dialog, const int cancel) {
         }
         const int character = pressed->character;
         const int code = pressed->code;
+        if (character == 0 && code == 255) {
+            continue;  // a mouse record
+        }
         if (character == 9 || (character == 0 && code == 15)) {
             step(character == 9 ? 1 : -1);
         } else if (character == 13) {
