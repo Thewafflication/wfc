@@ -469,6 +469,21 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
                              " ordinal.");
         case 47:
             return ok(Value{set.sort()});
+        case 50:  // Bookmark
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            return ok(Value{static_cast<Integer>(set.bookmark())});
+        case 51:  // Bookmark = mark
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            return set.goto_bookmark(static_cast<long>(long_at(2)))
+                       ? ok(Value{Integer{0}})
+                       : bad(3001,
+                             "Arguments are of the wrong type, are out"
+                             " of acceptable range, or are in conflict"
+                             " with one another.");
         case 48:    // Field.Type
         case 49: {  // Field.DefinedSize
             const auto index = field();

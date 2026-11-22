@@ -1883,6 +1883,13 @@ Public Property Let Filter(v As Variant)
 Dim r As Long
 r = WfcAdo(42, h, CStr(v))
 End Property
+Public Property Get Bookmark() As Variant
+Bookmark = WfcAdo(50, h)
+End Property
+Public Property Let Bookmark(v As Variant)
+Dim r As Long
+r = WfcAdo(51, h, CLng(v))
+End Property
 Public Property Get Sort() As String
 Sort = WfcAdo(47, h)
 End Property
