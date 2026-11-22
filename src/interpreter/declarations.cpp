@@ -1544,6 +1544,8 @@ void Interpreter::scan_builtin_classes() {
         class_sources_.push_back({"WfcAdoRecordset", kAdoRecordsetSource});
         class_sources_.push_back({"WfcAdoFields", kAdoFieldsSource});
         class_sources_.push_back({"WfcAdoField", kAdoFieldSource});
+        class_sources_.push_back({"WfcAdoParameters", kAdoParametersSource});
+        class_sources_.push_back({"WfcAdoParameter", kAdoParameterSource});
         const auto add_ado_alias = [&](const std::string_view type_name,
                                        const std::string_view lowered,
                                        const std::string_view source) {
@@ -1556,6 +1558,8 @@ void Interpreter::scan_builtin_classes() {
         add_ado_alias("Recordset", "recordset", kAdoRecordsetSource);
         add_ado_alias("Fields", "fields", kAdoFieldsSource);
         add_ado_alias("Field", "field", kAdoFieldSource);
+        add_ado_alias("Parameters", "parameters", kAdoParametersSource);
+        add_ado_alias("Parameter", "parameter", kAdoParameterSource);
     }
     const auto mentions_app = [](const std::string_view text) {
         for (std::size_t i = 0; i + 4U <= text.size(); ++i) {

@@ -1634,12 +1634,28 @@ inline constexpr std::string_view kAdoCommandSource =
 Public CommandText As String
 Public CommandType As Long
 Public Prepared As Boolean
+Private ps As Object
 Public Property Get ActiveConnection() As Object
 Set ActiveConnection = cn
 End Property
 Public Property Set ActiveConnection(c As Object)
 Set cn = c
 End Property
+Public Property Get Parameters() As Object
+If ps Is Nothing Then Set ps = New WfcAdoParameters
+Set Parameters = ps
+End Property
+Public Function CreateParameter(Optional ByVal Name As String = "",)VB"
+    R"VB( Optional ByVal DataType As Long = 0,)VB"
+    R"VB( Optional ByVal Direction As Long = 1,)VB"
+    R"VB( Optional ByVal Size As Long = 0,)VB"
+    R"VB( Optional ByVal Value As Variant) As Object
+Dim p As New WfcAdoParameter
+p.Name = Name
+p.Init DataType, Direction, Size
+If Not IsMissing(Value) Then p.Value = Value
+Set CreateParameter = p
+End Function
 Public Function Execute(Optional RecordsAffected As Variant,)VB"
     R"VB( Optional Parameters As Variant, Optional Options As Long = -1))VB"
     R"VB( As Object
@@ -1647,15 +1663,119 @@ Dim r As Variant, rs As New WfcAdoRecordset
 If cn Is Nothing Then Err.Raise 3709, , "The connection cannot be used)VB"
     R"VB( to perform this operation. It is either closed or invalid in)VB"
     R"VB( this context."
-If IsMissing(Parameters) Then
+If Not IsMissing(Parameters) Then
+r = cn.WfcExec(CommandText, Parameters)
+ElseIf ps Is Nothing Then
 r = cn.WfcExec(CommandText, Array())
 Else
-r = cn.WfcExec(CommandText, Parameters)
+r = cn.WfcExec(CommandText, ps.WfcValues())
 End If
 rs.Attach r(0)
 If Not IsMissing(RecordsAffected) Then RecordsAffected = r(1)
 Set Execute = rs
 End Function
+)VB";
+
+// ADODB Command.Parameters: values bind to the ? markers in order.
+inline constexpr std::string_view kAdoParametersSource =
+    R"VB(Private a() As Variant
+Private n As Long
+Public Property Get Count() As Long
+Count = n
+End Property
+Public Sub Append(p As Object)
+n = n + 1
+ReDim Preserve a(1 To n)
+Set a(n) = p
+End Sub
+Public Sub Delete(Index As Variant)
+Dim i As Long, k As Long
+k = Locate(Index)
+For i = k To n - 1
+Set a(i) = a(i + 1)
+Next i
+n = n - 1
+If n > 0 Then ReDim Preserve a(1 To n)
+End Sub
+Public Sub Refresh()
+End Sub
+Private Function Locate(Index As Variant) As Long
+Dim i As Long
+If VarType(Index) = vbString Then
+For i = 1 To n
+If LCase(a(i).Name) = LCase(Index) Then
+Locate = i
+Exit Function
+End If
+Next i
+)VB"
+    R"VB(Err.Raise 3265, , "Item cannot be found in the collection)VB"
+    R"VB( corresponding to the requested name or ordinal."
+End If
+i = CLng(Index) + 1
+If i < 1 Or i > n Then Err.Raise 3265, , "Item cannot be)VB"
+    R"VB( found in the collection corresponding to the requested)VB"
+    R"VB( name or ordinal."
+Locate = i
+End Function
+Public Function Item(Index As Variant) As Object
+Attribute Item.VB_UserMemId = 0
+Set Item = a(Locate(Index))
+End Function
+Public Function WfcValues() As Variant
+Dim r() As Variant, i As Long
+If n = 0 Then
+WfcValues = Array()
+Else
+ReDim r(0 To n - 1)
+For i = 1 To n
+r(i - 1) = a(i).Value
+Next i
+WfcValues = r
+End If
+End Function
+Public Function WfcItems() As Variant
+Dim r() As Variant, i As Long
+If n = 0 Then
+WfcItems = Array()
+Else
+ReDim r(1 To n)
+For i = 1 To n
+Set r(i) = a(i)
+Next i
+WfcItems = r
+End If
+End Function
+)VB";
+
+inline constexpr std::string_view kAdoParameterSource =
+    R"VB(Private t As Long
+Private v As Variant
+Public Name As String
+Public Direction As Long
+Public Size As Long
+Public Attributes As Long
+Public Precision As Long
+Public NumericScale As Long
+Public Sub Init(ByVal DataType As Long, ByVal Dir As Long,)VB"
+    R"VB( ByVal Sz As Long)
+t = DataType
+Direction = Dir
+Size = Sz
+End Sub
+Public Property Get Type() As Long
+Let Type = t
+End Property
+Public Property Let Type(x As Long)
+t = x
+End Property
+Public Property Get Value() As Variant
+Attribute Value.VB_UserMemId = 0
+Value = v
+End Property
+Public Property Let Value(x As Variant)
+v = x
+End Property
 )VB";
 
 inline constexpr std::string_view kAdoRecordsetSource =
