@@ -217,7 +217,7 @@ AdoOutcome no_record() {
 
 }  // namespace
 
-AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
+static AdoOutcome wfc_ado_core(const std::vector<Value>& arguments) {
     if (arguments.size() < 2U) {
         return bad(450,
                    "Wrong number of arguments or invalid property"
@@ -276,7 +276,10 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
                         }
                     }
                 }
-                auto result = connection.execute(text_at(2), parameters);
+                auto result =
+                    long_at(4) != 0
+                        ? connection.execute_updatable(text_at(2), parameters)
+                        : connection.execute(text_at(2), parameters);
                 if (!result.ok) {
                     return failed(connection);
                 }
@@ -506,6 +509,28 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
     return bad(450,
                "Wrong number of arguments or invalid property"
                " assignment");
+}
+
+// A write to a table behind an updatable recordset can fail in any call that
+// flushes a pending row; the error surfaces as that call's error.
+AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
+    auto outcome = wfc_ado_core(arguments);
+    if (arguments.size() >= 2U) {
+        const auto op = whole(arguments[0]);
+        const auto handle = whole(arguments[1]);
+        if (op && handle && *op >= 20 && *op != 40) {
+            auto& all = tables();
+            const auto found =
+                all.recordsets.find(static_cast<Integer>(*handle));
+            adodb::Error error;
+            if (found != all.recordsets.end() &&
+                found->second->take_error(error)) {
+                return bad(static_cast<Integer>(error.number),
+                           error.description);
+            }
+        }
+    }
+    return outcome;
 }
 
 }  // namespace wfc::detail

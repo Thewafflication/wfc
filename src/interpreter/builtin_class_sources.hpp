@@ -1603,6 +1603,16 @@ End Sub
 Public Function WfcExec(ByVal sql As String, params As Variant) As Variant
 WfcExec = WfcAdo(3, h, sql, params)
 End Function
+Public Function WfcExecRs(ByVal sql As String, ByVal lock As Long))VB"
+    R"VB( As Object
+Dim r As Variant, rs As New WfcAdoRecordset, u As Long
+If h = 0 Then Err.Raise 3704, , "Operation is not allowed when the)VB"
+    R"VB( object is closed."
+If lock > 1 Then u = 1
+r = WfcAdo(3, h, sql, Array(), u)
+rs.Attach r(0)
+Set WfcExecRs = rs
+End Function
 Public Function Execute(ByVal CommandText As String,)VB"
     R"VB( Optional RecordsAffected As Variant,)VB"
     R"VB( Optional Options As Long = -1) As Object
@@ -1812,7 +1822,7 @@ Private Sub Need()
     R"VB( ActiveConnection As Variant, Optional CursorType As Long = 0,)VB"
     R"VB( Optional LockType As Long = 1, Optional Options As Long = -1)
 )VB"
-    R"VB(Dim rs As Object, nh As Long, r As Long
+    R"VB(Dim rs As Object, nh As Long, r As Long, sql As String
 )VB"
     R"VB(If State <> 0 Then Err.Raise 3705, , "Operation is not allowed)VB"
     R"VB( when the object is open."
@@ -1838,7 +1848,9 @@ End If
     R"VB( be used to perform this operation. It is either closed or)VB"
     R"VB( invalid in this context."
 )VB"
-    R"VB(Set rs = cn.Execute(CStr(Source))
+    R"VB(sql = Trim(CStr(Source))
+If Options = 2 Or InStr(sql, " ") = 0 Then sql = "select * from " & sql
+Set rs = cn.WfcExecRs(sql, LockType)
 nh = rs.WfcTake()
 If h <> 0 Then r = WfcAdo(33, h)
 h = nh
