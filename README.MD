@@ -223,8 +223,8 @@ numbers and strings as PDS does; `SOUND`, `PLAY`, `BEEP`, `SLEEP` and the
 soft keys (`KEY n`, `KEY ON`), key trapping (`ON KEY(n) GOSUB`), `WRITE`
 and `SCREEN(row, col)` work too, and an error no handler takes ends the
 program with BRUN71's message. See
-`architecture/adr-0011-pds-text-programs.md`. A clone of the PDS 7.1 User
-Interface Toolbox is planned on top.
+`architecture/adr-0011-pds-text-programs.md`. Next: VB6 forms in text mode,
+an event-driven text user interface for VB6 programs.
 
 ## Build the Current Development Slice
 
