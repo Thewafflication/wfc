@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "../ui/headless_host.hpp"
+#include "../ui/text_host.hpp"
 #include "interpreter.hpp"
 
 namespace wfc::detail {

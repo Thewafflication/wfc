@@ -45,6 +45,7 @@ constexpr Option kOptions[] = {
     {"--version", 0},
     {"--verbose", 0},
     {"--gui", 0},
+    {"--text-ui", 0},
     {"--console", 0},
     {"--fullscreen", 0},
     {"--native", 0},
@@ -214,6 +215,7 @@ void print_help() {
            "  --interpret          use the interpreter instead of compiling\n"
            "  --native             require the compiler (no fallback)\n"
            "  --gui                show forms in real windows\n"
+           "  --text-ui            show forms on the text screen\n"
            "  --fullscreen         scale the forms to fill the screen\n"
            "  --exit-after <ms>    close the program after the time\n"
            "  --ui-script <file>   drive the forms from a script\n"

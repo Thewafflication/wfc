@@ -335,6 +335,8 @@ LoadedProject load_project(const std::vector<std::filesystem::path>& paths) {
                     project.project_name = value;
                 } else if (key == "form" || key == "usercontrol") {
                     form_files.push_back(directory / normalize(value));
+                } else if (key == "wfctextui") {
+                    project.text_ui = value != "0";
                 } else if (key == "wfcuiscript") {
                     project.ui_script = (directory / normalize(value)).string();
                 } else if (key == "userdocument") {

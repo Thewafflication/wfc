@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M3 of `lib/wfc-brun71`
-(2026-11-22); not implemented yet
+(2026-11-22); step 1 of the implementation order is done
 
 **Date:** 2026-11-22
 

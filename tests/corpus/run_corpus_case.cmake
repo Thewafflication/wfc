@@ -33,6 +33,8 @@ execute_process(
   OUTPUT_VARIABLE actual
   ERROR_VARIABLE errors
   RESULT_VARIABLE result
+  # wfc writes UTF-8 (the box drawing of a text screen, ADR-0012).
+  ENCODING UTF8
 )
 file(READ "${EXPECTED}" expected)
 string(REPLACE "\r\n" "\n" actual "${actual}")

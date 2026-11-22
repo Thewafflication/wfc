@@ -278,7 +278,10 @@ int main() {
             for (int i = 0; i < 100; ++i) {
                 Sleep(30);
                 const HWND box = FindWindowW(L"WfcInputBox", L"WfcInput");
-                if (box != nullptr) {
+                // The window exists before its edit box: wait until the
+                // dialog is shown, or the answer is set on nothing.
+                if (box != nullptr && IsWindowVisible(box) &&
+                    GetDlgItem(box, 101) != nullptr) {
                     SetWindowTextW(GetDlgItem(box, 101), L"typed answer");
                     SendMessageW(box, WM_COMMAND, IDOK, 0);
                     return;
@@ -297,7 +300,7 @@ int main() {
             for (int i = 0; i < 100; ++i) {
                 Sleep(30);
                 const HWND box = FindWindowW(L"WfcInputBox", L"WfcInput2");
-                if (box != nullptr) {
+                if (box != nullptr && IsWindowVisible(box)) {
                     SendMessageW(box, WM_COMMAND, IDCANCEL, 0);
                     return;
                 }

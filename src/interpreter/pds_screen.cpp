@@ -546,6 +546,36 @@ void end_event(const int key) {
     session().traps.end(key);
 }
 
+std::optional<brun71::Key> next_key(const int wait_ms) {
+    Session& state = session();
+    changed(true);
+    if (state.keys.empty()) {
+        static_cast<void>(fetch(state));
+    }
+#ifdef WFC_BRUN71_HAS_CONSOLE
+    if (state.keys.empty() && state.console_input && wait_ms > 0) {
+        static_cast<void>(state.host->wait(wait_ms));
+        static_cast<void>(fetch(state));
+    }
+#else
+    static_cast<void>(wait_ms);
+#endif
+    return state.keys.pop();
+}
+
+bool keys_ended() {
+    Session& state = session();
+    return state.input_ended && state.keys.empty();
+}
+
+void present() {
+    changed(true);
+}
+
+std::string to_screen(const std::string_view text) {
+    return screen_bytes(text);
+}
+
 std::string finish() {
     if (!g_session || g_finished) {
         return {};

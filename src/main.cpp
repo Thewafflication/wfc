@@ -220,6 +220,8 @@ int prepare_native(const int argument_count, const char* const arguments[],
             image_file = arguments[++i];
         } else if (argument == "--gui") {
             options.ui_mode = "win32";
+        } else if (argument == "--text-ui") {
+            options.ui_mode = "text";
         } else if (argument == "--fullscreen") {
             options.ui_mode = "win32";
             fit_screen = true;
@@ -350,6 +352,9 @@ int prepare_native(const int argument_count, const char* const arguments[],
     options.startup_form = project.startup_form;
     options.ui_script =
         ui_script_override.empty() ? project.ui_script : ui_script_override;
+    if (project.text_ui && options.ui_mode.empty()) {
+        options.ui_mode = "text";
+    }
     if (const auto forced = environment_text("WFC_FULLSCREEN");
         !forced.empty() && forced != "0") {
         options.ui_mode = "win32";
@@ -465,16 +470,24 @@ std::filesystem::path runtime_file(const char* const name) {
     return wfc::cli::find_runtime_file(name);
 }
 
-// Whether the project lists a form (a `Form=` line).
+// Whether the project lists a form (a `Form=` line) that it shows in
+// windows: a project with `WfcTextUI=1` shows its forms on the text screen
+// of the console (ADR-0012).
 bool project_has_forms(const std::filesystem::path& project) {
     std::ifstream stream(project);
     std::string line;
+    bool forms = false;
     while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         if (line.rfind("Form=", 0) == 0) {
-            return true;
+            forms = true;
+        } else if (line.rfind("WfcTextUI=", 0) == 0 && line != "WfcTextUI=0") {
+            return false;
         }
     }
-    return false;
+    return forms;
 }
 
 // `wfc --build <project.vbp> -o <app.exe> [--gui|--fullscreen] [--native]`: a
@@ -862,6 +875,8 @@ int run(const int argument_count, const char* const arguments[]) {
         for (int i = 1; i < argument_count; ++i) {
             if (std::string_view(arguments[i]) == "--gui") {
                 ui_mode = "win32";  // run forms in real windows
+            } else if (std::string_view(arguments[i]) == "--text-ui") {
+                ui_mode = "text";  // forms on the text screen (ADR-0012)
             } else if (std::string_view(arguments[i]) == "--fullscreen") {
                 // Real windows, scaled to fill the screen.
                 ui_mode = "win32";
@@ -970,6 +985,9 @@ int run(const int argument_count, const char* const arguments[]) {
             ui_script_override.empty() ? project.ui_script : ui_script_override;
         options.exit_after_ms = exit_after_ms;
         options.ui_mode = ui_mode;
+        if (project.text_ui && options.ui_mode.empty()) {
+            options.ui_mode = "text";
+        }
         if (const auto forced = environment_text("WFC_FULLSCREEN");
             !forced.empty() && forced != "0") {
             options.ui_mode = "win32";

@@ -211,10 +211,9 @@ std::optional<bool> Interpreter::parse_pds_input_statement(
         return std::nullopt;
     }
     skip_horizontal_whitespace();
-    const auto* const instance = current_instance();
     if (at_pds_statement_end() || current() == '#' || current() == '=' ||
         current() == '.' || procedures_.contains("input") ||
-        (instance != nullptr && instance->native != nullptr)) {
+        current_instance() != nullptr) {
         offset_ = start;
         return std::nullopt;
     }
@@ -640,15 +639,17 @@ std::optional<bool> Interpreter::parse_pds_statement(
         return std::nullopt;
     }
     skip_horizontal_whitespace();
-    const auto* const instance = current_instance();
+    // Only standard modules have the statements (ADR-0011): in form,
+    // control and class code the words are the program's own (a class's
+    // `Private Declare Sub Sleep`, a form's `Cls`).
+    const bool in_object = current_instance() != nullptr;
     const bool not_a_statement =
-        procedures_.contains(std::string(word)) ||
-        (instance != nullptr && instance->native != nullptr) ||
+        procedures_.contains(std::string(word)) || in_object ||
         (!at_end() && (current() == '=' || current() == '.' ||
                        current() == '#' || current() == '('));
     if (word == "key" && !at_end() && current() == '(' &&
         !procedures_.contains("key") && find_variable("key").value == nullptr &&
-        (instance == nullptr || instance->native == nullptr)) {
+        !in_object) {
         return parse_key_trap_statement(start, statement_offset);
     }
     if (not_a_statement) {

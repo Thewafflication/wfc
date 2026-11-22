@@ -635,6 +635,10 @@ struct FormSupport {
     static FormRuntime& runtime(Interpreter& in) {
         if (!in.forms_) {
             in.forms_ = std::make_shared<FormRuntime>();
+            if (in.ui_mode_ == "text") {
+                in.forms_->host = std::make_unique<ui::TextHost>();
+                return *in.forms_;
+            }
 #ifdef _WIN32
             if (in.ui_mode_ == "win32") {
                 auto native = std::make_unique<ui::Win32Host>();

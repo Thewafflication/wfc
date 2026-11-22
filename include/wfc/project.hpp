@@ -57,6 +57,8 @@ struct LoadedProject final {
     // Path of a scripted-input file for the headless UI host
     // (`WfcUiScript=` in the .vbp), resolved against the project directory.
     std::string ui_script;
+    // `WfcTextUI=1`: the forms are shown on the text screen (ADR-0012).
+    bool text_ui{false};
     // The largest form's client size in twips (0 when there are no forms),
     // which full-screen mode fits to the screen.
     double largest_form_width{0.0};

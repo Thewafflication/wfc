@@ -100,6 +100,18 @@ void end_event(int key);
 // the number (nothing is shown).
 const char* report_error(int number);
 
+// The keys of the text host of forms (ADR-0012), bypassing INKEY$: the next
+// key, or nullopt when none comes within `wait_ms` (on the console). With
+// keys from the standard input a key is read at once (the read waits for
+// it); keys_ended() is then true once that input has ended and every key
+// was taken.
+[[nodiscard]] std::optional<brun71::Key> next_key(int wait_ms);
+[[nodiscard]] bool keys_ended();
+// Shows the screen on the console now.
+void present();
+// wfc text as the bytes the screen holds (see the top of this file).
+[[nodiscard]] std::string to_screen(std::string_view text);
+
 // Ends the session: closes the console screen buffer and returns the text
 // of the screen (empty when there was no session, or it already ended).
 [[nodiscard]] std::string finish();

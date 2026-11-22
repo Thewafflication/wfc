@@ -107,6 +107,8 @@ target_sources(
     src/ui/frm_parser.hpp
     src/ui/headless_host.cpp
     src/ui/headless_host.hpp
+    src/ui/text_host.cpp
+    src/ui/text_host.hpp
     src/ui/ui_host.hpp
     src/ui/win32_host.cpp
     src/ui/win32_host.hpp
@@ -564,6 +566,7 @@ if(BUILD_TESTING AND WFC_BUILD_TESTS)
       LABELS "integration;windows;mp-0004;forms"
       SKIP_RETURN_CODE 77
       RESOURCE_LOCK desktop
+      TIMEOUT 120
   )
   add_test(
     NAME TC-MP0004-ui-units
