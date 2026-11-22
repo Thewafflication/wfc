@@ -457,6 +457,18 @@ AdoOutcome wfc_ado(const std::vector<Value>& arguments) {
             return ok(Value{set.filter()});
         case 45:
             return ok(Value{static_cast<Integer>(set.state())});
+        case 46:  // Sort = "field [ASC|DESC], ..."
+            if (set.state() == adodb::adStateClosed) {
+                return closed();
+            }
+            return set.set_sort(text_at(2))
+                       ? ok(Value{Integer{0}})
+                       : bad(3265,
+                             "Item cannot be found in the collection"
+                             " corresponding to the requested name or"
+                             " ordinal.");
+        case 47:
+            return ok(Value{set.sort()});
         case 33:
             all.recordsets.erase(found);
             return ok(Value{Integer{0}});

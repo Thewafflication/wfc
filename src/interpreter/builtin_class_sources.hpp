@@ -1763,6 +1763,13 @@ Public Property Let Filter(v As Variant)
 Dim r As Long
 r = WfcAdo(42, h, CStr(v))
 End Property
+Public Property Get Sort() As String
+Sort = WfcAdo(47, h)
+End Property
+Public Property Let Sort(v As String)
+Dim r As Long
+r = WfcAdo(46, h, v)
+End Property
 Public Sub MoveFirst()
 Dim r As Long
 r = WfcAdo(24, h)
