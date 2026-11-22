@@ -65,9 +65,14 @@ Take option 3.
    redirected, with keys from the console or the standard input.
 3. **Coordinates.** A character cell is 120 twips wide and 240 twips high,
    which is VB6's `ScaleMode = 4` (vbCharacters), so a form designed in
-   characters keeps its layout. Twips round to the nearest cell; a visible
-   control is at least one cell. The screen is 80 by 25 cells (`WIDTH` may
-   change it); `Screen.Width` and `Screen.Height` report it in twips.
+   characters keeps its layout. A `.frm` holds its controls' positions in
+   twips whatever the form's `ScaleMode` (VB6 writes them so: a pixel
+   form of the vb6games corpus has a button at `Left = 4080` on a client
+   area 4815 twips wide), so a control designed on the character grid is
+   at a multiple of 120 and 240 twips. Twips round to the nearest cell; a
+   visible control is at least one cell. The screen is 80 by 25 cells
+   (`WIDTH` may change it); `Screen.Width` and `Screen.Height` report it in
+   twips.
 4. **The look** follows the text-mode windowing of DOS programs: a form is a
    box with its caption on the top border, a double border when active, and
    a shadow; `BackColor` and `ForeColor` map to the nearest of the 16 CGA
