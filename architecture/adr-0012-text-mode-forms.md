@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M3 of `lib/wfc-brun71`
-(2026-11-22); step 1 of the implementation order is done
+(2026-11-22); steps 1 and 2 of the implementation order are done
 
 **Date:** 2026-11-22
 
@@ -108,6 +108,10 @@ Take option 3.
   interpreter and as native code, with no change to its code.
 - Corpus programs check text forms as the PDS ones do: a `.keys` file drives
   them and the expected output is the final screen.
+- `UiHost::control_key` (step 2) lets the host's own controls handle a
+  key after the program's `KeyDown` or `KeyPress`: the text host edits a
+  text box at its caret and moves among option buttons; the model checks
+  `Locked` and `MaxLength` first and raises `Change` for a new text.
 - The `UiHost` interface may need small additions for things only a text
   screen needs (for example the access-key map); they follow ADR-0005's
   review rule.

@@ -377,6 +377,19 @@ public:
         static_cast<void>(mdi_form);
         static_cast<void>(mode);
     }
+    // A key a host-drawn control handles itself (the text host, ADR-0012),
+    // after the program's KeyDown (`ascii` 0) or KeyPress (`code` 0) has
+    // not cancelled it: a text box edits its text at the caret, arrow keys
+    // move among option buttons. True when the window's text changed; the
+    // model then takes the text and raises Change.
+    [[nodiscard]] virtual bool control_key(WindowId window, long code,
+                                           long shift, long ascii) {
+        static_cast<void>(window);
+        static_cast<void>(code);
+        static_cast<void>(shift);
+        static_cast<void>(ascii);
+        return false;
+    }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.
     virtual void pump() {}

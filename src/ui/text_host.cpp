@@ -6,6 +6,8 @@
 #include <optional>
 
 #include "../interpreter/pds_screen.hpp"
+#include "../interpreter/vb_text.hpp"
+#include "wfc/brun71/cp437.hpp"
 
 namespace wfc::ui {
 namespace {
@@ -95,6 +97,37 @@ long extended_key(const int code, long& shift) {
         return code == 129 ? '0' : '1' + (code - 120);  // Alt and a digit
     }
     return 0;
+}
+
+// The characters of UTF-8 text, and back.
+std::u32string decode(const std::string& text) {
+    std::u32string characters;
+    for (std::size_t i = 0; i < text.size();) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        const std::size_t length = lead < 0x80U   ? 1U
+                                   : lead < 0xE0U ? 2U
+                                   : lead < 0xF0U ? 3U
+                                                  : 4U;
+        char32_t code = length == 1U   ? lead
+                        : length == 2U ? lead & 0x1FU
+                        : length == 3U ? lead & 0x0FU
+                                       : lead & 0x07U;
+        for (std::size_t k = 1; k < length && i + k < text.size(); ++k) {
+            code = (code << 6U) |
+                   (static_cast<unsigned char>(text[i + k]) & 0x3FU);
+        }
+        characters.push_back(code);
+        i += length;
+    }
+    return characters;
+}
+
+std::string encode(const std::u32string& characters) {
+    std::string text;
+    for (const char32_t code : characters) {
+        wfc::detail::append_utf8_unit(text, code);
+    }
+    return text;
 }
 
 }  // namespace
@@ -230,7 +263,13 @@ bool TextHost::enabled(const WindowId window) const {
 
 void TextHost::set_text(const WindowId window, const std::string& text) {
     if (Window* entry = find(window)) {
-        entry->text = text;
+        if (entry->text != text) {
+            // A text the program sets puts the caret at its start, as
+            // SelStart = 0 does.
+            entry->text = text;
+            entry->caret = 0;
+            entry->scroll = 0;
+        }
         changed();
     }
 }
@@ -264,6 +303,86 @@ void TextHost::set_value(const WindowId window, const long value) {
     if (Window* entry = find(window)) {
         entry->value = value;
         changed();
+    }
+}
+
+bool TextHost::control_key(const WindowId window, const long code,
+                           const long shift, const long ascii) {
+    static_cast<void>(shift);
+    Window* entry = find(window);
+    if (entry == nullptr || !entry->enabled) {
+        return false;
+    }
+    if (entry->kind == "OptionButton") {
+        if (ascii == 0 && code >= 37 && code <= 40) {
+            next_option(window, code == 39 || code == 40);
+        }
+        return false;
+    }
+    if (entry->kind != "TextBox") {
+        return false;
+    }
+    std::u32string characters = decode(entry->text);
+    std::size_t& caret = entry->caret;
+    caret = std::min(caret, characters.size());
+    changed();
+    if (ascii == 8) {
+        if (caret == 0) {
+            return false;
+        }
+        characters.erase(--caret, 1);
+    } else if (ascii >= 32) {
+        characters.insert(caret++, 1,
+                          static_cast<char32_t>(wfc::detail::ansi_to_unicode(
+                              static_cast<unsigned>(ascii))));
+    } else if (ascii != 0) {
+        return false;  // Tab, Enter, Esc and the Ctrl keys type nothing
+    } else if (code == 37) {
+        caret -= caret > 0 ? 1U : 0U;
+        return false;
+    } else if (code == 39) {
+        caret += caret < characters.size() ? 1U : 0U;
+        return false;
+    } else if (code == 36) {
+        caret = 0;
+        return false;
+    } else if (code == 35) {
+        caret = characters.size();
+        return false;
+    } else if (code == 46 && caret < characters.size()) {
+        characters.erase(caret, 1);
+    } else {
+        return false;
+    }
+    entry->text = encode(characters);
+    return true;
+}
+
+// The arrow keys on an option button select the next one of its group (the
+// option buttons of its container, top to bottom, then left to right).
+void TextHost::next_option(const WindowId window, const bool forward) {
+    const Window* self = find(window);
+    std::vector<std::pair<const Window*, WindowId>> group;
+    for (const auto& [id, entry] : windows_) {
+        if (entry.parent == self->parent && entry.kind == "OptionButton" &&
+            entry.visible && entry.enabled) {
+            group.emplace_back(&entry, id);
+        }
+    }
+    std::stable_sort(
+        group.begin(), group.end(), [](const auto& a, const auto& b) {
+            const Rect& x = a.first->bounds;
+            const Rect& y = b.first->bounds;
+            return x.top != y.top ? x.top < y.top : x.left < y.left;
+        });
+    for (std::size_t i = 0; i < group.size(); ++i) {
+        if (group[i].second == window && group.size() > 1U) {
+            const std::size_t next =
+                forward ? (i + 1U) % group.size()
+                        : (i + group.size() - 1U) % group.size();
+            queue_.push_back(UiEvent{group[next].second, "Click", {}});
+            return;
+        }
     }
 }
 
@@ -374,7 +493,13 @@ void TextHost::key(const int character, const int code) {
         }
         virtual_key = extended_key(code, shift);
     } else {
-        ascii = character;
+        // KeyAscii is ANSI: a code page 437 character above 127 becomes
+        // its Windows-1252 byte.
+        ascii = character < 128
+                    ? character
+                    : static_cast<long>(
+                          wfc::detail::unicode_to_ansi(brun71::cp437_to_unicode(
+                              static_cast<std::uint8_t>(character))));
         if (character == 8 || character == 9 || character == 13 ||
             character == 27 || character == 32) {
             virtual_key = character;
@@ -636,22 +761,32 @@ void TextHost::paint_control(const WindowId id, const Window& control,
         write(middle, region.left, mark, normal, clip);
         write_caption(middle, region.left + 4, region.width - 4, normal);
         focus_at(middle, region.left + 1);
-    } else if (kind == "TextBox" || kind == "ComboBox") {
-        const Region field{region.top, region.left,
-                           kind == "ComboBox" ? 1 : region.height,
-                           region.width};
-        const Region cut = intersect(field, clip);
-        brun71::fill(screen, cut, brun71::kFieldAttribute);
+    } else if (kind == "TextBox") {
+        // One line, scrolled so that the caret is in the field.
+        brun71::fill(screen, intersect(region, clip), brun71::kFieldAttribute);
+        auto& entry = windows_.at(id);
+        const std::string text = pds::to_screen(control.text);
+        const auto width = static_cast<std::size_t>(region.width);
+        entry.caret = std::min(entry.caret, text.size());
+        if (entry.caret < entry.scroll) {
+            entry.scroll = entry.caret;
+        } else if (entry.caret >= entry.scroll + width) {
+            entry.scroll = entry.caret - width + 1U;
+        }
+        entry.scroll = std::min(entry.scroll, text.size());
+        write(region.top, region.left, text.substr(entry.scroll, width),
+              brun71::kFieldAttribute, clip);
+        focus_at(region.top,
+                 region.left + static_cast<int>(entry.caret - entry.scroll));
+    } else if (kind == "ComboBox") {
+        const Region field{region.top, region.left, 1, region.width};
+        brun71::fill(screen, intersect(field, clip), brun71::kFieldAttribute);
         const std::string text = pds::to_screen(control.text);
         write(field.top, field.left,
               text.substr(0, static_cast<std::size_t>(field.width)),
               brun71::kFieldAttribute, clip);
-        if (kind == "ComboBox") {
-            write(field.top, field.right(), "\x19", normal, clip);
-        }
-        focus_at(field.top,
-                 field.left + std::min(static_cast<int>(text.size()),
-                                       std::max(field.width - 1, 0)));
+        write(field.top, field.right(), "\x19", normal, clip);
+        focus_at(field.top, field.left);
     } else if (kind == "ListBox") {
         brun71::fill(screen, intersect(region, clip), brun71::kFieldAttribute);
         for (int i = 0;

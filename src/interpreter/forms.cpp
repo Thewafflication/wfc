@@ -1500,6 +1500,38 @@ struct FormSupport {
         return raise_table_event(in, source, "Change", {}, in.offset_);
     }
 
+    // A key the host's own control handles (UiHost::control_key): a locked
+    // text box, or one at its MaxLength, takes no typing; a changed text is
+    // the model's, with its Change event.
+    [[nodiscard]] static bool host_typing(Interpreter& in,
+                                          ControlObject& source,
+                                          const long code, const long shift,
+                                          const long ascii) {
+        auto& state = runtime(in);
+        if (source.window == ui::kNoWindow) {
+            return true;
+        }
+        if (source.class_key == "textbox") {
+            if (flag_of(source, "locked")) {
+                return true;
+            }
+            const double limit = number_of(source, "maxlength");
+            if (ascii >= 32 && limit > 0.0 &&
+                static_cast<double>(utf16_length(text_value(source, "text"))) >=
+                    limit) {
+                return true;
+            }
+        }
+        if (!state.host->control_key(source.window, code, shift, ascii)) {
+            return true;
+        }
+        source.values["text"] = Value{state.host->text(source.window)};
+        if (is_bindable(source) && !text_value(source, "datafield").empty()) {
+            source.values["datachanged"] = Value{true};
+        }
+        return raise_table_event(in, source, "Change", {}, in.offset_);
+    }
+
     // Delivers SendKeys keystrokes to the focused control.
     [[nodiscard]] static bool send_keys(Interpreter& in,
                                         const std::vector<Keystroke>& keys) {
@@ -4363,11 +4395,22 @@ struct FormSupport {
             return default_typing(in, *source,
                                   whole_value(arguments[0]).value_or(0));
         }
+        if (name == "keypress" && !arguments.empty() &&
+            state.headless == nullptr && !source->is_form) {
+            const long typed = whole_value(arguments[0]).value_or(0);
+            if (typed != 0 && !host_typing(in, *source, 0, 0, typed)) {
+                return false;
+            }
+        }
         if (name == "keydown" && !arguments.empty()) {
             const long code = whole_value(arguments[0]).value_or(0);
             const long shift = arguments.size() > 1U
                                    ? whole_value(arguments[1]).value_or(0)
                                    : 0;
+            if (code != 0 && state.headless == nullptr && !source->is_form &&
+                !host_typing(in, *source, code, shift, 0)) {
+                return false;
+            }
             if (code != 0) {
                 return key_default(in, *form, *source, code, shift);
             }

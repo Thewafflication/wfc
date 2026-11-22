@@ -40,6 +40,8 @@ public:
     void set_selection(WindowId window, long index) override;
     [[nodiscard]] long selection(WindowId window) const override;
     void set_value(WindowId window, long value) override;
+    [[nodiscard]] bool control_key(WindowId window, long code, long shift,
+                                   long ascii) override;
     void set_alignment(WindowId window, int alignment) override;
     void set_form_style(WindowId window, int border_style) override;
     [[nodiscard]] bool screen_metric(long index, long& value) const override;
@@ -68,6 +70,10 @@ private:
         long value{0};
         int alignment{0};
         int border_style{2};
+        // A text box: the caret and the first character shown, counted in
+        // characters.
+        std::size_t caret{0};
+        std::size_t scroll{0};
     };
     struct Timer {
         long interval{};
@@ -87,6 +93,7 @@ private:
     [[nodiscard]] bool shown(WindowId window) const;
     [[nodiscard]] Placed place_form(const Window& form) const;
     void raise(WindowId form);
+    void next_option(WindowId window, bool forward);
     void key(int character, int code);
     void queue_timers();
     void changed();
