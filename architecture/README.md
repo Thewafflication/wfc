@@ -109,6 +109,8 @@ platform-mandated variance.
 | CMake, CTest, C++ edition, and target matrix | [ADR-0003](adr-0003-cmake-toolchain.md) |
 | Automation server hosting (implementation deferred to MP-0005) | [ADR-0004](adr-0004-automation-server.md) |
 | UI platform abstraction and test hosts | [ADR-0005](adr-0005-ui-platform.md) |
+| PDS 7.1 text-mode programs on wfc-brun71 | [ADR-0011](adr-0011-pds-text-programs.md) |
+| VB6 forms in text mode on wfc-brun71 | [ADR-0012](adr-0012-text-mode-forms.md) |
 
 ## Open MP-0001 Decisions
 

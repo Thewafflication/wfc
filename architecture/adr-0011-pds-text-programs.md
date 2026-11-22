@@ -144,5 +144,5 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
   `311-pds-error-exit` the message of an error no handler takes.
 - Next: M3, VB6 forms in text mode: the VB6 language with an event-driven
   text user interface on the same screen (the owner's direction,
-  2026-11-22). The PDS User Interface Toolbox and multithreading come
-  later.
+  2026-11-22; ADR-0012). The PDS User Interface Toolbox and
+  multithreading come later.
