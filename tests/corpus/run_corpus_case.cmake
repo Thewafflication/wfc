@@ -6,7 +6,8 @@
 # DEBUG_EXPECTED holds the Immediate-window output (Debug.Print) and load
 # warnings that wfc writes to stderr.
 # KEYS is the standard input of the program: the keys a PDS program reads
-# with INKEY$ (ADR-0011).
+# with INKEY$ (ADR-0011). A <name>.exitcode file beside the program gives the
+# exit status it must end with (default 0).
 set(interpret_option --interpret)
 if(PACKAGED)
   set(interpret_option "")
@@ -14,6 +15,18 @@ endif()
 set(input_option "")
 if(DEFINED KEYS)
   set(input_option INPUT_FILE "${KEYS}")
+endif()
+# A program that ends on an error a handler does not take has a
+# <name>.exitcode file beside it with the exit status wfc gives (1).
+get_filename_component(case_dir "${INPUT}" DIRECTORY)
+get_filename_component(case_name "${INPUT}" NAME_WE)
+set(expected_result 0)
+if(EXISTS "${case_dir}/${case_name}.exitcode")
+  file(
+    STRINGS "${case_dir}/${case_name}.exitcode"
+    expected_result
+    LIMIT_COUNT 1
+  )
 endif()
 execute_process(
   COMMAND "${WFC}" ${interpret_option} "${INPUT}" ${input_option}
@@ -26,7 +39,7 @@ string(REPLACE "\r\n" "\n" actual "${actual}")
 string(REPLACE "\r\n" "\n" expected "${expected}")
 string(STRIP "${actual}" actual)
 string(STRIP "${expected}" expected)
-if(NOT result EQUAL 0)
+if(NOT result EQUAL expected_result)
   message(FATAL_ERROR "wfc exited with ${result}: ${errors}")
 endif()
 if(DEFINED DEBUG_EXPECTED)

@@ -3144,6 +3144,14 @@ int run_native_image(const NativeImage& image, std::string& error,
     const auto entry = reinterpret_cast<EntryFunction>(
         static_cast<std::uint8_t*>(memory) + image.entry);
     entry();
+    if (*g_error.pending != 0 && wfc::detail::pds::active()) {
+        // A PDS program ends with BRUN71's message (ADR-0011).
+        flush_engine_output();
+        if (const char* text = wfc::detail::pds::report_error(
+                static_cast<int>(g_error.number))) {
+            g_error.description = text;
+        }
+    }
     finish_output();
     int code = 0;
     if (*g_error.pending != 0) {

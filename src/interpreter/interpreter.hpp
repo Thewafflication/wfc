@@ -1084,6 +1084,8 @@ private:
     // offset of the word, for a KEY that turns out not to be the statement.
     [[nodiscard]] std::optional<bool> parse_pds_sound_statement(
         std::string_view word, std::size_t start, std::size_t statement_offset);
+    // WRITE without # (after the word).
+    [[nodiscard]] bool parse_pds_write_statement();
     // A number for SOUND and SLEEP; error 13 for a String.
     [[nodiscard]] std::optional<double> pds_number(const Value& value,
                                                    std::size_t offset);

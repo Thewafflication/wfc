@@ -220,8 +220,9 @@ and QuickBASIC programs on it, interpreted and as native code: `CLS`,
 shown live in the console (or printed as text at the end when the output is
 redirected; keys then come from the standard input). `PRINT USING` formats
 numbers and strings as PDS does; `SOUND`, `PLAY`, `BEEP`, `SLEEP` and the
-soft keys (`KEY n`, `KEY ON`) and key trapping (`ON KEY(n) GOSUB`) work
-too. See
+soft keys (`KEY n`, `KEY ON`), key trapping (`ON KEY(n) GOSUB`), `WRITE`
+and `SCREEN(row, col)` work too, and an error no handler takes ends the
+program with BRUN71's message. See
 `architecture/adr-0011-pds-text-programs.md`. A clone of the PDS 7.1 User
 Interface Toolbox is planned on top.
 

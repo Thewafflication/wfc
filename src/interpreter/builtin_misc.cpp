@@ -154,6 +154,7 @@ bool Interpreter::is_misc_function_name(const std::string_view name) {
                                                        "doevents",
                                                        "inkey$",
                                                        "csrlin",
+                                                       "screen",
                                                        "pos",
                                                        "imestatus",
                                                        "command",
@@ -267,6 +268,31 @@ std::optional<Value> Interpreter::evaluate_misc_function(
         const auto& screen = pds::screen();
         return Value{static_cast<Integer>(name == "csrlin" ? screen.csrlin()
                                                            : screen.pos())};
+    }
+    if (name == "screen") {
+        // SCREEN(row, column [, colorflag]) of the PDS text screen: the
+        // character code of a cell, or its attribute (ADR-0011). Without
+        // parentheses `Screen` is the VB6 object, never this function.
+        if (!arity(2U, 3U)) {
+            return std::nullopt;
+        }
+        if (!execute_) {
+            return Value{Integer{}};
+        }
+        std::optional<int> numbers[3];
+        for (std::size_t i = 0; i < arguments.size(); ++i) {
+            numbers[i] = pds_integer(arguments[i], offset);
+            if (!numbers[i]) {
+                return std::nullopt;
+            }
+        }
+        try {
+            return Value{static_cast<Integer>(pds::screen().screen(
+                *numbers[0], *numbers[1], numbers[2].value_or(0)))};
+        } catch (const brun71::BasicError& error) {
+            static_cast<void>(pds_error(error.number(), offset));
+            return std::nullopt;
+        }
     }
     if (name == "doevents" || name == "imestatus") {
         if (!arity(0, 0)) {

@@ -4474,7 +4474,7 @@ private:
             return;
         }
         if ((statement.text == "sleep" || statement.text == "sound" ||
-             statement.text == "play") &&
+             statement.text == "play" || statement.text == "write") &&
             !signatures_.contains(statement.text) &&
             !externals_.contains(statement.text)) {
             // The PDS statements (ADR-0011) run in the shared runtime, unless

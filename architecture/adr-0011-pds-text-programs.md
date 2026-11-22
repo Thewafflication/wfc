@@ -5,7 +5,8 @@
 **Status:** Accepted by the owner as milestone M2 of `lib/wfc-brun71`
 (2026-11-21); the screen statements, `INKEY$`, `CSRLIN`, `POS`, `INPUT`,
 `LINE INPUT`, `INPUT$(n)`, `PRINT USING`, `SOUND`, `PLAY`, `SLEEP`,
-`BEEP`, `KEY` and `ON KEY` are implemented
+`BEEP`, `KEY`, `ON KEY`, `WRITE` and `SCREEN()` are implemented: milestone
+M2 is complete
 
 **Date:** 2026-11-21
 
@@ -112,6 +113,16 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
     checks everywhere. Native code does not compile `GOSUB`, so such a
     program falls back to the interpreter; `KEY(n)` is not taken for an
     array or procedure named `key`.
+13. **WRITE, SCREEN() and error messages.** `WRITE` without `#` writes its
+    items as `Write #` does, on the screen once it has started and in the
+    plain output before; native code makes it an engine statement like
+    `SLEEP`. `SCREEN(row, col [, flag])` is a library function the
+    interpreter knows only with its parentheses, so `Screen` alone stays the
+    VB6 object (a program that uses both gets the object). An error no
+    handler takes in a program that has started the screen is reported with
+    BRUN71's message (library `error.hpp`), which is also printed on the
+    screen; `Err.Description` keeps Visual Basic's texts. A corpus program
+    that must end with such an error has a `.exitcode` file.
 
 ## Consequences
 
@@ -129,5 +140,6 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
   `PRINT USING` in both engines; `307-pds-sound-keys` the sound statements,
   `SLEEP` and the soft keys; `308-pds-sleep-api` a declared `Sleep`;
   `309-pds-on-key` key trapping.
-- Next in M2: `WRITE` to the screen, `SCREEN(row, col)` and the PDS
-  `ERROR$` texts; then M3, the User Interface Toolbox.
+- `310-pds-write-screen` checks `WRITE` and `SCREEN()`, and
+  `311-pds-error-exit` the message of an error no handler takes.
+- Next: M3, the User Interface Toolbox.

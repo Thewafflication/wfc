@@ -137,8 +137,15 @@ wfc::Evaluation Interpreter::evaluate() {
         }
         error_ = saved_error;
     }
-    // A PDS program that used the text screen: what is on it is what the
-    // program printed after the plain output (ADR-0011).
+    // A PDS program that used the text screen ends on an error with BRUN71's
+    // message, on the screen too; what is on the screen is what the program
+    // printed after the plain output (ADR-0011).
+    if (!result.success && result.vb_error_number != 0 && pds::active()) {
+        if (const char* text =
+                pds::report_error(static_cast<int>(result.vb_error_number))) {
+            result.vb_error_description = text;
+        }
+    }
     if (std::string screen = pds::finish(); !screen.empty()) {
         auto& printed = result.success ? result.output : result.partial_output;
         if (!printed.empty()) {

@@ -94,6 +94,12 @@ void key_handler(int key, bool present);
 void begin_event(int key);
 void end_event(int key);
 
+// An error no handler took ends a program that has started the screen:
+// BRUN71's message for it (brun71::basic_error_text) goes on a line of its
+// own on the screen. Returns the message, nullptr when BASIC has none for
+// the number (nothing is shown).
+const char* report_error(int number);
+
 // Ends the session: closes the console screen buffer and returns the text
 // of the screen (empty when there was no session, or it already ended).
 [[nodiscard]] std::string finish();

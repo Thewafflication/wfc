@@ -454,6 +454,51 @@ bool Interpreter::run_key_events() {
     }
 }
 
+bool Interpreter::parse_pds_write_statement() {
+    // WRITE [items]: the items as Write # writes them (strings in quotes,
+    // commas between), then a new line; on the screen once it has started,
+    // in the plain output before.
+    std::string line;
+    bool first = true;
+    while (true) {
+        skip_horizontal_whitespace();
+        if (at_pds_statement_end()) {
+            break;
+        }
+        const auto at = offset_;
+        auto value = parse_expression();
+        if (!value.has_value() || !resolve_default_value(*value, at)) {
+            return false;
+        }
+        if (execute_) {
+            if (!first) {
+                line += ",";
+            }
+            line += write_item_text(*value);
+        }
+        first = false;
+        skip_horizontal_whitespace();
+        if (!consume(',') && !consume(';')) {
+            break;
+        }
+    }
+    if (!execute_) {
+        return true;
+    }
+    if (pds::active()) {
+        pds::print_text(line);
+        pds::new_line();
+        return true;
+    }
+    if (has_output_line_ && !output_line_open_) {
+        output_.push_back(static_cast<char>(10));
+    }
+    output_ += line;
+    has_output_line_ = true;
+    output_line_open_ = false;
+    return true;
+}
+
 std::optional<double> Interpreter::pds_number(const Value& value,
                                               const std::size_t offset) {
     if (std::holds_alternative<Empty>(value)) {
@@ -580,9 +625,9 @@ std::optional<bool> Interpreter::parse_pds_statement(
     if (const auto input = parse_pds_input_statement(statement_offset)) {
         return input;
     }
-    static constexpr std::string_view kWords[] = {"cls",   "locate", "color",
-                                                  "width", "view",   "sleep",
-                                                  "sound", "play",   "key"};
+    static constexpr std::string_view kWords[] = {
+        "cls",   "locate", "color", "width", "view",
+        "sleep", "sound",  "play",  "key",   "write"};
     const auto start = offset_;
     std::string_view word;
     for (const auto candidate : kWords) {
@@ -609,6 +654,9 @@ std::optional<bool> Interpreter::parse_pds_statement(
     if (not_a_statement) {
         offset_ = start;
         return std::nullopt;
+    }
+    if (word == "write") {
+        return parse_pds_write_statement();
     }
     if (word == "sleep" || word == "sound" || word == "play" || word == "key") {
         return parse_pds_sound_statement(word, start, statement_offset);

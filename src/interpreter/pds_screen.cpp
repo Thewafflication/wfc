@@ -500,6 +500,21 @@ void redraw_keys() {
     }
 }
 
+const char* report_error(const int number) {
+    const char* text = brun71::basic_error_text(number);
+    if (g_session == nullptr || g_finished || text == nullptr) {
+        return text;
+    }
+    brun71::TextScreen& shown = g_session->screen;
+    if (shown.pos() != 1) {
+        shown.new_line();
+    }
+    shown.print_text(text);
+    shown.new_line();
+    changed(true);
+    return text;
+}
+
 bool events_armed() noexcept {
     return g_session != nullptr && g_session->traps.armed();
 }
