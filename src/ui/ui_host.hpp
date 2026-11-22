@@ -380,15 +380,19 @@ public:
     // A key a host-drawn control handles itself (the text host, ADR-0012),
     // after the program's KeyDown (`ascii` 0) or KeyPress (`code` 0) has
     // not cancelled it: a text box edits its text at the caret, arrow keys
-    // move among option buttons. True when the window's text changed; the
-    // model then takes the text and raises Change.
-    [[nodiscard]] virtual bool control_key(WindowId window, long code,
-                                           long shift, long ascii) {
+    // move among option buttons, lists and scroll bars. `ignored`: the key
+    // has its usual meaning (Enter presses the Default button); `handled`:
+    // the control used it and the form does nothing more with it;
+    // `text_changed`: handled, and the model takes the window's new text and
+    // raises Change.
+    enum class KeyResult { ignored, handled, text_changed };
+    [[nodiscard]] virtual KeyResult control_key(WindowId window, long code,
+                                                long shift, long ascii) {
         static_cast<void>(window);
         static_cast<void>(code);
         static_cast<void>(shift);
         static_cast<void>(ascii);
-        return false;
+        return KeyResult::ignored;
     }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.

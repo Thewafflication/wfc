@@ -40,8 +40,10 @@ public:
     void set_selection(WindowId window, long index) override;
     [[nodiscard]] long selection(WindowId window) const override;
     void set_value(WindowId window, long value) override;
-    [[nodiscard]] bool control_key(WindowId window, long code, long shift,
-                                   long ascii) override;
+    [[nodiscard]] KeyResult control_key(WindowId window, long code, long shift,
+                                        long ascii) override;
+    void set_scroll(WindowId window, long minimum, long maximum, long value,
+                    long small_change, long large_change) override;
     void set_alignment(WindowId window, int alignment) override;
     void set_form_style(WindowId window, int border_style) override;
     [[nodiscard]] bool screen_metric(long index, long& value) const override;
@@ -74,10 +76,22 @@ private:
         // characters.
         std::size_t caret{0};
         std::size_t scroll{0};
+        // A list: the first item shown; a combo box: its list is open.
+        std::size_t top{0};
+        bool open{false};
+        // A scroll bar.
+        long minimum{0};
+        long maximum{32767};
+        long small_change{1};
+        long large_change{1};
     };
+    // A timer is due on the clock (keys from the console) or, with keys
+    // from the standard input, on the virtual clock that a key of scan code
+    // 0 advances.
     struct Timer {
         long interval{};
         Clock::time_point due;
+        long virtual_due{};
     };
     // The cells a window covers on the screen, and the cells its children
     // are clipped to.
@@ -94,8 +108,17 @@ private:
     [[nodiscard]] Placed place_form(const Window& form) const;
     void raise(WindowId form);
     void next_option(WindowId window, bool forward);
+    [[nodiscard]] KeyResult list_key(WindowId window, Window& list, long code,
+                                     long shift, long ascii);
+    [[nodiscard]] KeyResult scroll_key(WindowId window, const Window& bar,
+                                       long code);
     void key(int character, int code);
     void queue_timers();
+    void tick();
+    void paint_list(Window& list, const brun71::Region& region,
+                    const brun71::Region& clip, bool focused);
+    void paint_scroll(const Window& bar, const brun71::Region& region,
+                      const brun71::Region& clip);
     void changed();
     void repaint();
     void paint_children(WindowId parent, const brun71::Region& origin,
@@ -115,6 +138,10 @@ private:
     WindowId focus_{kNoWindow};
     bool dirty_{true};
     bool frozen_{false};  // the keys have ended: the screen stays as it is
+    long virtual_now_{0};
+    // The open combo box, whose list is drawn over everything else.
+    WindowId dropped_{kNoWindow};
+    brun71::Region dropped_region_;
     int cursor_row_{0};
     int cursor_column_{0};
 };

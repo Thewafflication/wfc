@@ -1356,6 +1356,8 @@ struct FormSupport {
         wfc::mscomctl2::ScrollBarModel model = scroll_model(bar);
         const auto outcome = model.move_to(static_cast<long>(target));
         bar.values["value"] = Value{static_cast<Int16>(model.value())};
+        // A host that draws the bar itself (the text host) shows the value.
+        push_state(in, bar);
         if (dragging && outcome.changed &&
             !raise_table_event(in, bar, "Scroll", {}, in.offset_)) {
             return false;
@@ -1503,11 +1505,14 @@ struct FormSupport {
     // A key the host's own control handles (UiHost::control_key): a locked
     // text box, or one at its MaxLength, takes no typing; a changed text is
     // the model's, with its Change event.
+    // `handled` is set when the control used the key, so the form gives it
+    // no default action.
     [[nodiscard]] static bool host_typing(Interpreter& in,
                                           ControlObject& source,
                                           const long code, const long shift,
-                                          const long ascii) {
+                                          const long ascii, bool& handled) {
         auto& state = runtime(in);
+        handled = false;
         if (source.window == ui::kNoWindow) {
             return true;
         }
@@ -1522,7 +1527,10 @@ struct FormSupport {
                 return true;
             }
         }
-        if (!state.host->control_key(source.window, code, shift, ascii)) {
+        const auto result =
+            state.host->control_key(source.window, code, shift, ascii);
+        handled = result != ui::UiHost::KeyResult::ignored;
+        if (result != ui::UiHost::KeyResult::text_changed) {
             return true;
         }
         source.values["text"] = Value{state.host->text(source.window)};
@@ -4398,7 +4406,8 @@ struct FormSupport {
         if (name == "keypress" && !arguments.empty() &&
             state.headless == nullptr && !source->is_form) {
             const long typed = whole_value(arguments[0]).value_or(0);
-            if (typed != 0 && !host_typing(in, *source, 0, 0, typed)) {
+            bool handled = false;
+            if (typed != 0 && !host_typing(in, *source, 0, 0, typed, handled)) {
                 return false;
             }
         }
@@ -4407,11 +4416,12 @@ struct FormSupport {
             const long shift = arguments.size() > 1U
                                    ? whole_value(arguments[1]).value_or(0)
                                    : 0;
+            bool handled = false;
             if (code != 0 && state.headless == nullptr && !source->is_form &&
-                !host_typing(in, *source, code, shift, 0)) {
+                !host_typing(in, *source, code, shift, 0, handled)) {
                 return false;
             }
-            if (code != 0) {
+            if (code != 0 && !handled) {
                 return key_default(in, *form, *source, code, shift);
             }
         }

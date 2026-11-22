@@ -3,7 +3,7 @@
 **Content type:** Architecture decision record
 
 **Status:** Accepted by the owner as milestone M3 of `lib/wfc-brun71`
-(2026-11-22); steps 1 and 2 of the implementation order are done
+(2026-11-22); steps 1 to 3 of the implementation order are done
 
 **Date:** 2026-11-22
 
@@ -110,8 +110,15 @@ Take option 3.
   them and the expected output is the final screen.
 - `UiHost::control_key` (step 2) lets the host's own controls handle a
   key after the program's `KeyDown` or `KeyPress`: the text host edits a
-  text box at its caret and moves among option buttons; the model checks
-  `Locked` and `MaxLength` first and raises `Change` for a new text.
+  text box at its caret, moves among option buttons, list items and a
+  scroll bar, and opens a combo box's list; the model checks `Locked`
+  and `MaxLength` first, raises `Change` for a new text, and gives a key
+  the control used (`KeyResult::handled`) no default action, so the
+  Enter that closes a combo box's list presses no button.
+- Timers (step 3) run on the clock with keys from the console. With keys
+  from the standard input they run on a virtual clock that the bytes
+  0, 0 move to the next timer that is due, so corpus programs with timers
+  are deterministic.
 - The `UiHost` interface may need small additions for things only a text
   screen needs (for example the access-key map); they follow ADR-0005's
   review rule.

@@ -306,21 +306,28 @@ void TextHost::set_value(const WindowId window, const long value) {
     }
 }
 
-bool TextHost::control_key(const WindowId window, const long code,
-                           const long shift, const long ascii) {
-    static_cast<void>(shift);
+UiHost::KeyResult TextHost::control_key(const WindowId window, const long code,
+                                        const long shift, const long ascii) {
     Window* entry = find(window);
     if (entry == nullptr || !entry->enabled) {
-        return false;
+        return KeyResult::ignored;
     }
     if (entry->kind == "OptionButton") {
         if (ascii == 0 && code >= 37 && code <= 40) {
             next_option(window, code == 39 || code == 40);
+            return KeyResult::handled;
         }
-        return false;
+        return KeyResult::ignored;
+    }
+    if (entry->kind == "ListBox" || entry->kind == "ComboBox") {
+        return list_key(window, *entry, code, shift, ascii);
+    }
+    if (entry->kind == "HScrollBar" || entry->kind == "VScrollBar") {
+        return ascii == 0 ? scroll_key(window, *entry, code)
+                          : KeyResult::ignored;
     }
     if (entry->kind != "TextBox") {
-        return false;
+        return KeyResult::ignored;
     }
     std::u32string characters = decode(entry->text);
     std::size_t& caret = entry->caret;
@@ -328,7 +335,7 @@ bool TextHost::control_key(const WindowId window, const long code,
     changed();
     if (ascii == 8) {
         if (caret == 0) {
-            return false;
+            return KeyResult::handled;
         }
         characters.erase(--caret, 1);
     } else if (ascii >= 32) {
@@ -336,26 +343,143 @@ bool TextHost::control_key(const WindowId window, const long code,
                           static_cast<char32_t>(wfc::detail::ansi_to_unicode(
                               static_cast<unsigned>(ascii))));
     } else if (ascii != 0) {
-        return false;  // Tab, Enter, Esc and the Ctrl keys type nothing
+        return KeyResult::ignored;  // Tab, Enter, Esc, the Ctrl keys
     } else if (code == 37) {
         caret -= caret > 0 ? 1U : 0U;
-        return false;
+        return KeyResult::handled;
     } else if (code == 39) {
         caret += caret < characters.size() ? 1U : 0U;
-        return false;
+        return KeyResult::handled;
     } else if (code == 36) {
         caret = 0;
-        return false;
+        return KeyResult::handled;
     } else if (code == 35) {
         caret = characters.size();
-        return false;
+        return KeyResult::handled;
     } else if (code == 46 && caret < characters.size()) {
         characters.erase(caret, 1);
     } else {
-        return false;
+        return KeyResult::ignored;
     }
     entry->text = encode(characters);
-    return true;
+    return KeyResult::text_changed;
+}
+
+// A list box or the list of a combo box: Up, Down, Page Up, Page Down,
+// Home and End move the selection, and a letter selects the next item that
+// starts with it (the model raises Click). F4 or Alt+Down opens and closes
+// a combo box's list; Enter and Esc close it.
+UiHost::KeyResult TextHost::list_key(const WindowId window, Window& list,
+                                     const long code, const long shift,
+                                     const long ascii) {
+    const bool combo = list.kind == "ComboBox";
+    const long count = static_cast<long>(list.items.size());
+    if (combo && ascii == 0 && (code == 115 || (code == 40 && shift == 4))) {
+        list.open = !list.open;
+        changed();
+        return KeyResult::handled;
+    }
+    if (combo && list.open && (ascii == 13 || ascii == 27)) {
+        list.open = false;
+        changed();
+        return KeyResult::handled;
+    }
+    if (combo && list.open && ascii == 0 && (code == 13 || code == 27)) {
+        return KeyResult::handled;  // the KeyDown of the Enter that closes it
+    }
+    if (count == 0) {
+        return KeyResult::ignored;
+    }
+    const long current = list.selection;
+    long next = current;
+    // A page is the rows of the list (of an open combo box's list).
+    const long page =
+        std::max<long>(combo ? dropped_region_.height - 2
+                             : cells(list.bounds.height, kCellHeight),
+                       1);
+    if (ascii > 32) {
+        const auto wanted =
+            static_cast<char>(std::tolower(static_cast<unsigned char>(ascii)));
+        for (long step = 1; step <= count; ++step) {
+            const long at = (std::max(current, -1L) + step) % count;
+            const std::string& item = list.items[static_cast<std::size_t>(at)];
+            if (!item.empty() && std::tolower(static_cast<unsigned char>(
+                                     item.front())) == wanted) {
+                next = at;
+                break;
+            }
+        }
+    } else if (ascii != 0 || shift != 0) {
+        return KeyResult::ignored;
+    } else if (code == 38) {
+        next = std::max(current - 1, 0L);
+    } else if (code == 40) {
+        next = std::min(current + 1, count - 1);
+    } else if (code == 33) {
+        next = std::max(current - page, 0L);
+    } else if (code == 34) {
+        next = std::min(std::max(current, 0L) + page, count - 1);
+    } else if (code == 36) {
+        next = 0;
+    } else if (code == 35) {
+        next = count - 1;
+    } else {
+        return KeyResult::ignored;
+    }
+    if (next != current) {
+        queue_.push_back(UiEvent{window, "UserSelect", {next}});
+    }
+    return KeyResult::handled;
+}
+
+// A scroll bar: Left and Up a small change down, Right and Down one up,
+// Page Up and Page Down a large change, Home and End its ends (the model
+// raises Change).
+UiHost::KeyResult TextHost::scroll_key(const WindowId window, const Window& bar,
+                                       const long code) {
+    const auto by = [&](const long amount) {
+        queue_.push_back(
+            UiEvent{window, "UserScrollBy", {static_cast<double>(amount)}});
+        return KeyResult::handled;
+    };
+    const auto to = [&](const long value) {
+        queue_.push_back(
+            UiEvent{window, "UserScroll", {static_cast<double>(value)}});
+        return KeyResult::handled;
+    };
+    // Max may be below Min; a change moves toward Max.
+    const long direction = bar.maximum >= bar.minimum ? 1 : -1;
+    switch (code) {
+        case 37:
+        case 38:
+            return by(-direction * bar.small_change);
+        case 39:
+        case 40:
+            return by(direction * bar.small_change);
+        case 33:
+            return by(-direction * bar.large_change);
+        case 34:
+            return by(direction * bar.large_change);
+        case 36:
+            return to(bar.minimum);
+        case 35:
+            return to(bar.maximum);
+        default:
+            return KeyResult::ignored;
+    }
+}
+
+void TextHost::set_scroll(const WindowId window, const long minimum,
+                          const long maximum, const long value,
+                          const long small_change, const long large_change) {
+    if (Window* entry = find(window)) {
+        entry->minimum = minimum;
+        entry->maximum = maximum;
+        entry->value = value;
+        entry->small_change = small_change;
+        entry->large_change = large_change;
+        changed();
+    }
 }
 
 // The arrow keys on an option button select the next one of its group (the
@@ -425,6 +549,9 @@ void TextHost::set_focus(const WindowId window) {
     if (find(window) == nullptr) {
         return;
     }
+    if (Window* previous = find(focus_); previous != nullptr) {
+        previous->open = false;  // a combo box's list closes
+    }
     focus_ = window;
     if (const WindowId form = form_of(window);
         form != kNoWindow && (order_.empty() || order_.back() != form)) {
@@ -443,14 +570,39 @@ void TextHost::set_timer(const WindowId window, const long interval_ms) {
         return;
     }
     timers_[window] = Timer{
-        interval_ms, Clock::now() + std::chrono::milliseconds(interval_ms)};
+        interval_ms, Clock::now() + std::chrono::milliseconds(interval_ms),
+        virtual_now_ + interval_ms};
 }
 
 void TextHost::kill_timer(const WindowId window) {
     timers_.erase(window);
 }
 
+// With keys from the standard input, time passes only when a key of scan
+// code 0 (the bytes 0, 0) is read: the virtual clock moves to the next
+// timer that is due, which fires (with every other one due then). Programs
+// with timers then run the same on every machine.
+void TextHost::tick() {
+    if (timers_.empty()) {
+        return;
+    }
+    long next = timers_.begin()->second.virtual_due;
+    for (const auto& [window, timer] : timers_) {
+        next = std::min(next, timer.virtual_due);
+    }
+    virtual_now_ = next;
+    for (auto& [window, timer] : timers_) {
+        if (timer.virtual_due <= virtual_now_) {
+            queue_.push_back(UiEvent{window, "Timer", {}});
+            timer.virtual_due = virtual_now_ + timer.interval;
+        }
+    }
+}
+
 void TextHost::queue_timers() {
+    if (!pds::keys_from_console()) {
+        return;  // the virtual clock (tick)
+    }
     const auto now = Clock::now();
     for (auto& [window, timer] : timers_) {
         if (timer.due <= now) {
@@ -487,6 +639,10 @@ void TextHost::key(const int character, const int code) {
     long shift = 0;
     long ascii = 0;
     if (character == 0) {
+        if (code == 0) {
+            tick();
+            return;
+        }
         if (code == 107) {
             queue_.push_back(UiEvent{form, "Close", {}});
             return;
@@ -635,6 +791,7 @@ void TextHost::repaint() {
     }
     cursor_row_ = 0;
     cursor_column_ = 0;
+    dropped_ = kNoWindow;
     const WindowId active = active_form();
     for (const WindowId id : order_) {
         const Window* form = find(id);
@@ -656,6 +813,16 @@ void TextHost::repaint() {
             brun71::shadow(screen, place.outer);
         }
         paint_children(id, place.client, place.client);
+    }
+    if (Window* combo = find(dropped_); combo != nullptr) {
+        // The open list of a combo box, over everything else.
+        const Region all{1, 1, screen.rows(), screen.columns()};
+        brun71::frame(screen, dropped_region_, brun71::Border::single,
+                      brun71::kWindowAttribute);
+        const Region inside_box{
+            dropped_region_.top + 1, dropped_region_.left + 1,
+            dropped_region_.height - 2, dropped_region_.width - 2};
+        paint_list(*combo, inside_box, all, true);
     }
     if (cursor_row_ > 0) {
         screen.locate(cursor_row_, cursor_column_, 1);
@@ -787,19 +954,24 @@ void TextHost::paint_control(const WindowId id, const Window& control,
               brun71::kFieldAttribute, clip);
         write(field.top, field.right(), "\x19", normal, clip);
         focus_at(field.top, field.left);
-    } else if (kind == "ListBox") {
-        brun71::fill(screen, intersect(region, clip), brun71::kFieldAttribute);
-        for (int i = 0;
-             i < region.height && i < static_cast<int>(control.items.size());
-             ++i) {
-            const bool chosen = i == control.selection;
-            write(region.top + i, region.left,
-                  pds::to_screen(control.items[static_cast<std::size_t>(i)])
-                      .substr(0, static_cast<std::size_t>(region.width)),
-                  chosen ? brun71::kFocusAttribute : brun71::kFieldAttribute,
-                  clip);
+        if (control.open && has_focus) {
+            // Its list opens below it (above it when the screen ends).
+            const int rows =
+                std::min(static_cast<int>(control.items.size()), 8) + 2;
+            int top = field.top + 1;
+            if (top + rows - 1 > screen.rows()) {
+                top = std::max(field.top - rows, 1);
+            }
+            dropped_ = id;
+            dropped_region_ = Region{top, field.left, rows, field.width};
         }
-        focus_at(region.top + std::max<int>(control.selection, 0), region.left);
+    } else if (kind == "ListBox") {
+        paint_list(windows_.at(id), region, clip, has_focus);
+    } else if (kind == "HScrollBar" || kind == "VScrollBar") {
+        paint_scroll(control, region, clip);
+        if (has_focus) {
+            cursor_row_ = 0;  // the thumb shows where it is
+        }
     } else if (kind == "Frame" || kind == "PictureBox") {
         const Region box = intersect(region, clip);
         if (box.width == region.width && box.height == region.height) {
@@ -808,6 +980,106 @@ void TextHost::paint_control(const WindowId id, const Window& control,
                 brun71::title(screen, region, caption.text, normal);
             }
         }
+    }
+}
+
+// The items of a list from its first one shown, scrolled so that the
+// selection is in view, with a scroll bar in its last column when they do
+// not all fit. The selection is white on blue while the list has the focus.
+void TextHost::paint_list(Window& list, const Region& region,
+                          const Region& clip, const bool focused) {
+    auto& screen = pds::screen();
+    if (region.height < 1 || region.width < 1) {
+        return;
+    }
+    brun71::fill(screen, intersect(region, clip), brun71::kFieldAttribute);
+    const auto count = static_cast<long>(list.items.size());
+    const long rows = region.height;
+    const bool bar = count > rows && region.width > 1 && rows >= 2;
+    const int width = region.width - (bar ? 1 : 0);
+    auto top = static_cast<long>(list.top);
+    if (list.selection >= 0) {
+        if (list.selection < top) {
+            top = list.selection;
+        } else if (list.selection >= top + rows) {
+            top = list.selection - rows + 1;
+        }
+    }
+    top = std::max(std::min(top, count - rows), 0L);
+    list.top = static_cast<std::size_t>(top);
+    for (long row = 0; row < rows && top + row < count; ++row) {
+        const long index = top + row;
+        const bool chosen = index == list.selection;
+        std::string text =
+            pds::to_screen(list.items[static_cast<std::size_t>(index)])
+                .substr(0, static_cast<std::size_t>(width));
+        text.resize(static_cast<std::size_t>(width), ' ');
+        const int at = region.top + static_cast<int>(row);
+        write(at, region.left, text,
+              chosen ? (focused ? brun71::kFocusAttribute
+                                : brun71::kWindowAttribute)
+                     : brun71::kFieldAttribute,
+              clip);
+        if (chosen && focused && inside(clip, at, region.left)) {
+            cursor_row_ = at;
+            cursor_column_ = region.left;
+        }
+    }
+    if (focused && list.selection < 0 &&
+        inside(clip, region.top, region.left)) {
+        cursor_row_ = region.top;
+        cursor_column_ = region.left;
+    }
+    if (bar) {
+        const int column = region.right();
+        const int track = region.height - 2;
+        write(region.top, column, "\x1E", brun71::kWindowAttribute, clip);
+        write(region.bottom(), column, "\x1F", brun71::kWindowAttribute, clip);
+        const long room = std::max(count - rows, 1L);
+        const int thumb =
+            track > 0 ? static_cast<int>(top * (track - 1) / room) : 0;
+        for (int i = 0; i < track; ++i) {
+            write(region.top + 1 + i, column, i == thumb ? "\xDB" : "\xB0",
+                  brun71::kWindowAttribute, clip);
+        }
+    }
+}
+
+// A scroll bar: arrows at its ends and a thumb on a track between them,
+// placed by its Value between Min and Max.
+void TextHost::paint_scroll(const Window& bar, const Region& region,
+                            const Region& clip) {
+    const bool horizontal = bar.kind == "HScrollBar";
+    const int length = horizontal ? region.width : region.height;
+    if (length < 2) {
+        return;
+    }
+    const auto cell = [&](const int i, const char* glyph) {
+        if (horizontal) {
+            write(region.top + (region.height - 1) / 2, region.left + i, glyph,
+                  brun71::kWindowAttribute, clip);
+        } else {
+            write(region.top + i, region.left, glyph, brun71::kWindowAttribute,
+                  clip);
+        }
+    };
+    cell(0, horizontal ? "\x11" : "\x1E");
+    cell(length - 1, horizontal ? "\x10" : "\x1F");
+    const int track = length - 2;
+    if (track <= 0) {
+        return;
+    }
+    const long span = bar.maximum - bar.minimum;
+    const long offset = bar.value - bar.minimum;
+    int thumb = 0;
+    if (span != 0) {
+        thumb = static_cast<int>(
+            std::lround(static_cast<double>(offset) * (track - 1) /
+                        static_cast<double>(span)));
+    }
+    thumb = std::max(std::min(thumb, track - 1), 0);
+    for (int i = 0; i < track; ++i) {
+        cell(1 + i, i == thumb ? "\xDB" : "\xB0");
     }
 }
 

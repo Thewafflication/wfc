@@ -568,6 +568,10 @@ bool keys_ended() {
     return state.input_ended && state.keys.empty();
 }
 
+bool keys_from_console() {
+    return session().console_input;
+}
+
 void present() {
     changed(true);
 }

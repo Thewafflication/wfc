@@ -107,6 +107,8 @@ const char* report_error(int number);
 // was taken.
 [[nodiscard]] std::optional<brun71::Key> next_key(int wait_ms);
 [[nodiscard]] bool keys_ended();
+// True when the keys come from the console, false from the standard input.
+[[nodiscard]] bool keys_from_console();
 // Shows the screen on the console now.
 void present();
 // wfc text as the bytes the screen holds (see the top of this file).
