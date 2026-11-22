@@ -13,6 +13,7 @@
 #include "wfc/brun71/input.hpp"
 #include "wfc/brun71/keyboard.hpp"
 #include "wfc/brun71/keyline.hpp"
+#include "wfc/brun71/keytrap.hpp"
 #include "wfc/brun71/sound.hpp"
 
 #ifdef WFC_BRUN71_HAS_CONSOLE
@@ -42,8 +43,10 @@ struct Session {
     bool live = false;           // the screen is shown on the console
     brun71::SoftKeys soft_keys;
     brun71::MusicPlayer music;
-    bool input_ended = false;  // the standard input is at its end
-    bool after_cr = false;     // the last byte read was a CR
+    brun71::KeyTraps traps;
+    Clock::time_point polled{};  // the console was last read for events
+    bool input_ended = false;    // the standard input is at its end
+    bool after_cr = false;       // the last byte read was a CR
     long empty_polls = 0;
     std::string pending;  // the second byte of an extended key for INPUT$
     bool dirty = false;
@@ -205,6 +208,46 @@ std::optional<brun71::Key> read_input_key(Session& state) {
     return brun71::Key{*byte, 0};
 }
 
+// Takes the keys the traps catch out of the buffer (ON KEY); returns how
+// many were taken.
+int take_trapped(Session& state) {
+    if (!state.traps.armed()) {
+        return 0;
+    }
+    int taken = 0;
+    const std::size_t count = state.keys.size();
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto key = state.keys.pop();
+        if (!key) {
+            break;
+        }
+        if (state.traps.take(*key)) {
+            ++taken;
+        } else {
+            static_cast<void>(state.keys.push(*key));
+        }
+    }
+    return taken;
+}
+
+// Moves the keys typed since the last call into the buffer (from the
+// console, or one key of the standard input when the buffer is empty), then
+// lets the traps take theirs. Returns how many the traps took.
+int fetch(Session& state) {
+#ifdef WFC_BRUN71_HAS_CONSOLE
+    if (state.console_input) {
+        state.host->poll(state.keys);
+        return take_trapped(state);
+    }
+#endif
+    if (state.keys.empty()) {
+        if (const auto key = read_input_key(state)) {
+            state.keys.push(*key);
+        }
+    }
+    return take_trapped(state);
+}
+
 }  // namespace
 
 bool active() noexcept {
@@ -262,16 +305,7 @@ std::string inkey() {
     Session& state = session();
     changed(true);
     if (state.keys.empty()) {
-#ifdef WFC_BRUN71_HAS_CONSOLE
-        if (state.console_input) {
-            state.host->poll(state.keys);
-        } else
-#endif
-        {
-            if (const auto key = read_input_key(state)) {
-                state.keys.push(*key);
-            }
-        }
+        static_cast<void>(fetch(state));
     }
     const auto key = state.keys.pop();
     if (!key) {
@@ -299,14 +333,14 @@ brun71::Key wait_key() {
 #ifdef WFC_BRUN71_HAS_CONSOLE
         if (state.console_input) {
             static_cast<void>(state.host->wait(100));
-            state.host->poll(state.keys);
+            static_cast<void>(fetch(state));
             continue;
         }
 #endif
-        if (const auto key = read_input_key(state)) {
-            return *key;
+        if (state.input_ended) {
+            throw brun71::BasicError(brun71::kInputPastEnd);
         }
-        throw brun71::BasicError(brun71::kInputPastEnd);
+        static_cast<void>(fetch(state));
     }
 }
 
@@ -410,16 +444,21 @@ void sleep(const double seconds) {
                 wait = static_cast<int>(left < 100 ? left : 100);
             }
             static_cast<void>(state.host->wait(wait));
-            state.host->poll(state.keys);
+            if (fetch(state) > 0) {
+                return;  // a trapped key ends it too
+            }
         }
         return;
     }
 #endif
     // The standard input: a key waiting there ends the sleep at once (and
-    // stays for INKEY$); when it has ended, the time passes.
-    if (const auto key = read_input_key(state)) {
-        state.keys.push(*key);
-        return;
+    // stays for INKEY$, unless a trap takes it); when it has ended, the time
+    // passes.
+    if (!state.input_ended) {
+        static_cast<void>(fetch(state));
+        if (!state.input_ended) {
+            return;
+        }
     }
     if (!forever) {
         std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
@@ -438,6 +477,10 @@ void key_line(const bool show) {
 
 void assign_key(const int key, const std::string_view text) {
     Session& state = session();
+    if (key >= 15 && key <= 25) {
+        state.traps.define(key, screen_bytes(text));
+        return;
+    }
     state.soft_keys.assign(key, screen_bytes(text), state.screen);
     changed();
 }
@@ -455,6 +498,37 @@ void redraw_keys() {
     if (active()) {
         session().soft_keys.redraw(session().screen);
     }
+}
+
+bool events_armed() noexcept {
+    return g_session != nullptr && g_session->traps.armed();
+}
+
+std::optional<int> next_key_event() {
+    Session& state = *g_session;
+    const auto now = Clock::now();
+    if (!state.console_input ||
+        now - state.polled >= std::chrono::milliseconds(10)) {
+        state.polled = now;
+        static_cast<void>(fetch(state));
+    }
+    return state.traps.next();
+}
+
+void key_trap(const int key, const brun71::TrapState trap_state) {
+    session().traps.set(key, trap_state);
+}
+
+void key_handler(const int key, const bool present) {
+    session().traps.handler(key, present);
+}
+
+void begin_event(const int key) {
+    session().traps.begin(key);
+}
+
+void end_event(const int key) {
+    session().traps.end(key);
 }
 
 std::string finish() {

@@ -100,6 +100,12 @@ bool Interpreter::recover_runtime_error(const std::size_t statement_start) {
 }
 
 bool Interpreter::parse_statement() {
+    // ON KEY (ADR-0011): a trapped key runs its handler before the next
+    // statement of the module level.
+    if (execute_ && pds::events_armed() && !in_procedure_body() &&
+        !run_key_events()) {
+        return false;
+    }
     while (true) {
         const auto start = offset_;
         if (parse_statement_once()) {
@@ -437,6 +443,9 @@ std::optional<bool> Interpreter::parse_error_handling_statement(
     }
     if (consume_keyword("on")) {
         skip_horizontal_whitespace();
+        if (const auto on_key = parse_on_key_statement(statement_offset)) {
+            return *on_key;
+        }
         if (!consume_keyword("error")) {
             // `On expr GoTo|GoSub label1, label2, ...`
             auto selector = parse_expression();

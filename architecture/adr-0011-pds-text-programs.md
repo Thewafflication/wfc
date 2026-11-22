@@ -5,7 +5,7 @@
 **Status:** Accepted by the owner as milestone M2 of `lib/wfc-brun71`
 (2026-11-21); the screen statements, `INKEY$`, `CSRLIN`, `POS`, `INPUT`,
 `LINE INPUT`, `INPUT$(n)`, `PRINT USING`, `SOUND`, `PLAY`, `SLEEP`,
-`BEEP` and `KEY` are implemented
+`BEEP`, `KEY` and `ON KEY` are implemented
 
 **Date:** 2026-11-21
 
@@ -99,6 +99,19 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
     redirected run is silent and spends no time. `SLEEP` ends on a key,
     which stays for `INKEY$`. `BEEP` sounds once the screen has started; a
     VB6 `Beep` stays silent as before.
+12. **ON KEY.** `ON KEY(n) GOSUB label` and `KEY(n) ON/OFF/STOP` (library
+    `keytrap.hpp`) keep the handlers' offsets in the interpreter. The keys a
+    trap catches are taken out of the key buffer whenever keys are read
+    (`INKEY$`, `INPUT`, `SLEEP`, the check below), so the program never sees
+    them. While a trap is armed, `parse_statement` checks for events before
+    each statement of the module level: it reads the keys typed meanwhile
+    (the console at most every 10 ms; the standard input one key when none
+    is waiting) and runs each waiting handler with `run_gosub`, the key
+    stopped until its `RETURN`. Events that come inside a `SUB` or
+    `FUNCTION` wait for the module level, a simplification of BRUN71's
+    checks everywhere. Native code does not compile `GOSUB`, so such a
+    program falls back to the interpreter; `KEY(n)` is not taken for an
+    array or procedure named `key`.
 
 ## Consequences
 
@@ -114,6 +127,7 @@ screen: `CLS`, `LOCATE`, `COLOR`, `WIDTH`, `VIEW PRINT`, `INKEY$`, `CSRLIN`,
   program's own `Sub Locate`; `ERROR$(5)` gives VB6's text.
 - `305-pds-input` and `306-pds-using` check the keyboard input and
   `PRINT USING` in both engines; `307-pds-sound-keys` the sound statements,
-  `SLEEP` and the soft keys; `308-pds-sleep-api` a declared `Sleep`.
-- Next in M2: `ON KEY(n) GOSUB` and `KEY(n) ON/OFF/STOP`, `WRITE` to the
-  screen; then M3, the User Interface Toolbox.
+  `SLEEP` and the soft keys; `308-pds-sleep-api` a declared `Sleep`;
+  `309-pds-on-key` key trapping.
+- Next in M2: `WRITE` to the screen, `SCREEN(row, col)` and the PDS
+  `ERROR$` texts; then M3, the User Interface Toolbox.

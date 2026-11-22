@@ -1087,6 +1087,15 @@ private:
     // A number for SOUND and SLEEP; error 13 for a String.
     [[nodiscard]] std::optional<double> pds_number(const Value& value,
                                                    std::size_t offset);
+    // ON KEY(n) GOSUB label | 0 (after ON); nullopt when the statement is
+    // another ON. KEY(n) ON | OFF | STOP (after KEY); nullopt when `key(n)`
+    // is something else (an array).
+    [[nodiscard]] std::optional<bool> parse_on_key_statement(
+        std::size_t statement_offset);
+    [[nodiscard]] std::optional<bool> parse_key_trap_statement(
+        std::size_t start, std::size_t statement_offset);
+    // Runs the handlers of the key events that are waiting.
+    [[nodiscard]] bool run_key_events();
     [[nodiscard]] bool parse_pds_input_targets(
         std::vector<std::pair<Value*, bool>>& targets);
     // `[a] [, [b] ...]`: the arguments of a PDS statement, each left out or
@@ -2537,6 +2546,8 @@ private:
     // Set by Return: the running GoSub routine ends (blocks unwind as for
     // Exit Sub, which is also set until run_gosub takes it back).
     bool gosub_return_requested_{};
+    // ON KEY(n) GOSUB: the offset of each key's handler (ADR-0011).
+    std::unordered_map<int, std::size_t> key_handlers_;
     bool exit_function_requested_{};
     // Rnd/Randomize generator state. 327680 is the verified default seed of
     // the reference VB6 6.00.8176 runtime's Rnd generator (confirmed against

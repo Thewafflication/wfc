@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "wfc/brun71/error.hpp"
+#include "wfc/brun71/keytrap.hpp"
 #include "wfc/brun71/screen.hpp"
 
 namespace wfc::detail::pds {
@@ -80,6 +81,18 @@ void key_line(bool show);
 void assign_key(int key, std::string_view text);
 void list_keys();
 void redraw_keys();
+
+// ON KEY (brun71 keytrap.hpp). KEY n, CHR$(flags) + CHR$(scan) for n 15-25
+// defines a trap key (assign_key). events_armed() is true while a trap is on
+// or stopped with a handler; then the interpreter asks next_key_event()
+// before each statement (reading the keys typed meanwhile) and runs the
+// handler between begin_event() and end_event() (its RETURN).
+[[nodiscard]] bool events_armed() noexcept;
+[[nodiscard]] std::optional<int> next_key_event();
+void key_trap(int key, brun71::TrapState state);
+void key_handler(int key, bool present);
+void begin_event(int key);
+void end_event(int key);
 
 // Ends the session: closes the console screen buffer and returns the text
 // of the screen (empty when there was no session, or it already ended).

@@ -317,6 +317,143 @@ std::optional<bool> Interpreter::parse_pds_input_statement(
     }
 }
 
+std::optional<bool> Interpreter::parse_key_trap_statement(
+    const std::size_t start, const std::size_t statement_offset) {
+    advance();  // (
+    skip_horizontal_whitespace();
+    const auto at = offset_;
+    auto number = parse_expression();
+    if (!number.has_value() || !resolve_default_value(*number, at)) {
+        return false;
+    }
+    skip_horizontal_whitespace();
+    if (!consume(')')) {
+        set_error("WFC0005", "expected closing parenthesis", offset_);
+        return false;
+    }
+    skip_horizontal_whitespace();
+    brun71::TrapState state{};
+    if (consume_keyword("on")) {
+        state = brun71::TrapState::on;
+    } else if (consume_keyword("off")) {
+        state = brun71::TrapState::off;
+    } else if (consume_keyword("stop")) {
+        state = brun71::TrapState::stopped;
+    } else {
+        offset_ = start;
+        return std::nullopt;
+    }
+    if (!execute_) {
+        return true;
+    }
+    const auto key = pds_integer(*number, at);
+    if (!key) {
+        return false;
+    }
+    try {
+        pds::key_trap(*key, state);
+    } catch (const brun71::BasicError& error) {
+        return pds_error(error.number(), statement_offset);
+    }
+    return true;
+}
+
+std::optional<bool> Interpreter::parse_on_key_statement(
+    const std::size_t statement_offset) {
+    const auto start = offset_;
+    if (!consume_keyword("key")) {
+        return std::nullopt;
+    }
+    skip_horizontal_whitespace();
+    if (at_end() || current() != '(' || procedures_.contains("key") ||
+        find_variable("key").value != nullptr) {
+        offset_ = start;
+        return std::nullopt;
+    }
+    advance();  // (
+    skip_horizontal_whitespace();
+    const auto at = offset_;
+    auto number = parse_expression();
+    if (!number.has_value() || !resolve_default_value(*number, at)) {
+        return false;
+    }
+    skip_horizontal_whitespace();
+    if (!consume(')')) {
+        set_error("WFC0005", "expected closing parenthesis", offset_);
+        return false;
+    }
+    skip_horizontal_whitespace();
+    if (!consume_keyword("gosub")) {
+        set_error("WFC0010", "expected GoSub", offset_);
+        return false;
+    }
+    skip_horizontal_whitespace();
+    // GOSUB 0 turns the handler off.
+    std::optional<std::string> label;
+    const auto label_offset = offset_;
+    if (!at_end() && current() == '0' &&
+        (offset_ + 1U >= source_.size() ||
+         !is_identifier_part(source_[offset_ + 1U]))) {
+        advance();
+    } else {
+        label = parse_label_name();
+        if (!label.has_value()) {
+            set_error("WFC0011", "expected label after GoSub", label_offset);
+            return false;
+        }
+    }
+    if (!execute_) {
+        return true;
+    }
+    const auto key = pds_integer(*number, at);
+    if (!key) {
+        return false;
+    }
+    std::size_t target = std::string::npos;
+    if (label) {
+        target = find_label(*label);
+        if (target == std::string::npos) {
+            set_error("WFC0301", "label not defined", label_offset);
+            return false;
+        }
+    }
+    try {
+        pds::key_handler(*key, label.has_value());
+    } catch (const brun71::BasicError& error) {
+        return pds_error(error.number(), statement_offset);
+    }
+    if (label) {
+        key_handlers_[*key] = target;
+    } else {
+        key_handlers_.erase(*key);
+    }
+    return true;
+}
+
+bool Interpreter::run_key_events() {
+    while (true) {
+        std::optional<int> key;
+        try {
+            key = pds::next_key_event();
+        } catch (const brun71::BasicError& error) {
+            return pds_error(error.number(), offset_);
+        }
+        if (!key) {
+            return true;
+        }
+        const auto handler = key_handlers_.find(*key);
+        if (handler == key_handlers_.end()) {
+            continue;
+        }
+        pds::begin_event(*key);
+        const bool ran = run_gosub(handler->second);
+        pds::end_event(*key);
+        if (!ran) {
+            return false;
+        }
+    }
+}
+
 std::optional<double> Interpreter::pds_number(const Value& value,
                                               const std::size_t offset) {
     if (std::holds_alternative<Empty>(value)) {
@@ -464,6 +601,11 @@ std::optional<bool> Interpreter::parse_pds_statement(
         (instance != nullptr && instance->native != nullptr) ||
         (!at_end() && (current() == '=' || current() == '.' ||
                        current() == '#' || current() == '('));
+    if (word == "key" && !at_end() && current() == '(' &&
+        !procedures_.contains("key") && find_variable("key").value == nullptr &&
+        (instance == nullptr || instance->native == nullptr)) {
+        return parse_key_trap_statement(start, statement_offset);
+    }
     if (not_a_statement) {
         offset_ = start;
         return std::nullopt;
