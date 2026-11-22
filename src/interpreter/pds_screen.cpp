@@ -161,7 +161,7 @@ std::string screen_text(const brun71::TextScreen& screen) {
 
 // Reads one byte of the standard input; nullopt at its end.
 std::optional<unsigned char> read_input_byte() {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(WFC_BRUN71_HAS_CONSOLE)
     HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
     unsigned char byte = 0;
     DWORD read = 0;
