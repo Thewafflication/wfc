@@ -1,0 +1,64 @@
+name: Library publish
+
+# Publishes the GitHub release of a WFC library from the packages its release
+# workflow built, signed and verified in the same run: a library repository's
+# .github/workflows/release.yml calls this after library-release.yml.
+#
+#   publish:
+#     needs: release
+#     if: ${{ !inputs.dry_run && startsWith(github.ref, 'refs/tags/') }}
+#     permissions: { contents: write }
+#     uses: Thewafflication/wfc/.github/workflows/library-publish.yml@master
+#     with: { library: adodb }
+#
+# The release holds the signed package, index.json (the WPM repository index)
+# and SHA256SUMS, so `wpm repo add <repository>/releases/latest/download` finds
+# the package.
+
+on:
+  workflow_call:
+    inputs:
+      library:
+        description: vbrun, mscomctl, mscomctl2, comdlg32, mswinsck or adodb
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wfc-${{ inputs.library }}-wpm-packages-${{ github.sha }}
+          path: out/packages
+
+      - name: Create the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          LIBRARY: ${{ inputs.library }}
+        run: |
+          ls -l out/packages
+          test -f out/packages/index.json
+          test -f out/packages/SHA256SUMS
+          (cd out/packages && sha256sum --check --ignore-missing SHA256SUMS)
+          base="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/latest/download"
+          cat > notes.md <<NOTES
+          The signed WPM package of wfc-$LIBRARY $TAG for every architecture,
+          with the index of the release (index.json) and SHA256SUMS.
+
+          \`\`\`
+          wpm repo add $base
+          wpm update
+          wpm install wfc-$LIBRARY
+          \`\`\`
+          NOTES
+          gh release create "$TAG" out/packages/* \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "wfc-$LIBRARY $TAG" --notes-file notes.md
