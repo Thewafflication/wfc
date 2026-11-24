@@ -133,6 +133,16 @@ void TextHost::mouse(const brun71::MouseEvent& event) {
     if (entry == nullptr) {
         return;
     }
+    // While a modal form runs, the mouse does nothing on the other forms;
+    // a press on another form makes it the active one.
+    const WindowId owner = form_of(window);
+    if (!modal_.empty() && owner != modal_.back()) {
+        return;
+    }
+    if (pressed && owner != active_form()) {
+        raise(owner);
+        queue_.push_back(UiEvent{owner, "UserFocus", {}});
+    }
     // The centre of the cell, in twips from the window's origin.
     const double x = (event.column - target->origin.left) * text::kCellWidth +
                      text::kCellWidth / 2.0;

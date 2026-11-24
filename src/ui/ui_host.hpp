@@ -394,6 +394,12 @@ public:
         static_cast<void>(ascii);
         return KeyResult::ignored;
     }
+    // A form shown with `Show vbModal` starts (true) or ends (false) its
+    // modal loop; while it runs, the host keeps the user on that form.
+    virtual void set_modal(WindowId form, bool modal) {
+        static_cast<void>(form);
+        static_cast<void>(modal);
+    }
     // Dispatches queued system messages without delivering events to the
     // caller (they stay queued), so painting is up to date.
     virtual void pump() {}

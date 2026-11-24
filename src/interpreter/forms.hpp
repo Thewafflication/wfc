@@ -60,6 +60,9 @@ struct FormRuntime {
     std::vector<std::pair<std::weak_ptr<InstanceData>, ui::WindowId>> dirty;
     // Answers the script queued for MsgBox / InputBox: (kind, text).
     std::deque<std::pair<std::string, std::string>> answers;
+    // The forms shown with `Show vbModal` whose loop is running, the
+    // innermost last: input to any other form is ignored, as in VB6.
+    std::vector<const InstanceData*> modal;
 };
 
 }  // namespace wfc::detail

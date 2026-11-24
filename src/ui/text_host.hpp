@@ -56,6 +56,7 @@ public:
         WindowId owner, const std::string& prompt, const std::string& title,
         const std::string& initial, bool& supported) override;
     void set_focus(WindowId window) override;
+    void set_modal(WindowId form, bool modal) override;
     [[nodiscard]] WindowId focus() const override;
     void set_timer(WindowId window, long interval_ms) override;
     void kill_timer(WindowId window) override;
@@ -130,6 +131,8 @@ private:
     [[nodiscard]] Placed place_form(WindowId id, const Window& form) const;
     void raise(WindowId form);
     void next_option(WindowId window, bool forward);
+    void next_form();
+    void focus_back(WindowId leaving);
     [[nodiscard]] KeyResult list_key(WindowId window, Window& list, long code,
                                      long shift, long ascii);
     [[nodiscard]] KeyResult scroll_key(WindowId window, const Window& bar,
@@ -169,6 +172,9 @@ private:
 
     std::map<WindowId, Window> windows_;
     std::vector<WindowId> order_;  // forms, the top one last
+    std::vector<WindowId> modal_;  // forms whose modal loop runs
+    // The control of each form that had the focus last.
+    std::map<WindowId, WindowId> last_focus_;
     std::map<WindowId, Timer> timers_;
     std::deque<UiEvent> queue_;
     std::vector<brun71::Cell> background_;

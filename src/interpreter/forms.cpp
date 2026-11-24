@@ -4243,6 +4243,18 @@ struct FormSupport {
             return true;
         }
         const std::string name = lower_text(event.name);
+        // While a modal form runs, the user's input to other forms is
+        // ignored.
+        if (!state.modal.empty() && state.modal.back() != form.get() &&
+            (name == "click" || name == "dblclick" || name == "keydown" ||
+             name == "keyup" || name == "keypress" || name == "mousedown" ||
+             name == "mouseup" || name == "mousemove" || name == "close" ||
+             name == "userselect" || name == "userscroll" ||
+             name == "userscrollby" || name == "userfocus" ||
+             name == "scripttype" || name == "comctlinput" ||
+             name == "dropon")) {
+            return true;
+        }
         if (name == "close") {
             return !source->is_form || unload(in, *form, 0, in.offset_);
         }
@@ -4295,8 +4307,11 @@ struct FormSupport {
         if (name == "userfocus") {
             // The user put the focus on a control (a host that draws its
             // controls itself, on a mouse click that raises no Click).
-            return source->is_form || focus_control(in, *form, source->name,
-                                                    source->index, in.offset_);
+            // On a form: the form becomes the active one, its first tab
+            // stop the focus.
+            return source->is_form ? move_focus(in, *form, nullptr, true)
+                                   : focus_control(in, *form, source->name,
+                                                   source->index, in.offset_);
         }
         if (name == "userscroll" || name == "userscrollby") {
             if (source->is_scroll() && !event.arguments.empty()) {
@@ -5105,6 +5120,19 @@ struct FormSupport {
     // When the input ends the user "closes" the form.
     [[nodiscard]] static bool run_modal(Interpreter& in, InstanceData& form) {
         auto* object = control_of(form);
+        auto& state = runtime(in);
+        const ui::WindowId window =
+            object != nullptr ? object->window : ui::kNoWindow;
+        state.modal.push_back(&form);
+        state.host->set_modal(window, true);
+        struct Done {
+            FormRuntime& state;
+            ui::WindowId window;
+            ~Done() {
+                state.modal.pop_back();
+                state.host->set_modal(window, false);
+            }
+        } done{state, window};
         while (object != nullptr && object->loaded && object->shown) {
             bool progressed = false;
             if (!step(in, progressed)) {

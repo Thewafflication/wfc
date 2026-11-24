@@ -135,6 +135,12 @@ Take option 3.
   bar, a text box's caret) posts `UserFocus`, which the form model now
   handles. `wfc build` keeps a `WfcTextUI=1` project a console program;
   `TC-MP0007-package-320-text-form` and `...-326-text-mouse` check it.
+- Several forms: while a `Show vbModal` loop runs, the form model ignores
+  the user's input to other forms (`FormRuntime::modal`) and tells the
+  host (`UiHost::set_modal`), so the text host keeps Ctrl+F6 and the
+  mouse on that form. The text host makes a form that is shown the
+  active one and gives the focus back when the active form goes away;
+  `UserFocus` on a form focuses its first tab stop.
 - Timers (step 3) run on the clock with keys from the console. With keys
   from the standard input they run on a virtual clock that the bytes
   0, 0 move to the next timer that is due, so corpus programs with timers

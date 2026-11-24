@@ -103,9 +103,13 @@ void TextHost::destroy_window(const WindowId window) {
     for (const WindowId child : children) {
         destroy_window(child);
     }
+    const bool form =
+        find(window) != nullptr && find(window)->parent == kNoWindow;
+    const bool had_focus = form && form_of(focus_) == kNoWindow;
     windows_.erase(window);
     timers_.erase(window);
     std::erase(order_, window);
+    last_focus_.erase(window);
     if (focus_ == window) {
         focus_ = kNoWindow;
     }
@@ -113,7 +117,27 @@ void TextHost::destroy_window(const WindowId window) {
         menu_path_.end()) {
         close_menus();
     }
+    if (had_focus) {
+        focus_back(window);
+    }
     changed();
+}
+
+// The active form went away (unloaded or hidden): the form now on top gets
+// the focus back on the control that had it last, as in VB6.
+void TextHost::focus_back(const WindowId leaving) {
+    for (auto it = order_.rbegin(); it != order_.rend(); ++it) {
+        if (*it == leaving || !shown(*it)) {
+            continue;
+        }
+        const auto last = last_focus_.find(*it);
+        const WindowId target =
+            last != last_focus_.end() && find(last->second) != nullptr
+                ? last->second
+                : *it;
+        queue_.push_back(UiEvent{target, "UserFocus", {}});
+        return;
+    }
 }
 
 void TextHost::set_bounds(const WindowId window, const Rect& bounds) {
@@ -131,9 +155,17 @@ Rect TextHost::bounds(const WindowId window) const {
 void TextHost::set_visible(const WindowId window, const bool visible) {
     if (Window* entry = find(window)) {
         if (visible && !entry->visible && entry->parent == kNoWindow) {
+            // A form that is shown becomes the active one, as in VB6.
             raise(window);
+            queue_.push_back(UiEvent{window, "UserFocus", {}});
         }
+        const bool hiding = !visible && entry->visible &&
+                            entry->parent == kNoWindow &&
+                            form_of(focus_) == window;
         entry->visible = visible;
+        if (hiding) {
+            focus_back(window);
+        }
         changed();
     }
 }
@@ -426,11 +458,42 @@ void TextHost::set_focus(const WindowId window) {
         previous->open = false;  // a combo box's list closes
     }
     focus_ = window;
+    last_focus_[form_of(window)] = window;
     if (const WindowId form = form_of(window);
         form != kNoWindow && (order_.empty() || order_.back() != form)) {
         raise(form);
     }
     changed();
+}
+
+void TextHost::set_modal(const WindowId form, const bool modal) {
+    if (modal) {
+        modal_.push_back(form);
+    } else if (!modal_.empty()) {
+        modal_.pop_back();
+    }
+}
+
+// Ctrl+F6 makes the next visible form (in the order they were created) the
+// active one, unless a modal form runs.
+void TextHost::next_form() {
+    if (!modal_.empty()) {
+        return;
+    }
+    std::vector<WindowId> forms;
+    for (const auto& [id, entry] : windows_) {
+        if (entry.parent == kNoWindow && entry.visible && entry.enabled) {
+            forms.push_back(id);
+        }
+    }
+    const auto at = std::find(forms.begin(), forms.end(), active_form());
+    if (forms.size() < 2U || at == forms.end()) {
+        return;
+    }
+    const WindowId next =
+        std::next(at) == forms.end() ? forms.front() : *std::next(at);
+    raise(next);
+    queue_.push_back(UiEvent{next, "UserFocus", {}});
 }
 
 WindowId TextHost::focus() const {
@@ -527,6 +590,10 @@ void TextHost::key(const int character, const int code) {
             queue_.push_back(UiEvent{form, "Close", {}});
             return;
         }
+        if (code == 99) {  // Ctrl+F6
+            next_form();
+            return;
+        }
         virtual_key = extended_key(code, shift);
     } else {
         // KeyAscii is ANSI: a code page 437 character above 127 becomes
@@ -571,9 +638,12 @@ std::optional<UiEvent> TextHost::next_event(const bool wait) {
             return std::nullopt;
         }
         if (pds::keys_ended()) {
-            // The program's input is over: what it shows now stays on the
-            // screen while the forms are closed.
-            frozen_ = true;
+            // The program's input is over: once it waits for input, what it
+            // shows stays on the screen while the forms are closed. (DoEvents
+            // does not wait: the program goes on and the screen with it.)
+            if (wait) {
+                frozen_ = true;
+            }
             return std::nullopt;
         }
         int slice = wait ? kWaitSlice : 0;
