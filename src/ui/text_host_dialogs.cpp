@@ -475,18 +475,6 @@ int TextHost::run_dialog(Dialog& dialog, const int cancel) {
             changed();
             repaint();
         }
-        if (const auto click = pds::next_mouse()) {
-            // A button released over a button chooses it.
-            if (click->kind == brun71::MouseEvent::Kind::up &&
-                (click->buttons & brun71::kLeftButton) != 0) {
-                const int button = dialog_click(click->row, click->column);
-                if (button >= 0) {
-                    result = button;
-                    break;
-                }
-            }
-            continue;
-        }
         const auto pressed = pds::next_key(text::kWaitSlice);
         if (!pressed) {
             if (frozen_ || pds::keys_ended()) {
@@ -497,8 +485,18 @@ int TextHost::run_dialog(Dialog& dialog, const int cancel) {
         }
         const int character = pressed->character;
         const int code = pressed->code;
-        if (character == 0 && code == 255) {
-            continue;  // a mouse record
+        if (character == 0 && code == brun71::kMouseKey) {
+            // A mouse event: a button released over a button chooses it.
+            const auto click = pds::next_mouse();
+            if (click && click->kind == brun71::MouseEvent::Kind::up &&
+                (click->buttons & brun71::kLeftButton) != 0) {
+                const int button = dialog_click(click->row, click->column);
+                if (button >= 0) {
+                    result = button;
+                    break;
+                }
+            }
+            continue;
         }
         if (character == 9 || (character == 0 && code == 15)) {
             step(character == 9 ? 1 : -1);

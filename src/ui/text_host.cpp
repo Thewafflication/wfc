@@ -523,9 +523,6 @@ void TextHost::key(const int character, const int code) {
             tick();
             return;
         }
-        if (code == 255) {
-            return;  // a mouse record; its event comes from next_mouse()
-        }
         if (code == 107) {
             queue_.push_back(UiEvent{form, "Close", {}});
             return;
@@ -588,11 +585,14 @@ std::optional<UiEvent> TextHost::next_event(const bool wait) {
             slice = std::min(
                 slice, static_cast<int>(std::max<long long>(left.count(), 0)));
         }
-        if (const auto event = pds::next_mouse()) {
-            mouse(*event);
-            continue;
-        }
         if (const auto pressed = pds::next_key(slice)) {
+            if (pressed->character == 0 && pressed->code == brun71::kMouseKey) {
+                // A mouse event, in its place among the keys.
+                if (const auto event = pds::next_mouse()) {
+                    mouse(*event);
+                }
+                continue;
+            }
             key(pressed->character, pressed->code);
             continue;
         }
